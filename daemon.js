@@ -67,6 +67,9 @@ try { const w = fs.readFileSync(WS_FILE, 'utf8').trim(); if (w) { state.workspac
 // Persist + restore agent records (incl. transcript_path/session) so token attribution survives a restart.
 const AGENTS_FILE = path.join(BASE, 'agents.json');
 try { const a = JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf8')); if (a && typeof a === 'object') state.agents = a; } catch { /* none yet */ }
+// Post-restart the daemon can't vouch for any agent it "remembers" as running — demote them so
+// the liveness sweep can reclaim their stale claims; a genuinely-live agent re-asserts on its next touch.
+for (const x of Object.values(state.agents)) if (x && x.state === 'running') x.state = 'unknown';
 
 // SSE: push a "changed" event to connected dashboards on every mutation (live updates without polling).
 const sseClients = new Set();
@@ -81,6 +84,40 @@ let loop = { active: false, iterations: 0, spent: 0, baseline: 0, real: false, s
 try { Object.assign(loop, JSON.parse(fs.readFileSync(LOOP_FILE, 'utf8'))); } catch { /* fresh */ }
 function saveLoop() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(LOOP_FILE, JSON.stringify(loop)); } catch { /* best effort */ } }
 function saveAgents() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(AGENTS_FILE, JSON.stringify(state.agents)); } catch { /* best effort */ } }
+
+// --- agent liveness: never leave a phantom in_progress claim ---------------------------------
+// releaseClaim clears a task's status OVERRIDE (not a terminal state) so it re-derives to
+// ready/not_ready, recording why. Returns true if it actually released an in_progress claim.
+function releaseClaim(key, reason) {
+  if (state.overlay.status[key] !== 'in_progress') return false;
+  delete state.overlay.status[key];
+  state.overlay.notes[key] = String(reason).slice(0, 280);
+  // Also revert the native status (start_task wrote it to in_progress via write-through); otherwise
+  // the task would still derive as in_progress from its native file. 'pending' = available to retry.
+  const i = key.indexOf('/');
+  if (i > 0) { try { nt.writeStatus(key.slice(0, i), key.slice(i + 1), 'pending'); } catch { /* best effort */ } }
+  return true;
+}
+// Sweep abandoned claims: an in_progress task whose worker isn't running AND whose status hasn't
+// changed for stale_minutes is treated as dead (kill / crash / idle / cross-session / daemon
+// restart) and released. Authoritative liveness — survives restart (overlay is persisted) and
+// needs no stop hook to fire. Returns true if anything was released.
+function sweepStaleClaims() {
+  const mins = state.overlay.config.stale_minutes ?? 10;   // ?? not || so an explicit 0 is honored
+  const cutoff = Date.now() - mins * 60000;
+  let dirty = false;
+  for (const [key, st] of Object.entries(state.overlay.status)) {
+    if (st !== 'in_progress') continue;
+    const agentId = state.overlay.assignee[key];
+    const agent = agentId ? state.agents[agentId] : null;
+    if (agent && agent.state === 'running') continue;          // live worker — leave it alone
+    const ts = state.overlay.timestamps[key];
+    if (ts && Date.parse(ts.lastChanged) > cutoff) continue;   // changed recently — give it time
+    if (releaseClaim(key, `auto-released: worker '${agentId || '?'}' not running (stale >${mins}m)`)) dirty = true;
+  }
+  if (dirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
+  return dirty;
+}
 
 // Cooperative-stop probe: does a stop/cancel apply to `session`'s in-flight claim(s)? Returns the
 // stop descriptor or null. Single source of truth shared by the /should-stop route AND the in-process
@@ -218,6 +255,9 @@ function taskTokens(key, session, dedicated) {
 // Build the graph for one workspace: its task nodes + any ghost stubs they reference.
 function buildGraph(ws) {
   if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], []) };
+  // Release dead/abandoned claims BEFORE reading native, busting the aggregate cache so a reverted
+  // native status is reflected in this same build (not one poll later).
+  if (ws === state.workspace && sweepStaleClaims()) { cache.agg.delete(ws); cache.aggAt.delete(ws); }
   const R = makeResolver();
   const native = aggregateCached(ws);
   const ghostMap = {}; // "ws|key" -> ghost stub
@@ -429,6 +469,7 @@ const handler = async (req, res) => {
       const b = await readBody(req);
       if (b.require_review != null) state.overlay.config.require_review = !!b.require_review;
       if (b.self_plan != null) state.overlay.config.self_plan = !!b.self_plan; // opt-in self-scheduling (default off)
+      if (b.stale_minutes != null) state.overlay.config.stale_minutes = Number(b.stale_minutes); // liveness sweep threshold (min)
       // Escalation toggles: which triggers warrant pausing for the user. All default ON; pass an
       // `escalation` object to tune any subset (the judge/agent honors these before request_guidance).
       if (b.escalation && typeof b.escalation === 'object') {
@@ -781,9 +822,16 @@ const handler = async (req, res) => {
       const a = state.agents[b.agent_id];
       if (!a) return send(res, 404, { ok: false, error: 'unknown agent' });
       a.state = 'done'; a.endedAt = now();
+      // Cascade: release any in_progress task this agent still holds (it stopped without completing),
+      // so the claim doesn't linger as a phantom in_progress. Fixes the stale-status bug directly.
+      let released = 0;
+      for (const [key, st] of Object.entries(state.overlay.status))
+        if (st === 'in_progress' && state.overlay.assignee[key] === b.agent_id
+            && releaseClaim(key, `auto-released: agent '${b.agent_id}' stopped without completing`)) released++;
+      if (released) overlayStore.save(state.workspace, state.overlay);
       saveAgents();
       notifyChange();
-      return send(res, 200, { ok: true });
+      return send(res, 200, { ok: true, released });
     }
 
     // Cross-session visibility: list every known agent with task/session/workspace/startedAt and

@@ -13,3 +13,4 @@ loop.json
 # OS / deps
 node_modules/
 .DS_Store
+agents.json
