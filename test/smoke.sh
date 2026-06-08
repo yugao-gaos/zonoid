@@ -127,11 +127,29 @@ chk "loop self-exits on stop"   "$(g next-action | jq -r .reason)"              
 chk "loop.active cleared"       "$(g loop/status | jq -r .active)"               "false"
 rm -rf "$SST" "$SSP/$SS.jsonl"
 
+# git/merge: the load-bearing merge step of the HOLD-MERGE judge loop. Init the workspace as a repo
+# (current main behavior: workspace == repo), branch an attempt, commit a change on the attempt
+# branch in its worktree, then POST /git/merge -> {merged:true} and the change lands on the base.
+MK=$S/merge
+chk "git_init workspace ok"     "$(jpost git/init '{}' | jq -r '.head!=null')"   "true"
+WT=$(jpost git/worktree "$(printf '{"key":"%s"}' "$MK")" | jq -r .worktree)
+chk "attempt worktree created"  "$([ -d "$WT" ] && echo yes || echo no)"         "yes"
+# make + commit a change on the attempt branch (shell git in the isolated worktree)
+echo 'landed-by-merge' > "$WT/merged-file.txt"
+git -C "$WT" add merged-file.txt >/dev/null 2>&1; git -C "$WT" commit -m 'attempt: add merged-file' >/dev/null 2>&1
+chk "merge attempt -> merged"   "$(jpost git/merge "$(printf '{"key":"%s"}' "$MK")" | jq -r .merged)" "true"
+chk "change landed on base"     "$([ -f "$WS/merged-file.txt" ] && echo yes || echo no)" "yes"
+# negative: a never-branched key -> {merged:false} with a reason, no throw
+chk "merge missing branch false" "$(jpost git/merge "$(printf '{"key":"%s"}' "$S/never")" | jq -r .merged)" "false"
+chk "missing branch has reason"  "$(jpost git/merge "$(printf '{"key":"%s"}' "$S/never")" | jq -r '.reason!=null')" "true"
+# clean up the attempt worktree+branch we created
+jpost git/worktree/remove "$(printf '{"key":"%s"}' "$MK")" >/dev/null
+
 # format-drift detection
 echo 'NOT JSON' > "$T/3.json"; sleep 1.7
 chk "drift -> health unhealthy" "$(g health | jq -r .native_format.healthy)"     "false"
 
 stop
-rm -rf "$PROJ" "$T" "$CLAUDE_PLUGIN_DATA"
+rm -rf "$PROJ" "$T" "$CLAUDE_PLUGIN_DATA" "$WS"
 echo "-----"; echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
