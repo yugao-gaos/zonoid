@@ -96,6 +96,10 @@ function decideAction() {
   if (ready.length) return { ...base, action: 'spawn', tasks: ready.slice(0, loop.config.batch).map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: loop.config.minPoll };
   if (running > 0) return { ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(loop.config.maxPoll, loop.config.minPoll * 2) };
   if (ghostWait > 0) return { ...base, action: 'idle', reason: 'waiting on cross-workspace dependencies', next_poll_seconds: loop.config.maxPoll };
+  // DAG drained. Normally we stop. But if self-planning is opted in AND budget remains, hand the
+  // agent a 'plan' tick instead — the planner subagent reads the learnings digest and proposes new
+  // initiatives, keeping the loop alive (do NOT clear loop.active). Hard caps above still win.
+  if (state.overlay.config.self_plan && remaining > 0) return { ...base, action: 'plan', reason: 'DAG drained; self-planning a next initiative', next_poll_seconds: loop.config.minPoll };
   loop.active = false;
   return { ...base, action: 'stop', reason: 'DAG drained (nothing ready, running, or externally pending)' };
 }
@@ -152,12 +156,29 @@ function makeResolver() {
   return { loadWs, depRefs, effective, label };
 }
 
+// Per-task token total. Prefer the assignee agent's own transcript (accurate). Else fall back to
+// the task's session transcript (same dir as the main transcript) — but ONLY when that session maps
+// to a single task, so we never paint the same conversation-wide total across many tasks. null = unknown.
+function taskTokens(key, session, dedicated) {
+  const assignee = state.overlay.assignee[key];
+  const agent = assignee ? state.agents[assignee] : null;
+  let tp = agent && agent.transcript_path;
+  if (!tp && dedicated && session && state.mainTranscript) {
+    tp = path.join(path.dirname(state.mainTranscript), `${session}.jsonl`);
+  }
+  if (!tp) return null;
+  try { if (!fs.existsSync(tp)) return null; } catch { return null; }
+  const u = usageCached(tp);
+  return u && typeof u.total === 'number' ? u.total : null;
+}
+
 // Build the graph for one workspace: its task nodes + any ghost stubs they reference.
 function buildGraph(ws) {
   if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], []) };
   const R = makeResolver();
   const native = aggregateCached(ws);
   const ghostMap = {}; // "ws|key" -> ghost stub
+  const sessionCount = {}; for (const t of native) sessionCount[t.session] = (sessionCount[t.session] || 0) + 1;
 
   // Stamp lifecycle timestamps in OUR own overlay (current workspace only — the writable store).
   // firstSeen: set once, never overwritten. lastChanged: set on first sight + whenever the
@@ -184,7 +205,7 @@ function buildGraph(ws) {
       if (!ts) { ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; state.overlay.timestamps[t.key] = ts; tsDirty = true; }
       else if (ts.lastStatus !== status) { ts.lastChanged = now(); ts.lastStatus = status; tsDirty = true; }
     }
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, status, note: state.overlay.notes[t.key] || '', agent_id: state.overlay.assignee[t.key] || null, summary: state.overlay.summaries[t.key] || '', git: state.overlay.git[t.key] || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null };
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, status, note: state.overlay.notes[t.key] || '', agent_id: state.overlay.assignee[t.key] || null, summary: state.overlay.summaries[t.key] || '', git: state.overlay.git[t.key] || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1) };
   });
   if (tsDirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
@@ -312,6 +333,34 @@ const handler = async (req, res) => {
       return send(res, 200, { ready: g.tasks.filter((t) => t.status === 'ready').map((t) => ({ key: t.id, label: t.label })) });
     }
 
+    // Read-only learnings digest: what the graph has accumulated, for a self-planner to read on a
+    // 'plan' tick. Three buckets — verdicts (attempt judgements), failures (failed/canceled tasks),
+    // recent (recent completions' summaries). Reads the current workspace overlay/graph; no writes.
+    if (p === '/learnings') {
+      const ws = u.searchParams.get('workspace') || state.workspace;
+      const g = buildGraph(ws);
+      const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+      // (a) Verdicts: knowledge items whose value parses to an object carrying a `winner` field.
+      const verdicts = [];
+      for (const [key, items] of Object.entries(ov.knowledge || {})) {
+        for (const it of (items || [])) {
+          let v = it && it.value;
+          if (typeof v === 'string') { try { v = JSON.parse(v); } catch { v = null; } }
+          if (v && typeof v === 'object' && 'winner' in v) verdicts.push({ key, verdict: v });
+        }
+      }
+      // (b) Failures: failed/canceled task labels + notes (most recent first by lastChanged).
+      const byChanged = (a, b) => String((ov.timestamps[b.id] || {}).lastChanged || '').localeCompare(String((ov.timestamps[a.id] || {}).lastChanged || ''));
+      const failures = g.tasks.filter((t) => t.status === 'failed' || t.status === 'canceled')
+        .sort(byChanged).slice(0, 25)
+        .map((t) => ({ key: t.id, label: t.label, status: t.status, note: ov.notes[t.id] || '' }));
+      // (c) Recent: recently-done tasks with their summary (the interface other work pulls).
+      const recent = g.tasks.filter((t) => t.status === 'done' && (ov.summaries[t.id] || ''))
+        .sort(byChanged).slice(0, 25)
+        .map((t) => ({ key: t.id, label: t.label, summary: ov.summaries[t.id] || '' }));
+      return send(res, 200, { verdicts: verdicts.slice(0, 25), failures, recent });
+    }
+
     // Read-only in_progress claims (for the PreToolUse gate hook). Optional ?session= filters to
     // claims whose task belongs to that conversation; `claimed` reflects the filtered set.
     if (p === '/active-claim') {
@@ -326,6 +375,7 @@ const handler = async (req, res) => {
     if (p === '/config' && m === 'POST') {
       const b = await readBody(req);
       if (b.require_review != null) state.overlay.config.require_review = !!b.require_review;
+      if (b.self_plan != null) state.overlay.config.self_plan = !!b.self_plan; // opt-in self-scheduling (default off)
       overlayStore.save(state.workspace, state.overlay);
       return send(res, 200, { ok: true, config: state.overlay.config });
     }
