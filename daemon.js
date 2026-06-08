@@ -233,18 +233,49 @@ function makeResolver() {
   return { loadWs, depRefs, effective, label };
 }
 
-// Per-task token total. Prefer the assignee agent's own transcript (accurate). Else fall back to
-// the task's session transcript (same dir as the main transcript) — but ONLY when that session maps
-// to a single task, so we never paint the same conversation-wide total across many tasks. null = unknown.
-function taskTokens(key, session, dedicated) {
-  const assignee = state.overlay.assignee[key];
-  const agent = assignee ? state.agents[assignee] : null;
-  let tp = agent && agent.transcript_path;
-  if (!tp && agent && agent.session && state.mainTranscript) {           // worker registered its own session transcript
-    tp = path.join(path.dirname(state.mainTranscript), `${agent.session}.jsonl`);
+// Find the transcript of the HARNESS agent that actually ran a task, by time-window correlation.
+// The assignee recorded on a task is a LOGICAL worker name (what start_task passed); but the agent
+// record that carries transcript_path is registered by the SubagentStart hook under a random harness
+// agent_id, so the two never match by key. Correlate instead: among agents in the SAME session, pick
+// the one whose [startedAt, endedAt] interval overlaps the task's in_progress claim window. The claim
+// window is bounded by the overlay timestamps (firstSeen..lastChanged) of the in_progress claim.
+// Returns the best-overlapping agent's transcript_path, or null. Pure on `st` so it's unit-testable.
+function harnessTranscriptForTask(st, key, session) {
+  if (!session) return null;
+  const ts = st.overlay.timestamps && st.overlay.timestamps[key];
+  if (!ts) return null;
+  // Claim window: from when the task was first seen to its last status change (covers the in_progress
+  // span). Parse defensively — a missing/unparsable bound widens the window rather than rejecting.
+  const winStart = Date.parse(ts.firstSeen);
+  const winEnd = Number.isNaN(Date.parse(ts.lastChanged)) ? Date.now() : Date.parse(ts.lastChanged);
+  if (Number.isNaN(winStart)) return null;
+  let best = null, bestOverlap = -1;
+  for (const a of Object.values(st.agents || {})) {
+    if (!a || a.session !== session || !a.transcript_path) continue;     // same session + has a transcript
+    const aStart = Date.parse(a.startedAt);
+    if (Number.isNaN(aStart)) continue;
+    const aEnd = a.endedAt && !Number.isNaN(Date.parse(a.endedAt)) ? Date.parse(a.endedAt) : Date.now(); // still running -> now
+    const overlap = Math.min(winEnd, aEnd) - Math.max(winStart, aStart);  // >=0 means the intervals touch
+    if (overlap >= 0 && overlap > bestOverlap) { best = a.transcript_path; bestOverlap = overlap; }
   }
-  if (!tp && dedicated && session && state.mainTranscript) {             // session dedicated to one task
-    tp = path.join(path.dirname(state.mainTranscript), `${session}.jsonl`);
+  return best;
+}
+
+// Per-task token total. Prefer the assignee agent's own transcript (accurate). Else fall back to a
+// same-session harness agent whose run window overlaps the task's claim (the SubagentStart-registered
+// record that actually holds transcript_path; the assignee key never matches it directly). Else fall
+// back to the task's session transcript — but ONLY when that session maps to a single task, so we
+// never paint the same conversation-wide total across many tasks. null = unknown.
+function taskTokens(key, session, dedicated, st = state) {
+  const assignee = st.overlay.assignee[key];
+  const agent = assignee ? st.agents[assignee] : null;
+  let tp = agent && agent.transcript_path;
+  if (!tp && agent && agent.session && st.mainTranscript) {              // worker registered its own session transcript
+    tp = path.join(path.dirname(st.mainTranscript), `${agent.session}.jsonl`);
+  }
+  if (!tp) tp = harnessTranscriptForTask(st, key, session);             // time-window correlation fallback
+  if (!tp && dedicated && session && st.mainTranscript) {                // session dedicated to one task
+    tp = path.join(path.dirname(st.mainTranscript), `${session}.jsonl`);
   }
   if (!tp) return null;
   try { if (!fs.existsSync(tp)) return null; } catch { return null; }
@@ -886,18 +917,24 @@ const handler = async (req, res) => {
   }
 };
 
-const server = http.createServer(handler);
-server.listen(PORT, '127.0.0.1', () => process.stdout.write(`orchestrator daemon on http://127.0.0.1:${PORT}\n`));
+// Export pure helpers for unit tests (no port binding). When run as the main module the daemon
+// still starts its listeners below; when require()d (tests) it just exposes the functions.
+module.exports = { taskTokens, harnessTranscriptForTask };
 
-// Optional HTTPS listener for the custom-connector path (needs a locally-trusted cert — run
-// scripts/setup-https.sh, which uses mkcert). Off unless cert + key exist. Then connect a
-// custom connector to https://localhost:<ORCH_HTTPS_PORT>/mcp .
-const HTTPS_PORT = process.env.ORCH_HTTPS_PORT ? Number(process.env.ORCH_HTTPS_PORT) : 8788;
-const CERT = process.env.ORCH_TLS_CERT || path.join(BASE, 'certs', 'cert.pem');
-const KEY = process.env.ORCH_TLS_KEY || path.join(BASE, 'certs', 'key.pem');
-try {
-  if (fs.existsSync(CERT) && fs.existsSync(KEY)) {
-    require('https').createServer({ cert: fs.readFileSync(CERT), key: fs.readFileSync(KEY) }, handler)
-      .listen(HTTPS_PORT, '127.0.0.1', () => process.stdout.write(`orchestrator HTTPS on https://127.0.0.1:${HTTPS_PORT}\n`));
-  }
-} catch (e) { process.stderr.write(`HTTPS listener skipped: ${e.message}\n`); }
+if (require.main === module) {
+  const server = http.createServer(handler);
+  server.listen(PORT, '127.0.0.1', () => process.stdout.write(`orchestrator daemon on http://127.0.0.1:${PORT}\n`));
+
+  // Optional HTTPS listener for the custom-connector path (needs a locally-trusted cert — run
+  // scripts/setup-https.sh, which uses mkcert). Off unless cert + key exist. Then connect a
+  // custom connector to https://localhost:<ORCH_HTTPS_PORT>/mcp .
+  const HTTPS_PORT = process.env.ORCH_HTTPS_PORT ? Number(process.env.ORCH_HTTPS_PORT) : 8788;
+  const CERT = process.env.ORCH_TLS_CERT || path.join(BASE, 'certs', 'cert.pem');
+  const KEY = process.env.ORCH_TLS_KEY || path.join(BASE, 'certs', 'key.pem');
+  try {
+    if (fs.existsSync(CERT) && fs.existsSync(KEY)) {
+      require('https').createServer({ cert: fs.readFileSync(CERT), key: fs.readFileSync(KEY) }, handler)
+        .listen(HTTPS_PORT, '127.0.0.1', () => process.stdout.write(`orchestrator HTTPS on https://127.0.0.1:${HTTPS_PORT}\n`));
+    }
+  } catch (e) { process.stderr.write(`HTTPS listener skipped: ${e.message}\n`); }
+}
