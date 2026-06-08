@@ -1,0 +1,30 @@
+{
+  "_comment": "Merge this into ~/.claude/settings.json to activate the orchestrator. This installs an always-on UserPromptSubmit classifier hook, SubagentStart/Stop observability hooks, a SessionStart daemon launcher, and a status line. Remove or set \"disableAllHooks\": true to turn off.",
+  "_comment_auth": "Optional bearer-token auth: export ORCH_TOKEN=<secret> in your shell env (or put the token in <BASE>/token) before the daemon starts. When set, /mcp + write endpoints (/reset, /overlay/*, /loop/start|stop) require it; reads stay open. Recommended whenever you expose the daemon beyond localhost (e.g. via a tunnel). Leave unset (default) for the open, back-compatible behavior.",
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/orchestrator/hooks/statusline.sh",
+    "refreshInterval": 2
+  },
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "~/.claude/orchestrator/hooks/start-daemon.sh", "timeout": 5 }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "~/.claude/orchestrator/hooks/classify.sh", "timeout": 10 }] }
+    ],
+    "SubagentStart": [
+      { "hooks": [{ "type": "command", "command": "~/.claude/orchestrator/hooks/subagent-start.sh" }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "~/.claude/orchestrator/hooks/subagent-stop.sh" }] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Write|Edit", "hooks": [{ "type": "command", "command": "~/.claude/orchestrator/hooks/orch-gate.sh" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Agent|Task", "hooks": [{ "type": "command", "command": "~/.claude/orchestrator/hooks/post-agent.sh" }] },
+      { "matcher": "TaskCreate", "hooks": [{ "type": "command", "command": "~/.claude/orchestrator/hooks/suggest-links.sh" }] }
+    ]
+  }
+}

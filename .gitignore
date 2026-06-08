@@ -1,0 +1,15 @@
+# Secrets — never commit
+certs/
+token
+
+# Per-machine runtime state (not source)
+overlay/
+sessions/
+worktrees/
+workspace
+loop.json
+*.log
+
+# OS / deps
+node_modules/
+.DS_Store

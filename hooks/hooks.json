@@ -1,0 +1,23 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/start-daemon.sh", "timeout": 8 }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/classify.sh", "timeout": 10 }] }
+    ],
+    "SubagentStart": [
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-start.sh" }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-stop.sh" }] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Write|Edit", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/orch-gate.sh" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Agent|Task", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-agent.sh" }] },
+      { "matcher": "TaskCreate", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/suggest-links.sh" }] }
+    ]
+  }
+}
