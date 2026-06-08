@@ -13,6 +13,7 @@
       { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/subagent-stop.sh" }] }
     ],
     "PreToolUse": [
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/orch-stop.sh" }] },
       { "matcher": "Write|Edit", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/orch-gate.sh" }] }
     ],
     "PostToolUse": [

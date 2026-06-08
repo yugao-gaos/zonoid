@@ -44,6 +44,56 @@ chk "b ready after a done"      "$(g ready | jq -r '.ready[0].label')"          
 jpost overlay/status "$(b_status "$S/2" ready)" >/dev/null; sleep 0.5   # mutation triggers SSE; leaves b ready
 chk "SSE pushed on change"      "$([ "$(grep -c 'data: changed' /tmp/orch-sse.out)" -ge 2 ] && echo yes || echo no)" "yes"
 
+# edge add then remove (re-parallelize): add a context edge, then remove it
+jpost overlay/edge "$(printf '{"from":"%s","to":"%s","kind":"context"}' "$S/1" "$S/2")" >/dev/null
+chk "edge added"                "$(g state | jq '.edges|length')"               "1"
+chk "edge removed"              "$(jpost overlay/edge/remove "$(printf '{"from":"%s","to":"%s"}' "$S/1" "$S/2")" | jq -r .removed)" "1"
+chk "edges empty after remove"  "$(g state | jq '.edges|length')"               "0"
+
+# concurrency: cancel-wins-over-heartbeat + optimistic compare-and-set (409 on stale)
+jpost overlay/status "$(b_status "$S/2" canceled)" >/dev/null
+chk "cancel sets flag"          "$(g 'task/detail?key='"$S"'/2' | jq -r '.cancel_requested!=null')" "true"
+chk "heartbeat blocked by cancel" "$(jpost overlay/status "$(b_status "$S/2" in_progress)" | jq -r '.error!=null')" "true"
+chk "still canceled"            "$(g 'task/detail?key='"$S"'/2' | jq -r '.task.status')" "canceled"
+chk "force reopens cancel"      "$(jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","force":true}' "$S/2")" | jq -r .ok)" "true"
+chk "cancel flag cleared"       "$(g 'task/detail?key='"$S"'/2' | jq -r '.cancel_requested==null')" "true"
+chk "CAS stale -> 409"          "$(jpost overlay/status "$(printf '{"key":"%s","status":"failed","expected_status":"canceled"}' "$S/2")" | jq -r '.error!=null')" "true"
+chk "CAS match -> ok"           "$(jpost overlay/status "$(printf '{"key":"%s","status":"failed","expected_status":"in_progress"}' "$S/2")" | jq -r .ok)" "true"
+# restore $S/2 to ready so the loop/spawn section below still sees a spawnable task
+jpost overlay/status "$(b_status "$S/2" ready)" >/dev/null
+
+# cross-session agent visibility + cooperative stop
+jpost agent/start "$(printf '{"agent_id":"w1","task":"%s","session":"%s"}' "$S/2" "$S")" >/dev/null
+chk "agent listed"              "$(g agents | jq -r '.agents[]|select(.agent_id=="w1")|.task')" "$S/2"
+chk "no stop flag yet"          "$(g agents | jq -r '.agents[]|select(.agent_id=="w1")|.stop_requested')" "null"
+chk "stop by task_key resolves" "$(jpost agent/stop "$(printf '{"task_key":"%s"}' "$S/2")" | jq -r '.agent_id')" "w1"
+chk "stop flag set"             "$(g 'agent/stop-requested?agent_id=w1' | jq -r '.stop_requested!=null')" "true"
+chk "stop unknown task -> 404"  "$(jpost agent/stop '{"task_key":"no/such"}' | jq -r '.error!=null')" "true"
+
+# safe claim (CAS on ownership): canceled refused, double-claim refused, force takes over
+CK="$S/cas"
+jpost overlay/status "$(b_status "$CK" canceled)" >/dev/null
+chk "claim canceled refused"    "$(jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"ax"}' "$CK")" | jq -r '.error!=null')" "true"
+CK2="$S/cas2"
+chk "fresh claim ok"            "$(jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"ax"}' "$CK2")" | jq -r .ok)" "true"
+chk "double-claim refused"      "$(jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"ay"}' "$CK2")" | jq -r '.error!=null')" "true"
+chk "re-claim same agent ok"    "$(jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"ax"}' "$CK2")" | jq -r .ok)" "true"
+chk "force takeover ok"         "$(jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"ay","force":true}' "$CK2")" | jq -r .ok)" "true"
+
+# enforced cooperative-stop: /should-stop maps session->task->agent; PreToolUse hook denies (exit 2)
+HK="$PWD/hooks/orch-stop.sh"; HS=$S/hook; HA=hookw
+jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"%s"}' "$HS" "$HA")" >/dev/null
+# associate the claim with our smoke session by writing it onto a native task in session $S
+echo '{"id":"hook","subject":"h","status":"in_progress","blockedBy":[]}' > "$T/hook.json"; sleep 1.2
+chk "should-stop false (clean)" "$(g "should-stop?session=$S" | jq -r .stop)"           "false"
+chk "hook exit0 normal session" "$(printf '{"session_id":"%s","tool_name":"Bash"}' "$S" | ORCH_PORT=$PORT bash "$HK" >/dev/null 2>&1; echo $?)" "0"
+jpost agent/stop "$(printf '{"agent_id":"%s"}' "$HA")" >/dev/null
+chk "should-stop true (flagged)" "$(g "should-stop?session=$S" | jq -r .stop)"          "true"
+HKOUT=$(printf '{"session_id":"%s","tool_name":"Bash"}' "$S" | ORCH_PORT=$PORT bash "$HK" 2>&1 1>/dev/null); HKRC=$?
+chk "hook exit2 when flagged"   "$HKRC"                                                  "2"
+chk "hook STOP message"         "$(printf '%s' "$HKOUT" | grep -c 'STOP:')"             "1"
+rm -f "$T/hook.json"
+
 # loop + persistence across a PID restart
 jpost loop/start '{"maxIterations":50}' >/dev/null
 chk "next-action spawns"        "$(g next-action | jq -r .action)"               "spawn"
@@ -52,6 +102,30 @@ stop; boot
 jpost workspace "$(b_ws)" >/dev/null
 chk "loop persisted on restart" "$(g loop/status | jq -r .active)"               "true"
 chk "iterations preserved"      "$(g loop/status | jq -r ".iterations>=$ITER")"  "true"
+
+# self-learning 'plan' tick: drain the DAG with self_plan on -> heartbeat hands out a plan action
+jpost config '{"self_plan":true}' >/dev/null
+jpost overlay/status "$(b_status "$S/1" done)"   >/dev/null   # already tested above; allowed
+jpost overlay/status "$(b_status "$S/2" tested)" >/dev/null; jpost overlay/status "$(b_status "$S/2" done)" >/dev/null
+chk "drained+self_plan -> plan"  "$(g next-action | jq -r .action)"              "plan"
+jpost config '{"self_plan":false}' >/dev/null
+chk "drained, no self_plan -> stop" "$(g next-action | jq -r .action)"           "stop"
+
+# cooperative self-stop: arm the loop to a session, flag a stop on its claimed task's agent,
+# and confirm the in-process heartbeat self-exits WITHIN ONE iteration (loop.active -> false).
+SS=88888888-0000-0000-0000-000000000002; SSP="$HOME/.claude/projects/-tmp-orch-smoke"; SST="$HOME/.claude/tasks/$SS"
+mkdir -p "$SSP" "$SST"; : > "$SSP/$SS.jsonl"
+echo '{"id":"1","subject":"loopwork","status":"pending","blockedBy":[]}' > "$SST/1.json"; sleep 1.2
+jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"loopw"}' "$SS/1")" >/dev/null
+jpost loop/start "$(printf '{"maxIterations":50,"session":"%s"}' "$SS")" >/dev/null
+chk "loop armed w/ session"     "$(g loop/status | jq -r .session)"              "$SS"
+# work is in flight ($SS/1 claimed in_progress) -> heartbeat idles, not stops
+chk "armed loop ticks normally" "$(g next-action | jq -r '.action!="stop"')"     "true"
+jpost agent/stop '{"agent_id":"loopw"}' >/dev/null     # simulate cooperative stop
+chk "should-stop sees flag"     "$(g "should-stop?session=$SS" | jq -r .stop)"   "true"
+chk "loop self-exits on stop"   "$(g next-action | jq -r .reason)"               "cooperative stop"
+chk "loop.active cleared"       "$(g loop/status | jq -r .active)"               "false"
+rm -rf "$SST" "$SSP/$SS.jsonl"
 
 # format-drift detection
 echo 'NOT JSON' > "$T/3.json"; sleep 1.7

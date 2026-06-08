@@ -77,9 +77,22 @@
   .ochip.s-done { opacity: .7; } .ochip.s-canceled { opacity: .5; text-decoration: line-through; }
   .odot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
   /* collapsible activity feeds (routing + subagents) */
-  .acttoggle { cursor: pointer; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #8b949e; padding: 12px 16px 4px; user-select: none; }
-  .acttoggle:hover { color: #e6edf3; }
-  #activity.collapsed { display: none; }
+  .agbtn { cursor: pointer; }
+  .agbtn:hover { color: #79c0ff; }
+  #activityPopup { position: fixed; top: 52px; right: 14px; width: 460px; max-width: calc(100vw - 28px); max-height: 72vh; overflow: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 4px 14px 14px; }
+  #activityPopup.show { display: block; }
+  .appclose { float: right; color: #8b949e; cursor: pointer; padding: 6px 2px; font-size: 14px; }
+  .appclose:hover { color: #e6edf3; }
+  /* escalation: guidance banner — the loop is paused waiting on the user */
+  #guidance { display: none; margin: 0; padding: 12px 16px; background: #d2992222; border-bottom: 1px solid #bb8009; color: #f0d77a; }
+  #guidance.show { display: block; }
+  #guidance .gtitle { font-weight: 600; color: #ffd95c; }
+  #guidance .gitem { margin-top: 8px; padding: 8px 10px; background: #161b22; border: 1px solid #bb800955; border-radius: 8px; }
+  #guidance .gq { color: #f0d77a; font-weight: 600; }
+  #guidance .gctx { color: #c9b06a; margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
+  #guidance .gtrig { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #bb8009; }
+  /* superseded (replaced-by-replan) nodes: dim + dashed replacement link */
+  #flowsvg path.supersede { stroke: #8957e5 !important; stroke-dasharray: 3 5 !important; opacity: .7; }
 </style>
 </head>
 <body>
@@ -91,18 +104,19 @@
   </div>
   <div class="sum" id="sum"></div>
 </header>
+<div id="guidance"></div>
 <div class="wrap">
   <div class="left">
     <h2 style="margin-left:16px">Task graph <span class="muted" id="ws"></span></h2>
     <div id="cloud"><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div><div id="floworphans"></div></div>
-    <div id="activityToggle" class="acttoggle"><span id="actArrow">▸</span> Activity <span class="muted">· routing &amp; subagents</span></div>
-    <div class="small" id="activity">
-      <section class="feed"><h2 style="margin-left:0">Router decisions</h2><div id="routes"></div></section>
-      <section class="feed"><h2 style="margin-left:0">Subagents</h2><div id="agents"></div></section>
-    </div>
   </div>
   <div id="panel"><div class="pad" id="pad"></div></div>
+</div>
+<div id="activityPopup">
+  <span class="appclose" onclick="document.getElementById('activityPopup').classList.remove('show')">✕</span>
+  <section class="feed"><h2 style="margin-left:0">Router decisions</h2><div id="routes"></div></section>
+  <section class="feed"><h2 style="margin-left:0">Subagents</h2><div id="agents"></div></section>
 </div>
 <!-- vendored d3@7 (inlined; no CDN) -->
 <script>
@@ -3962,7 +3976,7 @@ async function tick(){
   document.getElementById('sum').innerHTML=`<span>tasks <b>${s.tasks_total}</b></span>`+
     order.filter(k=>sc[k]).map(k=>`<span class="chip s-${k}"><b>${sc[k]}</b> ${k.replace('_',' ')}</span>`).join('')+
     (s.ghosts?`<span class="chip s-ghost"><b>${s.ghosts}</b> ghost</span>`:'')+
-    `<span>· agents <b>${s.agents.running}</b>▶ <b>${s.agents.done}</b>✓</span>`;
+    `<span class="agbtn" onclick="toggleActivityPopup()" title="routing &amp; subagents">· agents <b>${s.agents.running}</b>▶ <b>${s.agents.done}</b>✓ ▾</span>`;
   lastState=d;
   if(currentView==='cloud'){ renderCloud(d); }
   else { renderFlow(d); }
@@ -3971,6 +3985,17 @@ async function tick(){
   rt.innerHTML=!d.routes.length?'<div class="empty">none</div>':d.routes.slice().reverse().slice(0,6).map(r=>`<div class="row"><span class="tag ${esc(r.decision)}">${esc(r.decision)}</span> ${esc(r.prompt.slice(0,60))}</div>`).join('');
   const ag=document.getElementById('agents');
   ag.innerHTML=!d.agents.length?'<div class="empty">none</div>':d.agents.slice().reverse().map(a=>`<div class="row">${a.state==='running'?'▶':'✓'} <b>${esc(a.agent_type)}</b> <span class="muted">${esc(a.agent_id)}</span></div>`).join('');
+  renderGuidance();
+}
+// Escalation: surface unresolved guidance prominently — the loop is paused waiting on the user.
+async function renderGuidance(){
+  const box=document.getElementById('guidance');
+  let g; try{ g=await(await fetch(BASE+'/guidance')).json(); }catch{ return; }
+  const pending=(g&&g.pending)||[];
+  if(!pending.length){ box.classList.remove('show'); box.innerHTML=''; return; }
+  box.innerHTML='<span class="gtitle">⏸ Loop paused — waiting on you ('+pending.length+')</span>'+
+    pending.map(it=>`<div class="gitem">${it.trigger?'<div class="gtrig">'+esc(it.trigger)+'</div>':''}<div class="gq">${esc(it.question)}</div>${it.context?'<div class="gctx">'+esc(it.context)+'</div>':''}</div>`).join('');
+  box.classList.add('show');
 }
 // ---- Obsidian-style force-directed "Cloud" view ----------------------------
 // Relevance LOD: ready/in_progress + neighbors = foreground; rest of their
@@ -4117,7 +4142,7 @@ function renderFlow(d){
     for(const dep of (t.deps||[])) if(!String(dep).startsWith('ghost:')) pushLink(dep,t.id,'blocking');
     for(const dep of (t.context_deps||[])) if(!String(dep).startsWith('ghost:')) pushLink(dep,t.id,'context');
   }
-  for(const e of (d.edges||[])){ if(e.fromWorkspace) continue; pushLink(e.from,e.to, e.kind==='context'?'context':'blocking'); }
+  for(const e of (d.edges||[])){ if(e.fromWorkspace) continue; pushLink(e.from,e.to, e.kind==='context'?'context':e.kind==='supersede'?'supersede':'blocking'); }
   const deg={}; tasks.forEach(t=>deg[t.id]=0); for(const l of links){ deg[l.from]++; deg[l.to]++; }
   const connected=tasks.filter(t=>deg[t.id]>0); const orphans=tasks.filter(t=>deg[t.id]===0);
   const connSet=new Set(connected.map(t=>t.id));
@@ -4135,7 +4160,7 @@ function renderFlow(d){
   if(root.empty()){
     root=svg.append('g').attr('class','flowroot');
     const defs=svg.append('defs');
-    [['fb','#6e7681'],['fc','#39c5cf']].forEach(([id,c])=>{
+    [['fb','#6e7681'],['fc','#39c5cf'],['fs','#8957e5']].forEach(([id,c])=>{
       defs.append('marker').attr('id','arr-'+id).attr('viewBox','0 0 10 10').attr('refX',9).attr('refY',5)
         .attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto-start-reverse')
         .append('path').attr('d','M0,0 L10,5 L0,10 z').attr('fill',c);
@@ -4150,10 +4175,11 @@ function renderFlow(d){
   ep.exit().remove();
   ep.enter().append('path').attr('fill','none').attr('stroke-width',1.6).merge(ep)
     .attr('d', x=>lineGen(x.pts))
-    .attr('stroke', x=>x.kind==='context'?'#39c5cf':'#6e7681')
-    .attr('stroke-dasharray', x=>x.kind==='context'?'4 4':null)
-    .attr('marker-end', x=>'url(#arr-'+(x.kind==='context'?'fc':'fb')+')')
-    .classed('wipedge', x=>{ const tg=byId[x.e.w]; return !!(tg && tg.status==='in_progress'); });
+    .attr('stroke', x=>x.kind==='context'?'#39c5cf':x.kind==='supersede'?'#8957e5':'#6e7681')
+    .attr('stroke-dasharray', x=>x.kind==='context'?'4 4':x.kind==='supersede'?'3 5':null)
+    .attr('marker-end', x=>'url(#arr-'+(x.kind==='context'?'fc':x.kind==='supersede'?'fs':'fb')+')')
+    .classed('supersede', x=>x.kind==='supersede')
+    .classed('wipedge', x=>{ const tg=byId[x.e.w]; return x.kind!=='supersede' && !!(tg && tg.status==='in_progress'); });
 
   const np=root.select('g.fnodes').selectAll('g.fn').data(connected, t=>t.id);
   np.exit().remove();
@@ -4206,9 +4232,8 @@ function renderFlowOrphans(orphans){
 
 window.addEventListener('resize', ()=>{ if(currentView==='cloud'&&lastState){ cloudSig=''; renderCloud(lastState); } if(currentView==='flow'&&lastState){ flowInit=false; renderFlow(lastState); } });
 // Activity feeds collapsed by default; remembered in localStorage
-function applyActivity(open){ document.getElementById('activity').classList.toggle('collapsed', !open); document.getElementById('actArrow').textContent = open?'▾':'▸'; }
-document.getElementById('activityToggle').addEventListener('click', ()=>{ const open=document.getElementById('activity').classList.contains('collapsed'); localStorage.setItem('orchActivity', open?'1':'0'); applyActivity(open); });
-applyActivity(localStorage.getItem('orchActivity')==='1');
+function toggleActivityPopup(){ document.getElementById('activityPopup').classList.toggle('show'); }
+document.addEventListener('click', ev=>{ const p=document.getElementById('activityPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.agbtn'))) return; p.classList.remove('show'); });
 setView(currentView);              // apply persisted view + toggle state on load
 tick(); setInterval(tick, 2000);   // safety poll
 try { const es = new EventSource(BASE + '/events'); es.onmessage = () => tick(); } catch (e) {}  // live push
