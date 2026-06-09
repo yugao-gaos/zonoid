@@ -54,5 +54,8 @@ process.stdin.on('data', (chunk) => {
 });
 process.stdin.on('end', () => { ending = true; maybeExit(); });
 
-// Startup: boot the daemon + register this workspace (cwd), so the graph reflects this project.
-(async () => { try { await ensureDaemon(); await CALL('POST', '/workspace', { path: process.cwd() }); } catch { /* ignore */ } })();
+// Startup: boot the daemon + register this workspace, so the graph reflects this project.
+// ORCH_WORKSPACE lets a process target a workspace independent of its cwd (e.g. a headless
+// benchmark arm running in a worktree); unset → identical old behavior (cwd).
+const WS = process.env.ORCH_WORKSPACE || process.cwd();
+(async () => { try { await ensureDaemon(); await CALL('POST', '/workspace', { path: WS }); } catch { /* ignore */ } })();
