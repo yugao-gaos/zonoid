@@ -1,0 +1,1 @@
+{"mcpServers":{"orchestrator-graph":{"command":"node","args":["__INSTALL_DIR__/mcp-graph.js"]}}}

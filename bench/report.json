@@ -1,0 +1,576 @@
+{
+  "meta": {
+    "source": "bench/results.jsonl",
+    "resultCount": 12,
+    "generatedAt": "2026-06-09T15:22:48.251Z"
+  },
+  "rows": [
+    {
+      "problem": "context-rich",
+      "arm": "off",
+      "n": 3,
+      "gross": {
+        "mean": 352876.6666666667,
+        "stdev": 743.5330075614219,
+        "n": 3
+      },
+      "net": {
+        "mean": 352876.6666666667,
+        "stdev": 743.5330075614219,
+        "n": 3
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 3
+      },
+      "wallMs": {
+        "mean": 37891.333333333336,
+        "stdev": 1813.1636256370614,
+        "n": 3
+      }
+    },
+    {
+      "problem": "context-rich",
+      "arm": "on",
+      "n": 3,
+      "gross": {
+        "mean": 343231.6666666667,
+        "stdev": 31067.96360132626,
+        "n": 3
+      },
+      "net": {
+        "mean": 343231.6666666667,
+        "stdev": 31067.96360132626,
+        "n": 3
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 3
+      },
+      "wallMs": {
+        "mean": 38645.666666666664,
+        "stdev": 3033.4220499846924,
+        "n": 3
+      }
+    },
+    {
+      "problem": "greenfield",
+      "arm": "off",
+      "n": 3,
+      "gross": {
+        "mean": 252557.66666666666,
+        "stdev": 66767.37838445758,
+        "n": 3
+      },
+      "net": {
+        "mean": 252557.66666666666,
+        "stdev": 66767.37838445758,
+        "n": 3
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 3
+      },
+      "wallMs": {
+        "mean": 41050.333333333336,
+        "stdev": 11382.463280561607,
+        "n": 3
+      }
+    },
+    {
+      "problem": "greenfield",
+      "arm": "on",
+      "n": 3,
+      "gross": {
+        "mean": 267039,
+        "stdev": 128605.94939193132,
+        "n": 3
+      },
+      "net": {
+        "mean": 267039,
+        "stdev": 128605.94939193132,
+        "n": 3
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 3
+      },
+      "wallMs": {
+        "mean": 40630.666666666664,
+        "stdev": 15759.021744173504,
+        "n": 3
+      }
+    }
+  ],
+  "ratios": [
+    {
+      "problem": "context-rich",
+      "netOnOverOff": 0.9726675042271615,
+      "grossOnOverOff": 0.9726675042271615,
+      "haveBoth": true
+    },
+    {
+      "problem": "greenfield",
+      "netOnOverOff": 1.0573387200019007,
+      "grossOnOverOff": 1.0573387200019007,
+      "haveBoth": true
+    }
+  ],
+  "contaminated": [],
+  "dropped": [],
+  "unreadable": [],
+  "runs": [
+    {
+      "problem": "context-rich",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "45767733-c8b0-4fa4-9be2-3f18cbef62f3",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-context-rich-off-0/45767733-c8b0-4fa4-9be2-3f18cbef62f3.jsonl",
+      "solved": true,
+      "wallMs": 36035,
+      "gross": {
+        "input": 10091,
+        "output": 5059,
+        "cacheRead": 300619,
+        "cacheCreate": 36555,
+        "total": 352324,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 10091,
+        "output": 5059,
+        "cacheRead": 300619,
+        "cacheCreate": 36555,
+        "total": 352324,
+        "messages": 13
+      }
+    },
+    {
+      "problem": "context-rich",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "503f87a1-ff0a-490b-8f57-6186cbb574bc",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-context-rich-off-1/503f87a1-ff0a-490b-8f57-6186cbb574bc.jsonl",
+      "solved": true,
+      "wallMs": 39658,
+      "gross": {
+        "input": 10091,
+        "output": 5266,
+        "cacheRead": 300641,
+        "cacheCreate": 36586,
+        "total": 352584,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 10091,
+        "output": 5266,
+        "cacheRead": 300641,
+        "cacheCreate": 36586,
+        "total": 352584,
+        "messages": 13
+      }
+    },
+    {
+      "problem": "context-rich",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "304a0af7-acac-4734-b4b1-b6f24e5a9502",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-context-rich-off-2/304a0af7-acac-4734-b4b1-b6f24e5a9502.jsonl",
+      "solved": true,
+      "wallMs": 37981,
+      "gross": {
+        "input": 10091,
+        "output": 4372,
+        "cacheRead": 303076,
+        "cacheCreate": 36183,
+        "total": 353722,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 10091,
+        "output": 4372,
+        "cacheRead": 303076,
+        "cacheCreate": 36183,
+        "total": 353722,
+        "messages": 13
+      }
+    },
+    {
+      "problem": "context-rich",
+      "arm": "on",
+      "trial": 0,
+      "sessionId": "d8b544bc-1b18-4582-aecb-f83d337edded",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-context-rich-on-0/d8b544bc-1b18-4582-aecb-f83d337edded.jsonl",
+      "solved": true,
+      "wallMs": 39749,
+      "gross": {
+        "input": 12479,
+        "output": 4968,
+        "cacheRead": 305530,
+        "cacheCreate": 38023,
+        "total": 361000,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 12479,
+        "output": 4968,
+        "cacheRead": 305530,
+        "cacheCreate": 38023,
+        "total": 361000,
+        "messages": 13
+      }
+    },
+    {
+      "problem": "context-rich",
+      "arm": "on",
+      "trial": 1,
+      "sessionId": "4a5c2742-3600-4e24-ae28-077d0c82f6cd",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-context-rich-on-1/4a5c2742-3600-4e24-ae28-077d0c82f6cd.jsonl",
+      "solved": true,
+      "wallMs": 35215,
+      "gross": {
+        "input": 9265,
+        "output": 3113,
+        "cacheRead": 263069,
+        "cacheCreate": 31911,
+        "total": 307358,
+        "messages": 11
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 9265,
+        "output": 3113,
+        "cacheRead": 263069,
+        "cacheCreate": 31911,
+        "total": 307358,
+        "messages": 11
+      }
+    },
+    {
+      "problem": "context-rich",
+      "arm": "on",
+      "trial": 2,
+      "sessionId": "46176675-6bfe-4251-aabb-fee43aec524a",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-context-rich-on-2/46176675-6bfe-4251-aabb-fee43aec524a.jsonl",
+      "solved": true,
+      "wallMs": 40973,
+      "gross": {
+        "input": 12479,
+        "output": 5154,
+        "cacheRead": 305582,
+        "cacheCreate": 38122,
+        "total": 361337,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 12479,
+        "output": 5154,
+        "cacheRead": 305582,
+        "cacheCreate": 38122,
+        "total": 361337,
+        "messages": 13
+      }
+    },
+    {
+      "problem": "greenfield",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "7164ca99-dd65-4032-b94b-085b9781cb51",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-greenfield-off-0/7164ca99-dd65-4032-b94b-085b9781cb51.jsonl",
+      "solved": true,
+      "wallMs": 52196,
+      "gross": {
+        "input": 7474,
+        "output": 9265,
+        "cacheRead": 251213,
+        "cacheCreate": 28178,
+        "total": 296130,
+        "messages": 11
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7474,
+        "output": 9265,
+        "cacheRead": 251213,
+        "cacheCreate": 28178,
+        "total": 296130,
+        "messages": 11
+      }
+    },
+    {
+      "problem": "greenfield",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "c097b89b-03dd-4be0-b629-adfea2b1da34",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-greenfield-off-1/c097b89b-03dd-4be0-b629-adfea2b1da34.jsonl",
+      "solved": true,
+      "wallMs": 29445,
+      "gross": {
+        "input": 7466,
+        "output": 3775,
+        "cacheRead": 140983,
+        "cacheCreate": 23466,
+        "total": 175690,
+        "messages": 7
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7466,
+        "output": 3775,
+        "cacheRead": 140983,
+        "cacheCreate": 23466,
+        "total": 175690,
+        "messages": 7
+      }
+    },
+    {
+      "problem": "greenfield",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "4780edc0-fce3-45c9-82be-63bf59f1810f",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-greenfield-off-2/4780edc0-fce3-45c9-82be-63bf59f1810f.jsonl",
+      "solved": true,
+      "wallMs": 41510,
+      "gross": {
+        "input": 7474,
+        "output": 6106,
+        "cacheRead": 246009,
+        "cacheCreate": 26264,
+        "total": 285853,
+        "messages": 11
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7474,
+        "output": 6106,
+        "cacheRead": 246009,
+        "cacheCreate": 26264,
+        "total": 285853,
+        "messages": 11
+      }
+    },
+    {
+      "problem": "greenfield",
+      "arm": "on",
+      "trial": 0,
+      "sessionId": "7d0d1ba6-1247-4090-a1ad-cf7cef5637a4",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-greenfield-on-0/7d0d1ba6-1247-4090-a1ad-cf7cef5637a4.jsonl",
+      "solved": true,
+      "wallMs": 37252,
+      "gross": {
+        "input": 9261,
+        "output": 5790,
+        "cacheRead": 191207,
+        "cacheCreate": 29678,
+        "total": 235936,
+        "messages": 9
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 9261,
+        "output": 5790,
+        "cacheRead": 191207,
+        "cacheCreate": 29678,
+        "total": 235936,
+        "messages": 9
+      }
+    },
+    {
+      "problem": "greenfield",
+      "arm": "on",
+      "trial": 1,
+      "sessionId": "82e2eb61-9f85-4639-b37c-6c479b395fc1",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-greenfield-on-1/82e2eb61-9f85-4639-b37c-6c479b395fc1.jsonl",
+      "solved": true,
+      "wallMs": 26835,
+      "gross": {
+        "input": 12336,
+        "output": 5950,
+        "cacheRead": 111870,
+        "cacheCreate": 26681,
+        "total": 156837,
+        "messages": 6
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 12336,
+        "output": 5950,
+        "cacheRead": 111870,
+        "cacheCreate": 26681,
+        "total": 156837,
+        "messages": 6
+      }
+    },
+    {
+      "problem": "greenfield",
+      "arm": "on",
+      "trial": 2,
+      "sessionId": "def33f15-6169-4f6a-8769-239bc5bf6015",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-greenfield-on-2/def33f15-6169-4f6a-8769-239bc5bf6015.jsonl",
+      "solved": true,
+      "wallMs": 57805,
+      "gross": {
+        "input": 9402,
+        "output": 8440,
+        "cacheRead": 354441,
+        "cacheCreate": 36061,
+        "total": 408344,
+        "messages": 15
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 9402,
+        "output": 8440,
+        "cacheRead": 354441,
+        "cacheCreate": 36061,
+        "total": 408344,
+        "messages": 15
+      }
+    }
+  ],
+  "headline": {
+    "model": "opus",
+    "trialsPerCell": 3,
+    "note": "plumbing==0 on all ON runs (opus called no orchestrator tools on these self-contained specs); NET==GROSS for every cell. gross ON-OFF delta = resident MCP schema tax + variance.",
+    "totalBenchTokens": 3647115,
+    "perProblem": {
+      "context-rich": {
+        "grossOff": {
+          "mean": 352876.6666666667,
+          "stdev": 743.5330075614219
+        },
+        "grossOn": {
+          "mean": 343231.6666666667,
+          "stdev": 31067.96360132626
+        },
+        "totalOverheadDelta": -9645,
+        "totalOverheadPct": -2.733249577283848,
+        "netOff": {
+          "mean": 352876.6666666667,
+          "stdev": 743.5330075614219
+        },
+        "netOn": {
+          "mean": 343231.6666666667,
+          "stdev": 31067.96360132626
+        },
+        "netDelta": -9645,
+        "plumbingOnMean": 0
+      },
+      "greenfield": {
+        "grossOff": {
+          "mean": 252557.66666666666,
+          "stdev": 66767.37838445758
+        },
+        "grossOn": {
+          "mean": 267039,
+          "stdev": 128605.94939193132
+        },
+        "totalOverheadDelta": 14481.333333333343,
+        "totalOverheadPct": 5.733872000190059,
+        "netOff": {
+          "mean": 252557.66666666666,
+          "stdev": 66767.37838445758
+        },
+        "netOn": {
+          "mean": 267039,
+          "stdev": 128605.94939193132
+        },
+        "netDelta": 14481.333333333343,
+        "plumbingOnMean": 0
+      }
+    }
+  }
+}
