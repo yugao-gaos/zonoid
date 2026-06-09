@@ -4,6 +4,15 @@ description: Plan the orchestrator's own next moves once the DAG drains. Reads w
 effort: high
 ---
 
+> **DEFAULT — structure try-alternatives as graph nodes, let WORKERS make the worktrees.** When you
+> build a problem→attempts→judge subtree, create the attempt TASK NODES with `TaskCreate` and wire the
+> judge `blocked_by` each attempt — but do NOT call `branch_task` (it targets the daemon workspace, not
+> the code repo; see note "Self-learning git substrate is workspace-bound"). The attempt WORKERS create
+> their own worktree off `~/.claude/orchestrator` at spawn time. Prefer BUILDING over escalating: in
+> autonomous hold-merge mode do NOT `request_guidance` for ordinary priority/scope calls (it halts the
+> loop) — pick a sharp initiative, wire it, and let it build; the human reviews merges in the morning.
+
+
 # Self-research planner
 
 Turns a drained task graph into a small, well-wired set of next initiatives — and a self-research

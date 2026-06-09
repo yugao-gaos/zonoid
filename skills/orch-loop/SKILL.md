@@ -3,6 +3,12 @@ name: orch-loop
 description: Run the orchestrator heartbeat — periodically ask the daemon what to do and advance the task graph, with hard token controls. Use to auto-progress a DAG across turns (spawn ready tasks as dependencies complete) without an always-on event loop. Stops automatically when the graph drains or the budget is hit.
 ---
 
+> **DEFAULT — autonomous code work is HELD, never merged.** Every code-producing task the loop
+> spawns MUST: (1) do its work in an ISOLATED git branch + worktree off the CODE repo
+> (`~/.claude/orchestrator`; branch `orch/attempt/<task-slug>`, e.g. `git worktree add -b orch/attempt/<slug> worktrees/self/<slug> HEAD`) — NEVER edit the live checkout and NEVER merge to `main`;
+> (2) commit in that worktree; (3) `complete_task(key, "MERGE PENDING — <branch>: <what changed + test result>")` so the task reaches `done` (REQUIRED: a judge blocked by attempts only becomes `ready` when every attempt is `done`). Pass each worker its `TASK_ID` and these rules verbatim. Merging to `main` is a HUMAN decision on review — the loop never merges and never halts on guidance; it queues everything for the morning.
+
+
 # Orchestrator heartbeat
 
 Drives the task graph forward on a self-paced schedule. The **daemon decides**; you just

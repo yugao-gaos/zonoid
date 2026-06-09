@@ -4,6 +4,17 @@ description: Judge rival attempt branches for one problem, merge the winner back
 effort: high
 ---
 
+> **DEFAULT — HOLD-MERGE MODE (autonomous heartbeat loop).** When this judge runs under the loop,
+> it NEVER merges and NEVER halts the loop. This OVERRIDES steps 4–7 below:
+> - Pick the winner exactly as described (inspect each attempt's branch diff + test result; test-outcome-then-rationale).
+> - **Do NOT call merge_attempt or `git merge`.** Merging into `main` is a HUMAN decision made on review.
+> - **Preserve every attempt branch + worktree** — no `remove_worktree`, no cancel — so the human can diff and merge later.
+> - Record the verdict on the problem P: `{ winner, winner_branch:"orch/attempt/<slug>", why, losers:[{key,reason}], merged:false, awaiting_merge:true, date }`.
+> - Set P to `done` with a summary that STARTS with `"⏸ MERGE PENDING — <winner_branch>: <one-line why>"`.
+> - `complete_task(J, ...)` and stop. **Do NOT `request_guidance`** (it would halt the loop). No-winner (all attempts failed): record `{winner:null, awaiting_merge:false, needs_attention:true, ...}`, set P `done` with summary `"⚠ NEEDS ATTENTION — all attempts failed: <reasons>"`, complete J, continue. Everything (merges, conflicts, failures) is queued for the morning human review via the verdict + the ⏸/⚠ summary — never escalated mid-run.
+> - Only if `overlay.config.auto_merge === true` do the legacy merge steps 4–5 below apply.
+
+
 # Self-learn judge
 
 Turns rival attempts at one problem into a single merged outcome plus a recorded learning.
