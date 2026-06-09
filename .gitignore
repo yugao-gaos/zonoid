@@ -8,6 +8,7 @@ sessions/
 worktrees/
 workspace
 loop.json
+loops.json
 *.log
 
 # OS / deps
