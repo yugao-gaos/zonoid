@@ -350,6 +350,24 @@ function summaryFor(tasks, ghosts) {
   };
 }
 
+// Digest a "rejected" ledger of approaches NOT to re-propose: verdict losers (beaten by a winner) plus
+// GENUINE dead-end failures. Superseded/duplicate/consolidated failures are replaced work, not dead
+// ends, so they are excluded. `labelFor(key)` resolves a task label ('' if unknown). Pure — unit-tested.
+function digestRejected(verdicts, failures, labelFor) {
+  const rejected = [];
+  for (const { verdict } of verdicts) {
+    for (const l of (verdict.losers || [])) {
+      const lab = labelFor(l.key);
+      rejected.push({ approach: lab ? `${l.key} (${lab})` : l.key, reason: l.reason || '', beatenBy: verdict.winner, source: 'verdict' });
+    }
+  }
+  for (const f of failures) {
+    if (/supersed|duplicate|consolidat/i.test(f.note)) continue;
+    rejected.push({ approach: f.label ? `${f.key} (${f.label})` : f.key, reason: f.note, source: 'failure' });
+  }
+  return rejected;
+}
+
 // Sum per-message token usage from a transcript JSONL (the only place per-agent tokens live;
 // undocumented format — isolated here). Used for the detail panel's token figure.
 function readUsage(p) {
@@ -473,7 +491,12 @@ const handler = async (req, res) => {
       const recent = g.tasks.filter((t) => t.status === 'done' && (ov.summaries[t.id] || ''))
         .sort(byChanged).slice(0, 25)
         .map((t) => ({ key: t.id, label: t.label, summary: ov.summaries[t.id] || '' }));
-      return send(res, 200, { verdicts: verdicts.slice(0, 25), failures, recent });
+      // (d) Rejected: a digested ledger of approaches NOT to re-propose — verdict losers (beaten by a
+      // winner) plus GENUINE dead-end failures (superseded/duplicate/consolidated excluded). Labels
+      // resolved from the graph when available.
+      const labelFor = (k) => { const t = g.tasks.find((x) => x.id === k); return t ? t.label : ''; };
+      const rejected = digestRejected(verdicts, failures, labelFor);
+      return send(res, 200, { verdicts: verdicts.slice(0, 25), failures, recent, rejected });
     }
 
     // Read-only in_progress claims (for the PreToolUse gate hook). Optional ?session= filters to
@@ -919,7 +942,7 @@ const handler = async (req, res) => {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, harnessTranscriptForTask };
+module.exports = { taskTokens, harnessTranscriptForTask, digestRejected };
 
 if (require.main === module) {
   const server = http.createServer(handler);

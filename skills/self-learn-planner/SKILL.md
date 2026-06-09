@@ -33,13 +33,19 @@ high: a graph with a few sharp initiatives beats a graph buried in speculative b
 Operate ONLY via MCP tools — never shell the daemon directly.
 
 1. **See the field (Tier 1).**
-   - `get_learnings()` → `{ verdicts, failures, recent }`:
+   - `get_learnings()` → `{ verdicts, failures, recent, rejected }`:
      - `verdicts` — judge outcomes (what was tried and which approach won/lost). These tell you
        what's already been resolved; do NOT re-propose a settled question.
      - `failures` — `failed`/`canceled` tasks with their notes. Read the notes: many are
        "superseded by X" (already replaced — not an open gap) vs genuine dead ends (avoid
        repeating). Distinguish the two.
      - `recent` — recently completed work with summaries (cheap context for what just shipped).
+     - `rejected` — the pre-digested **rejected-approaches ledger**. Build it directly from
+       `get_learnings().rejected[]`: each entry is an approach already **tried-and-lost**
+       (`source:'verdict'`, with the `reason` it lost and the `beatenBy` winner) or a **genuine
+       dead end** (`source:'failure'`, with the `reason`/note). The daemon has already filtered
+       out superseded/duplicate/consolidated work, so every entry here is something NOT to
+       re-propose. Keep this ledger handy for the dedup check in step 4.
    - `get_full_graph()` → all tasks with derived status + edges. Build your working set:
      - **open** = `in_progress` / `ready` / `not_ready` (the no-fly zone — never touch),
      - **done** / **note** nodes (candidate `context` anchors for new initiatives),
@@ -58,7 +64,11 @@ Operate ONLY via MCP tools — never shell the daemon directly.
 
 4. **Propose 1-3 initiatives — and WIRE each one in.** For each initiative (hard cap 3):
    1. Dedup BEFORE creating: scan the open set and `get_learnings` for overlap. If it duplicates
-      an open task, drop it.
+      an open task, drop it. Then run the **rejected-ledger check** — test the candidate against
+      every entry in `get_learnings().rejected[]`. If it re-proposes a losing approach (a
+      `source:'verdict'` loser) or a known dead end (a `source:'failure'` entry), DROP it, or
+      explicitly **pivot to a different approach** than the one that already lost. Never re-file a
+      rejected approach unchanged.
    2. `TaskCreate(label, ...)` — concise, action-oriented label.
    3. `suggest_links(new_key)` → for each ranked match:
       - `add_dependency(from=<done_or_verdict_or_note_key>, to=new_key, kind="context")` to pull
@@ -67,6 +77,12 @@ Operate ONLY via MCP tools — never shell the daemon directly.
         prerequisites (the new task genuinely cannot start until `from` lands).
    - Never leave a new task as a disconnected root node. If `suggest_links` returns nothing
      relevant, attach at least one `context` edge to the most related done/note node by hand.
+   - **Citation rule (cite the prior verdict).** When a proposed initiative is *adjacent to a
+     settled question* — i.e. it touches an approach that appears in `get_learnings().rejected[]`
+     (a `source:'verdict'` loser) — the new task's description MUST cite that prior verdict
+     rationale: name the earlier approach, its `reason` for losing, and the `beatenBy` winner, and
+     state how this initiative differs. This propagates the lesson so the next planner run inherits
+     it via `get_learnings().rejected[]` instead of relitigating the same loss.
 
 5. **Structure "try alternatives" initiatives as a judge subtree.** When an initiative is really
    "we don't know the best approach — try a few and pick," don't make one flat task. Build the
