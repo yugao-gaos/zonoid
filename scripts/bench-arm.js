@@ -45,6 +45,13 @@ const ON_PREAMBLE_MANDATORY =
   'apply what it says about prior verdicts / rejected approaches for this problem (you may also ' +
   'consult get_task_detail / get_full_graph). The graph is strictly READ-ONLY — do NOT create, ' +
   'modify, claim, or complete any tasks/nodes.\n\n';
+// Lean (--consult=lean): mandatory consult, but call get_learnings with compact:true (the lean
+// index, ~1k tokens vs ~25k) and expand a specific entry via get_task_detail only if needed.
+const ON_PREAMBLE_LEAN =
+  'You have the orchestrator-graph MCP. Before writing any code you MUST call get_learnings with ' +
+  'compact:true (the lean index of prior verdicts / rejected approaches) and apply it; expand a ' +
+  'specific entry via get_task_detail ONLY if you need its full detail. The graph is strictly ' +
+  'READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n';
 
 function arg(name, def) {
   const i = process.argv.indexOf('--' + name);
@@ -56,7 +63,7 @@ function arg(name, def) {
 function consultMode() {
   const eq = process.argv.find((a) => a.startsWith('--consult='));
   let v = eq ? eq.split('=')[1] : arg('consult', process.env.BENCH_CONSULT || 'permissive');
-  return v === 'mandatory' ? 'mandatory' : 'permissive';
+  return v === 'mandatory' ? 'mandatory' : v === 'lean' ? 'lean' : 'permissive';
 }
 
 function main() {
@@ -91,7 +98,8 @@ function main() {
   // tree / other arms). Same substitution for both arms -> the A/B task stays identical.
   const sessionId = crypto.randomUUID();
   const body = specBody.split(REPO).join(wt);
-  const onPreamble = consultMode() === 'mandatory' ? ON_PREAMBLE_MANDATORY : ON_PREAMBLE_PERMISSIVE;
+  const cm = consultMode();
+  const onPreamble = cm === 'mandatory' ? ON_PREAMBLE_MANDATORY : cm === 'lean' ? ON_PREAMBLE_LEAN : ON_PREAMBLE_PERMISSIVE;
   const prompt = (arm === 'on' ? onPreamble : '') + body;
   const mcpConfig = path.join(REPO, `bench/mcp-${arm}.json`);
 
