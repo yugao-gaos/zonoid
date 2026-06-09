@@ -23,6 +23,20 @@ const PM = '±';     // plus-minus
 const MULT = '×';   // multiplication sign
 const MDASH = '—';  // em dash
 
+// Cost weights: approximate Anthropic input-token-EQUIVALENT price ratios, normalized so plain
+// input = 1.0. These are APPROXIMATE and model-dependent (e.g. on a model where input is $3/Mtok
+// and output is $15/Mtok, output is 5x input; 5m-cache writes are ~1.25x input; cache reads ~0.1x).
+// Raw token sums (GROSS/NET) treat every token equally and so OVERSTATE cost, because cache_read
+// tokens — re-attended context — bill at ~10% of fresh input. cost_tok_eq reweights to reflect that.
+const INPUT_W = 1.0;          // fresh (uncached) input tokens
+const OUTPUT_W = 5.0;         // output tokens (~5x input on Sonnet/Opus-class pricing)
+const CACHE_READ_W = 0.1;     // cache-hit input tokens bill at ~10% of fresh input
+const CACHE_CREATION_W = 1.25; // writing the 5-minute cache costs ~1.25x fresh input
+
+// Cost in input-token-equivalents for one usage bucket {input,output,cacheRead,cacheCreate}.
+const costTokEq = (b) =>
+  b.input * INPUT_W + b.output * OUTPUT_W + b.cacheRead * CACHE_READ_W + b.cacheCreate * CACHE_CREATION_W;
+
 // Sum per-message usage across a transcript, splitting GROSS vs PLUMBING (orchestrator-graph-attributed).
 // Mirrors daemon.js readUsage() for the gross side; adds the attribution split. Returns {gross,plumbing,net}
 // where each bucket is {input,output,cacheRead,cacheCreate,total,messages}. `error` set if unreadable.
@@ -114,10 +128,13 @@ function buildReport(results) {
     const g = c.runs.map((r) => r.gross.total);
     const nt = c.runs.map((r) => r.net.total);
     const pl = c.runs.map((r) => r.plumbing.total);
+    const cg = c.runs.map((r) => costTokEq(r.gross));   // cost-weighted gross
+    const cn = c.runs.map((r) => costTokEq(r.net));     // cost-weighted net
     const walls = c.runs.map((r) => r.wallMs).filter((w) => w !== null);
     return {
       problem: c.problem, arm: c.arm, n: c.runs.length,
       gross: stats(g), net: stats(nt), plumbing: stats(pl),
+      costGross: stats(cg), costNet: stats(cn),
       wallMs: walls.length ? stats(walls) : null,
     };
   }).sort((a, b) => a.problem.localeCompare(b.problem) || a.arm.localeCompare(b.arm));
@@ -131,6 +148,8 @@ function buildReport(results) {
       problem,
       netOnOverOff: on && off ? ratio(on.net, off.net) : null,
       grossOnOverOff: on && off ? ratio(on.gross, off.gross) : null,
+      costGrossOnOverOff: on && off ? ratio(on.costGross, off.costGross) : null,
+      costNetOnOverOff: on && off ? ratio(on.costNet, off.costNet) : null,
       haveBoth: !!(on && off),
     };
   }).sort((a, b) => a.problem.localeCompare(b.problem));
@@ -152,7 +171,9 @@ function renderMarkdown(model, meta) {
   L.push(`Token figures are **mean ${PM} sample stdev** over solved trials. GROSS = all \`message.usage\` in the`);
   L.push(`transcript; PLUMBING = usage on messages tagged \`attributionMcpServer:"orchestrator-graph"\`; NET = GROSS - PLUMBING.`);
   L.push('');
-  L.push(`## Per problem ${MULT} arm`);
+  L.push(`## Per problem ${MULT} arm ${MDASH} Raw tokens`);
+  L.push('');
+  L.push('Every token counted equally (cache reads at face value). This OVERSTATES dollar cost.');
   L.push('');
   L.push('| problem | arm | n | gross (tok) | net (tok) | plumbing (tok) | wall (ms) |');
   L.push('| --- | --- | ---: | ---: | ---: | ---: | ---: |');
@@ -160,14 +181,28 @@ function renderMarkdown(model, meta) {
     L.push(`| ${r.problem} | ${r.arm} | ${r.n} | ${cell(r.gross)} | ${cell(r.net)} | ${cell(r.plumbing)} | ${r.wallMs ? cell(r.wallMs) : 'n/a'} |`);
   }
   L.push('');
+  L.push(`## Per problem ${MULT} arm ${MDASH} Cost-weighted (tok-equivalents)`);
+  L.push('');
+  L.push(`Input-token-equivalents: input${MULT}${INPUT_W}, output${MULT}${OUTPUT_W}, cache_read${MULT}${CACHE_READ_W}, cache_creation${MULT}${CACHE_CREATION_W}. `
+    + 'Weights are **approximate** and model-dependent.');
+  L.push('');
+  L.push('| problem | arm | n | cost gross (tok-eq) | cost net (tok-eq) |');
+  L.push('| --- | --- | ---: | ---: | ---: |');
+  for (const r of model.rows) {
+    L.push(`| ${r.problem} | ${r.arm} | ${r.n} | ${cell(r.costGross)} | ${cell(r.costNet)} |`);
+  }
+  L.push('');
   L.push('## Headline ratios (ON vs OFF, per problem)');
   L.push('');
   L.push(`Ratio of arm-ON mean over arm-OFF mean. <1.0${MULT} means the orchestrator arm used fewer tokens.`);
   L.push('');
-  L.push('| problem | net ON/OFF | gross ON/OFF |');
-  L.push('| --- | ---: | ---: |');
+  L.push('Raw columns weight every token equally; cost-weighted columns use the tok-equivalent weights above');
+  L.push('(input/output/cache_read/cache_creation) and are **approximate**.');
+  L.push('');
+  L.push('| problem | net ON/OFF (raw) | gross ON/OFF (raw) | cost net ON/OFF | cost gross ON/OFF |');
+  L.push('| --- | ---: | ---: | ---: | ---: |');
   for (const r of model.ratios) {
-    L.push(`| ${r.problem} | ${fmtRatio(r.netOnOverOff)} | ${fmtRatio(r.grossOnOverOff)} |`);
+    L.push(`| ${r.problem} | ${fmtRatio(r.netOnOverOff)} | ${fmtRatio(r.grossOnOverOff)} | ${fmtRatio(r.costNetOnOverOff)} | ${fmtRatio(r.costGrossOnOverOff)} |`);
   }
   L.push('');
   L.push('## Contamination & drop notes');
@@ -231,6 +266,9 @@ function main() {
   if (model.contaminated.length) process.stderr.write(`bench-report: WARNING ${model.contaminated.length} contaminated OFF-arm run(s)\n`);
 }
 
-module.exports = { readSplit, stats, parseResults, buildReport, renderMarkdown };
+module.exports = {
+  readSplit, stats, parseResults, buildReport, renderMarkdown,
+  costTokEq, INPUT_W, OUTPUT_W, CACHE_READ_W, CACHE_CREATION_W,
+};
 
 if (require.main === module) main();

@@ -28,18 +28,35 @@ const TIMEOUT_S = 600;
 const ACCEPTANCE = {
   greenfield:    [['node', 'bench/sandbox/parse-duration.test.js']],
   'context-rich':[['node', 'test/summarize-rejected.test.js'], ['node', 'test/rejected-digest.test.js']],
+  'graph-dependent':[['node', 'bench/sandbox/resolve-owner.test.js']],
 };
 
 // ON arm joins the REAL cloude graph (read context) without hijacking the daemon workspace.
 const ORCH_WORKSPACE = '__WORKSPACE__';
-const ON_PREAMBLE =
+// Permissive (default): the agent MAY consult the graph. Mandatory (--consult=mandatory): the agent
+// MUST call get_learnings and apply prior verdicts/rejected approaches before writing any code. Both
+// keep the graph strictly READ-ONLY. OFF arm gets no preamble in either mode.
+const ON_PREAMBLE_PERMISSIVE =
   'You have the orchestrator-graph MCP. You MAY consult get_learnings / get_task_detail / ' +
   'get_full_graph for relevant prior context, but treat the graph as READ-ONLY — do NOT create, ' +
+  'modify, claim, or complete any tasks/nodes.\n\n';
+const ON_PREAMBLE_MANDATORY =
+  'You have the orchestrator-graph MCP. Before writing any code you MUST call get_learnings and ' +
+  'apply what it says about prior verdicts / rejected approaches for this problem (you may also ' +
+  'consult get_task_detail / get_full_graph). The graph is strictly READ-ONLY — do NOT create, ' +
   'modify, claim, or complete any tasks/nodes.\n\n';
 
 function arg(name, def) {
   const i = process.argv.indexOf('--' + name);
   return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : def;
+}
+
+// Consult mode for the ON arm. Accepts `--consult=mandatory`, `--consult mandatory`, or env
+// BENCH_CONSULT=mandatory. Unset/anything-else => 'permissive' (the prior 'may consult' behavior).
+function consultMode() {
+  const eq = process.argv.find((a) => a.startsWith('--consult='));
+  let v = eq ? eq.split('=')[1] : arg('consult', process.env.BENCH_CONSULT || 'permissive');
+  return v === 'mandatory' ? 'mandatory' : 'permissive';
 }
 
 function main() {
@@ -74,7 +91,8 @@ function main() {
   // tree / other arms). Same substitution for both arms -> the A/B task stays identical.
   const sessionId = crypto.randomUUID();
   const body = specBody.split(REPO).join(wt);
-  const prompt = (arm === 'on' ? ON_PREAMBLE : '') + body;
+  const onPreamble = consultMode() === 'mandatory' ? ON_PREAMBLE_MANDATORY : ON_PREAMBLE_PERMISSIVE;
+  const prompt = (arm === 'on' ? onPreamble : '') + body;
   const mcpConfig = path.join(REPO, `bench/mcp-${arm}.json`);
 
   // (c) headless run, guarded by perl alarm (macOS has no `timeout`)

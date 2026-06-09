@@ -9,7 +9,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { readSplit, stats, buildReport } = require('./bench-report.js');
+const { readSplit, stats, buildReport, costTokEq, INPUT_W, OUTPUT_W, CACHE_READ_W, CACHE_CREATION_W } = require('./bench-report.js');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -35,6 +35,25 @@ try {
   ok('net total = gross - plumbing = 160', s.net.total === 160);
   ok('net = input/output/cache split correct', s.net.input === 130 && s.net.output === 30 && s.net.cacheRead === 0);
   ok('gross counted 3 messages', s.gross.messages === 3);
+
+  // --- (1b) cost_tok_eq weighting on the same fixture. Weights: in=1, out=5, cacheRead=0.1, cacheCreate=1.25.
+  // gross: in140 out32 cacheRead5 -> 140*1 + 32*5 + 5*0.1 = 140+160+0.5 = 300.5
+  // plumbing (orch msg only): in10 out2 cacheRead5 -> 10 + 10 + 0.5 = 20.5 ; net = 300.5 - 20.5 = 280.
+  ok('weights as documented', INPUT_W === 1.0 && OUTPUT_W === 5.0 && CACHE_READ_W === 0.1 && CACHE_CREATION_W === 1.25);
+  ok('cost gross = 300.5', near(costTokEq(s.gross), 300.5));
+  ok('cost plumbing = 20.5', near(costTokEq(s.plumbing), 20.5));
+  ok('cost net = 280', near(costTokEq(s.net), 280));
+
+  // --- (1c) cache_read-heavy line: raw total is dominated by cache reads, but cost weights them at 0.1x,
+  // so the cost-weighted figure is MUCH lower than raw -- the whole point of the cost view.
+  // in10 out10 cacheRead10000 -> raw total = 10020 ; cost = 10 + 50 + 10000*0.1 = 1060 (~9.5x cheaper).
+  const fxHeavy = write('heavy.jsonl', [
+    JSON.stringify({ message: { usage: { input_tokens: 10, output_tokens: 10, cache_read_input_tokens: 10000 } } }),
+  ]);
+  const h = readSplit(fxHeavy);
+  ok('cache-heavy raw total = 10020', h.gross.total === 10020);
+  ok('cache-heavy cost = 1060 (cache reads weighted 0.1x)', near(costTokEq(h.gross), 1060));
+  ok('cost visibly below raw for cache-heavy line', costTokEq(h.gross) < h.gross.total / 5);
 
   // --- (2) stats: mean + sample (n-1) stdev. [10,20,30] -> mean 20, var=((100+0+100)/2)=100, stdev 10. ---
   const st = stats([10, 20, 30]);
@@ -69,18 +88,29 @@ try {
   ok('ON net mean = 160', onRow && near(onRow.net.mean, 160));
   ok('ON plumbing mean = 17', onRow && near(onRow.plumbing.mean, 17));
   ok('ON wall stats present', onRow && onRow.wallMs && near(onRow.wallMs.mean, 1100));
+  // ON cost: two identical fxOn runs -> cost gross mean 300.5, cost net mean 280.
+  ok('ON cost gross mean = 300.5', onRow && near(onRow.costGross.mean, 300.5));
+  ok('ON cost net mean = 280', onRow && near(onRow.costNet.mean, 280));
 
   // OFF aggregate: gross totals 105 (clean) and 114 (dirty) -> mean 109.5 ; net 105 & 105 -> mean 105.
   const offRow = model.rows.find((r) => r.arm === 'OFF');
   ok('OFF row n = 2', offRow && offRow.n === 2);
   ok('OFF gross mean = 109.5', offRow && near(offRow.gross.mean, 109.5));
   ok('OFF net mean = 105', offRow && near(offRow.net.mean, 105));
+  // OFF cost: clean in90 out15 -> 90+75=165 ; dirty work 165 + orch(in8 out1)=13 -> gross 178, net 165.
+  // cost gross mean = (165+178)/2 = 171.5 ; cost net mean = 165.
+  ok('OFF cost gross mean = 171.5', offRow && near(offRow.costGross.mean, 171.5));
+  ok('OFF cost net mean = 165', offRow && near(offRow.costNet.mean, 165));
 
   // Ratios: net ON/OFF = 160/105 ; gross ON/OFF = 177/109.5.
   const ratio = model.ratios.find((r) => r.problem === 'greenfield');
   ok('ratio computed for greenfield (both arms)', ratio && ratio.haveBoth);
   ok('net ON/OFF ratio = 160/105', ratio && near(ratio.netOnOverOff, 160 / 105));
   ok('gross ON/OFF ratio = 177/109.5', ratio && near(ratio.grossOnOverOff, 177 / 109.5));
+  // Cost-weighted ratios differ from raw ratios (output is weighted 5x), proving the cost view is distinct.
+  ok('cost net ON/OFF ratio = 280/165', ratio && near(ratio.costNetOnOverOff, 280 / 165));
+  ok('cost gross ON/OFF ratio = 300.5/171.5', ratio && near(ratio.costGrossOnOverOff, 300.5 / 171.5));
+  ok('cost ratio differs from raw ratio', ratio && !near(ratio.costGrossOnOverOff, ratio.grossOnOverOff));
 
   // --- (4) solved===false is dropped from aggregates but reported. ---
   const model2 = buildReport([

@@ -1,0 +1,402 @@
+{
+  "meta": {
+    "source": "bench/results-v2.jsonl",
+    "resultCount": 10,
+    "generatedAt": "2026-06-09T17:01:54.833Z"
+  },
+  "rows": [
+    {
+      "problem": "graph-dependent",
+      "arm": "off",
+      "n": 5,
+      "gross": {
+        "mean": 325550.2,
+        "stdev": 36791.72687167592,
+        "n": 5
+      },
+      "net": {
+        "mean": 325550.2,
+        "stdev": 36791.72687167592,
+        "n": 5
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 5
+      },
+      "wallMs": {
+        "mean": 62486.8,
+        "stdev": 9776.073557415575,
+        "n": 5
+      }
+    },
+    {
+      "problem": "graph-dependent",
+      "arm": "on",
+      "n": 5,
+      "gross": {
+        "mean": 555825.2,
+        "stdev": 124587.94454601135,
+        "n": 5
+      },
+      "net": {
+        "mean": 101710.4,
+        "stdev": 18163.716987445052,
+        "n": 5
+      },
+      "plumbing": {
+        "mean": 454114.8,
+        "stdev": 111664.70134603862,
+        "n": 5
+      },
+      "wallMs": {
+        "mean": 75620.8,
+        "stdev": 10701.217159744027,
+        "n": 5
+      }
+    }
+  ],
+  "ratios": [
+    {
+      "problem": "graph-dependent",
+      "netOnOverOff": 0.312426163461119,
+      "grossOnOverOff": 1.707340987657203,
+      "haveBoth": true
+    }
+  ],
+  "contaminated": [],
+  "dropped": [],
+  "unreadable": [],
+  "runs": [
+    {
+      "problem": "graph-dependent",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "e81e22e7-0764-427f-a7ea-ba916a5f4e6b",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-graph-dependent-off-0/e81e22e7-0764-427f-a7ea-ba916a5f4e6b.jsonl",
+      "solved": true,
+      "wallMs": 46785,
+      "gross": {
+        "input": 4988,
+        "output": 7873,
+        "cacheRead": 232897,
+        "cacheCreate": 30052,
+        "total": 275810,
+        "messages": 10
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 4988,
+        "output": 7873,
+        "cacheRead": 232897,
+        "cacheCreate": 30052,
+        "total": 275810,
+        "messages": 10
+      }
+    },
+    {
+      "problem": "graph-dependent",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "3302d0e9-75c7-42a0-903c-5c727e6f96be",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-graph-dependent-off-1/3302d0e9-75c7-42a0-903c-5c727e6f96be.jsonl",
+      "solved": true,
+      "wallMs": 62521,
+      "gross": {
+        "input": 7478,
+        "output": 8951,
+        "cacheRead": 311430,
+        "cacheCreate": 34029,
+        "total": 361888,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7478,
+        "output": 8951,
+        "cacheRead": 311430,
+        "cacheCreate": 34029,
+        "total": 361888,
+        "messages": 13
+      }
+    },
+    {
+      "problem": "graph-dependent",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "b7ce2120-22ba-4fce-9a36-9fd5617ec4b8",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-graph-dependent-off-2/b7ce2120-22ba-4fce-9a36-9fd5617ec4b8.jsonl",
+      "solved": true,
+      "wallMs": 70089,
+      "gross": {
+        "input": 7474,
+        "output": 11116,
+        "cacheRead": 257767,
+        "cacheCreate": 37517,
+        "total": 313874,
+        "messages": 11
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7474,
+        "output": 11116,
+        "cacheRead": 257767,
+        "cacheCreate": 37517,
+        "total": 313874,
+        "messages": 11
+      }
+    },
+    {
+      "problem": "graph-dependent",
+      "arm": "off",
+      "trial": 3,
+      "sessionId": "3342e32d-33d3-4105-8dec-7a5e1f5174ee",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-graph-dependent-off-3/3342e32d-33d3-4105-8dec-7a5e1f5174ee.jsonl",
+      "solved": true,
+      "wallMs": 71285,
+      "gross": {
+        "input": 4990,
+        "output": 10070,
+        "cacheRead": 265384,
+        "cacheCreate": 33467,
+        "total": 313911,
+        "messages": 11
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 4990,
+        "output": 10070,
+        "cacheRead": 265384,
+        "cacheCreate": 33467,
+        "total": 313911,
+        "messages": 11
+      }
+    },
+    {
+      "problem": "graph-dependent",
+      "arm": "off",
+      "trial": 4,
+      "sessionId": "fdb27f35-3452-4422-b081-684fcc63bab9",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-graph-dependent-off-4/fdb27f35-3452-4422-b081-684fcc63bab9.jsonl",
+      "solved": true,
+      "wallMs": 61754,
+      "gross": {
+        "input": 7478,
+        "output": 9369,
+        "cacheRead": 311235,
+        "cacheCreate": 34186,
+        "total": 362268,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7478,
+        "output": 9369,
+        "cacheRead": 311235,
+        "cacheCreate": 34186,
+        "total": 362268,
+        "messages": 13
+      }
+    },
+    {
+      "problem": "graph-dependent",
+      "arm": "on",
+      "trial": 0,
+      "sessionId": "bdd52d4c-1b28-41dd-837c-3399d0637227",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-graph-dependent-on-0/bdd52d4c-1b28-41dd-837c-3399d0637227.jsonl",
+      "solved": true,
+      "wallMs": 83575,
+      "gross": {
+        "input": 9408,
+        "output": 14911,
+        "cacheRead": 561596,
+        "cacheCreate": 89860,
+        "total": 675775,
+        "messages": 18
+      },
+      "plumbing": {
+        "input": 157,
+        "output": 14435,
+        "cacheRead": 497271,
+        "cacheCreate": 62351,
+        "total": 574214,
+        "messages": 14
+      },
+      "net": {
+        "input": 9251,
+        "output": 476,
+        "cacheRead": 64325,
+        "cacheCreate": 27509,
+        "total": 101561,
+        "messages": 4
+      }
+    },
+    {
+      "problem": "graph-dependent",
+      "arm": "on",
+      "trial": 1,
+      "sessionId": "16336844-32e6-4fe3-b7e1-5ff65ecb38eb",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-graph-dependent-on-1/16336844-32e6-4fe3-b7e1-5ff65ecb38eb.jsonl",
+      "solved": true,
+      "wallMs": 81788,
+      "gross": {
+        "input": 9666,
+        "output": 10604,
+        "cacheRead": 551328,
+        "cacheCreate": 83709,
+        "total": 655307,
+        "messages": 18
+      },
+      "plumbing": {
+        "input": 413,
+        "output": 10022,
+        "cacheRead": 470852,
+        "cacheCreate": 46494,
+        "total": 527781,
+        "messages": 13
+      },
+      "net": {
+        "input": 9253,
+        "output": 582,
+        "cacheRead": 80476,
+        "cacheCreate": 37215,
+        "total": 127526,
+        "messages": 5
+      }
+    },
+    {
+      "problem": "graph-dependent",
+      "arm": "on",
+      "trial": 2,
+      "sessionId": "c72bd880-0dbf-435d-bbf7-68ea705456be",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-graph-dependent-on-2/c72bd880-0dbf-435d-bbf7-68ea705456be.jsonl",
+      "solved": true,
+      "wallMs": 82263,
+      "gross": {
+        "input": 9404,
+        "output": 13200,
+        "cacheRead": 497233,
+        "cacheCreate": 76624,
+        "total": 596461,
+        "messages": 16
+      },
+      "plumbing": {
+        "input": 153,
+        "output": 12670,
+        "cacheRead": 432908,
+        "cacheCreate": 48955,
+        "total": 494686,
+        "messages": 12
+      },
+      "net": {
+        "input": 9251,
+        "output": 530,
+        "cacheRead": 64325,
+        "cacheCreate": 27669,
+        "total": 101775,
+        "messages": 4
+      }
+    },
+    {
+      "problem": "graph-dependent",
+      "arm": "on",
+      "trial": 3,
+      "sessionId": "fd091c95-58a0-42e1-95ae-4883c5c8da2c",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-graph-dependent-on-3/fd091c95-58a0-42e1-95ae-4883c5c8da2c.jsonl",
+      "solved": true,
+      "wallMs": 58272,
+      "gross": {
+        "input": 6184,
+        "output": 5816,
+        "cacheRead": 317796,
+        "cacheCreate": 61825,
+        "total": 391621,
+        "messages": 11
+      },
+      "plumbing": {
+        "input": 16,
+        "output": 5543,
+        "cacheRead": 269529,
+        "cacheCreate": 40380,
+        "total": 315468,
+        "messages": 8
+      },
+      "net": {
+        "input": 6168,
+        "output": 273,
+        "cacheRead": 48267,
+        "cacheCreate": 21445,
+        "total": 76153,
+        "messages": 3
+      }
+    },
+    {
+      "problem": "graph-dependent",
+      "arm": "on",
+      "trial": 4,
+      "sessionId": "e83f9438-c9bd-4925-82a4-e7194e0674ad",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-graph-dependent-on-4/e83f9438-c9bd-4925-82a4-e7194e0674ad.jsonl",
+      "solved": true,
+      "wallMs": 72206,
+      "gross": {
+        "input": 9269,
+        "output": 6728,
+        "cacheRead": 373664,
+        "cacheCreate": 70301,
+        "total": 459962,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 18,
+        "output": 6270,
+        "cacheRead": 309339,
+        "cacheCreate": 42798,
+        "total": 358425,
+        "messages": 9
+      },
+      "net": {
+        "input": 9251,
+        "output": 458,
+        "cacheRead": 64325,
+        "cacheCreate": 27503,
+        "total": 101537,
+        "messages": 4
+      }
+    }
+  ]
+}
