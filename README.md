@@ -488,6 +488,34 @@ the daemon is unreachable, so a daemon outage never bricks editing.
   now **safe to run alongside a live daemon** — PID-based start/stop, an isolated
   `CLAUDE_PLUGIN_DATA`, and port-specific kills mean it won't disturb your running instance.
 
+## Benchmark: does the orchestrator's context earn its token cost?
+
+A headless A/B harness (`scripts/bench-arm.js`, `scripts/bench-report.js`) measures it honestly:
+each arm is a separate `claude -p` process — **ON** loads the orchestrator MCP (pinned to the real
+graph via `ORCH_WORKSPACE`), **OFF** loads none (true tool exclusion) — both given the identical task
+spec, n trials, model pinned. Reports raw **and** cost-weighted tokens (`cache_read ×0.1`, since raw
+gross over-counts cheap cache reads ~10×).
+
+**Findings (graph-dependent task, opus, n=5):**
+
+| | actual work (output tok) ON/OFF | cache_read ON/OFF | cost-weighted gross ON/OFF |
+| --- | ---: | ---: | ---: |
+| **v2** — full `get_learnings` (~25k payload) | 1.08× | 1.67× | **1.63×** |
+| **v3** — compact `get_learnings` (~1–3k) | 0.95× | 1.18× | **1.03× (parity)** |
+
+- **Actual work is parity** in both runs (output tokens ≈ equal). The agent does the *same work*
+  with or without the graph on these self-solvable tasks.
+- The **entire** ON-vs-OFF cost difference is **`cache_read`** — re-attending the loaded payload +
+  tool schemas every turn. **Payload size is the whole cost story.** Lean (`compact`) payload →
+  cost parity.
+- **No work or quality benefit was measured** (both arms solved every trial). The benefit of context
+  is *unproven, not disproven* — the specs were self-solvable, so the graph was never *required*.
+- **Metric caveat:** measure work with **`output_tokens`**, not `gross − plumbing` "net" — MCP
+  attribution is sticky and bucketed cache_read into "plumbing", which made a spurious "65% less
+  work" artifact. Trust cost-weighted gross.
+
+See `bench/report-v2.md` / `bench/report-v3.md`.
+
 ## Known constraints / honesty notes
 
 - **Native task file format is undocumented/internal** — may change across Claude Code
