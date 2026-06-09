@@ -198,7 +198,7 @@ status      = overlay.status[key]  ??  derive(native.status, deps)
 `peek_workspace` · `next_action` · `loop_start` · `loop_stop` · `loop_status`
 
 Self-learning git tools: `git_init` · `branch_task` · `git_status` · `merge_attempt` ·
-`remove_worktree`.
+`remove_worktree`. Metric-driven loop: `set_task_metric` · `measure_task` · `set_task_benchmark`.
 
 ---
 
@@ -234,6 +234,125 @@ primitive; the judgement is a **subagent skill** (`skills/self-learn-judge`).
 or `{merged:false, conflict, files}`). All backed by `lib/git.js`
 (`createWorktree`/`removeWorktree`/`mergeBranch`/`currentBranch`), exercised by
 `test/git.test.js` and `test/git-merge.test.js`.
+
+**Target-repo decoupling:** every `/git/*` op resolves the repo it runs `git -C` against by the
+order **explicit `repo_path` (body/query) > the task's overlay repo field > daemon workspace**
+(absent any override ⇒ the workspace, unchanged). This lets the loop branch/merge on a repo that is
+*distinct from the daemon workspace* (the common case: the workspace is not itself a git repo).
+A task carries its target via `POST /git/repo {key, repo_path}` (MCP `set_task_repo`; clear with an
+empty path); it surfaces as `repo` on the task node and `/task/detail`. The git MCP tools
+(`branch_task`/`merge_attempt`/`remove_worktree`/`git_status`) also take an optional `repo_path`.
+Covered by `test/repo-target.test.js` and the git section of `test/smoke.sh`.
+
+**Inline metric spec:** a task/problem node can carry an **inline metric spec** — the objective the
+metric-driven loop optimizes — set via `POST /task/metric {key, spec}` (MCP `set_task_metric`; clear
+with an empty/omitted `spec`). The spec is stored on the overlay and surfaces as `metric` on the task
+node and `/task/detail`. Shape:
+
+```jsonc
+{
+  "metric": "p95_latency_ms",        // objective metric name/label (researched for benchmarks)
+  "direction": "min",                // "min" = lower-is-better, "max" = higher-is-better
+  "measure_command": "npm run bench",// shell cmd run LATER in the attempt's worktree, emits the metric
+  "parse": "last_number",            // how to extract a number: a regex w/ a capture group, or
+                                     //   "last_number" (last number on stdout) — measure node interprets
+  "target": 120,                     // optional threshold value
+  "guardrails": [                    // optional must-not-regress checks, each a mini metric spec
+    { "metric": "test_pass", "direction": "max", "measure_command": "npm test", "parse": "last_number" }
+  ]
+}
+```
+
+Validation (server-side) requires `metric`, `direction` ∈ {`min`,`max`}, and `measure_command`;
+`parse`/`target`/`guardrails` are optional, and each guardrail must itself carry
+`metric`/`direction`/`measure_command`. Absent any spec ⇒ rationale-only judging (back-compat).
+Covered by `test/metric-spec.test.js` and the metric section of `test/smoke.sh`.
+
+**Measure node:** given a task's metric spec (above) and its attempt worktree, the measure node runs
+`measure_command` (and each guardrail's command) and parses a number, storing the result on the node
+via `POST /task/measure {key, baseline?, repo_path?}` (MCP `measure_task`). It resolves the repo with
+`resolveRepo` (`repo_path` > task repo > workspace) and runs in the attempt's worktree (`branch_task`)
+by default; `baseline:true` runs in the repo root (current main, no attempt) and stores it as the
+judge's reference. The result surfaces as `measurement` on the task node and `/task/detail`:
+
+```jsonc
+{
+  "value": 118,                       // the parsed objective metric for this attempt
+  "guardrails": { "test_pass": 1 },   // each guardrail metric's parsed value
+  "command": "npm run bench",
+  "measured_at": "2026-06-09T…",
+  "baseline": { "value": 130, "guardrails": { "test_pass": 1 }, "measured_at": "…" }
+}
+```
+
+`lib/measure.js` is pure-ish: `parseNumber(stdout, parse)` (sentinel `"last_number"` = last numeric
+token, or a regex with one capture group; throws if no number), `runMeasure(worktree, spec)` →
+`{ value, guardrails }` (bounded `execSync` timeout; non-zero exit throws), and `evalGuardrails(spec,
+baselineGuardrails, measuredGuardrails)` → the list of guardrails that REGRESSED (by each guardrail's
+`direction`) for the judge to weigh. Covered by `test/measure.test.js` and the measure section of
+`test/smoke.sh`.
+
+**Competitive benchmark:** beyond the repo's own baseline, a task can carry a researched
+**competitor/industry-average benchmark** for its metric — the EXTERNAL axis the judge compares the
+winning attempt's measured value against. Set via `POST /task/benchmark {key, benchmark}` (MCP
+`set_task_benchmark`; clear with an empty/omitted `benchmark`); it surfaces as `benchmark` on the task
+node and `/task/detail`. Record shape:
+
+```jsonc
+{
+  "metric": "p95_latency_ms",        // names the same objective as the metric spec
+  "value": 95,                        // the researched reference value (number)
+  "unit": "ms",                       // optional
+  "source": "https://…/report-2026",  // string/url provenance for the figure
+  "note": "industry avg across 5 vendors", // optional
+  "confidence": "med",                // optional: "low" | "med" | "high"
+  "researched_at": "2026-06-09T…"     // optional
+}
+```
+
+Validation (server-side) requires `metric`, a numeric `value`, and a non-empty `source`; an invalid
+record is rejected (400) leaving any prior benchmark untouched. Absent any benchmark ⇒ baseline-only
+judging (back-compat). The actual research is done by an **agent**, not the daemon: the
+`self-learn-benchmark` skill runs bounded web research to find a credible figure and calls
+`set_task_benchmark`, degrading to "no benchmark" (recording nothing, or a `confidence:"low"` note)
+rather than fabricating a number. Covered by `test/benchmark.test.js` and the benchmark section of
+`test/smoke.sh`.
+
+**Converged-vs-iterate control (closes the loop):** after a metric problem `P` gets a judge verdict
+(recorded via `attach_knowledge` with the machine-readable `metric_value` / `guardrails_ok` fields),
+the heartbeat decides **mechanically** — in the daemon, NOT by LLM free-choice — whether to iterate
+again on `P`. When the DAG drains, `decideAction` consults `decideOptimize(P)` (`lib/optimize.js`,
+pure + unit-tested) over `P`'s **chronological verdict history**, the loop's remaining token budget,
+and the optimize config. Precedence (first match wins):
+
+| decision      | condition                                                                                  | what the loop does |
+|---------------|--------------------------------------------------------------------------------------------|--------------------|
+| **converged** | latest winning `metric_value` reaches `spec.target` (direction-aware: `min`≤, `max`≥)      | mark `P` optimize-closed, fall through to the normal drained → `plan`/`stop` logic |
+| **stuck**     | the last **K** rounds produced no usable winner (all no-winner OR all guardrail-regressed) | **escalate**: raise a `request_guidance` question (human-gated) and halt the loop — **never** auto-cancel/replan |
+| **converged** | diminishing returns: the last **K** per-cycle `metric_value` deltas are all `< epsilon`    | mark `P` optimize-closed, fall through |
+| **budget**    | the loop's existing `tokenBudget` is exhausted (`budget_remaining ≤ 0`)                    | mark `P` optimize-closed, fall through to stop |
+| **iterate**   | otherwise (room to improve, budget remains)                                                | return an `action:'optimize'` tick on the **same** `P`, with the prior verdict as `prior_verdict` so the `self-learn-planner` proposes a **different** change next round |
+
+Ordering rationale: an explicit **target met** is unambiguous success (beats everything); **stuck**
+outranks the silent stops so a genuinely-broken problem goes to a human rather than being quietly
+dropped; then diminishing-returns and budget are the two stop reasons. **No metric problem in flight
+⇒ behavior is unchanged** — the pre-existing `drained → plan` / `drained → stop` branch is the default
+(this control is purely additive). An `iterate` records the verdict count, so it only re-decides after
+a *new* judge round lands (an iterate can't tight-loop on a stale verdict).
+
+Config (per-workspace, `POST /config { optimize }`, mirrors the `escalation` knobs):
+
+```jsonc
+{ "optimize": {
+  "epsilon": 0.01,            // per-cycle metric improvement below which a round counts as "diminishing"
+  "diminishing_rounds": 3     // K: how many consecutive sub-epsilon / no-winner rounds trigger converge / stuck
+} }
+```
+
+The **token budget reuses the loop's existing `tokenBudget`** (no separate knob). Defaults live in
+`lib/optimize.js` (`epsilon: 0.01`, `diminishing_rounds: 3`); a negative/NaN/non-integer knob falls
+back to the default so a mis-set value can't silently disable the control. Covered by
+`test/optimize.test.js` (all five outcomes) and the optimize section of `test/smoke.sh`.
 
 ---
 

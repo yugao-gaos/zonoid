@@ -13,6 +13,8 @@ const nt = require('./lib/native-tasks');
 const overlayStore = require('./lib/overlay');
 const mcpCore = require('./lib/mcp-core');
 const git = require('./lib/git');
+const measure = require('./lib/measure');
+const optimize = require('./lib/optimize');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -58,6 +60,11 @@ const ALL_STATUSES = ['not_ready', 'ready', ...ACTION_STATUSES];
 // The five escalation triggers — the situations where the loop should stop and ask the user
 // instead of guessing. All default ON; tunable per-workspace via POST /config { escalation }.
 const ESCALATION_DEFAULTS = () => ({ ambiguous_intent: true, irreversible_action: true, low_confidence_high_impact: true, repeated_failure: true, scope_expansion: true });
+// Optimize-loop knobs (⑥): epsilon = the per-cycle improvement below which a round counts as
+// "diminishing"; diminishing_rounds (K) = how many consecutive sub-epsilon / no-win rounds trigger
+// converge / stuck. Tunable per-workspace via POST /config { optimize }. (Budget reuses the loop's
+// existing tokenBudget — no separate knob.) Defaults live in lib/optimize.js.
+const OPTIMIZE_DEFAULTS = () => ({ ...optimize.DEFAULTS });
 
 let state = { workspace: null, overlay: overlayStore.EMPTY(), routes: [], agents: {}, mainTranscript: null };
 // Persist + restore the workspace, so a daemon respawn (e.g. after a crash/kill) keeps serving
@@ -84,6 +91,49 @@ let loop = { active: false, iterations: 0, spent: 0, baseline: 0, real: false, s
 try { Object.assign(loop, JSON.parse(fs.readFileSync(LOOP_FILE, 'utf8'))); } catch { /* fresh */ }
 function saveLoop() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(LOOP_FILE, JSON.stringify(loop)); } catch { /* best effort */ } }
 function saveAgents() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(AGENTS_FILE, JSON.stringify(state.agents)); } catch { /* best effort */ } }
+
+// Resolve the TARGET git repo for a task's git op. Precedence (back-compat default = workspace):
+//   explicit (request body repo_path) > task's overlay repo field > daemon workspace.
+// Lets the loop branch/merge/measure on a repo distinct from the daemon's own workspace.
+function resolveRepo(key, explicit) {
+  return explicit || (key && state.overlay.repos && state.overlay.repos[key]) || state.workspace;
+}
+
+// Validate an inline metric spec ({ metric, direction, measure_command, parse?, target?,
+// guardrails? }). Returns an error string if invalid, or null if OK. Required: a non-empty
+// `metric` label, `direction` ∈ {min,max}, and a `measure_command`. Optional `guardrails` must be
+// an array whose entries each carry the same three required fields (a regression check is also a
+// measurable metric). Kept minimal — the measure node interprets `parse`/`target` later.
+function validateMetricSpec(spec) {
+  if (typeof spec !== 'object' || Array.isArray(spec)) return 'spec must be an object';
+  if (!spec.metric || typeof spec.metric !== 'string') return 'spec.metric (string) required';
+  if (spec.direction !== 'min' && spec.direction !== 'max') return 'spec.direction must be "min" or "max"';
+  if (!spec.measure_command || typeof spec.measure_command !== 'string') return 'spec.measure_command (string) required';
+  if (spec.guardrails != null) {
+    if (!Array.isArray(spec.guardrails)) return 'spec.guardrails must be an array';
+    for (const gd of spec.guardrails) {
+      if (typeof gd !== 'object' || Array.isArray(gd)) return 'each guardrail must be an object';
+      if (!gd.metric || typeof gd.metric !== 'string') return 'each guardrail needs a metric (string)';
+      if (gd.direction !== 'min' && gd.direction !== 'max') return 'each guardrail needs direction "min" or "max"';
+      if (!gd.measure_command || typeof gd.measure_command !== 'string') return 'each guardrail needs a measure_command (string)';
+    }
+  }
+  return null;
+}
+
+// Validate a researched benchmark record ({ metric, value, unit?, source, note?, confidence?,
+// researched_at? }) — the competitor/industry-average reference for a metric. Returns an error
+// string if invalid, or null if OK. Required: a non-empty `metric` label, a numeric `value`, and a
+// non-empty `source` (a string/url for provenance). Optional `confidence` ∈ {low,med,high}. Other
+// fields (unit/note/researched_at) are free-form. Kept minimal — the judge interprets the rest.
+function validateBenchmark(b) {
+  if (typeof b !== 'object' || Array.isArray(b)) return 'benchmark must be an object';
+  if (!b.metric || typeof b.metric !== 'string') return 'benchmark.metric (string) required';
+  if (typeof b.value !== 'number' || Number.isNaN(b.value)) return 'benchmark.value (number) required';
+  if (!b.source || typeof b.source !== 'string') return 'benchmark.source (string) required';
+  if (b.confidence != null && b.confidence !== 'low' && b.confidence !== 'med' && b.confidence !== 'high') return 'benchmark.confidence must be "low", "med", or "high"';
+  return null;
+}
 
 // --- agent liveness: never leave a phantom in_progress claim ---------------------------------
 // releaseClaim clears a task's status OVERRIDE (not a terminal state) so it re-derives to
@@ -136,6 +186,81 @@ function stopSignalFor(session) {
   return null;
 }
 
+// Collect a problem's judge VERDICTS chronologically (oldest→newest) from its overlay knowledge.
+// A verdict is any knowledge item whose value parses to an object carrying a `winner` field (same
+// convention the /learnings route uses). Order follows insertion order (attach_knowledge appends),
+// which is the round order. Returns [] when the key has none. Pure read of the current overlay.
+function verdictsFor(key) {
+  const items = (state.overlay.knowledge && state.overlay.knowledge[key]) || [];
+  const out = [];
+  for (const it of items) {
+    let v = it && it.value;
+    if (typeof v === 'string') { try { v = JSON.parse(v); } catch { v = null; } }
+    if (v && typeof v === 'object' && 'winner' in v) out.push(v);
+  }
+  return out;
+}
+
+// Find the in-flight metric problem the loop should re-decide, if any. MECHANICAL signal: a `done`
+// task that carries a metric spec AND has at least one judge verdict AND is not optimize-closed AND
+// has a NEW verdict since the last 'iterate' decision (so an iterate can't tight-loop on a stale
+// round). Returns { task, verdicts } or null. Caller passes the already-built graph.
+function pendingOptimizeProblem(g) {
+  for (const t of g.tasks) {
+    if (t.kind === 'note' || t.status !== 'done' || !t.metric) continue;
+    const rec = (state.overlay.optimize && state.overlay.optimize[t.id]) || {};
+    if (rec.closed) continue;                                  // already converged/budget/stuck-escalated
+    const verdicts = verdictsFor(t.id);
+    if (!verdicts.length) continue;                            // not judged yet
+    if (rec.decision === 'iterate' && verdicts.length <= (rec.verdicts || 0)) continue; // no new round since last iterate
+    return { task: t, verdicts };
+  }
+  return null;
+}
+
+// Route a problem P's mechanical decideOptimize() verdict into a loop action + persist bookkeeping.
+//   converged | budget → mark P optimize-closed (stop iterating this problem) and fall through so
+//     the normal drained→plan/stop logic runs (other problems/the DAG continue).
+//   stuck → raise a guidance question via the EXISTING escalation gate (request_guidance), which
+//     halts the loop for the human. NEVER auto-cancels/replans. Mark closed so it isn't re-raised.
+//   iterate → return an 'optimize' action: signal a fresh propose round on the SAME P, feeding the
+//     prior verdict forward as context so the planner proposes a DIFFERENT change. Records the
+//     verdict count so we only re-decide after the next round lands.
+// Returns a loop-action object to return from decideAction, or null to fall through.
+function applyOptimize(prob, base) {
+  const P = prob.task;
+  const last = prob.verdicts[prob.verdicts.length - 1];
+  const d = optimize.decideOptimize({
+    spec: P.metric,
+    verdicts: prob.verdicts,
+    budgetRemaining: base.budget_remaining,
+    config: { ...OPTIMIZE_DEFAULTS(), ...(state.overlay.config.optimize || {}) },
+  });
+  if (d.decision === 'iterate') {
+    overlayStore.setOptimize(state.overlay, P.id, { decision: 'iterate', verdicts: prob.verdicts.length });
+    overlayStore.save(state.workspace, state.overlay); notifyChange();
+    return { ...base, action: 'optimize', problem: P.id, label: P.label, metric: P.metric.metric,
+      reason: d.reason, prior_verdict: last, next_poll_seconds: loop.config.minPoll };
+  }
+  if (d.decision === 'stuck') {
+    // Human-gated halt — reuse the escalation queue exactly like request_guidance. Marks closed so
+    // the same problem isn't re-escalated every tick; loop.active=false stops the heartbeat.
+    overlayStore.addGuidance(state.overlay, {
+      question: `Optimization of "${P.label}" is stuck — ${d.reason}. Drop it, retry with a new approach, or take over?`,
+      context: `metric=${P.metric.metric}; ${prob.verdicts.length} judged round(s), no usable winner. The loop will NOT auto-cancel or replan — your call.`,
+      trigger: 'repeated_failure',
+    });
+    overlayStore.setOptimize(state.overlay, P.id, { closed: true, decision: 'stuck' });
+    loop.active = false; saveLoop();
+    overlayStore.save(state.workspace, state.overlay); notifyChange();
+    return { ...base, action: 'await_user', reason: `optimize stuck on ${P.id}: ${d.reason}` };
+  }
+  // converged | budget — stop iterating THIS problem; let the normal drained logic decide next.
+  overlayStore.setOptimize(state.overlay, P.id, { closed: true, decision: d.decision });
+  overlayStore.save(state.workspace, state.overlay); notifyChange();
+  return null; // fall through to drained→plan/stop
+}
+
 function decideAction() {
   // Cooperative self-stop (poll EVERY iteration, before anything else): the heartbeat runs
   // in-process, so the PreToolUse cooperative-stop hook can't interrupt it. Instead the loop polls
@@ -173,7 +298,14 @@ function decideAction() {
   if (ready.length) return { ...base, action: 'spawn', tasks: ready.slice(0, loop.config.batch).map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: loop.config.minPoll };
   if (running > 0) return { ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(loop.config.maxPoll, loop.config.minPoll * 2) };
   if (ghostWait > 0) return { ...base, action: 'idle', reason: 'waiting on cross-workspace dependencies', next_poll_seconds: loop.config.maxPoll };
-  // DAG drained. Normally we stop. But if self-planning is opted in AND budget remains, hand the
+  // DAG drained. Before the normal plan/stop, run the metric-driven CONVERGED-VS-ITERATE control
+  // (⑥): if a just-judged metric problem P is in flight, decide mechanically whether to iterate on
+  // it again, declare it converged/budget-stopped, or escalate (stuck → request_guidance). An
+  // 'iterate'/'stuck' returns its own action; converged/budget mark P closed and FALL THROUGH to the
+  // existing drained logic below — so no metric problem in flight ⇒ behavior is unchanged (additive).
+  const prob = pendingOptimizeProblem(g);
+  if (prob) { const a = applyOptimize(prob, base); if (a) return a; }
+  // Normally we stop. But if self-planning is opted in AND budget remains, hand the
   // agent a 'plan' tick instead — the planner subagent reads the learnings digest and proposes new
   // initiatives, keeping the loop alive (do NOT clear loop.active). Hard caps above still win.
   if (state.overlay.config.self_plan && remaining > 0) return { ...base, action: 'plan', reason: 'DAG drained; self-planning a next initiative', next_poll_seconds: loop.config.minPoll };
@@ -184,6 +316,54 @@ function decideAction() {
 const now = () => new Date().toISOString();
 const agentsArr = () => Object.values(state.agents);
 function baseStatus(s) { return s === 'completed' ? 'done' : s === 'in_progress' ? 'in_progress' : 'pending'; }
+
+// Relevance scoring shared by /task/suggest and auto-wiring: rank every other node in the graph
+// by token-overlap of label+summary against `target`. Returns matches sorted desc by score, each
+// { key, label, status, score, shared, suggest_kind, duplicate }. suggest_kind is 'context' for
+// done/note providers (summary flows in) and 'blocking' for open tasks (a real prerequisite).
+// One source of truth so auto-wiring uses the IDENTICAL relevance the agent sees from suggest_links.
+const SUGGEST_STOP = new Set(['the', 'and', 'for', 'task', 'with', 'that', 'this', 'from', 'into', 'use', 'run', 'add', 'all', 'new', 'via', 'its']);
+const suggestToks = (s) => new Set((String(s || '').toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter((w) => !SUGGEST_STOP.has(w)));
+const SUGGEST_DUP_THRESHOLD = 0.6;   // high label/summary overlap with an OPEN task ⇒ likely a re-plan duplicate
+function scoreMatches(g, target) {
+  const tg = suggestToks(`${target.label} ${target.summary || ''}`);
+  const linked = new Set([...(target.deps || []), ...(target.context_deps || [])]);
+  const OPEN = new Set(['not_ready', 'ready', 'in_progress']);
+  return g.tasks
+    .filter((x) => x.id !== target.id && !linked.has(x.id))
+    .map((x) => {
+      const xt = suggestToks(`${x.label} ${x.summary || ''}`);
+      const shared = [...tg].filter((w) => xt.has(w));
+      const score = tg.size && xt.size ? shared.length / Math.sqrt(tg.size * xt.size) : 0;
+      const duplicate = score >= SUGGEST_DUP_THRESHOLD && OPEN.has(x.status) && x.kind !== 'note';
+      return { key: x.id, label: x.label, status: x.status, score: Math.round(score * 1000) / 1000, shared: shared.slice(0, 8), suggest_kind: (x.kind === 'note' || x.status === 'done') ? 'context' : 'blocking', duplicate };
+    })
+    .filter((c) => c.score > 0)
+    .sort((a, b) => b.score - a.score);
+}
+
+// Default auto-wire relevance threshold (conservative — err toward FEWER false edges). A newly
+// seen task auto-gets a weighted context edge to each context-eligible match scoring >= this.
+const DEFAULT_AUTOWIRE_THRESHOLD = 0.25;
+// Auto-wire a genuinely-new task (`target`) into the graph `g` by writing weighted CONTEXT edges
+// into `overlay`: an edge (weight = relevance score) to each context-eligible match (done/note
+// provider) scoring >= threshold. CONTEXT only — never blocking. Idempotent via addEdge's dedupe
+// plus the caller's firstSeen guard (only ever invoked on a task's first sighting). Returns the
+// count of edges added. No match clears the bar ⇒ 0 edges, correctly marking a genuinely novel
+// task. Pure on (overlay, g, target) so it unit-tests without daemon state.
+function autowireNewTask(overlay, g, target, threshold = DEFAULT_AUTOWIRE_THRESHOLD) {
+  let added = 0;
+  for (const m of scoreMatches(g, target)) {
+    if (m.suggest_kind !== 'context') continue; // CONTEXT edges only — never auto-blocking
+    if (m.score < threshold) continue;
+    // m.key is the provider's graph-node id (note nodes are 'note:<id>'), which is exactly what
+    // depRefs matches edge.from against — store it verbatim as the context edge's source.
+    const before = overlay.edges.length;
+    overlayStore.addEdge(overlay, m.key, target.id, null, 'context', m.score);
+    if (overlay.edges.length > before) added++; // count only genuinely-new edges (addEdge dedupes)
+  }
+  return added;
+}
 
 // ---- workspace-aware graph engine -----------------------------------------
 // A "ref" is { ws, key } where key = "{session}/{id}". Resolution may cross workspaces
@@ -208,7 +388,7 @@ function makeResolver() {
     const local = t ? t.deps.map((k) => ({ ws, key: k, kind: 'blocking' })) : [];
     const edges = overlay.edges
       .filter((e) => e.to === key && !e.toWorkspace)
-      .map((e) => ({ ws: e.fromWorkspace || ws, key: e.from, ghost: !!e.fromWorkspace, kind: e.kind === 'context' ? 'context' : 'blocking' }));
+      .map((e) => ({ ws: e.fromWorkspace || ws, key: e.from, ghost: !!e.fromWorkspace, kind: e.kind === 'context' ? 'context' : 'blocking', weight: overlayStore.edgeWeight(e) }));
     return [...local, ...edges];
   }
 
@@ -299,35 +479,51 @@ function buildGraph(ws) {
   // effective status changes. lastStatus tracks the value used to detect changes. Not backfilled.
   const own = ws === state.workspace;
   let tsDirty = false;
+  const newlySeen = []; // task keys first seen THIS build — candidates for one-shot auto-wiring
 
   const tasks = native.map((t) => {
     const refs = R.depRefs(ws, t.key);
     const deps = [];          // blocking deps (gate readiness + drive layout)
     const context_deps = [];  // non-blocking context providers (summary feeds in)
+    const context_weights = {}; // id -> relevance weight (0..1) for context edges (spreading-activation substrate)
     for (const d of refs) {
       const bucket = d.kind === 'context' ? context_deps : deps;
-      if (d.ws === ws) { bucket.push(d.key); }
+      if (d.ws === ws) { bucket.push(d.key); if (d.kind === 'context') context_weights[d.key] = d.weight; }
       else {
         const gid = `${d.ws}|${d.key}`;
         bucket.push(`ghost:${gid}`);
+        if (d.kind === 'context') context_weights[`ghost:${gid}`] = d.weight;
         if (!ghostMap[gid]) ghostMap[gid] = { workspace: d.ws, key: d.key, label: R.label(d.ws, d.key), status: R.effective(d.ws, d.key) };
       }
     }
     const status = R.effective(ws, t.key);
     let ts = (own && state.overlay.timestamps[t.key]) || null;
     if (own) {
-      if (!ts) { ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; state.overlay.timestamps[t.key] = ts; tsDirty = true; }
+      if (!ts) { ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; state.overlay.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key); }
       else if (ts.lastStatus !== status) { ts.lastChanged = now(); ts.lastStatus = status; tsDirty = true; }
     }
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, status, note: state.overlay.notes[t.key] || '', agent_id: state.overlay.assignee[t.key] || null, summary: state.overlay.summaries[t.key] || '', git: state.overlay.git[t.key] || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1) };
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status, note: state.overlay.notes[t.key] || '', agent_id: state.overlay.assignee[t.key] || null, summary: state.overlay.summaries[t.key] || '', git: state.overlay.git[t.key] || null, repo: (state.overlay.repos && state.overlay.repos[t.key]) || null, metric: (state.overlay.metrics && state.overlay.metrics[t.key]) || null, measurement: (state.overlay.measurements && state.overlay.measurements[t.key]) || null, benchmark: (state.overlay.benchmarks && state.overlay.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1) };
   });
-  if (tsDirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
   const ovForNotes = own ? state.overlay : overlayStore.load(ws);
   for (const n of Object.values(ovForNotes.note_nodes || {})) {
     tasks.push({ id: 'note:' + n.id, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: [], note: '', agent_id: null, summary: n.summary });
   }
+  // Auto-wire genuinely-new tasks (those first seen THIS build) into the graph with weighted
+  // context edges to relevant done/note providers. Runs after notes are appended so they're
+  // scoreable. Scoped to `newlySeen` (only the !ts branch) ⇒ pre-existing backlog tasks already
+  // carry a firstSeen and are NEVER swept, so a daemon restart can't spam edges across the graph.
+  let edgesDirty = false;
+  if (own && newlySeen.length) {
+    const threshold = state.overlay.config.autowire_threshold ?? DEFAULT_AUTOWIRE_THRESHOLD;
+    const byId = new Map(tasks.map((t) => [t.id, t]));
+    for (const key of newlySeen) {
+      const target = byId.get(key);
+      if (target && autowireNewTask(state.overlay, { tasks }, target, threshold)) edgesDirty = true;
+    }
+  }
+  if (tsDirty || edgesDirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
   const ghosts = Object.values(ghostMap);
   return { tasks, ghosts, summary: summaryFor(tasks, ghosts) };
 }
@@ -353,6 +549,23 @@ function summaryFor(tasks, ghosts) {
 // Digest a "rejected" ledger of approaches NOT to re-propose: verdict losers (beaten by a winner) plus
 // GENUINE dead-end failures. Superseded/duplicate/consolidated failures are replaced work, not dead
 // ends, so they are excluded. `labelFor(key)` resolves a task label ('' if unknown). Pure — unit-tested.
+// Truthy query-param test for flags like ?compact=1 / =true / =yes (any non-falsey present value).
+function isTruthy(v) { return v != null && v !== '' && v !== '0' && v !== 'false' && v !== 'no'; }
+
+// Lean transform of the full /learnings payload: a planner re-attends learnings every tick, so the
+// full payload (recent + all failures + fat verdicts) dominates cache_read cost. Keep the digested
+// rejected[] ledger as-is, trim verdicts to {key,winner,why} (why truncated), drop recent, and
+// collapse failures to failuresCount. Pure; input not mutated.
+function leanLearnings(full) {
+  const verdicts = (full.verdicts || []).map(({ key, verdict }) => {
+    const v = verdict || {};
+    let why = v.why || v.reason || '';
+    if (typeof why === 'string' && why.length > 200) why = why.slice(0, 200);
+    return { key, winner: v.winner, why };
+  });
+  return { verdicts, rejected: full.rejected || [], failuresCount: (full.failures || []).length };
+}
+
 function digestRejected(verdicts, failures, labelFor) {
   const rejected = [];
   for (const { verdict } of verdicts) {
@@ -496,7 +709,12 @@ const handler = async (req, res) => {
       // resolved from the graph when available.
       const labelFor = (k) => { const t = g.tasks.find((x) => x.id === k); return t ? t.label : ''; };
       const rejected = digestRejected(verdicts, failures, labelFor);
-      return send(res, 200, { verdicts: verdicts.slice(0, 25), failures, recent, rejected });
+      const full = { verdicts: verdicts.slice(0, 25), failures, recent, rejected };
+      // Lean mode (?compact=1): drop the high-volume buckets a planner doesn't need every turn —
+      // keeps the digested rejected[] ledger, trims verdicts to the bottom line, drops recent, and
+      // collapses failures to a count. Default returns the full payload unchanged.
+      const compact = isTruthy(u.searchParams.get('compact'));
+      return send(res, 200, compact ? leanLearnings(full) : full);
     }
 
     // Read-only in_progress claims (for the PreToolUse gate hook). Optional ?session= filters to
@@ -530,6 +748,14 @@ const handler = async (req, res) => {
         const cur = state.overlay.config.escalation || ESCALATION_DEFAULTS();
         for (const k of Object.keys(ESCALATION_DEFAULTS())) if (b.escalation[k] != null) cur[k] = !!b.escalation[k];
         state.overlay.config.escalation = cur;
+      }
+      // Optimize-loop knobs (⑥): epsilon (per-cycle improvement floor) + diminishing_rounds (K).
+      // Merge any subset onto the defaults (the converged-vs-iterate control sanitizes them again).
+      if (b.optimize && typeof b.optimize === 'object') {
+        const cur = { ...OPTIMIZE_DEFAULTS(), ...(state.overlay.config.optimize || {}) };
+        if (b.optimize.epsilon != null) cur.epsilon = Number(b.optimize.epsilon);
+        if (b.optimize.diminishing_rounds != null) cur.diminishing_rounds = Number(b.optimize.diminishing_rounds);
+        state.overlay.config.optimize = cur;
       }
       overlayStore.save(state.workspace, state.overlay);
       return send(res, 200, { ok: true, config: state.overlay.config });
@@ -577,34 +803,52 @@ const handler = async (req, res) => {
     }
 
     // --- git: isolated attempt worktrees (foundation for side-by-side experiments) ---------
-    // Initialize git in the current workspace (idempotent). Run once before /git/worktree.
-    if (p === '/git/init' && m === 'POST') {
-      if (!state.workspace) return send(res, 400, { ok: false, error: 'no workspace set' });
-      const r = git.initRepo(state.workspace);
+    // Each /git/* op targets a repo resolved by resolveRepo(key, explicit): explicit repo_path >
+    // task's overlay repo field > daemon workspace. Lets the loop run on an arbitrary repo distinct
+    // from the daemon's own workspace; absent any override it stays the workspace (back-compat).
+    //
+    // Set/clear the target repo path a task's git ops run against (persisted on the overlay).
+    if (p === '/git/repo' && m === 'POST') {
+      const b = await readBody(req);
+      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
+      overlayStore.setRepo(state.overlay, b.key, b.repo_path);
+      overlayStore.save(state.workspace, state.overlay);
       notifyChange();
-      return send(res, 200, r);
+      return send(res, 200, { ok: true, key: b.key, repo: state.overlay.repos[b.key] || null });
     }
-    // Report repo state + active attempt worktrees.
+    // Initialize git in the target repo (idempotent). Run once before /git/worktree.
+    if (p === '/git/init' && m === 'POST') {
+      const b = await readBody(req);
+      const repo = resolveRepo(b.key, b.repo_path);
+      if (!repo) return send(res, 400, { ok: false, error: 'no repo: set a workspace or pass repo_path' });
+      const r = git.initRepo(repo);
+      notifyChange();
+      return send(res, 200, { ...r, repo });
+    }
+    // Report repo state + active attempt worktrees for the target repo.
     if (p === '/git/status') {
-      if (!state.workspace) return send(res, 200, { isRepo: false });
-      return send(res, 200, { isRepo: git.isRepo(state.workspace), worktrees: git.listWorktrees(state.workspace) });
+      const repo = resolveRepo(u.searchParams.get('key'), u.searchParams.get('repo_path'));
+      if (!repo) return send(res, 200, { isRepo: false });
+      return send(res, 200, { repo, isRepo: git.isRepo(repo), worktrees: git.listWorktrees(repo) });
     }
     // Create an isolated worktree+branch for a task attempt; record it on the overlay.
     if (p === '/git/worktree' && m === 'POST') {
       const b = await readBody(req);
       if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
-      if (!state.workspace || !git.isRepo(state.workspace)) return send(res, 409, { ok: false, error: 'workspace is not a git repo: run git_init first' });
-      const info = git.createWorktree(state.workspace, b.key);
+      const repo = resolveRepo(b.key, b.repo_path);
+      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: run git_init first' });
+      const info = git.createWorktree(repo, b.key);
       overlayStore.setGit(state.overlay, b.key, info);
       overlayStore.save(state.workspace, state.overlay);
       notifyChange();
-      return send(res, 200, info);
+      return send(res, 200, { ...info, repo });
     }
     // Remove a task attempt's worktree+branch (idempotent) and drop its overlay record.
     if (p === '/git/worktree/remove' && m === 'POST') {
       const b = await readBody(req);
       if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
-      if (state.workspace) git.removeWorktree(state.workspace, b.key);
+      const repo = resolveRepo(b.key, b.repo_path);
+      if (repo) git.removeWorktree(repo, b.key);
       delete state.overlay.git[b.key];
       overlayStore.save(state.workspace, state.overlay);
       notifyChange();
@@ -614,10 +858,72 @@ const handler = async (req, res) => {
     if (p === '/git/merge' && m === 'POST') {
       const b = await readBody(req);
       if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
-      if (!state.workspace || !git.isRepo(state.workspace)) return send(res, 409, { ok: false, error: 'workspace is not a git repo: run git_init first' });
-      const result = git.mergeBranch(state.workspace, b.key, { message: b.message });
+      const repo = resolveRepo(b.key, b.repo_path);
+      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: run git_init first' });
+      const result = git.mergeBranch(repo, b.key, { message: b.message });
       notifyChange();
       return send(res, 200, result);
+    }
+
+    // --- metric-driven loop: inline metric spec on a task/problem node ----------------------
+    // Set/clear the INLINE metric spec a task is optimizing. The measure node (later) runs
+    // measure_command in the attempt's worktree and parses a number via `parse`; the judge weighs
+    // `metric` in `direction`. Absent ⇒ rationale-only judging (back-compat). Pass a falsy spec to
+    // clear. Validated: { metric, direction∈{min,max}, measure_command } required; parse/target/
+    // guardrails optional. Each guardrail (if any) must itself carry metric/direction/measure_command.
+    if (p === '/task/metric' && m === 'POST') {
+      const b = await readBody(req);
+      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
+      if (b.spec) {
+        const err = validateMetricSpec(b.spec);
+        if (err) return send(res, 400, { ok: false, error: err });
+      }
+      overlayStore.setMetricSpec(state.overlay, b.key, b.spec || null);
+      overlayStore.save(state.workspace, state.overlay);
+      notifyChange();
+      return send(res, 200, { ok: true, key: b.key, metric: state.overlay.metrics[b.key] || null });
+    }
+
+    // Set/clear the researched competitor/industry-average BENCHMARK for a task's metric — the
+    // EXTERNAL axis the judge compares the winning attempt's measured value against (beyond our own
+    // baseline). A record is { metric, value (number), unit?, source, note?, confidence?, researched_at? }.
+    // Absent ⇒ baseline-only judging (back-compat). Pass a falsy benchmark to clear. Validated:
+    // metric/value/source required; an invalid record is rejected (400) leaving any prior benchmark untouched.
+    if (p === '/task/benchmark' && m === 'POST') {
+      const b = await readBody(req);
+      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
+      if (b.benchmark) {
+        const err = validateBenchmark(b.benchmark);
+        if (err) return send(res, 400, { ok: false, error: err });
+      }
+      overlayStore.setBenchmark(state.overlay, b.key, b.benchmark || null);
+      overlayStore.save(state.workspace, state.overlay);
+      notifyChange();
+      return send(res, 200, { ok: true, key: b.key, benchmark: state.overlay.benchmarks[b.key] || null });
+    }
+
+    // Run the task's metric spec and store the measured value(s) on the node — the MEASURE half of
+    // the metric-driven loop. Resolves the repo via resolveRepo (NO workspace hardcode) and runs in
+    // the attempt's worktree (createWorktree gives the existing one) by default; pass baseline:true to
+    // measure the repo's current main (repo root, no attempt) and store it as the judge's reference.
+    // Surfaces the measured value(s) on the task node + /task/detail (overlay measurements[key]).
+    if (p === '/task/measure' && m === 'POST') {
+      const b = await readBody(req);
+      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
+      const spec = state.overlay.metrics && state.overlay.metrics[b.key];
+      if (!spec) return send(res, 409, { ok: false, error: 'no metric spec on task: set one with set_task_metric first' });
+      const repo = resolveRepo(b.key, b.repo_path);
+      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: run git_init first' });
+      // Baseline = repo root (current main, no attempt); attempt = the task's isolated worktree.
+      const cwd = b.baseline ? repo : git.createWorktree(repo, b.key).worktree;
+      let result;
+      try { result = measure.runMeasure(cwd, spec); }
+      catch (e) { return send(res, 422, { ok: false, error: String(e.message || e) }); }
+      const record = { ...result, command: spec.measure_command, measured_at: new Date().toISOString() };
+      overlayStore.setMeasurement(state.overlay, b.key, b.baseline ? { baseline: record } : record);
+      overlayStore.save(state.workspace, state.overlay);
+      notifyChange();
+      return send(res, 200, { ok: true, key: b.key, baseline: !!b.baseline, repo, measurement: state.overlay.measurements[b.key] });
     }
 
     // Add a dependency edge. Local by default; pass fromWorkspace for a ghost (foreign provider).
@@ -625,7 +931,7 @@ const handler = async (req, res) => {
     if (p === '/overlay/edge' && m === 'POST') {
       const b = await readBody(req);
       if (!b.from || !b.to) return send(res, 400, { ok: false, error: 'from and to required' });
-      overlayStore.addEdge(state.overlay, b.from, b.to, b.fromWorkspace, b.kind);
+      overlayStore.addEdge(state.overlay, b.from, b.to, b.fromWorkspace, b.kind, b.weight);
       overlayStore.save(state.workspace, state.overlay);
       notifyChange();
       return send(res, 200, { ok: true, edges: state.overlay.edges.length, ghost: !!b.fromWorkspace, kind: b.kind === 'context' ? 'context' : 'blocking' });
@@ -739,25 +1045,7 @@ const handler = async (req, res) => {
       const key = u.searchParams.get('key');
       const target = g.tasks.find((x) => x.id === key);
       if (!target) return send(res, 404, { ok: false, error: 'unknown task' });
-      const STOP = new Set(['the', 'and', 'for', 'task', 'with', 'that', 'this', 'from', 'into', 'use', 'run', 'add', 'all', 'new', 'via', 'its']);
-      const toks = (s) => new Set((String(s || '').toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter((w) => !STOP.has(w)));
-      const tg = toks(`${target.label} ${target.summary || ''}`);
-      const linked = new Set([...target.deps, ...target.context_deps]);
-      const OPEN = new Set(['not_ready', 'ready', 'in_progress']);
-      const DUP_THRESHOLD = 0.6;   // high label/summary overlap with an OPEN task ⇒ likely a re-plan duplicate
-      const out = g.tasks
-        .filter((x) => x.id !== key && !linked.has(x.id))
-        .map((x) => {
-          const xt = toks(`${x.label} ${x.summary || ''}`);
-          const shared = [...tg].filter((w) => xt.has(w));
-          const score = tg.size && xt.size ? shared.length / Math.sqrt(tg.size * xt.size) : 0;
-          // A near-duplicate of an existing OPEN task: don't re-create it — supersede_task(old→new) instead.
-          const duplicate = score >= DUP_THRESHOLD && OPEN.has(x.status) && x.kind !== 'note';
-          return { key: x.id, label: x.label, status: x.status, score: Math.round(score * 1000) / 1000, shared: shared.slice(0, 8), suggest_kind: (x.kind === 'note' || x.status === 'done') ? 'context' : 'blocking', duplicate };
-        })
-        .filter((c) => c.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5);
+      const out = scoreMatches(g, target).slice(0, 5);
       const duplicates = out.filter((c) => c.duplicate).map((c) => c.key);
       let hint = 'Link DONE matches as kind:context (their summary becomes Tier-1 context); link a true prerequisite as kind:blocking. Skip unrelated ones.';
       if (duplicates.length) hint = `WARNING: this looks like a near-duplicate of OPEN task(s) ${duplicates.join(', ')}. If it is the same work re-planned, do NOT keep both — call supersede_task(old_task_key=<existing>, new_task_key=${target.id}) so the graph reconciles old→new instead of leaving orphaned duplicates. ` + hint;
@@ -814,6 +1102,10 @@ const handler = async (req, res) => {
         summary: state.overlay.summaries[key] || '',
         knowledge: state.overlay.knowledge[key] || [],
         git: state.overlay.git[key] || null,
+        repo: (state.overlay.repos && state.overlay.repos[key]) || null,
+        metric: (state.overlay.metrics && state.overlay.metrics[key]) || null,
+        measurement: (state.overlay.measurements && state.overlay.measurements[key]) || null,
+        benchmark: (state.overlay.benchmarks && state.overlay.benchmarks[key]) || null,
         assignee,
         cancel_requested: state.overlay.cancel_requested[key] || null,  // advisory cooperative-cancel flag
         tokenUsage: agent && agent.transcript_path ? usageCached(agent.transcript_path) : null,
@@ -942,7 +1234,7 @@ const handler = async (req, res) => {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, harnessTranscriptForTask, digestRejected };
+module.exports = { taskTokens, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, autowireNewTask, DEFAULT_AUTOWIRE_THRESHOLD };
 
 if (require.main === module) {
   const server = http.createServer(handler);

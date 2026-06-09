@@ -111,6 +111,27 @@ chk "drained+self_plan -> plan"  "$(g next-action | jq -r .action)"             
 jpost config '{"self_plan":false}' >/dev/null
 chk "drained, no self_plan -> stop" "$(g next-action | jq -r .action)"           "stop"
 
+# optimize-loop control (⑥): a DONE problem carrying a metric spec + a judge verdict, DAG drained.
+# With no target met and budget remaining the heartbeat returns an 'optimize' action (iterate on the
+# SAME problem, prior verdict fed forward). A converge-on-target verdict instead falls through to stop.
+jpost loop/start '{"maxIterations":50,"tokenBudget":500000}' >/dev/null   # re-arm (prior section may have stopped it)
+chk "optimize knobs stored"     "$(jpost config '{"optimize":{"epsilon":1,"diminishing_rounds":3}}' | jq -r '.config.optimize.diminishing_rounds')" "3"
+OPSPEC='{"metric":"p95_latency_ms","direction":"min","measure_command":"echo 150","parse":"last_number","target":120}'
+jpost task/metric "$(printf '{"key":"%s","spec":%s}' "$S/1" "$OPSPEC")" >/dev/null
+# a winning verdict ABOVE target (150 > 120) -> not converged -> iterate
+jpost overlay/knowledge "$(printf '{"key":"%s","item":{"type":"note","value":{"winner":"%s","metric_value":150,"guardrails_ok":true,"improvement":"-50ms"}}}' "$S/1" "$S/1")" >/dev/null
+OPA=$(g next-action)
+chk "drained+unmet metric -> optimize" "$(echo "$OPA" | jq -r .action)"          "optimize"
+chk "optimize carries the problem"     "$(echo "$OPA" | jq -r .problem)"          "$S/1"
+chk "optimize feeds prior verdict"     "$(echo "$OPA" | jq -r .prior_verdict.metric_value)" "150"
+# same poll again WITHOUT a new verdict: no new round -> does NOT re-iterate (falls through to stop)
+chk "no new verdict -> no re-iterate"  "$(g next-action | jq -r '.action!="optimize"')" "true"
+# a NEW verdict AT target (118 <= 120) -> converged: marks closed, falls through to stop
+jpost overlay/knowledge "$(printf '{"key":"%s","item":{"type":"note","value":{"winner":"%s","metric_value":118,"guardrails_ok":true}}}' "$S/1" "$S/1")" >/dev/null
+chk "new verdict at target -> converged->stop" "$(g next-action | jq -r .action)"  "stop"
+jpost task/metric "$(printf '{"key":"%s"}' "$S/1")" >/dev/null   # clear metric so later sections start clean
+jpost loop/stop '{}' >/dev/null
+
 # cooperative self-stop: arm the loop to a session, flag a stop on its claimed task's agent,
 # and confirm the in-process heartbeat self-exits WITHIN ONE iteration (loop.active -> false).
 SS=88888888-0000-0000-0000-000000000002; SSP="$HOME/.claude/projects/-tmp-orch-smoke"; SST="$HOME/.claude/tasks/$SS"
@@ -126,6 +147,61 @@ chk "should-stop sees flag"     "$(g "should-stop?session=$SS" | jq -r .stop)"  
 chk "loop self-exits on stop"   "$(g next-action | jq -r .reason)"               "cooperative stop"
 chk "loop.active cleared"       "$(g loop/status | jq -r .active)"               "false"
 rm -rf "$SST" "$SSP/$SS.jsonl"
+
+# target-repo decoupling: workspace (/tmp/orch-smoke) is NOT a git repo (the dogfood case), so a
+# task carries a SEPARATE target repo path; /git/* resolve it (explicit > task field > workspace).
+GREPO=$(mktemp -d /tmp/orch-smoke-repo.XXXXXX); GK="$S/1"   # a real native task, so /task/detail finds it
+chk "git_status: workspace not a repo" "$(g 'git/status' | jq -r .isRepo)"        "false"
+jpost git/repo "$(printf '{"key":"%s","repo_path":"%s"}' "$GK" "$GREPO")" >/dev/null
+chk "task carries target repo"  "$(g 'task/detail?key='"$GK" | jq -r .repo)"      "$GREPO"
+chk "node exposes repo field"   "$(g state | jq -r '.tasks[]|select(.id=="'"$GK"'")|.repo')" "$GREPO"
+chk "git_init on target repo"   "$(jpost git/init "$(printf '{"key":"%s"}' "$GK")" | jq -r '.head!=null and .repo=="'"$GREPO"'"')" "true"
+chk "git_status resolves task repo" "$(g 'git/status?key='"$GK" | jq -r '.isRepo and .repo=="'"$GREPO"'"')" "true"
+chk "branch_task on target repo" "$(jpost git/worktree "$(printf '{"key":"%s"}' "$GK")" | jq -r '.branch=="orch/attempt/'"$(printf '%s' "$GK" | tr '/' '-')"'"')" "true"
+chk "explicit repo_path overrides task field (status)" "$(g 'git/status?repo_path=/tmp/orch-smoke' | jq -r .isRepo)" "false"
+chk "merge_attempt on target repo" "$(jpost git/merge "$(printf '{"key":"%s"}' "$GK")" | jq -r '.merged or (.conflict!=null) or (.reason!=null)')" "true"
+chk "remove_worktree on target repo" "$(jpost git/worktree/remove "$(printf '{"key":"%s"}' "$GK")" | jq -r .ok)" "true"
+rm -rf "$GREPO" "$CLAUDE_PLUGIN_DATA/worktrees"
+
+# inline metric spec: a task carries a metric-driven objective; set/clear, validation, surfacing
+MK="$S/1"
+SPEC='{"metric":"p95_latency_ms","direction":"min","measure_command":"npm run bench","parse":"last_number","target":120}'
+chk "set_task_metric ok"        "$(jpost task/metric "$(printf '{"key":"%s","spec":%s}' "$MK" "$SPEC")" | jq -r .ok)" "true"
+chk "task carries metric spec"  "$(g 'task/detail?key='"$MK" | jq -r .metric.metric)" "p95_latency_ms"
+chk "node exposes metric field" "$(g state | jq -r '.tasks[]|select(.id=="'"$MK"'")|.metric.direction')" "min"
+chk "reject: missing direction" "$(jpost task/metric "$(printf '{"key":"%s","spec":{"metric":"x","measure_command":"c"}}' "$MK")" | jq -r '.error!=null')" "true"
+chk "reject: bad direction"     "$(jpost task/metric "$(printf '{"key":"%s","spec":{"metric":"x","direction":"lower","measure_command":"c"}}' "$MK")" | jq -r '.error!=null')" "true"
+chk "reject: missing measure"   "$(jpost task/metric "$(printf '{"key":"%s","spec":{"metric":"x","direction":"min"}}' "$MK")" | jq -r '.error!=null')" "true"
+chk "metric still set after rejects" "$(g 'task/detail?key='"$MK" | jq -r .metric.metric)" "p95_latency_ms"
+chk "clear metric (empty spec)" "$(jpost task/metric "$(printf '{"key":"%s"}' "$MK")" | jq -r '.ok and (.metric==null)')" "true"
+chk "metric cleared on node"    "$(g 'task/detail?key='"$MK" | jq -r '.metric==null')" "true"
+
+# measure node: run the spec's measure_command in the attempt worktree, parse + store the value(s)
+MREPO=$(mktemp -d /tmp/orch-smoke-measure.XXXXXX); MMK="$S/1"
+jpost git/repo "$(printf '{"key":"%s","repo_path":"%s"}' "$MMK" "$MREPO")" >/dev/null
+jpost git/init "$(printf '{"key":"%s"}' "$MMK")" >/dev/null
+# fake measure commands: attempt emits 42, guardrail emits 1 (echo, no real bench needed)
+MSPEC='{"metric":"score","direction":"max","measure_command":"echo 42","parse":"last_number","guardrails":[{"metric":"test_pass","direction":"max","measure_command":"echo 1","parse":"last_number"}]}'
+jpost task/metric "$(printf '{"key":"%s","spec":%s}' "$MMK" "$MSPEC")" >/dev/null
+chk "measure_task parses value"  "$(jpost task/measure "$(printf '{"key":"%s"}' "$MMK")" | jq -r '.measurement.value')" "42"
+chk "measure_task runs guardrail" "$(g 'task/detail?key='"$MMK" | jq -r '.measurement.guardrails.test_pass')" "1"
+chk "measure baseline stored"    "$(jpost task/measure "$(printf '{"key":"%s","baseline":true}' "$MMK")" | jq -r '.measurement.baseline.value')" "42"
+chk "node exposes measurement"   "$(g state | jq -r '.tasks[]|select(.id=="'"$MMK"'")|.measurement.value')" "42"
+chk "measure: no spec rejected"  "$(jpost task/measure "$(printf '{"key":"%s"}' "$S/2")" | jq -r '.error!=null')" "true"
+rm -rf "$MREPO" "$CLAUDE_PLUGIN_DATA/worktrees"
+
+# researched benchmark: a task carries a competitor/industry-average reference; set/clear, validation, surfacing
+BK="$S/1"
+BENCH='{"metric":"p95_latency_ms","value":95,"unit":"ms","source":"https://example.com/report","confidence":"med"}'
+chk "set_task_benchmark ok"      "$(jpost task/benchmark "$(printf '{"key":"%s","benchmark":%s}' "$BK" "$BENCH")" | jq -r .ok)" "true"
+chk "task carries benchmark"     "$(g 'task/detail?key='"$BK" | jq -r .benchmark.metric)" "p95_latency_ms"
+chk "node exposes benchmark"     "$(g state | jq -r '.tasks[]|select(.id=="'"$BK"'")|.benchmark.value')" "95"
+chk "reject: missing value"      "$(jpost task/benchmark "$(printf '{"key":"%s","benchmark":{"metric":"x","source":"s"}}' "$BK")" | jq -r '.error!=null')" "true"
+chk "reject: missing source"     "$(jpost task/benchmark "$(printf '{"key":"%s","benchmark":{"metric":"x","value":1}}' "$BK")" | jq -r '.error!=null')" "true"
+chk "reject: bad confidence"     "$(jpost task/benchmark "$(printf '{"key":"%s","benchmark":{"metric":"x","value":1,"source":"s","confidence":"vlow"}}' "$BK")" | jq -r '.error!=null')" "true"
+chk "benchmark still set after rejects" "$(g 'task/detail?key='"$BK" | jq -r .benchmark.metric)" "p95_latency_ms"
+chk "clear benchmark (empty)"    "$(jpost task/benchmark "$(printf '{"key":"%s"}' "$BK")" | jq -r '.ok and (.benchmark==null)')" "true"
+chk "benchmark cleared on node"  "$(g 'task/detail?key='"$BK" | jq -r '.benchmark==null')" "true"
 
 # format-drift detection
 echo 'NOT JSON' > "$T/3.json"; sleep 1.7
