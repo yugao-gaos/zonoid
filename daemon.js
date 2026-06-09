@@ -8,6 +8,7 @@ const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const { URL } = require('url');
 const nt = require('./lib/native-tasks');
 const overlayStore = require('./lib/overlay');
@@ -21,7 +22,8 @@ const PUBLIC = path.join(__dirname, 'public');
 const MAX_ROUTES = 50;
 const BASE = process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'orchestrator');
 const TASKS_DIR = path.join(os.homedir(), '.claude', 'tasks');
-const LOOP_FILE = path.join(BASE, 'loop.json');
+const LOOP_FILE = path.join(BASE, 'loop.json');     // legacy singleton file — migrated into LOOPS_FILE on first boot
+const LOOPS_FILE = path.join(BASE, 'loops.json');   // keyed registry: { [loopId]: entry }
 const MCP_CALL = mcpCore.makeCall(PORT); // self-call for /mcp tool dispatch (loopback)
 const TOKEN = mcpCore.readToken();       // null ⇒ auth off (localhost dev, back-compat)
 // Bearer-token check for /mcp + destructive/write endpoints. Token accepted via
@@ -86,10 +88,44 @@ function notifyChange() { for (const r of sseClients) { try { r.write('data: cha
 // daemon replies spawn/idle/stop + how long to wait before checking again (adaptive backoff),
 // and enforces hard caps so token burn can't run away. Persisted to disk so a daemon restart
 // resumes the budget/iteration count mid-run.
-let loop = { active: false, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: null, session: null,
-  config: { tokenBudget: 100000, maxIterations: 200, minPoll: 30, maxPoll: 1200, estPerTick: 800, batch: 8 } };
-try { Object.assign(loop, JSON.parse(fs.readFileSync(LOOP_FILE, 'utf8'))); } catch { /* fresh */ }
-function saveLoop() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(LOOP_FILE, JSON.stringify(loop)); } catch { /* best effort */ } }
+// Keyed REGISTRY of heartbeat loops (was a singleton `loop`). Each entry is independent — its own
+// budget/iterations/session/config — and ONE heartbeat (decideAll) advances them all. Keyed by a UUID
+// loopId so /loop/start can INSERT (never clobber) and multiple driving conversations can coexist.
+const LOOP_CONFIG_KEYS = ['tokenBudget', 'maxIterations', 'minPoll', 'maxPoll', 'estPerTick', 'batch'];
+const STALE_PROGRESS_MIN_DEFAULT = 30;   // a loop with no progress past this many minutes is swept to inactive
+function newLoop(over) {
+  return { id: null, active: false, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: null,
+    session: null, lastProgress: null,
+    config: { tokenBudget: 100000, maxIterations: 200, minPoll: 30, maxPoll: 1200, estPerTick: 800, batch: 8 },
+    ...over };
+}
+const loops = new Map();   // loopId -> entry
+// Restore the registry on boot. Prefer the keyed loops.json; if absent, migrate a legacy singleton
+// loop.json into ONE entry (backward compat) so an in-flight run survives the upgrade.
+(function restoreLoops() {
+  let restored = false;
+  try {
+    const blob = JSON.parse(fs.readFileSync(LOOPS_FILE, 'utf8'));
+    if (blob && typeof blob === 'object') {
+      for (const [id, e] of Object.entries(blob)) {
+        if (!e || typeof e !== 'object') continue;
+        const entry = newLoop({ ...e, id, config: { ...newLoop().config, ...(e.config || {}) } });
+        loops.set(id, entry);
+        restored = true;
+      }
+    }
+  } catch { /* no registry yet */ }
+  if (!restored) {
+    try {
+      const legacy = JSON.parse(fs.readFileSync(LOOP_FILE, 'utf8'));
+      if (legacy && typeof legacy === 'object') {
+        const id = crypto.randomUUID();
+        loops.set(id, newLoop({ ...legacy, id, config: { ...newLoop().config, ...(legacy.config || {}) } }));
+      }
+    } catch { /* fresh — empty registry */ }
+  }
+})();
+function saveLoops() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(LOOPS_FILE, JSON.stringify(Object.fromEntries(loops))); } catch { /* best effort */ } }
 function saveAgents() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(AGENTS_FILE, JSON.stringify(state.agents)); } catch { /* best effort */ } }
 
 // Resolve the TARGET git repo for a task's git op. Precedence (back-compat default = workspace):
@@ -169,6 +205,55 @@ function sweepStaleClaims() {
   return dirty;
 }
 
+// Is a driving conversation `session` still live? Authoritative, same basis as sweepStaleClaims:
+// live iff it has a RUNNING agent, OR an in_progress claim that changed within stale_minutes. A
+// session with neither is dead (closed conversation / killed driver). Empty session ⇒ treat as live
+// (a manually-started loop with no bound conversation isn't a zombie by this signal alone).
+function sessionIsLive(session) {
+  if (!session) return true;
+  // A running agent in this session, OR a recently-touched in_progress claim owned by an agent in
+  // this session, both prove the conversation is still driving work.
+  const cutoff = Date.now() - (state.overlay.config.stale_minutes ?? 10) * 60000;
+  for (const a of Object.values(state.agents)) {
+    if (!a || a.session !== session) continue;
+    if (a.state === 'running') return true;
+  }
+  for (const [key, st] of Object.entries(state.overlay.status)) {
+    if (st !== 'in_progress') continue;
+    const ts = state.overlay.timestamps[key];
+    if (!ts || Date.parse(ts.lastChanged) <= cutoff) continue;
+    const agentId = state.overlay.assignee[key];
+    const agent = agentId ? state.agents[agentId] : null;
+    if (agent && agent.session === session) return true;
+  }
+  return false;
+}
+
+// Central liveness sweep for the LOOP registry (same pass/pattern as sweepStaleClaims). Demote an
+// active loop to active=false when ANY of: its driving session is dead; its budget or iteration cap
+// is already exhausted; or it has made no progress (lastProgress, else startedAt) for longer than
+// the staleness threshold. This reclaims zombies — e.g. a loop bound to a closed conversation that
+// is never polled again — without a stop hook. Returns true if it demoted anything (caller persists).
+function sweepStaleLoops() {
+  const mins = state.overlay.config.loop_stale_minutes ?? STALE_PROGRESS_MIN_DEFAULT;
+  const cutoff = Date.now() - mins * 60000;
+  let dirty = false;
+  for (const L of loops.values()) {
+    if (!L.active) continue;
+    let reason = null;
+    if (L.iterations > L.config.maxIterations) reason = 'iteration cap reached';
+    else if (L.spent > L.config.tokenBudget) reason = 'token budget exhausted';
+    else if (!sessionIsLive(L.session)) reason = `driving session '${L.session}' dead`;
+    else {
+      const last = Date.parse(L.lastProgress || L.startedAt || 0);
+      if (!last || last < cutoff) reason = `no progress >${mins}m`;
+    }
+    if (reason) { L.active = false; L.sweptReason = reason; dirty = true; }
+  }
+  if (dirty) { saveLoops(); notifyChange(); }
+  return dirty;
+}
+
 // Cooperative-stop probe: does a stop/cancel apply to `session`'s in-flight claim(s)? Returns the
 // stop descriptor or null. Single source of truth shared by the /should-stop route AND the in-process
 // heartbeat (decideAction) — so a flagged stop halts the loop the SAME way the PreToolUse hook would,
@@ -226,8 +311,9 @@ function pendingOptimizeProblem(g) {
 //   iterate → return an 'optimize' action: signal a fresh propose round on the SAME P, feeding the
 //     prior verdict forward as context so the planner proposes a DIFFERENT change. Records the
 //     verdict count so we only re-decide after the next round lands.
-// Returns a loop-action object to return from decideAction, or null to fall through.
-function applyOptimize(prob, base) {
+// Returns a loop-action object to return from decideOne(L), or null to fall through. Operates on the
+// given loop entry L (per-loop config/active); the caller persists the registry once after the pass.
+function applyOptimize(prob, base, L) {
   const P = prob.task;
   const last = prob.verdicts[prob.verdicts.length - 1];
   const d = optimize.decideOptimize({
@@ -240,18 +326,18 @@ function applyOptimize(prob, base) {
     overlayStore.setOptimize(state.overlay, P.id, { decision: 'iterate', verdicts: prob.verdicts.length });
     overlayStore.save(state.workspace, state.overlay); notifyChange();
     return { ...base, action: 'optimize', problem: P.id, label: P.label, metric: P.metric.metric,
-      reason: d.reason, prior_verdict: last, next_poll_seconds: loop.config.minPoll };
+      reason: d.reason, prior_verdict: last, next_poll_seconds: L.config.minPoll };
   }
   if (d.decision === 'stuck') {
     // Human-gated halt — reuse the escalation queue exactly like request_guidance. Marks closed so
-    // the same problem isn't re-escalated every tick; loop.active=false stops the heartbeat.
+    // the same problem isn't re-escalated every tick; L.active=false stops this loop.
     overlayStore.addGuidance(state.overlay, {
       question: `Optimization of "${P.label}" is stuck — ${d.reason}. Drop it, retry with a new approach, or take over?`,
       context: `metric=${P.metric.metric}; ${prob.verdicts.length} judged round(s), no usable winner. The loop will NOT auto-cancel or replan — your call.`,
       trigger: 'repeated_failure',
     });
     overlayStore.setOptimize(state.overlay, P.id, { closed: true, decision: 'stuck' });
-    loop.active = false; saveLoop();
+    L.active = false;
     overlayStore.save(state.workspace, state.overlay); notifyChange();
     return { ...base, action: 'await_user', reason: `optimize stuck on ${P.id}: ${d.reason}` };
   }
@@ -261,56 +347,80 @@ function applyOptimize(prob, base) {
   return null; // fall through to drained→plan/stop
 }
 
-function decideAction() {
-  // Cooperative self-stop (poll EVERY iteration, before anything else): the heartbeat runs
-  // in-process, so the PreToolUse cooperative-stop hook can't interrupt it. Instead the loop polls
-  // its own stop signal each tick and self-exits within one iteration — finishing cleanly, persisting
-  // via saveLoop() at the call site. Honors a cancel on the loop's claimed task OR a stop on its agent.
-  if (loop.active && loop.session) {
-    const sig = stopSignalFor(loop.session);
-    if (sig) { loop.active = false; return { action: 'stop', reason: 'cooperative stop', stop: sig }; }
+// Decide ONE loop L's action this tick. Honors L's own budget/iterations/config/session. Mutates L
+// (iterations++, spent, active=false on terminal). `ctx` carries the shared per-tick graph + a
+// mutable spawn pool {batch} multiplexed ACROSS loops, so the daemon never spawns more than the
+// configured batch total in a single heartbeat. Returns the loop's decision object (no loopId yet).
+function decideOne(L, ctx) {
+  // Cooperative self-stop (poll EVERY iteration, before anything else): honors a cancel on this
+  // loop's claimed task OR a stop on its agent. Self-exits within one tick; registry persisted by caller.
+  if (L.active && L.session) {
+    const sig = stopSignalFor(L.session);
+    if (sig) { L.active = false; return { action: 'stop', reason: 'cooperative stop', stop: sig }; }
   }
-  // Escalation gate: an open guidance question outranks everything. Halt the loop and wait for
-  // the user — never proceed past a decision they were asked to make.
-  const pending = overlayStore.pendingGuidance(state.overlay);
-  if (pending.length) {
-    loop.active = false;
-    return { action: 'await_user', reason: 'awaiting user guidance', questions: pending.map((g) => ({ id: g.id, question: g.question, context: g.context, trigger: g.trigger })) };
+  // Escalation gate: an open guidance question outranks everything. Halt the loop and wait for the user.
+  if (ctx.pendingGuidance.length) {
+    L.active = false;
+    return { action: 'await_user', reason: 'awaiting user guidance', questions: ctx.pendingGuidance.map((g) => ({ id: g.id, question: g.question, context: g.context, trigger: g.trigger })) };
   }
-  if (!loop.active) return { action: 'stop', reason: 'loop not active' };
-  loop.iterations++;
-  if (loop.real && state.mainTranscript) {                    // real token accounting from the main transcript
+  if (!L.active) return { action: 'stop', reason: 'loop not active' };
+  L.iterations++;
+  if (L.real && state.mainTranscript) {                       // real token accounting from the main transcript
     const u = usageCached(state.mainTranscript);
-    loop.spent = Math.max(0, (u.total || 0) - loop.baseline);
+    L.spent = Math.max(0, (u.total || 0) - L.baseline);
   } else {
-    loop.spent += loop.config.estPerTick;                     // estimate fallback (predictable ceiling)
+    L.spent += L.config.estPerTick;                           // estimate fallback (predictable ceiling)
   }
-  const remaining = Math.max(0, loop.config.tokenBudget - loop.spent);
-  const base = { iterations: loop.iterations, spent: loop.spent, budget_remaining: remaining };
-  if (loop.iterations > loop.config.maxIterations) { loop.active = false; return { ...base, action: 'stop', reason: 'iteration cap reached' }; }
-  if (loop.spent > loop.config.tokenBudget) { loop.active = false; return { ...base, action: 'stop', reason: 'token budget exhausted' }; }
+  const remaining = Math.max(0, L.config.tokenBudget - L.spent);
+  const base = { iterations: L.iterations, spent: L.spent, budget_remaining: remaining };
+  if (L.iterations > L.config.maxIterations) { L.active = false; return { ...base, action: 'stop', reason: 'iteration cap reached' }; }
+  if (L.spent > L.config.tokenBudget) { L.active = false; return { ...base, action: 'stop', reason: 'token budget exhausted' }; }
 
-  const g = buildGraph(state.workspace);
+  const g = ctx.graph;
   const ready = g.tasks.filter((t) => t.status === 'ready');
   const running = g.tasks.filter((t) => t.status === 'in_progress').length;
   const ghostWait = g.tasks.filter((t) => t.status === 'not_ready' && t.deps.some((d) => d.startsWith('ghost:'))).length;
 
-  if (ready.length) return { ...base, action: 'spawn', tasks: ready.slice(0, loop.config.batch).map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: loop.config.minPoll };
-  if (running > 0) return { ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(loop.config.maxPoll, loop.config.minPoll * 2) };
-  if (ghostWait > 0) return { ...base, action: 'idle', reason: 'waiting on cross-workspace dependencies', next_poll_seconds: loop.config.maxPoll };
-  // DAG drained. Before the normal plan/stop, run the metric-driven CONVERGED-VS-ITERATE control
-  // (⑥): if a just-judged metric problem P is in flight, decide mechanically whether to iterate on
-  // it again, declare it converged/budget-stopped, or escalate (stuck → request_guidance). An
-  // 'iterate'/'stuck' returns its own action; converged/budget mark P closed and FALL THROUGH to the
-  // existing drained logic below — so no metric problem in flight ⇒ behavior is unchanged (additive).
+  if (ready.length) {
+    // Spawn pool is shared ACROSS loops this tick: take up to min(this loop's batch, pool remaining).
+    const take = Math.max(0, Math.min(L.config.batch, ctx.batch.remaining));
+    if (take > 0) {
+      ctx.batch.remaining -= take;
+      L.lastProgress = now();                                 // progress signal for the liveness sweep (task 3)
+      return { ...base, action: 'spawn', tasks: ready.slice(0, take).map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll };
+    }
+    // Pool exhausted by earlier loops this tick — idle briefly and retry next heartbeat.
+    return { ...base, action: 'idle', reason: 'spawn batch exhausted this tick', next_poll_seconds: L.config.minPoll };
+  }
+  if (running > 0) return { ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(L.config.maxPoll, L.config.minPoll * 2) };
+  if (ghostWait > 0) return { ...base, action: 'idle', reason: 'waiting on cross-workspace dependencies', next_poll_seconds: L.config.maxPoll };
+  // DAG drained. Metric-driven CONVERGED-VS-ITERATE control (⑥) — unchanged, now per-loop.
   const prob = pendingOptimizeProblem(g);
-  if (prob) { const a = applyOptimize(prob, base); if (a) return a; }
-  // Normally we stop. But if self-planning is opted in AND budget remains, hand the
-  // agent a 'plan' tick instead — the planner subagent reads the learnings digest and proposes new
-  // initiatives, keeping the loop alive (do NOT clear loop.active). Hard caps above still win.
-  if (state.overlay.config.self_plan && remaining > 0) return { ...base, action: 'plan', reason: 'DAG drained; self-planning a next initiative', next_poll_seconds: loop.config.minPoll };
-  loop.active = false;
+  if (prob) { const a = applyOptimize(prob, base, L); if (a) return a; }
+  if (state.overlay.config.self_plan && remaining > 0) return { ...base, action: 'plan', reason: 'DAG drained; self-planning a next initiative', next_poll_seconds: L.config.minPoll };
+  L.active = false;
   return { ...base, action: 'stop', reason: 'DAG drained (nothing ready, running, or externally pending)' };
+}
+
+// ONE heartbeat drives the WHOLE registry. Iterate every ACTIVE loop, compute each one's decision
+// honoring its own budget/config/session, and return a batched array [{ loopId, action, ... }]. The
+// `batch` config multiplexes across loops via a shared per-tick spawn pool (max of the active loops'
+// batch settings — generous but bounded). Inactive loops are skipped. Caller persists the registry.
+function decideAll() {
+  sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
+  const ctx = {
+    graph: buildGraph(state.workspace),
+    pendingGuidance: overlayStore.pendingGuidance(state.overlay),
+    batch: { remaining: 0 },
+  };
+  const active = [...loops.values()].filter((L) => L.active);
+  ctx.batch.remaining = active.reduce((m, L) => Math.max(m, L.config.batch || 0), 0);
+  const out = [];
+  for (const L of active) {
+    const d = decideOne(L, ctx);
+    out.push({ loopId: L.id, ...d });
+  }
+  return out;
 }
 
 const now = () => new Date().toISOString();
@@ -670,7 +780,9 @@ const handler = async (req, res) => {
 
     // Format-health + status — fails loud if the native task format drifts.
     if (p === '/health') {
-      return send(res, 200, { ok: true, workspace: state.workspace, mainTranscript: !!state.mainTranscript, loop: { active: loop.active, iterations: loop.iterations, spent: loop.spent }, native_format: state.workspace ? nt.formatHealth(state.workspace) : null });
+      const allLoops = [...loops.values()];
+      const loopHealth = { count: allLoops.length, active: allLoops.filter((L) => L.active).length, iterations: allLoops.reduce((s, L) => s + L.iterations, 0), spent: allLoops.reduce((s, L) => s + L.spent, 0) };
+      return send(res, 200, { ok: true, workspace: state.workspace, mainTranscript: !!state.mainTranscript, loops: loopHealth, native_format: state.workspace ? nt.formatHealth(state.workspace) : null });
     }
 
     // Read-only ready set (for the nudge hook + UI; does NOT advance the loop/budget).
@@ -768,7 +880,7 @@ const handler = async (req, res) => {
       const b = await readBody(req);
       if (!b.question) return send(res, 400, { ok: false, error: 'question required' });
       const id = overlayStore.addGuidance(state.overlay, { question: b.question, context: b.context, trigger: b.trigger });
-      loop.active = false; saveLoop();                 // halt the loop until the user answers
+      for (const L of loops.values()) L.active = false; saveLoops();   // workspace-wide gate: halt every loop until the user answers
       overlayStore.save(state.workspace, state.overlay);
       notifyChange();
       return send(res, 200, { ok: true, id });
@@ -1131,20 +1243,42 @@ const handler = async (req, res) => {
       return send(res, 200, { task: t, dependencies: deps, ghostDependencies: ghostDeps, dependents });
     }
 
-    // Heartbeat loop control.
+    // Heartbeat loop control. The registry is KEYED by loopId — /loop/start INSERTS a fresh entry
+    // (never clobbers an existing one), so concurrent driving conversations each get their own loop.
     if (p === '/loop/start' && m === 'POST') {
       const b = await readBody(req);
-      loop.active = true; loop.iterations = 0; loop.spent = 0; loop.startedAt = now();
-      loop.session = b.session || null;   // the conversation driving the heartbeat — addresses its cooperative-stop signal
-      loop.real = !!state.mainTranscript;
-      loop.baseline = state.mainTranscript ? (usageCached(state.mainTranscript).total || 0) : 0;
-      for (const k of ['tokenBudget', 'maxIterations', 'minPoll', 'maxPoll', 'estPerTick', 'batch']) if (b[k] != null) loop.config[k] = b[k];
-      saveLoop();
-      return send(res, 200, { ok: true, loop });
+      // Accept a caller-supplied loopId (idempotent restart) or mint one. If it already exists we
+      // RESET that entry in place rather than refusing — but we never overwrite a DIFFERENT loop.
+      const loopId = (b.loopId && String(b.loopId)) || crypto.randomUUID();
+      const L = newLoop({ id: loopId });
+      L.active = true; L.startedAt = now(); L.lastProgress = now();
+      L.session = b.session || null;   // the conversation driving this loop — addresses its cooperative-stop signal
+      L.real = !!state.mainTranscript;
+      L.baseline = state.mainTranscript ? (usageCached(state.mainTranscript).total || 0) : 0;
+      for (const k of LOOP_CONFIG_KEYS) if (b[k] != null) L.config[k] = b[k];
+      loops.set(loopId, L);
+      saveLoops();
+      return send(res, 200, { ok: true, loopId, loop: L });
     }
-    if (p === '/loop/stop' && m === 'POST') { loop.active = false; saveLoop(); return send(res, 200, { ok: true }); }
-    if (p === '/loop/status') return send(res, 200, loop);
-    if (p === '/next-action') { const r = decideAction(); saveLoop(); return send(res, 200, r); }
+    if (p === '/loop/stop' && m === 'POST') {
+      const b = await readBody(req);
+      const loopId = b.loopId || u.searchParams.get('loopId');
+      if (!loopId) return send(res, 400, { ok: false, error: 'loopId required' });
+      const L = loops.get(loopId);
+      if (!L) return send(res, 404, { ok: false, error: 'unknown loopId', loopId });
+      L.active = false; saveLoops();
+      return send(res, 200, { ok: true, loopId });
+    }
+    if (p === '/loop/status') {
+      const loopId = u.searchParams.get('loopId');
+      if (loopId) {
+        const L = loops.get(loopId);
+        if (!L) return send(res, 404, { ok: false, error: 'unknown loopId', loopId });
+        return send(res, 200, L);
+      }
+      return send(res, 200, { loops: Object.fromEntries(loops) });
+    }
+    if (p === '/next-action') { const r = decideAll(); saveLoops(); return send(res, 200, { loops: r }); }
 
     if (p === '/route' && m === 'POST') {
       const b = await readBody(req);
@@ -1239,6 +1373,11 @@ module.exports = { taskTokens, harnessTranscriptForTask, digestRejected, leanLea
 if (require.main === module) {
   const server = http.createServer(handler);
   server.listen(PORT, '127.0.0.1', () => process.stdout.write(`orchestrator daemon on http://127.0.0.1:${PORT}\n`));
+
+  // Periodic liveness sweep: reclaim zombie loops even when NO driver is polling next_action (a loop
+  // bound to a closed conversation is otherwise never re-evaluated). decideAll already sweeps on each
+  // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
+  setInterval(() => { try { sweepStaleLoops(); } catch { /* best effort */ } }, 60000).unref();
 
   // Optional HTTPS listener for the custom-connector path (needs a locally-trusted cert — run
   // scripts/setup-https.sh, which uses mkcert). Off unless cert + key exist. Then connect a

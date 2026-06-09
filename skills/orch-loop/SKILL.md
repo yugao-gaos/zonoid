@@ -14,31 +14,39 @@ description: Run the orchestrator heartbeat — periodically ask the daemon what
 Drives the task graph forward on a self-paced schedule. The **daemon decides**; you just
 execute and re-schedule. Keep each tick cheap.
 
+**ONE heartbeat drives the WHOLE loop registry.** The daemon keeps a KEYED registry of loops (each
+its own budget/config/session). A single `next_action` call returns a **batched array** — one
+decision per active loop — and you reschedule **ONE** `ScheduleWakeup` for all of them. Never run a
+wakeup chain per loop.
+
 ## Start
-1. (Optional) set token controls: `mcp__orchestrator-graph__loop_start({ tokenBudget, maxIterations, minPoll, maxPoll, batch, session })`. Defaults: 100k tokens / 200 ticks / 30s–1200s poll / 8 per batch. These are HARD caps enforced by the daemon. Pass `session` = this conversation's id so a cooperative-stop on its claimed task halts the loop within one tick (see Cooperative stop).
-2. Then run one tick (below) and schedule the next with `ScheduleWakeup`.
+1. (Optional) set token controls: `mcp__orchestrator-graph__loop_start({ tokenBudget, maxIterations, minPoll, maxPoll, batch, session })`. Defaults: 100k tokens / 200 ticks / 30s–1200s poll / 8 per batch. These are HARD caps enforced by the daemon. Pass `session` = this conversation's id so a cooperative-stop on its claimed task halts that loop within one tick (see Cooperative stop). **`loop_start` INSERTS a new loop and returns its `loopId`** — it never clobbers an existing loop, so several loops can run at once.
+2. Then run one tick (below) and schedule the next with **one** `ScheduleWakeup`.
 
 ## Each tick (keep it minimal — conserve tokens)
-1. Call `mcp__orchestrator-graph__next_action`.
-2. Act on the result:
-   - **`stop`** → the loop is over (DAG drained, budget hit, or stopped). Do NOT reschedule. Report the reason briefly.
-   - **`idle`** → do nothing else. Reply just "idle" and schedule the next tick in `next_poll_seconds`.
-   - **`spawn`** → for each task in `tasks`, start it: pass its `key` as `TASK_ID` to a subagent (via the Workflow tool / parallel-orchestrate, or an Agent Team), and call `start_task(key, agent_id)`. When each finishes, the subagent calls `complete_task(key, summary)`. Then schedule the next tick in `next_poll_seconds`.
-   - **`plan`** → the DAG drained and self-planning is on (`self_plan`). This is the self-learning tick that closes the loop: invoke the **`self-learn-planner`** skill. It reads the accumulated learnings (`get_learnings` — judge verdicts, failures, recent completions), proposes 1-3 parallelism-maximizing initiatives and wires them in (structuring "try alternatives" as a **problem → attempts → judge** subtree per the **`self-learn-judge`** skill, so the judge's verdict is recorded back as durable learning for the next run), and calls `request_guidance` on any decision the user must make. If it proposes nothing, it reports no-action. Then schedule the next tick — the newly-added tasks become `spawn`able on the following heartbeat.
-   - **`optimize`** → the daemon's converged-vs-iterate control (`decideOptimize`) decided a just-judged metric problem should ITERATE again. The tick carries `problem` (the problem key `P`), `metric`, and `prior_verdict` (the last judge verdict — the change already tried + its measured result). Invoke the **`self-learn-planner`** skill scoped to `P`: feed it the `prior_verdict` (and `get_learnings`) as context and have it wire a NEW **attempts → judge** round on the SAME `P` that proposes a **DIFFERENT** change (never a repeat of `prior_verdict.winner`). Do NOT cancel/replan `P` — only ADD the next attempt subtree. Then schedule the next tick; the new attempts become `spawn`able on the following heartbeat, and the daemon re-decides converge-vs-iterate once their judge records the next verdict. (Converged/budget-stopped problems never reach here — the daemon falls them through to `plan`/`stop`; a STUCK problem returns `await_user`, not `optimize`.)
-   - **`await_user`** → the planner/judge OR the optimize control raised a `request_guidance` question (e.g. an optimization is **stuck** — repeated no-winner/guardrail-blocked rounds). The loop is halted until the user answers (`/guidance/resolve`). Do NOT reschedule; report the question(s) briefly.
-3. Reschedule with `ScheduleWakeup(next_poll_seconds)` carrying this same heartbeat prompt — UNLESS action was `stop`/`await_user`.
+1. Call `mcp__orchestrator-graph__next_action` **once**. It returns `{ loops: [ { loopId, action, tasks?, next_poll_seconds, ... } ] }` — one entry per ACTIVE loop (empty array ⇒ nothing active; do NOT reschedule).
+2. **Fan out per `loopId`** — act on each entry independently:
+   - **`stop`** → THAT loop is over (its DAG drained, its budget hit, or it was stopped/swept). Drop it from the rescheduling set.
+   - **`idle`** → do nothing for that loop. Keep it in the rescheduling set.
+   - **`spawn`** → for each task in that entry's `tasks`, start it: pass its `key` as `TASK_ID` to a subagent (via the Workflow tool / parallel-orchestrate, or an Agent Team), and call `start_task(key, agent_id)`. When each finishes, the subagent calls `complete_task(key, summary)`. If `start_task` returns **409** (already in_progress by another agent / claimed by another loop this tick), SKIP that task and let the next heartbeat re-poll — never force-takeover. Report usage per `loopId`.
+   - **`plan`** → that loop's DAG drained and self-planning is on (`self_plan`). Self-learning tick: invoke the **`self-learn-planner`** skill. It reads accumulated learnings (`get_learnings` — judge verdicts, failures, recent completions), proposes 1-3 parallelism-maximizing initiatives and wires them in (structuring "try alternatives" as a **problem → attempts → judge** subtree per the **`self-learn-judge`** skill, so the judge's verdict is recorded back as durable learning), and calls `request_guidance` on any decision the user must make. If it proposes nothing, it reports no-action. The new tasks become `spawn`able on the following heartbeat.
+   - **`optimize`** → the daemon's converged-vs-iterate control (`decideOptimize`) decided that loop's just-judged metric problem should ITERATE again. The entry carries `problem` (the problem key `P`), `metric`, and `prior_verdict` (the last judge verdict). Invoke the **`self-learn-planner`** skill scoped to `P`: feed it `prior_verdict` (and `get_learnings`) and have it wire a NEW **attempts → judge** round on the SAME `P` proposing a **DIFFERENT** change (never a repeat of `prior_verdict.winner`). Do NOT cancel/replan `P` — only ADD the next attempt subtree. The new attempts become `spawn`able next heartbeat. (Converged/budget-stopped problems fall through to `plan`/`stop`; a STUCK problem returns `await_user`.)
+   - **`await_user`** → the planner/judge OR the optimize control raised a `request_guidance` question for that loop (e.g. an optimization is **stuck**). That loop is halted until the user answers (`/guidance/resolve`). Drop it from the rescheduling set; report the question(s) briefly.
+3. **Reschedule ONE `ScheduleWakeup`** carrying this same heartbeat prompt, with delay = the **MIN `next_poll_seconds` across all entries still in the rescheduling set** (every entry whose action was `idle`/`spawn`/`plan`/`optimize`). If EVERY entry reported `stop`/`await_user` (or the array was empty), do NOT reschedule — the whole heartbeat is done; report briefly. Keep calling `ScheduleWakeup` directly — do NOT route through any native `/loop` wrapper.
 
 ## Cooperative stop (in-process self-exit)
 The heartbeat tick runs **in-process**, so the PreToolUse cooperative-stop hook can't interrupt it.
-The daemon enforces the stop for you instead: every `next_action` tick first polls the loop's own
-stop signal (a cancel on the loop session's claimed task, or a stop on its agent — same logic as
-`GET /should-stop?session=<id>`). If set, the tick returns `action:'stop', reason:'cooperative stop'`
-and clears `loop.active` — so the loop self-exits **within one iteration**, after finishing the
-current step and persisting. Pass `session` to `loop_start` to arm this. Hard token/iteration caps in
-`loop_start` are enforced the same way.
+The daemon enforces the stop for you instead: every `next_action` tick first polls EACH loop's own
+stop signal (a cancel on that loop's session's claimed task, or a stop on its agent — same logic as
+`GET /should-stop?session=<id>`). If set, that loop's entry returns `action:'stop', reason:'cooperative stop'`
+and the daemon clears its `active` flag — so the loop self-exits **within one iteration**, after
+finishing the current step and persisting. Pass `session` to `loop_start` to arm this per loop. Hard
+token/iteration caps (and the central liveness sweep for dead-session/stalled loops) are enforced the
+same way. A killed driver simply stops calling `next_action`; loops PAUSE (registry persisted to
+`loops.json`, no corruption) and a fresh heartbeat resumes them — and the daemon's periodic sweep
+demotes any whose driving session is dead.
 
 ## Token discipline
 - On an `idle` tick, do not reason or call other tools — the daemon already decided. One MCP call + a one-word reply.
 - Trust the daemon's `next_poll_seconds`: it backs off to long intervals when idle/waiting and short when work is flowing.
-- `loop_stop` cancels the loop anytime; `orch off` (the conversation toggle) also ends it. An `await_user` action means the planner/judge raised a `request_guidance` question — the loop is halted until the user answers (`/guidance/resolve`).
+- `loop_stop({ loopId })` cancels a specific loop anytime (loopId required); `orch off` (the conversation toggle) ends the loop(s) this conversation drives. An `await_user` action means the planner/judge raised a `request_guidance` question — that loop is halted until the user answers (`/guidance/resolve`).
