@@ -1,0 +1,103 @@
+{
+  "nodes": [
+    {
+      "id": "daemon.js",
+      "role": "Orchestrator daemon: serves a per-WORKSPACE task graph built ON TOP of native Claude Code tasks (read live, source of truth) plus our overlay (cross-session ..."
+    },
+    {
+      "id": "lib/git.js",
+      "role": "Thin, dependency-free wrapper over the git CLI, scoped to a repo path."
+    },
+    {
+      "id": "lib/mcp-core.js",
+      "role": "Shared MCP core: tool/resource definitions + JSON-RPC dispatch, used by BOTH transports — the stdio server (mcp-graph.js) and the daemon's HTTP /mcp endpoint..."
+    },
+    {
+      "id": "lib/measure.js",
+      "role": "Run a task's inline metric spec (lib/overlay metrics[key]) in a worktree and parse the number(s)."
+    },
+    {
+      "id": "lib/native-tasks.js",
+      "role": "Native task aggregator."
+    },
+    {
+      "id": "lib/optimize.js",
+      "role": "Converged-vs-iterate control for the metric-driven self-improvement loop (note note-mq6xh98a, ⑥)."
+    },
+    {
+      "id": "lib/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "mcp-graph.js",
+      "role": "MCP server (stdio) for the orchestrator graph."
+    },
+    {
+      "id": "scripts/bench-arm.js",
+      "role": "Single-arm bench runner for the orchestrator-MCP A/B benchmark."
+    },
+    {
+      "id": "scripts/bench-report.js",
+      "role": "bench-report - aggregate headless-bench runs into bench/report.{md,json}."
+    },
+    {
+      "id": "scripts/bench-report.test.js",
+      "role": "Plain Node test for scripts/bench-report.js (no framework; matches test/token-attr.test.js style)."
+    },
+    {
+      "id": "scripts/ingest-git.js",
+      "role": "ingest-git.js — mine git history into candidate knowledge notes."
+    },
+    {
+      "id": "scripts/ingest-structure.js",
+      "role": "ingest-structure - extract the orchestrator's STATIC module-dependency graph."
+    }
+  ],
+  "edges": [
+    {
+      "from": "daemon.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/measure.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/optimize.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/overlay.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "mcp-graph.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-report.test.js",
+      "to": "scripts/bench-report.js",
+      "kind": "depends-on"
+    }
+  ]
+}
