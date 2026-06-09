@@ -29,6 +29,7 @@ const ACCEPTANCE = {
   greenfield:    [['node', 'bench/sandbox/parse-duration.test.js']],
   'context-rich':[['node', 'test/summarize-rejected.test.js'], ['node', 'test/rejected-digest.test.js']],
   'graph-dependent':[['node', 'bench/sandbox/resolve-owner.test.js']],
+  'v4-hard':[['node', 'bench/sandbox/task-tokens.test.js']],
 };
 
 // ON arm joins the REAL cloude graph (read context) without hijacking the daemon workspace.
@@ -144,8 +145,28 @@ function main() {
     if (r.status !== 0) { solved = false; break; }
   }
 
+  // (e) capture W (real-work proxy = final solution size) BEFORE the driver removes the worktree.
+  // The arm is told not to commit, so the solution = unstaged diff vs HEAD + new untracked files.
+  // diffChars = chars of `git diff HEAD` + bytes of every untracked file (e.g. bench/sandbox/*).
+  let diffChars = 0;
+  try {
+    const d = spawnSync('git', ['-C', wt, '--no-pager', 'diff', 'HEAD'],
+      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    if (d.status === 0 && typeof d.stdout === 'string') diffChars += d.stdout.length;
+    const u = spawnSync('git', ['-C', wt, 'ls-files', '--others', '--exclude-standard'],
+      { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    if (u.status === 0 && typeof u.stdout === 'string') {
+      for (const rel of u.stdout.split('\n')) {
+        if (!rel) continue;
+        try { diffChars += fs.statSync(path.join(wt, rel)).size; } catch { /* gone/unreadable */ }
+      }
+    }
+  } catch { /* leave diffChars as 0 on any failure */ }
+  const diffTokens = Math.round(diffChars / 4);
+
   process.stdout.write(JSON.stringify({
     problem, arm, trial, sessionId, transcriptPath, worktree: wt, model: MODEL, exitCode, solved, wallMs,
+    diffChars, diffTokens,
   }) + '\n');
 }
 
