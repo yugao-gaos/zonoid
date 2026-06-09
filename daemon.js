@@ -435,6 +435,16 @@ function baseStatus(s) { return s === 'completed' ? 'done' : s === 'in_progress'
 const SUGGEST_STOP = new Set(['the', 'and', 'for', 'task', 'with', 'that', 'this', 'from', 'into', 'use', 'run', 'add', 'all', 'new', 'via', 'its']);
 const suggestToks = (s) => new Set((String(s || '').toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter((w) => !SUGGEST_STOP.has(w)));
 const SUGGEST_DUP_THRESHOLD = 0.6;   // high label/summary overlap with an OPEN task ⇒ likely a re-plan duplicate
+// Score a single node's label+summary against a precomputed set of QUERY tokens (`qt`), using the
+// IDENTICAL cosine-style token-overlap as scoreMatches — but anchored on a free-text query instead
+// of another task. Returns { shared, score }. Shared by /search (query-by-text retrieval).
+function scoreNodeAgainstTokens(node, qt) {
+  const xt = suggestToks(`${node.label} ${node.summary || ''}`);
+  const shared = [...qt].filter((w) => xt.has(w));
+  const score = qt.size && xt.size ? shared.length / Math.sqrt(qt.size * xt.size) : 0;
+  return { shared, score };
+}
+
 function scoreMatches(g, target) {
   const tg = suggestToks(`${target.label} ${target.summary || ''}`);
   const linked = new Set([...(target.deps || []), ...(target.context_deps || [])]);
@@ -827,6 +837,26 @@ const handler = async (req, res) => {
       // collapses failures to a count. Default returns the full payload unchanged.
       const compact = isTruthy(u.searchParams.get('compact'));
       return send(res, 200, compact ? leanLearnings(full) : full);
+    }
+
+    // Query-by-text retrieval (rung-1): rank EVERY node (especially note nodes, incl. [ingest]
+    // knowledge) by lexical relevance to a free-text query — no anchor task needed. Reuses the
+    // same token scorer as /task/suggest (scoreNodeAgainstTokens / suggestToks / SUGGEST_STOP).
+    // Returns top-k compact { key, title, summary (truncated), score, kind }. Default k=5.
+    if (p === '/search') {
+      const q = u.searchParams.get('q') || '';
+      const k = Math.max(1, Math.min(parseInt(u.searchParams.get('k') || '5', 10) || 5, 50));
+      const g = buildGraph(u.searchParams.get('workspace') || state.workspace);
+      const qt = suggestToks(q);
+      const results = g.tasks
+        .map((node) => {
+          const { score } = scoreNodeAgainstTokens(node, qt);
+          return { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task' };
+        })
+        .filter((r) => r.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, k);
+      return send(res, 200, { query: q, k, results });
     }
 
     // Read-only in_progress claims (for the PreToolUse gate hook). Optional ?session= filters to
@@ -1368,7 +1398,7 @@ const handler = async (req, res) => {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, autowireNewTask, DEFAULT_AUTOWIRE_THRESHOLD };
+module.exports = { taskTokens, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreNodeAgainstTokens, suggestToks, autowireNewTask, DEFAULT_AUTOWIRE_THRESHOLD };
 
 if (require.main === module) {
   const server = http.createServer(handler);

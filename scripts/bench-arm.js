@@ -30,6 +30,7 @@ const ACCEPTANCE = {
   'context-rich':[['node', 'test/summarize-rejected.test.js'], ['node', 'test/rejected-digest.test.js']],
   'graph-dependent':[['node', 'bench/sandbox/resolve-owner.test.js']],
   'v4-hard':[['node', 'bench/sandbox/task-tokens.test.js']],
+  'v5-grounded':[['node', 'bench/sandbox/resolve-deps.test.js']],
 };
 
 // ON arm joins the REAL cloude graph (read context) without hijacking the daemon workspace.
@@ -53,6 +54,13 @@ const ON_PREAMBLE_LEAN =
   'compact:true (the lean index of prior verdicts / rejected approaches) and apply it; expand a ' +
   'specific entry via get_task_detail ONLY if you need its full detail. The graph is strictly ' +
   'READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n';
+// Search (--consult=search): grounded-KB retrieval. The agent MUST call search_knowledge with a
+// query describing the task and apply any relevant retrieved note (a recorded decision/gotcha)
+// before writing code. Tests whether a precise, retrievable KB note collapses task hardness.
+const ON_PREAMBLE_SEARCH =
+  'You have the orchestrator-graph MCP. Before writing code you MUST call search_knowledge with a ' +
+  'query describing this task, and apply any relevant retrieved note (a recorded decision/gotcha). ' +
+  'Graph is READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n';
 
 function arg(name, def) {
   const i = process.argv.indexOf('--' + name);
@@ -64,7 +72,7 @@ function arg(name, def) {
 function consultMode() {
   const eq = process.argv.find((a) => a.startsWith('--consult='));
   let v = eq ? eq.split('=')[1] : arg('consult', process.env.BENCH_CONSULT || 'permissive');
-  return v === 'mandatory' ? 'mandatory' : v === 'lean' ? 'lean' : 'permissive';
+  return v === 'mandatory' ? 'mandatory' : v === 'lean' ? 'lean' : v === 'search' ? 'search' : 'permissive';
 }
 
 function main() {
@@ -100,7 +108,7 @@ function main() {
   const sessionId = crypto.randomUUID();
   const body = specBody.split(REPO).join(wt);
   const cm = consultMode();
-  const onPreamble = cm === 'mandatory' ? ON_PREAMBLE_MANDATORY : cm === 'lean' ? ON_PREAMBLE_LEAN : ON_PREAMBLE_PERMISSIVE;
+  const onPreamble = cm === 'mandatory' ? ON_PREAMBLE_MANDATORY : cm === 'lean' ? ON_PREAMBLE_LEAN : cm === 'search' ? ON_PREAMBLE_SEARCH : ON_PREAMBLE_PERMISSIVE;
   const prompt = (arm === 'on' ? onPreamble : '') + body;
   const mcpConfig = path.join(REPO, `bench/mcp-${arm}.json`);
 
