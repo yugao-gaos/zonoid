@@ -124,6 +124,76 @@ try {
   // --- (5) unreadable transcript is reported, not crashed on. ---
   const model3 = buildReport([{ problem: 'p', arm: 'ON', trial: 1, transcriptPath: path.join(tmp, 'nope.jsonl'), solved: true }]);
   ok('missing transcript reported as unreadable', model3.unreadable.length === 1);
+
+  // --- (6) v4 decomposition: explorer count + W/H math on a single transcript. ---
+  // One assistant msg with usage {out:500} and 3 tool_use blocks (Read, Bash, Notify) -> 2 are corroborators.
+  const fxV4 = write('v4.jsonl', [
+    JSON.stringify({ message: { role: 'assistant', usage: { input_tokens: 50, output_tokens: 500 },
+      content: [
+        { type: 'text', text: 'hi' },
+        { type: 'tool_use', name: 'Read', input: {} },
+        { type: 'tool_use', name: 'Bash', input: {} },
+        { type: 'tool_use', name: 'Notify', input: {} }, // not a corroborator
+      ] } }),
+  ]);
+  const sv = readSplit(fxV4);
+  ok('explorers counts only EXPLORE_TOOLS (Read+Bash=2)', sv.explorers === 2);
+  ok('v4 output captured = 500', sv.gross.output === 500);
+  // H = max(0, out - W); with diffTokens=100 -> H=400.
+  const mv4 = buildReport([{ problem: 'pv', arm: 'ON', trial: 1, transcriptPath: fxV4, solved: true, diffTokens: 100 }]);
+  const pvRow = mv4.rows.find((r) => r.arm === 'ON');
+  ok('v4 W mean = 100 (diffTokens)', pvRow && near(pvRow.W.mean, 100));
+  ok('v4 H mean = 400 (out 500 - W 100)', pvRow && near(pvRow.H.mean, 400));
+  ok('v4 explorers mean = 2', pvRow && near(pvRow.explorers.mean, 2));
+  ok('H clamps at 0 when W > out', near(Math.max(0, 50 - 999), 0)); // sanity of the clamp form
+
+  // --- (7) WIN case: a problem that PASSES all four guards. ---
+  // OFF: out=500, W=100 -> H=400. ON: out=200, W=100 -> H=100. C=0 (equal cache). 2 trials each.
+  // METRIC = (400-100)*5 - 0 = 1500. Cost-weighted H: off=2000, on=500. pooled over [2000,2000,500,500]:
+  //   mean 1250, var = 4*750^2/3 = 750000, stdev ~866.0 -> 1500 > 866 PASS. precondition 400>=200 PASS.
+  //   corroboration 100/100=1.0<=1.1 PASS. solve 1.0/1.0 PASS.
+  const fxWinOff = write('win-off.jsonl', [JSON.stringify({ message: { usage: { input_tokens: 10, output_tokens: 500 } } })]);
+  const fxWinOn  = write('win-on.jsonl',  [JSON.stringify({ message: { usage: { input_tokens: 10, output_tokens: 200 } } })]);
+  const winResults = [
+    { problem: 'win', arm: 'OFF', trial: 1, transcriptPath: fxWinOff, solved: true, diffTokens: 100 },
+    { problem: 'win', arm: 'OFF', trial: 2, transcriptPath: fxWinOff, solved: true, diffTokens: 100 },
+    { problem: 'win', arm: 'ON',  trial: 1, transcriptPath: fxWinOn,  solved: true, diffTokens: 100 },
+    { problem: 'win', arm: 'ON',  trial: 2, transcriptPath: fxWinOn,  solved: true, diffTokens: 100 },
+  ];
+  const winModel = buildReport(winResults);
+  const winV4 = winModel.v4.find((v) => v.problem === 'win');
+  ok('WIN: C = 0 (equal cache cost)', winV4 && near(winV4.C, 0));
+  ok('WIN: METRIC = 1500', winV4 && near(winV4.metric, 1500));
+  ok('WIN: pooled stdev ~866.0', winV4 && Math.abs(winV4.pooledStdev - 866.0254) < 0.1);
+  ok('WIN: precondition PASS (H_off 400 >= 2*W_off 200)', winV4 && winV4.guards.precondition === true);
+  ok('WIN: fairness PASS', winV4 && winV4.guards.fairness === true);
+  ok('WIN: margin PASS (1500 > pooled stdev)', winV4 && winV4.guards.margin === true);
+  ok('WIN: corroboration PASS (W ratio 1.0)', winV4 && winV4.guards.corroboration === true);
+  ok('WIN: overall WIN', winV4 && winV4.win === true);
+
+  // --- (8) FAIL case: same shape but H_off < 2*W_off -> precondition FAILS, so NO-WIN. ---
+  // OFF: out=300, W=200 -> H=100; 2*W_off=400 > 100 -> precondition FAIL. (other guards irrelevant.)
+  const fxFailOff = write('fail-off.jsonl', [JSON.stringify({ message: { usage: { input_tokens: 10, output_tokens: 300 } } })]);
+  const fxFailOn  = write('fail-on.jsonl',  [JSON.stringify({ message: { usage: { input_tokens: 10, output_tokens: 200 } } })]);
+  const failResults = [
+    { problem: 'fail', arm: 'OFF', trial: 1, transcriptPath: fxFailOff, solved: true, diffTokens: 200 },
+    { problem: 'fail', arm: 'OFF', trial: 2, transcriptPath: fxFailOff, solved: true, diffTokens: 200 },
+    { problem: 'fail', arm: 'ON',  trial: 1, transcriptPath: fxFailOn,  solved: true, diffTokens: 200 },
+    { problem: 'fail', arm: 'ON',  trial: 2, transcriptPath: fxFailOn,  solved: true, diffTokens: 200 },
+  ];
+  const failV4 = buildReport(failResults).v4.find((v) => v.problem === 'fail');
+  ok('FAIL: precondition FAIL (H_off 100 < 2*W_off 400)', failV4 && failV4.guards.precondition === false);
+  ok('FAIL: overall NO-WIN', failV4 && failV4.win === false);
+
+  // --- (9) fairness guard: a low solve-rate arm fails fairness even with strong METRIC. ---
+  // Reuse the WIN transcripts but add an unsolved ON trial so ON solve-rate = 2/3 < 0.8.
+  const fairResults = winResults.map((r) => ({ ...r, problem: 'fair' })).concat([
+    { problem: 'fair', arm: 'ON', trial: 3, transcriptPath: fxWinOn, solved: false, diffTokens: 100 },
+  ]);
+  const fairV4 = buildReport(fairResults).v4.find((v) => v.problem === 'fair');
+  ok('FAIRNESS: solve ON = 2/3', fairV4 && near(fairV4.solveOn, 2 / 3));
+  ok('FAIRNESS: fairness guard FAIL', fairV4 && fairV4.guards.fairness === false);
+  ok('FAIRNESS: overall NO-WIN despite strong METRIC', fairV4 && fairV4.win === false && fairV4.metric > 0);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
