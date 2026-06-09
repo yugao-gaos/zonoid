@@ -14,3 +14,6 @@ loop.json
 node_modules/
 .DS_Store
 agents.json
+
+# Local self-host session config (machine-specific absolute paths)
+/.claude/

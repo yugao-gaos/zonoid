@@ -295,7 +295,7 @@ Copy `orchestrator/` to `~/.claude/orchestrator/`, the skill to
 `http://localhost` with **SSE** (`/events`) for live updates. SSE pushes changes; it does *not*
 require TLS. The two confirmed surfaces, best-integrated first:
 
-1. **Desktop preview panel:** `orchestrator-dashboard.html` in the workspace opens in the
+1. **Desktop preview panel:** the daemon-served dashboard (`http://localhost:8787/`) opens in the
    app's preview pane and live-updates over HTTP+SSE (CORS-open). **Confirmed working.**
 2. **Browser:** `http://localhost:8787/graph` — the full web view, same HTTP+SSE feed.
 
