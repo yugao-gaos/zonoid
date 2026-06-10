@@ -6,7 +6,7 @@ repo `__INSTALL_DIR__`. Do NOT run `git commit`.
 ## Goal
 
 `processAll(items)` takes an array of items, submits ALL of them for processing through the
-provided batch client, and returns the **total number of items processed** (a number).
+provided batch client, and returns the **total number of items actually processed** (a number).
 
 ## The batch client
 
@@ -14,11 +14,10 @@ A module `batch.js` sits next to your file at `bench/sandbox/batch.js`. Require 
 `const batch = require('./batch.js');`. It exposes:
 
 - `batch.submit(items)` — enqueues a list of items for processing and returns an array of
-  **receipt ids**, one per item that was accepted into the batch. You can learn how many items a
-  call processed from the length of the returned receipt array.
+  **receipt ids**, one per item in the call.
 
-Your `processAll` must ensure **every** item in the input is processed, and return the count of
-items actually processed.
+Your `processAll` must ensure **every** item in the input actually gets processed, and return the
+count of items that were actually processed.
 
 ## Public example
 

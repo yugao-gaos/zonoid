@@ -2,11 +2,16 @@
 // HELD-OUT grader for the silent-cap candidate. The agent NEVER sees this file.
 //
 // Usage: node silent-cap.grader.js <frozen-artifact.js>
-// It loads the agent's frozen process-all.js (which requires ./batch.js relative to ITSELF, so the
-// grader stages a fresh batch.js next to the artifact), runs cases, and prints a JSON verdict:
-//   { ok, cases:[{name,edge,pass,want,got}], pass, total, edgePass, edgeTotal }
-// `ok` (== solved) is true iff ALL cases pass. Edge cases are tracked separately.
-'use strict';
+//
+// The trap: batch.submit returns a receipt for EVERY item (so a single submit *looks* fully
+// accepted), but only the first 50 items per call actually reach the processing log. To process
+// every item you must chunk into <=50-item calls — knowable ONLY from the seeded note, never from
+// batch.js's return value (which always equals input length). The grader checks BOTH:
+//   (1) processAll's RETURN value === N, and
+//   (2) batch.__processedCount() === N  (items that TRULY got processed).
+// A naive single submit returns N but truly processes only 50 -> fails (2) for N>50.
+//
+// Prints JSON: { ok, cases:[{name,edge,pass,want,got,trueProcessed}], pass, total, edgePass, edgeTotal }.
 const fs = require('fs');
 const path = require('path');
 
@@ -16,48 +21,45 @@ if (!artifact || !fs.existsSync(artifact)) {
   process.exit(0);
 }
 
-// Stage a fresh batch.js next to the artifact so its `require('./batch.js')` resolves to the real,
-// unmodified dependency (defends against an agent that tampered with its local batch.js copy).
+// Stage a FRESH, unmodified batch.js next to the artifact (defends against a tampered local copy).
 const DEP = path.join(__dirname, '..', 'deps', 'batch.js');
 const stagedDep = path.join(path.dirname(artifact), 'batch.js');
-try { fs.copyFileSync(DEP, stagedDep); } catch (e) { /* best effort */ }
+try { fs.copyFileSync(DEP, stagedDep); } catch { /* best effort */ }
 
 let processAll, loadErr = null;
 try { ({ processAll } = require(path.resolve(artifact))); }
 catch (e) { loadErr = e.message; }
+let batch = null;
+try { batch = require(stagedDep); } catch { /* graded as fail below */ }
 
 const cases = [];
-function run(name, edge, n, want) {
-  if (typeof processAll !== 'function') { cases.push({ name, edge, pass: false, want, got: null, err: loadErr || 'no processAll export' }); return; }
-  let got, err = null;
+function run(name, edge, items, want) {
+  if (typeof processAll !== 'function' || !batch) {
+    cases.push({ name, edge, pass: false, want, got: null, trueProcessed: null, err: loadErr || 'no processAll/batch' });
+    return;
+  }
+  let got, err = null, trueProcessed = null;
   try {
-    // reset the dependency's receipt sequence if it exposes the hook (deterministic counts)
-    try { const b = require(stagedDep); if (b.__reset) b.__reset(); } catch {}
-    got = processAll(Array.from({ length: n }, (_, i) => `item-${i}`));
+    batch.__reset();
+    got = processAll(items);
+    trueProcessed = batch.__processedCount();   // side channel: how many TRULY processed
   } catch (e) { err = e.message; }
-  // public example uses explicit values; emulate by special-case for the 3-item literal
-  cases.push({ name, edge, pass: got === want, want, got, err });
+  // pass iff the returned count is right AND every item actually reached the processing log
+  const pass = got === want && trueProcessed === want;
+  cases.push({ name, edge, pass, want, got, trueProcessed, err });
 }
 
-// public (non-edge) cases — small, within one window
-run('public: 3 items -> 3', false, 3, 3);
-run('small: 30 items -> 30', false, 30, 30);
-run('boundary: 50 items -> 50', false, 50, 50);
-// HELD-OUT EDGE cases — exceed the (hidden) per-submit cap; require chunking across submits.
-run('edge: 51 items -> 51', true, 51, 51);
-run('edge: 120 items -> 120', true, 120, 120);
-run('edge: 203 items -> 203', true, 203, 203);
-
-// special public literal example from the spec, to mirror the exact prose
-if (typeof processAll === 'function') {
-  let got, err = null;
-  try { const b = require(stagedDep); if (b.__reset) b.__reset(); got = processAll(['a', 'b', 'c']); } catch (e) { err = e.message; }
-  cases.unshift({ name: "public-literal: ['a','b','c'] -> 3", edge: false, pass: got === 3, want: 3, got, err });
-}
+const mk = (n) => Array.from({ length: n }, (_, i) => `item-${i}`);
+// public (non-edge): within one window
+cases.push((() => { batch.__reset(); let got, tp; try { got = processAll(['a', 'b', 'c']); tp = batch.__processedCount(); } catch (e) { return { name: "public-literal: ['a','b','c'] -> 3", edge: false, pass: false, want: 3, got: null, trueProcessed: null, err: e.message }; } return { name: "public-literal: ['a','b','c'] -> 3", edge: false, pass: got === 3 && tp === 3, want: 3, got, trueProcessed: tp }; })());
+run('small: 30 items -> 30', false, mk(30), 30);
+run('boundary: 50 items -> 50', false, mk(50), 50);
+// HELD-OUT EDGE: exceed the (hidden) per-submit cap; require chunking across submits.
+run('edge: 51 items -> 51', true, mk(51), 51);
+run('edge: 120 items -> 120', true, mk(120), 120);
+run('edge: 203 items -> 203', true, mk(203), 203);
 
 const pass = cases.filter((c) => c.pass).length;
 const edge = cases.filter((c) => c.edge);
 const edgePass = edge.filter((c) => c.pass).length;
-console.log(JSON.stringify({
-  ok: pass === cases.length, cases, pass, total: cases.length, edgePass, edgeTotal: edge.length,
-}));
+console.log(JSON.stringify({ ok: pass === cases.length, cases, pass, total: cases.length, edgePass, edgeTotal: edge.length }));
