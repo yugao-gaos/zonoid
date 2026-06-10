@@ -16,6 +16,7 @@ const mcpCore = require('./lib/mcp-core');
 const git = require('./lib/git');
 const measure = require('./lib/measure');
 const optimize = require('./lib/optimize');
+const { embed, cosine, DIMS } = require('./lib/embed');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -184,22 +185,72 @@ function releaseClaim(key, reason) {
   if (i > 0) { try { nt.writeStatus(key.slice(0, i), key.slice(i + 1), 'pending'); } catch { /* best effort */ } }
   return true;
 }
-// Sweep abandoned claims: an in_progress task whose worker isn't running AND whose status hasn't
-// changed for stale_minutes is treated as dead (kill / crash / idle / cross-session / daemon
-// restart) and released. Authoritative liveness — survives restart (overlay is persisted) and
-// needs no stop hook to fire. Returns true if anything was released.
-function sweepStaleClaims() {
-  const mins = state.overlay.config.stale_minutes ?? 10;   // ?? not || so an explicit 0 is honored
-  const cutoff = Date.now() - mins * 60000;
-  let dirty = false;
-  for (const [key, st] of Object.entries(state.overlay.status)) {
+// staleClaimKeys (pure): which in_progress claims are abandoned orphans — worker not running AND
+// status unchanged for stale_minutes (kill / crash / idle / cross-session / daemon restart).
+// Parameterized on (overlay, agents, nowMs) so it is unit-testable; sweepStaleClaims releases them.
+function staleClaimKeys(overlay, agents, nowMs) {
+  const mins = overlay.config.stale_minutes ?? 10;   // ?? not || so an explicit 0 is honored
+  const cutoff = nowMs - mins * 60000;
+  const out = [];
+  for (const [key, st] of Object.entries(overlay.status)) {
     if (st !== 'in_progress') continue;
-    const agentId = state.overlay.assignee[key];
-    const agent = agentId ? state.agents[agentId] : null;
+    const agentId = overlay.assignee[key];
+    const agent = agentId ? agents[agentId] : null;
     if (agent && agent.state === 'running') continue;          // live worker — leave it alone
-    const ts = state.overlay.timestamps[key];
+    const ts = overlay.timestamps[key];
     if (ts && Date.parse(ts.lastChanged) > cutoff) continue;   // changed recently — give it time
+    out.push({ key, status: st, agentId: agentId || null, mins });
+  }
+  return out;
+}
+// Sweep abandoned claims: release every staleClaimKeys() orphan back to ready. Authoritative
+// liveness — survives restart (overlay is persisted) and needs no stop hook. Returns true if any.
+function sweepStaleClaims() {
+  let dirty = false;
+  for (const { key, agentId, mins } of staleClaimKeys(state.overlay, state.agents, Date.now())) {
     if (releaseClaim(key, `auto-released: worker '${agentId || '?'}' not running (stale >${mins}m)`)) dirty = true;
+  }
+  if (dirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
+  return dirty;
+}
+// staleVerdictKeys (pure): which 'tested'/'ready' tasks are stale verdict-pending hand-offs — owner
+// not live AND lastChanged past stale_minutes. These are SURFACED as guidance, NEVER auto-resolved
+// (auto-promoting tested→done would hide a real failure). Same (overlay, agents, nowMs) shape.
+function staleVerdictKeys(overlay, agents, nowMs) {
+  const mins = overlay.config.stale_minutes ?? 10;
+  const cutoff = nowMs - mins * 60000;
+  const out = [];
+  for (const [key, st] of Object.entries(overlay.status)) {
+    if (st !== 'tested' && st !== 'ready') continue;
+    const agentId = overlay.assignee[key];
+    const agent = agentId ? agents[agentId] : null;
+    if (agent && agent.state === 'running') continue;          // owner still working — give it time
+    const ts = overlay.timestamps[key];
+    if (ts && Date.parse(ts.lastChanged) > cutoff) continue;   // changed recently — give it time
+    out.push({ key, status: st, agentId: agentId || null });
+  }
+  return out;
+}
+// Surface stale verdict-pending hand-offs as escalation/guidance (one open item per key, tagged with
+// verdictKey for idempotency). Never mutates task status. Runs at the top of decideAll() so the
+// freshly-built ctx.pendingGuidance picks the items up and the existing gate halts the loop.
+function sweepStaleVerdicts() {
+  const stale = staleVerdictKeys(state.overlay, state.agents, Date.now());
+  if (!stale.length) return false;
+  const already = new Set(overlayStore.pendingGuidance(state.overlay).map((g) => g.verdictKey).filter(Boolean));
+  const mins = state.overlay.config.stale_minutes ?? 10;
+  let dirty = false;
+  for (const { key, status, agentId } of stale) {
+    if (already.has(key)) continue;                            // one open escalation per key
+    const id = overlayStore.addGuidance(state.overlay, {
+      question: `Stale '${status}' task ${key}: no live owner for >${mins}m. Promote to done, mark failed, or reassign?`,
+      context: `self-heal surfaced a verdict-pending hand-off — status='${status}', last owner='${agentId || '?'}' not running. Status is intentionally NOT auto-changed (auto-promoting tested→done would hide a real failure).`,
+      trigger: 'repeated_failure',
+    });
+    const item = state.overlay.guidance.find((g) => g.id === id);
+    if (item) item.verdictKey = key;
+    already.add(key);
+    dirty = true;
   }
   if (dirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
   return dirty;
@@ -440,6 +491,7 @@ function decideOne(L, ctx) {
 // batch settings — generous but bounded). Inactive loops are skipped. Caller persists the registry.
 function decideAll() {
   sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
+  sweepStaleVerdicts();   // surface abandoned verdict-pending hand-offs (tested/ready, no live owner) as guidance — never mutates status
   const ctx = {
     graph: buildGraph(state.workspace),
     pendingGuidance: overlayStore.pendingGuidance(state.overlay),
@@ -470,6 +522,22 @@ const SUGGEST_DUP_THRESHOLD = 0.6;   // high label/summary overlap with an OPEN 
 // Score a single node's label+summary against a precomputed set of QUERY tokens (`qt`), using the
 // IDENTICAL cosine-style token-overlap as scoreMatches — but anchored on a free-text query instead
 // of another task. Returns { shared, score }. Shared by /search (query-by-text retrieval).
+// Flatten a Tier-2 knowledge item to a single searchable string (for embedding + lexical scoring).
+// Items are { type, value, ... } where value is a string or an object; we join the human-meaningful
+// fields and stringify object values so a note/snippet/link all yield usable text. Skips the internal
+// _vec field. Returns '' for an empty/odd item (embed() then returns null ⇒ lexical fallback).
+function knowledgeText(item) {
+  if (item == null) return '';
+  if (typeof item === 'string') return item;
+  const parts = [];
+  if (item.type) parts.push(String(item.type));
+  const v = item.value;
+  if (typeof v === 'string') parts.push(v);
+  else if (v != null) { try { parts.push(JSON.stringify(v)); } catch { /* ignore */ } }
+  for (const f of ['title', 'label', 'note', 'summary', 'path']) if (typeof item[f] === 'string') parts.push(item[f]);
+  return parts.join(' ').slice(0, 2000);
+}
+
 function scoreNodeAgainstTokens(node, qt) {
   const xt = suggestToks(`${node.label} ${node.summary || ''}`);
   const shared = [...qt].filter((w) => xt.has(w));
@@ -513,9 +581,41 @@ function scoreMatches(g, target) {
     .sort((a, b) => b.score - a.score);
 }
 
+// SEMANTIC variant of scoreMatches: identical return shape, but each candidate is scored by
+// cosine(targetVec, candidate.vec) when BOTH carry a 384-dim embedding, falling back PER-CANDIDATE
+// to the lexical token-overlap score when either vec is genuinely missing. This is what lets note
+// wiring connect prose that shares MEANING but few literal tokens (the lexical scorer scored those
+// pairs below 0.25 and left them orphaned). Used by autowireNoteProvider; `target` is the synthetic
+// note target, `targetVec` its stored embedding (may be null ⇒ everything falls back to lexical).
+function scoreMatchesSemantic(g, target, targetVec) {
+  const tg = suggestToks(`${target.label} ${target.summary || ''}`);
+  const linked = new Set([...(target.deps || []), ...(target.context_deps || [])]);
+  const OPEN = new Set(['not_ready', 'ready', 'in_progress']);
+  const tvec = Array.isArray(targetVec) ? targetVec : null;
+  return g.tasks
+    .filter((x) => x.id !== target.id && !linked.has(x.id))
+    .map((x) => {
+      const xt = suggestToks(`${x.label} ${x.summary || ''}`);
+      const shared = [...tg].filter((w) => xt.has(w));
+      const lex = tg.size && xt.size ? shared.length / Math.sqrt(tg.size * xt.size) : 0;
+      // Semantic cosine when BOTH sides have a real vector; otherwise lexical fallback for THIS pair.
+      const semantic = tvec && Array.isArray(x.vec);
+      const score = semantic ? cosine(tvec, x.vec) : lex;
+      const duplicate = score >= SUGGEST_DUP_THRESHOLD && OPEN.has(x.status) && x.kind !== 'note';
+      return { key: x.id, label: x.label, status: x.status, score: Math.round(score * 1000) / 1000, shared: shared.slice(0, 8), suggest_kind: (x.kind === 'note' || x.status === 'done') ? 'context' : 'blocking', duplicate, via: semantic ? 'semantic' : 'lexical' };
+    })
+    .filter((c) => c.score > 0)
+    .sort((a, b) => b.score - a.score);
+}
+
 // Default auto-wire relevance threshold (conservative — err toward FEWER false edges). A newly
 // seen task auto-gets a weighted context edge to each context-eligible match scoring >= this.
 const DEFAULT_AUTOWIRE_THRESHOLD = 0.25;
+// Semantic auto-wire threshold. Cosine similarity over MiniLM embeddings sits on a DIFFERENT scale
+// than lexical token-overlap (related prose lands ~0.4–0.7 cosine, where it scored ~0 lexically), so
+// the lexical 0.25 bar is wrong here — it would wire nearly everything into a clique. Tuned on the
+// post-backfill cloude corpus (128 notes); see STEP 2. Used only by the semantic note-wiring path.
+const SEMANTIC_AUTOWIRE_THRESHOLD = 0.55;
 // Auto-wire a genuinely-new task (`target`) into the graph `g` by writing weighted CONTEXT edges
 // into `overlay`: an edge (weight = relevance score) to each context-eligible match (done/note
 // provider) scoring >= threshold. CONTEXT only — never blocking. Idempotent via addEdge's dedupe
@@ -534,6 +634,59 @@ function autowireNewTask(overlay, g, target, threshold = DEFAULT_AUTOWIRE_THRESH
     if (overlay.edges.length > before) added++; // count only genuinely-new edges (addEdge dedupes)
   }
   return added;
+}
+
+// Auto-wire a NOTE as a context PROVIDER: write weighted context edges (note -> neighbor) so the
+// note's summary flows INTO each relevant open task instead of the note sitting as an orphan root.
+// This is the mirror of autowireNewTask: there a new task CONSUMES existing providers; here a new
+// note FEEDS existing consumers. `g` is the rebuilt graph; the note need not be in `g` yet (we build
+// a synthetic target). Edges are ALWAYS note -> neighbor (the note is `from`) — the note is the
+// PROVIDER, never the consumer of THIS edge. Scoring is SEMANTIC: cosine(targetVec, candidate.vec)
+// when both carry an embedding, lexical fallback per-candidate otherwise. We skip `done` targets
+// (feeding context into finished work is useless) but note->note IS now allowed: a note MAY receive
+// an incoming context edge from ANOTHER note, knitting the knowledge notes into a navigable web
+// (this intentionally reverses the earlier "no incoming edge on a note" rule). Cap to top-5 by score
+// so a noisy note can't spam the graph. Pure on (overlay, g, noteKey, ...) ⇒ unit-testable; idempotent.
+function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD) {
+  const target = { id: noteKey, label: title, summary: summary || '', deps: [], context_deps: [] };
+  let added = 0;
+  const kept = scoreMatchesSemantic(g, target, targetVec)
+    .filter((m) => m.score >= threshold)                          // relevance bar (semantic cosine scale)
+    .filter((m) => m.status !== 'done')                           // skip done (feeding finished work is useless); note->note IS now allowed
+    .slice(0, 5);                                                 // cap fan-out — a noisy note can't spam the graph
+  for (const m of kept) {
+    const before = overlay.edges.length;
+    overlayStore.addEdge(overlay, noteKey, m.key, null, 'context', m.score); // note is PROVIDER (from)
+    if (overlay.edges.length > before) added++; // count only genuinely-new edges (addEdge dedupes)
+  }
+  return added;
+}
+
+// Periodic self-heal: re-wire CURRENT note nodes that sit as orphans (zero overlay edges) by replaying
+// each through autowireNoteProvider. A note can be a zero-match orphan at creation yet gain a real
+// neighbor as the graph grows, so we RE-CHECK every orphan each sweep rather than flag it 'independent'
+// — independence isn't durable. Re-checking a true orphan is side-effect-free: scoreMatches is a read,
+// and addEdge only writes on a >=0.25 match, so a note with no neighbor stays orphaned and writes
+// nothing. We only persist when at least one edge landed. Mirrors sweepStaleLoops' style/shape.
+// (Future optimization IF rescan cost is ever measured to matter: an epoch watermark to skip notes
+// whose neighborhood is unchanged since their last check — not built; plain re-check is cheap enough.)
+function sweepOrphanNotes() {
+  try {
+    const g = buildGraph(state.workspace);
+    const touched = new Set();
+    for (const e of state.overlay.edges) { touched.add(e.from); touched.add(e.to); }
+    let added = 0;
+    for (const node of g.tasks) {
+      if (node.kind !== 'note' || node.validTo != null) continue;   // CURRENT notes only
+      if (touched.has(node.id)) continue;                           // already wired (from or to)
+      added += autowireNoteProvider(state.overlay, g, node.id, node.label, node.summary, node.vec);
+    }
+    if (added > 0) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
+    return added;
+  } catch (e) {
+    console.error(`sweepOrphanNotes failed: ${e && e.message}`); // log and continue
+    return 0;
+  }
 }
 
 // ---- workspace-aware graph engine -----------------------------------------
@@ -679,11 +832,12 @@ function buildGraph(ws) {
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
   const ovForNotes = own ? state.overlay : overlayStore.load(ws);
   for (const n of Object.values(ovForNotes.note_nodes || {})) {
-    tasks.push({ id: 'note:' + n.id, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: [], note: '', agent_id: null, summary: n.summary,
+    tasks.push({ id: 'note:' + n.id, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: [], note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null,
       // Temporal/state-change fields (null on pre-temporal notes — back-compat): validFrom/validTo
       // bound when the fact was true; supersedes/supersededBy chain it to the note it replaced / was
       // replaced by. The dashboard reads these for the superseded indicator; /search for as-of.
       validFrom: n.validFrom || n.created_at || null, validTo: n.validTo || null,
+      created_at: n.created_at || null,   // transaction time (when the KB learned this) — read by /search?knownAsOf
       supersedes: n.supersedes ? 'note:' + n.supersedes : null,
       supersededBy: n.supersededBy ? 'note:' + n.supersededBy : null });
   }
@@ -896,10 +1050,15 @@ const handler = async (req, res) => {
       return send(res, 200, compact ? leanLearnings(full) : full);
     }
 
-    // Query-by-text retrieval (rung-1): rank EVERY node (especially note nodes, incl. [ingest]
-    // knowledge) by lexical relevance to a free-text query — no anchor task needed. Reuses the
-    // same token scorer as /task/suggest (scoreNodeAgainstTokens / suggestToks / SUGGEST_STOP).
-    // Returns top-k compact { key, title, summary (truncated), score, kind }. Default k=5.
+    // Query-by-text retrieval (rung-1) — HYBRID semantic + lexical. Ranks EVERY node (especially
+    // note nodes, incl. [ingest] knowledge) AND per-task Tier-2 knowledge items by relevance to a
+    // free-text query — no anchor task needed.
+    //   PRIMARY: semantic cosine — embed the query, cosine against each item's stored vector.
+    //   FALLBACK (per item): the lexical token scorer (scoreNodeAgainstTokens) when the item lacks a
+    //     vector OR the model can't embed the query. Retrieval NEVER hard-fails: a null query-embed
+    //     ⇒ the whole search degrades to the original lexical behavior.
+    // Returns top-k compact { key, title, summary (truncated), score, kind }. Default k=5. `via`
+    // ('semantic'|'lexical') is added per result so callers can see which path scored it.
     if (p === '/search') {
       const q = u.searchParams.get('q') || '';
       const k = Math.max(1, Math.min(parseInt(u.searchParams.get('k') || '5', 10) || 5, 50));
@@ -909,32 +1068,70 @@ const handler = async (req, res) => {
       // history=1: include superseded notes too (don't drop on validTo), so a caller can see the
       //   full timeline for a query. Ignored when asOf is set (asOf already picks one point in time).
       const asOf = u.searchParams.get('asOf') || '';
+      // knownAsOf (ISO instant): TRANSACTION-time axis — "as the KB was KNOWN at time T". Drops note
+      //   hits whose created_at (when the KB learned the fact) is AFTER T, so a backdated insert (valid_from
+      //   set in the past) can't silently rewrite what an earlier-knowledge query returns. COMPOSES with
+      //   asOf (valid-time): asOf alone = true-as-of-T1; +knownAsOf = recorded-by-T2; both = the canonical
+      //   bitemporal query. Absent ⇒ behavior identical to before (back-compat). Fail-open on unparseable.
+      const knownAsOf = u.searchParams.get('knownAsOf') || '';
       const history = isTruthy(u.searchParams.get('history'));
-      const g = buildGraph(u.searchParams.get('workspace') || state.workspace);
+      const ws = u.searchParams.get('workspace') || state.workspace;
+      const g = buildGraph(ws);
       const qt = suggestToks(q);
+      const qvec = await embed(q);   // null-safe: null ⇒ pure-lexical (back-compat)
+      const knownT = knownAsOf ? Date.parse(knownAsOf) : NaN;
       const temporalOk = (node) => {
-        if (asOf) return noteCurrentAsOf(node, asOf);          // point-in-time
-        if (history) return true;                              // whole timeline
-        if ((node.kind || 'task') !== 'note') return true;     // tasks always pass
-        return !node.validTo;                                  // default: only still-current notes
+        // valid-time axis (validFrom/validTo) — unchanged.
+        let ok;
+        if (asOf) ok = noteCurrentAsOf(node, asOf);            // point-in-time
+        else if (history) ok = true;                           // whole timeline
+        else if ((node.kind || 'task') !== 'note') ok = true;  // tasks always pass
+        else ok = !node.validTo;                               // default: only still-current notes
+        if (!ok) return false;
+        // transaction-time axis (created_at) — drop note hits not yet KNOWN at knownAsOf. Composes
+        // with the valid-time decision above. Fail-open on unparseable dates (cf. noteCurrentAsOf).
+        if (knownAsOf && (node.kind || 'task') === 'note' && !Number.isNaN(knownT)) {
+          const c = Date.parse(node.created_at);
+          if (!Number.isNaN(c) && c > knownT) return false;    // recorded after T ⇒ not yet known
+        }
+        return true;
       };
-      const results = g.tasks
-        .filter(temporalOk)
-        .map((node) => {
-          const { score } = scoreNodeAgainstTokens(node, qt);
-          const r = { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task' };
-          // Surface temporal provenance on note hits so callers can reason about state changes.
-          if ((node.kind || 'task') === 'note' && (node.validFrom || node.validTo || node.supersededBy || node.supersedes)) {
-            r.validFrom = node.validFrom || null; r.validTo = node.validTo || null;
-            r.supersededBy = node.supersededBy || null; r.supersedes = node.supersedes || null;
-            r.current = !node.validTo;
-          }
-          return r;
-        })
-        .filter((r) => r.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, k);
-      return send(res, 200, { query: q, k, asOf: asOf || null, history, results });
+      // Score one item HYBRID: semantic cosine when both the query AND the item have a vector,
+      // else the lexical token overlap. Returns { score, via }.
+      const scoreHybrid = (vec, lexNode) => {
+        if (qvec && Array.isArray(vec)) return { score: cosine(qvec, vec), via: 'semantic' };
+        return { score: scoreNodeAgainstTokens(lexNode, qt).score, via: 'lexical' };
+      };
+      const results = [];
+      // (a) graph nodes (tasks + note nodes).
+      for (const node of g.tasks) {
+        if (!temporalOk(node)) continue;
+        const { score, via } = scoreHybrid(node.vec, node);
+        if (!(score > 0)) continue;
+        const r = { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task', via };
+        // Surface temporal provenance on note hits so callers can reason about state changes.
+        if ((node.kind || 'task') === 'note' && (node.validFrom || node.validTo || node.supersededBy || node.supersedes)) {
+          r.validFrom = node.validFrom || null; r.validTo = node.validTo || null;
+          r.supersededBy = node.supersededBy || null; r.supersedes = node.supersedes || null;
+          r.current = !node.validTo;
+        }
+        results.push(r);
+      }
+      // (b) per-task Tier-2 knowledge items (overlay.knowledge[key][]) — not graph nodes, but
+      // semantically searchable. Scored with the same hybrid path over a synthetic lex node.
+      const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+      for (const [tkey, items] of Object.entries(ov.knowledge || {})) {
+        (items || []).forEach((it, i) => {
+          const text = knowledgeText(it);
+          if (!text) return;
+          const lexNode = { label: text, summary: '' };
+          const { score, via } = scoreHybrid(it && it._vec, lexNode);
+          if (!(score > 0)) return;
+          results.push({ key: `${tkey}#k${i}`, title: text.slice(0, 80), summary: text.slice(0, 200), score: Math.round(score * 1000) / 1000, kind: 'knowledge', via });
+        });
+      }
+      results.sort((a, b) => b.score - a.score);
+      return send(res, 200, { query: q, k, asOf: asOf || null, knownAsOf: knownAsOf || null, history, results: results.slice(0, k) });
     }
 
     // Read-only in_progress claims (for the PreToolUse gate hook). Optional ?session= filters to
@@ -1226,6 +1423,10 @@ const handler = async (req, res) => {
     if (p === '/overlay/knowledge' && m === 'POST') {
       const b = await readBody(req);
       if (!b.key || !b.item) return send(res, 400, { ok: false, error: 'key and item required' });
+      // Embed-on-write: stamp a semantic vector on the knowledge item (over its text) so /search can
+      // cosine-rank it. embed() is null-safe ⇒ lexical fallback when the model is unavailable.
+      const kvec = await embed(knowledgeText(b.item));
+      if (kvec) b.item._vec = kvec;
       (state.overlay.knowledge[b.key] = state.overlay.knowledge[b.key] || []).push(b.item);
       overlayStore.save(state.workspace, state.overlay);
       notifyChange();
@@ -1237,7 +1438,24 @@ const handler = async (req, res) => {
     if (p === '/overlay/note' && m === 'POST') {
       const b = await readBody(req);
       if (!b.title || !b.summary) return send(res, 400, { ok: false, error: 'title and summary required' });
+      // Embed-on-write: compute the note's semantic vector (title+summary) so /search can cosine-rank
+      // it. embed() returns null (never throws) if the model is unavailable ⇒ the note falls back to
+      // lexical scoring — retrieval never hard-fails.
+      b.vec = await embed(`${b.title} ${b.summary}`);
       const id = overlayStore.addNoteNode(state.overlay, b);
+      // Auto-wire the new note as a context PROVIDER: write note -> neighbor context edges so its
+      // summary flows into relevant open work instead of the note landing as an orphan root. Opt out
+      // with autowire:false. Fail-soft: any error here must NOT break note creation. Build a synthetic
+      // target (the note isn't in the rebuilt graph yet) and feed it to autowireNoteProvider.
+      let autowired = 0;
+      if (b.autowire !== false) {
+        try {
+          const g = buildGraph(state.workspace);
+          autowired = autowireNoteProvider(state.overlay, g, 'note:' + id, b.title, b.summary, b.vec);
+        } catch (e) {
+          console.error(`note autowire failed for note:${id}: ${e && e.message}`); // log and continue
+        }
+      }
       // Optional one-shot supersede: a newer decision invalidates an older note WITHOUT deleting it.
       // `supersedes` is the OLD note's key ('note:<id>' or bare '<id>'). Stamps validTo on the old,
       // chains old↔new, and sets the new note's validFrom to the changeover instant.
@@ -1250,7 +1468,28 @@ const handler = async (req, res) => {
       }
       overlayStore.save(state.workspace, state.overlay);
       notifyChange();
-      return send(res, 200, { ok: true, id, key: 'note:' + id, superseded });
+      return send(res, 200, { ok: true, id, key: 'note:' + id, superseded, autowired });
+    }
+
+    // Re-run provider auto-wiring for an EXISTING note (backfill orphans). Same policy as create:
+    // note -> neighbor SEMANTIC context edges, cosine >= SEMANTIC_AUTOWIRE_THRESHOLD, skip done
+    // (note->note allowed), top-5. Idempotent (addEdge dedupes). Body: { key:'note:<id>'|'<id>' }.
+    // Passes the note's stored vec so scoring is semantic. Used by scripts/rewire-notes.js.
+    if (p === '/overlay/note/rewire' && m === 'POST') {
+      const b = await readBody(req);
+      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
+      const id = String(b.key).replace(/^note:/, '');
+      const n = (state.overlay.note_nodes || {})[id];
+      if (!n) return send(res, 404, { ok: false, error: 'unknown note' });
+      let autowired = 0;
+      try {
+        const g = buildGraph(state.workspace);
+        autowired = autowireNoteProvider(state.overlay, g, 'note:' + id, n.title, n.summary, n.vec);
+      } catch (e) {
+        return send(res, 500, { ok: false, error: e && e.message });
+      }
+      if (autowired > 0) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
+      return send(res, 200, { ok: true, key: 'note:' + id, autowired });
     }
 
     // Supersede note OLD with note NEW: a newer decision invalidates an older one without deleting
@@ -1266,6 +1505,48 @@ const handler = async (req, res) => {
       overlayStore.save(state.workspace, state.overlay);
       notifyChange();
       return send(res, 200, { ok: true, old_key: 'note:' + oldId, new_key: 'note:' + newId, at: r.at });
+    }
+
+    // One-time BACKFILL: embed every existing note node + Tier-2 knowledge item that lacks a vector,
+    // so historical knowledge (created before embed-on-write) becomes semantically searchable. Run
+    // once after enabling embeddings. The LIVE daemon does it against its own in-memory overlay (the
+    // sole safe writer of the file — no clobber). Idempotent: items that already carry a vector are
+    // skipped, so re-running is cheap. Null embeds (model unavailable) leave the item lexical-only.
+    if (p === '/overlay/backfill-embeddings' && m === 'POST') {
+      let notesEmbedded = 0, notesSkipped = 0, knEmbedded = 0, knSkipped = 0, failed = 0;
+      for (const n of Object.values(state.overlay.note_nodes || {})) {
+        if (Array.isArray(n.vec)) { notesSkipped++; continue; }
+        const v = await embed(`${n.title || ''} ${n.summary || ''}`);
+        if (v) { n.vec = v; notesEmbedded++; } else failed++;
+      }
+      for (const items of Object.values(state.overlay.knowledge || {})) {
+        for (const it of (items || [])) {
+          if (it && Array.isArray(it._vec)) { knSkipped++; continue; }
+          const v = await embed(knowledgeText(it));
+          if (v && it && typeof it === 'object') { it._vec = v; knEmbedded++; } else failed++;
+        }
+      }
+      overlayStore.save(state.workspace, state.overlay);
+      notifyChange();
+      return send(res, 200, { ok: true, notes: { embedded: notesEmbedded, skipped: notesSkipped }, knowledge: { embedded: knEmbedded, skipped: knSkipped }, failed });
+    }
+
+    // Maintenance: (re-)embed every NOTE node that lacks a real 384-dim vector, so the SEMANTIC
+    // note-wiring path can cosine-match it. Prerequisite for semantic autowire — a vec-less note can
+    // never be matched semantically. Idempotent: a note that already carries a 384-dim vec is skipped
+    // (a null/empty/wrong-dim vec is treated as missing and re-embedded). embed() never throws; if it
+    // returns null for one note we leave it and count it `failed`, continuing the loop. Operates on
+    // the LIVE in-memory overlay (the sole safe writer of the file). Body: none.
+    if (p === '/overlay/reembed' && m === 'POST') {
+      let embedded = 0, skipped = 0, failed = 0;
+      for (const n of Object.values(state.overlay.note_nodes || {})) {
+        if (Array.isArray(n.vec) && n.vec.length === DIMS) { skipped++; continue; }
+        const v = await embed(`${n.title || ''} ${n.summary || ''}`);
+        if (v) { n.vec = v; embedded++; } else failed++;   // null embed ⇒ leave it, count failed, continue
+      }
+      overlayStore.save(state.workspace, state.overlay);
+      notifyChange();
+      return send(res, 200, { ok: true, embedded, skipped, failed });
     }
 
     // Read the full supersede chain (oldest→newest) for a note, with each link's validity window.
@@ -1516,7 +1797,7 @@ const handler = async (req, res) => {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, DEFAULT_AUTOWIRE_THRESHOLD };
+module.exports = { taskTokens, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, autowireNoteProvider, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, staleClaimKeys, staleVerdictKeys };
 
 if (require.main === module) {
   const server = http.createServer(handler);
@@ -1526,6 +1807,11 @@ if (require.main === module) {
   // bound to a closed conversation is otherwise never re-evaluated). decideAll already sweeps on each
   // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepStaleLoops(); } catch { /* best effort */ } }, 60000).unref();
+
+  // Periodic orphan-note self-heal: re-wire note nodes that are still orphaned as the graph grows
+  // (a zero-match note at creation can gain a real neighbor later). Re-check is side-effect-free —
+  // no match ⇒ no edge, no write. Cheap; unref'd so it never holds the process open.
+  setInterval(() => { try { sweepOrphanNotes(); } catch { /* best effort */ } }, 300000).unref();
 
   // Optional HTTPS listener for the custom-connector path (needs a locally-trusted cert — run
   // scripts/setup-https.sh, which uses mkcert). Off unless cert + key exist. Then connect a
