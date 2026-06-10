@@ -86,6 +86,9 @@ const ALL_STATUSES = ['not_ready', 'ready', ...ACTION_STATUSES];
 // The five escalation triggers — the situations where the loop should stop and ask the user
 // instead of guessing. All default ON; tunable per-workspace via POST /config { escalation }.
 const ESCALATION_DEFAULTS = () => ({ ambiguous_intent: true, irreversible_action: true, low_confidence_high_impact: true, repeated_failure: true, scope_expansion: true });
+// A catch-all session node (cost-flow, note-mq89ptfjx0y) burning this many tokens with ZERO
+// graph-visible outputs raises a 'review' escalation item — burning without producing.
+const CATCHALL_ESCALATE_TOKENS = 1e6;
 // Optimize-loop knobs (⑥): epsilon = the per-cycle improvement below which a round counts as
 // "diminishing"; diminishing_rounds (K) = how many consecutive sub-epsilon / no-win rounds trigger
 // converge / stuck. Tunable per-workspace via POST /config { optimize }. (Budget reuses the loop's
@@ -2366,21 +2369,63 @@ const handler = async (req, res) => {
         for (const d of t.deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: 1 });
         for (const d of t.context_deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: (t.context_weights && t.context_weights[d]) ?? overlayStore.DEFAULT_CONTEXT_WEIGHT });
       }
+      // 2b) catch-all session nodes (design note-mq89ptfjx0y): every main-session transcript in the
+      // project dir gets a synthesized `session:` node owning its tokens NOT split to any task claim,
+      // with context edges to the tasks/notes that session created. Sessions that produced nothing
+      // become terminal traps — their tokens are NAMED waste. In-memory only: flagged kind:'session'
+      // in this payload, never persisted, never a native todo / task-view entry.
+      const projDir = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
+      const claimedByTp = new Map();
+      for (const c of claims) if (c.transcript) claimedByTp.set(c.transcript, (claimedByTp.get(c.transcript) || 0) + (ownTok.get(c.id) || 0));
+      let sessFiles = [];
+      try { sessFiles = fs.readdirSync(projDir, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith('.jsonl')); } catch { /* no transcripts yet */ }
+      const sessions = sessFiles.map((e) => {
+        const tp = path.join(projDir, e.name);
+        let total = 0; try { total = ((usageCached(tp) || {}).total) || 0; } catch { total = 0; }
+        return { id: e.name.slice(0, -'.jsonl'.length), total, claimed: claimedByTp.get(tp) || 0 };
+      });
+      const catchalls = costflow.sessionCatchalls(sessions, g.tasks, overlayStore.DEFAULT_CONTEXT_WEIGHT);
+      for (const cn of catchalls.nodes) if (!seen.has(cn.id)) { nodes.push(cn); seen.add(cn.id); }
+      for (const ce of catchalls.edges) if (seen.has(ce.from) && seen.has(ce.to)) edges.push(ce);
+      // Escalation hook (note-mq89ptfjx0y refinement): a catch-all burning >1M tokens with ZERO
+      // outgoing edges is either real waste or a missing task — raise it through the existing
+      // escalation gate, tagged sessionKey for idempotency (same pattern as sweepStaleVerdicts'
+      // verdictKey, but matched against ALL items incl. resolved: a session once judged stays judged).
+      // severity 'review' — triage info, never pauses the loop.
+      const escalated = new Set((T.ov.guidance || []).map((gd) => gd.sessionKey).filter(Boolean));
+      let escDirty = false;
+      for (const cn of catchalls.nodes) {
+        if (cn.own < CATCHALL_ESCALATE_TOKENS || catchalls.edges.some((e) => e.from === cn.id)) continue;
+        const sid = cn.id.slice('session:'.length);
+        if (escalated.has(sid)) continue;
+        const gid = overlayStore.addGuidance(T.ov, {
+          question: `Session ${sid.slice(0, 8)} burned ${(cn.own / 1e6).toFixed(1)}M tokens with zero graph-visible outputs. Real waste, or missing task nodes?`,
+          context: `cost-flow catch-all: ${Math.round(cn.own)} unattributed tokens in main-session transcript ${sid}.jsonl and no task/note created by that session. Either the work evaporated (waste) or it produced something the graph never captured (record it as a task/note so the cost can flow).`,
+          trigger: 'low_confidence_high_impact',
+          severity: 'review',
+        });
+        const item = (T.ov.guidance || []).find((x) => x.id === gid);
+        if (item) item.sessionKey = sid;
+        escalated.add(sid);
+        escDirty = true;
+      }
+      if (escDirty) { T.save(); notifyChange(); }
       const flow = costflow.computeFlow(nodes, edges);
       // 3) denominator: genuinely human-typed tokens in this workspace's main-session transcripts
-      const projDir = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
       const human = humanInput.humanInputTokens(projDir, { since: u.searchParams.get('since') || null });
       const rnd = (x) => Math.round(x);
       // Round for presentation but keep the conservation identity exact in the payload:
       // total is re-derived as productive + trapped (each ≤0.5 token from the raw value).
       const productive = rnd(flow.totals.productive), trapped = rnd(flow.totals.trapped);
+      const kindOf = (id) => (id.startsWith('session:') ? 'session' : undefined);
       return send(res, 200, {
         workspace: T.ws,
         autonomy_score: human.tokens > 0 ? Math.round((flow.totals.productive / human.tokens) * 10) / 10 : null,
         human,
         totals: { total: productive + trapped, productive, trapped },
-        results: flow.results.map((r) => ({ task: r.task, label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
-        waste: flow.waste.map((w) => ({ task: w.task, label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
+        sessions: { count: catchalls.nodes.length, unattributed: rnd(catchalls.nodes.reduce((s, n) => s + n.own, 0)) },
+        results: flow.results.map((r) => ({ task: r.task, kind: kindOf(r.task), label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
+        waste: flow.waste.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
       });
     }
 

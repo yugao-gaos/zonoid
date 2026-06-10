@@ -4023,15 +4023,26 @@ async function openDetail(key){
     (d.transcript?`<div class="kv"><div class="k">Transcript</div><div class="v"><a href="${BASE}/agent/${encodeURIComponent(d.assignee)}" target="_blank">open subagent transcript</a></div></div>`:'');
 }
 function closeDetail(){ selected=null; document.getElementById('panel').classList.remove('open'); }
+// Top-bar autonomy score: the VALUE rendered always-visible in the summary bar (the popup stays
+// the click-through detail). /costflow walks every transcript — too heavy per 2s tick — so the
+// cache refreshes on the graph tick but at most every 30s (and never overlaps itself).
+let costCache=null, costAt=0, costBusy=false;
+function refreshCost(){
+  if(costBusy||Date.now()-costAt<30000) return;
+  costBusy=true;
+  fetch(BASE+'/costflow').then(r=>r.json()).then(d=>{ if(d&&!d.error&&d.totals) costCache=d; }).catch(()=>{}).finally(()=>{ costAt=Date.now(); costBusy=false; });
+}
 async function tick(){
   let d; try{ d=await(await fetch(BASE+'/state')).json(); }catch{ return; }
+  refreshCost();
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
   document.getElementById('ws').textContent=d.workspace?('· '+d.workspace):'';
+  const cf=costCache, cfShare=cf&&cf.totals.total>0?Math.round(cf.totals.productive*100/cf.totals.total):null;
   document.getElementById('sum').innerHTML=`<span>tasks <b>${s.tasks_total}</b></span>`+
     order.filter(k=>sc[k]).map(k=>`<span class="chip s-${k}"><b>${sc[k]}</b> ${k.replace('_',' ')}</span>`).join('')+
     (s.ghosts?`<span class="chip s-ghost"><b>${s.ghosts}</b> ghost</span>`:'')+
     `<span class="agbtn" onclick="toggleActivityPopup()" title="routing &amp; subagents">· agents <b>${s.agents.running}</b>▶ <b>${s.agents.done}</b>✓ ▾</span>`+
-    `<span class="agbtn" onclick="toggleCostPopup()" title="token cost-flow attribution (autonomy score)">· ⚖ cost</span>`;
+    `<span class="agbtn" onclick="toggleCostPopup()" title="token cost-flow attribution — click for detail">· ⚖ <b>${cf?(cf.autonomy_score==null?'—':cf.autonomy_score+'×'):'cost'}</b>${cfShare==null?'':` <span class="muted">${cfShare}% productive</span>`} ▾</span>`;
   lastState=d;
   if(currentView==='cloud') renderCloud(d);
   else if(currentView==='focus') renderFocus(d);
@@ -4667,7 +4678,7 @@ async function toggleCostPopup(){
     `<b>${fmt(v)}</b></div>`;
   el.innerHTML=
     `<div style="font-size:13px;margin:4px 0 10px">autonomy score <b style="font-size:18px;color:#79c0ff">${d.autonomy_score==null?'—':d.autonomy_score+'×'}</b>`+
-    ` <span class="muted">· ${fmt(d.totals.productive)} landed + ${fmt(d.totals.trapped)} trapped = ${fmt(d.totals.total)} · human-typed ${fmt(d.human.tokens)} tok (${d.human.messages} msgs)</span></div>`+
+    ` <span class="muted">· ${fmt(d.totals.productive)} landed + ${fmt(d.totals.trapped)} trapped = ${fmt(d.totals.total)} · human-typed ${fmt(d.human.tokens)} tok (${d.human.messages} msgs)${d.sessions?` · ${fmt(d.sessions.unattributed)} chat-unattributed across ${d.sessions.count} sessions`:''}</span></div>`+
     `<h2 style="margin-left:0">Landed — merged sinks (${d.results.length})</h2>`+
     (d.results.length?d.results.slice(0,15).map(r=>row(r,r.T)).join(''):'<div class="empty">no merged results yet</div>')+
     `<h2 style="margin-left:0;margin-top:14px">Waste — trapped in dead ends (${d.waste.length})</h2>`+
