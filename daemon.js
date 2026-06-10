@@ -1307,6 +1307,16 @@ const handler = async (req, res) => {
       return send(res, 200, delta.computeDelta(g.tasks, ov, parsed.ms));
     }
 
+    if (p === '/graph/init' && m === 'POST') {
+      const b = await readBody(req);
+      const { ws } = targetOverlay(b, u);
+      if (!ws) return send(res, 400, { ok: false, error: 'workspace required' });
+      graphStore.open(require('path').join(ws, '.graph'));
+      graphStore.initGitAttributes(ws);
+      require('fs').writeFileSync(require('path').join(ws, '.graph', '.gitkeep'), '');
+      return send(res, 200, { ok: true, workspace: ws });
+    }
+
     // Read-only learnings digest: what the graph has accumulated, for a self-planner to read on a
     // 'plan' tick. Three buckets — verdicts (attempt judgements), failures (failed/canceled tasks),
     // recent (recent completions' summaries). Reads the current workspace overlay/graph; no writes.
