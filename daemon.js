@@ -22,6 +22,8 @@ const delta = require('./lib/delta');
 const followups = require('./lib/followups');
 const verdicts = require('./lib/verdicts');
 const { gateTask } = require('./lib/context-gate');
+const costflow = require('./lib/costflow');
+const humanInput = require('./lib/human-input');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -860,12 +862,14 @@ function harnessTranscriptForTask(st, key, session) {
   return best;
 }
 
-// Per-task token total. Prefer the assignee agent's own transcript (accurate). Else fall back to a
-// same-session harness agent whose run window overlaps the task's claim (the SubagentStart-registered
-// record that actually holds transcript_path; the assignee key never matches it directly). Else fall
-// back to the task's session transcript — but ONLY when that session maps to a single task, so we
-// never paint the same conversation-wide total across many tasks. null = unknown.
-function taskTokens(key, session, dedicated, st = state) {
+// Resolve the transcript JSONL holding a task's token usage. Prefer the assignee agent's own
+// transcript (accurate). Else fall back to a same-session harness agent whose run window overlaps
+// the task's claim (the SubagentStart-registered record that actually holds transcript_path; the
+// assignee key never matches it directly). Else fall back to the task's session transcript —
+// gated by `anySession`: taskTokens only allows it when the session maps to a single task (so it
+// never paints the same conversation-wide total across many tasks); /costflow always allows it
+// because splitSessionTokens divides a shared total honestly. null = unknown.
+function taskTranscript(key, session, anySession, st = state) {
   const assignee = st.overlay.assignee[key];
   const agent = assignee ? st.agents[assignee] : null;
   let tp = agent && agent.transcript_path;
@@ -873,11 +877,17 @@ function taskTokens(key, session, dedicated, st = state) {
     tp = path.join(path.dirname(st.mainTranscript), `${agent.session}.jsonl`);
   }
   if (!tp) tp = harnessTranscriptForTask(st, key, session);             // time-window correlation fallback
-  if (!tp && dedicated && session && st.mainTranscript) {                // session dedicated to one task
+  if (!tp && anySession && session && st.mainTranscript) {               // task's shared session transcript
     tp = path.join(path.dirname(st.mainTranscript), `${session}.jsonl`);
   }
   if (!tp) return null;
-  try { if (!fs.existsSync(tp)) return null; } catch { return null; }
+  try { return fs.existsSync(tp) ? tp : null; } catch { return null; }
+}
+
+// Per-task token total for the graph node. null = unknown.
+function taskTokens(key, session, dedicated, st = state) {
+  const tp = taskTranscript(key, session, dedicated, st);
+  if (!tp) return null;
   const u = usageCached(tp);
   return u && typeof u.total === 'number' ? u.total : null;
 }
@@ -1516,6 +1526,12 @@ const handler = async (req, res) => {
       const repo = resolveRepo(b.key, b.repo_path, T.ov);
       if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: run git_init first' });
       const result = git.mergeBranch(repo, b.key, { message: b.message });
+      if (result.merged) {
+        // Persist the merge outcome on the task node (merged + commit sha) so cost-flow
+        // attribution (/costflow) can treat it as a sink without keyword-matching commits.
+        overlayStore.setGit(T.ov, b.key, { merged: true, merge_sha: result.head || null, merged_at: now() });
+        T.save();
+      }
       notifyChange();
       return send(res, 200, result);
     }
@@ -2255,6 +2271,56 @@ const handler = async (req, res) => {
       return send(res, 200, { agent_id: id, stop_requested: targetOverlay(null, u).ov.stop_requested[id] || null });
     }
 
+    // Token cost-flow attribution ("autonomy score"): who consumed every token, and did it land?
+    // Each task's OWN tokens (honest splits: tasks sharing one session transcript divide its total
+    // by claim-window duration instead of each double-counting the whole session) flow along its
+    // outgoing dependency/context edges (lib/costflow.js). Merged-to-main nodes are SINKS that
+    // claim their accumulated cost; terminal non-merged nodes trap theirs — named waste.
+    // autonomy_score = productive tokens ÷ genuinely human-TYPED input tokens parsed from the
+    // workspace's main-session transcripts (lib/human-input.js). ?since=ISO bounds the HUMAN-INPUT
+    // window only (graph tokens are lifetime-of-task). Conservation: productive + trapped == total.
+    if (p === '/costflow' && m === 'GET') {
+      const T = targetOverlay(null, u);
+      if (!T.ws) return send(res, 400, { ok: false, error: 'no workspace set' });
+      const g = buildGraph(T.ws);
+      const stWs = T.ws === state.workspace ? state : { ...state, overlay: T.ov };
+      // 1) honest per-task own tokens (real tasks only; notes/ghosts are zero-cost contributors)
+      const claims = g.tasks.filter((t) => t.kind !== 'note').map((t) => ({
+        id: t.id,
+        transcript: taskTranscript(t.id, t.session, true, stWs),
+        window: { start: t.firstSeen, end: t.lastChanged },
+      }));
+      const ownTok = costflow.splitSessionTokens(claims, usageCached);
+      // 2) nodes + contributor→consumer edges (deps weigh 1.0; context edges their stored weight)
+      const nodes = g.tasks.map((t) => ({ id: t.id, own: ownTok.get(t.id) || 0, merged: !!(t.git && t.git.merged), label: t.label }));
+      const seen = new Set(nodes.map((n) => n.id));
+      for (const gh of g.ghosts) {
+        const gid = `ghost:${gh.workspace}|${gh.key}`;
+        if (!seen.has(gid)) { nodes.push({ id: gid, own: 0, merged: false, label: gh.label || '' }); seen.add(gid); }
+      }
+      const edges = [];
+      for (const t of g.tasks) {
+        for (const d of t.deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: 1 });
+        for (const d of t.context_deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: (t.context_weights && t.context_weights[d]) ?? overlayStore.DEFAULT_CONTEXT_WEIGHT });
+      }
+      const flow = costflow.computeFlow(nodes, edges);
+      // 3) denominator: genuinely human-typed tokens in this workspace's main-session transcripts
+      const projDir = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
+      const human = humanInput.humanInputTokens(projDir, { since: u.searchParams.get('since') || null });
+      const rnd = (x) => Math.round(x);
+      // Round for presentation but keep the conservation identity exact in the payload:
+      // total is re-derived as productive + trapped (each ≤0.5 token from the raw value).
+      const productive = rnd(flow.totals.productive), trapped = rnd(flow.totals.trapped);
+      return send(res, 200, {
+        workspace: T.ws,
+        autonomy_score: human.tokens > 0 ? Math.round((flow.totals.productive / human.tokens) * 10) / 10 : null,
+        human,
+        totals: { total: productive + trapped, productive, trapped },
+        results: flow.results.map((r) => ({ task: r.task, label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
+        waste: flow.waste.map((w) => ({ task: w.task, label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
+      });
+    }
+
     if (p === '/state') {
       const T = targetOverlay(null, u);   // honor ?workspace= for the overlay-backed fields too
       const ws = T.ws;
@@ -2266,6 +2332,7 @@ const handler = async (req, res) => {
           const o = { id: t.id, label: t.label, status: t.status, deps: t.deps };
           if (t.kind) o.kind = t.kind;
           if (t.agent_id) o.assignee = t.agent_id;
+          if (t.git && t.git.merged) o.merged = true;   // merge outcome survives the slim projection
           return o;
         });
         return send(res, 200, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: T.ov.edges, summary: g.summary });
@@ -2289,7 +2356,7 @@ const handler = async (req, res) => {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, staleClaimKeys, staleVerdictKeys, migrateBlindEdges,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, staleClaimKeys, staleVerdictKeys, migrateBlindEdges,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, __setOverlayForTest: (o) => { state.overlay = o; } };
 

@@ -84,6 +84,12 @@
   .agbtn:hover { color: #79c0ff; }
   #activityPopup { position: fixed; top: 52px; right: 14px; width: 460px; max-width: calc(100vw - 28px); max-height: 72vh; overflow: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 4px 14px 14px; }
   #activityPopup.show { display: block; }
+  /* cost-flow popup (token attribution / autonomy score) — same chrome as activityPopup */
+  #costPopup { position: fixed; top: 52px; right: 14px; width: 520px; max-width: calc(100vw - 28px); max-height: 72vh; overflow: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 4px 14px 14px; }
+  #costPopup.show { display: block; }
+  .cfrow { display: flex; gap: 10px; align-items: baseline; font-size: 12px; padding: 3px 0; border-bottom: 1px solid #1c2128; }
+  .cfrow .cfl { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c9d1d9; }
+  .cfrow .cfm { color: #8b949e; font-size: 11px; }
   .appclose { float: right; color: #8b949e; cursor: pointer; padding: 6px 2px; font-size: 14px; }
   .appclose:hover { color: #e6edf3; }
   /* escalation: guidance banner — the loop is paused waiting on the user */
@@ -155,6 +161,11 @@
   <span class="appclose" onclick="document.getElementById('activityPopup').classList.remove('show')">✕</span>
   <section class="feed"><h2 style="margin-left:0">Router decisions</h2><div id="routes"></div></section>
   <section class="feed"><h2 style="margin-left:0">Subagents</h2><div id="agents"></div></section>
+</div>
+<!-- cost-flow popup: token attribution + autonomy score (GET /costflow, fetched on open) -->
+<div id="costPopup">
+  <span class="appclose" onclick="document.getElementById('costPopup').classList.remove('show')">✕</span>
+  <section class="feed"><h2 style="margin-left:0">Cost flow · autonomy</h2><div id="costbody"></div></section>
 </div>
 <!-- note-inspect modal: lives OUTSIDE #guidance so triage re-renders can't close it -->
 <div id="noteOverlay" onclick="if(event.target===this)closeNotePopup()"><div id="notePopup"></div></div>
@@ -4019,7 +4030,8 @@ async function tick(){
   document.getElementById('sum').innerHTML=`<span>tasks <b>${s.tasks_total}</b></span>`+
     order.filter(k=>sc[k]).map(k=>`<span class="chip s-${k}"><b>${sc[k]}</b> ${k.replace('_',' ')}</span>`).join('')+
     (s.ghosts?`<span class="chip s-ghost"><b>${s.ghosts}</b> ghost</span>`:'')+
-    `<span class="agbtn" onclick="toggleActivityPopup()" title="routing &amp; subagents">· agents <b>${s.agents.running}</b>▶ <b>${s.agents.done}</b>✓ ▾</span>`;
+    `<span class="agbtn" onclick="toggleActivityPopup()" title="routing &amp; subagents">· agents <b>${s.agents.running}</b>▶ <b>${s.agents.done}</b>✓ ▾</span>`+
+    `<span class="agbtn" onclick="toggleCostPopup()" title="token cost-flow attribution (autonomy score)">· ⚖ cost</span>`;
   lastState=d;
   if(currentView==='cloud') renderCloud(d);
   else if(currentView==='focus') renderFocus(d);
@@ -4641,6 +4653,27 @@ window.addEventListener('resize', ()=>{
 });
 // Activity feeds collapsed by default; remembered in localStorage
 function toggleActivityPopup(){ document.getElementById('activityPopup').classList.toggle('show'); }
+// Cost-flow popup: fetch /costflow on open (it walks every transcript — too heavy for tick()).
+async function toggleCostPopup(){
+  const p=document.getElementById('costPopup'); p.classList.toggle('show');
+  if(!p.classList.contains('show')) return;
+  const el=document.getElementById('costbody'); el.innerHTML='<div class="empty">computing…</div>';
+  let d; try{ d=await(await fetch(BASE+'/costflow')).json(); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
+  if(d.error){ el.innerHTML=`<div class="empty">${esc(d.error)}</div>`; return; }
+  const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n));
+  const row=(r,v)=>`<div class="cfrow"><span class="cfl" title="${esc(r.task)}">${esc(r.label||r.task)}</span>`+
+    (r.members?`<span class="cfm">×${r.members.length}</span>`:'')+
+    (r.inherited!=null?`<span class="cfm">own ${fmt(r.own)} + ${fmt(r.inherited)}</span>`:'')+
+    `<b>${fmt(v)}</b></div>`;
+  el.innerHTML=
+    `<div style="font-size:13px;margin:4px 0 10px">autonomy score <b style="font-size:18px;color:#79c0ff">${d.autonomy_score==null?'—':d.autonomy_score+'×'}</b>`+
+    ` <span class="muted">· ${fmt(d.totals.productive)} landed + ${fmt(d.totals.trapped)} trapped = ${fmt(d.totals.total)} · human-typed ${fmt(d.human.tokens)} tok (${d.human.messages} msgs)</span></div>`+
+    `<h2 style="margin-left:0">Landed — merged sinks (${d.results.length})</h2>`+
+    (d.results.length?d.results.slice(0,15).map(r=>row(r,r.T)).join(''):'<div class="empty">no merged results yet</div>')+
+    `<h2 style="margin-left:0;margin-top:14px">Waste — trapped in dead ends (${d.waste.length})</h2>`+
+    (d.waste.length?d.waste.slice(0,15).map(w=>row(w,w.trapped)).join(''):'<div class="empty">none</div>');
+}
+document.addEventListener('click', ev=>{ const p=document.getElementById('costPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.agbtn'))) return; p.classList.remove('show'); });
 document.addEventListener('click', ev=>{ const p=document.getElementById('activityPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.agbtn'))) return; p.classList.remove('show'); });
 setView(currentView);              // apply persisted view + toggle state on load
 tick(); setInterval(tick, 2000);   // safety poll
