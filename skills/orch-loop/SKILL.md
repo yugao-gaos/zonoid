@@ -20,7 +20,7 @@ decision per active loop — and you reschedule **ONE** `ScheduleWakeup` for all
 wakeup chain per loop.
 
 ## Start
-1. (Optional) set token controls: `mcp__orchestrator-graph__loop_start({ tokenBudget, maxIterations, minPoll, maxPoll, batch, maxConcurrency, judgeParallelCap, session })`. Defaults: 100k tokens / 200 ticks / 30s–1200s poll / 8 per batch / 10 max concurrency / 6 judge parallel cap. These are HARD caps enforced by the daemon. Pass `session` = this conversation's id so a cooperative-stop on its claimed task halts that loop within one tick (see Cooperative stop). **`loop_start` INSERTS a new loop and returns its `loopId`** — it never clobbers an existing loop, so several loops can run at once.
+1. (Optional) set token controls: `mcp__orchestrator-graph__loop_control({ action: "start", tokenBudget, maxIterations, minPoll, maxPoll, batch, maxConcurrency, judgeParallelCap, session })`. Defaults: 100k tokens / 200 ticks / 30s–1200s poll / 8 per batch / 10 max concurrency / 6 judge parallel cap. These are HARD caps enforced by the daemon. Pass `session` = this conversation's id so a cooperative-stop on its claimed task halts that loop within one tick (see Cooperative stop). **`loop_control(action:"start")` INSERTS a new loop and returns its `loopId`** — it never clobbers an existing loop, so several loops can run at once.
 2. Then run one tick (below) and schedule the next with **one** `ScheduleWakeup`.
 
 ## Each tick (keep it minimal — conserve tokens)
@@ -42,7 +42,7 @@ The daemon enforces the stop for you instead: every `next_action` tick first pol
 stop signal (a cancel on that loop's session's claimed task, or a stop on its agent — same logic as
 `GET /should-stop?session=<id>`). If set, that loop's entry returns `action:'stop', reason:'cooperative stop'`
 and the daemon clears its `active` flag — so the loop self-exits **within one iteration**, after
-finishing the current step and persisting. Pass `session` to `loop_start` to arm this per loop. Hard
+finishing the current step and persisting. Pass `session` to `loop_control(action:"start")` to arm this per loop. Hard
 token/iteration caps (and the central liveness sweep for dead-session/stalled loops) are enforced the
 same way. A killed driver simply stops calling `next_action`; loops PAUSE (registry persisted to
 `loops.json`, no corruption) and a fresh heartbeat resumes them — and the daemon's periodic sweep
@@ -51,4 +51,4 @@ demotes any whose driving session is dead.
 ## Token discipline
 - On an `idle` tick, do not reason or call other tools — the daemon already decided. One MCP call + a one-word reply.
 - Trust the daemon's `next_poll_seconds`: it backs off to long intervals when idle/waiting and short when work is flowing.
-- `loop_stop({ loopId })` cancels a specific loop anytime (loopId required); `orch off` (the conversation toggle) ends the loop(s) this conversation drives. An `await_user` action means the planner/judge raised a `request_guidance` question — that loop is halted until the user answers (`/guidance/resolve`).
+- `loop_control({ action: "stop", loopId })` cancels a specific loop anytime (loopId required); `orch off` (the conversation toggle) ends the loop(s) this conversation drives. An `await_user` action means the planner/judge raised a `request_guidance` question — that loop is halted until the user answers (`/guidance/resolve`).

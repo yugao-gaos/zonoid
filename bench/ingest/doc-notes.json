@@ -145,7 +145,7 @@
   },
   {
     "title": "Cooperative stop is enforced by the daemon inside next_action",
-    "summary": "The heartbeat tick runs in-process so the PreToolUse stop hook cannot interrupt it. Instead every next_action first polls the loop’s stop signal (cancel on the loop’s claimed task or stop on its agent); if set it returns stop and clears loop.active, so the loop self-exits within one iteration. Pass session to loop_start to arm this.",
+    "summary": "The heartbeat tick runs in-process so the PreToolUse stop hook cannot interrupt it. Instead every next_action first polls the loop’s stop signal (cancel on the loop’s claimed task or stop on its agent); if set it returns stop and clears loop.active, so the loop self-exits within one iteration. Pass session to loop_control(action:\"start\") to arm this.",
     "source": "skills/orch-loop/SKILL.md",
     "kind": "constraint"
   },

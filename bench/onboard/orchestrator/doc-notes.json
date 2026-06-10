@@ -451,7 +451,7 @@
   },
   {
     "title": "Pass session = this conversation's id so a cooperative-stop on its claimed ta...",
-    "summary": "Pass session = this conversation's id so a cooperative-stop on its claimed task halts that loop within one tick (see Cooperative stop). loop_start INSERTS a new loop and returns its loopId — it never clobbers an existing loop, so several loops can run at once.",
+    "summary": "Pass session = this conversation's id so a cooperative-stop on its claimed task halts that loop within one tick (see Cooperative stop). loop_control(action:\"start\") INSERTS a new loop and returns its loopId — it never clobbers an existing loop, so several loops can run at once.",
     "source": "skills/orch-loop/SKILL.md",
     "kind": "constraint"
   },
