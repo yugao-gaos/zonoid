@@ -16,5 +16,8 @@ node_modules/
 .DS_Store
 agents.json
 
+# Local embedding model weights (downloaded at runtime by lib/embed.js — ~90MB, not source)
+models/
+
 # Local self-host session config (machine-specific absolute paths)
 /.claude/

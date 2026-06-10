@@ -47,6 +47,12 @@ const CANDIDATES = {
     deps: [],
     grader: 'bench/heldout/graders/task-transcript.grader.js',
   },
+  'locale-sum': {
+    spec: 'bench/heldout/specs/locale-sum.md',
+    artifact: 'bench/sandbox/sum-amounts-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/locale-sum.grader.js',
+  },
 };
 
 // Warm-arm preambles. Default = search (semantic RAG): the agent MUST search_knowledge and apply any

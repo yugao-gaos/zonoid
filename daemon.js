@@ -17,6 +17,7 @@ const git = require('./lib/git');
 const measure = require('./lib/measure');
 const optimize = require('./lib/optimize');
 const { embed, cosine, DIMS } = require('./lib/embed');
+const judge = require('./lib/judge');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -73,7 +74,18 @@ let state = { workspace: null, overlay: overlayStore.EMPTY(), routes: [], agents
 // Persist + restore the workspace, so a daemon respawn (e.g. after a crash/kill) keeps serving
 // the same project instead of coming back with no workspace.
 const WS_FILE = path.join(BASE, 'workspace');
-try { const w = fs.readFileSync(WS_FILE, 'utf8').trim(); if (w) { state.workspace = w; state.overlay = overlayStore.load(w); } } catch { /* none yet */ }
+// One-time migration for the edge-judge rework: tag every BLIND note-provider similarity edge
+// (kind:context, from a note node, written by the old autowireNoteProvider pass) as UNVERIFIED
+// ({judged:false, by:'autowire'}) so the judge can re-adjudicate keep-vs-prune. Idempotent — an
+// edge already carrying a `judged` flag is skipped, so re-running (boot, /workspace switch) is safe.
+// Persists when it tagged anything. Returns the count newly tagged.
+function migrateBlindEdges(workspace, overlay) {
+  if (!workspace || !overlay) return 0;
+  const tagged = judge.tagBlindEdges(overlay);
+  if (tagged > 0) { try { overlayStore.save(workspace, overlay); } catch { /* best effort */ } }
+  return tagged;
+}
+try { const w = fs.readFileSync(WS_FILE, 'utf8').trim(); if (w) { state.workspace = w; state.overlay = overlayStore.load(w); migrateBlindEdges(w, state.overlay); } } catch { /* none yet */ }
 // Persist + restore agent records (incl. transcript_path/session) so token attribution survives a restart.
 const AGENTS_FILE = path.join(BASE, 'agents.json');
 try { const a = JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf8')); if (a && typeof a === 'object') state.agents = a; } catch { /* none yet */ }
@@ -92,12 +104,12 @@ function notifyChange() { for (const r of sseClients) { try { r.write('data: cha
 // Keyed REGISTRY of heartbeat loops (was a singleton `loop`). Each entry is independent — its own
 // budget/iterations/session/config — and ONE heartbeat (decideAll) advances them all. Keyed by a UUID
 // loopId so /loop/start can INSERT (never clobber) and multiple driving conversations can coexist.
-const LOOP_CONFIG_KEYS = ['tokenBudget', 'maxIterations', 'minPoll', 'maxPoll', 'estPerTick', 'batch'];
+const LOOP_CONFIG_KEYS = ['tokenBudget', 'maxIterations', 'minPoll', 'maxPoll', 'estPerTick', 'batch', 'maxConcurrency', 'judgeParallelCap'];
 const STALE_PROGRESS_MIN_DEFAULT = 30;   // a loop with no progress past this many minutes is swept to inactive
 function newLoop(over) {
   return { id: null, active: false, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: null,
     session: null, lastProgress: null,
-    config: { tokenBudget: 100000, maxIterations: 200, minPoll: 30, maxPoll: 1200, estPerTick: 800, batch: 8 },
+    config: { tokenBudget: 100000, maxIterations: 200, minPoll: 30, maxPoll: 1200, estPerTick: 800, batch: 8, maxConcurrency: 10, judgeParallelCap: 6 },
     ...over };
 }
 const loops = new Map();   // loopId -> entry
@@ -464,16 +476,61 @@ function decideOne(L, ctx) {
   const running = g.tasks.filter((t) => t.status === 'in_progress').length;
   const ghostWait = g.tasks.filter((t) => t.status === 'not_ready' && t.deps.some((d) => d.startsWith('ghost:'))).length;
 
-  if (ready.length) {
-    // Spawn pool is shared ACROSS loops this tick: take up to min(this loop's batch, pool remaining).
-    const take = Math.max(0, Math.min(L.config.batch, ctx.batch.remaining));
+  // CAPACITY-FILL: spare concurrency this loop may use this tick. Tasks always win — they're spawned
+  // into headroom FIRST; the edge-judge then fans out PARALLEL efforts into whatever slots are LEFT.
+  // headroom = maxConcurrency − running (in-flight workers), floored at 0.
+  const headroom = Math.max(0, L.config.maxConcurrency - running);
+
+  // Compute a PARALLEL judge directive that fills `headroom − spawnedThisTick` leftover slots, capped
+  // by the queue depth and judgeParallelCap, then CLAMPED to what the loop's remaining token budget can
+  // afford (≈ estPerTick per parallel effort). Charges L.spent for all K efforts so the loop still STOPS
+  // at tokenBudget even with judge work pending. Returns { parallel, budget } or null when no slots /
+  // empty queue / no budget. The per-effort budget is config.judge.budgetPerRun (items per /judge/next).
+  function judgeDirective(spawnedThisTick) {
+    // Same cap guards as the top of decideOne — never schedule judge work past budget/iteration caps.
+    if (L.spent > L.config.tokenBudget || L.iterations > L.config.maxIterations) return null;
+    const depth = judge.judgeQueueDepth(state.overlay, g);
+    let slots = Math.min(Math.max(0, headroom - spawnedThisTick), depth, L.config.judgeParallelCap);
+    if (slots <= 0) return null;
+    // Token-budget clamp: each parallel judge effort costs ~estPerTick. The current tick already charged
+    // ONE estPerTick (above). Cap K so K × estPerTick fits the remaining budget; never overspend.
+    const est = L.config.estPerTick || 0;
+    if (est > 0) {
+      const affordable = Math.floor(remaining / est);
+      slots = Math.min(slots, Math.max(0, affordable));
+    }
+    if (slots <= 0) return null;
+    L.spent += slots * est;                                   // account for all K efforts so the loop stops at budget
+    const budget = (state.overlay.config.judge?.budgetPerRun) ?? 6;
+    return { parallel: slots, budget };
+  }
+
+  if (ready.length && headroom > 0) {
+    // Spawn pool is shared ACROSS loops this tick: take up to min(this loop's batch, pool remaining,
+    // this loop's spare concurrency). Don't spawn past maxConcurrency.
+    const take = Math.max(0, Math.min(L.config.batch, ctx.batch.remaining, headroom, ready.length));
     if (take > 0) {
       ctx.batch.remaining -= take;
       L.lastProgress = now();                                 // progress signal for the liveness sweep (task 3)
-      return { ...base, action: 'spawn', tasks: ready.slice(0, take).map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll };
+      const dec = { ...base, action: 'spawn', tasks: ready.slice(0, take).map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll };
+      // A SINGLE heartbeat does BOTH: tasks first, then PARALLEL judge into the leftover slots.
+      const jd = judgeDirective(take);
+      if (jd) dec.judge = jd;
+      return dec;
     }
     // Pool exhausted by earlier loops this tick — idle briefly and retry next heartbeat.
     return { ...base, action: 'idle', reason: 'spawn batch exhausted this tick', next_poll_seconds: L.config.minPoll };
+  }
+  // CAPACITY-FILL self-learning (LOW priority — strictly after spawn): no ready task spawned this tick
+  // (none ready, or no headroom). If the edge-judge queue has pending work and there are leftover slots
+  // AND the budget/iteration cap is NOT exhausted (judgeDirective re-checks + clamps to budget), fan out
+  // K parallel judge efforts. Token accounting: L.iterations + one estPerTick were advanced above, and
+  // judgeDirective charges the K efforts onto L.spent, so the loop still STOPS at its budget even with
+  // judge work pending (next tick the cap guard fires first). Empty queue / no slots → fall through to
+  // the in-flight / ghost-wait / drained idle branches exactly as before.
+  const jd = judgeDirective(0);
+  if (jd) {
+    return { ...base, action: 'judge_edges', parallel: jd.parallel, budget: jd.budget, next_poll_seconds: L.config.minPoll };
   }
   if (running > 0) return { ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(L.config.maxPoll, L.config.minPoll * 2) };
   if (ghostWait > 0) return { ...base, action: 'idle', reason: 'waiting on cross-workspace dependencies', next_poll_seconds: L.config.maxPoll };
@@ -662,32 +719,31 @@ function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = n
   return added;
 }
 
-// Periodic self-heal: re-wire CURRENT note nodes that sit as orphans (zero overlay edges) by replaying
-// each through autowireNoteProvider. A note can be a zero-match orphan at creation yet gain a real
-// neighbor as the graph grows, so we RE-CHECK every orphan each sweep rather than flag it 'independent'
-// — independence isn't durable. Re-checking a true orphan is side-effect-free: scoreMatches is a read,
-// and addEdge only writes on a >=0.25 match, so a note with no neighbor stays orphaned and writes
-// nothing. We only persist when at least one edge landed. Mirrors sweepStaleLoops' style/shape.
-// (Future optimization IF rescan cost is ever measured to matter: an epoch watermark to skip notes
-// whose neighborhood is unchanged since their last check — not built; plain re-check is cheap enough.)
-function sweepOrphanNotes() {
-  try {
-    const g = buildGraph(state.workspace);
-    const touched = new Set();
-    for (const e of state.overlay.edges) { touched.add(e.from); touched.add(e.to); }
-    let added = 0;
-    for (const node of g.tasks) {
-      if (node.kind !== 'note' || node.validTo != null) continue;   // CURRENT notes only
-      if (touched.has(node.id)) continue;                           // already wired (from or to)
-      added += autowireNoteProvider(state.overlay, g, node.id, node.label, node.summary, node.vec);
-    }
-    if (added > 0) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
-    return added;
-  } catch (e) {
-    console.error(`sweepOrphanNotes failed: ${e && e.message}`); // log and continue
-    return 0;
-  }
+// RECALL half of the RAG-candidate → agent-adjudicator pipeline. For an orphan/under-connected note,
+// return up to `top` semantic candidates (cosine >= RAG_RECALL_THRESHOLD) the AGENT will adjudicate —
+// it does NOT write any edge (that's the judge's verdict, never a cosine score). Looser than the old
+// autowire bar: recall, not precision (the agent supplies precision). Each candidate carries the
+// endpoint's title+summary+key+score+via so the judge can reason without extra reads. Skips candidates
+// the note ALREADY has a context edge to (no point re-proposing an existing edge). Pure read of `g`.
+const RAG_RECALL_THRESHOLD = 0.40;   // RECALL bar — deliberately below the old 0.55 precision bar
+function noteRagCandidates(overlay, g, noteKey, title, summary, targetVec = null, top = 8) {
+  const target = { id: noteKey, label: title, summary: summary || '', deps: [], context_deps: [] };
+  const existing = new Set(overlay.edges.filter((e) => e.from === noteKey && e.kind === 'context').map((e) => e.to));
+  return scoreMatchesSemantic(g, target, targetVec)
+    .filter((m) => m.score >= RAG_RECALL_THRESHOLD)
+    .filter((m) => !existing.has(m.key))                          // don't re-propose an edge we already have
+    .slice(0, top)
+    .map((m) => ({ key: m.key, title: m.label, summary: String((g.tasks.find((t) => t.id === m.key) || {}).summary || '').slice(0, 200), score: m.score, status: m.status, via: m.via }));
 }
+
+// DEMOTED (edge-judge rework): the periodic sweep no longer WRITES similarity edges. It used to replay
+// every orphan note through autowireNoteProvider (blindly attaching cosine edges) — exactly the
+// RAG-as-DAG pass we replaced. The judge QUEUE subsumes orphan tracking: buildQueue() reads orphans
+// (current, under-connected, not-yet-judged-this-epoch notes) LIVE every /judge/next tick, so there's
+// nothing to persist here — an orphan is simply eligible to be pulled and adjudicated by the agent.
+// Kept as a cheap no-op (rather than ripped out) so the existing un-driven interval below still has a
+// callee and any external caller doesn't 404; it returns 0 and never mutates the overlay.
+function sweepOrphanNotes() { return 0; }
 
 // ---- workspace-aware graph engine -----------------------------------------
 // A "ref" is { ws, key } where key = "{session}/{id}". Resolution may cross workspaces
@@ -853,6 +909,10 @@ function buildGraph(ws) {
       const target = byId.get(key);
       if (target && autowireNewTask(state.overlay, { tasks }, target, threshold)) edgesDirty = true;
     }
+    // A node was ADDED ⇒ bump the graph-change epoch so the edge-judge re-pulls notes whose
+    // neighborhood may now have a new candidate (judgedAtEpoch < epoch becomes true again). One bump
+    // per build that saw new nodes — cheap, monotonic, persisted with the overlay below.
+    overlayStore.bumpEpoch(state.overlay); edgesDirty = true;
   }
   if (tsDirty || edgesDirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
   const ghosts = Object.values(ghostMap);
@@ -957,7 +1017,7 @@ const handler = async (req, res) => {
     // Public reads of the CURRENT workspace + the dashboard stay open; any ?workspace= read is gated too.
     const protectedPath = p === '/mcp' || p === '/reset' || p.startsWith('/overlay/') || p === '/loop/start' || p === '/loop/stop'
       || p === '/workspace' || p === '/peek' || p === '/config' || p === '/route' || p.startsWith('/agent/') || p.startsWith('/git/')
-      || p.startsWith('/guidance') || p === '/supersede';
+      || p.startsWith('/guidance') || p === '/supersede' || p === '/judge/verdict';
     if ((protectedPath || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 
     if (p === '/ping') return send(res, 200, { ok: true, workspace: state.workspace });
@@ -994,6 +1054,7 @@ const handler = async (req, res) => {
       if (!b.path) return send(res, 400, { ok: false, error: 'path required' });
       state.workspace = b.path;
       state.overlay = overlayStore.load(b.path);
+      migrateBlindEdges(b.path, state.overlay);   // tag blind similarity edges UNVERIFIED on workspace switch (idempotent)
       if (b.transcript) state.mainTranscript = b.transcript; // enables real loop token accounting
       try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(WS_FILE, b.path); } catch { /* best effort */ }
       return send(res, 200, { ok: true, workspace: state.workspace });
@@ -1443,19 +1504,13 @@ const handler = async (req, res) => {
       // lexical scoring — retrieval never hard-fails.
       b.vec = await embed(`${b.title} ${b.summary}`);
       const id = overlayStore.addNoteNode(state.overlay, b);
-      // Auto-wire the new note as a context PROVIDER: write note -> neighbor context edges so its
-      // summary flows into relevant open work instead of the note landing as an orphan root. Opt out
-      // with autowire:false. Fail-soft: any error here must NOT break note creation. Build a synthetic
-      // target (the note isn't in the rebuilt graph yet) and feed it to autowireNoteProvider.
-      let autowired = 0;
-      if (b.autowire !== false) {
-        try {
-          const g = buildGraph(state.workspace);
-          autowired = autowireNoteProvider(state.overlay, g, 'note:' + id, b.title, b.summary, b.vec);
-        } catch (e) {
-          console.error(`note autowire failed for note:${id}: ${e && e.message}`); // log and continue
-        }
-      }
+      // DEMOTED (edge-judge rework): we no longer BLINDLY auto-wire similarity edges on note create.
+      // Similarity ≠ a real DAG edge — the default verdict is NO edge. Instead a new note just bumps
+      // the EPOCH (a node was added), which makes it (and any newly-relevant neighbors) eligible in the
+      // judge queue: RAG generates candidates, the AGENT adjudicates which become edges (see /judge/*).
+      // `autowired` is kept in the response shape for back-compat but is always 0 now.
+      const autowired = 0;
+      overlayStore.bumpEpoch(state.overlay);
       // Optional one-shot supersede: a newer decision invalidates an older note WITHOUT deleting it.
       // `supersedes` is the OLD note's key ('note:<id>' or bare '<id>'). Stamps validTo on the old,
       // chains old↔new, and sets the new note's validFrom to the changeover instant.
@@ -1466,30 +1521,42 @@ const handler = async (req, res) => {
         if (!r.ok) return send(res, 400, { ok: false, error: r.error });
         superseded = { old_key: 'note:' + oldId, at: r.at };
       }
+      // Contradiction/duplicate hint (non-fatal, NEVER auto-supersedes): when the note was created
+      // WITHOUT `supersedes`, scan CURRENT notes for a strong title+summary token-overlap near-match
+      // (same scorer + threshold as the /task/suggest duplicate warning) and surface it as a `hint`
+      // so the agent can decide whether to stamp the timeline via supersede_note.
+      let hint = null;
+      if (!b.supersedes) {
+        const qt = suggestToks(`${b.title} ${b.summary}`);
+        let best = null;
+        for (const n of Object.values(state.overlay.note_nodes || {})) {
+          if (n.id === id || n.validTo) continue;   // skip self + already-retired notes
+          const { score } = scoreNodeAgainstTokens({ label: n.title, summary: n.summary }, qt);
+          if (score >= SUGGEST_DUP_THRESHOLD && (!best || score > best.score)) best = { key: 'note:' + n.id, score };
+        }
+        if (best) hint = `this may contradict/duplicate note ${best.key} — if it replaces it, call supersede_note(old_key=${best.key}, new_key=note:${id}) so the stale note is retired; if uncertain, leave both.`;
+      }
       overlayStore.save(state.workspace, state.overlay);
       notifyChange();
-      return send(res, 200, { ok: true, id, key: 'note:' + id, superseded, autowired });
+      return send(res, 200, { ok: true, id, key: 'note:' + id, superseded, autowired, hint });
     }
 
-    // Re-run provider auto-wiring for an EXISTING note (backfill orphans). Same policy as create:
-    // note -> neighbor SEMANTIC context edges, cosine >= SEMANTIC_AUTOWIRE_THRESHOLD, skip done
-    // (note->note allowed), top-5. Idempotent (addEdge dedupes). Body: { key:'note:<id>'|'<id>' }.
-    // Passes the note's stored vec so scoring is semantic. Used by scripts/rewire-notes.js.
+    // DEMOTED (edge-judge rework): re-enqueue an EXISTING note for ADJUDICATION instead of blindly
+    // re-writing similarity edges. The old behavior wrote note -> neighbor cosine edges directly; that
+    // is exactly the blind RAG-as-DAG pass we replaced. Now this just resets the note's judged
+    // watermark (judgedAtEpoch -> 0) so the judge queue re-pulls it on its next tick and the AGENT
+    // decides which candidates (if any) become real edges. Body: { key:'note:<id>'|'<id>' }.
     if (p === '/overlay/note/rewire' && m === 'POST') {
       const b = await readBody(req);
       if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
       const id = String(b.key).replace(/^note:/, '');
       const n = (state.overlay.note_nodes || {})[id];
       if (!n) return send(res, 404, { ok: false, error: 'unknown note' });
-      let autowired = 0;
-      try {
-        const g = buildGraph(state.workspace);
-        autowired = autowireNoteProvider(state.overlay, g, 'note:' + id, n.title, n.summary, n.vec);
-      } catch (e) {
-        return send(res, 500, { ok: false, error: e && e.message });
-      }
-      if (autowired > 0) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
-      return send(res, 200, { ok: true, key: 'note:' + id, autowired });
+      if (!state.overlay.judgedAtEpoch) state.overlay.judgedAtEpoch = {};
+      delete state.overlay.judgedAtEpoch['note:' + id];   // never judged ⇒ re-pullable by /judge/next
+      overlayStore.save(state.workspace, state.overlay);
+      notifyChange();
+      return send(res, 200, { ok: true, key: 'note:' + id, requeued: true, autowired: 0 });
     }
 
     // Supersede note OLD with note NEW: a newer decision invalidates an older one without deleting
@@ -1547,6 +1614,100 @@ const handler = async (req, res) => {
       overlayStore.save(state.workspace, state.overlay);
       notifyChange();
       return send(res, 200, { ok: true, embedded, skipped, failed });
+    }
+
+    // --- edge-judge: RAG recall (dumb) → agent adjudication (precision) ---------------------
+    // GET /judge/next?budget=N — hand the judge agent up to N work items from the PERSISTED cursor,
+    // advancing + persisting it (wraps past the end; idles when nothing is pullable). The daemon does
+    // NO reasoning here: it only recalls CANDIDATES (via /search's semantic path) and surfaces
+    // UNVERIFIED edges. Two item kinds:
+    //   (a) 'orphan'  — an under-connected note → `candidates`: top-8 semantic neighbors (cosine
+    //                    >= RAG_RECALL_THRESHOLD, the LOOSE recall bar), each {key,title,summary,score}.
+    //   (b) 'edge'    — an UNVERIFIED blind similarity edge → `from`/`to` endpoints' {title,summary,key}
+    //                    for the agent's keep-or-prune call.
+    // Default budget = config.judge.budgetPerRun (~6). Pure read — only the cursor is persisted.
+    if (p === '/judge/next') {
+      const cfg = state.overlay.config.judge || {};
+      const defBudget = Number(cfg.budgetPerRun) || 6;
+      const budget = Math.max(1, Math.min(parseInt(u.searchParams.get('budget') || String(defBudget), 10) || defBudget, 50));
+      const g = buildGraph(state.workspace);
+      const byId = new Map(g.tasks.map((t) => [t.id, t]));
+      const detail = (key) => { const t = byId.get(key); return t ? { key, title: t.label, summary: String(t.summary || '').slice(0, 200), kind: t.kind || 'task', status: t.status } : { key, title: key, summary: '', missing: true }; };
+      const queue = judge.buildQueue(state.overlay);
+      const slice = judge.nextSlice(queue, state.overlay.judgeCursor || 0, budget);
+      const items = slice.items.map((it) => {
+        if (it.kind === 'edge') {
+          return { kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to) };
+        }
+        // orphan note → attach RAG candidates (recall). The note itself + its candidates.
+        const note = byId.get(it.id) || { id: it.id, label: it.id, summary: '', vec: null };
+        const candidates = noteRagCandidates(state.overlay, g, it.id, note.label, note.summary, note.vec, 8)
+          .map((c) => ({ key: c.key, title: c.title, summary: c.summary, score: c.score, status: c.status, via: c.via }));
+        return { kind: 'orphan', id: it.id, note: detail(it.id), candidates };
+      });
+      // Persist the advanced cursor so the NEXT tick resumes past these items (never re-walks).
+      if (!slice.idle && slice.cursorAfter !== (state.overlay.judgeCursor || 0)) {
+        state.overlay.judgeCursor = slice.cursorAfter;
+        overlayStore.save(state.workspace, state.overlay);
+      }
+      return send(res, 200, {
+        epoch: state.overlay.epoch || 0,
+        budget, idle: slice.idle, total: slice.total,
+        cursorBefore: slice.cursorBefore, cursorAfter: slice.cursorAfter,
+        items,
+      });
+    }
+
+    // POST /judge/verdict — apply the AGENT's adjudications. Body: { verdicts: [ ... ] } (or a single
+    // verdict object). Each verdict is one of:
+    //   { createEdge: { from, to, weight? } }   — a REASONED context edge (note PROVIDER -> consumer).
+    //                                             Tagged judged:true,by:'judge' (a real assertion, not cosine).
+    //   { keepEdge:   { from, to } }            — affirm an UNVERIFIED edge meets the context bar (flip judged:true).
+    //   { pruneEdge:  { from, to, kind? } }     — remove an edge that does NOT meet the bar.
+    //   { surfaceSupersede: { old, new, why? } }— PROPOSE-AND-SURFACE only: raise a guidance item for
+    //                                             human confirmation. NEVER stamps validTo / mutates the timeline.
+    // Each verdict may carry `markJudged: '<note-key>'` (or `item: {kind,id}`) so the source work item's
+    // note watermark is stamped judgedAtEpoch=epoch — a 'no edge' decision included. Idempotent.
+    if (p === '/judge/verdict' && m === 'POST') {
+      const b = await readBody(req);
+      const verdicts = Array.isArray(b.verdicts) ? b.verdicts : (b.createEdge || b.keepEdge || b.pruneEdge || b.surfaceSupersede || b.markJudged || b.item ? [b] : []);
+      const epoch = state.overlay.epoch || 0;
+      if (!state.overlay.judgedAtEpoch) state.overlay.judgedAtEpoch = {};
+      const applied = { created: 0, kept: 0, pruned: 0, surfaced: 0, judged: 0 };
+      for (const v of verdicts) {
+        if (v && v.createEdge && v.createEdge.from && v.createEdge.to) {
+          const before = state.overlay.edges.length;
+          overlayStore.addEdge(state.overlay, v.createEdge.from, v.createEdge.to, null, 'context', v.createEdge.weight);
+          // Stamp the edge as a JUDGED assertion (not a blind cosine edge).
+          const e = state.overlay.edges.find((x) => x.from === v.createEdge.from && x.to === v.createEdge.to && x.kind === 'context');
+          if (e) { e.judged = true; e.by = 'judge'; }
+          if (state.overlay.edges.length > before || e) applied.created++;
+        }
+        if (v && v.keepEdge && v.keepEdge.from && v.keepEdge.to) {
+          if (judge.keepEdge(state.overlay, v.keepEdge.from, v.keepEdge.to)) applied.kept++;
+        }
+        if (v && v.pruneEdge && v.pruneEdge.from && v.pruneEdge.to) {
+          const before = state.overlay.edges.length;
+          overlayStore.removeEdge(state.overlay, v.pruneEdge.from, v.pruneEdge.to, null, v.pruneEdge.kind);
+          if (state.overlay.edges.length < before) applied.pruned++;
+        }
+        if (v && v.surfaceSupersede && v.surfaceSupersede.old && v.surfaceSupersede.new) {
+          // PROPOSE-AND-SURFACE: guidance only — NO validTo, NO supersedeNote call, NO timeline mutation.
+          overlayStore.addGuidance(state.overlay, {
+            question: `Possible supersede: does note ${v.surfaceSupersede.new} replace ${v.surfaceSupersede.old}? Confirm to stamp the timeline (never auto-applied).`,
+            context: `judge surfaced a same-fact/newer-correction candidate. ${v.surfaceSupersede.why || ''}`.slice(0, 2000),
+            trigger: 'ambiguous_intent',
+          });
+          applied.surfaced++;
+        }
+        // Stamp the source item's note watermark so a 'no edge' (or any) verdict isn't re-pulled until
+        // epoch grows. markJudged is an explicit note key; item:{kind:'orphan',id} also stamps that note.
+        const noteKey = v && (v.markJudged || (v.item && v.item.kind === 'orphan' ? v.item.id : null));
+        if (noteKey) { judge.stampJudged(state.overlay.judgedAtEpoch, noteKey, epoch); applied.judged++; }
+      }
+      overlayStore.save(state.workspace, state.overlay);
+      notifyChange();
+      return send(res, 200, { ok: true, epoch, applied, edges: state.overlay.edges.length });
     }
 
     // Read the full supersede chain (oldest→newest) for a note, with each link's validity window.
@@ -1797,7 +1958,9 @@ const handler = async (req, res) => {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, autowireNoteProvider, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, staleClaimKeys, staleVerdictKeys };
+module.exports = { taskTokens, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, staleClaimKeys, staleVerdictKeys, migrateBlindEdges,
+  // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
+  decideOne, __setOverlayForTest: (o) => { state.overlay = o; } };
 
 if (require.main === module) {
   const server = http.createServer(handler);
