@@ -1,84 +1,79 @@
 [
   {
-    "id": "p1",
-    "question": "In this orchestrator, when you call branch_task / merge_attempt / measure on a task, which git repository do those operations run against, and how is it resolved? Be specific about precedence.",
-    "require": [
-      ["explicit", "repopath", "repo_path", "argument", "arg"],
-      ["task", "set_task_repo", "repos[", "overlay repo", "repo field"],
-      ["workspace", "daemon workspace", "fall back", "fallback", "default"]
-    ],
-    "forbid": ["always the workspace", "always runs against the workspace", "current working directory", "cwd of the daemon"],
-    "note_ref": "Git ops target an arbitrary repo, NOT the daemon workspace",
-    "hint": "precedence: explicit repoPath > task.repo overlay field > daemon workspace"
+    "id": "proj-merge-conflict",
+    "kind": "project",
+    "scenario": "I'm writing the judge that merges a winning attempt branch back into the base after the optimization loop picks a winner. I want to make the judge robust. If two attempts both touched lib/optimize.js and the winner's branch conflicts with base when I call the merge primitive, what will the merge primitive itself do to the working tree, and what will it return — so I know what my judge code has to handle next?",
+    "rubric": "PASS only if the answer concludes the merge primitive does NOT force, auto-resolve, or commit the conflicted merge. It must say that on conflict the primitive aborts the merge (git merge --abort) leaving a CLEAN working tree (no partial/conflicted state left behind), and returns a non-merged result that reports the conflict and/or the conflicted file list (e.g. {merged:false, conflict:true, files:[...]}), so the caller/judge must handle the conflict and escalate. FAIL if it says the merge is forced through, conflicts are auto-resolved with -X theirs/ours, the merge commits anyway, the branch always lands, or it leaves conflict markers in a dirty tree for the caller to resolve in place.",
+    "retrieval_query": "merge attempt branch conflict abort force judge escalate"
   },
   {
-    "id": "p2",
-    "question": "What happens when merge_attempt hits a merge conflict while merging a winning attempt branch? Describe the exact behavior of the merge primitive.",
-    "require": [
-      ["abort", "--abort", "aborts"],
-      ["clean tree", "clean working tree", "leaves a clean", "no partial", "never forces", "does not force"],
-      ["conflict", "files", "conflicted", "returns"]
-    ],
-    "forbid": ["forces the merge", "force merge", "-X theirs", "-X ours", "resolves the conflict automatically", "commits the merge anyway", "always lands"],
-    "note_ref": "Winner merge auto-aborts on conflict and never forces",
-    "hint": "git merge --no-ff; on conflict collect files then git merge --abort; returns {conflict, files}"
+    "id": "proj-repo-target",
+    "kind": "project",
+    "scenario": "A user reports: 'I created a task, called branch_task and then merge_attempt on it, but the branch/worktree got created inside ~/.claude/orchestrator (the daemon's own directory) instead of in my actual project repo at ~/code/myapp where I wanted the work to happen. The daemon workspace is not even a git repo for me normally.' Walk me through how the git operations decide WHICH repository to act on, and what the user most likely forgot to do so that the ops target ~/code/myapp.",
+    "rubric": "PASS only if the answer explains that the target repo is resolved by a PRECEDENCE chain rather than always being the daemon workspace: an explicit repo_path argument first, then the task's own configured/overlay repo field (set via set_task_repo), and only then falling back to the daemon workspace. It must conclude the user forgot to set the task's repo (set_task_repo to ~/code/myapp) or pass an explicit repo_path, which is why it fell back to the workspace. FAIL if it claims git ops always run against the daemon workspace / current working directory with no per-task override, or invents an unrelated cause (e.g. a config file, env var) without the precedence resolution.",
+    "retrieval_query": "git ops target repo precedence set_task_repo workspace worktree resolve"
   },
   {
-    "id": "p3",
-    "question": "Should code in this project ever write the native Claude Code task JSON files directly to update task status or dependencies? Why or why not, and where does non-native data live?",
-    "require": [
-      ["no", "never", "do not", "should not", "must not"],
-      ["overlay", "overlay store"],
-      ["lock", ".lock", "overwritten", "taskupdate", "native-tasks.js", "adapter", "source of truth"]
-    ],
-    "forbid": ["yes, write", "safe to write", "you can edit the json", "just modify the file"],
-    "note_ref": "Native task JSON is read-only to us; all non-native state lives in the overlay",
-    "hint": "native files are SoT for native fields but unsafe to write; non-native state is in the overlay; mutate native only via TaskUpdate"
+    "id": "proj-native-write",
+    "kind": "project",
+    "scenario": "I'm adding a feature that needs to flip a native Claude Code task's status to done and add a dependency between two native tasks. The fastest path looks like just opening the task's JSON file under the session directory and editing the status and deps fields in place. Is that the right approach in this codebase, or is there a reason not to, and where should cross-session/extra state actually be stored?",
+    "rubric": "PASS only if the answer says do NOT write the native task JSON file directly. It should justify this (the native files are the source of truth for native fields but are unsafe to write directly — e.g. lock file, can be overwritten by Claude Code, and direct file access is confined to a dedicated adapter module), and say that native mutations must go through the proper API/tool (TaskUpdate / the native-tasks adapter), while all non-native / cross-session / cross-workspace state (extra edges, richer status, notes, summaries, per-task repo, metrics) lives in the project's own overlay store. FAIL if it endorses editing the JSON file directly as fine/the source of truth, or omits that non-native state lives in the overlay.",
+    "retrieval_query": "native task json write overlay source of truth TaskUpdate lock overwritten"
   },
   {
-    "id": "p4",
-    "question": "How does the search_knowledge tool (GET /search) match a query against knowledge notes — what retrieval method does it use? What practical consequence does that have for how notes should be worded?",
-    "require": [
-      ["lexical", "token", "keyword", "overlap", "word"],
-      ["not", "no embedding", "not semantic", "not embeddings"],
-      ["wording", "surface", "share", "same words", "vocabulary", "phrasing", "terms"]
-    ],
-    "forbid": ["embedding", "vector", "semantic similarity", "cosine", "dense retrieval", "neural"],
-    "note_ref": "search_knowledge / GET /search is lexical token-overlap, not embeddings",
-    "hint": "token-overlap scorer over label+summary; purely lexical, so a note only retrieves if it shares surface tokens with the query"
+    "id": "proj-search-retrieval",
+    "kind": "project",
+    "scenario": "I added a knowledge note about a gotcha. Later an agent searched the knowledge base with a query that means the same thing as my note but shares almost no words with it (it used synonyms), and my note did NOT come back in the results. Before I assume the search is broken, explain how this project's knowledge search actually matches a query against notes, and what that implies about how I should WORD notes so they get retrieved.",
+    "rubric": "PASS only if the answer explains the search is LEXICAL / token-overlap based (scores notes by shared surface tokens/keywords between the query and the note's label+summary, sorts, takes top-k) and is NOT semantic/embedding/vector similarity — so a synonym-only query legitimately fails to retrieve the note (not a bug). It must conclude the practical implication: word notes using the surface terms/vocabulary that queries will actually use, so they share tokens. FAIL if it claims the search uses embeddings / vector / semantic / cosine similarity, or attributes the miss to a real bug rather than the lexical matching design.",
+    "retrieval_query": "knowledge search retrieval lexical token overlap embeddings semantic wording recall"
   },
   {
-    "id": "p5",
-    "question": "When this project's metric-driven self-improvement loop gets stuck (K consecutive rounds with no usable winner), what does it do? Does it cancel or replan the problem?",
-    "require": [
-      ["escalate", "request_guidance", "human", "guidance"],
-      ["halt", "stops", "stop", "raises", "pauses"]
-    ],
-    "forbid": ["auto-cancel", "automatically cancels", "drops the problem", "replans automatically", "deletes the task", "gives up and removes", "move on"],
-    "note_ref": "A stuck optimization escalates to a human and HALTS",
-    "hint": "raises request_guidance and halts (one of five escalation triggers); never auto-cancels/replans"
+    "id": "proj-stuck-loop",
+    "kind": "project",
+    "scenario": "Design question about the autonomous optimization loop: suppose a metric-driven problem is genuinely broken — round after round, every attempt either produces no usable winner or regresses a guardrail, for K consecutive rounds. What does this project's loop do at that point? Specifically, does it quietly cancel/drop the problem, silently replan it, or do something else? I need to know so I don't add redundant handling.",
+    "rubric": "PASS only if the answer says the loop ESCALATES TO A HUMAN and HALTS/stops (raises a guidance/request_guidance escalation and pauses the loop) rather than continuing. It must explicitly reject the auto-cancel / silently-drop / auto-replan behaviors — i.e. the problem is surfaced to a human, not removed from the graph automatically. FAIL if it says the loop auto-cancels, drops/deletes the problem, silently replans, or just keeps looping forever with no escalation.",
+    "retrieval_query": "stuck optimization loop no winner K rounds escalate request_guidance halt cancel replan"
   },
   {
-    "id": "p6",
-    "question": "When benchmarking orchestrator ON vs OFF, why is computing a 'net work' figure as (gross tokens − plumbing tokens) misleading, and what should you measure instead?",
-    "require": [
-      ["output_tokens", "output tokens"],
-      ["cache_read", "cache read", "plumbing", "attribution", "sticky"],
-      ["spurious", "misleading", "artifact", "wrong", "false"]
-    ],
-    "forbid": ["net work is the right metric", "gross minus plumbing is accurate", "65% less work is real"],
-    "note_ref": "Measure benchmark work by output_tokens, not a gross-minus-plumbing 'net'",
-    "hint": "MCP token attribution buckets cache_read into plumbing -> gross-minus-plumbing 'net' gives a spurious ~65%-less artifact; trust output_tokens"
+    "id": "proj-desktop-hooks",
+    "kind": "project",
+    "scenario": "We rely on a PreToolUse settings.json hook (an edit-gate / auto-router) to enforce that file edits only happen against a claimed task. A teammate is running everything inside the Claude DESKTOP app, not the CLI, and reports the gate never seems to block anything. Before calling it a bug, explain whether settings.json hooks even run in the desktop app, how the orchestrator still functions there, and what that means for relying on the gate to enforce the discipline.",
+    "rubric": "PASS only if the answer states that the desktop app does NOT execute settings.json hooks (it runs .mcp.json MCP servers but not the hooks), so the PreToolUse edit-gate / auto-router is NOT enforced in the desktop app — the gate blocking nothing there is expected, not a bug. It should note the orchestrator still works in desktop because the MCP server self-boots/registers (the graph + tools work hookless), and conclude that in the desktop app the orchestration discipline is instruction-level only (you cannot rely on the gate to hard-enforce it). FAIL if it claims hooks run/are enforced in the desktop app the same as the CLI, or that the gate blocks edits in desktop.",
+    "retrieval_query": "desktop app settings.json hooks PreToolUse gate mcp.json self-boot CLI instruction-level"
   },
   {
-    "id": "p7",
-    "question": "In the desktop Claude app (not the CLI), are settings.json PreToolUse hooks executed? What does that mean for the orchestrator's auto-router / edit-gate enforcement?",
-    "require": [
-      ["no", "not", "does not", "doesn't run hooks", "no hooks"],
-      ["mcp", ".mcp.json", "self-boot", "self boots", "instruction", "cli"]
-    ],
-    "forbid": ["yes, hooks run", "hooks are enforced in the desktop app", "the gate blocks edits in the desktop app"],
-    "note_ref": "Desktop app runs .mcp.json servers but NOT settings.json hooks",
-    "hint": "desktop runs .mcp.json servers but no settings.json hooks; gate/auto-router need the CLI; in desktop the discipline is instruction-level only"
+    "id": "proj-bench-metric",
+    "kind": "project",
+    "scenario": "I'm reproducing the orchestrator ON-vs-OFF benchmark. A previous writeup computed each arm's 'net work' as (gross tokens minus plumbing tokens) and reported orchestrator-ON did ~65% less work. That delta looks too good. Given how token usage is attributed for MCP-tool agents in this setup, is 'gross minus plumbing' a trustworthy measure of work, and if not, what should I actually measure for work (and for cost)?",
+    "rubric": "PASS only if the answer concludes that 'gross minus plumbing' net is NOT trustworthy and the ~65%-less figure is a spurious artifact. The reason must involve token attribution being sticky/mis-bucketed — specifically that cache_read (re-read/cached context) gets bucketed into 'plumbing', so subtracting it inflates the apparent savings. It must recommend measuring actual WORK by output_tokens, and (for cost) using cost-weighted gross / discounting cache_read. FAIL if it endorses gross-minus-plumbing/net as valid, treats the 65% as real, or recommends an unrelated metric without identifying the cache_read attribution problem.",
+    "retrieval_query": "benchmark net work gross minus plumbing output_tokens cache_read attribution sticky spurious"
+  },
+  {
+    "id": "ctl-git-revert-pushed",
+    "kind": "control",
+    "scenario": "I pushed a commit to a shared remote branch that other teammates have already pulled, and the commit is bad. What's the safe way to undo its changes without rewriting the shared history (i.e. without a force-push that breaks everyone else's clones)?",
+    "rubric": "PASS if the answer recommends creating a NEW commit that undoes the change — i.e. `git revert <sha>` (or otherwise adding a forward commit) and pushing that — instead of history-rewriting operations (reset --hard + force push, rebase) on the shared branch. It should convey the principle of not rewriting already-shared history. FAIL if it recommends git reset/rebase + force-push to the shared branch as the primary fix, or fails to give a non-history-rewriting undo.",
+    "retrieval_query": "git revert undo pushed commit shared branch without force push history"
+  },
+  {
+    "id": "ctl-sql-injection",
+    "scenario": "In a Node service I build a SQL query like `db.query(\"SELECT * FROM users WHERE email = '\" + userInput + \"'\")` where userInput comes straight from an HTTP request. What's the vulnerability here and the correct fix?",
+    "kind": "control",
+    "rubric": "PASS if the answer identifies this as a SQL injection vulnerability (untrusted input concatenated into the query) and prescribes using parameterized / prepared statements (placeholders + bound parameters) instead of string concatenation. FAIL if it misses that it's SQL injection, or only suggests insufficient mitigations like manual escaping/blacklisting without parameterized queries.",
+    "retrieval_query": "sql injection node string concatenation parameterized prepared statement user input"
+  },
+  {
+    "id": "ctl-async-await-loop",
+    "kind": "control",
+    "scenario": "In JavaScript I have `const ids = [1,2,3]; ids.forEach(async (id) => { await save(id); }); console.log('done');`. I expected 'done' to print only after all saves finished, but it prints first and unhandled rejections slip through. Why, and how do I correctly await all the async saves?",
+    "rubric": "PASS if the answer explains that Array.forEach does not await the async callbacks (it ignores the returned promises), so the loop returns immediately and 'done' logs before the saves resolve. The fix must be to collect the promises and await them — e.g. `await Promise.all(ids.map(id => save(id)))` (or a for...of loop with await). FAIL if it misdiagnoses the cause or offers a fix that still doesn't actually await the promises.",
+    "retrieval_query": "javascript foreach async await promise all not awaited loop"
+  },
+  {
+    "id": "ctl-http-status-post",
+    "kind": "control",
+    "scenario": "I'm designing a REST endpoint that creates a new resource (POST /orders) and returns the created order. Which HTTP status code should a successful creation return, and is there a header I should set to point at the new resource?",
+    "rubric": "PASS if the answer says a successful resource creation should return HTTP 201 Created (not just 200), and ideally mentions setting the Location header to the URL of the newly created resource. FAIL if it recommends 200 as the correct/primary code for a creation with no mention of 201, or recommends an inappropriate code (e.g. 204) for a response that returns the created body.",
+    "retrieval_query": "rest post create resource http status 201 created location header"
   }
 ]

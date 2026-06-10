@@ -1,90 +1,132 @@
 {
-  "n": 7,
-  "coldRate": 0,
-  "kbRate": 1,
-  "earnedRate": 1,
+  "summary": {
+    "n": 11,
+    "n_project": 7,
+    "n_control": 4,
+    "cold_rate_overall": 1,
+    "cold_rate_control": 1,
+    "cold_rate_project": 1,
+    "kb_rate_overall": 1,
+    "kb_rate_project": 1,
+    "kb_earned_rate_project": 0
+  },
+  "guard": {
+    "trustworthy": false,
+    "verdicts": [
+      "DEGENERATE: cold-rate overall = 100% (not strictly between 0 and 1). Both arms ace everything -> probes too easy, NO competence signal.",
+      "NO DELTA: KB never solved a project probe the cold agent missed — notes not load-bearing, or project probes too easy/hard."
+    ]
+  },
   "rows": [
     {
-      "id": "p1",
-      "cold_correct": false,
+      "id": "proj-merge-conflict",
+      "kind": "project",
+      "cold_correct": true,
       "kb_correct": true,
-      "kb_earned": true,
-      "cold_missing": [
-        "explicit",
-        "task"
-      ],
-      "kb_missing": [],
-      "note_ref": "Git ops target an arbitrary repo, NOT the daemon workspace"
+      "kb_earned": false,
+      "retrieved_n": 3,
+      "cold_reason": "The answer correctly states that on conflict the primitive runs git merge --abort, leaves the working tree clean with no partial state, and returns {merged:false, conflict:true, files:[...]} — matching all PASS criteria. It does not claim the merge is forced, auto-resolved, or committed.",
+      "kb_reason": "The answer correctly states that on conflict the merge primitive automatically aborts (leaving a clean working tree with no conflict markers or partial merge state) and returns a structured result reporting the conflict and conflicted files. It explicitly says the judge must handle/escalate rather than the primitive forcing through or auto-resolving. This matches all PASS criteria."
     },
     {
-      "id": "p2",
-      "cold_correct": false,
+      "id": "proj-repo-target",
+      "kind": "project",
+      "cold_correct": true,
       "kb_correct": true,
-      "kb_earned": true,
-      "cold_missing": [
-        "abort",
-        "clean tree"
-      ],
-      "kb_missing": [],
-      "note_ref": "Winner merge auto-aborts on conflict and never forces"
+      "kb_earned": false,
+      "retrieved_n": 3,
+      "cold_reason": "The answer correctly explains the precedence chain (explicit repo_path arg > task overlay repo via set_task_repo > daemon workspace fallback), correctly identifies that the user forgot to call set_task_repo or pass an explicit repo_path, and correctly concludes this caused fallback to the daemon workspace. All rubric requirements are met.",
+      "kb_reason": "The answer correctly identifies the precedence chain (explicit repo_path arg > task repo field > daemon workspace), concludes the user forgot to set the task's repo field (via TaskCreate's repo parameter or set_task_repo), and explains how this caused fallback to the daemon workspace. Both fix paths described are accurate and consistent with the rubric's requirements."
     },
     {
-      "id": "p3",
-      "cold_correct": false,
+      "id": "proj-native-write",
+      "kind": "project",
+      "cold_correct": true,
       "kb_correct": true,
-      "kb_earned": true,
-      "cold_missing": [
-        "no",
-        "overlay"
-      ],
-      "kb_missing": [],
-      "note_ref": "Native task JSON is read-only to us; all non-native state lives in the overlay"
+      "kb_earned": false,
+      "retrieved_n": 4,
+      "cold_reason": "The answer clearly says not to edit native task JSON files directly, explains the two-layer architecture (native files via controlled atomic write-through in native-tasks.js vs overlay for cross-session/extra state), directs mutations through the proper API (daemon endpoints that handle atomic write-through), and explicitly states that cross-session deps and richer state belong in the overlay. Both fail conditions are absent: it does not endorse direct editing, and it does not omit the overlay as the home for non-native state. The justification omits the lock-file and Claude Code overwrite-risk details but does convey the confined-adapter rationale, which is sufficient under the rubric's grading on correct conclusion/action rather than keyword coverage.",
+      "kb_reason": "The answer correctly says do NOT write native task JSON files directly, justifies it with the lock mechanism and overwrite risk, directs mutations through the proper API/tool layer (complete_task/start_task/fail_task daemon MCP calls), and explicitly states that cross-session/extra state (dependencies, edges, non-native fields) lives in the orchestrator overlay store — not in the native JSON."
     },
     {
-      "id": "p4",
-      "cold_correct": false,
+      "id": "proj-search-retrieval",
+      "kind": "project",
+      "cold_correct": true,
       "kb_correct": true,
-      "kb_earned": true,
-      "cold_missing": [
-        "wording"
-      ],
-      "kb_missing": [],
-      "note_ref": "search_knowledge / GET /search is lexical token-overlap, not embeddings"
+      "kb_earned": false,
+      "retrieved_n": 2,
+      "cold_reason": "The answer correctly identifies the search as lexical/token-overlap based with no embeddings or semantic similarity, explains the exact mechanism (shared surface tokens scored by overlap ratio), correctly concludes that synonym-only queries legitimately return zero results (not a bug), and gives the correct practical implication: word notes using the same surface terms queries will use, include multiple aliases if needed.",
+      "kb_reason": "The answer correctly identifies the search as lexical/token-overlap based with no embeddings or semantic similarity, explains the scoring mechanism (shared tokens), and correctly concludes the practical implication: notes must use the same surface vocabulary/tokens that queries will use, including synonyms explicitly. The synonym-only miss is correctly attributed to the lexical design, not a bug."
     },
     {
-      "id": "p5",
-      "cold_correct": false,
+      "id": "proj-stuck-loop",
+      "kind": "project",
+      "cold_correct": true,
       "kb_correct": true,
-      "kb_earned": true,
-      "cold_missing": [
-        "escalate",
-        "halt"
-      ],
-      "kb_missing": [],
-      "note_ref": "A stuck optimization escalates to a human and HALTS"
+      "kb_earned": false,
+      "retrieved_n": 3,
+      "cold_reason": "The answer explicitly states the loop returns a 'stuck' decision that routes through request_guidance to surface the problem to a human, and directly rejects auto-cancel and silent-replan behaviors ('escalate only, never auto-cancel/replan'). This satisfies all rubric criteria.",
+      "kb_reason": "The answer explicitly states the loop raises request_guidance and halts, and directly rejects auto-cancel, drop, and silent replan behaviors. This matches the rubric exactly."
     },
     {
-      "id": "p6",
-      "cold_correct": false,
+      "id": "proj-desktop-hooks",
+      "kind": "project",
+      "cold_correct": true,
       "kb_correct": true,
-      "kb_earned": true,
-      "cold_missing": [
-        "output_tokens",
-        "spurious"
-      ],
-      "kb_missing": [],
-      "note_ref": "Measure benchmark work by output_tokens, not a gross-minus-plumbing 'net'"
+      "kb_earned": false,
+      "retrieved_n": 1,
+      "cold_reason": "The answer correctly states that settings.json hooks do not run in the desktop app (hooks are CLI-only), that the gate not blocking is expected behavior not a bug, and that orchestration discipline in the desktop app is instruction-level only. It also implies the MCP/orchestrator tools still work in desktop (the orchestrator functions hooklessly). All rubric criteria are met.",
+      "kb_reason": "The answer correctly states that settings.json hooks do not run in the desktop app (CLI-only), that the orchestrator still works because the MCP server self-boots/registers hooklessly, and that the gate is instruction-level only in the desktop app — the blocking behavior is expected, not a bug. All three rubric criteria are met."
     },
     {
-      "id": "p7",
-      "cold_correct": false,
+      "id": "proj-bench-metric",
+      "kind": "project",
+      "cold_correct": true,
       "kb_correct": true,
-      "kb_earned": true,
-      "cold_missing": [
-        "no"
-      ],
-      "kb_missing": [],
-      "note_ref": "Desktop app runs .mcp.json servers but NOT settings.json hooks"
+      "kb_earned": false,
+      "retrieved_n": 2,
+      "cold_reason": "The answer correctly concludes gross-minus-plumbing is not trustworthy and the ~65% figure is a spurious artifact. It correctly identifies the root cause: cache_read tokens are bucketed into 'plumbing', so subtracting plumbing strips disproportionately more cache_read from the ON arm (which runs shorter-context subagents), inflating apparent savings without reflecting genuine generative work. It recommends output_tokens as the work metric and cost-weighted gross with cache_read discounted (~10%) for cost — exactly what the rubric requires.",
+      "kb_reason": "The answer correctly concludes that gross-minus-plumbing net work is not trustworthy and identifies the specific mechanism: cache_read tokens are mis-bucketed into plumbing, so subtracting plumbing inflates apparent savings and makes the ~65% delta spurious. It recommends output_tokens for measuring actual work, and for cost points to cache_read overhead as the real driver rather than net-work computations — aligning with all required rubric elements."
+    },
+    {
+      "id": "ctl-git-revert-pushed",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly recommends `git revert <sha>` which creates a new forward commit undoing the bad change without rewriting shared history, followed by a normal `git push`. It explicitly conveys the principle that teammates can pull normally without conflicts. It also covers the merge-commit edge case with `-m 1`. No history-rewriting operations are recommended.",
+      "kb_reason": "The answer correctly recommends `git revert <commit-hash>` to create a new forward commit that undoes the bad change, explicitly preserves shared history, and uses a plain push — no force-push or history rewriting."
+    },
+    {
+      "id": "ctl-sql-injection",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly identifies SQL injection as the vulnerability and prescribes parameterized queries with bound parameters as the fix, exactly matching the rubric requirements.",
+      "kb_reason": "The answer correctly identifies SQL injection as the vulnerability and prescribes parameterized queries with bound parameters as the fix, with concrete examples for both pg and mysql2 drivers."
+    },
+    {
+      "id": "ctl-async-await-loop",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly identifies that forEach ignores the promises returned by async callbacks, explains why 'done' logs immediately and why rejections slip through, and provides two correct fixes: Promise.all with map for parallel execution and a for...of loop for sequential execution.",
+      "kb_reason": "The answer correctly identifies that forEach ignores the returned promises from async callbacks, causing 'done' to log immediately and leaving rejections unhandled. The fixes — Promise.all with map and for...of with await — are both correct and actually await the promises."
+    },
+    {
+      "id": "ctl-http-status-post",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly identifies 201 Created as the appropriate status code and specifies setting the Location header with the URL of the new resource.",
+      "kb_reason": "Answer correctly identifies 201 Created as the status code and specifies the Location header with a concrete example URL."
     }
   ]
 }

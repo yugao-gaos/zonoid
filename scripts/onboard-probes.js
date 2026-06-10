@@ -1,29 +1,30 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * onboard-probes.js — onboarding-competence probe generator.
+ * onboard-probes.js — onboarding-competence probe SCHEMA + validator.
  *
- * A probe is a PROJECT-SPECIFIC question with a machine-checkable rubric. It exists to measure
- * ONBOARDING COMPETENCE: does a KB-equipped agent answer correctly where a COLD agent (no KB)
- * cannot? The hard-won v5 lesson: probes MUST be calibrated so a cold agent scores < 1.0 — if both
- * arms ace everything there is NO signal. So each probe targets a NON-OBVIOUS fact (a convention,
- * invariant, or gotcha) that is captured in a validated KB note but is NOT inferable from a quick
- * skim of the code.
+ * A probe poses a REALISTIC project scenario/task whose correct resolution requires project
+ * knowledge, and carries a plain-English RUBRIC describing what a functionally-correct answer must
+ * conclude or do. Grading is APPLIED-CORRECTNESS by an LLM judge (see onboard-harness.js) — there is
+ * deliberately NO require/forbid keyword scorer here. (The v1 harness graded by substring-matching
+ * the answer against the notes' own keywords; that was circular — it measured note-recall, not
+ * competence, and pinned cold-rate to exactly 0. This rewrite removes that mechanism entirely.)
  *
- * Rubric is deterministic: an answer is CORRECT iff it mentions ALL `require` concepts (case-insensitive
- * substring/alias match) AND none of the `forbid` (a confidently-wrong answer the cold agent tends to give).
+ * Two probe kinds:
+ *   kind:"project"  — correct resolution depends on a NON-OBVIOUS project fact (a KB note should
+ *                     help here). The scenario must NOT quote/paraphrase the note; it stands alone
+ *                     as a real situation derived from the codebase.
+ *   kind:"control"  — a VALIDITY control: solvable from general engineering knowledge with NO project
+ *                     KB. A valid harness MUST show a cold agent passing the controls while failing
+ *                     the project probes — i.e. cold-rate strictly between 0 and 1. If cold-rate is
+ *                     0 or 1 across the board the harness is STILL broken (see onboard-harness guard).
  *
- * Each probe is DERIVED from a kept KB note (so the KB demonstrably carries the answer) but the probe
- * text never leaks the note — it asks the underlying project question.
+ * Probe shape: { id, kind:"project"|"control", scenario, rubric, retrieval_query }
+ *   - scenario        : the task/question shown to BOTH arms (no note wording leaked).
+ *   - rubric          : plain-English PASS/FAIL criteria; given to the judge, NEVER to the answerer.
+ *   - retrieval_query : lexical query the KB arm sends to GET /search to pull [ingest] notes.
  *
- *   node scripts/onboard-probes.js --notes <onboard-notes.json> [--out <probes.json>]
- *        # derive probe STUBS from kept notes (skeletons to refine), OR
- *   node scripts/onboard-probes.js --validate <probes.json>
- *        # check a (hand-calibrated) probe file's rubric shape
- *
- * Probe shape: { id, question, require:[..aliases per concept..], forbid:[..], note_ref, hint }
- *   - require: array of concept-groups; each group is an array of acceptable aliases (ANY alias in a
- *     group satisfies that concept). ALL groups must be satisfied.
+ *   node scripts/onboard-probes.js --validate <probes.json>   # check probe-file shape
  */
 
 const fs = require('fs');
@@ -34,80 +35,39 @@ function arg(name, def) {
   return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : def;
 }
 
-// Derive a probe STUB from a kept note: the question is a generic "what/why" framing; require/forbid
-// are left for human/agent calibration (we can't auto-guess the cold agent's wrong answer reliably).
-function stubFromNote(note, i) {
-  return {
-    id: `p${i + 1}`,
-    question: `(REFINE) Concerning this project: ${note.title}?`,
-    require: [],
-    forbid: [],
-    note_ref: note.title,
-    hint: note.summary.slice(0, 120),
-  };
-}
-
 function validate(probes) {
   let ok = true;
+  if (!Array.isArray(probes)) { console.error('probes file must be a JSON array'); return false; }
+  const seen = new Set();
   for (const p of probes) {
-    if (!p.id || !p.question || !Array.isArray(p.require)) {
-      console.error(`BAD probe (missing id/question/require): ${JSON.stringify(p).slice(0, 80)}`); ok = false; continue;
+    const id = p && p.id;
+    if (!id) { console.error(`BAD probe (missing id): ${JSON.stringify(p).slice(0, 80)}`); ok = false; continue; }
+    if (seen.has(id)) { console.error(`probe ${id}: duplicate id`); ok = false; }
+    seen.add(id);
+    if (p.kind !== 'project' && p.kind !== 'control') { console.error(`probe ${id}: kind must be "project" or "control"`); ok = false; }
+    if (typeof p.scenario !== 'string' || p.scenario.trim().length < 20) { console.error(`probe ${id}: scenario must be a non-trivial string`); ok = false; }
+    if (typeof p.rubric !== 'string' || p.rubric.trim().length < 20) { console.error(`probe ${id}: rubric must be a non-trivial string`); ok = false; }
+    if (p.kind === 'project' && (typeof p.retrieval_query !== 'string' || !p.retrieval_query.trim())) {
+      console.error(`probe ${id}: project probe needs a retrieval_query (KB arm searches with it)`); ok = false;
     }
-    if (p.require.length === 0) { console.error(`probe ${p.id}: empty require[] — will trivially pass (no signal)`); ok = false; }
-    for (const g of p.require) if (!Array.isArray(g) || g.length === 0) { console.error(`probe ${p.id}: require group must be a non-empty alias array`); ok = false; }
-    if (!Array.isArray(p.forbid)) { console.error(`probe ${p.id}: forbid must be an array (may be empty)`); ok = false; }
+    // Guard against the old circular shape sneaking back in.
+    if ('require' in p || 'forbid' in p) { console.error(`probe ${id}: legacy require/forbid keyword fields are not allowed (grading is LLM applied-correctness)`); ok = false; }
   }
+  const nProject = probes.filter((p) => p.kind === 'project').length;
+  const nControl = probes.filter((p) => p.kind === 'control').length;
+  if (nControl < 3) { console.error(`only ${nControl} control probe(s); need >=3 for a valid cold-rate validity check`); ok = false; }
+  if (nProject < 1) { console.error('no project probes'); ok = false; }
+  if (ok) console.error(`shape OK: ${nProject} project + ${nControl} control = ${probes.length} probes`);
   return ok;
 }
 
-// A forbidden phrase only counts when ASSERTED, not when negated/refuted. A correct answer often
-// names the wrong belief to reject it ("never forces or auto-resolves", "NOT embeddings", "unsafe
-// to write"), and a naive substring match would wrongly penalize that. So we ignore an occurrence
-// whose immediately-preceding ~24 chars carry a negator (not/no/never/n't/un-/rather than/without/
-// instead of). Returns true iff at least one occurrence is asserted (un-negated).
-const NEG_RE = /\b(not|no|never|don'?t|does\s?n'?t|is\s?n'?t|are\s?n'?t|cannot|can'?t|without|rather than|instead of|avoid|un)\s*$/i;
-function assertedForbidden(answer, phrase) {
-  const a = answer; // already lowercased
-  const f = String(phrase).toLowerCase();
-  let idx = a.indexOf(f);
-  while (idx !== -1) {
-    const before = a.slice(Math.max(0, idx - 24), idx);
-    // also treat a directly-prefixed "un"/"in" (unsafe, insecure) as negation of the bare token
-    const gluedNeg = /(?:^|[^a-z])(un|in)$/i.test(before.replace(/\s+$/, ''));
-    if (!NEG_RE.test(before) && !gluedNeg) return true; // an asserted occurrence
-    idx = a.indexOf(f, idx + f.length);
-  }
-  return false;
-}
-
-// Score one answer against one probe. Returns { correct, missing:[], hit_forbidden:[] }.
-function score(probe, answer) {
-  const a = String(answer || '').toLowerCase();
-  const missing = [];
-  for (const group of probe.require) {
-    const hit = group.some((alias) => a.includes(String(alias).toLowerCase()));
-    if (!hit) missing.push(group[0]);
-  }
-  const hitForbidden = (probe.forbid || []).filter((f) => assertedForbidden(a, f));
-  return { correct: missing.length === 0 && hitForbidden.length === 0, missing, hit_forbidden: hitForbidden };
-}
-
-module.exports = { score, validate };
+module.exports = { validate };
 
 if (require.main === module) {
   const validatePath = arg('validate');
-  if (validatePath) {
-    const probes = JSON.parse(fs.readFileSync(path.resolve(validatePath), 'utf8'));
-    const ok = validate(probes);
-    console.log(`${probes.length} probes — ${ok ? 'OK (all rubrics well-formed)' : 'PROBLEMS (see above)'}`);
-    process.exit(ok ? 0 : 1);
-  }
-  const notesPath = arg('notes');
-  if (!notesPath) { console.error('usage: onboard-probes.js --notes <onboard-notes.json> [--out <probes.json>] | --validate <probes.json>'); process.exit(2); }
-  const data = JSON.parse(fs.readFileSync(path.resolve(notesPath), 'utf8'));
-  const stubs = (data.kept || []).map(stubFromNote);
-  const out = arg('out');
-  const json = JSON.stringify(stubs, null, 2) + '\n';
-  if (out) { fs.writeFileSync(path.resolve(out), json); console.error(`wrote ${stubs.length} probe stubs -> ${out} (REFINE require/forbid before use)`); }
-  else process.stdout.write(json);
+  if (!validatePath) { console.error('usage: onboard-probes.js --validate <probes.json>'); process.exit(2); }
+  const probes = JSON.parse(fs.readFileSync(path.resolve(validatePath), 'utf8'));
+  const ok = validate(probes);
+  console.log(`${probes.length} probes — ${ok ? 'OK (well-formed)' : 'PROBLEMS (see above)'}`);
+  process.exit(ok ? 0 : 1);
 }
