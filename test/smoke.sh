@@ -187,6 +187,23 @@ chk "merge_attempt on target repo" "$(jpost git/merge "$(printf '{"key":"%s"}' "
 chk "remove_worktree on target repo" "$(jpost git/worktree/remove "$(printf '{"key":"%s"}' "$GK")" | jq -r .ok)" "true"
 rm -rf "$GREPO" "$CLAUDE_PLUGIN_DATA/worktrees"
 
+# git/merge: the load-bearing HOLD-MERGE step — a real attempt commit lands on the base, and a
+# never-branched key returns {merged:false, reason} without throwing. (ported from
+# orch/attempt/smoke-git-merge onto the target-repo pattern above)
+HREPO=$(mktemp -d /tmp/orch-smoke-hold.XXXXXX); HK="$S/2"
+jpost git/repo "$(printf '{"key":"%s","repo_path":"%s"}' "$HK" "$HREPO")" >/dev/null
+jpost git/init "$(printf '{"key":"%s"}' "$HK")" >/dev/null
+HWT=$(jpost git/worktree "$(printf '{"key":"%s"}' "$HK")" | jq -r .worktree)
+chk "hold-merge worktree created" "$([ -d "$HWT" ] && echo yes || echo no)"        "yes"
+echo 'landed-by-merge' > "$HWT/merged-file.txt"
+git -C "$HWT" add merged-file.txt >/dev/null 2>&1; git -C "$HWT" commit -m 'attempt: add merged-file' >/dev/null 2>&1
+chk "merge attempt -> merged"    "$(jpost git/merge "$(printf '{"key":"%s"}' "$HK")" | jq -r .merged)" "true"
+chk "change landed on base"      "$([ -f "$HREPO/merged-file.txt" ] && echo yes || echo no)" "yes"
+chk "merge missing branch false" "$(jpost git/merge "$(printf '{"key":"%s","repo_path":"%s"}' "$S/never" "$HREPO")" | jq -r .merged)" "false"
+chk "missing branch has reason"  "$(jpost git/merge "$(printf '{"key":"%s","repo_path":"%s"}' "$S/never" "$HREPO")" | jq -r '.reason!=null')" "true"
+jpost git/worktree/remove "$(printf '{"key":"%s"}' "$HK")" >/dev/null
+rm -rf "$HREPO" "$CLAUDE_PLUGIN_DATA/worktrees"
+
 # inline metric spec: a task carries a metric-driven objective; set/clear, validation, surfacing
 MK="$S/1"
 SPEC='{"metric":"p95_latency_ms","direction":"min","measure_command":"npm run bench","parse":"last_number","target":120}'
