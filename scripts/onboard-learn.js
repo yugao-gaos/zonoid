@@ -102,6 +102,7 @@ function gatherCandidates(inDir) {
   const git = loadJSON(path.join(inDir, 'git-notes.json'), []);
   const docs = loadJSON(path.join(inDir, 'doc-notes.json'), []);
   const cfg = loadJSON(path.join(inDir, 'config-notes.json'), []);
+  const assets = loadJSON(path.join(inDir, 'asset-notes.json'), []);
   const struct = loadJSON(path.join(inDir, 'structure.json'), { nodes: [] });
   const out = [];
   for (const n of git) out.push({ title: n.title, summary: n.summary, kind: n.kind, _origin: 'git', source: n.source });
@@ -109,6 +110,9 @@ function gatherCandidates(inDir) {
   // Config-default candidates (shipped defaults: escalation triggers, timeouts, thresholds, …) —
   // these encode non-obvious "what does it do out of the box" knowledge that lives only in code.
   for (const n of cfg) out.push({ title: n.title, summary: n.summary, kind: n.kind, _origin: 'config', source: n.source });
+  // Asset candidates (inventory/conventions, size outliers, churn rationale, orphan refs) —
+  // binary assets are the domain where reading code recovers the least semantics.
+  for (const n of assets) out.push({ title: n.title, summary: n.summary, kind: n.kind, _origin: 'asset', source: n.source });
   // Structural nodes carry the module-role map; pass a compact form so the agent knows the layout
   // without drowning in 1-per-file noise.
   for (const n of (struct.nodes || [])) out.push({ title: n.id, summary: n.role, kind: 'structure', _origin: 'struct', source: 'structure.json' });

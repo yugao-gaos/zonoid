@@ -8,7 +8,7 @@
  * KB-bootstrapped the first time the orchestrator runs there. It chains the pieces built by the
  * earlier onboarding tasks into a single, gated pipeline:
  *
- *   1. MINE  — run the 3 static miners (onboard-mine-{structure,git,docs}.js --repo <abs>) into
+ *   1. MINE  — run the 4 static miners (onboard-mine-{structure,git,docs,assets}.js --repo <abs>) into
  *              bench/onboard/<basename(repo)>/  (no graph mutation, no commit).
  *   2. LEARN — run scripts/onboard-learn.js --repo <abs>: a read-only agent validates the noisy
  *              mined candidates against actual source and writes onboard-notes.json (KEPT/REJECTED).
@@ -138,7 +138,7 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
 
   // ---- 1. MINE (no graph mutation, no commit) ----
   console.error(`[onboard] 1/3 mining ${repoAbs} -> ${outDir}`);
-  for (const m of ['onboard-mine-structure.js', 'onboard-mine-git.js', 'onboard-mine-docs.js']) {
+  for (const m of ['onboard-mine-structure.js', 'onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-assets.js']) {
     const st = node(m, ['--repo', repoAbs, '--out', outDir]);
     if (st !== 0) { console.error(`[onboard] FAILED: ${m} exited ${st}`); process.exit(1); }
   }
