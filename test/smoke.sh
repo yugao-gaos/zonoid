@@ -199,6 +199,13 @@ echo 'landed-by-merge' > "$HWT/merged-file.txt"
 git -C "$HWT" add merged-file.txt >/dev/null 2>&1; git -C "$HWT" commit -m 'attempt: add merged-file' >/dev/null 2>&1
 chk "merge attempt -> merged"    "$(jpost git/merge "$(printf '{"key":"%s"}' "$HK")" | jq -r .merged)" "true"
 chk "change landed on base"      "$([ -f "$HREPO/merged-file.txt" ] && echo yes || echo no)" "yes"
+# merge outcome persisted on the graph node (cost-flow attribution reads this as its sink set)
+chk "merged flag persisted on node" "$(g state | jq -r '.tasks[]|select(.id=="'"$HK"'")|.git.merged')" "true"
+chk "merge sha persisted on node"   "$(g state | jq -r '.tasks[]|select(.id=="'"$HK"'")|.git.merge_sha!=null')" "true"
+chk "compact projection keeps merged" "$(g 'state?compact=1' | jq -r '.tasks[]|select(.id=="'"$HK"'")|.merged')" "true"
+# costflow endpoint: responds, exposes the autonomy fields, and conserves tokens exactly
+chk "costflow conservation"      "$(g costflow | jq -r '(.totals.productive+.totals.trapped)==.totals.total')" "true"
+chk "costflow autonomy fields"   "$(g costflow | jq -r 'has("autonomy_score") and has("human") and has("results") and has("waste")')" "true"
 chk "merge missing branch false" "$(jpost git/merge "$(printf '{"key":"%s","repo_path":"%s"}' "$S/never" "$HREPO")" | jq -r .merged)" "false"
 chk "missing branch has reason"  "$(jpost git/merge "$(printf '{"key":"%s","repo_path":"%s"}' "$S/never" "$HREPO")" | jq -r '.reason!=null')" "true"
 jpost git/worktree/remove "$(printf '{"key":"%s"}' "$HK")" >/dev/null
