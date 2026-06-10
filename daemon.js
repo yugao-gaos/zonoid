@@ -24,6 +24,7 @@ const verdicts = require('./lib/verdicts');
 const { gateTask } = require('./lib/context-gate');
 const costflow = require('./lib/costflow');
 const humanInput = require('./lib/human-input');
+const frontier = require('./lib/frontier');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -1356,6 +1357,7 @@ const handler = async (req, res) => {
       if (b.require_review != null) T.ov.config.require_review = !!b.require_review;
       if (b.self_plan != null) T.ov.config.self_plan = !!b.self_plan; // opt-in self-scheduling (default off)
       if (b.stale_minutes != null) T.ov.config.stale_minutes = Number(b.stale_minutes); // liveness sweep threshold (min)
+      if (b.archive_after_days != null) T.ov.config.archive_after_days = Number(b.archive_after_days); // /state archival window (days)
       // Escalation toggles: which triggers warrant pausing for the user. All default ON; pass an
       // `escalation` object to tune any subset (the judge/agent honors these before request_guidance).
       if (b.escalation && typeof b.escalation === 'object') {
@@ -2363,19 +2365,47 @@ const handler = async (req, res) => {
       const T = targetOverlay(null, u);   // honor ?workspace= for the overlay-backed fields too
       const ws = T.ws;
       const g = buildGraph(ws);
+      // Serialize edges with their EFFECTIVE weight (a context edge with no stored weight reads as
+      // the default), so clients can rank context edges without consulting task.context_weights.
+      const edgesOut = T.ov.edges.map((e) => (e.kind === 'context' ? { ...e, weight: overlayStore.edgeWeight(e) } : e));
+      // Archive window: stale terminal tasks + superseded notes older than this drop out of the
+      // payload. ?include_archived=1 disables the sweep; POST /config { archive_after_days } tunes it.
+      const includeArchived = isTruthy(u.searchParams.get('include_archived'));
+      const cfgDays = Number((T.ov.config || {}).archive_after_days);
+      const windowMs = includeArchived ? Infinity : (cfgDays > 0 ? cfgDays : frontier.DEFAULT_ARCHIVE_DAYS) * 864e5;
+      // Frontier digest (?scope=frontier): summary counts + the active frontier (live nodes, their
+      // 1-hop neighbors, weight-guided important deps/context ancestry) as slim nodes with clipped
+      // summaries — the lean default for the get_full_graph MCP tool on large graphs. The whole-graph
+      // dump stays the HTTP default (scope=all; the dashboard does its own frontier selection).
+      // `scope` is the shared enum the planned adjacent/tree merge slots into.
+      if (u.searchParams.get('scope') === 'frontier') {
+        const f = frontier.projectFrontier(g.tasks, g.ghosts, edgesOut, { windowMs });
+        return send(res, 200, { workspace: ws, scope: 'frontier', tasks: f.tasks, ghosts: f.ghosts, edges: f.edges, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } });
+      }
+      // Archival sweep on the default/full payload: archived nodes are excluded here but remain on
+      // disk, still queryable via /search + suggest_links. Frontier-retained nodes never archive
+      // (a stale done task that is still an important context provider stays). summary.statuses
+      // keeps the honest whole-graph counts; summary.archived says how many nodes were omitted.
+      let tasks = g.tasks, archived = 0;
+      if (isFinite(windowMs)) {
+        const arch = frontier.archivedIds(g.tasks, { windowMs, keep: frontier.frontierKeep(g.tasks) });
+        archived = arch.size;
+        if (archived) tasks = tasks.filter((t) => !arch.has(t.id));
+      }
+      const summary = { ...g.summary, archived };
       // Compact projection (?compact=1): slim each task to id/label/status/deps(+assignee) and drop
       // heavy fields (note, summary, tokens, git, timestamps, session) so overview reads stay small.
       if (u.searchParams.get('compact')) {
-        const slim = g.tasks.map((t) => {
+        const slim = tasks.map((t) => {
           const o = { id: t.id, label: t.label, status: t.status, deps: t.deps };
           if (t.kind) o.kind = t.kind;
           if (t.agent_id) o.assignee = t.agent_id;
           if (t.git && t.git.merged) o.merged = true;   // merge outcome survives the slim projection
           return o;
         });
-        return send(res, 200, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: T.ov.edges, summary: g.summary });
+        return send(res, 200, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary });
       }
-      return send(res, 200, { workspace: ws, tasks: g.tasks, ghosts: g.ghosts, edges: T.ov.edges, routes: state.routes, agents: agentsArr(), summary: g.summary });
+      return send(res, 200, { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr(), summary });
     }
 
     if (p.startsWith('/agent/')) {
