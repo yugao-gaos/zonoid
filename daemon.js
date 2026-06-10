@@ -18,6 +18,7 @@ const measure = require('./lib/measure');
 const optimize = require('./lib/optimize');
 const { embed, cosine, DIMS } = require('./lib/embed');
 const judge = require('./lib/judge');
+const delta = require('./lib/delta');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -1071,6 +1072,23 @@ const handler = async (req, res) => {
     if (p === '/ready') {
       const g = buildGraph(state.workspace);
       return send(res, 200, { ready: g.tasks.filter((t) => t.status === 'ready').map((t) => ({ key: t.id, label: t.label })) });
+    }
+
+    // Read-only "what changed since T" delta — the change sensor for the nightly-QA loop. Derived
+    // ENTIRELY from timestamps the daemon already records (overlay.timestamps, note created_at,
+    // timestamped verdict knowledge items): no new persisted state, no mutation beyond what reads
+    // already do (buildGraph's own bookkeeping). ?since=<ISO-8601> required — 400 on missing/
+    // unparseable. Buckets: status_changes (tasks whose status changed after T, incl. reached
+    // done/tested/canceled), tasks_created, notes_added, merges (timestamped verdicts ONLY —
+    // a verdict without a timestamp is not derivable and is omitted, never invented). Top-level
+    // { since, now, counts } summarizes. See lib/delta.js.
+    if (p === '/graph/delta' && m === 'GET') {
+      const parsed = delta.parseSince(u.searchParams.get('since'));
+      if (!parsed.ok) return send(res, 400, { ok: false, error: parsed.error });
+      const ws = u.searchParams.get('workspace') || state.workspace;
+      const g = buildGraph(ws);
+      const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+      return send(res, 200, delta.computeDelta(g.tasks, ov, parsed.ms));
     }
 
     // Read-only learnings digest: what the graph has accumulated, for a self-planner to read on a
