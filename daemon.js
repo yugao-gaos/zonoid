@@ -1211,6 +1211,43 @@ const handler = async (req, res) => {
     }
     if (p === '/reset' && m === 'POST') { state = { workspace: state.workspace, overlay: state.workspace ? overlayStore.load(state.workspace) : overlayStore.EMPTY(), routes: [], agents: {}, mainTranscript: state.mainTranscript }; return send(res, 200, { ok: true }); }
 
+    // Force-release orphaned claims — useful after a Claude app restart where agents from the
+    // previous session still look 'running' (their lastSeen >= daemon bootMs). With force:true the
+    // boot-window grace is bypassed by treating nowMs as the effective boot point, so any claim
+    // whose lastChanged is older than stale_minutes is released regardless of when this daemon booted.
+    // Default stale_minutes:1 — safe for interactive restart recovery; active agents ping more often.
+    if (p === '/sweep' && m === 'POST') {
+      const b = await readBody(req);
+      const T = targetOverlay(b, u);
+      const ws = T.ws;
+      const ovWs = T.ov;
+      const staleMins = b.stale_minutes != null ? Number(b.stale_minutes) : 1;
+      const nowMs = Date.now();
+      const cutoff = nowMs - staleMins * 60000;
+      let released = 0;
+      if (b.force) {
+        // force:true bypasses vouchedLive entirely — only the lastChanged window applies.
+        // Safe for app-restart recovery: any in_progress claim whose lastChanged is older
+        // than staleMins is released, regardless of when the daemon booted or agent state.
+        for (const [key, st] of Object.entries(ovWs.status)) {
+          if (st !== 'in_progress') continue;
+          const agentId = ovWs.assignee[key];
+          const ts = ovWs.timestamps[key];
+          if (ts && Date.parse(ts.lastChanged) > cutoff) continue;   // recently active — skip
+          if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${staleMins}m (force=true)`, ovWs)) released++;
+        }
+      } else {
+        // Normal sweep: honor vouchedLive (recently-pinged agents are protected).
+        const sweepOv = staleMins !== (ovWs.config.stale_minutes ?? 10)
+          ? { ...ovWs, config: { ...ovWs.config, stale_minutes: staleMins } } : ovWs;
+        for (const { key, agentId, mins } of staleClaimKeys(sweepOv, state.agents, nowMs)) {
+          if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${mins}m`, ovWs)) released++;
+        }
+      }
+      if (released) { overlayStore.save(ws, ovWs); notifyChange(); cache.agg.delete(ws); cache.aggAt.delete(ws); }
+      return send(res, 200, { ok: true, released });
+    }
+
     if (p === '/workspace' && m === 'POST') {
       const b = await readBody(req);
       if (!b.path) return send(res, 400, { ok: false, error: 'path required' });
@@ -1797,6 +1834,10 @@ const handler = async (req, res) => {
       if (b.status === 'canceled') T.ov.cancel_requested[b.key] = now();
       else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
       overlayStore.setStatus(T.ov, b.key, b.status, b.note);
+      // Stamp lastChanged for accurate stale-sweep timing. buildGraph stamps for native-backed
+      // tasks; direct overlay writes (overlay-only claims, tests) need this for the sweep to
+      // correctly distinguish fresh vs stale claims.
+      { const ts = T.ov.timestamps[b.key] = T.ov.timestamps[b.key] || {}; const n = now(); if (!ts.firstSeen) ts.firstSeen = n; if (ts.lastStatus !== b.status || b.status === 'in_progress') { ts.lastChanged = n; ts.lastStatus = b.status; } }
       if (b.agent_id) {
         T.ov.assignee[b.key] = b.agent_id;                          // who's working it (animation)
         // Also surface the worker in the Subagents panel/counter when it claims/finishes a task.
@@ -2572,6 +2613,11 @@ if (require.main === module) {
   // bound to a closed conversation is otherwise never re-evaluated). decideAll already sweeps on each
   // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepStaleLoops(); } catch { /* best effort */ } }, 60000).unref();
+
+  // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
+  // called — catches the case after a Claude app restart where the user hasn't issued any command
+  // yet but old agent claims are blocking work. Matches the loop-sweep cadence (60s).
+  setInterval(() => { try { sweepStaleClaims(); } catch { /* best effort */ } }, 60000).unref();
 
   // Periodic orphan-note self-heal: re-wire note nodes that are still orphaned as the graph grows
   // (a zero-match note at creation can gain a real neighbor later). Re-check is side-effect-free —
