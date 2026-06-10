@@ -28,7 +28,7 @@ function arg(name, def) {
 function consultMode() {
   const eq = process.argv.find((a) => a.startsWith('--consult='));
   let v = eq ? eq.split('=')[1] : arg('consult', process.env.BENCH_CONSULT || 'search');
-  return ['search', 'dagrag', 'mandatory', 'lean', 'permissive'].includes(v) ? v : 'search';
+  return ['search', 'dagrag', 'mandatory', 'lean', 'permissive', 'gated'].includes(v) ? v : 'search';
 }
 const MODEL = arg('model', 'opus');
 
@@ -110,6 +110,12 @@ const PREAMBLE = {
     '(a) this task\'s DAG context via get_task_detail; AND (b) the knowledge base — call ' +
     'search_knowledge with a query describing this task and apply any relevant retrieved note. ' +
     'Combine both before coding. Graph is READ-ONLY — do NOT create/modify/claim/complete nodes.\n\n',
+  // GATE-FIRST consult: ask the context-need gate, retrieve only on decision:"inject".
+  gated:
+    'You have the orchestrator-graph MCP. Before writing code you MUST call search_knowledge with ' +
+    'gated:true and a query describing this task. If decision is "inject", read and apply the ' +
+    'returned note; if "abstain", proceed WITHOUT retrieval (do NOT re-query ungated). ' +
+    'Graph is READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n',
 };
 
 function main() {

@@ -34,6 +34,7 @@
  *        [--answers <a.json>]    # (dry-run) pre-collected cold/kb answers fed to the harness judge.
  *                                #  In dry-run with --answers-rounds, later rounds read alternate
  *                                #  answer files to simulate the KB improving across rounds.
+ *        [--batch <N>]           # drain batch size for queue-based learning (default 50).
  */
 
 const { spawnSync } = require('child_process');
@@ -68,11 +69,83 @@ function mine(repoAbs, outDir) {
   if (rs.status !== 0) console.error(`[loop] WARN: onboard-mine-structure.js exited ${rs.status} (continuing)`);
 }
 
-function learnAndInject(repoAbs, model, inject) {
-  const learn = sh(NODE, [path.join(SELF_REPO, 'scripts', 'onboard-learn.js'), '--repo', repoAbs, '--model', model]);
+// Queue-based learn and inject flow.
+// 1. --enqueue: mine all candidates into a queue file (fast, no LLM).
+// 2. --drain --batch N: process batches until the queue is drained (cursor === total).
+// 3. When done, --inject --confirm as usual.
+// Falls back to the legacy single-pass learn if no queue file exists (backward compat).
+function learnAndInject(repoAbs, model, inject, outDir, batchSize) {
+  const learnScript = path.join(SELF_REPO, 'scripts', 'onboard-learn.js');
+  const queueFile = path.join(outDir, 'onboard-queue.json');
+
+  // Check if we should use queue-based mode or fall back to single-pass.
+  // Use queue mode if --enqueue produces a queue file (which we can then drain).
+  // If a queue file already exists from a previous enqueue, skip re-enqueuing.
+  const hasExistingQueue = fs.existsSync(queueFile);
+  if (!hasExistingQueue) {
+    // Enqueue: assemble all candidates, write the queue file (fast, no LLM).
+    const enq = sh(NODE, [learnScript, '--repo', repoAbs, '--in', outDir, '--enqueue']);
+    if (enq.status !== 0) {
+      console.error(`[loop] --enqueue failed (exit ${enq.status}); falling back to single-pass learn.`);
+      return learnAndInjectSinglePass(repoAbs, model, inject);
+    }
+  } else {
+    // Check if already fully drained from a previous run.
+    const statusR = sh(NODE, [learnScript, '--repo', repoAbs, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const statusJSON = loadJSON('/dev/stdin', null); // won't work; parse stdout directly
+    let status = null;
+    try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
+    if (status && status.done) {
+      console.error('[loop] queue already drained; skipping enqueue/drain.');
+      // Still proceed to inject if needed.
+      if (!inject) { console.error('[loop] --no-inject: notes written but NOT injected.'); return false; }
+      const inj = sh(NODE, [learnScript, '--repo', repoAbs, '--in', outDir, '--inject', '--confirm']);
+      if (inj.status !== 0) { console.error(`[loop] inject failed (exit ${inj.status}).`); return false; }
+      return true;
+    }
+  }
+
+  // Drain loop: keep calling --drain --batch N until queue is done.
+  const effectiveBatch = String(batchSize || 50);
+  let drained = false;
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    // Check current status.
+    const statusR = sh(NODE, [learnScript, '--repo', repoAbs, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let status = null;
+    try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
+    if (status && status.done) { drained = true; break; }
+
+    const drainR = sh(NODE, [learnScript, '--repo', repoAbs, '--in', outDir, '--drain', '--batch', effectiveBatch, '--model', model]);
+    if (drainR.status !== 0) {
+      console.error(`[loop] --drain failed (exit ${drainR.status}); aborting drain loop.`);
+      break;
+    }
+
+    // Re-check status after drain.
+    const statusR2 = sh(NODE, [learnScript, '--repo', repoAbs, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let status2 = null;
+    try { status2 = JSON.parse(statusR2.stdout || ''); } catch { /* ignore */ }
+    if (status2 && status2.done) { drained = true; break; }
+  }
+
+  if (!drained) {
+    console.error('[loop] WARN: drain loop ended without completing the queue.');
+    return false;
+  }
+
+  if (!inject) { console.error('[loop] --no-inject: validated notes written but NOT injected.'); return false; }
+  const inj = sh(NODE, [learnScript, '--repo', repoAbs, '--in', outDir, '--inject', '--confirm']);
+  if (inj.status !== 0) { console.error(`[loop] inject failed (exit ${inj.status}).`); return false; }
+  return true;
+}
+
+// Legacy single-pass learn+inject (used as fallback if --enqueue fails).
+function learnAndInjectSinglePass(repoAbs, model, inject) {
+  const learnScript = path.join(SELF_REPO, 'scripts', 'onboard-learn.js');
+  const learn = sh(NODE, [learnScript, '--repo', repoAbs, '--model', model]);
   if (learn.status !== 0) { console.error(`[loop] learner failed (exit ${learn.status}); skipping inject this round.`); return false; }
   if (!inject) { console.error('[loop] --no-inject: validated notes written but NOT injected.'); return false; }
-  const inj = sh(NODE, [path.join(SELF_REPO, 'scripts', 'onboard-learn.js'), '--repo', repoAbs, '--inject', '--confirm']);
+  const inj = sh(NODE, [learnScript, '--repo', repoAbs, '--inject', '--confirm']);
   if (inj.status !== 0) { console.error(`[loop] inject failed (exit ${inj.status}).`); return false; }
   return true;
 }
@@ -114,7 +187,7 @@ function answersForRound(round, baseAnswers, roundsList) {
 (async () => {
   const repo = arg('repo');
   if (!repo || !fs.existsSync(repo)) {
-    console.error('usage: onboard-loop.js --repo <abs> [--probes p.json] [--max-rounds 4] [--epsilon 0.05] [--dry-run --answers a.json]');
+    console.error('usage: onboard-loop.js --repo <abs> [--probes p.json] [--max-rounds 4] [--epsilon 0.05] [--dry-run --answers a.json] [--batch 50]');
     process.exit(2);
   }
   const repoAbs = path.resolve(repo);
@@ -133,13 +206,14 @@ function answersForRound(round, baseAnswers, roundsList) {
   const inject = !has('no-inject') && !has('dry-run');
   const dryRun = has('dry-run');
   const harnessCmd = arg('harness-cmd', null); // hermetic self-test hook; default = real harness
+  const batchSize = parseInt(arg('batch', '50'), 10) || 50;
 
   // dry-run answer plumbing
   const baseAnswers = dryRun ? arg('answers') : null;
   if (dryRun && !baseAnswers) { console.error('--dry-run requires --answers <a.json>'); process.exit(2); }
   const roundsList = dryRun && arg('answers-rounds') ? arg('answers-rounds').split(',') : null;
 
-  console.error(`[loop] repo=${repoAbs} probes=${path.basename(probesPath)} max-rounds=${maxRounds} epsilon=${epsilon} inject=${inject} dry-run=${dryRun}`);
+  console.error(`[loop] repo=${repoAbs} probes=${path.basename(probesPath)} max-rounds=${maxRounds} epsilon=${epsilon} inject=${inject} dry-run=${dryRun} batch=${batchSize}`);
 
   const history = [];
   let prevMetric = null;
@@ -184,7 +258,8 @@ function answersForRound(round, baseAnswers, roundsList) {
       console.error('[loop] dry-run/stub: skipping live mine/learn/inject (KB change simulated upstream).');
     } else {
       mine(repoAbs, outDir);
-      const injected = learnAndInject(repoAbs, model, inject);
+      // Use queue-based learn+inject if not in dry-run.
+      const injected = learnAndInject(repoAbs, model, inject, outDir, batchSize);
       if (!injected && inject) console.error('[loop] WARN: deepen produced no injected notes this round; next measure may be flat.');
     }
     prevMetric = metric;

@@ -10,6 +10,8 @@ workspace
 loop.json
 loops.json
 *.log
+op-cache.json
+tool-analytics.json
 
 # OS / deps
 node_modules/

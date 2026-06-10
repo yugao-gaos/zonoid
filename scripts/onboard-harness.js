@@ -85,9 +85,12 @@ function claude(prompt, model, opts = {}) {
 // Live lexical retrieval against the running daemon — exactly the path an onboarded agent uses.
 // Keep ONLY injected [ingest] knowledge-base notes (kind:"note" whose title starts with [ingest]);
 // drop task nodes and non-KB notes. This is what GET /search returns for a real onboarding query.
-function retrieveKB(daemon, query, k = 6) {
+// `workspace` (--workspace): overlay workspace to search. Defaults to the daemon's live workspace
+// (back-compat); pass the isolated workspace the foreign repo's notes were injected into.
+function retrieveKB(daemon, query, k = 6, workspace = null) {
   return new Promise((resolve) => {
-    const url = `${daemon}/search?q=${encodeURIComponent(query)}&k=${k}`;
+    const url = `${daemon}/search?q=${encodeURIComponent(query)}&k=${k}` +
+      (workspace ? `&workspace=${encodeURIComponent(workspace)}` : '');
     http.get(url, (res) => {
       let body = '';
       res.on('data', (c) => (body += c));
@@ -155,7 +158,7 @@ function parseVerdict(raw) {
   return { pass: false, reason: '(unparseable judge output; defaulting FAIL)' };
 }
 
-async function run({ probes, daemon, model, judgeModel, answersFile }) {
+async function run({ probes, daemon, model, judgeModel, answersFile, workspace }) {
   const answers = answersFile ? loadJSON(answersFile) : null;
   const rows = [];
   for (const p of probes) {
@@ -164,7 +167,7 @@ async function run({ probes, daemon, model, judgeModel, answersFile }) {
       coldA = (answers[p.id] || {}).cold || '';
       kbA = (answers[p.id] || {}).kb || '';
     } else {
-      retrieved = p.kind === 'project' ? await retrieveKB(daemon, p.retrieval_query) : [];
+      retrieved = p.kind === 'project' ? await retrieveKB(daemon, p.retrieval_query, 6, workspace) : [];
       process.stderr.write(`[${p.id}] retrieved ${retrieved.length} [ingest] note(s); answering cold…`);
       coldA = claude(answerPrompt(p.scenario, ''), model, { noRepo: true });
       process.stderr.write(' kb…');
@@ -246,7 +249,7 @@ function report(rows, s) {
 
 async function main() {
   const probesPath = arg('probes');
-  if (!probesPath) { console.error('usage: onboard-harness.js --probes <probes.json> [--answers <answers.json>] [--model sonnet] [--daemon URL] [--out reading.json]'); process.exit(2); }
+  if (!probesPath) { console.error('usage: onboard-harness.js --probes <probes.json> [--answers <answers.json>] [--model sonnet] [--daemon URL] [--workspace <ws>] [--out reading.json]'); process.exit(2); }
   const probes = loadJSON(probesPath);
   if (!validate(probes)) { console.error('probe file failed validation — aborting'); process.exit(1); }
 
@@ -254,11 +257,12 @@ async function main() {
   const model = arg('model', 'sonnet');
   const judgeModel = arg('judge-model', model);
   const daemon = arg('daemon', DEFAULT_DAEMON);
+  const workspace = arg('workspace', null);
 
   if (answersFile) console.error(`[harness] offline judge over ${probes.length} probes (judge-model=${judgeModel})…`);
   else console.error(`[harness] live: retrieve@${daemon} + cold/kb answers (model=${model}) + judge (model=${judgeModel}) for ${probes.length} probes…`);
 
-  const rows = await run({ probes, daemon, model, judgeModel, answersFile });
+  const rows = await run({ probes, daemon, model, judgeModel, answersFile, workspace });
   const s = summarize(rows);
   const guard = report(rows, s);
 

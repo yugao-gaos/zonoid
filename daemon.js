@@ -114,9 +114,22 @@ try { const w = fs.readFileSync(WS_FILE, 'utf8').trim(); if (w) { state.workspac
 // Persist + restore agent records (incl. transcript_path/session) so token attribution survives a restart.
 const AGENTS_FILE = path.join(BASE, 'agents.json');
 try { const a = JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf8')); if (a && typeof a === 'object') state.agents = a; } catch { /* none yet */ }
-// Post-restart the daemon can't vouch for any agent it "remembers" as running — demote them so
-// the liveness sweep can reclaim their stale claims; a genuinely-live agent re-asserts on its next touch.
-for (const x of Object.values(state.agents)) if (x && x.state === 'running') x.state = 'unknown';
+// Restart survival: do NOT blind-demote running→unknown on boot. Workers are independent OS
+// processes that often SURVIVE a daemon restart; demoting them let the staleness sweep release
+// their live claims, which the heartbeat then re-spawned → duplicate/colliding work. The sweep
+// (staleClaimKeys, wall-clock based so downtime counts) is the SOLE release mechanism; a restored
+// 'running' record is trusted only per vouchedLive(): re-asserted this boot (lastSeen >= BOOT_MS)
+// or still inside the one-stale-window post-boot grace for survivors to re-assert.
+const BOOT_MS = Date.now();
+const BOOTED_AT = new Date(BOOT_MS).toISOString();
+// /version build identity (frozen at boot): the git HEAD this RUNNING process was started from.
+// After a deploy, /version.head ≠ `git rev-parse HEAD` on disk ⇒ "restart required" — the check
+// hooks/restart-daemon.sh asserts. null when the source dir isn't a git checkout.
+let GIT_HEAD = null;
+try { GIT_HEAD = require('child_process').execFileSync('git', ['-C', __dirname, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 3000 }).trim(); } catch { /* not a checkout */ }
+// Capability flags, bumped per change — cheap self-description so a restart script can verify the
+// new code is actually serving (beyond the git head).
+const FEATURES = { perRequestWorkspaceWrites: true, perRequestWorkspaceReads: true, gatedSearch: true };
 
 // MCP tool-usage counters (persisted; see lib/analytics.js). Recorded via POST /analytics/tool-call
 // beacons fired by mcp-core's tools/call dispatch on BOTH transports; flushed debounced.
@@ -243,10 +256,24 @@ function releaseClaim(key, reason, ov = state.overlay) {
   if (i > 0) { try { nt.writeStatus(key.slice(0, i), key.slice(i + 1), 'pending'); } catch { /* best effort */ } }
   return true;
 }
-// staleClaimKeys (pure): which in_progress claims are abandoned orphans — worker not running AND
-// status unchanged for stale_minutes (kill / crash / idle / cross-session / daemon restart).
-// Parameterized on (overlay, agents, nowMs) so it is unit-testable; sweepStaleClaims releases them.
-function staleClaimKeys(overlay, agents, nowMs) {
+// vouchedLive (pure): can a registry record that says 'running' be TRUSTED as live? Within one
+// daemon lifetime yes — the record was written this boot (startedAt/lastSeen >= bootMs). Across a
+// restart the record is restored from disk and the agent may have died while the daemon was down,
+// so 'running' alone is not proof: trust it only once the agent RE-ASSERTS this boot (any
+// lastSeen-stamping touch — /agent/start, an /overlay/status write carrying its agent_id), with a
+// one-stale-window post-boot grace so survivors have time to do so. Past the grace an un-re-asserted
+// record stops shielding and the wall-clock lastChanged check below decides — downtime counts.
+function vouchedLive(agent, mins, nowMs, bootMs) {
+  if (!agent || agent.state !== 'running') return false;
+  const seen = Math.max(Date.parse(agent.lastSeen || '') || 0, Date.parse(agent.startedAt || '') || 0);
+  return seen >= bootMs || nowMs - bootMs < mins * 60000;
+}
+// staleClaimKeys (pure): which in_progress claims are abandoned orphans — worker not vouched live
+// AND status unchanged for stale_minutes (kill / crash / idle / cross-session / daemon restart).
+// Wall-clock based (persisted ISO timestamps), so time the daemon spent DOWN counts toward
+// staleness. Parameterized on (overlay, agents, nowMs, bootMs) so it is unit-testable;
+// sweepStaleClaims releases them.
+function staleClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
   const mins = overlay.config.stale_minutes ?? 10;   // ?? not || so an explicit 0 is honored
   const cutoff = nowMs - mins * 60000;
   const out = [];
@@ -254,7 +281,7 @@ function staleClaimKeys(overlay, agents, nowMs) {
     if (st !== 'in_progress') continue;
     const agentId = overlay.assignee[key];
     const agent = agentId ? agents[agentId] : null;
-    if (agent && agent.state === 'running') continue;          // live worker — leave it alone
+    if (vouchedLive(agent, mins, nowMs, bootMs)) continue;     // live worker — leave it alone
     const ts = overlay.timestamps[key];
     if (ts && Date.parse(ts.lastChanged) > cutoff) continue;   // changed recently — give it time
     out.push({ key, status: st, agentId: agentId || null, mins });
@@ -276,8 +303,10 @@ function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
 }
 // staleVerdictKeys (pure): which 'tested'/'ready' tasks are stale verdict-pending hand-offs — owner
 // not live AND lastChanged past stale_minutes. These are SURFACED as guidance, NEVER auto-resolved
-// (auto-promoting tested→done would hide a real failure). Same (overlay, agents, nowMs) shape.
-function staleVerdictKeys(overlay, agents, nowMs) {
+// (auto-promoting tested→done would hide a real failure). Same (overlay, agents, nowMs, bootMs)
+// shape and the same vouchedLive trust basis as staleClaimKeys (a restored-from-disk 'running'
+// record must not suppress surfacing forever after a restart).
+function staleVerdictKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
   const mins = overlay.config.stale_minutes ?? 10;
   const cutoff = nowMs - mins * 60000;
   const out = [];
@@ -285,7 +314,7 @@ function staleVerdictKeys(overlay, agents, nowMs) {
     if (st !== 'tested' && st !== 'ready') continue;
     const agentId = overlay.assignee[key];
     const agent = agentId ? agents[agentId] : null;
-    if (agent && agent.state === 'running') continue;          // owner still working — give it time
+    if (vouchedLive(agent, mins, nowMs, bootMs)) continue;     // owner still working — give it time
     const ts = overlay.timestamps[key];
     if (ts && Date.parse(ts.lastChanged) > cutoff) continue;   // changed recently — give it time
     out.push({ key, status: st, agentId: agentId || null });
@@ -324,11 +353,14 @@ function sweepStaleVerdicts() {
 function sessionIsLive(session) {
   if (!session) return true;
   // A running agent in this session, OR a recently-touched in_progress claim owned by an agent in
-  // this session, both prove the conversation is still driving work.
-  const cutoff = Date.now() - (state.overlay.config.stale_minutes ?? 10) * 60000;
+  // this session, both prove the conversation is still driving work. Same vouchedLive trust basis
+  // as the claim sweep — a restored-from-disk 'running' record must not keep a dead session's
+  // zombie loop alive forever after a daemon restart.
+  const mins = state.overlay.config.stale_minutes ?? 10;
+  const cutoff = Date.now() - mins * 60000;
   for (const a of Object.values(state.agents)) {
     if (!a || a.session !== session) continue;
-    if (a.state === 'running') return true;
+    if (vouchedLive(a, mins, Date.now(), BOOT_MS)) return true;
   }
   for (const [key, st] of Object.entries(state.overlay.status)) {
     if (st !== 'in_progress') continue;
@@ -1106,6 +1138,34 @@ function send(res, code, body, type = 'application/json') {
 }
 function readBody(req) { return new Promise((r) => { const chunks = []; let n = 0; req.on('data', (c) => { n += c.length; if (n > 1048576) { req.destroy(); return r({}); } chunks.push(c); }); req.on('end', () => { try { const b = Buffer.concat(chunks).toString('utf8'); r(b ? JSON.parse(b) : {}); } catch { r({}); } }); }); }
 
+// --- idempotent replay for non-idempotent mutating POSTs (restart-retry safety) ---------------
+// mcp-core's makeCall retries connection-level failures; a retry can DUPLICATE a write that
+// actually landed (ECONNRESET after delivery, before the response). The client stamps ONE op_id
+// (uuid) per LOGICAL mutating request, reused across its retries; routes that mint state per call
+// (/overlay/note — new note id each call; /overlay/knowledge — array append; /overlay/status —
+// follow-up/guidance minting) replay the recorded response on a duplicate op_id instead of
+// re-applying. (/overlay/edge needs none: addEdge dedupes on (from,to,fromWorkspace) — already
+// idempotent.) Small persisted LRU in the daemon data dir so dedupe survives a restart mid-retry.
+// Only SUCCESS responses are recorded — an error response is deterministic to re-derive.
+const OP_CACHE_FILE = path.join(BASE, 'op-cache.json');
+const OP_CACHE_MAX = 200;
+const opCache = new Map();   // op_id -> { code, body } (Map = insertion-ordered LRU)
+try { for (const [k, v] of Object.entries(JSON.parse(fs.readFileSync(OP_CACHE_FILE, 'utf8')))) opCache.set(k, v); } catch { /* none yet */ }
+function opReplay(res, b) {
+  const hit = b && b.op_id ? opCache.get(String(b.op_id)) : null;
+  if (!hit) return false;
+  send(res, hit.code, hit.body);
+  return true;
+}
+function sendOp(res, b, code, body) {
+  if (b && b.op_id) {
+    opCache.set(String(b.op_id), { code, body });
+    while (opCache.size > OP_CACHE_MAX) opCache.delete(opCache.keys().next().value);
+    try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(OP_CACHE_FILE, JSON.stringify(Object.fromEntries(opCache))); } catch { /* best effort */ }
+  }
+  return send(res, code, body);
+}
+
 const handler = async (req, res) => {
   const u = new URL(req.url, `http://localhost:${PORT}`);
   const p = u.pathname, m = req.method;
@@ -1119,6 +1179,10 @@ const handler = async (req, res) => {
     if ((protectedPath || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 
     if (p === '/ping') return send(res, 200, { ok: true, workspace: state.workspace });
+
+    // Build identity of the RUNNING process (frozen at boot) — the safety surface a restart script
+    // asserts against the source dir's git HEAD to prove the new code is actually serving.
+    if (p === '/version') return send(res, 200, { head: GIT_HEAD, bootedAt: BOOTED_AT, features: FEATURES });
 
     // SSE stream for live dashboard updates.
     if (p === '/events' && m === 'GET') {
@@ -1689,6 +1753,7 @@ const handler = async (req, res) => {
 
     if (p === '/overlay/status' && m === 'POST') {
       const b = await readBody(req);
+      if (opReplay(res, b)) return;   // duplicate of a retried request that already landed
       const T = targetOverlay(b, u);
       if (!ALL_STATUSES.includes(b.status)) return send(res, 400, { ok: false, error: 'invalid status', allowed: ALL_STATUSES });
       // Optional structural follow-ups (complete_task only): validate UP FRONT so a malformed
@@ -1736,6 +1801,7 @@ const handler = async (req, res) => {
         T.ov.assignee[b.key] = b.agent_id;                          // who's working it (animation)
         // Also surface the worker in the Subagents panel/counter when it claims/finishes a task.
         const a = state.agents[b.agent_id] || { agent_id: b.agent_id, agent_type: b.agent_id, transcript_path: null, startedAt: now(), endedAt: null };
+        a.lastSeen = now();   // wall-clock re-assert — restores vouchedLive() after a daemon restart
         if (b.status === 'in_progress') { a.state = 'running'; a.endedAt = null; }
         else if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) { a.state = 'done'; a.endedAt = now(); }
         state.agents[b.agent_id] = a; saveAgents();
@@ -1798,12 +1864,13 @@ const handler = async (req, res) => {
       if (verdictResults) statusResp.verdicts = verdictResults;
       if (staleHolds) statusResp.stale_holds = staleHolds;
       if (lintWarning) statusResp.warning = lintWarning;
-      return send(res, 200, statusResp);
+      return sendOp(res, b, 200, statusResp);
     }
 
     // Attach a Tier-2 knowledge item (file/snippet/link/note) to a task.
     if (p === '/overlay/knowledge' && m === 'POST') {
       const b = await readBody(req);
+      if (opReplay(res, b)) return;   // duplicate of a retried request that already landed
       const T = targetOverlay(b, u);
       if (!b.key || !b.item) return send(res, 400, { ok: false, error: 'key and item required' });
       // Embed-on-write: stamp a semantic vector on the knowledge item (over its text) so /search can
@@ -1813,13 +1880,14 @@ const handler = async (req, res) => {
       (T.ov.knowledge[b.key] = T.ov.knowledge[b.key] || []).push(b.item);
       T.save();
       notifyChange();
-      return send(res, 200, { ok: true, count: T.ov.knowledge[b.key].length });
+      return sendOp(res, b, 200, { ok: true, count: T.ov.knowledge[b.key].length });
     }
 
     // Create an overlay-only NOTE node: durable decision/finding captured as a Tier-1 context
     // provider in the graph (NOT a native todo). Surfaces via buildGraph + context edges.
     if (p === '/overlay/note' && m === 'POST') {
       const b = await readBody(req);
+      if (opReplay(res, b)) return;   // duplicate of a retried request that already landed (one note, not two)
       const T = targetOverlay(b, u);
       if (!b.title || !b.summary) return send(res, 400, { ok: false, error: 'title and summary required' });
       // Embed-on-write: compute the note's semantic vector (title+summary) so /search can cosine-rank
@@ -1861,7 +1929,7 @@ const handler = async (req, res) => {
       }
       T.save();
       notifyChange();
-      return send(res, 200, { ok: true, id, key: 'note:' + id, superseded, autowired, hint });
+      return sendOp(res, b, 200, { ok: true, id, key: 'note:' + id, superseded, autowired, hint });
     }
 
     // DEMOTED (edge-judge rework): re-enqueue an EXISTING note for ADJUDICATION instead of blindly
@@ -2278,7 +2346,7 @@ const handler = async (req, res) => {
       if (!b.agent_id) return send(res, 400, { ok: false, error: 'agent_id required' });
       const prev = state.agents[b.agent_id] || {};
       // Capture task/session/workspace so a colliding worker is visible across sessions (GET /agents).
-      state.agents[b.agent_id] = { agent_id: b.agent_id, agent_type: b.agent_type || prev.agent_type || 'agent', state: 'running', transcript_path: b.transcript_path || prev.transcript_path || null, task: b.task || prev.task || null, session: b.session || prev.session || null, workspace: b.workspace || prev.workspace || state.workspace || null, startedAt: prev.startedAt || now(), endedAt: null };
+      state.agents[b.agent_id] = { agent_id: b.agent_id, agent_type: b.agent_type || prev.agent_type || 'agent', state: 'running', transcript_path: b.transcript_path || prev.transcript_path || null, task: b.task || prev.task || null, session: b.session || prev.session || null, workspace: b.workspace || prev.workspace || state.workspace || null, startedAt: prev.startedAt || now(), lastSeen: now(), endedAt: null };
       saveAgents();
       notifyChange();
       return send(res, 200, { ok: true });
@@ -2287,7 +2355,7 @@ const handler = async (req, res) => {
       const b = await readBody(req);
       const a = state.agents[b.agent_id];
       if (!a) return send(res, 404, { ok: false, error: 'unknown agent' });
-      a.state = 'done'; a.endedAt = now();
+      a.state = 'done'; a.endedAt = now(); a.lastSeen = now();
       // Cascade: release any in_progress task this agent still holds (it stopped without completing),
       // so the claim doesn't linger as a phantom in_progress. Fixes the stale-status bug directly.
       // Target the AGENT'S workspace (recorded at /agent/start), not the daemon-global overlay —
