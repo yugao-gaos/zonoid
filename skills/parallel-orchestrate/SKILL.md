@@ -32,7 +32,10 @@ parallelizable work, with a token-efficient context handoff between dependent ta
      (drives the live graph), then `mcp__orchestrator-graph__get_dependency_summaries(task_key)`
      — **Tier 1**: the concise summaries of your dependencies. This is usually enough base
      context. Only if you need depth, call `get_task_detail(dep_key)` (**Tier 2**) for a
-     specific dependency's knowledge/output.
+     specific dependency's knowledge/output. Then consult the knowledge base **gate-first**:
+     `search_knowledge(query: <your task in one sentence>, gated: true)` — `decision:"inject"`
+     ⇒ read and apply the returned note; `"abstain"` ⇒ proceed WITHOUT retrieval (do NOT
+     re-query ungated; abstain is the common, correct outcome).
    - **While working:** attach reusable context with `attach_knowledge(task_key, item)` so
      dependents can fetch it precisely instead of you re-deriving it.
    - **On finish:** `mcp__orchestrator-graph__complete_task(task_key, summary, agent_id)` with

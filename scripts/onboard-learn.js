@@ -119,6 +119,22 @@ function gatherCandidates(inDir) {
   return out;
 }
 
+// Cap the candidate list so a large real-world repo can't blow the learner prompt past the model
+// context. (Observed on a 2.7k-commit / 1k-file TS app: 2385 candidates ≈ 600KB prompt — the agent
+// run fails outright. The self-repo mines ~230, so the default cap is a no-op there.)
+// Priority by origin: config/asset (rare, high-signal) > doc > git (log order = newest first) >
+// struct (mostly layout context). Within an origin, original order is preserved.
+function capCandidates(cands, max) {
+  if (cands.length <= max) return cands;
+  const prio = { config: 0, asset: 1, doc: 2, git: 3, struct: 4 };
+  const idx = cands.map((c, i) => ({ c, i }));
+  idx.sort((a, b) => ((prio[a.c._origin] ?? 9) - (prio[b.c._origin] ?? 9)) || (a.i - b.i));
+  const keep = new Set(idx.slice(0, max).map((x) => x.i));
+  const out = cands.filter((_, i) => keep.has(i));
+  console.error(`[learn] WARN: capped ${cands.length} mined candidates to ${max} (--max-candidates) by origin priority config>asset>doc>git>struct.`);
+  return out;
+}
+
 // ---- headless agentic validation pass ------------------------------------------------------
 function runLearner(repoAbs, candidates, outFile, model, maxKeep) {
   const prompt = buildPrompt(repoAbs, candidates, outFile, maxKeep);
@@ -141,6 +157,15 @@ function runLearner(repoAbs, candidates, outFile, model, maxKeep) {
   const t0 = Date.now();
   const run = spawnSync('perl', args, { cwd: repoAbs, encoding: 'utf8', maxBuffer: 128 * 1024 * 1024 });
   console.error(`[learn] agent finished in ${Math.round((Date.now() - t0) / 1000)}s exit=${run.status}`);
+  // Persist the agent transcript so a failed run is diagnosable. (A foreign-repo run surfaced an
+  // invisible-failure mode: agent exit 1 with ALL output discarded — nothing to debug from.)
+  const logFile = path.join(path.dirname(outFile), 'onboard-learn-agent.log');
+  try { fs.writeFileSync(logFile, (run.stdout || '') + (run.stderr ? '\n--- stderr ---\n' + run.stderr : '')); } catch { /* best-effort */ }
+  if (run.status !== 0) {
+    const tail = ((run.stdout || '') + '\n' + (run.stderr || '')).trim().split('\n').slice(-4).join('\n');
+    console.error(`[learn] agent FAILED — output tail:\n${tail.slice(-1500)}`);
+    console.error(`[learn] full transcript: ${logFile}`);
+  }
   return run.status;
 }
 
@@ -168,7 +193,10 @@ function request(method, urlPath, body) {
 }
 
 // ---- reversible injection (mirrors bench/ingest/inject.js) ----------------------------------
-async function inject(notesFile, confirm) {
+// `workspace` (--workspace): target overlay workspace for the notes. Defaults to the daemon's LIVE
+// workspace (back-compat). For a FOREIGN repo's KB, pass an isolated workspace (e.g. the repo path)
+// so its notes never land in — and can't pollute — the live graph (note nodes have no delete API).
+async function inject(notesFile, confirm, workspace) {
   const data = loadJSON(notesFile, null);
   if (!data || !Array.isArray(data.kept)) {
     console.error(`No validated notes at ${notesFile}. Run the learn pass first.`); process.exit(1);
@@ -176,7 +204,7 @@ async function inject(notesFile, confirm) {
   const kept = data.kept;
   if (!confirm) {
     console.log('=== onboard-learn --inject DRY RUN (no --confirm) ===');
-    console.log(`daemon target: ${DAEMON}`);
+    console.log(`daemon target: ${DAEMON}${workspace ? ` (workspace ${workspace})` : ''}`);
     console.log(`WOULD CREATE ${kept.length} note nodes (each title prefixed '${PREFIX}').`);
     kept.slice(0, 8).forEach((n, i) => console.log(`  ${i + 1}. [${n.kind}] ${PREFIX}${n.title}`));
     console.log('\nNo network calls were made. Re-run with --confirm to inject.');
@@ -184,10 +212,16 @@ async function inject(notesFile, confirm) {
   }
   console.log('=== onboard-learn --inject CONFIRMED ===');
   const existing = new Set();
-  try {
-    const state = await request('GET', '/state');
-    for (const t of state.tasks || []) if (typeof t.label === 'string' && t.label.startsWith(PREFIX)) existing.add(t.label);
-  } catch (e) { console.error(`WARN: could not read /state (${e.message}); proceeding without skip-set.`); }
+  if (workspace) {
+    // /state reflects only the live workspace; for a foreign workspace there is no cheap exhaustive
+    // listing, so dedupe is skipped (re-running inject may duplicate notes there).
+    console.error(`WARN: --workspace ${workspace}: /state dedupe unavailable for a non-live workspace; skipping skip-set.`);
+  } else {
+    try {
+      const state = await request('GET', '/state');
+      for (const t of state.tasks || []) if (typeof t.label === 'string' && t.label.startsWith(PREFIX)) existing.add(t.label);
+    } catch (e) { console.error(`WARN: could not read /state (${e.message}); proceeding without skip-set.`); }
+  }
   let created = 0, skipped = 0;
   for (const n of kept) {
     const title = PREFIX + n.title;
@@ -196,6 +230,7 @@ async function inject(notesFile, confirm) {
       title, summary: n.summary,
       knowledge: [`evidence:${n.evidence || '?'}`, `kind:${n.kind}`, `origin:onboard-learn`],
       created_by: 'onboard-learn',
+      ...(workspace ? { workspace } : {}),
     });
     created++;
   }
@@ -207,20 +242,21 @@ async function inject(notesFile, confirm) {
 (async () => {
   const repo = arg('repo');
   if (!repo || !fs.existsSync(repo)) {
-    console.error('usage: onboard-learn.js --repo <abs> [--in <onboard-dir>] [--inject [--confirm]]');
+    console.error('usage: onboard-learn.js --repo <abs> [--in <onboard-dir>] [--max-candidates 500] [--inject [--confirm] [--workspace <ws>]]');
     process.exit(2);
   }
   const repoAbs = path.resolve(repo);
   const inDir = path.resolve(arg('in', path.join(SELF_REPO, 'bench', 'onboard', path.basename(repoAbs))));
   const notesFile = path.join(inDir, 'onboard-notes.json');
 
-  if (has('inject')) { await inject(notesFile, has('confirm')); return; }
+  if (has('inject')) { await inject(notesFile, has('confirm'), arg('workspace', null)); return; }
 
-  const candidates = gatherCandidates(inDir);
+  let candidates = gatherCandidates(inDir);
   if (!candidates.length) {
     console.error(`No mined candidates in ${inDir}. Run scripts/onboard-mine-*.js --repo ${repoAbs} first.`);
     process.exit(1);
   }
+  candidates = capCandidates(candidates, parseInt(arg('max-candidates', '500'), 10) || 500);
   const model = arg('model', 'opus');
   const maxKeep = parseInt(arg('max-keep', '20'), 10) || 20;
   fs.mkdirSync(inDir, { recursive: true });

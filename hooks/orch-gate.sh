@@ -25,6 +25,8 @@ case "$FP" in
   */.mcp.json)                           exit 0 ;;  # MCP server config
   */CLAUDE.md)                           exit 0 ;;  # instruction file
   /tmp/*|/private/tmp/*)                 exit 0 ;;  # scratch / task output
+  */.claude/orchestrator/*)              ;;         # orchestrator source: never exempt, fall through to claim check
+  */scratch/*)                           exit 0 ;;  # workspace scratch dir
 esac
 
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')

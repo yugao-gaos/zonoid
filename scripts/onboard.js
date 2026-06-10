@@ -138,7 +138,9 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
 
   // ---- 1. MINE (no graph mutation, no commit) ----
   console.error(`[onboard] 1/3 mining ${repoAbs} -> ${outDir}`);
-  for (const m of ['onboard-mine-structure.js', 'onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-assets.js']) {
+  // config miner included: shipped defaults (timeouts/thresholds/feature flags) are exactly the
+  // non-recoverable knowledge the learner prompt prioritizes (onboard-loop.js already mines it).
+  for (const m of ['onboard-mine-structure.js', 'onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-assets.js', 'onboard-mine-config.js']) {
     const st = node(m, ['--repo', repoAbs, '--out', outDir]);
     if (st !== 0) { console.error(`[onboard] FAILED: ${m} exited ${st}`); process.exit(1); }
   }
