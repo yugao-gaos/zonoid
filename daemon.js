@@ -128,7 +128,7 @@ const LOOP_CONFIG_KEYS = ['tokenBudget', 'maxIterations', 'minPoll', 'maxPoll', 
 const STALE_PROGRESS_MIN_DEFAULT = 30;   // a loop with no progress past this many minutes is swept to inactive
 function newLoop(over) {
   return { id: null, active: false, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: null,
-    session: null, lastProgress: null,
+    session: null, lastProgress: null, workspace: null,
     config: { tokenBudget: 100000, maxIterations: 200, minPoll: 30, maxPoll: 1200, estPerTick: 800, batch: 8, maxConcurrency: 10, judgeParallelCap: 6 },
     ...over };
 }
@@ -380,7 +380,9 @@ function sweepStaleLoops() {
 //     the driver. A human task-CANCEL stays session-scoped under both paths (it halts everyone
 //     touching the canceled work, driver included).
 function stopSignalFor(session, opts = {}) {
-  const { actor = null, hook = false } = opts;
+  // `graph`/`ov` (loop path only): the PINNED workspace's graph/overlay, so a pinned loop's
+  // cooperative-stop check scans ITS claims, not the daemon-global workspace's. Defaults unchanged.
+  const { actor = null, hook = false, graph = null, ov = state.overlay } = opts;
   if (hook) {
     // Agent-scoped stop: the calling worker is itself flagged → halt it (and nobody else). The driver
     // that requested the stop calls with a different/absent agent_id, so it falls through and runs on.
@@ -401,12 +403,12 @@ function stopSignalFor(session, opts = {}) {
   }
   // In-process loop path: session-scoped — a cancel on a claimed task OR a stop on its agent halts it.
   if (!session) return null;
-  const g = buildGraph(state.workspace);
+  const g = graph || buildGraph(state.workspace);
   const claims = g.tasks.filter((t) => t.status === 'in_progress' && t.session === session);
   for (const t of claims) {
-    const agent = t.agent_id || state.overlay.assignee[t.id] || null;
-    const cr = state.overlay.cancel_requested[t.id] || null;
-    const sr = agent ? (state.overlay.stop_requested[agent] || null) : null;
+    const agent = t.agent_id || ov.assignee[t.id] || null;
+    const cr = ov.cancel_requested[t.id] || null;
+    const sr = agent ? (ov.stop_requested[agent] || null) : null;
     if (cr || sr) return { task: t.id, agent, reason: cr ? 'cancel_requested' : 'stop_requested', cancel_requested: cr, stop_requested: sr };
   }
   return null;
@@ -415,9 +417,10 @@ function stopSignalFor(session, opts = {}) {
 // Collect a problem's judge VERDICTS chronologically (oldest→newest) from its overlay knowledge.
 // A verdict is any knowledge item whose value parses to an object carrying a `winner` field (same
 // convention the /learnings route uses). Order follows insertion order (attach_knowledge appends),
-// which is the round order. Returns [] when the key has none. Pure read of the current overlay.
-function verdictsFor(key) {
-  const items = (state.overlay.knowledge && state.overlay.knowledge[key]) || [];
+// which is the round order. Returns [] when the key has none. Pure read of the given overlay
+// (defaults to the current workspace's — pinned loops pass their own).
+function verdictsFor(key, ov = state.overlay) {
+  const items = (ov.knowledge && ov.knowledge[key]) || [];
   const out = [];
   for (const it of items) {
     let v = it && it.value;
@@ -430,13 +433,13 @@ function verdictsFor(key) {
 // Find the in-flight metric problem the loop should re-decide, if any. MECHANICAL signal: a `done`
 // task that carries a metric spec AND has at least one judge verdict AND is not optimize-closed AND
 // has a NEW verdict since the last 'iterate' decision (so an iterate can't tight-loop on a stale
-// round). Returns { task, verdicts } or null. Caller passes the already-built graph.
-function pendingOptimizeProblem(g) {
+// round). Returns { task, verdicts } or null. Caller passes the already-built graph (+ its overlay).
+function pendingOptimizeProblem(g, ov = state.overlay) {
   for (const t of g.tasks) {
     if (t.kind === 'note' || t.status !== 'done' || !t.metric) continue;
-    const rec = (state.overlay.optimize && state.overlay.optimize[t.id]) || {};
+    const rec = (ov.optimize && ov.optimize[t.id]) || {};
     if (rec.closed) continue;                                  // already converged/budget/stuck-escalated
-    const verdicts = verdictsFor(t.id);
+    const verdicts = verdictsFor(t.id, ov);
     if (!verdicts.length) continue;                            // not judged yet
     if (rec.decision === 'iterate' && verdicts.length <= (rec.verdicts || 0)) continue; // no new round since last iterate
     return { task: t, verdicts };
@@ -454,37 +457,38 @@ function pendingOptimizeProblem(g) {
 //     verdict count so we only re-decide after the next round lands.
 // Returns a loop-action object to return from decideOne(L), or null to fall through. Operates on the
 // given loop entry L (per-loop config/active); the caller persists the registry once after the pass.
-function applyOptimize(prob, base, L) {
+// `ws`/`ov` = the loop's PINNED workspace + its overlay (defaults = daemon-global, back-compat).
+function applyOptimize(prob, base, L, ws = state.workspace, ov = state.overlay) {
   const P = prob.task;
   const last = prob.verdicts[prob.verdicts.length - 1];
   const d = optimize.decideOptimize({
     spec: P.metric,
     verdicts: prob.verdicts,
     budgetRemaining: base.budget_remaining,
-    config: { ...OPTIMIZE_DEFAULTS(), ...(state.overlay.config.optimize || {}) },
+    config: { ...OPTIMIZE_DEFAULTS(), ...(ov.config.optimize || {}) },
   });
   if (d.decision === 'iterate') {
-    overlayStore.setOptimize(state.overlay, P.id, { decision: 'iterate', verdicts: prob.verdicts.length });
-    overlayStore.save(state.workspace, state.overlay); notifyChange();
+    overlayStore.setOptimize(ov, P.id, { decision: 'iterate', verdicts: prob.verdicts.length });
+    overlayStore.save(ws, ov); notifyChange();
     return { ...base, action: 'optimize', problem: P.id, label: P.label, metric: P.metric.metric,
       reason: d.reason, prior_verdict: last, next_poll_seconds: L.config.minPoll };
   }
   if (d.decision === 'stuck') {
     // Human-gated halt — reuse the escalation queue exactly like request_guidance. Marks closed so
     // the same problem isn't re-escalated every tick; L.active=false stops this loop.
-    overlayStore.addGuidance(state.overlay, {
+    overlayStore.addGuidance(ov, {
       question: `Optimization of "${P.label}" is stuck — ${d.reason}. Drop it, retry with a new approach, or take over?`,
       context: `metric=${P.metric.metric}; ${prob.verdicts.length} judged round(s), no usable winner. The loop will NOT auto-cancel or replan — your call.`,
       trigger: 'repeated_failure',
     });
-    overlayStore.setOptimize(state.overlay, P.id, { closed: true, decision: 'stuck' });
+    overlayStore.setOptimize(ov, P.id, { closed: true, decision: 'stuck' });
     L.active = false;
-    overlayStore.save(state.workspace, state.overlay); notifyChange();
+    overlayStore.save(ws, ov); notifyChange();
     return { ...base, action: 'await_user', reason: `optimize stuck on ${P.id}: ${d.reason}` };
   }
   // converged | budget — stop iterating THIS problem; let the normal drained logic decide next.
-  overlayStore.setOptimize(state.overlay, P.id, { closed: true, decision: d.decision });
-  overlayStore.save(state.workspace, state.overlay); notifyChange();
+  overlayStore.setOptimize(ov, P.id, { closed: true, decision: d.decision });
+  overlayStore.save(ws, ov); notifyChange();
   return null; // fall through to drained→plan/stop
 }
 
@@ -493,10 +497,15 @@ function applyOptimize(prob, base, L) {
 // mutable spawn pool {batch} multiplexed ACROSS loops, so the daemon never spawns more than the
 // configured batch total in a single heartbeat. Returns the loop's decision object (no loopId yet).
 function decideOne(L, ctx) {
+  // Workspace pin: ctx is built per-workspace by decideAll, so `ws`/`ov`/`ctx.graph` belong to THIS
+  // loop's pinned workspace — not the daemon-global pointer, which another session may have flipped
+  // mid-run. Legacy callers (tests) passing a bare ctx fall back to the global workspace/overlay.
+  const ws = ctx.ws || state.workspace;
+  const ov = ctx.ov || state.overlay;
   // Cooperative self-stop (poll EVERY iteration, before anything else): honors a cancel on this
   // loop's claimed task OR a stop on its agent. Self-exits within one tick; registry persisted by caller.
   if (L.active && L.session) {
-    const sig = stopSignalFor(L.session);
+    const sig = stopSignalFor(L.session, { graph: ctx.graph, ov });
     if (sig) { L.active = false; return { action: 'stop', reason: 'cooperative stop', stop: sig }; }
   }
   // Escalation gate: an open BLOCKING guidance question outranks everything. Halt the loop and wait
@@ -536,7 +545,7 @@ function decideOne(L, ctx) {
   function judgeDirective(spawnedThisTick) {
     // Same cap guards as the top of decideOne — never schedule judge work past budget/iteration caps.
     if (L.spent > L.config.tokenBudget || L.iterations > L.config.maxIterations) return null;
-    const depth = judge.judgeQueueDepth(state.overlay, g);
+    const depth = judge.judgeQueueDepth(ov, g);
     let slots = Math.min(Math.max(0, headroom - spawnedThisTick), depth, L.config.judgeParallelCap);
     if (slots <= 0) return null;
     // Token-budget clamp: each parallel judge effort costs ~estPerTick. The current tick already charged
@@ -548,7 +557,7 @@ function decideOne(L, ctx) {
     }
     if (slots <= 0) return null;
     L.spent += slots * est;                                   // account for all K efforts so the loop stops at budget
-    const budget = (state.overlay.config.judge?.budgetPerRun) ?? 6;
+    const budget = (ov.config.judge?.budgetPerRun) ?? 6;
     return { parallel: slots, budget };
   }
 
@@ -582,9 +591,9 @@ function decideOne(L, ctx) {
   if (running > 0) return { ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(L.config.maxPoll, L.config.minPoll * 2) };
   if (ghostWait > 0) return { ...base, action: 'idle', reason: 'waiting on cross-workspace dependencies', next_poll_seconds: L.config.maxPoll };
   // DAG drained. Metric-driven CONVERGED-VS-ITERATE control (⑥) — unchanged, now per-loop.
-  const prob = pendingOptimizeProblem(g);
-  if (prob) { const a = applyOptimize(prob, base, L); if (a) return a; }
-  if (state.overlay.config.self_plan && remaining > 0) return { ...base, action: 'plan', reason: 'DAG drained; self-planning a next initiative', next_poll_seconds: L.config.minPoll };
+  const prob = pendingOptimizeProblem(g, ov);
+  if (prob) { const a = applyOptimize(prob, base, L, ws, ov); if (a) return a; }
+  if (ov.config.self_plan && remaining > 0) return { ...base, action: 'plan', reason: 'DAG drained; self-planning a next initiative', next_poll_seconds: L.config.minPoll };
   L.active = false;
   return { ...base, action: 'stop', reason: 'DAG drained (nothing ready, running, or externally pending)' };
 }
@@ -596,18 +605,34 @@ function decideOne(L, ctx) {
 function decideAll() {
   sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
   sweepStaleVerdicts();   // surface abandoned verdict-pending hand-offs (tested/ready, no live owner) as guidance — never mutates status
-  const pend = overlayStore.pendingGuidance(state.overlay);
-  const ctx = {
-    graph: buildGraph(state.workspace),
-    pendingGuidance: pend.filter((g) => g.severity !== 'review'),   // BLOCKING only — gates await_user
-    reviewPending: pend.filter((g) => g.severity === 'review').length,
-    batch: { remaining: 0 },
-  };
   const active = [...loops.values()].filter((L) => L.active);
-  ctx.batch.remaining = active.reduce((m, L) => Math.max(m, L.config.batch || 0), 0);
+  // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
+  // concurrency bound is about total spawned workers, not per-workspace.
+  const batch = { remaining: active.reduce((m, L) => Math.max(m, L.config.batch || 0), 0) };
+  // Per-WORKSPACE evaluation contexts (the loop-workspace-pin fix): each loop is decided against ITS
+  // pinned workspace's graph/overlay/guidance — never the daemon-global pointer, which another
+  // session's SessionStart hook may have flipped mid-run (that demoted live loops with "DAG drained").
+  // Unpinned/legacy entries (workspace null) keep the old behavior: follow state.workspace.
+  const ctxByWs = new Map();
+  function ctxFor(ws) {
+    let c = ctxByWs.get(ws);
+    if (!c) {
+      const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+      const pend = overlayStore.pendingGuidance(ov);
+      c = {
+        ws, ov,
+        graph: buildGraph(ws),
+        pendingGuidance: pend.filter((g) => g.severity !== 'review'),   // BLOCKING only — gates await_user
+        reviewPending: pend.filter((g) => g.severity === 'review').length,
+        batch,
+      };
+      ctxByWs.set(ws, c);
+    }
+    return c;
+  }
   const out = [];
   for (const L of active) {
-    const d = decideOne(L, ctx);
+    const d = decideOne(L, ctxFor(L.workspace || state.workspace));
     out.push({ loopId: L.id, ...d });
   }
   return out;
@@ -2181,6 +2206,11 @@ const handler = async (req, res) => {
       const L = newLoop({ id: loopId });
       L.active = true; L.startedAt = now(); L.lastProgress = now();
       L.session = b.session || null;   // the conversation driving this loop — addresses its cooperative-stop signal
+      // Workspace PIN (captured once, persists via loops.json): the heartbeat decides this loop
+      // against THIS workspace's graph even if another session later flips the daemon-global
+      // state.workspace. mcp-core injects the calling session's pin into every POST body; a bare
+      // caller pins to the global workspace as of NOW. null (legacy entries) ⇒ dynamic global fallback.
+      L.workspace = b.workspace || state.workspace || null;
       L.real = !!state.mainTranscript;
       L.baseline = state.mainTranscript ? (usageCached(state.mainTranscript).total || 0) : 0;
       for (const k of LOOP_CONFIG_KEYS) if (b[k] != null) L.config[k] = b[k];
