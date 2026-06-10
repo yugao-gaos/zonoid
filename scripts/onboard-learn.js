@@ -24,6 +24,14 @@
  *        # mine-inputs -> agentic validation -> writes onboard-notes.json  (NO graph mutation)
  *   node scripts/onboard-learn.js --repo <abs> --inject          # dry-run injection plan (no mutation)
  *   node scripts/onboard-learn.js --repo <abs> --inject --confirm # perform reversible injection
+ *
+ * QUEUE-BASED BATCH MODE (for large repos with thousands of candidates):
+ *   node scripts/onboard-learn.js --repo <abs> --enqueue           # assemble ALL candidates, write queue file. No LLM.
+ *   node scripts/onboard-learn.js --repo <abs> --drain [--batch 50] # process next batch from queue via LLM.
+ *   node scripts/onboard-learn.js --repo <abs> --queue-status       # print queue progress as JSON.
+ *
+ * When --drain completes (cursor === total), writes onboard-notes.json automatically.
+ * Call --drain repeatedly until --queue-status shows done:true, then --inject --confirm as usual.
  */
 
 const { spawnSync } = require('child_process');
@@ -46,6 +54,13 @@ const has = (name) => process.argv.includes('--' + name);
 
 function loadJSON(p, def) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return def; }
+}
+
+// Atomic write: write to a temp file then rename so readers never see a partial file.
+function writeJSONAtomic(filePath, data) {
+  const tmp = filePath + '.tmp.' + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n');
+  fs.renameSync(tmp, filePath);
 }
 
 // ---- the agent's instruction: validate hypotheses, keep only non-obvious notes -------------
@@ -119,20 +134,42 @@ function gatherCandidates(inDir) {
   return out;
 }
 
+// Sort candidates by origin priority: config > asset > doc > git > struct.
+// Within an origin, original order is preserved (stable sort via index).
+function sortByPriority(cands) {
+  const prio = { config: 0, asset: 1, doc: 2, git: 3, struct: 4 };
+  return cands.map((c, i) => ({ c, i }))
+    .sort((a, b) => ((prio[a.c._origin] ?? 9) - (prio[b.c._origin] ?? 9)) || (a.i - b.i))
+    .map((x) => x.c);
+}
+
 // Cap the candidate list so a large real-world repo can't blow the learner prompt past the model
 // context. (Observed on a 2.7k-commit / 1k-file TS app: 2385 candidates ≈ 600KB prompt — the agent
 // run fails outright. The self-repo mines ~230, so the default cap is a no-op there.)
 // Priority by origin: config/asset (rare, high-signal) > doc > git (log order = newest first) >
 // struct (mostly layout context). Within an origin, original order is preserved.
+// NOTE: --max-candidates is an emergency ceiling, NOT a batch control. Use --enqueue/--drain for
+// proper batching over large candidate sets.
 function capCandidates(cands, max) {
-  if (cands.length <= max) return cands;
-  const prio = { config: 0, asset: 1, doc: 2, git: 3, struct: 4 };
-  const idx = cands.map((c, i) => ({ c, i }));
-  idx.sort((a, b) => ((prio[a.c._origin] ?? 9) - (prio[b.c._origin] ?? 9)) || (a.i - b.i));
-  const keep = new Set(idx.slice(0, max).map((x) => x.i));
-  const out = cands.filter((_, i) => keep.has(i));
+  if (!isFinite(max) || cands.length <= max) return cands;
+  const sorted = sortByPriority(cands);
+  const out = sorted.slice(0, max);
   console.error(`[learn] WARN: capped ${cands.length} mined candidates to ${max} (--max-candidates) by origin priority config>asset>doc>git>struct.`);
   return out;
+}
+
+// ---- queue file helpers -----------------------------------------------------------------------
+
+// Queue schema: { total, cursor, kept, rejected, pending }
+// pending: all raw candidates sorted by priority (not yet processed).
+// cursor: how many of pending have been processed.
+// kept/rejected: accumulate LLM validation results.
+function readQueue(queueFilePath) {
+  return loadJSON(queueFilePath, null);
+}
+
+function queueFilePath(outDir) {
+  return path.join(outDir, 'onboard-queue.json');
 }
 
 // ---- headless agentic validation pass ------------------------------------------------------
@@ -238,24 +275,129 @@ async function inject(notesFile, confirm, workspace) {
   console.log(`Reversible: every injected node is titled '${PREFIX}…' — filter/remove like other ingest nodes.`);
 }
 
+// ---- --enqueue: assemble all candidates and write queue file (no LLM) ----------------------
+function enqueue(inDir, outDir) {
+  let candidates = gatherCandidates(inDir);
+  if (!candidates.length) {
+    console.error(`No mined candidates in ${inDir}. Run scripts/onboard-mine-*.js --repo <abs> first.`);
+    process.exit(1);
+  }
+  // Sort by priority (config > asset > doc > git > struct). No cap at enqueue time.
+  candidates = sortByPriority(candidates);
+  fs.mkdirSync(outDir, { recursive: true });
+  const queue = { total: candidates.length, cursor: 0, kept: [], rejected: [], pending: candidates };
+  writeJSONAtomic(queueFilePath(outDir), queue);
+  console.error(`[learn] enqueue: ${candidates.length} candidates written to ${queueFilePath(outDir)}`);
+  console.error(`[learn] Run --drain --batch 50 (repeat) until --queue-status shows done:true, then --inject --confirm.`);
+}
+
+// ---- --drain: process next batch from queue file via LLM ------------------------------------
+// Safe to call repeatedly. Idempotent if cursor === total.
+function drain(repoAbs, outDir, model, maxKeep, batchSize, maxCandidates) {
+  const qf = queueFilePath(outDir);
+  const queue = readQueue(qf);
+  if (!queue) {
+    console.error(`[learn] No queue file at ${qf}. Run --enqueue first.`);
+    process.exit(1);
+  }
+  if (queue.cursor >= queue.total) {
+    console.log(JSON.stringify({ status: 'already_drained', total: queue.total, kept: queue.kept.length }));
+    process.exit(0);
+  }
+
+  // Apply emergency cap: never send more than maxCandidates in a single drain batch.
+  const effectiveBatch = Math.min(batchSize, maxCandidates, queue.total - queue.cursor);
+  const batch = queue.pending.slice(queue.cursor, queue.cursor + effectiveBatch);
+
+  console.error(`[learn] drain: processing candidates ${queue.cursor}–${queue.cursor + effectiveBatch - 1} of ${queue.total} (batch=${effectiveBatch})`);
+
+  // Use a temp file for the agent output so we can merge results back into the queue.
+  const batchOutFile = path.join(outDir, `onboard-learn-batch-${queue.cursor}.json`);
+  // Remove any stale batch file so a failed agent run can't masquerade as success.
+  try { fs.unlinkSync(batchOutFile); } catch { /* none */ }
+
+  const status = runLearner(repoAbs, batch, batchOutFile, model, maxKeep);
+  const result = loadJSON(batchOutFile, null);
+  if (!result || !Array.isArray(result.kept)) {
+    console.error(`[learn] FAILED: agent did not produce a valid ${batchOutFile} (exit=${status}).`);
+    process.exit(1);
+  }
+
+  // Merge results back into queue and advance cursor.
+  queue.kept = queue.kept.concat(result.kept || []);
+  queue.rejected = queue.rejected.concat(result.rejected || []);
+  queue.cursor += effectiveBatch;
+
+  // Write queue back atomically.
+  writeJSONAtomic(qf, queue);
+
+  const notesFile = path.join(outDir, 'onboard-notes.json');
+  if (queue.cursor >= queue.total) {
+    // Queue is drained — write final onboard-notes.json in the same format as the single-pass mode.
+    writeJSONAtomic(notesFile, { kept: queue.kept, rejected: queue.rejected });
+    fs.writeFileSync(path.join(outDir, 'onboard-learn-report.json'),
+      JSON.stringify({ repo: repoAbs, candidates: queue.total, kept: queue.kept.length, rejected: queue.rejected.length, model, queue_mode: true }, null, 2) + '\n');
+    console.error(`[learn] DRAIN COMPLETE: ${queue.total} candidates -> kept ${queue.kept.length}, rejected ${queue.rejected.length}. Wrote ${notesFile}`);
+    console.error('[learn] Review onboard-notes.json, then: node scripts/onboard-learn.js --repo <abs> --inject [--confirm]');
+  } else {
+    const remaining = queue.total - queue.cursor;
+    console.error(`[learn] drain batch done: cursor=${queue.cursor}/${queue.total}, remaining=${remaining}. kept_so_far=${queue.kept.length}. Run --drain again.`);
+  }
+}
+
+// ---- --queue-status: print progress JSON without any LLM call ------------------------------
+function queueStatus(outDir) {
+  const qf = queueFilePath(outDir);
+  const queue = readQueue(qf);
+  if (!queue) {
+    console.error(`[learn] No queue file at ${qf}. Run --enqueue first.`);
+    process.exit(1);
+  }
+  const processed = queue.cursor;
+  const remaining = queue.total - queue.cursor;
+  const done = queue.cursor >= queue.total;
+  console.log(JSON.stringify({ total: queue.total, processed, kept: queue.kept.length, remaining, done }));
+}
+
 // ---- main ----------------------------------------------------------------------------------
 (async () => {
   const repo = arg('repo');
   if (!repo || !fs.existsSync(repo)) {
-    console.error('usage: onboard-learn.js --repo <abs> [--in <onboard-dir>] [--max-candidates 500] [--inject [--confirm] [--workspace <ws>]]');
+    console.error('usage: onboard-learn.js --repo <abs> [--in <onboard-dir>] [--max-candidates N] [--inject [--confirm] [--workspace <ws>]]');
+    console.error('       onboard-learn.js --repo <abs> --enqueue');
+    console.error('       onboard-learn.js --repo <abs> --drain [--batch 50] [--max-candidates N]');
+    console.error('       onboard-learn.js --repo <abs> --queue-status');
     process.exit(2);
   }
   const repoAbs = path.resolve(repo);
   const inDir = path.resolve(arg('in', path.join(SELF_REPO, 'bench', 'onboard', path.basename(repoAbs))));
+  const outDir = inDir; // output always co-located with input
   const notesFile = path.join(inDir, 'onboard-notes.json');
 
   if (has('inject')) { await inject(notesFile, has('confirm'), arg('workspace', null)); return; }
 
+  if (has('queue-status')) { queueStatus(outDir); return; }
+
+  if (has('enqueue')) { enqueue(inDir, outDir); return; }
+
+  if (has('drain')) {
+    const batchSize = Math.max(1, parseInt(arg('batch', '50'), 10) || 50);
+    // --max-candidates is an emergency ceiling here (safety valve inside a drain batch only).
+    const maxCandidates = parseInt(arg('max-candidates', String(Infinity)), 10) || Infinity;
+    const model = arg('model', 'opus');
+    const maxKeep = parseInt(arg('max-keep', '20'), 10) || 20;
+    fs.mkdirSync(outDir, { recursive: true });
+    drain(repoAbs, outDir, model, maxKeep, batchSize, maxCandidates);
+    return;
+  }
+
+  // ---- original single-pass mode (backward compatible) ----------------------------------------
   let candidates = gatherCandidates(inDir);
   if (!candidates.length) {
     console.error(`No mined candidates in ${inDir}. Run scripts/onboard-mine-*.js --repo ${repoAbs} first.`);
     process.exit(1);
   }
+  // --max-candidates: emergency cap in single-pass mode (default 500 for backward compat).
   candidates = capCandidates(candidates, parseInt(arg('max-candidates', '500'), 10) || 500);
   const model = arg('model', 'opus');
   const maxKeep = parseInt(arg('max-keep', '20'), 10) || 20;
