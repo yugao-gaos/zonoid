@@ -214,7 +214,7 @@ rm -rf "$HREPO" "$CLAUDE_PLUGIN_DATA/worktrees"
 # inline metric spec: a task carries a metric-driven objective; set/clear, validation, surfacing
 MK="$S/1"
 SPEC='{"metric":"p95_latency_ms","direction":"min","measure_command":"npm run bench","parse":"last_number","target":120}'
-chk "set_task_metric ok"        "$(jpost task/metric "$(printf '{"key":"%s","spec":%s}' "$MK" "$SPEC")" | jq -r .ok)" "true"
+chk "task/metric set ok"        "$(jpost task/metric "$(printf '{"key":"%s","spec":%s}' "$MK" "$SPEC")" | jq -r .ok)" "true"
 chk "task carries metric spec"  "$(g 'task/detail?key='"$MK" | jq -r .metric.metric)" "p95_latency_ms"
 chk "node exposes metric field" "$(g state | jq -r '.tasks[]|select(.id=="'"$MK"'")|.metric.direction')" "min"
 chk "reject: missing direction" "$(jpost task/metric "$(printf '{"key":"%s","spec":{"metric":"x","measure_command":"c"}}' "$MK")" | jq -r '.error!=null')" "true"
@@ -241,7 +241,7 @@ rm -rf "$MREPO" "$CLAUDE_PLUGIN_DATA/worktrees"
 # researched benchmark: a task carries a competitor/industry-average reference; set/clear, validation, surfacing
 BK="$S/1"
 BENCH='{"metric":"p95_latency_ms","value":95,"unit":"ms","source":"https://example.com/report","confidence":"med"}'
-chk "set_task_benchmark ok"      "$(jpost task/benchmark "$(printf '{"key":"%s","benchmark":%s}' "$BK" "$BENCH")" | jq -r .ok)" "true"
+chk "task/benchmark set ok"      "$(jpost task/benchmark "$(printf '{"key":"%s","benchmark":%s}' "$BK" "$BENCH")" | jq -r .ok)" "true"
 chk "task carries benchmark"     "$(g 'task/detail?key='"$BK" | jq -r .benchmark.metric)" "p95_latency_ms"
 chk "node exposes benchmark"     "$(g state | jq -r '.tasks[]|select(.id=="'"$BK"'")|.benchmark.value')" "95"
 chk "reject: missing value"      "$(jpost task/benchmark "$(printf '{"key":"%s","benchmark":{"metric":"x","source":"s"}}' "$BK")" | jq -r '.error!=null')" "true"

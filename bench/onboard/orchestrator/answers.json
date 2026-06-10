@@ -2,7 +2,7 @@
   "_meta": "Honest two-condition answers for the first competence reading. COLD = a competent SWE agent with NO knowledge of this project, reasoning from general priors/defaults. KB = the same agent with the validated onboard-notes.json recalled. Used by onboard-harness.js --answers (offline judge, no nested-agent spawn).",
   "p1": {
     "cold": "Git operations like branch and merge run against the daemon's workspace repository — that's the repo the daemon was started in, so it always operates on the workspace / current working directory of the daemon.",
-    "kb": "They do NOT necessarily run against the daemon workspace. The target repo is resolved by precedence: an explicit repoPath argument wins first, then the task's overlay repo field (set via set_task_repo), and only as a fallback the daemon workspace. Worktrees are keyed by a hash of the repo path so distinct repos never collide."
+    "kb": "They do NOT necessarily run against the daemon workspace. The target repo is resolved by precedence: an explicit repoPath argument wins first, then the task's overlay repo field (set via configure_task repo_path; formerly set_task_repo), and only as a fallback the daemon workspace. Worktrees are keyed by a hash of the repo path so distinct repos never collide."
   },
   "p2": {
     "cold": "On a merge conflict it would typically stop and surface the conflicting files, and you'd resolve them. Many such systems force the merge through with a strategy like -X theirs or auto-resolve so the winning branch always lands.",

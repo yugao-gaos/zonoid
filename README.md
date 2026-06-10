@@ -203,7 +203,8 @@ status      = overlay.status[key]  ??  derive(native.status, deps)
 `peek_workspace` · `next_action` · `loop_start` · `loop_stop` · `loop_status`
 
 Self-learning git tools: `git_init` · `branch_task` · `git_status` · `merge_attempt` ·
-`remove_worktree`. Metric-driven loop: `set_task_metric` · `measure_task` · `set_task_benchmark`.
+`remove_worktree`. Task configuration (repo / test_cmd / metric / benchmark in one call):
+`configure_task`. Metric-driven loop: `configure_task` (metric, benchmark) · `measure_task`.
 
 ---
 
@@ -244,14 +245,14 @@ or `{merged:false, conflict, files}`). All backed by `lib/git.js`
 order **explicit `repo_path` (body/query) > the task's overlay repo field > daemon workspace**
 (absent any override ⇒ the workspace, unchanged). This lets the loop branch/merge on a repo that is
 *distinct from the daemon workspace* (the common case: the workspace is not itself a git repo).
-A task carries its target via `POST /git/repo {key, repo_path}` (MCP `set_task_repo`; clear with an
-empty path); it surfaces as `repo` on the task node and `/task/detail`. The git MCP tools
+A task carries its target via `POST /git/repo {key, repo_path}` (MCP `configure_task` with
+`repo_path`; clear with an empty path); it surfaces as `repo` on the task node and `/task/detail`. The git MCP tools
 (`branch_task`/`merge_attempt`/`remove_worktree`/`git_status`) also take an optional `repo_path`.
 Covered by `test/repo-target.test.js` and the git section of `test/smoke.sh`.
 
 **Inline metric spec:** a task/problem node can carry an **inline metric spec** — the objective the
-metric-driven loop optimizes — set via `POST /task/metric {key, spec}` (MCP `set_task_metric`; clear
-with an empty/omitted `spec`). The spec is stored on the overlay and surfaces as `metric` on the task
+metric-driven loop optimizes — set via `POST /task/metric {key, spec}` (MCP `configure_task` with
+`metric`; clear with an empty `metric`). The spec is stored on the overlay and surfaces as `metric` on the task
 node and `/task/detail`. Shape:
 
 ```jsonc
@@ -300,7 +301,7 @@ baselineGuardrails, measuredGuardrails)` → the list of guardrails that REGRESS
 **Competitive benchmark:** beyond the repo's own baseline, a task can carry a researched
 **competitor/industry-average benchmark** for its metric — the EXTERNAL axis the judge compares the
 winning attempt's measured value against. Set via `POST /task/benchmark {key, benchmark}` (MCP
-`set_task_benchmark`; clear with an empty/omitted `benchmark`); it surfaces as `benchmark` on the task
+`configure_task` with `benchmark`; clear with an empty `benchmark`); it surfaces as `benchmark` on the task
 node and `/task/detail`. Record shape:
 
 ```jsonc
@@ -319,7 +320,7 @@ Validation (server-side) requires `metric`, a numeric `value`, and a non-empty `
 record is rejected (400) leaving any prior benchmark untouched. Absent any benchmark ⇒ baseline-only
 judging (back-compat). The actual research is done by an **agent**, not the daemon: the
 `self-learn-benchmark` skill runs bounded web research to find a credible figure and calls
-`set_task_benchmark`, degrading to "no benchmark" (recording nothing, or a `confidence:"low"` note)
+`configure_task` with `benchmark`, degrading to "no benchmark" (recording nothing, or a `confidence:"low"` note)
 rather than fabricating a number. Covered by `test/benchmark.test.js` and the benchmark section of
 `test/smoke.sh`.
 
