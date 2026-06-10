@@ -445,6 +445,25 @@ function scoreNodeAgainstTokens(node, qt) {
   return { shared, score };
 }
 
+// As-of temporal filter for state-change reasoning over note nodes (the Zep gap). Given a graph
+// node and an ISO `asOf` instant, decide whether that node was the CURRENT fact at that time:
+//   - non-note nodes (tasks) are always kept (no validity window) — temporal filtering is note-only.
+//   - a note is current at T iff validFrom <= T AND (validTo is null OR T < validTo).
+//   - a note with NO validFrom (pre-temporal note) is always kept (back-compat — can't time-filter it).
+// This is what lets `search_knowledge(asOf=…)` return the fact that was true at a past task-time
+// instead of only the latest, recovering history WITHOUT deleting superseded rows.
+function noteCurrentAsOf(node, asOf) {
+  if (!asOf) return true;
+  if ((node.kind || 'task') !== 'note') return true;
+  const vf = node.validFrom;
+  if (!vf) return true;
+  const t = Date.parse(asOf);
+  if (Number.isNaN(t)) return true;       // unparseable asOf ⇒ don't filter (fail-open)
+  if (Date.parse(vf) > t) return false;   // fact not yet true at T
+  if (node.validTo && Date.parse(node.validTo) <= t) return false; // fact already retired by T
+  return true;
+}
+
 function scoreMatches(g, target) {
   const tg = suggestToks(`${target.label} ${target.summary || ''}`);
   const linked = new Set([...(target.deps || []), ...(target.context_deps || [])]);
@@ -628,7 +647,13 @@ function buildGraph(ws) {
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
   const ovForNotes = own ? state.overlay : overlayStore.load(ws);
   for (const n of Object.values(ovForNotes.note_nodes || {})) {
-    tasks.push({ id: 'note:' + n.id, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: [], note: '', agent_id: null, summary: n.summary });
+    tasks.push({ id: 'note:' + n.id, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: [], note: '', agent_id: null, summary: n.summary,
+      // Temporal/state-change fields (null on pre-temporal notes — back-compat): validFrom/validTo
+      // bound when the fact was true; supersedes/supersededBy chain it to the note it replaced / was
+      // replaced by. The dashboard reads these for the superseded indicator; /search for as-of.
+      validFrom: n.validFrom || n.created_at || null, validTo: n.validTo || null,
+      supersedes: n.supersedes ? 'note:' + n.supersedes : null,
+      supersededBy: n.supersededBy ? 'note:' + n.supersededBy : null });
   }
   // Auto-wire genuinely-new tasks (those first seen THIS build) into the graph with weighted
   // context edges to relevant done/note providers. Runs after notes are appended so they're
@@ -846,17 +871,38 @@ const handler = async (req, res) => {
     if (p === '/search') {
       const q = u.searchParams.get('q') || '';
       const k = Math.max(1, Math.min(parseInt(u.searchParams.get('k') || '5', 10) || 5, 50));
+      // asOf (ISO instant): as-of retrieval — return the note that was CURRENT at that time, not just
+      //   the latest. Notes outside their [validFrom, validTo) window are dropped. Absent ⇒ default,
+      //   which returns only notes still current (validTo == null) PLUS all non-temporal/task nodes.
+      // history=1: include superseded notes too (don't drop on validTo), so a caller can see the
+      //   full timeline for a query. Ignored when asOf is set (asOf already picks one point in time).
+      const asOf = u.searchParams.get('asOf') || '';
+      const history = isTruthy(u.searchParams.get('history'));
       const g = buildGraph(u.searchParams.get('workspace') || state.workspace);
       const qt = suggestToks(q);
+      const temporalOk = (node) => {
+        if (asOf) return noteCurrentAsOf(node, asOf);          // point-in-time
+        if (history) return true;                              // whole timeline
+        if ((node.kind || 'task') !== 'note') return true;     // tasks always pass
+        return !node.validTo;                                  // default: only still-current notes
+      };
       const results = g.tasks
+        .filter(temporalOk)
         .map((node) => {
           const { score } = scoreNodeAgainstTokens(node, qt);
-          return { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task' };
+          const r = { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task' };
+          // Surface temporal provenance on note hits so callers can reason about state changes.
+          if ((node.kind || 'task') === 'note' && (node.validFrom || node.validTo || node.supersededBy || node.supersedes)) {
+            r.validFrom = node.validFrom || null; r.validTo = node.validTo || null;
+            r.supersededBy = node.supersededBy || null; r.supersedes = node.supersedes || null;
+            r.current = !node.validTo;
+          }
+          return r;
         })
         .filter((r) => r.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, k);
-      return send(res, 200, { query: q, k, results });
+      return send(res, 200, { query: q, k, asOf: asOf || null, history, results });
     }
 
     // Read-only in_progress claims (for the PreToolUse gate hook). Optional ?session= filters to
@@ -1157,9 +1203,46 @@ const handler = async (req, res) => {
       const b = await readBody(req);
       if (!b.title || !b.summary) return send(res, 400, { ok: false, error: 'title and summary required' });
       const id = overlayStore.addNoteNode(state.overlay, b);
+      // Optional one-shot supersede: a newer decision invalidates an older note WITHOUT deleting it.
+      // `supersedes` is the OLD note's key ('note:<id>' or bare '<id>'). Stamps validTo on the old,
+      // chains old↔new, and sets the new note's validFrom to the changeover instant.
+      let superseded = null;
+      if (b.supersedes) {
+        const oldId = String(b.supersedes).replace(/^note:/, '');
+        const r = overlayStore.supersedeNote(state.overlay, oldId, id, b.valid_from);
+        if (!r.ok) return send(res, 400, { ok: false, error: r.error });
+        superseded = { old_key: 'note:' + oldId, at: r.at };
+      }
       overlayStore.save(state.workspace, state.overlay);
       notifyChange();
-      return send(res, 200, { ok: true, id, key: 'note:' + id });
+      return send(res, 200, { ok: true, id, key: 'note:' + id, superseded });
+    }
+
+    // Supersede note OLD with note NEW: a newer decision invalidates an older one without deleting
+    // history. Stamps validTo on OLD, links the chain, sets NEW.validFrom = changeover. Both notes
+    // must already exist. Keys accept 'note:<id>' or bare '<id>'. `at` (ISO) overrides the instant.
+    if (p === '/overlay/note/supersede' && m === 'POST') {
+      const b = await readBody(req);
+      if (!b.old_key || !b.new_key) return send(res, 400, { ok: false, error: 'old_key and new_key required' });
+      const oldId = String(b.old_key).replace(/^note:/, '');
+      const newId = String(b.new_key).replace(/^note:/, '');
+      const r = overlayStore.supersedeNote(state.overlay, oldId, newId, b.at);
+      if (!r.ok) return send(res, 400, { ok: false, error: r.error });
+      overlayStore.save(state.workspace, state.overlay);
+      notifyChange();
+      return send(res, 200, { ok: true, old_key: 'note:' + oldId, new_key: 'note:' + newId, at: r.at });
+    }
+
+    // Read the full supersede chain (oldest→newest) for a note, with each link's validity window.
+    // Pure read — for the dashboard's "supersedes / superseded by" indicator and timeline queries.
+    if (p === '/note/chain') {
+      const raw = u.searchParams.get('key') || u.searchParams.get('id') || '';
+      const id = String(raw).replace(/^note:/, '');
+      const chain = overlayStore.noteChain(state.overlay, id).map((cid) => {
+        const n = state.overlay.note_nodes[cid];
+        return { key: 'note:' + cid, title: n.title, validFrom: n.validFrom || null, validTo: n.validTo || null, current: !n.validTo };
+      });
+      return send(res, 200, { key: 'note:' + id, chain });
     }
 
     // Tier 1 (cheap): a task's base context = its dependencies' summaries — BOTH blocking deps
@@ -1398,7 +1481,7 @@ const handler = async (req, res) => {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreNodeAgainstTokens, suggestToks, autowireNewTask, DEFAULT_AUTOWIRE_THRESHOLD };
+module.exports = { taskTokens, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, DEFAULT_AUTOWIRE_THRESHOLD };
 
 if (require.main === module) {
   const server = http.createServer(handler);
