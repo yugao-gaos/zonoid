@@ -121,7 +121,7 @@ status      = overlay.status[key]  ??  derive(native.status, deps)
 | `hooks/subagent-*.sh` | subagent activity. | done |
 | `hooks/orch-gate.sh` | `PreToolUse(Write\|Edit)` — denies inline edits unless this conversation has a task claimed `in_progress` (exit 2). **Default-on** (opt out per-conversation with `orch off`), not in live settings. | done |
 | `hooks/statusline.sh` | status line. | done (extend) |
-| `mcp-graph.js` | MCP (stdio): `get_full_graph` / `get_adjacent` / `set_status` / `add_dependency` / `peek_workspace`. Zero-dep proxy over the daemon. | ✅ done |
+| `mcp-graph.js` | MCP (stdio): `get_full_graph` (scopes `all`/`adjacent`/`tree`) / `set_status` / `add_dependency` / `peek_workspace`. Zero-dep proxy over the daemon. | ✅ done |
 | `~/.claude/skills/parallel-orchestrate/SKILL.md` | router target; instructs native `TaskCreate`+deps. | done (extend) |
 
 ---
@@ -156,8 +156,9 @@ status      = overlay.status[key]  ??  derive(native.status, deps)
   (caching) we can add later, not a correctness need.
 
 **Phase 4 — MCP graph server** (`mcp-graph.js`, project-scoped `.mcp.json`) ✅ DONE
-- Stdio JSON-RPC, zero-dep proxy over the daemon. Tools: `get_full_graph`, `get_adjacent`,
-  `set_status`, `add_dependency` (with `from_workspace` for ghost edges), `peek_workspace`.
+- Stdio JSON-RPC, zero-dep proxy over the daemon. Tools: `get_full_graph` (scopes
+  `all`/`adjacent`/`tree`), `set_status`, `add_dependency` (with `from_workspace` for ghost
+  edges), `peek_workspace`.
 - *Verified:* full MCP session (initialize → tools/list → tools/call) drives daemon state;
   `set_status` via MCP flips a dependent from `not_ready`→`ready`. Async responses drain
   before exit on stdin close.
@@ -197,7 +198,7 @@ status      = overlay.status[key]  ??  derive(native.status, deps)
   `ScheduleWakeup`). *Verified across all states incl. caps and ghost-wait.*
 
 ### MCP tools (`mcp__orchestrator-graph__*`)
-`get_full_graph` · `get_adjacent` · `get_dependency_tree` (vertical) · `start_task` ·
+`get_full_graph` (scope: `all` | `adjacent` | `tree` — adjacent/tree need `task_key`) · `start_task` ·
 `complete_task` · `set_status` · `get_dependency_summaries` (Tier 1) · `get_task_detail`
 (Tier 2) · `attach_knowledge` · `add_dependency` (ghost via `from_workspace`) ·
 `peek_workspace` · `next_action` · `loop_control` (action: `start` | `stop` | `status`)
