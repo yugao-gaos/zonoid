@@ -1044,7 +1044,7 @@ function buildGraph(ws) {
     // per build that saw new nodes — cheap, monotonic, persisted with the overlay below.
     overlayStore.bumpEpoch(state.overlay); edgesDirty = true;
   }
-  if (tsDirty || edgesDirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
+  if (tsDirty || edgesDirty) { overlayStore.save(state.workspace, state.overlay, { deferred: true }); notifyChange(); }
   const ghosts = Object.values(ghostMap);
   return { tasks, ghosts, summary: summaryFor(tasks, ghosts, ovWs) };
 }
