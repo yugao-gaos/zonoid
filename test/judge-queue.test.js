@@ -99,6 +99,58 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ok('after epoch bump the note is re-pullable', judge.buildQueue(o).some((i) => i.id === 'note:n1'));
 }
 
+// --- dupClusters: tight cluster groups, outlier stays separate (synthetic vecs) -----------------
+{
+  // Build 384-dim unit vectors. A tight cluster of 3 near-identical vecs + 1 outlier far away.
+  const dim = 384;
+  const base = new Array(dim).fill(0); base[0] = 1;                       // points along axis 0
+  const jitter = (eps) => { const v = base.slice(); v[1] = eps; let n = Math.hypot(...v.slice(0, 2)); v[0] /= n; v[1] /= n; return v; };
+  const outlier = new Array(dim).fill(0); outlier[200] = 1;                // orthogonal → cosine ~0
+  const o = ov.EMPTY(); o.epoch = 1;
+  o.note_nodes = {
+    a: { id: 'a', title: 'dup A', summary: '', validTo: null, vec: jitter(0.01) },
+    b: { id: 'b', title: 'dup B', summary: '', validTo: null, vec: jitter(0.02) },
+    c: { id: 'c', title: 'dup C', summary: '', validTo: null, vec: jitter(0.03) },
+    z: { id: 'z', title: 'outlier', summary: '', validTo: null, vec: outlier },
+    s: { id: 's', title: 'superseded dup', summary: '', validTo: '2020-01-01', vec: jitter(0.01) }, // not current → excluded
+    n: { id: 'n', title: 'no vec', summary: '', validTo: null, vec: null },                          // no vec → excluded
+  };
+  const cl = judge.dupClusters(o, 0.85);
+  ok('dupClusters finds exactly ONE cluster', cl.length === 1);
+  ok('cluster has the 3 tight dups (a,b,c)', cl[0].join(',') === 'note:a,note:b,note:c');
+  ok('outlier z is NOT clustered', !cl.flat().includes('note:z'));
+  ok('superseded note s excluded (not current)', !cl.flat().includes('note:s'));
+  ok('vec-less note n excluded', !cl.flat().includes('note:n'));
+  // signature is stable / order-independent
+  ok('clusterSignature is sorted+stable', judge.clusterSignature(['note:c', 'note:a', 'note:b']) === 'note:a|note:b|note:c');
+  // watermark gating
+  ok('cluster pending before judging', judge.clusterPending(o, cl[0]));
+  judge.stampCluster(o.judgedClusters = {}, cl[0], o.epoch);
+  ok('cluster not pending after stamping at current epoch', !judge.clusterPending(o, cl[0]));
+  ov.bumpEpoch(o);
+  ok('cluster pending again after epoch bump', judge.clusterPending(o, cl[0]));
+}
+
+// --- buildQueue / judgeQueueDepth include unjudged dup-clusters as a third bucket ----------------
+{
+  const dim = 384;
+  const v = (k) => { const a = new Array(dim).fill(0); a[0] = 1; a[1] = k * 0.01; let n = Math.hypot(a[0], a[1]); a[0] /= n; a[1] /= n; return a; };
+  const o = ov.EMPTY(); o.epoch = 1;
+  o.note_nodes = {
+    d1: { id: 'd1', title: 'D1', summary: '', validTo: null, vec: v(1) },
+    d2: { id: 'd2', title: 'D2', summary: '', validTo: null, vec: v(2) },
+  };
+  // d1,d2 are a dup cluster AND orphans (no outgoing ctx). They appear as orphans AND a dup-cluster item.
+  const q = judge.buildQueue(o);
+  const clusterItem = q.find((i) => i.kind === 'dup-cluster');
+  ok('buildQueue includes a dup-cluster item', !!clusterItem);
+  ok('dup-cluster item carries both keys', clusterItem && clusterItem.keys.join(',') === 'note:d1,note:d2');
+  ok('judgeQueueDepth counts the dup-cluster', judge.judgeQueueDepth(o) >= 1);
+  // stamping the cluster removes it from the queue
+  judge.stampCluster(o.judgedClusters, clusterItem.keys, o.epoch);
+  ok('judged dup-cluster drops from buildQueue', !judge.buildQueue(o).some((i) => i.kind === 'dup-cluster'));
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -9,7 +9,12 @@ const core = require('./lib/mcp-core');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const DAEMON = path.join(__dirname, 'daemon.js');
-const CALL = core.makeCall(PORT);
+// This session's pinned workspace (ORCH_WORKSPACE lets a process target a workspace independent
+// of its cwd; unset => cwd). Passed into makeCall so every MUTATING (POST) tool call carries it —
+// graph writes land in THIS session's workspace even when another session flipped the daemon's
+// global state.workspace (the workspace-gremlin fix).
+const WS = process.env.ORCH_WORKSPACE || process.cwd();
+const CALL = core.makeCall(PORT, WS);
 
 // ---- boot the daemon if it isn't up (hookless environments) ----
 function ping() {
@@ -55,7 +60,5 @@ process.stdin.on('data', (chunk) => {
 process.stdin.on('end', () => { ending = true; maybeExit(); });
 
 // Startup: boot the daemon + register this workspace, so the graph reflects this project.
-// ORCH_WORKSPACE lets a process target a workspace independent of its cwd (e.g. a headless
-// benchmark arm running in a worktree); unset → identical old behavior (cwd).
-const WS = process.env.ORCH_WORKSPACE || process.cwd();
+// (WS is resolved above, next to CALL, so mutating tool calls carry it per-request too.)
 (async () => { try { await ensureDaemon(); await CALL('POST', '/workspace', { path: WS }); } catch { /* ignore */ } })();

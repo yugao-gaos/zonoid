@@ -27,8 +27,33 @@ function applyVerdict(overlay, v) {
   }
   if (v.keepEdge && v.keepEdge.from && v.keepEdge.to) judge.keepEdge(overlay, v.keepEdge.from, v.keepEdge.to);
   if (v.pruneEdge && v.pruneEdge.from && v.pruneEdge.to) ov.removeEdge(overlay, v.pruneEdge.from, v.pruneEdge.to, null, v.pruneEdge.kind);
-  if (v.surfaceSupersede && v.surfaceSupersede.old && v.surfaceSupersede.new) {
-    ov.addGuidance(overlay, { question: `supersede ${v.surfaceSupersede.old}->${v.surfaceSupersede.new}?`, context: v.surfaceSupersede.why || '', trigger: 'ambiguous_intent' });
+  if (!overlay.judgedClusters) overlay.judgedClusters = {};
+  if (v.consolidate && v.consolidate.keep && Array.isArray(v.consolidate.supersede)) {
+    const keep = String(v.consolidate.keep).replace(/^note:/, '');
+    const supersededNow = [];
+    for (const oldKey of v.consolidate.supersede) {
+      const oldId = String(oldKey).replace(/^note:/, '');
+      const r = ov.supersedeNote(overlay, oldId, keep);
+      if (r && r.ok) supersededNow.push('note:' + oldId);
+    }
+    const keepKey = 'note:' + keep;
+    for (const e of overlay.edges) {
+      if (e.kind !== 'context') continue;
+      if (supersededNow.includes(e.from)) e.from = keepKey;
+      if (supersededNow.includes(e.to)) e.to = keepKey;
+    }
+    const seen = new Set();
+    overlay.edges = overlay.edges.filter((e) => {
+      if (e.from === e.to) return false;
+      const sig = `${e.from}>>${e.to}>>${e.fromWorkspace || ''}>>${e.kind || 'blocking'}`;
+      if (seen.has(sig)) return false; seen.add(sig); return true;
+    });
+    judge.stampCluster(overlay.judgedClusters, [keepKey, ...supersededNow], epoch);
+  }
+  if (v.surfaceCluster && Array.isArray(v.surfaceCluster.keys) && v.surfaceCluster.keys.length) {
+    const keys = v.surfaceCluster.keys.map((k) => String(k).startsWith('note:') ? k : 'note:' + k);
+    ov.addGuidance(overlay, { question: `cluster ${keys.join(',')}?`, context: v.surfaceCluster.why || '', trigger: 'ambiguous_intent' });
+    judge.stampCluster(overlay.judgedClusters, keys, epoch);
   }
   const noteKey = v.markJudged || (v.item && v.item.kind === 'orphan' ? v.item.id : null);
   if (noteKey) judge.stampJudged(overlay.judgedAtEpoch, noteKey, epoch);
@@ -66,15 +91,56 @@ function applyVerdict(overlay, v) {
   ok('pruned edge is actually gone', !o.edges.some((e) => e.from === 'note:a' && e.to === 'note:b'));
 }
 
-// --- surfaceSupersede: GUIDANCE only — NO validTo / timeline mutation ----------------------------
+// --- consolidate: supersede non-canonical into keeper + re-point context edges -------------------
 {
-  const o = ov.EMPTY();
-  const oldId = ov.addNoteNode(o, { title: 'old fact', summary: 'v1' });
-  const newId = ov.addNoteNode(o, { title: 'new fact', summary: 'v2' });
-  applyVerdict(o, { surfaceSupersede: { old: 'note:' + oldId, new: 'note:' + newId, why: 'corrected' } });
-  ok('surfaceSupersede raises one guidance item', ov.pendingGuidance(o).length === 1);
-  ok('surfaceSupersede does NOT stamp validTo on the old note', o.note_nodes[oldId].validTo === null);
-  ok('surfaceSupersede does NOT chain supersededBy', o.note_nodes[oldId].supersededBy === null && o.note_nodes[newId].supersedes === null);
+  const o = ov.EMPTY(); o.epoch = 4;
+  const keep = ov.addNoteNode(o, { title: 'keeper (newest)', summary: 'canonical fact' });
+  const old1 = ov.addNoteNode(o, { title: 'dup 1', summary: 'same fact' });
+  const old2 = ov.addNoteNode(o, { title: 'dup 2', summary: 'same fact' });
+  // Edges: a consumer task depends on old1 (context); old2 provides context to a task; keep already
+  // has an edge to the same task as old2 (will dedup); old1 has an edge to keep (becomes self-loop).
+  o.edges = [
+    { from: 'note:' + old1, to: 's/consumer', kind: 'context', weight: 0.6 },   // re-point from -> keep
+    { from: 'note:' + old2, to: 's/task', kind: 'context', weight: 0.5 },        // re-point from -> keep
+    { from: 'note:' + keep, to: 's/task', kind: 'context', weight: 0.5 },        // dup after re-point → dedup
+    { from: 'note:' + old1, to: 'note:' + keep, kind: 'context' },               // becomes self-loop → drop
+    { from: 's/x', to: 's/y' },                                                  // unrelated blocking, untouched
+  ];
+  applyVerdict(o, { consolidate: { keep: 'note:' + keep, supersede: ['note:' + old1, 'note:' + old2], why: 'same fact' } });
+  ok('consolidate stamps validTo on each superseded note', o.note_nodes[old1].validTo != null && o.note_nodes[old2].validTo != null);
+  ok('consolidate leaves the keeper current', o.note_nodes[keep].validTo === null);
+  ok('consolidate chains superseded -> keeper', o.note_nodes[old1].supersededBy === keep && o.note_nodes[old2].supersededBy === keep);
+  ok('re-pointed edge old1->consumer now keep->consumer', o.edges.some((e) => e.from === 'note:' + keep && e.to === 's/consumer'));
+  ok('self-loop (old1->keep) dropped', !o.edges.some((e) => e.from === 'note:' + keep && e.to === 'note:' + keep));
+  ok('duplicate keep->s/task collapsed to one edge', o.edges.filter((e) => e.from === 'note:' + keep && e.to === 's/task').length === 1);
+  ok('no context edge points to a superseded (hidden) note', !o.edges.some((e) => e.kind === 'context' && (e.from === 'note:' + old1 || e.to === 'note:' + old1 || e.from === 'note:' + old2 || e.to === 'note:' + old2)));
+  ok('unrelated blocking edge untouched', o.edges.some((e) => e.from === 's/x' && e.to === 's/y'));
+  ok('cluster stamped judged at epoch', o.judgedClusters[judge.clusterSignature(['note:' + keep, 'note:' + old1, 'note:' + old2])] === 4);
+  // REVERSIBILITY: the superseded notes still exist (recoverable as-of), not deleted.
+  ok('superseded notes are NOT deleted (recoverable)', !!o.note_nodes[old1] && !!o.note_nodes[old2]);
+}
+
+// --- consolidate is idempotent (re-applying does not double-supersede or error) ------------------
+{
+  const o = ov.EMPTY(); o.epoch = 1;
+  const keep = ov.addNoteNode(o, { title: 'k', summary: '' });
+  const old1 = ov.addNoteNode(o, { title: 'd', summary: '' });
+  const apply = () => applyVerdict(o, { consolidate: { keep: 'note:' + keep, supersede: ['note:' + old1] } });
+  apply(); apply();
+  ok('consolidate idempotent: keeper still current', o.note_nodes[keep].validTo === null);
+  ok('consolidate idempotent: old still superseded by keep', o.note_nodes[old1].supersededBy === keep);
+}
+
+// --- surfaceCluster: ONE cluster-level guidance item (not per-pair) ------------------------------
+{
+  const o = ov.EMPTY(); o.epoch = 2;
+  const a = ov.addNoteNode(o, { title: 'amb a', summary: '' });
+  const b = ov.addNoteNode(o, { title: 'amb b', summary: '' });
+  const c = ov.addNoteNode(o, { title: 'amb c', summary: '' });
+  applyVerdict(o, { surfaceCluster: { keys: ['note:' + a, 'note:' + b, 'note:' + c], why: 'unsure same fact' } });
+  ok('surfaceCluster raises exactly ONE guidance item (cluster-level)', ov.pendingGuidance(o).length === 1);
+  ok('surfaceCluster does NOT mutate any note timeline', o.note_nodes[a].validTo === null && o.note_nodes[b].validTo === null && o.note_nodes[c].validTo === null);
+  ok('surfaceCluster marks the cluster judged', o.judgedClusters[judge.clusterSignature(['note:' + a, 'note:' + b, 'note:' + c])] === 2);
 }
 
 // --- a 'no edge' verdict (markJudged only) still stamps the watermark ----------------------------

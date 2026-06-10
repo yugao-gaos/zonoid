@@ -53,7 +53,7 @@
   #cloudsvg:active { cursor: grabbing; }
   #cloudsvg text { font: 11px ui-monospace, Menlo, monospace; fill: #e6edf3; pointer-events: none; user-select: none; }
   #cloudsvg circle { cursor: pointer; }
-  /* flow view (dagre layered) */
+  /* dagre pane (shared by Frontier + Focus views) */
   #flow { display: none; width: 100%; }
   #flow.show { display: block; }
   #flowgraph { width: 100%; overflow: hidden; border-bottom: 1px solid #21262d; }
@@ -67,6 +67,9 @@
   @keyframes wippulse { 0%,100% { stroke-opacity: .12; stroke-width: 1.5; } 50% { stroke-opacity: .95; stroke-width: 4; } }
   #flowsvg path.wipedge { stroke: #58a6ff !important; stroke-dasharray: 6 4 !important; animation: wipmarch .5s linear infinite; }
   @keyframes wipmarch { to { stroke-dashoffset: -10; } }
+  /* Focus view: steady amber halo on the focused node */
+  #flowsvg g.fn.focused .fhalo { opacity: 1; stroke: #e3b341; }
+  #flowhidden { padding: 10px 16px 0; }
   #floworphans { padding: 12px 16px 28px; }
   .otoggle { cursor: pointer; font-size: 12px; font-weight: 600; color: #e6edf3; padding: 6px 0; user-select: none; }
   .ogroups { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
@@ -91,6 +94,40 @@
   #guidance .gq { color: #f0d77a; font-weight: 600; }
   #guidance .gctx { color: #c9b06a; margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
   #guidance .gtrig { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #bb8009; }
+  /* action-aware resolution controls (dup-cluster keeper picker + buttons / generic answer box) */
+  #guidance .gact { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  #guidance .gnotes { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; }
+  #guidance .gnote { font-size: 12px; color: #c9b06a; }
+  #guidance .gbtn { cursor: pointer; padding: 4px 10px; border-radius: 6px; border: 1px solid #bb800955; background: #21262d; color: #f0d77a; font-size: 12px; }
+  #guidance .gbtn:hover { background: #2d333b; }
+  #guidance .gbtn.primary { background: #2ea04333; border-color: #2ea04388; color: #7ee787; }
+  #guidance .gbtn:disabled { opacity: .5; cursor: default; }
+  #guidance select.gkeep, #guidance input.gans { background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 4px 8px; font-size: 12px; max-width: 100%; }
+  #guidance input.gans { flex: 1; min-width: 160px; }
+  #guidance .gerr { margin-top: 5px; font-size: 12px; color: #f85149; }
+  #guidance .gitem.err { border-color: #f8514988; }
+  #guidance .gstat { font-size: 12px; color: #8b949e; }
+  #guidance .gkey { color: #8b949e; font-size: 11px; }
+  #guidance .gsum { display: block; margin: 1px 0 4px 20px; font-size: 11px; color: #8b949e; white-space: pre-wrap; word-break: break-word; }
+  #guidance details.gmem > summary { cursor: pointer; font-size: 12px; color: #8b949e; margin-top: 6px; list-style: none; }
+  /* note-inspect popup: linkified note keys in guidance text + a centered overlay modal */
+  .notelink { color: #58a6ff; cursor: pointer; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-decoration: underline dotted; text-underline-offset: 2px; }
+  .notelink:hover { color: #79c0ff; }
+  #noteOverlay { position: fixed; inset: 0; background: #000a; z-index: 90; display: none; align-items: flex-start; justify-content: center; padding-top: 9vh; }
+  #noteOverlay.show { display: flex; }
+  #notePopup { position: relative; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 14px 44px #000c; width: 520px; max-width: calc(100vw - 32px); max-height: 74vh; overflow: auto; padding: 14px 16px; color: #e6edf3; font-size: 13px; }
+  #notePopup .npclose { position: absolute; top: 10px; right: 12px; cursor: pointer; color: #8b949e; }
+  #notePopup .npclose:hover { color: #e6edf3; }
+  #notePopup .nptitle { font-weight: 600; padding-right: 24px; }
+  #notePopup.superseded .nptitle { color: #8b949e; text-decoration: line-through; }
+  #notePopup .npchip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; background: #21262d; color: #d29922; border: 1px solid #d2992255; margin: 6px 6px 0 0; }
+  #notePopup .npchip.dead { color: #f85149; border-color: #f8514955; }
+  #notePopup .npsec { margin-top: 10px; }
+  #notePopup .npk { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #8b949e; margin-bottom: 2px; }
+  #notePopup .npbody { white-space: pre-wrap; word-break: break-word; color: #c9d1d9; }
+  #notePopup .npkey { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #8b949e; }
+  #notePopup .nperr { color: #f85149; }
+  #notePopup .npopen { color: #58a6ff; cursor: pointer; font-size: 12px; }
   /* superseded (replaced-by-replan) nodes: dim + dashed replacement link */
   #flowsvg path.supersede { stroke: #8957e5 !important; stroke-dasharray: 3 5 !important; opacity: .7; }
 </style>
@@ -99,8 +136,9 @@
 <header>
   <h1>🕸 Darwin</h1>
   <div class="toggle" id="viewToggle">
-    <button data-view="flow" class="on">Flow</button>
+    <button data-view="frontier" class="on">Frontier</button>
     <button data-view="cloud">Cloud</button>
+    <button data-view="focus" style="display:none">Focus</button>
   </div>
   <div class="sum" id="sum"></div>
 </header>
@@ -109,7 +147,7 @@
   <div class="left">
     <h2 style="margin-left:16px">Task graph <span class="muted" id="ws"></span></h2>
     <div id="cloud"><svg id="cloudsvg"></svg></div>
-    <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div><div id="floworphans"></div></div>
+    <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div><div id="flowhidden"></div><div id="floworphans"></div></div>
   </div>
   <div id="panel"><div class="pad" id="pad"></div></div>
 </div>
@@ -118,6 +156,8 @@
   <section class="feed"><h2 style="margin-left:0">Router decisions</h2><div id="routes"></div></section>
   <section class="feed"><h2 style="margin-left:0">Subagents</h2><div id="agents"></div></section>
 </div>
+<!-- note-inspect modal: lives OUTSIDE #guidance so triage re-renders can't close it -->
+<div id="noteOverlay" onclick="if(event.target===this)closeNotePopup()"><div id="notePopup"></div></div>
 <!-- vendored d3@7 (inlined; no CDN) -->
 <script>
 // https://d3js.org v7.9.0 Copyright 2010-2023 Mike Bostock
@@ -3944,12 +3984,14 @@ const BASE = (location.protocol === 'http:' || location.protocol === 'https:') ?
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let selected=null;
 let lastState=null; // most recent full /state payload, for re-render on view switch
-let currentView=(v=>v==='cloud'||v==='flow'?v:'flow')(localStorage.getItem('orchView'));  // DAG removed; default Flow
+let currentView=(v=>v==='cloud'?'cloud':'frontier')(localStorage.getItem('orchView'));  // Flow renamed → Frontier (stale 'flow' migrates; Frontier stays the default)
+let focusedId=null;            // Focus view target; survives view switches, NOT persisted
 let cloudSim=null;             // live d3 force simulation
 const cloudPos={};             // id -> {x,y} preserved across ticks so it doesn't re-jiggle
 let cloudArchiveOpen=false;    // whether the orphan "archive" bundle is expanded
 let cloudSig='';               // signature of node/link set; only reheat sim when it changes
-let flowZoom=null, flowInit=false;  // dagre Flow view: persistent zoom + first-fit guard
+let flowZoom=null;             // shared d3.zoom on the dagre svg (Frontier + Focus)
+const dagState={frontier:{init:false,tf:null}, focus:{init:false,tf:null}};  // per-view pan/zoom, so switching doesn't lose it
 function truncate(s,n){ s=String(s||''); return s.length>n?s.slice(0,n)+'…':s; }
 async function openDetail(key){
   selected=key; document.getElementById('panel').classList.add('open');
@@ -3960,6 +4002,7 @@ async function openDetail(key){
   const know=(d.knowledge||[]).map(k=>`<div class="row">${esc(k.type||'item')}: ${esc(k.value||JSON.stringify(k))}${k.note?'<div class="muted">'+esc(k.note)+'</div>':''}</div>`).join('')||'<div class="empty">none</div>';
   pad.innerHTML =
     `<span class="pclose" onclick="closeDetail()">✕</span>`+
+    `<span class="pclose" style="margin-right:12px" title="Focus view: this node's full ancestry + descendants" onclick="focusNode('${esc(key)}')">⌖ Focus</span>`+
     `<div class="ptitle">${esc(t.label)}</div><div class="muted">${esc(t.id)}</div>`+
     `<div class="kv"><div class="k">Status</div><div class="v st s-${esc(t.status)}">${esc(t.status)}${t.agent_id?'<span class="badge">'+esc(t.agent_id)+'</span>':''}</div></div>`+
     (d.summary?`<div class="kv"><div class="k">Summary (interface)</div><div class="v">${esc(d.summary)}</div></div>`:'')+
@@ -3978,8 +4021,9 @@ async function tick(){
     (s.ghosts?`<span class="chip s-ghost"><b>${s.ghosts}</b> ghost</span>`:'')+
     `<span class="agbtn" onclick="toggleActivityPopup()" title="routing &amp; subagents">· agents <b>${s.agents.running}</b>▶ <b>${s.agents.done}</b>✓ ▾</span>`;
   lastState=d;
-  if(currentView==='cloud'){ renderCloud(d); }
-  else { renderFlow(d); }
+  if(currentView==='cloud') renderCloud(d);
+  else if(currentView==='focus') renderFocus(d);
+  else renderFrontier(d);
   if(selected) openDetail(selected); // refresh open panel live
   const rt=document.getElementById('routes');
   rt.innerHTML=!d.routes.length?'<div class="empty">none</div>':d.routes.slice().reverse().slice(0,6).map(r=>`<div class="row"><span class="tag ${esc(r.decision)}">${esc(r.decision)}</span> ${esc(r.prompt.slice(0,60))}</div>`).join('');
@@ -3987,29 +4031,280 @@ async function tick(){
   ag.innerHTML=!d.agents.length?'<div class="empty">none</div>':d.agents.slice().reverse().map(a=>`<div class="row">${a.state==='running'?'▶':'✓'} <b>${esc(a.agent_type)}</b> <span class="muted">${esc(a.agent_id)}</span></div>`).join('');
   renderGuidance();
 }
-// Escalation: surface unresolved guidance prominently — the loop is paused waiting on the user.
-async function renderGuidance(){
+// Escalation: BLOCKING guidance gets the prominent paused banner; 'review' items (judge
+// housekeeping — never pause the loop) render as a quiet collapsed triage list.
+// tick() re-runs this every 2s, so re-render is SIGNATURE-GATED: the DOM is only rebuilt when the
+// queue actually changes (or force=true after a resolve). UI state that must survive a rebuild —
+// answer drafts, keeper picks, expanded rows, inline errors, fetched note details — lives in the
+// maps below and is restored into the fresh HTML.
+let guidSig=null;       // last-rendered queue signature (null ⇒ first render always draws)
+let guidReview=[];      // last-seen review items (bulk consolidate reads this)
+let guidBulk=false;     // a bulk consolidate is in flight (guards double-fire)
+const guidOpen=new Set();   // user-expanded <details>: 'review' = the chip, 'm-<id>' = a member list
+const guidAns={};       // per-item answer drafts (survive re-render)
+const guidKeep={};      // per-item keeper radio pick
+const guidErr={};       // per-item inline error text (cleared on success)
+const guidNote={};      // note-detail cache: key -> {label,summary} | 'loading'
+const isCluster=it=>!!(it&&it.action&&it.action.kind==='dup-cluster'&&Array.isArray(it.action.keys)&&it.action.keys.length);
+// Default keeper = newest by created_at (matches the daemon's default when `keep` is omitted).
+function defKeeper(a){
+  if(Array.isArray(a.notes)&&a.notes.length){
+    const newest=a.notes.slice().sort((x,y)=>Date.parse(x.created_at||0)-Date.parse(y.created_at||0)).slice(-1)[0];
+    if(newest&&newest.key) return newest.key;
+  }
+  return a.keys[a.keys.length-1];
+}
+function guidToggle(id,open){
+  if(open) guidOpen.add(id); else guidOpen.delete(id);
+  if(open&&String(id).indexOf('m-')===0) loadClusterNotes(id.slice(2));   // lazy-fetch member details on expand
+}
+// Lazily pull each member note's label+summary from /task/detail (the endpoint openDetail uses),
+// cache it, and patch the already-rendered row in place (no full re-render → no state clobber).
+function loadClusterNotes(itemId){
+  const it=guidanceItems[itemId]; if(!isCluster(it)) return;
+  it.action.keys.forEach((k,i)=>{
+    if(guidNote[k]&&guidNote[k]!=='loading'){ patchMember(itemId,i,k); return; }
+    if(guidNote[k]==='loading') return;
+    guidNote[k]='loading';
+    fetch(BASE+'/task/detail?key='+encodeURIComponent(k)).then(r=>r.json()).then(d=>{
+      guidNote[k]={label:(d&&d.task&&d.task.label)||k, summary:(d&&d.task&&d.task.summary)||''};
+      patchMember(itemId,i,k);
+    }).catch(()=>{ guidNote[k]={label:k,summary:'(detail fetch failed)'}; patchMember(itemId,i,k); });
+  });
+}
+function patchMember(itemId,i,key){
+  const d=guidNote[key]; if(!d||d==='loading') return;
+  const lb=document.getElementById('gml-'+itemId+'-'+i); if(lb) lb.textContent=d.label;
+  const sm=document.getElementById('gms-'+itemId+'-'+i); if(sm) sm.textContent=(d.summary||'').slice(0,300);
+}
+// ---- note-inspect popup -----------------------------------------------------
+// Guidance text references note keys as plain strings; linkify them so Consolidate-vs-
+// Distinct calls aren't blind. SAFETY: linkification runs on ALREADY-ESCAPED text, the
+// scan regex only matches [a-z0-9:-], and openNotePopup re-validates against NOTE_KEY_RE
+// before the key is used anywhere — no path for markup to reach innerHTML unescaped.
+const NOTE_KEY_RE=/^note:note-[a-z0-9]+$/;
+// bare ids must contain a digit (real ids are timestamp-ish) so prose like "note-taking" stays plain text
+const NOTE_SCAN_RE=/\b(?:note:)?note-(?=[a-z0-9]*[0-9])[a-z0-9]{4,}\b/g;
+function linkifyNoteKeys(escaped){
+  return String(escaped).replace(NOTE_SCAN_RE, m=>{
+    const full=m.indexOf('note:')===0?m:'note:'+m;
+    if(!NOTE_KEY_RE.test(full)) return m;
+    return '<span class="notelink" onclick="openNotePopup(\''+full+'\',event)">'+m+'</span>';
+  });
+}
+// Clickable rendering of a single validated key (member lists, supersede chain); plain text otherwise.
+function noteRef(k){ return NOTE_KEY_RE.test(k)?'<span class="notelink" onclick="openNotePopup(\''+k+'\',event)">'+esc(k)+'</span>':esc(k); }
+const noteDetailCache={};   // full key -> /task/detail payload (per-session cache)
+let notePopupKey=null;      // key currently shown; guards stale async fills + "one popup at a time"
+async function openNotePopup(key,ev){
+  if(ev){ ev.preventDefault(); ev.stopPropagation(); }   // don't toggle radios/<details> under the click
+  if(!NOTE_KEY_RE.test(key)) return;
+  notePopupKey=key;
+  document.getElementById('noteOverlay').classList.add('show');
+  if(!noteDetailCache[key]){
+    renderNotePopup(key,null,null);   // loading state
+    try{
+      const d=await(await fetch(BASE+'/task/detail?key='+encodeURIComponent(key))).json();
+      if(d&&d.task) noteDetailCache[key]=d;
+      else { if(notePopupKey===key) renderNotePopup(key,null,(d&&d.error)||'not found'); return; }
+    }catch(e){ if(notePopupKey===key) renderNotePopup(key,null,'fetch failed: '+((e&&e.message)||e)); return; }
+  }
+  if(notePopupKey===key) renderNotePopup(key,noteDetailCache[key],null);
+}
+function closeNotePopup(){ notePopupKey=null; document.getElementById('noteOverlay').classList.remove('show'); }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeNotePopup(); });
+function renderNotePopup(key,d,err){
+  const pop=document.getElementById('notePopup');
+  const head='<span class="npclose" onclick="closeNotePopup()">✕</span>';
+  if(err){ pop.className=''; pop.innerHTML=head+'<div class="nptitle">'+esc(key)+'</div><div class="npsec nperr">'+esc(err)+'</div>'; return; }
+  if(!d){ pop.className=''; pop.innerHTML=head+'<div class="nptitle">'+esc(key)+'</div><div class="npsec" style="color:#8b949e">loading…</div>'; return; }
+  const t=d.task||{};
+  const dead=!!t.supersededBy||!!t.validTo;
+  pop.className=dead?'superseded':'';
+  const sec=(k,v)=>v?'<div class="npsec"><div class="npk">'+k+'</div><div class="npbody">'+v+'</div></div>':'';
+  const know=(d.knowledge||[]).map(k=>'<div>'+esc(k.type||'item')+': '+esc(k.value||JSON.stringify(k))+(k.note?' <span style="color:#8b949e">— '+esc(k.note)+'</span>':'')+'</div>').join('');
+  let temporal='';
+  if(t.validFrom) temporal+='valid from '+esc(t.validFrom);
+  if(t.validTo) temporal+=(temporal?' · ':'')+'valid to '+esc(t.validTo);
+  let chain='';
+  if(t.supersedes) chain+='<div>supersedes '+noteRef(t.supersedes)+'</div>';
+  if(t.supersededBy) chain+='<div class="nperr">superseded by '+noteRef(t.supersededBy)+'</div>';
+  pop.innerHTML=head+
+    '<div class="nptitle">'+esc(t.label||key)+'</div>'+
+    '<span class="npchip">'+esc(t.kind||'task')+(t.status&&t.status!==t.kind?' · '+esc(t.status):'')+'</span>'+
+    (dead?'<span class="npchip dead">superseded</span>':'')+
+    sec('Summary', t.summary?esc(t.summary):'')+
+    (d.summary&&d.summary!==t.summary?sec('Interface summary',esc(d.summary)):'')+
+    (know?sec('Knowledge',know):'')+
+    (temporal?sec('Temporal',temporal):'')+
+    (chain?sec('Supersede chain',chain):'')+
+    sec('Key','<span class="npkey">'+esc(t.id||key)+'</span>')+
+    '<div class="npsec"><span class="npopen" onclick="closeNotePopup();openDetail(\''+key+'\')">open in side panel →</span></div>';
+}
+async function renderGuidance(force){
   const box=document.getElementById('guidance');
   let g; try{ g=await(await fetch(BASE+'/guidance')).json(); }catch{ return; }
   const pending=(g&&g.pending)||[];
-  if(!pending.length){ box.classList.remove('show'); box.innerHTML=''; return; }
-  box.innerHTML='<span class="gtitle">⏸ Loop paused — waiting on you ('+pending.length+')</span>'+
-    pending.map(it=>`<div class="gitem">${it.trigger?'<div class="gtrig">'+esc(it.trigger)+'</div>':''}<div class="gq">${esc(it.question)}</div>${it.context?'<div class="gctx">'+esc(it.context)+'</div>':''}</div>`).join('');
+  const review=(g&&g.review)||[];
+  // stash items so the [Copy for Claude] handler and the cluster lazy-loader can read full content
+  // without round-tripping multiline strings through HTML attributes
+  guidanceItems={};
+  [...pending,...review].forEach(it=>{ guidanceItems[it.id]=it; });
+  guidReview=review;
+  const sig=JSON.stringify(pending.concat(review).map(it=>it.id));
+  if(!force&&sig===guidSig) return;   // queue unchanged — don't clobber in-progress typing/expansion
+  guidSig=sig;
+  if(!pending.length&&!review.length){ box.classList.remove('show'); box.innerHTML=''; box.removeAttribute('style'); return; }
+  // One expandable member row per cluster note: radio keeper pick + label + lazy summary.
+  const memberRow=(it,k,i)=>{
+    const meta=(Array.isArray(it.action.notes)?it.action.notes:[]).find(n=>n.key===k)||{};
+    const d=guidNote[k]; const got=(d&&d!=='loading')?d:null;
+    const checked=((guidKeep[it.id]||defKeeper(it.action))===k);
+    return '<div class="gnote"><label><input type="radio" name="keep-'+esc(it.id)+'" value="'+esc(k)+'"'+(checked?' checked':'')+
+      ' onchange="guidKeep[\''+esc(it.id)+'\']=this.value"> '+
+      '<b id="gml-'+esc(it.id)+'-'+i+'">'+esc(got?got.label:(meta.title||k))+'</b></label> <span class="gkey">'+noteRef(k)+'</span>'+
+      '<span class="gsum" id="gms-'+esc(it.id)+'-'+i+'">'+esc(got&&got.summary?got.summary.slice(0,300):'')+'</span></div>';
+  };
+  const copyBtn=it=>'<button class="gbtn" id="cpc-'+esc(it.id)+'" onclick="copyForClaude(\''+esc(it.id)+'\')">Copy for Claude</button>';
+  // Per-item controls, driven by it.action:
+  //   dup-cluster → expandable member list (radio = keeper) + [Consolidate]/[Distinct]
+  //   otherwise   → an answer <input> + [Answer]  (blocking items get this too — answering the
+  //                 last blocking item un-pauses the loop)
+  const controls=it=>{
+    if(isCluster(it)){
+      const open=guidOpen.has('m-'+it.id);
+      return '<details class="gmem"'+(open?' open':'')+' ontoggle="guidToggle(\'m-'+esc(it.id)+'\',this.open)">'+
+        '<summary>'+it.action.keys.length+' notes — expand to inspect / pick keeper ▸</summary>'+
+        it.action.keys.map((k,i)=>memberRow(it,k,i)).join('')+'</details>'+
+        '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'consolidate\')">Consolidate</button>'+
+        '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'distinct\')">Distinct</button>'+
+        copyBtn(it)+'<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
+    }
+    return '<div class="gact"><input class="gans" id="ans-'+esc(it.id)+'" placeholder="your answer…" value="'+esc(guidAns[it.id]||'')+'"'+
+      ' oninput="guidAns[\''+esc(it.id)+'\']=this.value">'+
+      '<button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\')">Answer</button>'+
+      copyBtn(it)+'<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
+  };
+  const gitem=it=>'<div class="gitem'+(guidErr[it.id]?' err':'')+'" id="gi-'+esc(it.id)+'">'+
+    (it.trigger?'<div class="gtrig">'+esc(it.trigger)+'</div>':'')+
+    '<div class="gq">'+linkifyNoteKeys(esc(it.question))+'</div>'+
+    (it.context?'<div class="gctx">'+linkifyNoteKeys(esc(it.context))+'</div>':'')+
+    controls(it)+
+    (guidErr[it.id]?'<div class="gerr">'+esc(guidErr[it.id])+'</div>':'')+
+    '</div>';
+  let html='';
+  if(pending.length) html+='<span class="gtitle">⏸ Loop paused — waiting on you ('+pending.length+')</span>'+pending.map(gitem).join('');
+  if(review.length){
+    const clusters=review.filter(isCluster);
+    html+='<details'+(guidOpen.has('review')?' open':'')+' ontoggle="guidToggle(\'review\',this.open)" style="margin-top:'+(pending.length?'8px':'0')+'">'+
+      '<summary style="cursor:pointer;font-size:12px;color:#8b949e;list-style:none">🗂 '+review.length+' to review ▸</summary>'+
+      (clusters.length?'<div class="gact" style="margin-top:6px"><button class="gbtn"'+(guidBulk?' disabled':'')+' onclick="consolidateAllClusters()">Consolidate all ('+clusters.length+')</button></div>':'')+
+      review.map(gitem).join('')+'</details>';
+  }
+  box.innerHTML=html;
+  // Only blocking items warrant the amber alarm styling; review-only is a quiet neutral strip.
+  if(pending.length) box.removeAttribute('style');
+  else { box.style.background='transparent'; box.style.borderBottomColor='#21262d'; }
   box.classList.add('show');
 }
-// ---- Obsidian-style force-directed "Cloud" view ----------------------------
-// Relevance LOD: ready/in_progress + neighbors = foreground; rest of their
-// connected component = midground; everything else = faded background. Degree-0
-// orphans collapse into one "archive" bundle. Time decay (firstSeen/lastChanged,
-// when the daemon exposes them) shrinks + fades + pushes older nodes outward.
+// POST a resolution. decision: 'consolidate'|'distinct' for dup-clusters (consolidate sends the
+// picked keeper, daemon defaults to newest if omitted); absent → send the answer box as { answer }.
+// Failures surface inline on the row (red border + error text), never silently. On success the SSE
+// 'changed' push re-runs tick()→renderGuidance(); we also force-render so the item clears at once.
+async function resolveGuidance(id,decision){
+  const body={id};
+  if(decision==='consolidate'){
+    body.decision='consolidate';
+    const sel=document.querySelector('input[name="keep-'+id+'"]:checked');
+    if(sel) body.keep=sel.value;
+  }
+  else if(decision==='distinct'){ body.decision='distinct'; }
+  else { const inp=document.getElementById('ans-'+id); body.answer=(inp?inp.value:guidAns[id])||''; }
+  delete guidErr[id];
+  try{
+    const r=await fetch(BASE+'/guidance/resolve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok){
+      let msg='HTTP '+r.status; try{ const j=await r.json(); if(j&&j.error) msg+=': '+j.error; }catch(e){}
+      guidErr[id]=msg; renderGuidance(true); return false;
+    }
+    delete guidAns[id]; delete guidKeep[id];
+    renderGuidance(true);
+    return true;
+  }catch(e){ guidErr[id]='network error: '+((e&&e.message)||e); renderGuidance(true); return false; }
+}
+// Bulk: consolidate every dup-cluster REVIEW row with its default keeper (blocking items are never
+// bulk-resolved). Sequential, with a confirm() gate; per-item ✓/✗ shows live and failures stay
+// inline after the final re-render (failed items remain in the queue with guidErr set).
+async function consolidateAllClusters(){
+  if(guidBulk) return;
+  const items=guidReview.filter(isCluster);
+  if(!items.length) return;
+  if(!confirm('Consolidate '+items.length+' duplicate cluster'+(items.length>1?'s':'')+' using default keepers?')) return;
+  guidBulk=true;
+  for(const it of items){
+    const st=document.getElementById('gst-'+it.id); if(st) st.textContent='…';
+    delete guidErr[it.id];
+    try{
+      const r=await fetch(BASE+'/guidance/resolve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:it.id,decision:'consolidate'})});
+      if(!r.ok){
+        let msg='HTTP '+r.status; try{ const j=await r.json(); if(j&&j.error) msg+=': '+j.error; }catch(e){}
+        guidErr[it.id]=msg; if(st) st.textContent='✗ '+msg;
+      } else if(st) st.textContent='✓ consolidated';
+    }catch(e){ guidErr[it.id]='network error: '+((e&&e.message)||e); if(st) st.textContent='✗ network error'; }
+  }
+  guidBulk=false;
+  renderGuidance(true);
+}
+// Populated by renderGuidance(); keyed by guidance id so copyForClaude() can build a self-contained prompt.
+let guidanceItems={};
+// Build a paste-ready resolution prompt for a guidance item and copy it to the clipboard.
+// The right path for ambiguous decisions: paste into a Claude session with the orchestrator tools.
+function copyForClaude(id){
+  const it=guidanceItems[id]; if(!it) return;
+  const wsRaw=(document.getElementById('ws')||{}).textContent||'';
+  const ws=wsRaw.replace(/^·\s*/,'').trim();
+  const a=it.action;
+  const isDup=a&&a.kind==='dup-cluster'&&Array.isArray(a.notes)&&a.notes.length;
+  let p='Resolve orchestrator guidance '+id+(ws?(' (workspace '+ws+')'):'')+':\n';
+  p+='"'+(it.question||'')+'"\n';
+  if(it.context) p+='\nJudge’s note: '+it.context+'\n';
+  if(isDup){
+    p+='\nCluster notes:\n';
+    p+=a.notes.map(n=>'- '+n.key+': '+(n.title||'')).join('\n')+'\n';
+  }
+  p+='\nDecide consolidate (pick a keeper) or keep distinct, then resolve it\n';
+  p+='(POST /guidance/resolve {id, decision:"consolidate"|"distinct", keep?:<key>}\n';
+  p+='on the orchestrator daemon at http://localhost:8787, or via the guidance tools).\n';
+  p+='Read the note contents first if the right call isn’t obvious.\n';
+  const btn=document.getElementById('cpc-'+id);
+  const done=()=>{ if(!btn) return; const o=btn.textContent; btn.textContent='Copied ✓'; setTimeout(()=>{ btn.textContent=o; },1500); };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(p).then(done,()=>fallbackCopy(p,done));
+  } else { fallbackCopy(p,done); }
+}
+function fallbackCopy(text,done){
+  const ta=document.createElement('textarea'); ta.value=text;
+  ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand('copy'); done&&done(); }catch(e){}
+  document.body.removeChild(ta);
+}
+// ---- view switching: Frontier (default, dagre subset) | Cloud (whole-graph) | Focus (one node's lineage)
 function setView(v){
-  currentView=v; localStorage.setItem('orchView',v);
+  if(v==='focus' && !focusedId) return;     // Focus needs a target first (button stays hidden until then)
+  currentView=v;
+  if(v!=='focus') localStorage.setItem('orchView',v);   // focus is never persisted
   document.getElementById('cloud').classList.toggle('show', v==='cloud');
-  document.getElementById('flow').classList.toggle('show', v==='flow');
+  document.getElementById('flow').classList.toggle('show', v!=='cloud');     // Frontier + Focus share the dagre pane
   document.querySelectorAll('#viewToggle button').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
   if(v!=='cloud' && cloudSim) cloudSim.stop();
-  if(v==='flow') flowInit=false;   // re-fit when entering Flow
-  if(lastState){ if(v==='cloud') renderCloud(lastState); else renderFlow(lastState); }
+  if(v!=='cloud') dagState[v].init=false;   // next render restores that view's saved pan/zoom, or first-fits
+  if(lastState){ if(v==='cloud') renderCloud(lastState); else if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
+}
+function focusNode(key){
+  focusedId=key; dagState.focus={init:false,tf:null};   // fresh fit per focused node
+  const fb=document.querySelector('#viewToggle button[data-view="focus"]'); if(fb) fb.style.display='';
+  setView('focus');
 }
 document.querySelectorAll('#viewToggle button').forEach(b=> b.addEventListener('click', ()=>setView(b.dataset.view)) );
 
@@ -4128,34 +4423,81 @@ function renderCloud(d){
   cloudSig=sig;
 }
 
-// ---- Flow view: standard Sugiyama layered DAG via dagre -------------------
-// Renders ONLY the connected dependency chains (left->right, crossing-minimized,
-// curved routed edges). Degree-0 standalone tasks drop into a collapsible
-// "Independent" tray below, grouped by time bucket (when timestamps are live) or
-// by status otherwise. Existing DAG + Cloud views are untouched.
-function renderFlow(d){
+// ---- shared link model ------------------------------------------------------
+// The daemon's buildGraph already folds overlay edges into each task's deps /
+// context_deps / context_weights, so task fields are the single source of truth
+// for blocking+context links; d.edges is consulted ONLY for supersede edges
+// (plus note.supersededBy temporal chains).
+function buildLinks(d){
+  const tasks=d.tasks||[]; const byId=Object.fromEntries(tasks.map(t=>[t.id,t]));
+  const links=[]; const seen=new Set();
+  const push=(from,to,kind,w)=>{ const k=from+'>'+to+':'+kind; if(byId[from]&&byId[to]&&from!==to&&!seen.has(k)){ seen.add(k); links.push({from,to,kind,w}); } };
+  for(const t of tasks){
+    for(const dep of (t.deps||[])) if(!String(dep).startsWith('ghost:')) push(dep,t.id,'blocking');
+    const cw=t.context_weights||{};
+    for(const dep of (t.context_deps||[])) if(!String(dep).startsWith('ghost:')) push(dep,t.id,'context', cw[dep]!=null?cw[dep]:0.5);
+  }
+  for(const e of (d.edges||[])) if(!e.fromWorkspace && e.kind==='supersede') push(e.from,e.to,'supersede');
+  for(const t of tasks) if(t.kind==='note'&&t.supersededBy) push(t.id,t.supersededBy,'supersede');
+  return {tasks,byId,links};
+}
+const LIVE_STATUS=new Set(['ready','in_progress','failed','tested','not_ready']);
+// Frontier selection: live seeds + ALL 1-hop neighbors (either direction), then walk
+// UP the dependency ancestry — blocking deps always (transitively, to root), context
+// deps only when important (weight>=0.5 OR top-3 for that node), recursively, with
+// the walk capped at ~4 hops from the seeds so the hairball stays out.
+function frontierSelect(tasks, links, byId){
+  const seeds=tasks.filter(t=>LIVE_STATUS.has(t.status)).map(t=>t.id);
+  if(!seeds.length){   // nothing live: show the 15 most recently changed so the view is never empty
+    const ts=t=>Date.parse(t.lastChanged||t.firstSeen||'')||0;
+    return new Set(tasks.slice().sort((a,b)=>ts(b)-ts(a)).slice(0,15).map(t=>t.id));
+  }
+  const keep=new Set(seeds);
+  const adj={};
+  for(const l of links){ if(l.kind==='supersede') continue; (adj[l.from]=adj[l.from]||[]).push(l.to); (adj[l.to]=adj[l.to]||[]).push(l.from); }
+  for(const s of seeds) for(const n of (adj[s]||[])) keep.add(n);
+  const importantCtx=t=>{
+    const cds=(t.context_deps||[]).filter(x=>!String(x).startsWith('ghost:')&&byId[x]);
+    const cw=t.context_weights||{}; const wt=x=>cw[x]!=null?cw[x]:0.5;
+    const top=cds.slice().sort((a,b)=>wt(b)-wt(a)).slice(0,3);
+    return cds.filter(x=>wt(x)>=0.5||top.includes(x));
+  };
+  const queue=[...keep].map(id=>[id,0]);
+  while(queue.length){
+    const [id,depth]=queue.shift(); const t=byId[id]; if(!t) continue;
+    for(const dep of (t.deps||[]))      // blocking ancestry: always, all the way to root
+      if(!String(dep).startsWith('ghost:')&&byId[dep]&&!keep.has(dep)){ keep.add(dep); queue.push([dep,depth+1]); }
+    if(depth>=4) continue;              // context ancestry capped ~4 hops from seed
+    for(const dep of importantCtx(t))
+      if(!keep.has(dep)){ keep.add(dep); queue.push([dep,depth+1]); }
+  }
+  return keep;
+}
+// Focus selection: one node's full ancestry + full descendants (blocking + context).
+function focusSelect(links, id){
+  const up={}, down={};
+  for(const l of links){ if(l.kind==='supersede') continue; (up[l.to]=up[l.to]||[]).push(l.from); (down[l.from]=down[l.from]||[]).push(l.to); }
+  const keep=new Set([id]);
+  const walk=m=>{ const st=[id]; while(st.length){ const x=st.pop(); for(const n of (m[x]||[])) if(!keep.has(n)){ keep.add(n); st.push(n); } } };
+  walk(up); walk(down);
+  return keep;
+}
+
+// ---- dagre pipeline (shared by Frontier and Focus) ---------------------------
+// Sugiyama layered layout (left->right, crossing-minimized, curved routed edges)
+// over an explicit node subset; links are filtered to the subset. Context edges
+// scale stroke-width/opacity by context weight. Pan/zoom persists per view.
+function renderDagSubset(view, nodes, links, byId){
   const svgEl=document.getElementById('flowsvg'); const svg=d3.select(svgEl);
   if(typeof dagre==='undefined'){ svg.selectAll('*').remove(); svg.append('text').attr('x',20).attr('y',30).attr('fill','#f85149').text('dagre failed to load (offline?)'); return; }
-  const tasks=d.tasks||[]; const byId=Object.fromEntries(tasks.map(t=>[t.id,t]));
-  const links=[]; const pushLink=(from,to,kind)=>{ if(byId[from]&&byId[to]&&from!==to) links.push({from,to,kind}); };
-  for(const t of tasks){
-    for(const dep of (t.deps||[])) if(!String(dep).startsWith('ghost:')) pushLink(dep,t.id,'blocking');
-    for(const dep of (t.context_deps||[])) if(!String(dep).startsWith('ghost:')) pushLink(dep,t.id,'context');
-  }
-  for(const e of (d.edges||[])){ if(e.fromWorkspace) continue; pushLink(e.from,e.to, e.kind==='context'?'context':e.kind==='supersede'?'supersede':'blocking'); }
-  // Temporal note chains: a superseded note carries supersededBy=<newer note key>. Draw it with the
-  // same purple-dashed supersede link (old→new) so "supersedes / superseded by" reads off the graph.
-  for(const t of tasks){ if(t.kind==='note' && t.supersededBy) pushLink(t.id, t.supersededBy, 'supersede'); }
-  const deg={}; tasks.forEach(t=>deg[t.id]=0); for(const l of links){ deg[l.from]++; deg[l.to]++; }
-  const connected=tasks.filter(t=>deg[t.id]>0); const orphans=tasks.filter(t=>deg[t.id]===0);
-  const connSet=new Set(connected.map(t=>t.id));
-
-  document.getElementById('flowgraph').style.display = connected.length?'block':'none';
+  const ids=new Set(nodes.map(t=>t.id));
+  const sub=links.filter(l=>ids.has(l.from)&&ids.has(l.to));
+  document.getElementById('flowgraph').style.display = nodes.length?'block':'none';
 
   const NW=210, NH=52;
   const g=new dagre.graphlib.Graph(); g.setGraph({rankdir:'LR', nodesep:24, ranksep:64, marginx:20, marginy:20}); g.setDefaultEdgeLabel(()=>({}));
-  for(const t of connected) g.setNode(t.id,{width:NW,height:NH});
-  for(const l of links) if(connSet.has(l.from)&&connSet.has(l.to)) g.setEdge(l.from,l.to,{kind:l.kind});
+  for(const t of nodes) g.setNode(t.id,{width:NW,height:NH});
+  for(const l of sub) g.setEdge(l.from,l.to,{kind:l.kind,w:l.w});
   dagre.layout(g);
   const gw=Math.max(g.graph().width||0,50), gh=Math.max(g.graph().height||0,50);
 
@@ -4169,22 +4511,25 @@ function renderFlow(d){
         .append('path').attr('d','M0,0 L10,5 L0,10 z').attr('fill',c);
     });
     root.append('g').attr('class','fedges'); root.append('g').attr('class','fnodes');
-    flowZoom=d3.zoom().scaleExtent([0.2,2.5]).on('zoom',ev=>root.attr('transform',ev.transform));
+    flowZoom=d3.zoom().scaleExtent([0.2,2.5]).on('zoom',ev=>{ root.attr('transform',ev.transform); if(currentView!=='cloud') dagState[currentView==='focus'?'focus':'frontier'].tf=ev.transform; });
     svg.call(flowZoom);
   }
   const lineGen=d3.line().x(p=>p.x).y(p=>p.y).curve(d3.curveBasis);
-  const edgeData=g.edges().map(e=>({e, pts:g.edge(e).points, kind:g.edge(e).kind}));
+  const ctxW=x=>x.w!=null?x.w:0.5;
+  const edgeData=g.edges().map(e=>({e, pts:g.edge(e).points, kind:g.edge(e).kind, w:g.edge(e).w}));
   const ep=root.select('g.fedges').selectAll('path').data(edgeData, x=>x.e.v+'>'+x.e.w);
   ep.exit().remove();
-  ep.enter().append('path').attr('fill','none').attr('stroke-width',1.6).merge(ep)
+  ep.enter().append('path').attr('fill','none').merge(ep)
     .attr('d', x=>lineGen(x.pts))
     .attr('stroke', x=>x.kind==='context'?'#39c5cf':x.kind==='supersede'?'#8957e5':'#6e7681')
+    .attr('stroke-width', x=>x.kind==='context'?1+1.5*ctxW(x):1.6)             // context: weight-scaled
+    .attr('stroke-opacity', x=>x.kind==='context'?0.3+0.6*ctxW(x):1)
     .attr('stroke-dasharray', x=>x.kind==='context'?'4 4':x.kind==='supersede'?'3 5':null)
     .attr('marker-end', x=>'url(#arr-'+(x.kind==='context'?'fc':x.kind==='supersede'?'fs':'fb')+')')
     .classed('supersede', x=>x.kind==='supersede')
     .classed('wipedge', x=>{ const tg=byId[x.e.w]; return x.kind!=='supersede' && !!(tg && tg.status==='in_progress'); });
 
-  const np=root.select('g.fnodes').selectAll('g.fn').data(connected, t=>t.id);
+  const np=root.select('g.fnodes').selectAll('g.fn').data(nodes, t=>t.id);
   np.exit().remove();
   const en=np.enter().append('g').attr('class','fn');
   en.append('rect').attr('class','fhalo').attr('rx',11).attr('x',-NW/2-4).attr('y',-NH/2-4).attr('width',NW+8).attr('height',NH+8).attr('fill','none').attr('stroke','#58a6ff');
@@ -4193,8 +4538,9 @@ function renderFlow(d){
   en.append('text').attr('class','fttl').attr('x',-NW/2+12).attr('y',-2);
   en.append('text').attr('class','fst').attr('x',-NW/2+12).attr('y',16);
   const na=en.merge(np);
-  na.attr('transform',t=>{ const n=g.node(t.id); return `translate(${n.x},${n.y})`; });
-  na.select('.fbg').attr('fill','#161b22').attr('stroke',t=>t.id===selected?'#58a6ff':'#30363d').attr('stroke-width',t=>t.id===selected?2:1);
+  const isFocus=t=>view==='focus'&&t.id===focusedId;   // focused node: halo + slightly larger
+  na.attr('transform',t=>{ const n=g.node(t.id); return `translate(${n.x},${n.y})`+(isFocus(t)?' scale(1.12)':''); });
+  na.select('.fbg').attr('fill','#161b22').attr('stroke',t=>isFocus(t)?'#e3b341':t.id===selected?'#58a6ff':'#30363d').attr('stroke-width',t=>isFocus(t)?2.5:t.id===selected?2:1);
   na.select('.flbar').attr('fill',t=>STATUS_COLOR[t.status]||'#6e7681');
   na.select('.fttl').attr('fill','#e6edf3').attr('font-weight',600).text(t=>(t.kind==='note'?(t.validTo?'🕓 ':'📌 '):'')+truncate(t.label,t.kind==='note'?22:24));
   // Superseded notes (validTo set) read as dimmed history; current/active notes stay full-opacity.
@@ -4202,13 +4548,66 @@ function renderFlow(d){
   na.select('.fst').attr('fill',t=>STATUS_COLOR[t.status]||'#8b949e').text(t=>(t.kind==='note'?(t.validTo?'superseded':(t.supersedes?'current ✓':'note')):t.status.replace('_',' '))+(t.agent_id?' ▶'+t.agent_id:''));
   na.on('click',(ev,t)=>openDetail(t.id));
   na.classed('wip', t=>t.status==='in_progress');   // pulsing WIP halo
+  na.classed('focused', isFocus);                   // steady amber halo on the focused node
 
   const vw=svgEl.clientWidth||800;
-  const H=connected.length?Math.min(gh+40, Math.max(320, window.innerHeight-260)):0;
+  const H=nodes.length?Math.min(gh+40, Math.max(320, window.innerHeight-260)):0;
   svgEl.setAttribute('height', H);
-  if(!flowInit && connected.length){ const scale=Math.min(1,(vw-40)/gw); svg.call(flowZoom.transform, d3.zoomIdentity.translate(20,20).scale(scale)); flowInit=true; }
+  const st=dagState[view];
+  if(!st.init && nodes.length){
+    if(st.tf) svg.call(flowZoom.transform, st.tf);   // restore this view's pan/zoom
+    else { const scale=Math.min(1,(vw-40)/gw); svg.call(flowZoom.transform, d3.zoomIdentity.translate(20,20).scale(scale)); }
+    st.init=true;
+  }
+}
 
+// ---- Frontier view (default): live tasks + neighbors + important ancestry ----
+// Everything excluded stays reachable: orphans in the "Independent" tray, the
+// rest behind the collapsed "hidden" bar.
+function renderFrontier(d){
+  const {tasks,byId,links}=buildLinks(d);
+  const deg={}; tasks.forEach(t=>deg[t.id]=0); for(const l of links){ deg[l.from]++; deg[l.to]++; }
+  const orphans=tasks.filter(t=>deg[t.id]===0);
+  const keep=frontierSelect(tasks,links,byId);
+  const shown=tasks.filter(t=>deg[t.id]>0 && keep.has(t.id));
+  const hidden=tasks.filter(t=>deg[t.id]>0 && !keep.has(t.id));
+  renderDagSubset('frontier', shown, links, byId);
+  renderHiddenBar(hidden);
   renderFlowOrphans(orphans);
+}
+// ---- Focus view: one node's full ancestry + descendants ----------------------
+function renderFocus(d){
+  const {tasks,byId,links}=buildLinks(d);
+  if(!focusedId || !byId[focusedId]){ setView('frontier'); return; }   // focused node vanished
+  const shown=(k=>tasks.filter(t=>k.has(t.id)))(focusSelect(links,focusedId));
+  renderDagSubset('focus', shown, links, byId);
+  document.getElementById('flowhidden').innerHTML='';
+  document.getElementById('floworphans').innerHTML='';
+}
+
+// compact chip shared by the Independent tray and the hidden bar
+const chipHTML=t=>`<div class="ochip s-${esc(t.status)}" data-key="${esc(t.id)}" title="${esc(t.label)} — ${esc(t.status)}"><span class="odot" style="background:${STATUS_COLOR[t.status]||'#6e7681'}"></span>${esc(truncate(t.label,30))}</div>`;
+// Frontier cut: one-line collapsed bar; expands to status-grouped chips.
+function renderHiddenBar(hidden){
+  const box=document.getElementById('flowhidden');
+  if(!hidden.length){ box.innerHTML=''; return; }
+  const open=box.dataset.open==='1';
+  let html=`<div class="otoggle">${open?'▾':'▸'} ${hidden.length} hidden <span class="muted">(done/notes outside frontier)</span></div>`;
+  if(open){
+    const groups={}; for(const t of hidden) (groups[t.status]=groups[t.status]||[]).push(t);
+    const order=['in_progress','ready','tested','failed','not_ready','done','canceled'];
+    const keys=Object.keys(groups).sort((a,b)=>{const ia=order.indexOf(a),ib=order.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);});
+    html+='<div class="ogroups">';
+    for(const k of keys){
+      html+=`<div class="ogroup"><div class="ogh">${esc(k.replace('_',' '))} <span class="muted">(${groups[k].length})</span></div><div class="ochips">`;
+      for(const t of groups[k]) html+=chipHTML(t);
+      html+='</div></div>';
+    }
+    html+='</div>';
+  }
+  box.innerHTML=html;
+  box.querySelector('.otoggle').onclick=()=>{ box.dataset.open=open?'0':'1'; renderHiddenBar(hidden); };
+  box.querySelectorAll('.ochip').forEach(c=>c.onclick=()=>openDetail(c.dataset.key));
 }
 function renderFlowOrphans(orphans){
   const box=document.getElementById('floworphans');
@@ -4225,7 +4624,7 @@ function renderFlowOrphans(orphans){
     html+='<div class="ogroups">';
     for(const k of keys){
       html+=`<div class="ogroup"><div class="ogh">${esc(hasTime?k:k.replace('_',' '))} <span class="muted">(${groups[k].length})</span></div><div class="ochips">`;
-      for(const t of groups[k]) html+=`<div class="ochip s-${esc(t.status)}" data-key="${esc(t.id)}" title="${esc(t.label)} — ${esc(t.status)}"><span class="odot" style="background:${STATUS_COLOR[t.status]||'#6e7681'}"></span>${esc(truncate(t.label,30))}</div>`;
+      for(const t of groups[k]) html+=chipHTML(t);
       html+='</div></div>';
     }
     html+='</div>';
@@ -4235,7 +4634,11 @@ function renderFlowOrphans(orphans){
   box.querySelectorAll('.ochip').forEach(c=>c.onclick=()=>openDetail(c.dataset.key));
 }
 
-window.addEventListener('resize', ()=>{ if(currentView==='cloud'&&lastState){ cloudSig=''; renderCloud(lastState); } if(currentView==='flow'&&lastState){ flowInit=false; renderFlow(lastState); } });
+window.addEventListener('resize', ()=>{
+  if(!lastState) return;
+  if(currentView==='cloud'){ cloudSig=''; renderCloud(lastState); }
+  else { const v=currentView==='focus'?'focus':'frontier'; dagState[v]={init:false,tf:null}; if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
+});
 // Activity feeds collapsed by default; remembered in localStorage
 function toggleActivityPopup(){ document.getElementById('activityPopup').classList.toggle('show'); }
 document.addEventListener('click', ev=>{ const p=document.getElementById('activityPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.agbtn'))) return; p.classList.remove('show'); });

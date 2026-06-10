@@ -1,6 +1,6 @@
 ---
 name: self-learn-edge-judge
-description: Adjudicate whether RAG-recalled note neighbors are SOUND context edges in the task graph (precision), and prune the blind similarity edges the old autowire pass left behind. The daemon is dumb — it only RECALLS candidates (semantic /search) and surfaces UNVERIFIED edges via /judge/next; YOU are the reasoning that decides keep/prune/create/surface. Use when the daemon has unjudged note edges or orphan notes (GET /judge/next returns items), or as a heartbeat loop step. Conservative by default: similarity is necessary but NOT sufficient — the default verdict is NO edge.
+description: Adjudicate the orchestrator's note GRAPH — whether RAG-recalled note neighbors are SOUND context edges (edge precision), AND whether high-cosine note CLUSTERS are genuine duplicates to consolidate (node dedup). The daemon is dumb — it only RECALLS candidates (semantic /search), surfaces UNVERIFIED edges, and clusters near-duplicate notes via /judge/next; YOU are the reasoning that decides keep/prune/create/consolidate/surface. Use when the daemon has unjudged note edges, orphan notes, or duplicate clusters (GET /judge/next returns items), or as a heartbeat loop step. Conservative by default: similarity is necessary but NOT sufficient — the default edge verdict is NO edge, and two notes must be the SAME fact (not merely related) to consolidate.
 effort: high
 ---
 
@@ -36,13 +36,17 @@ through incrementally, a handful per tick, across many ticks.
 
 ## Item kinds
 
-`/judge/next` returns two kinds:
+`/judge/next` returns three kinds:
 
 - **`edge`** — an UNVERIFIED blind similarity edge (`{judged:false, by:'autowire'}`), with both
   endpoints' `{title, summary, key, kind}`. Decide **keep** or **prune**.
 - **`orphan`** — an under-connected note with `candidates[]`: its top semantic neighbors (looser
   RECALL threshold — recall, not precision), each `{key, title, summary, score, status}`. Decide,
   for each candidate, whether to **create** an edge — and in almost all cases, do NOT.
+- **`dup-cluster`** — a set of CURRENT notes whose embeddings cluster above a cosine RECALL bar
+  (~0.80), carrying `keys[]` + `notes[]` (`{key, title, summary, created_at}`). RECALL is loose by
+  design (it WILL over-merge a related series into one cluster); YOU supply precision: decide whether
+  the cluster is genuinely ONE fact and **consolidate** it, or **surface** an ambiguous/distinct one.
 
 ## Reasoning criteria (CONSERVATIVE — default is NO edge)
 
@@ -55,12 +59,27 @@ act correctly?** Topical nearness is not enough.
 - **`context` (+ direction).** One note's fact is a genuine PREREQUISITE to correctly understand or
   use the other. `from` = the prerequisite PROVIDER, `to` = the consumer. (A root-cause finding →
   the task that fixes exactly that root cause is the canonical keep.)
-- **`surface-supersede`.** The two state the SAME fact but one is newer/corrected (not merely
-  similar). Do NOT apply it — `surfaceSupersede` raises a guidance item for a human to confirm.
-  NEVER stamp `validTo` / mutate the timeline yourself.
 - **UNVERIFIED edge:** keep ONLY if it clears the `context` bar above; otherwise prune. A dangling
   edge (an endpoint whose note no longer exists — `kind` comes back undefined / title falls back to
   the key) is always a prune.
+
+### Dedup criteria (dup-cluster items)
+
+The bar is **same FACT**, not same topic. Two notes that merely cite the same subject, or two
+measurements from different runs/regimes, are DISTINCT — do NOT consolidate them.
+
+- **`consolidate` (CONFIDENT same-fact).** The notes assert the SAME fact (e.g. three near-identical
+  `[ingest]` re-statements of one finding, or a raw note + its explicit correction). Pick the
+  **keeper** = newest by `created_at` (tie-break: most complete summary); `supersede` the rest. This
+  is SAFE and reversible — `supersedeNote` stamps `validTo` (it does NOT delete; as-of retrieval
+  recovers the note) and the daemon re-points the cluster's context edges onto the keeper.
+- **Mixed cluster (false-positive merge).** Recall clustered a related SERIES of distinct facts (e.g.
+  benchmark v2/v3/v4/v5 verdicts). Consolidate ONLY the true-duplicate subset (e.g. a raw verdict and
+  its explicit correction) and `surfaceCluster` the residual distinct notes — ONE cluster-level
+  guidance item, never per-pair.
+- **`surfaceCluster` (UNSURE).** If you can't confidently call two notes the SAME fact vs merely
+  RELATED, do NOT consolidate — surface the cluster for a human. Conservative bias: a missed merge is
+  cheap (re-offered when membership changes); a wrong merge hides a distinct fact.
 
 ## Verdict shapes (POST /judge/verdict)
 
@@ -72,8 +91,10 @@ act correctly?** Topical nearness is not enough.
   { "pruneEdge": { "from": "note:…", "to": "…" } },
   // create a REASONED edge from an orphan's candidate (note is the PROVIDER = from):
   { "createEdge": { "from": "note:…", "to": "…", "weight": 0.6 } },
-  // propose-and-surface a supersede for human confirmation (NEVER auto-applied):
-  { "surfaceSupersede": { "old": "note:…", "new": "note:…", "why": "newer measurement corrects the old figure" } },
+  // CONSOLIDATE a confirmed duplicate cluster: keep newest, supersede the rest (auto-applied, reversible):
+  { "consolidate": { "keep": "note:…", "supersede": ["note:…", "note:…"], "why": "three re-statements of one fact; keep newest" } },
+  // SURFACE one ambiguous/distinct cluster as a SINGLE guidance item (never per-pair):
+  { "surfaceCluster": { "keys": ["note:…", "note:…"], "why": "related benchmark series of DISTINCT verdicts, not duplicates" } },
   // a 'NO edge' verdict for an orphan still marks it judged so it isn't re-pulled until epoch grows:
   { "markJudged": "note:…" }
 ] }
@@ -99,7 +120,10 @@ directly. The verdict endpoint is idempotent.
 - **Conservative bias.** Most candidates and most unverified edges should be NO edge / prune. A graph
   of a few load-bearing edges beats a similarity clique. If you're keeping the majority, you're too
   loose.
-- **Never auto-supersede.** `surfaceSupersede` is propose-only; the human stamps the timeline.
+- **Same fact, not same topic.** Consolidate only genuine duplicates; a related SERIES of distinct
+  measurements/verdicts is NOT a duplicate — consolidate the true-dup subset and surface the rest.
+  Consolidation is reversible (supersede stamps `validTo`, never deletes), but a wrong merge still
+  hides a distinct fact until a human notices — so when unsure, `surfaceCluster` instead.
 - **Budget discipline.** ≤ N items/tick. The cursor handles continuity — don't try to drain it in one
   pass.
 - **No new daemon behavior.** Only `/judge/next` + `/judge/verdict`. All intelligence is here.

@@ -28,8 +28,11 @@ Probed from a real `~/.claude/` install:
   `~/.claude/projects/{encoded-workspace}/`.
 - **Schema:** `{ id, subject, description, activeForm, status, blocks[], blockedBy[] }`.
   `status` ∈ `pending | in_progress | completed | deleted`.
-- **Persistence:** durable and indefinite (months-old task files still present). We do **not**
-  need to copy tasks for durability.
+- **Persistence:** bounded by the `cleanupPeriodDays` retention sweep, which (since ~v2.1.118)
+  also covers `~/.claude/tasks/` — native task files can be garbage-collected out from under
+  long-lived graph nodes. Mitigation: when a task reaches a terminal status the daemon snapshots
+  its native fields into the overlay, and `aggregateWorkspace` serves the snapshot when the
+  native file is gone, so graph history survives the sweep.
 - **Dependencies:** real — `blocks`/`blockedBy`, set via `TaskUpdate addBlocks/addBlockedBy`,
   with automatic gating ("a pending task with unresolved dependencies cannot be claimed").
 - **Sharing:** **none across sessions.** Each session has its own isolated task dir. Two
@@ -43,7 +46,7 @@ Probed from a real `~/.claude/` install:
 | Native (source of truth, read-only) | Our layer (we own) |
 |---|---|
 | task status, subject, **intra-session** `blocks`/`blockedBy` | **cross-session dependency edges** (`sess/id → sess/id`) |
-| durable per-session JSON files | **workspace→sessions→tasks union index** |
+| per-session JSON files (durable until the retention sweep) | **workspace→sessions→tasks union index + terminal-status snapshots** |
 | `pending`/`in_progress`/`completed` | **richer statuses** (`not_ready`,`ready`,`tested`,`failed`,`canceled`) as enrichment |
 | per-session task panel | **unified workspace web DAG + status line + router** |
 
