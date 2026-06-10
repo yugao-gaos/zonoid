@@ -172,6 +172,15 @@ chk "loop self-exits on stop"   "$(ldec "$LID2" .reason)"                       
 chk "loop.active cleared"       "$(g "loop/status?loopId=$LID2" | jq -r .active)" "false"
 rm -rf "$SST" "$SSP/$SS.jsonl"
 
+# bootstrap grace regression: a BRAND-NEW session-bound loop has no RUNNING agent and no touched
+# claim until its first spawn, so sessionIsLive reads false on the first tick. sweepStaleLoops must
+# NOT demote it as session-dead inside the grace window — next-action must still tick it.
+SG=77777777-0000-0000-0000-000000000003
+LID3=$(jpost loop/start "$(printf '{"maxIterations":50,"session":"%s"}' "$SG")" | jq -r .loopId)
+chk "fresh session-bound loop is ticked (not swept)" "$(ldec "$LID3" .loopId)" "$LID3"
+chk "no session-dead sweep during bootstrap grace"   "$(g "loop/status?loopId=$LID3" | jq -r .sweptReason)" "null"
+jpost loop/stop "$(printf '{"loopId":"%s"}' "$LID3")" >/dev/null
+
 # target-repo decoupling: workspace (/tmp/orch-smoke) is NOT a git repo (the dogfood case), so a
 # task carries a SEPARATE target repo path; /git/* resolve it (explicit > task field > workspace).
 GREPO=$(mktemp -d /tmp/orch-smoke-repo.XXXXXX); GK="$S/1"   # a real native task, so /task/detail finds it
