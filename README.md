@@ -398,6 +398,31 @@ graph, defaulting to the current one when omitted. This lets a single daemon rea
 workspaces without a restart. **Limitation (by design):** *writes* (`/overlay/*`, `/reset`,
 loop control) still target the **current** workspace only.
 
+### Structural follow-ups (`complete_task.follow_ups`)
+A worker that discovers follow-up work ("daemon needs restart", "backfill out of scope") used to
+leave it as **prose** in its completion summary — and nothing acted on it. `complete_task` now
+takes an optional `follow_ups: [{ title, prompt, when?, disruptive? }]`. On `done`, the daemon
+turns each item into a **graph task** (an overlay-originated, snapshot-backed node — never a write
+into the read-only `~/.claude/tasks/`) whose description carries the self-contained `prompt`, plus
+a **context edge** from the completed parent so its summary flows in as Tier-1 context. Routing:
+
+- **asap** (no `when`, `"asap"`, or a past timestamp) → the node derives `ready`; the existing
+  heartbeat loop (`next_action`) picks it up. Nothing else fires.
+- **timed** (future ISO `when`, not disruptive) → the node is held `not_ready` (so the loop can't
+  fire it early) and a **one-time native scheduled task** is written:
+  `~/.claude/scheduled-tasks/<id>/SKILL.md` (instructs the future session to `start_task` → run
+  the prompt → `complete_task`) plus an armed `{ fireAt, enabled }` entry in the desktop app's
+  central registry. If the registry can't be found, the response says `armed:false` — arm it
+  manually. *Known limitation:* daemon-written scheduled tasks carry **no stored tool approvals**,
+  so a first unattended run may pause on permission prompts.
+- **disruptive** (`disruptive:true`, any `when`) → never auto-fires. A severity-`review` guidance
+  item queues for the user (review items don't pause the loop); the task stays `not_ready` until
+  `/guidance/resolve` answers **approve** (released to `ready`) or **reject** (canceled). Any other
+  answer is recorded as text and the task stays gated.
+
+Malformed items (missing `title`/`prompt`, bad `when`) are rejected with a 400 **before** the
+completion lands. Logic lives in `lib/followups.js`; the MCP tool schema documents the shape.
+
 ---
 
 ## Install as a plugin

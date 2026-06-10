@@ -19,6 +19,7 @@ const optimize = require('./lib/optimize');
 const { embed, cosine, DIMS } = require('./lib/embed');
 const judge = require('./lib/judge');
 const delta = require('./lib/delta');
+const followups = require('./lib/followups');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -1381,6 +1382,12 @@ const handler = async (req, res) => {
           result.decision = 'consolidate'; result.keep = keepKey; result.superseded = supersededNow;
         }
         overlayStore.resolveGuidance(T.ov, b.id, b.decision);
+      } else if (action && action.kind === 'follow-up' && (b.decision === 'approve' || b.decision === 'reject')) {
+        // Gated (disruptive) follow-up: 'approve' drops the not_ready override so the task
+        // re-derives READY and the loop picks it up; 'reject' cancels it (terminal + cancel flag).
+        const fr = followups.resolveGate(T.ov, action, b.decision);
+        if (fr) Object.assign(result, fr);
+        overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
       } else {
         overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
       }
@@ -1568,6 +1575,13 @@ const handler = async (req, res) => {
       const b = await readBody(req);
       const T = targetOverlay(b, u);
       if (!ALL_STATUSES.includes(b.status)) return send(res, 400, { ok: false, error: 'invalid status', allowed: ALL_STATUSES });
+      // Optional structural follow-ups (complete_task only): validate UP FRONT so a malformed
+      // payload 400s before ANY state lands (no half-applied completion). See lib/followups.js.
+      if (b.follow_ups != null) {
+        if (b.status !== 'done') return send(res, 400, { ok: false, error: 'follow_ups only allowed with status "done"' });
+        const fErr = followups.validate(b.follow_ups);
+        if (fErr) return send(res, 400, { ok: false, error: fErr });
+      }
       if (b.status === 'done' && T.ov.config.require_review && T.ov.status[b.key] !== 'tested')
         return send(res, 409, { ok: false, error: 'review required: task must be "tested" before "done" (require_review policy is on)' });
       const cur = T.ov.status[b.key];
@@ -1610,12 +1624,31 @@ const handler = async (req, res) => {
       // Terminal status: snapshot the native fields into the overlay before the retention sweep
       // can garbage-collect the native file (see snapshotNative).
       if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) snapshotNative(T.ov, b.key, ns);
+      // Structural follow-ups: each validated item becomes an overlay-originated graph task
+      // (snapshot-backed node, key 'followup/<id>', description = the prompt) with a context edge
+      // from THIS completed task so its summary flows in as Tier-1 context. Routing: ready (the
+      // heartbeat loop drains it) / scheduled (one-time NATIVE scheduled task fires it at `when`)
+      // / gated (severity-'review' guidance; released or canceled on the user's answer). The
+      // scheduled-task fs write is best-effort — the graph task exists either way; `armed:false`
+      // in the response means the fireAt must be armed manually. See lib/followups.js + README.
+      let followUpResults = null;
+      if (b.status === 'done' && Array.isArray(b.follow_ups) && b.follow_ups.length) {
+        followUpResults = followups.apply(T.ov, b.key, b.follow_ups);
+        for (const r of followUpResults) {
+          if (r.routing === 'scheduled') {
+            const w = followups.writeScheduledTask({ id: r.key.slice('followup/'.length), title: r.title, prompt: r.prompt, taskKey: r.key, when: r.when, fireAt: r.fireAt, cwd: T.ws });
+            r.armed = w.armed; if (w.skillPath) r.skill = w.skillPath; if (w.note) r.note = w.note; if (w.error) r.error = w.error;
+          }
+          delete r.prompt; // lean response — the prompt lives on the node (description) already
+        }
+        cache.agg.delete(T.ws); cache.aggAt.delete(T.ws); // new snapshot nodes appear in the very next build
+      }
       T.save();
       // Write-through to the native task file so ~/.claude/tasks doesn't drift from the overlay.
       // Daemon writes via fs (no edit-gate), best-effort. Skip statuses with no native mapping.
       if (ns && b.key) { const i = String(b.key).indexOf('/'); if (i > 0) nt.writeStatus(b.key.slice(0, i), b.key.slice(i + 1), ns); }
       notifyChange();
-      return send(res, 200, { ok: true });
+      return send(res, 200, followUpResults ? { ok: true, follow_ups: followUpResults } : { ok: true });
     }
 
     // Attach a Tier-2 knowledge item (file/snippet/link/note) to a task.
