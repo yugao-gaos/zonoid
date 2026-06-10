@@ -1,0 +1,29 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "__INSTALL_DIR__/hooks/statusline.sh",
+    "refreshInterval": 2
+  },
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "__INSTALL_DIR__/hooks/orch-stop.sh" }] },
+      { "matcher": "Write|Edit", "hooks": [{ "type": "command", "command": "__INSTALL_DIR__/hooks/orch-gate.sh" }] }
+    ],
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "__INSTALL_DIR__/hooks/start-daemon.sh", "timeout": 8 }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "__INSTALL_DIR__/hooks/classify.sh", "timeout": 10 }] }
+    ],
+    "SubagentStart": [
+      { "hooks": [{ "type": "command", "command": "__INSTALL_DIR__/hooks/subagent-start.sh" }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "__INSTALL_DIR__/hooks/subagent-stop.sh" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Agent|Task", "hooks": [{ "type": "command", "command": "__INSTALL_DIR__/hooks/post-agent.sh" }] },
+      { "matcher": "TaskCreate", "hooks": [{ "type": "command", "command": "__INSTALL_DIR__/hooks/suggest-links.sh" }] }
+    ]
+  }
+}

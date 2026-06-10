@@ -9,7 +9,7 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const REPO = process.argv[2] || '__INSTALL_DIR__';
+const REPO = process.argv[2] || path.resolve(__dirname, '..');
 const OUT_DIR = path.join(REPO, 'bench', 'ingest');
 const OUT_FILE = path.join(OUT_DIR, 'git-notes.json');
 

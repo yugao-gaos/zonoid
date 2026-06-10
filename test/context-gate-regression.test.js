@@ -4,7 +4,7 @@
 //
 // SLOW + environment-dependent: prefers REAL semantic scoring (MiniLM via lib/embed.js — lazy-loaded,
 // the first call can take ~10-90s while the model loads/downloads) over the LIVE workspace overlay
-// (the actual KB note nodes + vectors for __WORKSPACE__). If either the model or the
+// (the actual KB note nodes + vectors for ZONOID_WORKSPACE). If either the model or the
 // overlay is unavailable the suite SKIPS gracefully (exit 0 with a loud warning) — the thresholds are
 // calibrated for the semantic path, so a lexical-fallback grade would be meaningless.
 //
@@ -31,7 +31,9 @@ const { gateTask } = require('../lib/context-gate');
 const { embed, cosine } = require('../lib/embed');
 const overlay = require('../lib/overlay');
 
-const WORKSPACE = '__WORKSPACE__';
+if (process.env.ZONOID_SKIP_LIVE) { console.log('SKIP  context-gate regression suite: ZONOID_SKIP_LIVE set'); process.exit(0); }
+const WORKSPACE = process.env.ZONOID_WORKSPACE || '';
+if (!WORKSPACE) { console.log('SKIP  context-gate regression suite: set ZONOID_WORKSPACE=/path/to/workspace'); process.exit(0); }
 const SPECS = path.join(__dirname, '..', 'bench', 'heldout', 'specs');
 
 // case id -> expected gate decision (ground truth from the held-out arc; see header).

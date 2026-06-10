@@ -26,7 +26,9 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 
 const REPO = path.join(__dirname, '..');
-const LIVE_WS = '__WORKSPACE__';
+if (process.env.ZONOID_SKIP_LIVE) skip('ZONOID_SKIP_LIVE set');
+const LIVE_WS = process.env.ZONOID_WORKSPACE || '';
+if (!LIVE_WS) skip('set ZONOID_WORKSPACE=/path/to/workspace to run live tests');
 const SPECS = path.join(REPO, 'bench', 'heldout', 'specs');
 const REAL_BASE = path.join(os.homedir(), '.claude', 'orchestrator');
 

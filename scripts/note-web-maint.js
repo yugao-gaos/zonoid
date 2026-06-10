@@ -10,7 +10,7 @@ const ov = require('../lib/overlay');
 const { embed, DIMS } = require('../lib/embed');
 const { autowireNoteProvider, SEMANTIC_AUTOWIRE_THRESHOLD } = require('../daemon');
 
-const WS = '__WORKSPACE__';
+const WS = process.env.ZONOID_WORKSPACE || process.cwd();
 const DAEMON = process.env.ORCH_DAEMON || 'http://localhost:8787';
 
 function arg(name, def) { const i = process.argv.indexOf('--' + name); return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : def; }

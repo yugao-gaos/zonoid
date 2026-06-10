@@ -15,10 +15,10 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const REPO = '__INSTALL_DIR__';
+const REPO = process.env.ZONOID_REPO || path.resolve(__dirname, '..');
 const CLAUDE = '/opt/homebrew/bin/claude';
 const HT = path.join(REPO, 'bench', 'heldout');
-const ORCH_WORKSPACE = '__WORKSPACE__';
+const ORCH_WORKSPACE = process.env.ZONOID_WORKSPACE || process.cwd();
 const TIMEOUT_S = 600;
 
 function arg(name, def) {

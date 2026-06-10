@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const REPO = '__INSTALL_DIR__';
+const REPO = process.env.ZONOID_REPO || path.resolve(__dirname, '..');
 const CLAUDE = '/opt/homebrew/bin/claude';
 const MODEL = (function () {       // PINNED for ALL runs (A/B parity); default opus per user choice.
   const i = process.argv.indexOf('--model');
@@ -45,7 +45,7 @@ const ACCEPTANCE = {
 };
 
 // ON arm joins the REAL cloude graph (read context) without hijacking the daemon workspace.
-const ORCH_WORKSPACE = '__WORKSPACE__';
+const ORCH_WORKSPACE = process.env.ZONOID_WORKSPACE || process.cwd();
 // Permissive (default): the agent MAY consult the graph. Mandatory (--consult=mandatory): the agent
 // MUST call get_learnings and apply prior verdicts/rejected approaches before writing any code. Both
 // keep the graph strictly READ-ONLY. OFF arm gets no preamble in either mode.
