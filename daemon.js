@@ -25,6 +25,7 @@ const { gateTask } = require('./lib/context-gate');
 const costflow = require('./lib/costflow');
 const humanInput = require('./lib/human-input');
 const frontier = require('./lib/frontier');
+const analytics = require('./lib/analytics');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -113,6 +114,12 @@ try { const a = JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf8')); if (a && typeo
 // Post-restart the daemon can't vouch for any agent it "remembers" as running — demote them so
 // the liveness sweep can reclaim their stale claims; a genuinely-live agent re-asserts on its next touch.
 for (const x of Object.values(state.agents)) if (x && x.state === 'running') x.state = 'unknown';
+
+// MCP tool-usage counters (persisted; see lib/analytics.js). Recorded via POST /analytics/tool-call
+// beacons fired by mcp-core's tools/call dispatch on BOTH transports; flushed debounced.
+const ANALYTICS_FILE = path.join(BASE, 'tool-analytics.json');
+const analyticsState = analytics.load(ANALYTICS_FILE);
+const analyticsFlush = analytics.makeFlusher(ANALYTICS_FILE, analyticsState);
 
 // SSE: push a "changed" event to connected dashboards on every mutation (live updates without polling).
 const sseClients = new Set();
@@ -1105,7 +1112,7 @@ const handler = async (req, res) => {
     // Public reads of the CURRENT workspace + the dashboard stay open; any ?workspace= read is gated too.
     const protectedPath = p === '/mcp' || p === '/reset' || p.startsWith('/overlay/') || p === '/loop/start' || p === '/loop/stop'
       || p === '/workspace' || p === '/peek' || p === '/config' || p === '/route' || p.startsWith('/agent/') || p.startsWith('/git/')
-      || p.startsWith('/guidance') || p === '/supersede' || p === '/judge/verdict';
+      || p.startsWith('/guidance') || p === '/supersede' || p === '/judge/verdict' || p === '/analytics/tool-call';
     if ((protectedPath || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 
     if (p === '/ping') return send(res, 200, { ok: true, workspace: state.workspace });
@@ -1147,6 +1154,22 @@ const handler = async (req, res) => {
       try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(WS_FILE, b.path); } catch { /* best effort */ }
       return send(res, 200, { ok: true, workspace: state.workspace });
     }
+
+    // MCP tool-usage analytics. The beacon (write) is fired by mcp-core.handleRpc on every
+    // tools/call from either transport; the report (read) enumerates the FULL tool registry so
+    // never-called tools show up as zero rows — the empirical basis for pruning decisions.
+    if (p === '/analytics/tool-call' && m === 'POST') {
+      const b = await readBody(req);
+      if (!b.tool || typeof b.tool !== 'string') return send(res, 400, { ok: false, error: 'tool required' });
+      analytics.record(analyticsState, b.tool, !!b.error, b.workspace || state.workspace || null);
+      analyticsFlush.soon();
+      return send(res, 200, { ok: true });
+    }
+    if (p === '/analytics/tools' && m === 'GET') {
+      const tools = analytics.report(analyticsState, mcpCore.TOOLS.map((t) => t.name));
+      return send(res, 200, { ok: true, total_calls: tools.reduce((s2, t) => s2 + t.total, 0), tools });
+    }
+    if (p === '/analytics' && m === 'GET') return send(res, 200, fs.readFileSync(path.join(PUBLIC, 'analytics.html'), 'utf8'), 'text/html; charset=utf-8');
 
     // Format-health + status — fails loud if the native task format drifts.
     if (p === '/health') {
