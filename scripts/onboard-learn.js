@@ -370,11 +370,11 @@ function queueStatus(outDir) {
     process.exit(2);
   }
   const repoAbs = path.resolve(repo);
-  const inDir = path.resolve(arg('in', path.join(SELF_REPO, 'bench', 'onboard', path.basename(repoAbs))));
+  const inDir = path.resolve(arg('in', path.join(repoAbs, '.graph', 'onboard')));
   const outDir = inDir; // output always co-located with input
   const notesFile = path.join(inDir, 'onboard-notes.json');
 
-  if (has('inject')) { await inject(notesFile, has('confirm'), arg('workspace', null)); return; }
+  if (has('inject')) { await inject(notesFile, has('confirm'), arg('workspace', repoAbs)); return; }
 
   if (has('queue-status')) { queueStatus(outDir); return; }
 

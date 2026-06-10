@@ -56,13 +56,38 @@ If the user wants it: show the change, get explicit confirmation, then merge
 `.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"` into `~/.claude/settings.json`; note it needs
 a Claude Code restart. The tool works without it ("team" routing falls back to Workflow).
 
-## 6. First-run KB onboarding (drop-in entry, human-gated)
+## 6. Scheduled tasks (idempotent install)
+
+Two scheduled tasks are required infrastructure — install them if missing.
+
+**Detect state:** call `mcp__scheduled-tasks__list_scheduled_tasks`. Check for `nightly-orchestrator-qa` and `orch-loop-recovery`. Install only what's missing.
+
+**`nightly-orchestrator-qa`** — deep self-learn QA sweep, runs at 2:09am daily:
+- cronExpression: `9 2 * * *`
+- description: `Nightly self-learn QA sweep over the orchestrator task graph (daemon :8787), per skills/self-learn-qa`
+- prompt: `Invoke the self-learn-qa skill. Workspace: /Users/imyu/Desktop/cloude. Orchestrator daemon: http://localhost:8787.`
+
+**`orch-loop-recovery`** — recovery driver, runs every 5 minutes:
+- cronExpression: `*/5 * * * *`
+- description: `Recovery driver: keeps the orchestrator task graph moving by ensuring an active loop exists and polling next_action every 5 minutes`
+- notifyOnCompletion: false
+- prompt:
+  > You are the orchestrator recovery driver for the workspace at /Users/imyu/Desktop/cloude. Your job is lightweight: ensure the task graph keeps moving. Run fast, do the minimum.
+  >
+  > 1. Call `mcp__orchestrator-graph__next_action`. If empty `loops` array, go to step 2. If entries exist, go to step 3.
+  > 2. No active loop — call `mcp__orchestrator-graph__get_full_graph` (scope: "frontier"). If `ready` tasks exist: call `loop_control({ action: "start", tokenBudget: 80000, maxIterations: 100, minPoll: 30, maxPoll: 300, batch: 4, maxConcurrency: 6 })`, then `next_action` again, go to step 3. If no `ready` tasks: exit silently.
+  > 3. Act on each loop entry: `stop`/`idle` → nothing. `spawn` → for each task dispatch a background subagent (Agent tool, run_in_background: true) with prompt: "You are a worker agent. TASK_ID: <key> (<label>). Workspace: /Users/imyu/Desktop/cloude. Daemon: http://localhost:8787. Call start_task(TASK_ID, agent_id), do the work, then complete_task(TASK_ID, summary) on success or set_status(TASK_ID, 'failed', reason) on failure. Never exit silently." `judge_edges`/`plan`/`optimize`/`await_user` → ignore.
+  > 4. Done. Do not reschedule. Never call request_guidance. If daemon unreachable, exit silently.
+
+After installing, tell the user to click **"Run now"** on `orch-loop-recovery` in the Scheduled sidebar to pre-approve tool permissions for future unattended runs.
+
+## 7. First-run KB onboarding (drop-in entry, human-gated)
 When setup runs in a **new repo** (one with no KB bootstrapped yet), offer to onboard it so a
 fresh project gets a starter knowledge base. This is the drop-in entry point.
 
 **Detect first-run** (skip if already onboarded — the entry is idempotent):
 - `REPO="$(git -C . rev-parse --show-toplevel 2>/dev/null)"` — the target repo.
-- `ls "$BASE/bench/onboard/$(basename "$REPO")/.onboarded"` — present ⇒ already onboarded, skip.
+- `ls "$REPO/.graph/.onboarded"` — present ⇒ already onboarded, skip.
 
 **Then, only if missing, trigger the entry point:**
 ```
@@ -77,8 +102,8 @@ mined candidates without spawning the validation agent.)
 approval. Injection is a SEPARATE explicit step that reuses the reversible `[ingest]` overlay-note
 gate — never run it automatically:
 ```
-node "$BASE/scripts/onboard-learn.js" --repo "$REPO" --inject            # dry-run plan
-node "$BASE/scripts/onboard-learn.js" --repo "$REPO" --inject --confirm  # inject (human-approved)
+node "$BASE/scripts/onboard-learn.js" --repo "$REPO" --in "$REPO/.graph/onboard" --inject            # dry-run plan
+node "$BASE/scripts/onboard-learn.js" --repo "$REPO" --in "$REPO/.graph/onboard" --inject --confirm  # inject (human-approved)
 ```
 **Honesty:** `onboard.js` has no inject path of its own; the `--confirm` gate cannot be reached
 from the setup trigger. Every injected node is titled `[ingest] …` and stays filterable/removable.

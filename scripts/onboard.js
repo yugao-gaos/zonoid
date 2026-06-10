@@ -121,8 +121,8 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
     console.error(`[onboard] not a git repo: ${repoAbs}`);
     process.exit(2);
   }
-  const outDir = path.resolve(arg('out', path.join(SELF_REPO, 'bench', 'onboard', path.basename(repoAbs))));
-  const marker = path.join(outDir, '.onboarded');
+  const outDir = path.resolve(arg('out', path.join(repoAbs, '.graph', 'onboard')));
+  const marker = path.join(repoAbs, '.graph', '.onboarded');
 
   // ---- first-run gate: skip an already-onboarded repo unless --force ----
   if (fs.existsSync(marker) && !has('force')) {
@@ -175,6 +175,7 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
   const bundle = writeReviewBundle(repoAbs, outDir, kept, rejected, injectCmd);
 
   // Mark onboarded so the setup-flow trigger is idempotent.
+  fs.mkdirSync(path.join(repoAbs, '.graph'), { recursive: true });
   fs.writeFileSync(marker, JSON.stringify({ repo: repoAbs, at: new Date().toISOString(), kept: kept.length }) + '\n');
 
   console.error('');
