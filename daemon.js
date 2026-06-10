@@ -2367,6 +2367,88 @@ const handler = async (req, res) => {
     }
     if (p === '/next-action') { const r = decideAll(); saveLoops(); return send(res, 200, { loops: r }); }
 
+    // Multi-signal classifier: embed prompt, run context gate, compute rag/dag/complexity scores.
+    // Input: { prompt: string }
+    // Output: { rag_score, dag_score, complexity, gate_decision, top_notes?, scaffold_keys? }
+    if (p === '/context-classify' && m === 'POST') {
+      const b = await readBody(req);
+      const prompt = String(b.prompt || '').trim();
+      if (!prompt) return send(res, 400, { ok: false, error: 'prompt required' });
+
+      const g = buildGraph(state.workspace);
+
+      // --- complexity score ---
+      const words = prompt.split(/\s+/).filter(Boolean).length;
+      let complexity = words < 15 ? 0.2 : words <= 40 ? 0.5 : 0.8;
+      if (/\b(audit|migrate|refactor|all\s+files|entire|sweep)\b/i.test(prompt)) complexity = Math.min(1.0, complexity + 0.2);
+
+      // --- dag_score: lexical token overlap with current notes + done tasks ---
+      const { contentTokens: ctTokens } = require('./lib/context-gate');
+      const promptToks = new Set(ctTokens(prompt));
+      const dagCandidates = g.tasks.filter((t) => {
+        if (t.kind === 'note') return !t.validTo;
+        return t.status === 'done';
+      });
+      const dagScored = dagCandidates.map((t) => {
+        const text = `${t.label || ''} ${t.summary || ''}`;
+        const toks = ctTokens(text);
+        const shared = toks.filter((tok) => promptToks.has(tok));
+        return { t, shared: shared.length, key: t.id, label: t.label || '' };
+      }).filter((x) => x.shared >= 2);
+      const dag_score = Math.min(1.0, dagScored.length / 10);
+
+      // --- rag_score + gate_decision via gateTask ---
+      const noteCands = g.tasks
+        .filter((n) => (n.kind || 'task') === 'note' && !n.validTo)
+        .map((n) => ({ key: n.id, title: n.label, summary: n.summary, vec: n.vec }));
+
+      let gateResult;
+      try {
+        gateResult = await Promise.race([
+          gateTask({ label: prompt }, noteCands, { embedQuery: embed, cosine }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1800)),
+        ]);
+      } catch (_) {
+        // timeout or embed not ready — lexical fallback
+        const { contentTokens: ct2 } = require('./lib/context-gate');
+        const qt = new Set(ct2(prompt));
+        gateResult = await gateTask({ label: prompt }, noteCands, {
+          lexScore: (_qText, n) => {
+            const nt = ct2(`${n.title || ''} ${n.summary || ''}`);
+            return nt.filter((t) => qt.has(t)).length / Math.max(nt.length, 1);
+          },
+        });
+      }
+
+      const rag_score = gateResult.top1 || 0;
+
+      // gate_decision: inject | scaffold | abstain
+      let gate_decision;
+      if (gateResult.decision === 'inject') {
+        gate_decision = 'inject';
+      } else if (dag_score >= 0.4) {
+        gate_decision = 'scaffold';
+      } else {
+        gate_decision = 'abstain';
+      }
+
+      const result = { rag_score, dag_score, complexity, gate_decision };
+
+      if (gate_decision === 'inject') {
+        const topKey = gateResult.topKey;
+        const topNote = noteCands.find((n) => n.key === topKey);
+        const others = noteCands.filter((n) => n.key !== topKey).slice(0, 4);
+        result.top_notes = [topNote, ...others].filter(Boolean).map((n) => ({
+          key: n.key, title: n.title, summary: String(n.summary || '').slice(0, 200),
+        }));
+      } else if (gate_decision === 'scaffold') {
+        dagScored.sort((a, b) => b.shared - a.shared);
+        result.scaffold_keys = dagScored.slice(0, 3).map((x) => ({ key: x.key, label: x.label }));
+      }
+
+      return send(res, 200, result);
+    }
+
     if (p === '/route' && m === 'POST') {
       const b = await readBody(req);
       state.routes.push({ ts: now(), prompt: String(b.prompt || '').slice(0, 280), decision: b.decision || 'solo', reason: String(b.reason || '').slice(0, 280) });
