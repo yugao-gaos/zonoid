@@ -14,8 +14,16 @@
       "role": "Fixed acceptance test for bench/sandbox/task-tokens.js — DO NOT EDIT."
     },
     {
+      "id": "bench/temporal/run.js",
+      "role": "Temporal / state-change retrieval benchmark runner."
+    },
+    {
       "id": "daemon.js",
       "role": "Orchestrator daemon: serves a per-WORKSPACE task graph built ON TOP of native Claude Code tasks (read live, source of truth) plus our overlay (cross-session ..."
+    },
+    {
+      "id": "lib/embed.js",
+      "role": "Local semantic embeddings for the knowledge graph — NO hosted API, NO vector DB."
     },
     {
       "id": "lib/git.js",
@@ -58,6 +66,14 @@
       "role": "Plain Node test for scripts/bench-report.js (no framework; matches test/token-attr.test.js style)."
     },
     {
+      "id": "scripts/extract-decisions.js",
+      "role": "extract-decisions.js — PROPOSE durable-decision note nodes from a conversation turn, behind the same reviewable candidate-bundle / accept-gate as bench/inges..."
+    },
+    {
+      "id": "scripts/gc-worktrees.js",
+      "role": "gc-worktrees.js — conservative worktree GC / retention sweep."
+    },
+    {
       "id": "scripts/ingest-docs.js",
       "role": "ingest-docs.js — distill the repo's rationale docs (README, CLAUDE.md, SKILL.md, ADRs) into candidate note nodes for the self-learning graph."
     },
@@ -70,12 +86,68 @@
       "role": "ingest-structure - extract the orchestrator's STATIC module-dependency graph."
     },
     {
+      "id": "scripts/onboard-harness.js",
+      "role": "onboard-harness.js — HONEST cold-vs-KB onboarding-COMPETENCE harness + LLM judge."
+    },
+    {
+      "id": "scripts/onboard-learn.js",
+      "role": "onboard-learn.js — AGENTIC project learner."
+    },
+    {
+      "id": "scripts/onboard-loop.js",
+      "role": "onboard-loop.js — the ONBOARDING LEARNING LOOP: deepen the KB until competence plateaus."
+    },
+    {
+      "id": "scripts/onboard-mine-docs.js",
+      "role": "onboard-mine-docs.js — generalized rationale-doc miner for ANY repo."
+    },
+    {
+      "id": "scripts/onboard-mine-git.js",
+      "role": "onboard-mine-git.js — generalized git-history miner for ANY repo."
+    },
+    {
+      "id": "scripts/onboard-mine-structure.js",
+      "role": "onboard-mine-structure.js — generalized static module-dependency miner for ANY repo."
+    },
+    {
+      "id": "scripts/onboard-probes.js",
+      "role": "onboard-probes.js — onboarding-competence probe SCHEMA + validator."
+    },
+    {
+      "id": "scripts/onboard.js",
+      "role": "onboard.js — DROP-IN onboarding entry point."
+    },
+    {
+      "id": "scripts/retrieval-bench.js",
+      "role": "retrieval-bench.js — retrieval-quality benchmark for search_knowledge (/search)."
+    },
+    {
+      "id": "scripts/rewire-notes.js",
+      "role": "Backfill orphan NOTE nodes: every note currently with ZERO edges is replayed through the daemon's provider auto-wiring (POST /overlay/note/rewire), which wri..."
+    },
+    {
+      "id": "test/autowire-note.test.js",
+      "role": "Plain Node test for auto-wiring a NOTE as a context PROVIDER in daemon.js (no framework; matches test/autowire.test.js style)."
+    },
+    {
       "id": "test/autowire.test.js",
       "role": "Plain Node test for auto-wiring new tasks in daemon.js (no framework; matches test/weighted-edges.test.js style)."
     },
     {
       "id": "test/benchmark.test.js",
       "role": "Plain Node test for the researched competitor/industry-average benchmark: overlay.setBenchmark set/clear, save/load persistence, back-compat load of an old o..."
+    },
+    {
+      "id": "test/embed.test.js",
+      "role": "Plain Node test (no framework; matches test/search-knowledge.test.js style) for local-embedding semantic retrieval."
+    },
+    {
+      "id": "test/extract-decisions.test.js",
+      "role": "Plain Node test for the auto-decision extractor (no framework; matches autowire.test.js style)."
+    },
+    {
+      "id": "test/gc-worktrees.test.js",
+      "role": "Plain Node test for scripts/gc-worktrees.js — focuses on the dirty-worktree GC guard (Item 4: never reap a worktree that holds uncommitted work, even if it w..."
     },
     {
       "id": "test/git-merge.test.js",
@@ -106,6 +178,10 @@
       "role": "Plain Node test for the converged-vs-iterate control (⑥): lib/optimize.decideOptimize across all five outcomes (converge-on-target, converge-on-diminishing-r..."
     },
     {
+      "id": "test/orphan-sweep.test.js",
+      "role": "Plain Node test for the periodic orphan-note sweep in daemon.js (no framework; matches test/autowire-note.test.js / test/self-heal.test.js style)."
+    },
+    {
       "id": "test/rejected-digest.test.js",
       "role": "Plain Node test for daemon.js digestRejected — the /learnings `rejected[]` ledger (no framework; matches test/token-attr.test.js style)."
     },
@@ -114,8 +190,20 @@
       "role": "Plain Node test for the target-repo decoupling: git.js operating on a repo path that is NOT a daemon workspace, plus overlay.setRepo / the explicit > task-fi..."
     },
     {
+      "id": "test/retrieval-quality.test.js",
+      "role": "Offline regression guard for retrieval quality of search_knowledge (/search)."
+    },
+    {
       "id": "test/search-knowledge.test.js",
       "role": "Plain Node test for the query-by-text scorer behind /search + search_knowledge (no framework; matches test/autowire.test.js style)."
+    },
+    {
+      "id": "test/self-heal.test.js",
+      "role": "Plain Node test for the daemon self-heal sweeps (no framework; matches test/autowire.test.js style)."
+    },
+    {
+      "id": "test/temporal-knowledge.test.js",
+      "role": "Plain Node test (no framework; matches search-knowledge.test.js style) for temporal / state-change reasoning over note nodes — the supersede chain + as-of re..."
     },
     {
       "id": "test/token-attr.test.js",
@@ -127,6 +215,16 @@
     }
   ],
   "edges": [
+    {
+      "from": "bench/temporal/run.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/temporal/run.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
     {
       "from": "daemon.js",
       "to": "lib/native-tasks.js",
@@ -158,6 +256,11 @@
       "kind": "depends-on"
     },
     {
+      "from": "daemon.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
       "from": "lib/overlay.js",
       "to": "lib/native-tasks.js",
       "kind": "depends-on"
@@ -173,6 +276,21 @@
       "kind": "depends-on"
     },
     {
+      "from": "scripts/onboard-harness.js",
+      "to": "scripts/onboard-probes.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/autowire-note.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/autowire-note.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
       "from": "test/autowire.test.js",
       "to": "lib/overlay.js",
       "kind": "depends-on"
@@ -185,6 +303,26 @@
     {
       "from": "test/benchmark.test.js",
       "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/embed.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/embed.test.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/extract-decisions.test.js",
+      "to": "scripts/extract-decisions.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/gc-worktrees.test.js",
+      "to": "scripts/gc-worktrees.js",
       "kind": "depends-on"
     },
     {
@@ -233,6 +371,16 @@
       "kind": "depends-on"
     },
     {
+      "from": "test/orphan-sweep.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/orphan-sweep.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
       "from": "test/rejected-digest.test.js",
       "to": "daemon.js",
       "kind": "depends-on"
@@ -248,7 +396,32 @@
       "kind": "depends-on"
     },
     {
+      "from": "test/retrieval-quality.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
       "from": "test/search-knowledge.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/self-heal.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/self-heal.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/temporal-knowledge.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/temporal-knowledge.test.js",
       "to": "daemon.js",
       "kind": "depends-on"
     },

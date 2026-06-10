@@ -1,0 +1,159 @@
+{
+  "summary": {
+    "n": 14,
+    "n_project": 10,
+    "n_control": 4,
+    "cold_rate_overall": 0.42857142857142855,
+    "cold_rate_control": 1,
+    "cold_rate_project": 0.2,
+    "kb_rate_overall": 0.9285714285714286,
+    "kb_rate_project": 0.9,
+    "kb_earned_rate_project": 0.7
+  },
+  "guard": {
+    "trustworthy": true,
+    "verdicts": []
+  },
+  "rows": [
+    {
+      "id": "proj-workspace-hijack",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 5,
+      "cold_reason": "The candidate correctly identifies the cause — process.cwd() being written to the shared workspace pointer on MCP server startup — which matches the rubric. However, the fix it proposes is fundamentally different from what the rubric requires. The candidate proposes making startup detection read-only (adopt existing shared state if already set) or separating 'local CWD' from 'global pointer' conceptually. The rubric specifically requires naming the fix as honoring an explicit ORCH_WORKSPACE environment variable to set the workspace independently of cwd (falling back to cwd only when unset), allowing a worktree-bound agent to load the MCP without moving the shared pointer. The candidate never mentions an env var override mechanism, so it fails the fix criterion.",
+      "kb_reason": "The answer correctly identifies that mcp-graph.js unconditionally posted process.cwd() as the workspace on startup (without any tool call), causing the daemon's global workspace pointer to be silently repointed when a headless agent loaded the MCP from a worktree directory. It also correctly names the fix: introducing the ORCH_WORKSPACE environment variable so the workspace path can be set explicitly, with cwd as fallback only when unset. Both the specific cause and the specific fix match the rubric exactly."
+    },
+    {
+      "id": "proj-hold-merge",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 5,
+      "cold_reason": "The candidate answer explicitly disclaims knowledge of the project's behavior ('I don't have access to this codebase') and tells the user to verify themselves. It never states — as the rubric requires — that by default the loop does NOT auto-merge, runs code tasks in isolated worktrees/branches, completes them as MERGE-PENDING, and leaves merging as a deliberate human step. Advising the user to 'wake up expecting un-merged code until verified' is a hedge, not a positive statement of the actual default. The rubric requires identifying the hold-merge / human-review-gated default; the candidate answer fails to do so.",
+      "kb_reason": "The answer correctly states that by default the loop uses hold-merge mode, runs code tasks in isolated orch/attempt/<slug> branches, never touches the live checkout, never auto-merges to main, marks tasks as MERGE PENDING, and explicitly identifies merging as a human decision — directly addressing the user's wrong mental model."
+    },
+    {
+      "id": "proj-cost-parity-null",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 4,
+      "cold_reason": "The candidate makes no claim about the benchmark findings at all — it declines to answer rather than reporting the project's actual null-ish result (parity on work quality, cost delta from cache_read). A non-answer cannot satisfy a rubric that requires reporting specific empirical conclusions.",
+      "kb_reason": "The answer correctly reports the null finding: output tokens (actual work) were at parity between ON and OFF arms, no measured work/quality benefit from loading the context. It correctly locates the entire cost delta in cache_read tokens from re-attending the loaded payload and tool schemas each turn, and correctly states that shrinking the payload brings cost to parity."
+    },
+    {
+      "id": "proj-net-metric-artifact",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 5,
+      "cold_reason": "The answer does not identify the specific flaw (cache_read mis-bucketing into plumbing inflates apparent savings), does not say the gross-minus-plumbing approach was found untrustworthy in this project, does not mention output_tokens as the replacement metric, and does not confirm the 65% figure is a spurious artifact. Instead it treats the approach as generically reasonable and gives generic advice to check documents.",
+      "kb_reason": "The answer correctly identifies the gross-minus-plumbing approach as flawed and the 65% figure as a spurious artifact. It names the specific cause (cache_read mis-bucketed into plumbing, stripping cached-context tokens from one arm), and correctly states the replacement metric is output_tokens. All rubric criteria are met."
+    },
+    {
+      "id": "proj-stop-signal-inprocess",
+      "kind": "project",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 5,
+      "cold_reason": "The answer correctly explains that the in-process loop must check the same shared stop signal (not rely on the PreToolUse hook), and explicitly concludes that no second/divergent stop mechanism should be added — only extending the existing signal check into the loop if it isn't already there. It does not claim the hook fires in-process, does not invent a separate mechanism, and does not recommend a parallel flag.",
+      "kb_reason": "The answer correctly explains that the in-process heartbeat loop checks the stop signal inside next_action itself (not via the PreToolUse hook), that this is the same shared cancel/stop signal used in both cases, and explicitly concludes that no second divergent stop mechanism should be added."
+    },
+    {
+      "id": "proj-sync-authority",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 5,
+      "cold_reason": "The candidate explicitly disclaims project-specific knowledge and refuses to answer whether hooks are designed to carry deps/in_progress in this project. The rubric requires the answer to explain that *this project* reconciles multiple sync sources by source authority, with hooks being intentionally low-latency signals only and the authoritative source for native fields being the file/state read — not the hook. While the candidate correctly argues on general grounds that stuffing state into hooks creates a second authoritative source (which is directionally right), it never identifies the project's multi-source authority reconciliation design, never states that hooks are intentionally signal-only in this project, and never names the file/state read as the authoritative layer for native fields. Because the rubric requires a project-specific explanation of source authority and the candidate explicitly refuses to provide one, the PASS criteria are not met.",
+      "kb_reason": "The answer correctly identifies hooks as low-latency signals only that do not and should not carry deps/in_progress, names file-read as the authoritative source for native fields, and explains that the teammate's fix is wrong-layer — all three criteria required for PASS are met."
+    },
+    {
+      "id": "proj-escalation-set",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 5,
+      "cold_reason": "(loose parse)",
+      "kb_reason": "The answer correctly enumerates all five named escalation trigger conditions matching the rubric exactly: ambiguous_intent, irreversible_action, low_confidence_high_impact, repeated_failure, and scope_expansion. The specific set is present and correctly named, satisfying the PASS criteria."
+    },
+    {
+      "id": "proj-merge-conflict-abort",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 5,
+      "cold_reason": "(loose parse)",
+      "kb_reason": "The answer correctly states that on conflict the merge is not forced, git merge --abort is run to restore a clean tree, and a structured result with conflict flag and conflicted files list is returned."
+    },
+    {
+      "id": "proj-gate-fail-open",
+      "kind": "project",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 3,
+      "cold_reason": "The answer correctly identifies this as intentional fail-open behavior: when the daemon is unreachable the gate allows the edit rather than blocking, explicitly contrasting this with a hypothetical fail-closed design. It correctly explains the rationale (avoiding bricking the session when the daemon is down/stopped) and notes that a deny is only issued on a definitive response from a reachable daemon. It does not call the observed behavior a bug.",
+      "kb_reason": "The answer correctly identifies this as intentional fail-open behavior, states that the gate only denies on a definitive 'no claim' from a reachable daemon, and correctly explains that an unreachable daemon allows edits through — matching all rubric requirements."
+    },
+    {
+      "id": "proj-ingest-reversible",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": false,
+      "kb_earned": false,
+      "retrieved_n": 6,
+      "cold_reason": "The candidate answer admits ignorance and proposes a generic metadata-stamping approach (source field or batch ID). It does not identify the '[ingest]' prefix convention on titles, does not mention the overlay node mechanism (POST /overlay/note), and does not describe the reversible-overlay convention that distinguishes auto-injected notes from base/hand-authored nodes. The answer invents a plausible-sounding but incorrect approach.",
+      "kb_reason": "The candidate answer does not identify the '[ingest]' prefix convention or the overlay note mechanism (POST /overlay/note). Instead it hedges, speculates about session-UUID namespacing, and explicitly states it cannot determine the convention — it does not reach the correct conclusion required by the rubric."
+    },
+    {
+      "id": "ctl-git-revert-pushed",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly recommends `git revert <sha>` to create a new inverse commit rather than any history-rewriting operation, explicitly notes that history remains intact and teammates can pull normally, and even covers the merge commit edge case with `-m 1`.",
+      "kb_reason": "The answer correctly recommends `git revert <sha>` to create a new commit that undoes the changes, explicitly preserving history so teammates can simply `git pull`. It avoids reset/rebase+force-push entirely and correctly conveys the non-history-rewriting principle."
+    },
+    {
+      "id": "ctl-sql-injection",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly identifies SQL injection as the vulnerability, explains why (untrusted input concatenated directly into the query), and prescribes parameterized queries/prepared statements with bound parameters as the fix. It also correctly notes that manual escaping is insufficient.",
+      "kb_reason": "The answer correctly identifies SQL injection as the vulnerability and prescribes parameterized queries/prepared statements as the fix, with concrete examples showing placeholder syntax for both pg and mysql2 drivers."
+    },
+    {
+      "id": "ctl-async-await-loop",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly identifies that forEach ignores returned promises and moves on immediately, explains why 'done' prints first and rejections slip through, and provides the correct fix using Promise.all with .map to collect and await all promises. It also offers the for...of sequential alternative. All rubric criteria are met.",
+      "kb_reason": "The answer correctly identifies that forEach ignores the returned promises from async callbacks, explains the immediate return causing 'done' to log early, explains why rejections go unhandled, and provides the correct fix using Promise.all with map plus an alternative for...of serial approach."
+    },
+    {
+      "id": "ctl-http-status-post",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly identifies 201 Created as the status code for successful resource creation and explicitly mentions setting the Location header to the URI of the new resource, satisfying both rubric criteria.",
+      "kb_reason": "The answer correctly identifies 201 Created as the status code and specifies setting the Location header with the URL of the new resource, satisfying both rubric criteria."
+    }
+  ]
+}

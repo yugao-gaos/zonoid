@@ -1,0 +1,129 @@
+{
+  "summary": {
+    "n": 11,
+    "n_project": 7,
+    "n_control": 4,
+    "cold_rate_overall": 0.36363636363636365,
+    "cold_rate_control": 1,
+    "cold_rate_project": 0,
+    "kb_rate_overall": 0.9090909090909091,
+    "kb_rate_project": 0.8571428571428571,
+    "kb_earned_rate_project": 0.8571428571428571
+  },
+  "guard": {
+    "trustworthy": true,
+    "verdicts": []
+  },
+  "rows": [
+    {
+      "id": "proj-workspace-hijack",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 3,
+      "cold_reason": "The candidate correctly identifies the general pattern (working-directory auto-detection writing to a shared pointer) but does not meet either specific rubric criterion. It never names process.cwd() as the concrete mechanism used in mcp-graph.js on startup, and it proposes a different fix ('write only when explicitly invoked') rather than the required fix: honor an ORCH_WORKSPACE environment variable so the workspace can be set independently of cwd. The rubric explicitly requires the fix to be an explicit workspace override via env var or explicit arg — the candidate's alternative mechanism does not satisfy that.",
+      "kb_reason": "The answer correctly identifies the specific cause (mcp-graph.js posting process.cwd() as the daemon workspace on startup, causing any process loaded from a different directory to silently repoint the global workspace) and correctly names the fix (honoring the ORCH_WORKSPACE environment variable to set workspace independently of cwd, falling back to cwd only when unset)."
+    },
+    {
+      "id": "proj-hold-merge",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 3,
+      "cold_reason": "The candidate answer refuses to answer and says it has no access to the codebase. It neither correctly identifies the hold-merge/human-review default nor incorrectly claims auto-merge happens. It simply declines to answer, which does not satisfy the PASS criterion of stating that by default the loop does NOT auto-merge and leaves merging as a deliberate human decision.",
+      "kb_reason": "The answer correctly states that hold-merge mode is the default, that code runs in isolated worktrees/branches (orch/attempt/<slug>), that the loop never auto-merges to main or edits the live checkout, and that a human merge decision is required. It directly contradicts the incorrect mental model of auto-merged code by morning."
+    },
+    {
+      "id": "proj-cost-parity-null",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 2,
+      "cold_reason": "The candidate answer refuses to provide any finding, citing lack of access. The rubric requires reporting the project's actual null-ish result (parity on work quality, cost delta from cache_read). The answer neither reports parity nor attributes cost delta to cache_read — it simply declines to answer.",
+      "kb_reason": "The answer correctly reports the null/parity finding: output_tokens were equivalent between ON and OFF arms, meaning no measurable work or quality benefit from loading graph context. It correctly locates the cost delta in cache_read tokens (re-attending the loaded payload and tool schemas each turn). It also correctly identifies the measurement artifact (gross_tokens minus plumbing producing a spurious ~65% less-work signal) and explains why it disappears when looking at output_tokens alone. All three required elements are present and accurate."
+    },
+    {
+      "id": "proj-net-metric-artifact",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 1,
+      "cold_reason": "The answer does not identify the gross-minus-plumbing approach as flawed, does not name cache_read mis-bucketing as the specific problem, does not state the 65% figure is a spurious artifact, and does not mention the replacement methodology using output_tokens. It simply says it lacks access and cannot answer, which fails to reach the required conclusion.",
+      "kb_reason": "The answer correctly identifies the 65% figure as untrustworthy and a spurious artifact, names the specific flaw (cache_read tokens bucketed into plumbing so subtracting plumbing strips cached-context tokens and inflates apparent savings), and states the replacement metric is output_tokens. All rubric criteria are met."
+    },
+    {
+      "id": "proj-stop-signal-inprocess",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 2,
+      "cold_reason": "The candidate explicitly states it cannot confirm how the in-process loop actually works and frames the answer as a conditional audit guide ('if the same signal... they share a mechanism'). The rubric requires the answer to affirmatively explain that the daemon's tick/decision path (next_action / decideAction) already checks the same shared cancel/stop signal, making a second mechanism unnecessary. The candidate never asserts this — it hedges throughout and even leaves open the possibility that a new read needs to be added inside the loop, which falls short of the rubric's required conclusion that no additional stop check is needed.",
+      "kb_reason": "The answer correctly explains that the in-process heartbeat loop does not rely on the PreToolUse hook; instead it polls the same shared stop/cancel signal inside next_action at the top of each tick. It concludes clearly that no second mechanism is needed, which matches the rubric's pass criteria exactly."
+    },
+    {
+      "id": "proj-sync-authority",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 4,
+      "cold_reason": "The candidate explicitly disclaims knowledge of the specific project ('I don't have access to this codebase') and never identifies the source-authority reconciliation pattern that this project uses. The rubric requires explaining that in THIS project hooks are intentionally a low-latency signal only and that the authoritative source for native fields is the file/state read — the candidate only offers general engineering reasoning while explicitly refusing to answer the project-specific question. It gets the general principle right (hooks shouldn't carry full state, teammate's fix creates a second source of truth) but doesn't meet the PASS threshold of explaining the multi-source authority model as it exists in this project.",
+      "kb_reason": "The answer correctly identifies hooks as low-latency signals only with no deps/in_progress payload, names native task JSON files as the authoritative source for native fields, and explicitly calls the teammate's proposed fix wrong-layer. It also correctly addresses the transient empty state as expected behavior during the hook-to-reread gap, and suggests the right remediation (consumer-side debounce/hold) rather than changing hook payloads."
+    },
+    {
+      "id": "proj-escalation-set",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": false,
+      "kb_earned": false,
+      "retrieved_n": 2,
+      "cold_reason": "The candidate answer does not enumerate any of the five required escalation trigger conditions. It refuses to provide the specific named triggers (ambiguous intent, irreversible action, low-confidence/high-impact decision, repeated failure, scope expansion) and instead deflects by saying it lacks codebase access and suggesting a grep command. The rubric requires the specific enumerated set, not a refusal or generic guidance.",
+      "kb_reason": "The answer only identifies three triggers (no passing attempt, conflicting winner, low-confidence/high-impact decision) and explicitly admits it cannot provide the complete set. The rubric requires all five named conditions: ambiguous intent, irreversible action, low-confidence/high-impact decision, repeated failure, and scope expansion. The candidate misses at least two of the five (irreversible action and scope expansion / repeated failure) and does not enumerate the full default trigger set."
+    },
+    {
+      "id": "ctl-git-revert-pushed",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly recommends `git revert <sha>` to create a new inverse commit and a normal `git push`, explicitly avoiding history rewriting. It conveys the core principle and even covers the merge-commit edge case.",
+      "kb_reason": "The answer correctly recommends `git revert <sha>` which creates a new commit inverting the changes, preserving shared history, and allowing teammates to pull normally without force-push or history rewriting."
+    },
+    {
+      "id": "ctl-sql-injection",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly identifies SQL injection as the vulnerability and prescribes parameterized queries with bound parameters as the fix, showing concrete before/after examples with both PostgreSQL and MySQL syntax.",
+      "kb_reason": "The answer correctly identifies SQL injection as the vulnerability and prescribes parameterized/prepared statements with bound parameters as the fix, with correct explanation of why it works."
+    },
+    {
+      "id": "ctl-async-await-loop",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly identifies that forEach ignores the returned promises from async callbacks, explains why 'done' logs immediately and rejections go unhandled, and provides both Promise.all+map and for...of fixes that correctly await all saves.",
+      "kb_reason": "The answer correctly diagnoses that forEach ignores the returned promises from async callbacks, causing immediate return and early 'done' log plus unhandled rejections. The fix uses Promise.all with .map to collect and await all promises, and also offers the for...of alternative for sequential execution — both valid solutions per the rubric."
+    },
+    {
+      "id": "ctl-http-status-post",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "Answer correctly identifies 201 Created as the appropriate status code (explicitly rejecting 200), and correctly specifies setting the Location header with the URL of the newly created resource, citing RFC 9110.",
+      "kb_reason": "The answer correctly identifies 201 Created as the appropriate status code and mentions setting the Location header to the URL of the new resource, satisfying both rubric criteria."
+    }
+  ]
+}

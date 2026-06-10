@@ -1,5 +1,65 @@
 [
   {
+    "title": "Merge #3: retrieval-quality benchmark + CI regression gate for search_knowledge",
+    "summary": "Merge #3: retrieval-quality benchmark + CI regression gate for search_knowledge",
+    "source": "2c0b5c6eac3ebe461fb8b6ca6cf32de98a187dca",
+    "kind": "gotcha"
+  },
+  {
+    "title": "feat(kb): temporal/state-change reasoning over note nodes (supersede chains + as-of retrieval)",
+    "summary": "Add bitemporal validity (validFrom/validTo) + supersede chains to note nodes so a newer decision invalidates an older one WITHOUT deleting history. Add as-of retrieval to search_knowledge: a query returns the fact CURRENT at a given timestamp, not just the latest. Surface superseded chains in the dashboard (🕓 dimmed + purple-dashed supersede link).",
+    "source": "d03ba8dd6ea07df2fa34dbadf1b9d0579529fe5f",
+    "kind": "verdict"
+  },
+  {
+    "title": "feat(git): harden worktree isolation — per-path lease + dirty GC guard",
+    "summary": "Item 1 (lease/lock per worktree path): lib/git.js gains an atomic per-path lease (<wt>.lease via O_EXCL 'wx'). createWorktree(ws,key,{owner}) acquires it before `git worktree add`, so two agents racing the SAME path get {contended,held} instead of colliding. Stale leases (dead pid + aged past ORCH_LEASE_STALE_MS, 1h default) are reclaimable; removeWorktree frees it. Re-entrant for same-pid.",
+    "source": "89f04f0b7f3d9a39f75bdc3afef21eb7590981ec",
+    "kind": "gotcha"
+  },
+  {
+    "title": "feat(onboarding): learning loop — deepen KB until competence plateaus",
+    "summary": "scripts/onboard-loop.js ties the three existing onboarding pieces into an iterate-until-plateau controller (no reinvention; each step shells the existing script): - MEASURE : onboard-harness.js -> summary.kb_rate_project (competence metric) - LOCATE : project probes whose KB arm failed (kb_correct=false) = thin areas - DEEPEN : onboard-mine-* + onboard-learn.js --inject --confirm (reversible [ingest] overlay notes...",
+    "source": "586c79605a509b86e1d1b0c72b67631b180561ba",
+    "kind": "verdict"
+  },
+  {
+    "title": "Add auto-extract-decisions: propose note nodes behind the review gate",
+    "summary": "Adds scripts/extract-decisions.js — proposes durable-decision note nodes {title, summary, knowledge[]} from a conversation turn WITHOUT an explicit record_decision() call, routing every proposal through the same reviewable candidate-bundle / accept-gate as bench/ingest/inject.js (dry-run default, --confirm to inject as [auto]-prefixed notes; idempotent via /state title-skip). - Isolates solo assistant turns from a...",
+    "source": "8f3a80e5306de2f048ae5cbed4a8f08382387a2f",
+    "kind": "verdict"
+  },
+  {
+    "title": "feat(onboarding): drop-in entry + setup-flow trigger + human review gate",
+    "summary": "scripts/onboard.js — one-command drop-in entry that bootstraps a KB for ANY repo on first run: chains the 3 static miners -> agentic learner (onboard-learn.js) -> emits ONBOARD-REVIEW.md (candidate-bundle review doc modeled on bench/ingest/CANDIDATE-KB.md), then STOPS. NO auto-inject: the entry point has no HTTP/overlay/--confirm machinery, so injection stays behind the existing reversible '[ingest]' gate (onboard...",
+    "source": "af6a5f0baec5361498079266fc115e16c9137745",
+    "kind": "gotcha"
+  },
+  {
+    "title": "feat(bench): retrieval-quality benchmark for search_knowledge (recall@k/precision@k/MRR)",
+    "summary": "Labeled eval set (28 queries over the [ingest] KB notes, keyed on stable note titles), a live scorer (scripts/retrieval-bench.js -> scorecard.json+md, recall@k /precision@k/MRR at configurable cutoffs, --check regression gate), and an offline deterministic regression guard (test/retrieval-quality.test.js) that rebuilds the injected corpus and asserts recall@5>=0.85 / MRR@5>=0.80. Live scorecard: recall@5=0.91 prec...",
+    "source": "8a22d2c502197db1c2b9e6d0c53d7178347af8d1",
+    "kind": "gotcha"
+  },
+  {
+    "title": "feat(onboarding): HONEST competence harness (controls + applied-correctness judge)",
+    "summary": "Rewrote onboard-probes.js (7 project + 4 control probes, independent of note wording) and onboard-harness.js (LLM judge grades applied correctness vs a rubric, NOT keyword match; guard requires cold-rate strictly in (0,1)). Result on orchestrator repo: cold 11/11, kb 11/11, kb_earned_project=0 -> guard trustworthy:false (DEGENERATE: probes too easy / no delta). Honest NULL: the cold agent recovers these facts by r...",
+    "source": "6334eec053034a5a9e7fe83a4a8899b7f412f985",
+    "kind": "verdict"
+  },
+  {
+    "title": "wip(onboarding): wave-1 miners+learner+probes+harness (harness SUSPECT)",
+    "summary": "Salvaged from stalled build-onboarding agent. Reusable: onboard-mine-{git,docs,structure}.js, onboard-learn.js (53 candidates -> 12 kept). Probe-gen + harness produced a circular 0%->100% reading (keyword-graded against the notes' own tokens; probes not independent of note wording; cold-rate exactly 0).",
+    "source": "67245491b80dcb173a95e60e5745ce5d136b3e14",
+    "kind": "decision"
+  },
+  {
+    "title": "feat(ops): gc-worktrees.js — conservative worktree GC/retention sweep",
+    "summary": "Implements the worktree lifecycle policy (note-mq780b1f): worktrees are ephemeral; durable value = merged code + recorded verdict. Dry-run by default, --confirm executes, --retention-hours (default 24). GCs only empty dirs + fully-merged-to-main unclaimed worktrees outside retention;",
+    "source": "0294f09f39b94b720c0477c22817d5e26f3776e5",
+    "kind": "verdict"
+  },
+  {
     "title": "test(bench): v5 on haiku — weak model = 3.7x hardness but ON STILL did more work",
     "summary": "Tested \"weaker model benefits more from context.\" Half confirmed: H_off rose opus 2,023 → haiku 7,444 (3.7x). But falsified the rescue: H_on 9,719 still > H_off — note-engagement overhead scaled with the model too. NO-WIN.",
     "source": "9e3f32dcc819760fd5d9fb119ed45abdc8700d74",

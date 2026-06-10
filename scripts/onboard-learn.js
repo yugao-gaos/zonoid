@@ -60,14 +60,24 @@ Below are ${candidates.length} CANDIDATE hypotheses auto-mined from this repo's 
 and module structure. They are NOISY — many are restatements of what the code obviously does, or
 generic boilerplate. Treat each as a hypothesis to VERIFY against the actual source.
 
-For EACH candidate decide KEEP or REJECT:
-- KEEP only if it is (a) TRUE (you verified it against code/history) AND (b) NON-OBVIOUS — a
-  convention, invariant, ordering constraint, cross-module coupling, or the reason behind a
-  revert/fix that a competent dev would NOT infer from 30 seconds of reading the relevant file.
-- REJECT if it merely restates what a function/file obviously does, is generic advice, is stale
-  (no longer true in current code), or you cannot confirm it. Restatements are WORSE than nothing.
+For EACH candidate decide KEEP or REJECT. Judge "obvious" from the standpoint of an engineer who
+does NOT have the repo in front of them (no file access, no search) — that is who an onboarding KB
+actually serves. A fact is OBVIOUS only if such an engineer could reconstruct it from general
+knowledge; it is NOT obvious merely because it is plain to read ONCE you have already found the
+right line.
+- KEEP if it is (a) TRUE (you verified it against code/history) AND (b) NON-RECOVERABLE without the
+  repo — a convention, invariant, ordering constraint, cross-module coupling, the reason behind a
+  revert/fix, OR a SHIPPED DEFAULT/CONFIG VALUE this project specifically chose (the exact set of
+  default escalation triggers, a timeout, a threshold, a protocol version, a weight). Concrete
+  project-specific defaults and enumerated sets are KEEP-worthy: an off-repo engineer cannot guess
+  them, and "it's obvious from the line" does NOT disqualify them (they only had the line because
+  they had the repo). When you keep a config default, record the ACTUAL value/enumeration, not a
+  paraphrase ("ships five default escalation triggers: X, Y, Z, …").
+- REJECT if it merely restates what a function/file does at a level an off-repo engineer would
+  already assume, is generic advice, is stale (no longer true in current code), or you cannot
+  confirm it. Restatements of general SWE knowledge are WORSE than nothing.
 You MAY also ADD up to 5 NEW notes you discovered while reading that the miners missed and that
-clear the same NON-OBVIOUS bar.
+clear the same NON-RECOVERABLE bar.
 
 Keep AT MOST ${maxKeep} notes total. Quality over coverage — a KB of restatements is a failure.
 
@@ -91,10 +101,14 @@ ${candidates.map((c, i) => `${i}: [${c.kind}] ${c.title} — ${c.summary}`).join
 function gatherCandidates(inDir) {
   const git = loadJSON(path.join(inDir, 'git-notes.json'), []);
   const docs = loadJSON(path.join(inDir, 'doc-notes.json'), []);
+  const cfg = loadJSON(path.join(inDir, 'config-notes.json'), []);
   const struct = loadJSON(path.join(inDir, 'structure.json'), { nodes: [] });
   const out = [];
   for (const n of git) out.push({ title: n.title, summary: n.summary, kind: n.kind, _origin: 'git', source: n.source });
   for (const n of docs) out.push({ title: n.title, summary: n.summary, kind: n.kind, _origin: 'doc', source: n.source });
+  // Config-default candidates (shipped defaults: escalation triggers, timeouts, thresholds, …) —
+  // these encode non-obvious "what does it do out of the box" knowledge that lives only in code.
+  for (const n of cfg) out.push({ title: n.title, summary: n.summary, kind: n.kind, _origin: 'config', source: n.source });
   // Structural nodes carry the module-role map; pass a compact form so the agent knows the layout
   // without drowning in 1-per-file noise.
   for (const n of (struct.nodes || [])) out.push({ title: n.id, summary: n.role, kind: 'structure', _origin: 'struct', source: 'structure.json' });

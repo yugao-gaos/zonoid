@@ -6,6 +6,11 @@
  * For each probe (scripts/onboard-probes.js schema) it runs TWO answering arms and grades each answer
  * by APPLIED CORRECTNESS via a separate LLM judge — never by substring/keyword match against any note.
  *
+ *   Both answer arms run with NO repo access — empty scratch cwd + `--tools ""` (no Read/Grep/Glob/
+ *   Bash) + an explicit no-access instruction — so the KB notes are the ONLY project-specific source.
+ *   (Earlier runs let the cold agent read the source, which only measured a FLOOR on KB value; denying
+ *   repo access to both arms measures the CEILING.)
+ *
  *   COLD : a headless `claude -p` agent answers the scenario from general knowledge only. No KB.
  *   KB   : the SAME agent, but first we RETRIEVE real notes the way an onboarded agent would —
  *          live lexical lookup against the running daemon (GET /search with the probe's
@@ -48,8 +53,17 @@ function arg(name, def) {
 }
 function loadJSON(p) { return JSON.parse(fs.readFileSync(path.resolve(p), 'utf8')); }
 
+// Scratch dir with NO project files — the answer arms run here so a stray cwd-relative read
+// can't reach the repo. (Belt-and-suspenders alongside `--tools ""`.)
+const NO_REPO_CWD = fs.mkdtempSync(path.join(require('os').tmpdir(), 'onboard-noaccess-'));
+
 // One headless `claude -p` call, MCP off, sandbox-friendly alarm timeout. Returns trimmed stdout.
-function claude(prompt, model) {
+// opts.noRepo (used by the ANSWER arms): deny ALL built-in tools (`--tools ""`, no Read/Grep/Glob/
+// Bash) and run from an empty scratch cwd. This isolates the KB as the ONLY project-specific source —
+// neither arm can read the codebase, so cold answers from general knowledge only and the KB arm's
+// edge is purely the retrieved notes. (Without this the cold agent reads source and the measured KB
+// delta collapses to a FLOOR rather than the ceiling.)
+function claude(prompt, model, opts = {}) {
   const sessionId = crypto.randomUUID();
   const mcpConfig = path.join(SELF_REPO, 'bench', 'mcp-off.json');
   const args = [
@@ -59,7 +73,12 @@ function claude(prompt, model) {
     '--session-id', sessionId, '--model', model,
     '--output-format', 'text',
   ];
-  const run = spawnSync('perl', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  if (opts.noRepo) args.push('--tools', '');
+  const run = spawnSync('perl', args, {
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+    cwd: opts.noRepo ? NO_REPO_CWD : SELF_REPO,
+  });
   return (run.stdout || '').trim();
 }
 
@@ -91,10 +110,21 @@ function kbBlock(notes) {
     notes.map((n) => `- ${n.title}: ${n.summary}`).join('\n') + '\n\n';
 }
 
+// No-access guard prepended to BOTH arms: the agent has no repo and no file/search tools. The KB arm
+// additionally gets the retrieved notes (kbPrefix); the cold arm gets nothing project-specific. This
+// makes the KB the only project-specific source. The "say you don't know" instruction stops the model
+// from fabricating plausible-but-wrong internal specifics when it genuinely lacks the fact.
+const NO_ACCESS_PREAMBLE =
+  'You have NO access to this codebase: no repository, no file-reading or search tools, and no prior ' +
+  'memory of this project. Do not emit fake tool calls and do not invent project-specific internals ' +
+  '(exact token counts, internal enum/field names, function names). Answer ONLY from what you are ' +
+  'given here plus general engineering knowledge. If a project-specific fact is required and you were ' +
+  "not given it, say plainly that you don't know it.\n\n";
+
 function answerPrompt(scenario, kbPrefix) {
-  return (kbPrefix || '') +
-    'You are answering a question about a specific software project. Answer concisely and concretely ' +
-    '(2-6 sentences). State the actual behavior; do not hedge or pad.\n\nQUESTION:\n' + scenario;
+  return NO_ACCESS_PREAMBLE + (kbPrefix || '') +
+    'Answer the question concisely and concretely (2-6 sentences). State the actual behavior; do not ' +
+    'hedge or pad.\n\nQUESTION:\n' + scenario;
 }
 
 // LLM judge: applied-correctness grading against the rubric. Blind to which arm produced the answer.
@@ -136,9 +166,9 @@ async function run({ probes, daemon, model, judgeModel, answersFile }) {
     } else {
       retrieved = p.kind === 'project' ? await retrieveKB(daemon, p.retrieval_query) : [];
       process.stderr.write(`[${p.id}] retrieved ${retrieved.length} [ingest] note(s); answering cold…`);
-      coldA = claude(answerPrompt(p.scenario, ''), model);
+      coldA = claude(answerPrompt(p.scenario, ''), model, { noRepo: true });
       process.stderr.write(' kb…');
-      kbA = claude(answerPrompt(p.scenario, kbBlock(retrieved)), model);
+      kbA = claude(answerPrompt(p.scenario, kbBlock(retrieved)), model, { noRepo: true });
       process.stderr.write(' judging…\n');
     }
     const jm = judgeModel || model;
