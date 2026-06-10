@@ -292,10 +292,8 @@ function tmpDir() {
   const result = gs.compact(store);
   ok('compact returns compacted count', result.compacted === 1);
 
-  const doneFile = path.join(store.nodesDir, 'done%2F1.jsonl');
-  const liveFile = path.join(store.nodesDir, 'live%2F1.jsonl');
-  // The filename is whatever appendEvent uses — find done/1's file
-  const remaining = fs.readdirSync(store.nodesDir);
+  // Count .jsonl files recursively (nodeIds with slashes create subdirs)
+  const remaining = fs.readdirSync(store.nodesDir, { recursive: true }).filter((f) => f.endsWith('.jsonl'));
   ok('compact removes terminal node JSONL', remaining.length === 2);  // only live/1 and new/1 remain
 
   ok('compact writes checkpoint.json', fs.existsSync(store.checkpointFile));
