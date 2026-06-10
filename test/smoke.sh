@@ -12,6 +12,9 @@ boot(){ ORCH_PORT=$PORT node "$PWD/daemon.js" >>/tmp/orch-smoke.log 2>&1 & DPID=
 stop(){ [ -n "$DPID" ] && kill -9 "$DPID" 2>/dev/null; sleep 0.3; }
 g(){ curl -s "localhost:$PORT/$1"; }
 jpost(){ local path="$1"; shift; curl -s -H 'content-type: application/json' -XPOST "localhost:$PORT/$path" -d "$1"; }
+# one heartbeat tick; extract a field from THE GIVEN loop's decision (keyed registry: /next-action
+# returns { loops: [ { loopId, action, ... } ] } and SKIPS inactive loops entirely)
+ldec(){ local id="$1" f="$2"; g next-action | jq -r --arg id "$id" ".loops[]|select(.loopId==\$id)|$f"; }
 
 # clean isolated state + free our port (port-specific; does not touch :8787)
 rm -rf "$CLAUDE_PLUGIN_DATA"; lsof -ti tcp:$PORT 2>/dev/null | xargs kill -9 2>/dev/null; sleep 0.3
@@ -100,43 +103,44 @@ chk "should-stop false (driver)"  "$(g "should-stop?session=$S" | jq -r .stop)" 
 chk "hook exit0 for driver"       "$(printf '{"session_id":"%s","tool_name":"Bash"}' "$S" | ORCH_PORT=$PORT bash "$HK" >/dev/null 2>&1; echo $?)" "0"
 rm -f "$T/hook.json"
 
-# loop + persistence across a PID restart
-jpost loop/start '{"maxIterations":50}' >/dev/null
-chk "next-action spawns"        "$(g next-action | jq -r .action)"               "spawn"
-ITER=$(g loop/status | jq -r .iterations)
+# loop + persistence across a PID restart (keyed registry: /loop/start mints a loopId)
+LID=$(jpost loop/start '{"maxIterations":50}' | jq -r .loopId)
+chk "next-action spawns"        "$(ldec "$LID" .action)"                         "spawn"
+ITER=$(g "loop/status?loopId=$LID" | jq -r .iterations)
 stop; boot
 jpost workspace "$(b_ws)" >/dev/null
-chk "loop persisted on restart" "$(g loop/status | jq -r .active)"               "true"
-chk "iterations preserved"      "$(g loop/status | jq -r ".iterations>=$ITER")"  "true"
+chk "loop persisted on restart" "$(g "loop/status?loopId=$LID" | jq -r .active)" "true"
+chk "iterations preserved"      "$(g "loop/status?loopId=$LID" | jq -r ".iterations>=$ITER")" "true"
 
 # self-learning 'plan' tick: drain the DAG with self_plan on -> heartbeat hands out a plan action
 jpost config '{"self_plan":true}' >/dev/null
 jpost overlay/status "$(b_status "$S/1" done)"   >/dev/null   # already tested above; allowed
 jpost overlay/status "$(b_status "$S/2" tested)" >/dev/null; jpost overlay/status "$(b_status "$S/2" done)" >/dev/null
-chk "drained+self_plan -> plan"  "$(g next-action | jq -r .action)"              "plan"
+chk "drained+self_plan -> plan"  "$(ldec "$LID" .action)"                        "plan"
 jpost config '{"self_plan":false}' >/dev/null
-chk "drained, no self_plan -> stop" "$(g next-action | jq -r .action)"           "stop"
+chk "drained, no self_plan -> stop" "$(ldec "$LID" .action)"                     "stop"
 
 # optimize-loop control (⑥): a DONE problem carrying a metric spec + a judge verdict, DAG drained.
 # With no target met and budget remaining the heartbeat returns an 'optimize' action (iterate on the
 # SAME problem, prior verdict fed forward). A converge-on-target verdict instead falls through to stop.
-jpost loop/start '{"maxIterations":50,"tokenBudget":500000}' >/dev/null   # re-arm (prior section may have stopped it)
+jpost loop/start "$(printf '{"loopId":"%s","maxIterations":50,"tokenBudget":500000}' "$LID")" >/dev/null   # re-arm SAME loop (prior drained tick deactivated it; same loopId resets in place)
 chk "optimize knobs stored"     "$(jpost config '{"optimize":{"epsilon":1,"diminishing_rounds":3}}' | jq -r '.config.optimize.diminishing_rounds')" "3"
 OPSPEC='{"metric":"p95_latency_ms","direction":"min","measure_command":"echo 150","parse":"last_number","target":120}'
 jpost task/metric "$(printf '{"key":"%s","spec":%s}' "$S/1" "$OPSPEC")" >/dev/null
 # a winning verdict ABOVE target (150 > 120) -> not converged -> iterate
 jpost overlay/knowledge "$(printf '{"key":"%s","item":{"type":"note","value":{"winner":"%s","metric_value":150,"guardrails_ok":true,"improvement":"-50ms"}}}' "$S/1" "$S/1")" >/dev/null
-OPA=$(g next-action)
+OPA=$(g next-action | jq --arg id "$LID" '.loops[]|select(.loopId==$id)')   # ONE tick; this loop's decision
 chk "drained+unmet metric -> optimize" "$(echo "$OPA" | jq -r .action)"          "optimize"
 chk "optimize carries the problem"     "$(echo "$OPA" | jq -r .problem)"          "$S/1"
 chk "optimize feeds prior verdict"     "$(echo "$OPA" | jq -r .prior_verdict.metric_value)" "150"
 # same poll again WITHOUT a new verdict: no new round -> does NOT re-iterate (falls through to stop)
-chk "no new verdict -> no re-iterate"  "$(g next-action | jq -r '.action!="optimize"')" "true"
+chk "no new verdict -> no re-iterate"  "$(ldec "$LID" '.action!="optimize"')" "true"
 # a NEW verdict AT target (118 <= 120) -> converged: marks closed, falls through to stop
 jpost overlay/knowledge "$(printf '{"key":"%s","item":{"type":"note","value":{"winner":"%s","metric_value":118,"guardrails_ok":true}}}' "$S/1" "$S/1")" >/dev/null
-chk "new verdict at target -> converged->stop" "$(g next-action | jq -r .action)"  "stop"
+jpost loop/start "$(printf '{"loopId":"%s","maxIterations":50,"tokenBudget":500000}' "$LID")" >/dev/null   # re-arm: the no-re-iterate tick stopped the loop, and /next-action skips inactive loops
+chk "new verdict at target -> converged->stop" "$(ldec "$LID" .action)"  "stop"
 jpost task/metric "$(printf '{"key":"%s"}' "$S/1")" >/dev/null   # clear metric so later sections start clean
-jpost loop/stop '{}' >/dev/null
+jpost loop/stop "$(printf '{"loopId":"%s"}' "$LID")" >/dev/null
 
 # cooperative self-stop: arm the loop to a session, flag a stop on its claimed task's agent,
 # and confirm the in-process heartbeat self-exits WITHIN ONE iteration (loop.active -> false).
@@ -144,16 +148,19 @@ SS=88888888-0000-0000-0000-000000000002; SSP="$HOME/.claude/projects/-tmp-orch-s
 mkdir -p "$SSP" "$SST"; : > "$SSP/$SS.jsonl"
 echo '{"id":"1","subject":"loopwork","status":"pending","blockedBy":[]}' > "$SST/1.json"; sleep 1.2
 jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"loopw"}' "$SS/1")" >/dev/null
-jpost loop/start "$(printf '{"maxIterations":50,"session":"%s"}' "$SS")" >/dev/null
-chk "loop armed w/ session"     "$(g loop/status | jq -r .session)"              "$SS"
+# register the worker so the session reads as LIVE — sweepStaleLoops demotes a session-bound loop
+# whose session has no running agent (sessionIsLive) before the heartbeat ever ticks it
+jpost agent/start "$(printf '{"agent_id":"loopw","task":"%s","session":"%s"}' "$SS/1" "$SS")" >/dev/null
+LID2=$(jpost loop/start "$(printf '{"maxIterations":50,"session":"%s"}' "$SS")" | jq -r .loopId)   # fresh loop, own id
+chk "loop armed w/ session"     "$(g "loop/status?loopId=$LID2" | jq -r .session)" "$SS"
 # work is in flight ($SS/1 claimed in_progress) -> heartbeat idles, not stops
-chk "armed loop ticks normally" "$(g next-action | jq -r '.action!="stop"')"     "true"
+chk "armed loop ticks normally" "$(ldec "$LID2" '.action!="stop"')"              "true"
 jpost agent/stop '{"agent_id":"loopw"}' >/dev/null     # simulate cooperative stop
 # hook path is actor-keyed: the worker's own agent_id sees the stop; a driver poll (no agent) does not
 chk "should-stop sees flag"     "$(g "should-stop?session=$SS&agent=loopw" | jq -r .stop)" "true"
 # the in-process heartbeat is session-scoped, so it still self-exits on its claimed agent's stop
-chk "loop self-exits on stop"   "$(g next-action | jq -r .reason)"               "cooperative stop"
-chk "loop.active cleared"       "$(g loop/status | jq -r .active)"               "false"
+chk "loop self-exits on stop"   "$(ldec "$LID2" .reason)"                        "cooperative stop"
+chk "loop.active cleared"       "$(g "loop/status?loopId=$LID2" | jq -r .active)" "false"
 rm -rf "$SST" "$SSP/$SS.jsonl"
 
 # target-repo decoupling: workspace (/tmp/orch-smoke) is NOT a git repo (the dogfood case), so a
