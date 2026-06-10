@@ -4143,6 +4143,9 @@ function renderFlow(d){
     for(const dep of (t.context_deps||[])) if(!String(dep).startsWith('ghost:')) pushLink(dep,t.id,'context');
   }
   for(const e of (d.edges||[])){ if(e.fromWorkspace) continue; pushLink(e.from,e.to, e.kind==='context'?'context':e.kind==='supersede'?'supersede':'blocking'); }
+  // Temporal note chains: a superseded note carries supersededBy=<newer note key>. Draw it with the
+  // same purple-dashed supersede link (old→new) so "supersedes / superseded by" reads off the graph.
+  for(const t of tasks){ if(t.kind==='note' && t.supersededBy) pushLink(t.id, t.supersededBy, 'supersede'); }
   const deg={}; tasks.forEach(t=>deg[t.id]=0); for(const l of links){ deg[l.from]++; deg[l.to]++; }
   const connected=tasks.filter(t=>deg[t.id]>0); const orphans=tasks.filter(t=>deg[t.id]===0);
   const connSet=new Set(connected.map(t=>t.id));
@@ -4193,8 +4196,10 @@ function renderFlow(d){
   na.attr('transform',t=>{ const n=g.node(t.id); return `translate(${n.x},${n.y})`; });
   na.select('.fbg').attr('fill','#161b22').attr('stroke',t=>t.id===selected?'#58a6ff':'#30363d').attr('stroke-width',t=>t.id===selected?2:1);
   na.select('.flbar').attr('fill',t=>STATUS_COLOR[t.status]||'#6e7681');
-  na.select('.fttl').attr('fill','#e6edf3').attr('font-weight',600).text(t=>(t.kind==='note'?'📌 ':'')+truncate(t.label,t.kind==='note'?22:24));
-  na.select('.fst').attr('fill',t=>STATUS_COLOR[t.status]||'#8b949e').text(t=>t.status.replace('_',' ')+(t.agent_id?' ▶'+t.agent_id:''));
+  na.select('.fttl').attr('fill','#e6edf3').attr('font-weight',600).text(t=>(t.kind==='note'?(t.validTo?'🕓 ':'📌 '):'')+truncate(t.label,t.kind==='note'?22:24));
+  // Superseded notes (validTo set) read as dimmed history; current/active notes stay full-opacity.
+  na.attr('opacity', t=>(t.kind==='note'&&t.validTo)?0.5:1);
+  na.select('.fst').attr('fill',t=>STATUS_COLOR[t.status]||'#8b949e').text(t=>(t.kind==='note'?(t.validTo?'superseded':(t.supersedes?'current ✓':'note')):t.status.replace('_',' '))+(t.agent_id?' ▶'+t.agent_id:''));
   na.on('click',(ev,t)=>openDetail(t.id));
   na.classed('wip', t=>t.status==='in_progress');   // pulsing WIP halo
 
