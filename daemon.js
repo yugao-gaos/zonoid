@@ -16,7 +16,7 @@ const mcpCore = require('./lib/mcp-core');
 const git = require('./lib/git');
 const measure = require('./lib/measure');
 const optimize = require('./lib/optimize');
-const { embed, cosine, DIMS } = require('./lib/embed');
+const { embed, cosine, embedStatus, DIMS } = require('./lib/embed');
 const judge = require('./lib/judge');
 const delta = require('./lib/delta');
 const followups = require('./lib/followups');
@@ -1279,7 +1279,7 @@ const handler = async (req, res) => {
     if (p === '/health') {
       const allLoops = [...loops.values()];
       const loopHealth = { count: allLoops.length, active: allLoops.filter((L) => L.active).length, iterations: allLoops.reduce((s, L) => s + L.iterations, 0), spent: allLoops.reduce((s, L) => s + L.spent, 0) };
-      return send(res, 200, { ok: true, workspace: state.workspace, mainTranscript: !!state.mainTranscript, loops: loopHealth, native_format: state.workspace ? nt.formatHealth(state.workspace) : null });
+      return send(res, 200, { ok: true, workspace: state.workspace, mainTranscript: !!state.mainTranscript, loops: loopHealth, embedding: embedStatus(), native_format: state.workspace ? nt.formatHealth(state.workspace) : null });
     }
 
     // Read-only ready set (for the nudge hook + UI; does NOT advance the loop/budget).
