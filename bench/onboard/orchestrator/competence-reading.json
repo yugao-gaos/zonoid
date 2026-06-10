@@ -1,0 +1,90 @@
+{
+  "n": 7,
+  "coldRate": 0,
+  "kbRate": 1,
+  "earnedRate": 1,
+  "rows": [
+    {
+      "id": "p1",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "cold_missing": [
+        "explicit",
+        "task"
+      ],
+      "kb_missing": [],
+      "note_ref": "Git ops target an arbitrary repo, NOT the daemon workspace"
+    },
+    {
+      "id": "p2",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "cold_missing": [
+        "abort",
+        "clean tree"
+      ],
+      "kb_missing": [],
+      "note_ref": "Winner merge auto-aborts on conflict and never forces"
+    },
+    {
+      "id": "p3",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "cold_missing": [
+        "no",
+        "overlay"
+      ],
+      "kb_missing": [],
+      "note_ref": "Native task JSON is read-only to us; all non-native state lives in the overlay"
+    },
+    {
+      "id": "p4",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "cold_missing": [
+        "wording"
+      ],
+      "kb_missing": [],
+      "note_ref": "search_knowledge / GET /search is lexical token-overlap, not embeddings"
+    },
+    {
+      "id": "p5",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "cold_missing": [
+        "escalate",
+        "halt"
+      ],
+      "kb_missing": [],
+      "note_ref": "A stuck optimization escalates to a human and HALTS"
+    },
+    {
+      "id": "p6",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "cold_missing": [
+        "output_tokens",
+        "spurious"
+      ],
+      "kb_missing": [],
+      "note_ref": "Measure benchmark work by output_tokens, not a gross-minus-plumbing 'net'"
+    },
+    {
+      "id": "p7",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "cold_missing": [
+        "no"
+      ],
+      "kb_missing": [],
+      "note_ref": "Desktop app runs .mcp.json servers but NOT settings.json hooks"
+    }
+  ]
+}

@@ -1,0 +1,824 @@
+[
+  {
+    "title": "Always surface the dashboard link in your replies when doing orchestrator/mul...",
+    "summary": "Always surface the dashboard link in your replies when doing orchestrator/multi-task work,",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The link is cheap to include and harmless if the dashboard is already open",
+    "summary": "The link is cheap to include and harmless if the dashboard is already open — prefer including it",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "into existing/completed work instead of becoming an orphan root node",
+    "summary": "into existing/completed work instead of becoming an orphan root node.",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Keep the main thread free to orchestrate and talk to the user",
+    "summary": "Keep the main thread free to orchestrate and talk to the user — never block it on a build.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "A real decision with a reason (\"chose X over Y because …\")",
+    "summary": "A real decision with a reason (\"chose X over Y because …\").",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Anytime the user says \"remember this\" / \"record this\" (explicit",
+    "summary": "Anytime the user says \"remember this\" / \"record this\" (explicit — always capture).",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT record chatter, restatements, or transient status",
+    "summary": "Do NOT record chatter, restatements, or transient status.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "sessions in the same workspace do not see each other's tasks (only Agent Team...",
+    "summary": "sessions in the same workspace do not see each other's tasks (only Agent Teams share,",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Critical gotcha",
+    "summary": "Critical gotcha: task IDs are local (\"1\", \"2\", …), unique only within a session",
+    "source": "README.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Any cross-session reference must be namespaced {session-uuid}/{id}",
+    "summary": "Any cross-session reference must be namespaced {session-uuid}/{id}.",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "that session's files (hooks don't carry deps or in_progress)",
+    "summary": "that session's files (hooks don't carry deps or in_progress).",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "No conflict with native because native can't hold these",
+    "summary": "No conflict with native because native can't hold these.",
+    "source": "README.md",
+    "kind": "doc"
+  },
+  {
+    "title": "ghost-blocked tasks back off to maxPoll instead of stopping",
+    "summary": "ghost-blocked tasks back off to maxPoll instead of stopping.",
+    "source": "README.md",
+    "kind": "decision"
+  },
+  {
+    "title": "{conflict, files}",
+    "summary": "{conflict, files} — the judge then records the conflict instead of forcing a merge.",
+    "source": "README.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Validation (server-side) requires metric, direction ∈ {min,max}, and measure_...",
+    "summary": "Validation (server-side) requires metric, direction ∈ {min,max}, and measure_command;",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "parse/target/guardrails are optional, and each guardrail must itself carry",
+    "summary": "parse/target/guardrails are optional, and each guardrail must itself carry",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Validation (server-side) requires metric, a numeric value, and a non-empty so...",
+    "summary": "Validation (server-side) requires metric, a numeric value, and a non-empty source; an invalid",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "rather than fabricating a number",
+    "summary": "rather than fabricating a number.",
+    "source": "README.md",
+    "kind": "decision"
+  },
+  {
+    "title": "outranks the silent stops so a genuinely-broken problem goes to a human rathe...",
+    "summary": "outranks the silent stops so a genuinely-broken problem goes to a human rather than being quietly",
+    "source": "README.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Write endpoints require it",
+    "summary": "Write endpoints require it: /mcp, /reset, /overlay/*, /loop/start, /loop/stop.",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "refresh instantly instead of waiting on a timer",
+    "summary": "refresh instantly instead of waiting on a timer.",
+    "source": "README.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Limitation (by design)",
+    "summary": "Limitation (by design): writes (/overlay/*, /reset,",
+    "source": "README.md",
+    "kind": "decision"
+  },
+  {
+    "title": "it's always one click away when the panel isn't already open",
+    "summary": "it's always one click away when the panel isn't already open.",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "the daemon is unreachable, so a daemon outage never bricks editing",
+    "summary": "the daemon is unreachable, so a daemon outage never bricks editing.",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Escape hatch",
+    "summary": "Escape hatch: export ORCH_GATE_OFF=1 to always allow.",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "plus SSE push (/events) so the UI updates on mutation instead of polling",
+    "summary": "plus SSE push (/events) so the UI updates on mutation instead of polling.",
+    "source": "README.md",
+    "kind": "decision"
+  },
+  {
+    "title": "HTTP framing",
+    "summary": "HTTP framing: responses send Connection: close to avoid keep-alive request-splitting.",
+    "source": "README.md",
+    "kind": "doc"
+  },
+  {
+    "title": "is unproven, not disproven",
+    "summary": "is unproven, not disproven — the specs were self-solvable, so the graph was never required.",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Metric caveat",
+    "summary": "Metric caveat: measure work with output_tokens, not gross − plumbing \"net\" — MCP",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Because the binary cannot execute, spike steps 2–4 (run claude -p",
+    "summary": "Because the binary cannot execute, spike steps 2–4 (run claude -p ..., test --mcp-config,",
+    "source": "bench/SPIKE.md",
+    "kind": "doc"
+  },
+  {
+    "title": "edges store on the consumer",
+    "summary": "edges store on the consumer; native task IDs must be namespaced session/id; mkcert is",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "required because TLS validates the issuer not locality",
+    "summary": "required because TLS validates the issuer not locality; the PreToolUse gate checks task",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "doc"
+  },
+  {
+    "title": "9 kept git-notes",
+    "summary": "9 kept git-notes — genuine architecture decisions/findings not otherwise captured:",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "doc"
+  },
+  {
+    "title": "snapshots are coarse)",
+    "summary": "snapshots are coarse) — they're retained as durable provenance anchors but you may prefer to",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Cross-session task IDs must be namespaced session/id",
+    "summary": "Cross-session task IDs must be namespaced session/id — native IDs are local-only;",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "any cross-session reference must be {session-uuid}/{id}",
+    "summary": "any cross-session reference must be {session-uuid}/{id}.",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Planner only ADDs nodes",
+    "summary": "Planner only ADDs nodes; never touches in-flight work — caused a runaway once; never",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "cancel/supersede in-flight, never duplicate an open task, cap at 1–3 initiati...",
+    "summary": "cancel/supersede in-flight, never duplicate an open task, cap at 1–3 initiatives, else STOP.",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "A stuck optimization escalates to a human, never self-drops",
+    "summary": "A stuck optimization escalates to a human, never self-drops — K no-winner rounds raise",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "request_guidance and halt rather than quietly dropping or replanning",
+    "summary": "request_guidance and halt rather than quietly dropping or replanning.",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "decision"
+  },
+  {
+    "title": "orchestrator tool_use / tool_result round-trips but **under-counts the always...",
+    "summary": "orchestrator tool_use / tool_result round-trips but **under-counts the always-resident schema",
+    "source": "bench/report-v2.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Win evaluation (all four guards must PASS for a WIN)",
+    "summary": "Win evaluation (all four guards must PASS for a WIN):",
+    "source": "bench/report-v4.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "precondition",
+    "summary": "precondition: H_off >= 2×W_off (hardness must dominate raw work)",
+    "source": "bench/report-v4.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "MCP available",
+    "summary": "MCP available: the always-resident tool-schema tax (loaded into context every turn) plus any",
+    "source": "bench/report.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "the agent may consult it",
+    "summary": "the agent may consult it; on these self-contained specs opus chose not to call any orchestrator tool.",
+    "source": "bench/report.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Do not change anything outside the files named here",
+    "summary": "Do not change anything outside the files named here.",
+    "source": "bench/specs/context-rich.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Otherwise",
+    "summary": "Otherwise: \"<total> rejected: <verdicts> verdict-loser, <failures> dead-end\".",
+    "source": "bench/specs/context-rich.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Do not wire it into the /learnings HTTP handler or change any existing behavior",
+    "summary": "Do not wire it into the /learnings HTTP handler or change any existing behavior — exports +",
+    "source": "bench/specs/context-rich.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not reformat or \"improve\" surrounding code",
+    "summary": "Do not reformat or \"improve\" surrounding code.",
+    "source": "bench/specs/context-rich.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "test/rejected-digest",
+    "summary": "test/rejected-digest.test.js (plain Node, no framework, require('../daemon.js'), prints",
+    "source": "bench/specs/context-rich.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "which case the transcript must be recovered by correlating the task's claim w...",
+    "summary": "which case the transcript must be recovered by correlating the task's claim window against the run",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "match and give up otherwise, or (b) fall back to a fuzzy time-window correlat...",
+    "summary": "match and give up otherwise, or (b) fall back to a fuzzy time-window correlation heuristic.",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Time-window correlation",
+    "summary": "Time-window correlation — otherwise, among the harness agents that have a transcript and a run",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "doc"
+  },
+  {
+    "title": "bound widens the window (missing start → -Infinity, missing end → Date",
+    "summary": "bound widens the window (missing start → -Infinity, missing end → Date.now()) rather than",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "decision"
+  },
+  {
+    "title": "bench/sandbox/resolve-owner",
+    "summary": "bench/sandbox/resolve-owner.js must export via module.exports = { resolveOwner }; (CommonJS).",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "test/rejected-digest",
+    "summary": "test/rejected-digest.test.js: require('./resolve-owner.js'), print PASS/FAIL lines, end with",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The test must construct the",
+    "summary": "The test must construct the",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "It must print N passed, 0 failed and exit 0",
+    "summary": "It must print N passed, 0 failed and exit 0.",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Note ms must be matched before m",
+    "summary": "Note ms must be matched before m.",
+    "source": "bench/specs/greenfield.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Valid input always returns a finite non-negative number",
+    "summary": "Valid input always returns a finite non-negative number.",
+    "source": "bench/specs/greenfield.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "bench/sandbox/parse-duration",
+    "summary": "bench/sandbox/parse-duration.js must export the function via",
+    "source": "bench/specs/greenfield.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "test/rejected-digest",
+    "summary": "test/rejected-digest.test.js: require('./parse-duration.js'), print PASS/FAIL lines, end with",
+    "source": "bench/specs/greenfield.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "It must assert at minimum",
+    "summary": "It must assert at minimum:",
+    "source": "bench/specs/greenfield.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "opaque, randomly-generated run ids that never equal the logical name",
+    "summary": "opaque, randomly-generated run ids that never equal the logical name.",
+    "source": "bench/specs/v4-hard.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "unparseable claim-window bound widens the window rather than failing the lookup",
+    "summary": "unparseable claim-window bound widens the window rather than failing the lookup: missing start →",
+    "source": "bench/specs/v4-hard.md",
+    "kind": "decision"
+  },
+  {
+    "title": "bench/sandbox/task-tokens",
+    "summary": "bench/sandbox/task-tokens.js must export via module.exports = { taskTokensFor }; (CommonJS).",
+    "source": "bench/specs/v4-hard.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "repo",
+    "summary": "repo — do NOT modify, move, or delete it).",
+    "source": "bench/specs/v4-hard.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "blockedBy",
+    "summary": "blockedBy — a list of local ids, naming other tasks in the same session that must finish",
+    "source": "bench/specs/v5-grounded.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "actually exists in the input, omit it from deps (do not throw, do not invent...",
+    "summary": "actually exists in the input, omit it from deps (do not throw, do not invent a node for it).",
+    "source": "bench/specs/v5-grounded.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "bench/sandbox/resolve-deps",
+    "summary": "bench/sandbox/resolve-deps.js must export via module.exports = { resolveDeps }; (CommonJS).",
+    "source": "bench/specs/v5-grounded.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Use to auto-progress a DAG across turns (spawn ready tasks as dependencies co...",
+    "summary": "Use to auto-progress a DAG across turns (spawn ready tasks as dependencies complete) without an always-on event loop.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "DEFAULT",
+    "summary": "DEFAULT — autonomous code work is HELD, never merged.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "spawns MUST",
+    "summary": "spawns MUST: (1) do its work in an ISOLATED git branch + worktree off the CODE repo",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(~/",
+    "summary": "(~/.claude/orchestrator; branch orch/attempt/<task-slug>, e.g. git worktree add -b orch/attempt/<slug> worktrees/self/<slug> HEAD) — NEVER edit the live checkout and NEVER merge to main;",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Merging to main is a HUMAN decision on review",
+    "summary": "Merging to main is a HUMAN decision on review — the loop never merges and never halts on guidance; it queues everything for the morning.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Pass session = this conversation's id so a cooperative-stop on its claimed ta...",
+    "summary": "Pass session = this conversation's id so a cooperative-stop on its claimed task halts that loop within one tick (see Cooperative stop). loop_start INSERTS a new loop and returns its loopId — it never clobbers an existing loop, so several loops can run at once.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "It returns { loops",
+    "summary": "It returns { loops: [ { loopId, action, tasks?, next_poll_seconds, ... } ] } — one entry per ACTIVE loop (empty array ⇒ nothing active; do NOT reschedule).",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "If start_task returns 409 (already in_progress by another agent / claimed by...",
+    "summary": "If start_task returns 409 (already in_progress by another agent / claimed by another loop this tick), SKIP that task and let the next heartbeat re-poll — never force-takeover.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "It reads accumulated learnings (get_learnings",
+    "summary": "It reads accumulated learnings (get_learnings — judge verdicts, failures, recent completions), proposes 1-3 parallelism-maximizing initiatives and wires them in (structuring \"try alternatives\" as a problem → attempts → judge subtree per the self-learn-judge skill, so the judge's verdict is recorded back as durable learning), and calls request_guidance on any decision the user must make.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Invoke the self-learn-planner skill scoped to P",
+    "summary": "Invoke the self-learn-planner skill scoped to P: feed it prior_verdict (and get_learnings) and have it wire a NEW attempts → judge round on the SAME P proposing a DIFFERENT change (never a repeat of prior_verdict.winner).",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT cancel/replan P",
+    "summary": "Do NOT cancel/replan P — only ADD the next attempt subtree.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "If EVERY entry reported stop/await_user (or the array was empty), do NOT resc...",
+    "summary": "If EVERY entry reported stop/await_user (or the array was empty), do NOT reschedule — the whole heartbeat is done; report briefly.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Keep calling ScheduleWakeup directly",
+    "summary": "Keep calling ScheduleWakeup directly — do NOT route through any native /loop wrapper.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "On an idle tick, do not reason or call other tools",
+    "summary": "On an idle tick, do not reason or call other tools — the daemon already decided.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "parallelizing, check the tasks don't share files",
+    "summary": "parallelizing, check the tasks don't share files; if they do, serialize.",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "dependents can fetch it precisely instead of you re-deriving it",
+    "summary": "dependents can fetch it precisely instead of you re-deriving it.",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Always include the dashboard link",
+    "summary": "Always include the dashboard link — 📊 http://localhost:8787/graph — in your replies while",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Operate ONLY via MCP tools",
+    "summary": "Operate ONLY via MCP tools — never shell the daemon directly.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Prefer the deep-research skill if available, with a tight question",
+    "summary": "Prefer the deep-research skill if available, with a tight question",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Otherwise a handful of WebSearch / WebFetch calls",
+    "summary": "Otherwise a handful of WebSearch / WebFetch calls — cap it (≤ ~4–5 queries).",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "as you have one credible figure with a real source",
+    "summary": "as you have one credible figure with a real source; don't keep digging.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "metric MUST name the same objective as the spec's metric",
+    "summary": "metric MUST name the same objective as the spec's metric.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Degrade gracefully",
+    "summary": "Degrade gracefully — NEVER fabricate.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "note** explaining the caveat ONLY if you have a real (if weak) sourced figure",
+    "summary": "note** explaining the caveat ONLY if you have a real (if weak) sourced figure.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never fabricate a number",
+    "summary": "Never fabricate a number.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "When the problem carries a metric spec + measurements, judge METRIC-FIRST (im...",
+    "summary": "When the problem carries a metric spec + measurements, judge METRIC-FIRST (improvement vs baseline, guardrail regressions, gap to a researched competitor benchmark) and weigh the tradeoffs with judgment; otherwise fall back to test pass/fail + rationale.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "it NEVER merges and NEVER halts the loop",
+    "summary": "it NEVER merges and NEVER halts the loop.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "- Do NOT call merge_attempt or git merge",
+    "summary": "- Do NOT call merge_attempt or git merge.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT request_guidance (it would halt the loop)",
+    "summary": "Do NOT request_guidance (it would halt the loop).",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Everything (merges, conflicts, failures) is queued for the morning human revi...",
+    "summary": "Everything (merges, conflicts, failures) is queued for the morning human review via the verdict + the ⏸/⚠ summary — never escalated mid-run.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Operate ONLY via MCP tools",
+    "summary": "Operate ONLY via MCP tools — never shell git directly.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "guardrail / fails to improve), do NOT force a merge",
+    "summary": "guardrail / fails to improve), do NOT force a merge.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "for inspection, and request_guidance({ question",
+    "summary": "for inspection, and request_guidance({ question: \"Winning attempt <key> conflicts with base on <files> — resolve manually, pick another attempt, or abandon?\", trigger: \"irreversible_action\" }) rather than guessing the resolution.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "(Do not cancel/remove the winner",
+    "summary": "(Do not cancel/remove the winner; its worktree can be cleaned once the merge is confirmed.)",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "You only EVALUATE",
+    "summary": "You only EVALUATE; rival generation already happened upstream — never",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "but regresses a guardrail should almost never beat a clean attempt with a sma...",
+    "summary": "but regresses a guardrail should almost never beat a clean attempt with a smaller gain.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "each regression (metric",
+    "summary": "each regression (metric: base→meas) in the verdict; never let one pass silently.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "When node",
+    "summary": "When node.benchmark is absent, judge on baseline-only — do NOT fabricate",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Weighing the tradeoff (judgment, not arithmetic)",
+    "summary": "Weighing the tradeoff (judgment, not arithmetic): prefer the attempt with the best metric",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Metric mode",
+    "summary": "Metric mode: evaluate, never generate.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never fabricate a benchmark",
+    "summary": "Never fabricate a benchmark",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Metric mode is purely additive and never blocks an older problem",
+    "summary": "Metric mode is purely additive and never blocks an older problem.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "request_guidance(",
+    "summary": "request_guidance(...) to halt the loop instead of forcing an outcome.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "judge blocked_by each attempt",
+    "summary": "judge blocked_by each attempt — but do NOT call branch_task (it targets the daemon workspace, not",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Prefer BUILDING over escalating",
+    "summary": "Prefer BUILDING over escalating: in",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "autonomous hold-merge mode do NOT request_guidance for ordinary priority/scop...",
+    "summary": "autonomous hold-merge mode do NOT request_guidance for ordinary priority/scope calls (it halts the",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "NEVER cancel or supersede an existing in-flight task (in_progress/ready/not_r...",
+    "summary": "NEVER cancel or supersede an existing in-flight task (in_progress/ready/not_ready).",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "NEVER create a duplicate of an existing open task",
+    "summary": "NEVER create a duplicate of an existing open task.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Always suggest_links BEFORE TaskCreate",
+    "summary": "Always suggest_links BEFORE TaskCreate",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not fabricate work to look busy",
+    "summary": "Do not fabricate work to look busy.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "ambiguous or strategic), call request_guidance",
+    "summary": "ambiguous or strategic), call request_guidance — do NOT guess.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Escalate, don't improvise",
+    "summary": "Escalate, don't improvise.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "what's already been resolved",
+    "summary": "what's already been resolved; do NOT re-propose a settled question.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "\"superseded by X\" (already replaced",
+    "summary": "\"superseded by X\" (already replaced — not an open gap) vs genuine dead ends (avoid",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "(source",
+    "summary": "(source:'verdict', with the reason it lost and the beatenBy winner) or a **genuine",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "dead end** (source",
+    "summary": "dead end** (source:'failure', with the reason/note).",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "open = in_progress / ready / not_ready (the no-fly zone",
+    "summary": "open = in_progress / ready / not_ready (the no-fly zone — never touch),",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "canceled / failed (avoid repeating",
+    "summary": "canceled / failed (avoid repeating; respect \"superseded\" notes).",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Never leave a new task as a disconnected root node",
+    "summary": "Never leave a new task as a disconnected root node.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(a source",
+    "summary": "(a source:'verdict' loser) — the new task's description MUST cite that prior verdict",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "it via get_learnings()",
+    "summary": "it via get_learnings().rejected[] instead of relitigating the same loss.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "\"we don't know the best approach",
+    "summary": "\"we don't know the best approach — try a few and pick,\" don't make one flat task.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not resolve it yourself",
+    "summary": "Do not resolve it yourself.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never run a step that needs a password",
+    "summary": "Never run a step that needs a password",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "MCP server",
+    "summary": "MCP server; otherwise node ~/.claude/orchestrator/daemon.js &.",
+    "source": "skills/setup/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Add the connector (manual",
+    "summary": "Add the connector (manual — UI step the user must do): Settings → Connectors →",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "connector path (local stdio servers don't render it)",
+    "summary": "connector path (local stdio servers don't render it).",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  }
+]

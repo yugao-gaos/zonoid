@@ -1,0 +1,271 @@
+{
+  "repo": "__INSTALL_DIR__",
+  "nodes": [
+    {
+      "id": "bench/ingest/inject.js",
+      "role": "inject.js — populate the orchestrator graph with the ingest candidate knowledge-base."
+    },
+    {
+      "id": "bench/sandbox/resolve-deps.test.js",
+      "role": "Fixed acceptance test for bench/sandbox/resolve-deps.js — DO NOT EDIT."
+    },
+    {
+      "id": "bench/sandbox/task-tokens.test.js",
+      "role": "Fixed acceptance test for bench/sandbox/task-tokens.js — DO NOT EDIT."
+    },
+    {
+      "id": "daemon.js",
+      "role": "Orchestrator daemon: serves a per-WORKSPACE task graph built ON TOP of native Claude Code tasks (read live, source of truth) plus our overlay (cross-session ..."
+    },
+    {
+      "id": "lib/git.js",
+      "role": "Thin, dependency-free wrapper over the git CLI, scoped to a repo path."
+    },
+    {
+      "id": "lib/mcp-core.js",
+      "role": "Shared MCP core: tool/resource definitions + JSON-RPC dispatch, used by BOTH transports — the stdio server (mcp-graph.js) and the daemon's HTTP /mcp endpoint..."
+    },
+    {
+      "id": "lib/measure.js",
+      "role": "Run a task's inline metric spec (lib/overlay metrics[key]) in a worktree and parse the number(s)."
+    },
+    {
+      "id": "lib/native-tasks.js",
+      "role": "Native task aggregator."
+    },
+    {
+      "id": "lib/optimize.js",
+      "role": "Converged-vs-iterate control for the metric-driven self-improvement loop (note note-mq6xh98a, ⑥)."
+    },
+    {
+      "id": "lib/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "mcp-graph.js",
+      "role": "MCP server (stdio) for the orchestrator graph."
+    },
+    {
+      "id": "scripts/bench-arm.js",
+      "role": "Single-arm bench runner for the orchestrator-MCP A/B benchmark."
+    },
+    {
+      "id": "scripts/bench-report.js",
+      "role": "bench-report - aggregate headless-bench runs into bench/report.{md,json}."
+    },
+    {
+      "id": "scripts/bench-report.test.js",
+      "role": "Plain Node test for scripts/bench-report.js (no framework; matches test/token-attr.test.js style)."
+    },
+    {
+      "id": "scripts/ingest-docs.js",
+      "role": "ingest-docs.js — distill the repo's rationale docs (README, CLAUDE.md, SKILL.md, ADRs) into candidate note nodes for the self-learning graph."
+    },
+    {
+      "id": "scripts/ingest-git.js",
+      "role": "ingest-git.js — mine git history into candidate knowledge notes."
+    },
+    {
+      "id": "scripts/ingest-structure.js",
+      "role": "ingest-structure - extract the orchestrator's STATIC module-dependency graph."
+    },
+    {
+      "id": "test/autowire.test.js",
+      "role": "Plain Node test for auto-wiring new tasks in daemon.js (no framework; matches test/weighted-edges.test.js style)."
+    },
+    {
+      "id": "test/benchmark.test.js",
+      "role": "Plain Node test for the researched competitor/industry-average benchmark: overlay.setBenchmark set/clear, save/load persistence, back-compat load of an old o..."
+    },
+    {
+      "id": "test/git-merge.test.js",
+      "role": "Plain Node test for the merge half of lib/git.js (currentBranch, mergeBranch)."
+    },
+    {
+      "id": "test/git.test.js",
+      "role": "Plain Node test for lib/git.js (no framework; matches the style of test/smoke.sh)."
+    },
+    {
+      "id": "test/lean-learnings.test.js",
+      "role": "Plain Node test for daemon.js leanLearnings + isTruthy — the /learnings ?compact=1 lean payload (no framework; matches test/rejected-digest.test.js style)."
+    },
+    {
+      "id": "test/measure.test.js",
+      "role": "Plain Node test for the measure node: lib/measure.parseNumber (both parse forms + failure), runMeasure against FAKE measure commands (echo), evalGuardrails r..."
+    },
+    {
+      "id": "test/metric-spec.test.js",
+      "role": "Plain Node test for the inline metric spec: overlay.setMetricSpec set/clear, save/load persistence, back-compat load of an old overlay (no metrics map), and ..."
+    },
+    {
+      "id": "test/native-write.test.js",
+      "role": "Plain Node test for lib/native-tasks.js writeStatus (no framework; matches test/git.test.js style)."
+    },
+    {
+      "id": "test/optimize.test.js",
+      "role": "Plain Node test for the converged-vs-iterate control (⑥): lib/optimize.decideOptimize across all five outcomes (converge-on-target, converge-on-diminishing-r..."
+    },
+    {
+      "id": "test/rejected-digest.test.js",
+      "role": "Plain Node test for daemon.js digestRejected — the /learnings `rejected[]` ledger (no framework; matches test/token-attr.test.js style)."
+    },
+    {
+      "id": "test/repo-target.test.js",
+      "role": "Plain Node test for the target-repo decoupling: git.js operating on a repo path that is NOT a daemon workspace, plus overlay.setRepo / the explicit > task-fi..."
+    },
+    {
+      "id": "test/search-knowledge.test.js",
+      "role": "Plain Node test for the query-by-text scorer behind /search + search_knowledge (no framework; matches test/autowire.test.js style)."
+    },
+    {
+      "id": "test/token-attr.test.js",
+      "role": "Plain Node test for daemon.js taskTokens read-side time-window correlation (no framework; matches test/native-write.test.js style)."
+    },
+    {
+      "id": "test/weighted-edges.test.js",
+      "role": "Plain Node test for context-edge relevance weights in lib/overlay.js (no framework; matches test/native-write.test.js style)."
+    }
+  ],
+  "edges": [
+    {
+      "from": "daemon.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/measure.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/optimize.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/overlay.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "mcp-graph.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-report.test.js",
+      "to": "scripts/bench-report.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/autowire.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/autowire.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/benchmark.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/git-merge.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/git.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/lean-learnings.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/measure.test.js",
+      "to": "lib/measure.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/measure.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/metric-spec.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/native-write.test.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/optimize.test.js",
+      "to": "lib/optimize.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/optimize.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/rejected-digest.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/repo-target.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/repo-target.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/search-knowledge.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/token-attr.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/weighted-edges.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/weighted-edges.test.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    }
+  ]
+}

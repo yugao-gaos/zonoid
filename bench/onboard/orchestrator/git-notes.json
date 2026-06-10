@@ -1,0 +1,134 @@
+[
+  {
+    "title": "test(bench): v5 on haiku — weak model = 3.7x hardness but ON STILL did more work",
+    "summary": "Tested \"weaker model benefits more from context.\" Half confirmed: H_off rose opus 2,023 → haiku 7,444 (3.7x). But falsified the rescue: H_on 9,719 still > H_off — note-engagement overhead scaled with the model too. NO-WIN.",
+    "source": "9e3f32dcc819760fd5d9fb119ed45abdc8700d74",
+    "kind": "verdict"
+  },
+  {
+    "title": "test(bench): v5 grounded run — NO-WIN (precise+retrieved, but task too easy → ON did MORE work)",
+    "summary": "Retrieval worked (every ON arm called search_knowledge, engaged the anchor note), but H_on 2,674 > H_off 2,023 → ON did 1.29x MORE output. The task's hardness was low (~2k vs v4's ~18k); OFF solved it unaided, so processing the precise note was net overhead.",
+    "source": "4cccd9d74a0db54395e5c5ac02449146f37cb5de",
+    "kind": "verdict"
+  },
+  {
+    "title": "chore: gitignore loops.json runtime state",
+    "summary": "The multi-loop registry (4ae4e79) replaced singleton loop.json with a loops.json map blob, but only loop.json was ignored. Ignore loops.json too so live loop state isn't committed.",
+    "source": "3b535b450991c33d827c40243ed27aad7d38dcbf",
+    "kind": "decision"
+  },
+  {
+    "title": "feat(retrieval+bench): search_knowledge tool + v5 grounded test",
+    "summary": "Closes the ingest→retrieve loop. search_knowledge (GET /search?q=&k=, MCP tool) ranks ALL nodes incl. [ingest] notes by lexical relevance to a free-text query — so an agent can recall a precise prior resolution without an anchor task. v5-grounded test: implement resolveDeps() over multi-session native task lists; the trap is the cross-session id-collision the ingested note \"cross-session IDs must be namespaced ses...",
+    "source": "fd58f3123ac02266b99b9197294be146ef79f505",
+    "kind": "gotcha"
+  },
+  {
+    "title": "feat(ingest): bootstrap KB from repo history/docs/structure (v1)",
+    "summary": "Ingestion pipeline that mines an existing codebase into the task/note/context graph — dissolving cold-start. scripts/ingest-{git,docs,structure}.js mine commit history (precise gotchas/decisions, esp. reverts/fixes — the delta over reading current code), distil docs/ADRs/SKILLs into decision/constraint notes, and extract the static module-dependency graph. bench/ingest/ holds the mined JSON + a reviewed CANDIDATE-...",
+    "source": "f2c73ebe795553669d8c0012d00b97032d316f1a",
+    "kind": "verdict"
+  },
+  {
+    "title": "Multi-loop registry: singleton heartbeat → keyed loop registry",
+    "summary": "- daemon.js: let loop → const loops=new Map() keyed by UUID; loops.json registry with legacy loop.json migration; restore-all on boot - decideAction → decideOne(L,ctx)+decideAll() batched array, batch multiplexed across loops - sweepStaleLoops() central liveness sweep (dead session / budget / iterations / no-progress) + 60s periodic timer - routes /loop/start (insert+loopId), /loop/stop (loopId req), /loop/status...",
+    "source": "4ae4e7983f57d5b8947681e620c7208258517a56",
+    "kind": "gotcha"
+  },
+  {
+    "title": "test(bench): v4 hardness checkpoint — NO-WIN (graph didn't collapse hardness)",
+    "summary": "v4-hard, n=5 opus, 10/10 solved. Task WAS genuinely hard (H_off 18,682 ≈ 50×W), but H_on≈H_off (noise) — the graph did not reduce hardness. Diagnosed: ON called get_learnings 1× but the recorded verdict was too general for the test's specific case-3/4 rule, so ON re-derived it the hard way like OFF; plus ON paid C=19,084 consult overhead → METRIC −16,744 → NO-WIN.",
+    "source": "f5c4bbadf0e641510b7a79a1670dc630ebb0092e",
+    "kind": "verdict"
+  },
+  {
+    "title": "test(bench): W/H/C decomposition + (H_off−H_on)−C metric + win-guards in report",
+    "summary": "bench-report.js now emits the v4 decomposition: per-arm W (real-work=diffTokens), H (hardness=output−W), explorer tool-call counts; per-problem C (consult overhead = ON−OFF cache cost), METRIC = (H_off−H_on)×5 − C, and four PASS/FAIL guards (precondition H_off≥2W, fairness both-solve≥0.8, margin METRIC>0 & >pooled stdev, corroboration W_on/W_off≤1.1) → WIN/NO-WIN. 61 tests pass.",
+    "source": "7f329ec1116c85a958007f0cf599717671a061f3",
+    "kind": "verdict"
+  },
+  {
+    "title": "test(bench): v4-hard task + fixed pre-committed acceptance test + W-capture",
+    "summary": "The v4 high-hardness task: implement taskTokensFor() (window-overlap correlation + session-rollup fallback), anchored on the recorded token-attribution verdict. Designed so the naive solution passes superficial checks but fails an OPAQUE, non-local case (case 3 vs case 4: identical code path, opposite expected output, distinguished only by session cardinality) — forcing OFF to re-derive what ON reads from the grap...",
+    "source": "28164d708a7a6c2157b20744e00fbacd559cd66a",
+    "kind": "verdict"
+  },
+  {
+    "title": "docs(README): benchmark findings — work parity, cache_read is the cost, lean=parity",
+    "summary": "Summarizes the ON-vs-OFF token-cost study: actual work (output tokens) is parity with/without the graph; the entire cost delta is cache_read of loaded context; compact payload → cost parity (v2 1.63× → v3 1.03×); no benefit measured on self-solvable tasks. Notes the net-metric trap (use output_tokens).",
+    "source": "a068e6aff77be7e4afbad557924e9457cfdae2e0",
+    "kind": "verdict"
+  },
+  {
+    "title": "test(bench): v3 lean-consult run + --consult=lean mode + 3-way verdict",
+    "summary": "bench-arm.js gains --consult=lean (ON arm calls get_learnings compact:true, the ~1-3k index vs ~25k full). v3 run (graph-dependent, opus, n=5, 10/10 solved): cost-weighted gross ON/OFF: v2 fat 1.63x → v3 lean 1.03x (parity) Reconciled finding (clean output-token measure, supersedes the net-metric artifact): ACTUAL WORK is parity in BOTH runs — v2 output ON/OFF 1.08x, v3 0.95x. The whole ON-vs-OFF delta is cache_re...",
+    "source": "91028c626fd835bb53215ab8f4ee7e727398351d",
+    "kind": "verdict"
+  },
+  {
+    "title": "test(bench): lazy-context tooling + unit tests (consult modes, cost-weighting, v2 results)",
+    "summary": "Standalone companion to the lazy-context router work whose daemon/overlay/mcp-core changes were swept into 9d4a9c8 by the autonomous loop's merge. Commits the pieces that weren't in those shared core files: - scripts/bench-arm.js: --consult mandatory/lean modes; ON arm pinned to the real graph via ORCH_WORKSPACE; --model arg. - scripts/bench-report.js (+test): cost-weighted tok-equivalents (cache_read ×0.1, output...",
+    "source": "185d77e26fa622c302f668612e727e2caa91db27",
+    "kind": "decision"
+  },
+  {
+    "title": "feat(loop): metric-driven self-improvement loop (target-repo → measure → metric-judge → optimize)",
+    "summary": "Extends the self-learning loop from pass/fail+rationale judging into a metric-driven optimization loop that runs on an arbitrary target repo (its own source or a client project). Built as six increments: ① target-repo decoupling — resolveRepo(key) (explicit > task repos[key] > workspace); set_task_repo / POST /git/repo. git ops/worktrees can target any repo distinct from the daemon workspace. ② inline metric-spec...",
+    "source": "9d4a9c8ba0be25825fc3202c8f3deac4226e1615",
+    "kind": "verdict"
+  },
+  {
+    "title": "test(bench): orch-ON vs orch-OFF token-cost benchmark harness + v1 baseline",
+    "summary": "Headless A/B harness: each arm a separate `claude -p` with its own --mcp-config (ON loads orchestrator-graph, OFF none → true exclusion) in an isolated worktree, ON pinned to the real graph via ORCH_WORKSPACE. v1 finding (null): plumbing=0 on every ON run — permissive \"may consult\" preamble + self-contained specs → opus called no graph tools, so net≡gross and the only delta was the passive MCP schema tax (small si...",
+    "source": "b8a1d6bf494801f2aa49f26a00295e05731cc65a",
+    "kind": "verdict"
+  },
+  {
+    "title": "feat(mcp): ORCH_WORKSPACE env to target a workspace independent of cwd",
+    "summary": "mcp-graph.js posted process.cwd() as the daemon workspace on startup, so any process loading the orchestrator MCP (e.g. a headless agent in a git worktree) hijacked the global workspace pointer — repointing the live graph and blinding the agent to the real workspace's learnings/context. Now honors ORCH_WORKSPACE when set (else cwd, unchanged). Dogfood-finding #1.",
+    "source": "a7166b05fb72bd340ff8ca7bf46bec53ec833c48",
+    "kind": "verdict"
+  },
+  {
+    "title": "docs: add project CLAUDE.md, point dashboard at daemon-served URL, ignore /.claude/",
+    "summary": "- CLAUDE.md: workspace instructions (dashboard link, background-subagent dispatch norm, record durable decisions as note nodes). - README: desktop preview panel uses the daemon-served dashboard (http://localhost:8787/) rather than a workspace html file. - .gitignore: ignore local machine-specific /.claude/ session config.",
+    "source": "315a3adac34a13ae9f8b9c7dfd5bba94f8a5e4fd",
+    "kind": "decision"
+  },
+  {
+    "title": "feat(loop): hold-merge mode — autonomous loop builds in isolation, never merges",
+    "summary": "Under the heartbeat loop, code-producing work is queued for human review instead of auto-merged or escalated mid-run: - orch-loop: every spawned code task works in an isolated orch/attempt/<slug> worktree off the code repo, commits there, completes as \"MERGE PENDING\" — never edits the live checkout, never merges to main. - self-learn-judge: hold-merge override — pick the winner but do NOT merge or remove worktrees...",
+    "source": "d2fbfd7e2bf03a56033cdc4c2cbf4cd2daaa2c7c",
+    "kind": "verdict"
+  },
+  {
+    "title": "feat(planner): learnings-aware planning — dedup against rejected approaches",
+    "summary": "get_learnings() now returns a digested rejected[] ledger so the planner can scan losing approaches in one pass instead of hand-parsing nested verdicts: - daemon.js: new pure helper digestRejected(verdicts, failures, labelFor) — verdict losers -> {approach, reason, beatenBy, source:'verdict'}; genuine dead-end failures -> {approach, reason, source:'failure'}, excluding superseded/duplicate/consolidated. Added to /l...",
+    "source": "576fae7e479314d83c88571fddd1128268b64e3e",
+    "kind": "verdict"
+  },
+  {
+    "title": "Liveness fix + escalation wiring + cleanup (#11)",
+    "summary": "- Agent liveness: /agent/done now CASCADES to release the in_progress task the agent held (fixes phantom in_progress); daemon staleness sweep releases abandoned claims (kill/crash/idle/cross-session) before reading native, busting the agg cache so the reverted status shows same-build; releaseClaim reverts native status too (keeps the write-through in sync); loaded agents demoted running->unknown on restart; stale_...",
+    "source": "a02a3e8ee5643c02fedfeee78c2e2116bc821145",
+    "kind": "verdict"
+  },
+  {
+    "title": "Checkpoint: combined multi-session self-learning work (PRE-cleanup)",
+    "summary": "Snapshot of escalation gate + replan-reconciliation + cross-session cooperation (cancel_requested/list_agents/request_agent_stop) built across two concurrent sessions. KNOWN DEFECTS to fix next: duplicate /guidance + /supersede handlers in daemon.js; request_guidance not yet wired into skills; agent-liveness/status-stale bug.",
+    "source": "21a66531ec9815bd3488be06e64e3880ee39a5b8",
+    "kind": "verdict"
+  },
+  {
+    "title": "Increment #4a: self-scheduling primitives",
+    "summary": "GET /learnings digest (verdicts/failures/recent) + get_learnings MCP tool; decideAction returns action:'plan' when DAG drained + config.self_plan + budget; self_plan config flag (opt-in, default off).",
+    "source": "c94bb3e8ae8649643c7f1d8128edee5a026cd712",
+    "kind": "verdict"
+  },
+  {
+    "title": "Initial commit: orchestrator daemon, git integration foundation, judge/merge-back",
+    "summary": "Baseline snapshot of the self-learning harness source — daemon, overlay/native-tasks libs, git worktree integration (init/branch/merge), judge skill, hooks, dashboard, tests. Secrets (certs/, token) and runtime state (overlay/, sessions/, worktrees/, workspace) are gitignored.",
+    "source": "a2dfd5e903bcce95524edbd923748cdc0448e16c",
+    "kind": "decision"
+  }
+]

@@ -1,0 +1,31 @@
+{
+  "_meta": "Honest two-condition answers for the first competence reading. COLD = a competent SWE agent with NO knowledge of this project, reasoning from general priors/defaults. KB = the same agent with the validated onboard-notes.json recalled. Used by onboard-harness.js --answers (offline judge, no nested-agent spawn).",
+  "p1": {
+    "cold": "Git operations like branch and merge run against the daemon's workspace repository — that's the repo the daemon was started in, so it always operates on the workspace / current working directory of the daemon.",
+    "kb": "They do NOT necessarily run against the daemon workspace. The target repo is resolved by precedence: an explicit repoPath argument wins first, then the task's overlay repo field (set via set_task_repo), and only as a fallback the daemon workspace. Worktrees are keyed by a hash of the repo path so distinct repos never collide."
+  },
+  "p2": {
+    "cold": "On a merge conflict it would typically stop and surface the conflicting files, and you'd resolve them. Many such systems force the merge through with a strategy like -X theirs or auto-resolve so the winning branch always lands.",
+    "kb": "merge() runs git merge --no-ff; on conflict it collects the conflicted file paths (diff --diff-filter=U) and then runs git merge --abort to leave a CLEAN working tree, returning {merged:false, conflict:true, files}. It never forces or auto-resolves — the judge handles the conflict and escalates."
+  },
+  "p3": {
+    "cold": "Yes — if you need to update task status or dependencies you can just modify the task JSON file directly; it's the source of truth, so writing the file is the straightforward way to update it.",
+    "kb": "No, never write the native task JSON directly. It is the source of truth for native fields but unsafe to write (it has a .lock and may be overwritten by Claude Code), and all file access is confined to lib/native-tasks.js. Non-native data lives in our per-workspace overlay store; mutate native fields only via TaskUpdate."
+  },
+  "p4": {
+    "cold": "search_knowledge most likely does semantic retrieval — it embeds the query and the notes into vectors and ranks by cosine/embedding similarity, so it finds notes that are semantically related even if they use different words.",
+    "kb": "It is purely LEXICAL token-overlap, not embeddings. GET /search tokenizes the query and scores each node by token overlap against its label+summary, filters score>0, sorts, and slices k. The practical consequence: a note only retrieves if it shares surface tokens/wording with the query, so note wording matters for recall — there is no semantic match."
+  },
+  "p5": {
+    "cold": "If the loop gets stuck with no winner after several rounds it would give up on that problem — typically auto-cancel or drop the problem and move on, or silently replan it, so the system doesn't loop forever.",
+    "kb": "It escalates to a human: after K rounds with no usable winner it raises request_guidance and HALTS (one of exactly five escalation triggers). It does NOT auto-cancel, silently drop, or auto-replan the problem — a genuinely-broken problem must reach a human."
+  },
+  "p6": {
+    "cold": "Computing net work as gross minus plumbing is a reasonable way to isolate the real work from overhead — subtract the plumbing/overhead tokens from the gross and you get the actual work done, so net work is the metric to trust.",
+    "kb": "It is misleading because MCP token attribution is sticky and buckets cache_read into 'plumbing', so gross-minus-plumbing produces a spurious artifact (a fake ~65%-less-work result). You should measure actual work by output_tokens, and cost by cost-weighted gross (cache_read ×0.1)."
+  },
+  "p7": {
+    "cold": "Yes, settings.json hooks run in the desktop app the same as the CLI, so the PreToolUse gate and auto-router are enforced there and will block edits that aren't tied to a claimed task.",
+    "kb": "No — the desktop app runs .mcp.json servers but does NOT execute settings.json hooks. So the MCP server self-boots the daemon and the graph/tools work hookless, but hook-only features (the PreToolUse edit-gate, auto-router) require the CLI. In the desktop app the orchestration discipline is instruction-level only — the gate enforces nothing there."
+  }
+}

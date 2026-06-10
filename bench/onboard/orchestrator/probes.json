@@ -1,0 +1,84 @@
+[
+  {
+    "id": "p1",
+    "question": "In this orchestrator, when you call branch_task / merge_attempt / measure on a task, which git repository do those operations run against, and how is it resolved? Be specific about precedence.",
+    "require": [
+      ["explicit", "repopath", "repo_path", "argument", "arg"],
+      ["task", "set_task_repo", "repos[", "overlay repo", "repo field"],
+      ["workspace", "daemon workspace", "fall back", "fallback", "default"]
+    ],
+    "forbid": ["always the workspace", "always runs against the workspace", "current working directory", "cwd of the daemon"],
+    "note_ref": "Git ops target an arbitrary repo, NOT the daemon workspace",
+    "hint": "precedence: explicit repoPath > task.repo overlay field > daemon workspace"
+  },
+  {
+    "id": "p2",
+    "question": "What happens when merge_attempt hits a merge conflict while merging a winning attempt branch? Describe the exact behavior of the merge primitive.",
+    "require": [
+      ["abort", "--abort", "aborts"],
+      ["clean tree", "clean working tree", "leaves a clean", "no partial", "never forces", "does not force"],
+      ["conflict", "files", "conflicted", "returns"]
+    ],
+    "forbid": ["forces the merge", "force merge", "-X theirs", "-X ours", "resolves the conflict automatically", "commits the merge anyway", "always lands"],
+    "note_ref": "Winner merge auto-aborts on conflict and never forces",
+    "hint": "git merge --no-ff; on conflict collect files then git merge --abort; returns {conflict, files}"
+  },
+  {
+    "id": "p3",
+    "question": "Should code in this project ever write the native Claude Code task JSON files directly to update task status or dependencies? Why or why not, and where does non-native data live?",
+    "require": [
+      ["no", "never", "do not", "should not", "must not"],
+      ["overlay", "overlay store"],
+      ["lock", ".lock", "overwritten", "taskupdate", "native-tasks.js", "adapter", "source of truth"]
+    ],
+    "forbid": ["yes, write", "safe to write", "you can edit the json", "just modify the file"],
+    "note_ref": "Native task JSON is read-only to us; all non-native state lives in the overlay",
+    "hint": "native files are SoT for native fields but unsafe to write; non-native state is in the overlay; mutate native only via TaskUpdate"
+  },
+  {
+    "id": "p4",
+    "question": "How does the search_knowledge tool (GET /search) match a query against knowledge notes — what retrieval method does it use? What practical consequence does that have for how notes should be worded?",
+    "require": [
+      ["lexical", "token", "keyword", "overlap", "word"],
+      ["not", "no embedding", "not semantic", "not embeddings"],
+      ["wording", "surface", "share", "same words", "vocabulary", "phrasing", "terms"]
+    ],
+    "forbid": ["embedding", "vector", "semantic similarity", "cosine", "dense retrieval", "neural"],
+    "note_ref": "search_knowledge / GET /search is lexical token-overlap, not embeddings",
+    "hint": "token-overlap scorer over label+summary; purely lexical, so a note only retrieves if it shares surface tokens with the query"
+  },
+  {
+    "id": "p5",
+    "question": "When this project's metric-driven self-improvement loop gets stuck (K consecutive rounds with no usable winner), what does it do? Does it cancel or replan the problem?",
+    "require": [
+      ["escalate", "request_guidance", "human", "guidance"],
+      ["halt", "stops", "stop", "raises", "pauses"]
+    ],
+    "forbid": ["auto-cancel", "automatically cancels", "drops the problem", "replans automatically", "deletes the task", "gives up and removes", "move on"],
+    "note_ref": "A stuck optimization escalates to a human and HALTS",
+    "hint": "raises request_guidance and halts (one of five escalation triggers); never auto-cancels/replans"
+  },
+  {
+    "id": "p6",
+    "question": "When benchmarking orchestrator ON vs OFF, why is computing a 'net work' figure as (gross tokens − plumbing tokens) misleading, and what should you measure instead?",
+    "require": [
+      ["output_tokens", "output tokens"],
+      ["cache_read", "cache read", "plumbing", "attribution", "sticky"],
+      ["spurious", "misleading", "artifact", "wrong", "false"]
+    ],
+    "forbid": ["net work is the right metric", "gross minus plumbing is accurate", "65% less work is real"],
+    "note_ref": "Measure benchmark work by output_tokens, not a gross-minus-plumbing 'net'",
+    "hint": "MCP token attribution buckets cache_read into plumbing -> gross-minus-plumbing 'net' gives a spurious ~65%-less artifact; trust output_tokens"
+  },
+  {
+    "id": "p7",
+    "question": "In the desktop Claude app (not the CLI), are settings.json PreToolUse hooks executed? What does that mean for the orchestrator's auto-router / edit-gate enforcement?",
+    "require": [
+      ["no", "not", "does not", "doesn't run hooks", "no hooks"],
+      ["mcp", ".mcp.json", "self-boot", "self boots", "instruction", "cli"]
+    ],
+    "forbid": ["yes, hooks run", "hooks are enforced in the desktop app", "the gate blocks edits in the desktop app"],
+    "note_ref": "Desktop app runs .mcp.json servers but NOT settings.json hooks",
+    "hint": "desktop runs .mcp.json servers but no settings.json hooks; gate/auto-router need the CLI; in desktop the discipline is instruction-level only"
+  }
+]
