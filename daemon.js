@@ -2144,6 +2144,17 @@ const handler = async (req, res) => {
     if (p === '/state') {
       const ws = u.searchParams.get('workspace') || state.workspace;
       const g = buildGraph(ws);
+      // Compact projection (?compact=1): slim each task to id/label/status/deps(+assignee) and drop
+      // heavy fields (note, summary, tokens, git, timestamps, session) so overview reads stay small.
+      if (u.searchParams.get('compact')) {
+        const slim = g.tasks.map((t) => {
+          const o = { id: t.id, label: t.label, status: t.status, deps: t.deps };
+          if (t.kind) o.kind = t.kind;
+          if (t.agent_id) o.assignee = t.agent_id;
+          return o;
+        });
+        return send(res, 200, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: state.overlay.edges, summary: g.summary });
+      }
       return send(res, 200, { workspace: ws, tasks: g.tasks, ghosts: g.ghosts, edges: state.overlay.edges, routes: state.routes, agents: agentsArr(), summary: g.summary });
     }
 

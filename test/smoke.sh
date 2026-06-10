@@ -35,6 +35,15 @@ chk "state has 2 tasks"         "$(g state | jq '.tasks|length')"               
 chk "ready = a"                 "$(g ready | jq -r '.ready[0].label')"           "a"
 chk "multi-ws read (?workspace)" "$(g 'state?workspace=/tmp/orch-smoke' | jq -r .workspace)" "/tmp/orch-smoke"
 
+# compact projection (?compact=1): same task count, slim per-task keys, no heavy fields, keeps edges/summary
+chk "compact flagged"           "$(g 'state?compact=1' | jq -r .compact)"        "true"
+chk "compact has 2 tasks"       "$(g 'state?compact=1' | jq '.tasks|length')"    "2"
+chk "compact task keys slim"    "$(g 'state?compact=1' | jq -c '.tasks[0]|keys')" '["deps","id","label","status"]'
+chk "compact drops summary fld" "$(g 'state?compact=1' | jq -r '.tasks[0]|has("summary")')" "false"
+chk "compact keeps summary blk" "$(g 'state?compact=1' | jq -r '.summary.tasks_total')" "2"
+chk "full mode unchanged (note)" "$(g state | jq -r '.tasks[0]|has("note")')"    "true"
+chk "compact smaller than full" "$([ "$(g 'state?compact=1' | wc -c)" -lt "$(g state | wc -c)" ] && echo yes || echo no)" "yes"
+
 # review gate
 jpost config '{"require_review":true}' >/dev/null
 chk "done blocked w/o tested"   "$(jpost overlay/status "$(b_status "$S/1" done)" | jq -r '.error!=null')" "true"
