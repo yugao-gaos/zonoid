@@ -55,3 +55,30 @@ or rejects the URL, the **preview panel** (step 1) remains the working in-app da
 If the user wants it: show the change, get explicit confirmation, then merge
 `.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"` into `~/.claude/settings.json`; note it needs
 a Claude Code restart. The tool works without it ("team" routing falls back to Workflow).
+
+## 6. First-run KB onboarding (drop-in entry, human-gated)
+When setup runs in a **new repo** (one with no KB bootstrapped yet), offer to onboard it so a
+fresh project gets a starter knowledge base. This is the drop-in entry point.
+
+**Detect first-run** (skip if already onboarded — the entry is idempotent):
+- `REPO="$(git -C . rev-parse --show-toplevel 2>/dev/null)"` — the target repo.
+- `ls "$BASE/bench/onboard/$(basename "$REPO")/.onboarded"` — present ⇒ already onboarded, skip.
+
+**Then, only if missing, trigger the entry point:**
+```
+node "$BASE/scripts/onboard.js" --repo "$REPO"
+```
+This MINES the repo (structure/git/docs), runs the agentic learner to VALIDATE candidates, and
+writes a review bundle `bench/onboard/<repo>/ONBOARD-REVIEW.md`. It **mines and validates only —
+it does NOT touch the live graph.** (Sandboxed/offline? add `--skip-learn` to bundle the raw
+mined candidates without spawning the validation agent.)
+
+**Review gate (mandatory — NO auto-inject).** Point the user at `ONBOARD-REVIEW.md` for keep/drop
+approval. Injection is a SEPARATE explicit step that reuses the reversible `[ingest]` overlay-note
+gate — never run it automatically:
+```
+node "$BASE/scripts/onboard-learn.js" --repo "$REPO" --inject            # dry-run plan
+node "$BASE/scripts/onboard-learn.js" --repo "$REPO" --inject --confirm  # inject (human-approved)
+```
+**Honesty:** `onboard.js` has no inject path of its own; the `--confirm` gate cannot be reached
+from the setup trigger. Every injected node is titled `[ingest] …` and stays filterable/removable.
