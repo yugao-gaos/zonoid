@@ -19,7 +19,13 @@ SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
 DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
 [ -f "$DIR/$SID.off" ] && exit 0       # orchestrator disabled for this conversation
 
-RESP=$(curl -s --max-time 0.6 "localhost:$PORT/should-stop?session=$SID" 2>/dev/null)
+# agent_id is present only when this tool call fires inside a SUBAGENT's context; absent for the
+# main/driver thread. Forward it so the daemon halts ONLY the worker a stop targets — not the driver
+# that requested the stop (which shares this session_id and would otherwise self-block).
+AGENT=$(printf '%s' "$INPUT" | jq -r '.agent_id // empty')
+URL="localhost:$PORT/should-stop?session=$SID"
+[ -n "$AGENT" ] && URL="$URL&agent=$AGENT"
+RESP=$(curl -s --max-time 0.6 "$URL" 2>/dev/null)
 [ -z "$RESP" ] && exit 0               # daemon unreachable -> fail open
 
 if printf '%s' "$RESP" | jq -e '.stop == true' >/dev/null 2>&1; then

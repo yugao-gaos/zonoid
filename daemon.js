@@ -258,7 +258,39 @@ function sweepStaleLoops() {
 // stop descriptor or null. Single source of truth shared by the /should-stop route AND the in-process
 // heartbeat (decideAction) — so a flagged stop halts the loop the SAME way the PreToolUse hook would,
 // even though the heartbeat tick runs in-process where the hook can't reach it.
-function stopSignalFor(session) {
+//
+// Two entry points need DIFFERENT scoping for an agent-targeted stop_requested:
+//   - The in-process LOOP heartbeat (default, hook=false) is the session's own driver: a stop on its
+//     claimed task's agent should halt the loop. SESSION-scoped — unchanged.
+//   - The PreToolUse HOOK (hook=true) fires for EVERY actor sharing the session_id — both a spawned
+//     sub-worker AND the orchestrating driver that REQUESTED the stop. Scoping an agent-stop to the
+//     session there self-blocks the requester (it shares the session): the driver's own set_status /
+//     TaskCreate get denied just for standing down a same-session sub-worker. So under the hook we key
+//     the stop_requested check to `actor` — the calling agent_id the hook forwards (present only for a
+//     subagent; absent for the main/driver thread) — and halt ONLY the agent the stop targets, never
+//     the driver. A human task-CANCEL stays session-scoped under both paths (it halts everyone
+//     touching the canceled work, driver included).
+function stopSignalFor(session, opts = {}) {
+  const { actor = null, hook = false } = opts;
+  if (hook) {
+    // Agent-scoped stop: the calling worker is itself flagged → halt it (and nobody else). The driver
+    // that requested the stop calls with a different/absent agent_id, so it falls through and runs on.
+    if (actor && state.overlay.stop_requested[actor]) {
+      const g = buildGraph(state.workspace);
+      const own = g.tasks.find((t) => t.status === 'in_progress' && (t.agent_id || state.overlay.assignee[t.id]) === actor);
+      return { task: own ? own.id : null, agent: actor, reason: 'stop_requested', cancel_requested: null, stop_requested: state.overlay.stop_requested[actor] };
+    }
+    // Session-scoped CANCEL still halts any actor working a canceled task in this session.
+    if (!session) return null;
+    const g = buildGraph(state.workspace);
+    for (const t of g.tasks) {
+      if (t.status !== 'in_progress' || t.session !== session) continue;
+      const cr = state.overlay.cancel_requested[t.id] || null;
+      if (cr) return { task: t.id, agent: t.agent_id || state.overlay.assignee[t.id] || null, reason: 'cancel_requested', cancel_requested: cr, stop_requested: null };
+    }
+    return null;
+  }
+  // In-process loop path: session-scoped — a cancel on a claimed task OR a stop on its agent halts it.
   if (!session) return null;
   const g = buildGraph(state.workspace);
   const claims = g.tasks.filter((t) => t.status === 'in_progress' && t.session === session);
@@ -920,7 +952,10 @@ const handler = async (req, res) => {
     // a cancel was requested on the task OR a stop was requested on the agent. Pure read.
     if (p === '/should-stop') {
       const sid = u.searchParams.get('session');
-      const sig = stopSignalFor(sid);
+      // `agent` = the calling agent_id the PreToolUse hook forwards (present for a subagent, absent for
+      // the main thread). hook=true keys an agent-stop to that actor so the requester isn't self-blocked.
+      const actor = u.searchParams.get('agent') || null;
+      const sig = stopSignalFor(sid, { actor, hook: true });
       return send(res, 200, sig ? { stop: true, ...sig } : { stop: false });
     }
 

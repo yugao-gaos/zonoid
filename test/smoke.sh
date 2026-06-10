@@ -80,18 +80,24 @@ chk "double-claim refused"      "$(jpost overlay/status "$(printf '{"key":"%s","
 chk "re-claim same agent ok"    "$(jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"ax"}' "$CK2")" | jq -r .ok)" "true"
 chk "force takeover ok"         "$(jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"ay","force":true}' "$CK2")" | jq -r .ok)" "true"
 
-# enforced cooperative-stop: /should-stop maps session->task->agent; PreToolUse hook denies (exit 2)
+# enforced cooperative-stop: /should-stop maps session->task->agent; PreToolUse hook denies (exit 2).
+# An agent-targeted stop must halt ONLY the targeted worker (the hook forwards its agent_id as `agent`),
+# NOT the orchestrating driver that requested the stop and shares the same session_id with no agent_id.
 HK="$PWD/hooks/orch-stop.sh"; HS=$S/hook; HA=hookw
 jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"%s"}' "$HS" "$HA")" >/dev/null
 # associate the claim with our smoke session by writing it onto a native task in session $S
 echo '{"id":"hook","subject":"h","status":"in_progress","blockedBy":[]}' > "$T/hook.json"; sleep 1.2
-chk "should-stop false (clean)" "$(g "should-stop?session=$S" | jq -r .stop)"           "false"
-chk "hook exit0 normal session" "$(printf '{"session_id":"%s","tool_name":"Bash"}' "$S" | ORCH_PORT=$PORT bash "$HK" >/dev/null 2>&1; echo $?)" "0"
+chk "should-stop false (clean)"   "$(g "should-stop?session=$S" | jq -r .stop)"          "false"
+chk "hook exit0 normal session"   "$(printf '{"session_id":"%s","tool_name":"Bash"}' "$S" | ORCH_PORT=$PORT bash "$HK" >/dev/null 2>&1; echo $?)" "0"
 jpost agent/stop "$(printf '{"agent_id":"%s"}' "$HA")" >/dev/null
-chk "should-stop true (flagged)" "$(g "should-stop?session=$S" | jq -r .stop)"          "true"
-HKOUT=$(printf '{"session_id":"%s","tool_name":"Bash"}' "$S" | ORCH_PORT=$PORT bash "$HK" 2>&1 1>/dev/null); HKRC=$?
-chk "hook exit2 when flagged"   "$HKRC"                                                  "2"
-chk "hook STOP message"         "$(printf '%s' "$HKOUT" | grep -c 'STOP:')"             "1"
+# the targeted worker (its own agent_id) IS halted
+chk "should-stop true (worker)"   "$(g "should-stop?session=$S&agent=$HA" | jq -r .stop)" "true"
+HKOUT=$(printf '{"session_id":"%s","agent_id":"%s","tool_name":"Bash"}' "$S" "$HA" | ORCH_PORT=$PORT bash "$HK" 2>&1 1>/dev/null); HKRC=$?
+chk "hook exit2 for worker"       "$HKRC"                                                 "2"
+chk "hook STOP message"           "$(printf '%s' "$HKOUT" | grep -c 'STOP:')"            "1"
+# the SAME-SESSION driver that requested the stop is NOT self-blocked (no agent_id on its calls)
+chk "should-stop false (driver)"  "$(g "should-stop?session=$S" | jq -r .stop)"          "false"
+chk "hook exit0 for driver"       "$(printf '{"session_id":"%s","tool_name":"Bash"}' "$S" | ORCH_PORT=$PORT bash "$HK" >/dev/null 2>&1; echo $?)" "0"
 rm -f "$T/hook.json"
 
 # loop + persistence across a PID restart
@@ -143,7 +149,9 @@ chk "loop armed w/ session"     "$(g loop/status | jq -r .session)"             
 # work is in flight ($SS/1 claimed in_progress) -> heartbeat idles, not stops
 chk "armed loop ticks normally" "$(g next-action | jq -r '.action!="stop"')"     "true"
 jpost agent/stop '{"agent_id":"loopw"}' >/dev/null     # simulate cooperative stop
-chk "should-stop sees flag"     "$(g "should-stop?session=$SS" | jq -r .stop)"   "true"
+# hook path is actor-keyed: the worker's own agent_id sees the stop; a driver poll (no agent) does not
+chk "should-stop sees flag"     "$(g "should-stop?session=$SS&agent=loopw" | jq -r .stop)" "true"
+# the in-process heartbeat is session-scoped, so it still self-exits on its claimed agent's stop
 chk "loop self-exits on stop"   "$(g next-action | jq -r .reason)"               "cooperative stop"
 chk "loop.active cleared"       "$(g loop/status | jq -r .active)"               "false"
 rm -rf "$SST" "$SSP/$SS.jsonl"
