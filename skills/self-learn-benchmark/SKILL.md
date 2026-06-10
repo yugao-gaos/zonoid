@@ -1,6 +1,6 @@
 ---
 name: self-learn-benchmark
-description: Research a credible competitor/industry-average value for a task's metric and record it on the node as a benchmark, so the judge can compare the winning attempt against the outside world — not just our own baseline. Use when a problem task carries an inline metric spec (set_task_metric) and you want an EXTERNAL reference for it. The agent is the intelligence; the daemon stays dumb and only exposes set_task_benchmark.
+description: Research a credible competitor/industry-average value for a task's metric and record it on the node as a benchmark, so the judge can compare the winning attempt against the outside world — not just our own baseline. Use when a problem task carries an inline metric spec (configure_task metric) and you want an EXTERNAL reference for it. The agent is the intelligence; the daemon stays dumb and only exposes the benchmark field of configure_task.
 effort: medium
 ---
 
@@ -34,7 +34,7 @@ You are the benchmark research subagent. Operate ONLY via MCP tools — never sh
      hearsay. Note the source URL and how confident the figure is.
 
 3. **Record the finding.** Call
-   `set_task_benchmark(P, { metric, value, unit?, source, confidence })`:
+   `configure_task(P, benchmark={ metric, value, unit?, source, confidence })`:
    - `metric` MUST name the same objective as the spec's `metric`.
    - `value` is the researched number; `unit` if it has one (e.g. `"ms"`).
    - `source` is the URL/citation the figure came from (required — provenance, not a guess).
@@ -64,5 +64,5 @@ You are the benchmark research subagent. Operate ONLY via MCP tools — never sh
   record with no `source`.
 - **Daemon stays dumb.** All research judgement lives here. If you want a new endpoint, you're
   overreaching this skill's scope.
-- **Idempotent.** `set_task_benchmark` overwrites; re-running with a better figure (or clearing with an
-  empty benchmark) is safe.
+- **Idempotent.** `configure_task` (benchmark) overwrites; re-running with a better figure (or clearing
+  with an empty benchmark) is safe.

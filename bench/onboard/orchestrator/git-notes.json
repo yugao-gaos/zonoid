@@ -133,7 +133,7 @@
   },
   {
     "title": "feat(loop): metric-driven self-improvement loop (target-repo → measure → metric-judge → optimize)",
-    "summary": "Extends the self-learning loop from pass/fail+rationale judging into a metric-driven optimization loop that runs on an arbitrary target repo (its own source or a client project). Built as six increments: ① target-repo decoupling — resolveRepo(key) (explicit > task repos[key] > workspace); set_task_repo / POST /git/repo. git ops/worktrees can target any repo distinct from the daemon workspace. ② inline metric-spec...",
+    "summary": "Extends the self-learning loop from pass/fail+rationale judging into a metric-driven optimization loop that runs on an arbitrary target repo (its own source or a client project). Built as six increments: ① target-repo decoupling — resolveRepo(key) (explicit > task repos[key] > workspace); set_task_repo (now configure_task repo_path) / POST /git/repo. git ops/worktrees can target any repo distinct from the daemon workspace. ② inline metric-spec...",
     "source": "9d4a9c8ba0be25825fc3202c8f3deac4226e1615",
     "kind": "verdict"
   },

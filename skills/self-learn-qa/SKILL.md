@@ -1,6 +1,6 @@
 ---
 name: self-learn-qa
-description: Nightly QA sweep over what changed in the graph since the last run. Reads the /graph/delta change sensor, runs each touched repo's configured test command (set_repo_test_cmd), diffs failures against last night's recorded run, and files only REPRODUCIBLE new failures as problem nodes wired to the delta tasks that plausibly caused them. Use when the nightly trigger (scheduler-kicked loop) hands an agent the QA task, or when the user asks for a "QA sweep since <time>". The QA agent is the intelligence; the daemon stays dumb — it only stores test commands and serves the delta, it never runs tests itself.
+description: Nightly QA sweep over what changed in the graph since the last run. Reads the /graph/delta change sensor, runs each touched repo's configured test command (configure_task test_cmd), diffs failures against last night's recorded run, and files only REPRODUCIBLE new failures as problem nodes wired to the delta tasks that plausibly caused them. Use when the nightly trigger (scheduler-kicked loop) hands an agent the QA task, or when the user asks for a "QA sweep since <time>". The QA agent is the intelligence; the daemon stays dumb — it only stores test commands and serves the delta, it never runs tests itself.
 effort: high
 ---
 
@@ -72,11 +72,12 @@ the design (the daemon stores `test_cmd` but never executes it; the QA agent run
 
 4. **Map the delta to repos.** Collect the task keys from `status_changes` (care about
    `done`/`tested` — work that landed), `tasks_created`, and `merges`. For each key,
-   `get_task_detail(key)` → `repo` (the task's target repo via `set_task_repo`) and
+   `get_task_detail(key)` → `repo` (the task's target repo via `configure_task`) and
    `test_cmd` (the repo's configured command) in one call. Dedup by repo. Then:
    - Repo with a `test_cmd` → QA it (step 5).
    - Repo with NO `test_cmd` → do NOT guess a command. Add the repo to `skipped=` in the run
-     record and move on (the morning reader can `set_repo_test_cmd` it).
+     record and move on (the morning reader can set it via `configure_task` with
+     `repo_path` + `test_cmd`).
    - Task with no repo set → not repo-targeted; skip it silently.
 
 5. **Run each suite and diff.** For each QA-able repo, run its `test_cmd` (shell, cwd =
@@ -100,7 +101,7 @@ the design (the daemon stores `test_cmd` but never executes it; the QA agent run
    2. `TaskCreate` — label `QA: <repo basename> — <test id> fails`, description = the repro
       command (`cd <repo> && <test_cmd>`), the bounded failure excerpt, and the suspect delta
       tasks by key.
-   3. `set_task_repo(<problem_key>, <repo abs path>)` so future attempts target the right repo.
+   3. `configure_task(<problem_key>, repo_path=<repo abs path>)` so future attempts target the right repo.
    4. `suggest_links(<problem_key>)`, then `add_dependency(from=<delta task key>,
       to=<problem_key>, kind="context")` for each delta task that plausibly caused the failure
       (it landed in that repo in the window and touches the failing area). Never leave the
