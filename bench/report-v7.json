@@ -1,0 +1,2989 @@
+{
+  "meta": {
+    "source": "bench/results-v7.jsonl",
+    "resultCount": 55,
+    "generatedAt": "2026-06-10T04:17:10.221Z"
+  },
+  "rows": [
+    {
+      "problem": "v1-dagrag",
+      "arm": "off",
+      "n": 4,
+      "gross": {
+        "mean": 287171,
+        "stdev": 57952.84604457892,
+        "n": 4
+      },
+      "net": {
+        "mean": 287171,
+        "stdev": 57952.84604457892,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 116346.225,
+        "stdev": 22400.7669937326,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 116346.225,
+        "stdev": 22400.7669937326,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 50747.5,
+        "stdev": 8126.829578624127,
+        "n": 4
+      },
+      "W": {
+        "mean": 1398.75,
+        "stdev": 27.072433704169757,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 7730.25,
+        "stdev": 2674.940918350659,
+        "n": 4
+      },
+      "H": {
+        "mean": 6331.5,
+        "stdev": 2655.3585445284034,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 4.75,
+        "stdev": 0.5,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 69578.975,
+        "stdev": 10082.529484583716,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v1-dagrag",
+      "arm": "on",
+      "n": 4,
+      "gross": {
+        "mean": 640881,
+        "stdev": 167019.46394956487,
+        "n": 4
+      },
+      "net": {
+        "mean": 149415,
+        "stdev": 13341.3695698755,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 491466,
+        "stdev": 171512.22126134337,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 235817.1,
+        "stdev": 38320.24878126881,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 78176.875,
+        "stdev": 10008.460491878855,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 84770.75,
+        "stdev": 15104.261062693533,
+        "n": 4
+      },
+      "W": {
+        "mean": 1443.5,
+        "stdev": 52.72254419758844,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 15645.25,
+        "stdev": 4232.640891531748,
+        "n": 4
+      },
+      "H": {
+        "mean": 14201.75,
+        "stdev": 4189.324955566628,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 5.75,
+        "stdev": 1.707825127659933,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 150092.6,
+        "stdev": 27406.802154301044,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v1-lean",
+      "arm": "off",
+      "n": 4,
+      "gross": {
+        "mean": 287171,
+        "stdev": 57952.84604457892,
+        "n": 4
+      },
+      "net": {
+        "mean": 287171,
+        "stdev": 57952.84604457892,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 116346.225,
+        "stdev": 22400.7669937326,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 116346.225,
+        "stdev": 22400.7669937326,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 50747.5,
+        "stdev": 8126.829578624127,
+        "n": 4
+      },
+      "W": {
+        "mean": 1398.75,
+        "stdev": 27.072433704169757,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 7730.25,
+        "stdev": 2674.940918350659,
+        "n": 4
+      },
+      "H": {
+        "mean": 6331.5,
+        "stdev": 2655.3585445284034,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 4.75,
+        "stdev": 0.5,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 69578.975,
+        "stdev": 10082.529484583716,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v1-lean",
+      "arm": "on",
+      "n": 4,
+      "gross": {
+        "mean": 369609,
+        "stdev": 74488.68661749917,
+        "n": 4
+      },
+      "net": {
+        "mean": 102078,
+        "stdev": 4,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 267531,
+        "stdev": 74484.68669017366,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 125549.6,
+        "stdev": 32336.420597498633,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 53027.375,
+        "stdev": 16.25,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 60871.5,
+        "stdev": 16926.485921970536,
+        "n": 4
+      },
+      "W": {
+        "mean": 1356.5,
+        "stdev": 46.40761431776758,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 7638,
+        "stdev": 4518.745622404518,
+        "n": 4
+      },
+      "H": {
+        "mean": 6281.5,
+        "stdev": 4481.535190832118,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 4.5,
+        "stdev": 1,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 77701.35,
+        "stdev": 9675.169835287998,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v1-off",
+      "arm": "off",
+      "n": 4,
+      "gross": {
+        "mean": 287171,
+        "stdev": 57952.84604457892,
+        "n": 4
+      },
+      "net": {
+        "mean": 287171,
+        "stdev": 57952.84604457892,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 116346.225,
+        "stdev": 22400.7669937326,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 116346.225,
+        "stdev": 22400.7669937326,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 50747.5,
+        "stdev": 8126.829578624127,
+        "n": 4
+      },
+      "W": {
+        "mean": 1398.75,
+        "stdev": 27.072433704169757,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 7730.25,
+        "stdev": 2674.940918350659,
+        "n": 4
+      },
+      "H": {
+        "mean": 6331.5,
+        "stdev": 2655.3585445284034,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 4.75,
+        "stdev": 0.5,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 69578.975,
+        "stdev": 10082.529484583716,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v1-search",
+      "arm": "off",
+      "n": 4,
+      "gross": {
+        "mean": 287171,
+        "stdev": 57952.84604457892,
+        "n": 4
+      },
+      "net": {
+        "mean": 287171,
+        "stdev": 57952.84604457892,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 116346.225,
+        "stdev": 22400.7669937326,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 116346.225,
+        "stdev": 22400.7669937326,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 50747.5,
+        "stdev": 8126.829578624127,
+        "n": 4
+      },
+      "W": {
+        "mean": 1398.75,
+        "stdev": 27.072433704169757,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 7730.25,
+        "stdev": 2674.940918350659,
+        "n": 4
+      },
+      "H": {
+        "mean": 6331.5,
+        "stdev": 2655.3585445284034,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 4.75,
+        "stdev": 0.5,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 69578.975,
+        "stdev": 10082.529484583716,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v1-search",
+      "arm": "on",
+      "n": 4,
+      "gross": {
+        "mean": 417072,
+        "stdev": 69808.67903539406,
+        "n": 4
+      },
+      "net": {
+        "mean": 142008.75,
+        "stdev": 26622.79752862197,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 275063.25,
+        "stdev": 64065.61888342816,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 168760.475,
+        "stdev": 40664.632922776604,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 76775.70000000001,
+        "stdev": 15840.854546130602,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 59877.75,
+        "stdev": 5314.422350233999,
+        "n": 4
+      },
+      "W": {
+        "mean": 1371,
+        "stdev": 38.1051177665153,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 10874,
+        "stdev": 4800.290685642554,
+        "n": 4
+      },
+      "H": {
+        "mean": 9503,
+        "stdev": 4805.235755576065,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 4.75,
+        "stdev": 0.9574271077563381,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 103897.475,
+        "stdev": 19004.593399425838,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v4-dagrag",
+      "arm": "off",
+      "n": 4,
+      "gross": {
+        "mean": 202823.5,
+        "stdev": 56350.81826380164,
+        "n": 4
+      },
+      "net": {
+        "mean": 202823.5,
+        "stdev": 56350.81826380164,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 143961.775,
+        "stdev": 28177.565354270166,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 143961.775,
+        "stdev": 28177.565354270166,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 66208.5,
+        "stdev": 12748.331250272196,
+        "n": 4
+      },
+      "W": {
+        "mean": 397.25,
+        "stdev": 28.476598579652496,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 14981.25,
+        "stdev": 3064.0674900095355,
+        "n": 4
+      },
+      "H": {
+        "mean": 14584,
+        "stdev": 3073.0656788729175,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 2.5,
+        "stdev": 0.5773502691896257,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 61590.525,
+        "stdev": 15488.363625450125,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v4-dagrag",
+      "arm": "on",
+      "n": 4,
+      "gross": {
+        "mean": 454152,
+        "stdev": 29812.048604549134,
+        "n": 4
+      },
+      "net": {
+        "mean": 195381.75,
+        "stdev": 32728.139853190558,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 258770.25,
+        "stdev": 29980.215413669062,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 294061.47500000003,
+        "stdev": 39807.338960412395,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 107763.0125,
+        "stdev": 8825.527256145002,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 128775,
+        "stdev": 27229.03069642154,
+        "n": 4
+      },
+      "W": {
+        "mean": 417,
+        "stdev": 30.692018506445613,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 29444.25,
+        "stdev": 6978.0677065120735,
+        "n": 4
+      },
+      "H": {
+        "mean": 29027.25,
+        "stdev": 6992.392217021773,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 2.5,
+        "stdev": 0.5773502691896257,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 137148.225,
+        "stdev": 10333.910767105543,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v4-lean",
+      "arm": "off",
+      "n": 4,
+      "gross": {
+        "mean": 202823.5,
+        "stdev": 56350.81826380164,
+        "n": 4
+      },
+      "net": {
+        "mean": 202823.5,
+        "stdev": 56350.81826380164,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 143961.775,
+        "stdev": 28177.565354270166,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 143961.775,
+        "stdev": 28177.565354270166,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 66208.5,
+        "stdev": 12748.331250272196,
+        "n": 4
+      },
+      "W": {
+        "mean": 397.25,
+        "stdev": 28.476598579652496,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 14981.25,
+        "stdev": 3064.0674900095355,
+        "n": 4
+      },
+      "H": {
+        "mean": 14584,
+        "stdev": 3073.0656788729175,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 2.5,
+        "stdev": 0.5773502691896257,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 61590.525,
+        "stdev": 15488.363625450125,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v4-lean",
+      "arm": "on",
+      "n": 3,
+      "gross": {
+        "mean": 309917.3333333333,
+        "stdev": 53426.00500068608,
+        "n": 3
+      },
+      "net": {
+        "mean": 82249,
+        "stdev": 0,
+        "n": 3
+      },
+      "plumbing": {
+        "mean": 227668.33333333334,
+        "stdev": 53426.00500068608,
+        "n": 3
+      },
+      "costGross": {
+        "mean": 181405.61666666667,
+        "stdev": 48651.667532581385,
+        "n": 3
+      },
+      "costNet": {
+        "mean": 46801.44999999999,
+        "stdev": 8.911191772433732e-12,
+        "n": 3
+      },
+      "wallMs": {
+        "mean": 92783.66666666667,
+        "stdev": 31034.39487622295,
+        "n": 3
+      },
+      "W": {
+        "mean": 380.3333333333333,
+        "stdev": 21.197484127446195,
+        "n": 3
+      },
+      "totalOutput": {
+        "mean": 20349.333333333332,
+        "stdev": 7399.707381601878,
+        "n": 3
+      },
+      "H": {
+        "mean": 19969,
+        "stdev": 7380.704302436184,
+        "n": 3
+      },
+      "explorers": {
+        "mean": 2.6666666666666665,
+        "stdev": 0.5773502691896258,
+        "n": 3
+      },
+      "cacheCost": {
+        "mean": 73239.61666666665,
+        "stdev": 12167.662972026854,
+        "n": 3
+      }
+    },
+    {
+      "problem": "v4-off",
+      "arm": "off",
+      "n": 4,
+      "gross": {
+        "mean": 202823.5,
+        "stdev": 56350.81826380164,
+        "n": 4
+      },
+      "net": {
+        "mean": 202823.5,
+        "stdev": 56350.81826380164,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 143961.775,
+        "stdev": 28177.565354270166,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 143961.775,
+        "stdev": 28177.565354270166,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 66208.5,
+        "stdev": 12748.331250272196,
+        "n": 4
+      },
+      "W": {
+        "mean": 397.25,
+        "stdev": 28.476598579652496,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 14981.25,
+        "stdev": 3064.0674900095355,
+        "n": 4
+      },
+      "H": {
+        "mean": 14584,
+        "stdev": 3073.0656788729175,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 2.5,
+        "stdev": 0.5773502691896257,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 61590.525,
+        "stdev": 15488.363625450125,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v4-search",
+      "arm": "off",
+      "n": 4,
+      "gross": {
+        "mean": 202823.5,
+        "stdev": 56350.81826380164,
+        "n": 4
+      },
+      "net": {
+        "mean": 202823.5,
+        "stdev": 56350.81826380164,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 143961.775,
+        "stdev": 28177.565354270166,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 143961.775,
+        "stdev": 28177.565354270166,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 66208.5,
+        "stdev": 12748.331250272196,
+        "n": 4
+      },
+      "W": {
+        "mean": 397.25,
+        "stdev": 28.476598579652496,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 14981.25,
+        "stdev": 3064.0674900095355,
+        "n": 4
+      },
+      "H": {
+        "mean": 14584,
+        "stdev": 3073.0656788729175,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 2.5,
+        "stdev": 0.5773502691896257,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 61590.525,
+        "stdev": 15488.363625450125,
+        "n": 4
+      }
+    },
+    {
+      "problem": "v4-search",
+      "arm": "on",
+      "n": 4,
+      "gross": {
+        "mean": 330122.25,
+        "stdev": 38672.94955887556,
+        "n": 4
+      },
+      "net": {
+        "mean": 89168.75,
+        "stdev": 13676.833438945823,
+        "n": 4
+      },
+      "plumbing": {
+        "mean": 240953.5,
+        "stdev": 27895.701729836444,
+        "n": 4
+      },
+      "costGross": {
+        "mean": 171848.3875,
+        "stdev": 17075.05059296433,
+        "n": 4
+      },
+      "costNet": {
+        "mean": 50896.837499999994,
+        "stdev": 7804.946293363696,
+        "n": 4
+      },
+      "wallMs": {
+        "mean": 83459,
+        "stdev": 11272.131889457882,
+        "n": 4
+      },
+      "W": {
+        "mean": 403.5,
+        "stdev": 30.24896692450835,
+        "n": 4
+      },
+      "totalOutput": {
+        "mean": 16677,
+        "stdev": 2251.6524302535386,
+        "n": 4
+      },
+      "H": {
+        "mean": 16273.5,
+        "stdev": 2254.82453123667,
+        "n": 4
+      },
+      "explorers": {
+        "mean": 3,
+        "stdev": 0,
+        "n": 4
+      },
+      "cacheCost": {
+        "mean": 81242.8875,
+        "stdev": 11312.932048572771,
+        "n": 4
+      }
+    }
+  ],
+  "ratios": [
+    {
+      "problem": "v1-dagrag",
+      "netOnOverOff": 0.5202997517158766,
+      "grossOnOverOff": 2.2317051512861674,
+      "costGrossOnOverOff": 2.0268564794431447,
+      "costNetOnOverOff": 0.6719330601401119,
+      "haveBoth": true
+    },
+    {
+      "problem": "v1-lean",
+      "netOnOverOff": 0.3554606837041345,
+      "grossOnOverOff": 1.2870693767824746,
+      "costGrossOnOverOff": 1.0791033400525027,
+      "costNetOnOverOff": 0.45577220060212525,
+      "haveBoth": true
+    },
+    {
+      "problem": "v1-off",
+      "netOnOverOff": null,
+      "grossOnOverOff": null,
+      "costGrossOnOverOff": null,
+      "costNetOnOverOff": null,
+      "haveBoth": false
+    },
+    {
+      "problem": "v1-search",
+      "netOnOverOff": 0.494509368982244,
+      "grossOnOverOff": 1.4523472077612294,
+      "costGrossOnOverOff": 1.4505023691142536,
+      "costNetOnOverOff": 0.6598899104805507,
+      "haveBoth": true
+    },
+    {
+      "problem": "v4-dagrag",
+      "netOnOverOff": 0.9633092319183921,
+      "grossOnOverOff": 2.239148816581905,
+      "costGrossOnOverOff": 2.04263579689817,
+      "costNetOnOverOff": 0.7485529578945522,
+      "haveBoth": true
+    },
+    {
+      "problem": "v4-lean",
+      "netOnOverOff": 0.4055200704060427,
+      "grossOnOverOff": 1.5280149160887833,
+      "costGrossOnOverOff": 1.2600957210111272,
+      "costNetOnOverOff": 0.32509636672651465,
+      "haveBoth": true
+    },
+    {
+      "problem": "v4-off",
+      "netOnOverOff": null,
+      "grossOnOverOff": null,
+      "costGrossOnOverOff": null,
+      "costNetOnOverOff": null,
+      "haveBoth": false
+    },
+    {
+      "problem": "v4-search",
+      "netOnOverOff": 0.43963717222116766,
+      "grossOnOverOff": 1.6276331391579377,
+      "costGrossOnOverOff": 1.1937084514274712,
+      "costNetOnOverOff": 0.353544109191485,
+      "haveBoth": true
+    }
+  ],
+  "v4": [
+    {
+      "problem": "v1-dagrag",
+      "haveBoth": true,
+      "W_on": 1443.5,
+      "W_off": 1398.75,
+      "H_on": 14201.75,
+      "H_off": 6331.5,
+      "C": 80513.625,
+      "metric": -119864.875,
+      "pooledStdev": 26571.049489663423,
+      "nPooled": 8,
+      "solveOn": 1,
+      "solveOff": 1,
+      "corrobRatio": 1.0319928507596068,
+      "guards": {
+        "precondition": true,
+        "fairness": true,
+        "margin": false,
+        "corroboration": true
+      },
+      "win": false
+    },
+    {
+      "problem": "v1-lean",
+      "haveBoth": true,
+      "W_on": 1356.5,
+      "W_off": 1398.75,
+      "H_on": 6281.5,
+      "H_off": 6331.5,
+      "C": 8122.375,
+      "metric": -7872.375,
+      "pooledStdev": 17051.420133567426,
+      "nPooled": 8,
+      "solveOn": 1,
+      "solveOff": 1,
+      "corrobRatio": 0.9697944593386952,
+      "guards": {
+        "precondition": true,
+        "fairness": true,
+        "margin": false,
+        "corroboration": true
+      },
+      "win": false
+    },
+    {
+      "problem": "v1-off",
+      "haveBoth": false,
+      "win": false
+    },
+    {
+      "problem": "v1-search",
+      "haveBoth": true,
+      "W_on": 1371,
+      "W_off": 1398.75,
+      "H_on": 9503,
+      "H_off": 6331.5,
+      "C": 34318.5,
+      "metric": -50176,
+      "pooledStdev": 19869.258694562024,
+      "nPooled": 8,
+      "solveOn": 1,
+      "solveOff": 1,
+      "corrobRatio": 0.9801608579088472,
+      "guards": {
+        "precondition": true,
+        "fairness": true,
+        "margin": false,
+        "corroboration": true
+      },
+      "win": false
+    },
+    {
+      "problem": "v4-dagrag",
+      "haveBoth": true,
+      "W_on": 417,
+      "W_off": 397.25,
+      "H_on": 29027.25,
+      "H_off": 14584,
+      "C": 75557.70000000001,
+      "metric": -147773.95,
+      "pooledStdev": 45990.169208639425,
+      "nPooled": 8,
+      "solveOn": 1,
+      "solveOff": 1,
+      "corrobRatio": 1.0497168030207678,
+      "guards": {
+        "precondition": true,
+        "fairness": true,
+        "margin": false,
+        "corroboration": true
+      },
+      "win": false
+    },
+    {
+      "problem": "v4-lean",
+      "haveBoth": true,
+      "W_on": 380.3333333333333,
+      "W_off": 397.25,
+      "H_on": 19969,
+      "H_off": 14584,
+      "C": 11649.091666666653,
+      "metric": -38574.09166666665,
+      "pooledStdev": 27912.96240527141,
+      "nPooled": 7,
+      "solveOn": 1,
+      "solveOff": 1,
+      "corrobRatio": 0.9574155653450808,
+      "guards": {
+        "precondition": true,
+        "fairness": true,
+        "margin": false,
+        "corroboration": true
+      },
+      "win": false
+    },
+    {
+      "problem": "v4-off",
+      "haveBoth": false,
+      "win": false
+    },
+    {
+      "problem": "v4-search",
+      "haveBoth": true,
+      "W_on": 403.5,
+      "W_off": 397.25,
+      "H_on": 16273.5,
+      "H_off": 14584,
+      "C": 19652.362499999996,
+      "metric": -28099.862499999996,
+      "pooledStdev": 13268.211137365666,
+      "nPooled": 8,
+      "solveOn": 1,
+      "solveOff": 1,
+      "corrobRatio": 1.0157331655129012,
+      "guards": {
+        "precondition": true,
+        "fairness": true,
+        "margin": false,
+        "corroboration": true
+      },
+      "win": false
+    }
+  ],
+  "contaminated": [],
+  "dropped": [],
+  "unreadable": [],
+  "runs": [
+    {
+      "problem": "v1-dagrag",
+      "arm": "on",
+      "trial": 0,
+      "sessionId": "acc3a895-ad05-44ac-b5eb-b6dc9ea20611",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-dagrag-on-0/acc3a895-ad05-44ac-b5eb-b6dc9ea20611.jsonl",
+      "solved": true,
+      "wallMs": 105767,
+      "gross": {
+        "input": 300,
+        "output": 21334,
+        "cacheRead": 624187,
+        "cacheCreate": 81679,
+        "total": 727500,
+        "messages": 21
+      },
+      "plumbing": {
+        "input": 288,
+        "output": 19912,
+        "cacheRead": 509302,
+        "cacheCreate": 41398,
+        "total": 570900,
+        "messages": 15
+      },
+      "net": {
+        "input": 12,
+        "output": 1422,
+        "cacheRead": 114885,
+        "cacheCreate": 40281,
+        "total": 156600,
+        "messages": 6
+      },
+      "explorers": 6,
+      "diffTokens": 1491
+    },
+    {
+      "problem": "v1-dagrag",
+      "arm": "on",
+      "trial": 1,
+      "sessionId": "d8a8cc79-ee71-4f00-a69a-bb4e51a69790",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-dagrag-on-1/d8a8cc79-ee71-4f00-a69a-bb4e51a69790.jsonl",
+      "solved": true,
+      "wallMs": 72234,
+      "gross": {
+        "input": 10029,
+        "output": 16029,
+        "cacheRead": 599670,
+        "cacheCreate": 90049,
+        "total": 715777,
+        "messages": 21
+      },
+      "plumbing": {
+        "input": 419,
+        "output": 15127,
+        "cacheRead": 519194,
+        "cacheCreate": 51623,
+        "total": 586363,
+        "messages": 16
+      },
+      "net": {
+        "input": 9610,
+        "output": 902,
+        "cacheRead": 80476,
+        "cacheCreate": 38426,
+        "total": 129414,
+        "messages": 5
+      },
+      "explorers": 5,
+      "diffTokens": 1487
+    },
+    {
+      "problem": "v1-dagrag",
+      "arm": "on",
+      "trial": 2,
+      "sessionId": "bb27dfa9-cf35-4614-bc9b-2bdc1551d4b0",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-dagrag-on-2/bb27dfa9-cf35-4614-bc9b-2bdc1551d4b0.jsonl",
+      "solved": true,
+      "wallMs": 85572,
+      "gross": {
+        "input": 10038,
+        "output": 11426,
+        "cacheRead": 637303,
+        "cacheCreate": 70960,
+        "total": 729727,
+        "messages": 24
+      },
+      "plumbing": {
+        "input": 426,
+        "output": 10238,
+        "cacheRead": 540676,
+        "cacheCreate": 22870,
+        "total": 574210,
+        "messages": 18
+      },
+      "net": {
+        "input": 9612,
+        "output": 1188,
+        "cacheRead": 96627,
+        "cacheCreate": 48090,
+        "total": 155517,
+        "messages": 6
+      },
+      "explorers": 8,
+      "diffTokens": 1403
+    },
+    {
+      "problem": "v1-dagrag",
+      "arm": "on",
+      "trial": 3,
+      "sessionId": "89472d9c-f2d3-4abb-b01f-f2909763f5fe",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-dagrag-on-3/89472d9c-f2d3-4abb-b01f-f2909763f5fe.jsonl",
+      "solved": true,
+      "wallMs": 75510,
+      "gross": {
+        "input": 9626,
+        "output": 13792,
+        "cacheRead": 302594,
+        "cacheCreate": 64508,
+        "total": 390520,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 14,
+        "output": 12037,
+        "cacheRead": 205967,
+        "cacheCreate": 16373,
+        "total": 234391,
+        "messages": 7
+      },
+      "net": {
+        "input": 9612,
+        "output": 1755,
+        "cacheRead": 96627,
+        "cacheCreate": 48135,
+        "total": 156129,
+        "messages": 6
+      },
+      "explorers": 4,
+      "diffTokens": 1393
+    },
+    {
+      "problem": "v1-lean",
+      "arm": "on",
+      "trial": 0,
+      "sessionId": "650314af-c32a-4e77-9984-f7cfc0ffe892",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-lean-on-0/650314af-c32a-4e77-9984-f7cfc0ffe892.jsonl",
+      "solved": true,
+      "wallMs": 86201,
+      "gross": {
+        "input": 9761,
+        "output": 14412,
+        "cacheRead": 416737,
+        "cacheCreate": 40430,
+        "total": 481340,
+        "messages": 16
+      },
+      "plumbing": {
+        "input": 153,
+        "output": 13926,
+        "cacheRead": 352412,
+        "cacheCreate": 12765,
+        "total": 379256,
+        "messages": 12
+      },
+      "net": {
+        "input": 9608,
+        "output": 486,
+        "cacheRead": 64325,
+        "cacheCreate": 27665,
+        "total": 102084,
+        "messages": 4
+      },
+      "explorers": 6,
+      "diffTokens": 1411
+    },
+    {
+      "problem": "v1-lean",
+      "arm": "on",
+      "trial": 1,
+      "sessionId": "112b50f4-20e9-4016-9488-6ed68804e2da",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-lean-on-1/112b50f4-20e9-4016-9488-6ed68804e2da.jsonl",
+      "solved": true,
+      "wallMs": 52560,
+      "gross": {
+        "input": 9624,
+        "output": 5172,
+        "cacheRead": 281380,
+        "cacheCreate": 35563,
+        "total": 331739,
+        "messages": 12
+      },
+      "plumbing": {
+        "input": 16,
+        "output": 4692,
+        "cacheRead": 217055,
+        "cacheCreate": 7900,
+        "total": 229663,
+        "messages": 8
+      },
+      "net": {
+        "input": 9608,
+        "output": 480,
+        "cacheRead": 64325,
+        "cacheCreate": 27663,
+        "total": 102076,
+        "messages": 4
+      },
+      "explorers": 4,
+      "diffTokens": 1298
+    },
+    {
+      "problem": "v1-lean",
+      "arm": "on",
+      "trial": 2,
+      "sessionId": "87d1d45d-a8fc-45d1-bd1f-22ed491bc58b",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-lean-on-2/87d1d45d-a8fc-45d1-bd1f-22ed491bc58b.jsonl",
+      "solved": true,
+      "wallMs": 53785,
+      "gross": {
+        "input": 9624,
+        "output": 5415,
+        "cacheRead": 281698,
+        "cacheCreate": 35851,
+        "total": 332588,
+        "messages": 12
+      },
+      "plumbing": {
+        "input": 16,
+        "output": 4935,
+        "cacheRead": 217373,
+        "cacheCreate": 8188,
+        "total": 230512,
+        "messages": 8
+      },
+      "net": {
+        "input": 9608,
+        "output": 480,
+        "cacheRead": 64325,
+        "cacheCreate": 27663,
+        "total": 102076,
+        "messages": 4
+      },
+      "explorers": 4,
+      "diffTokens": 1353
+    },
+    {
+      "problem": "v1-lean",
+      "arm": "on",
+      "trial": 3,
+      "sessionId": "9f87d188-19fe-42ab-816f-388470f10618",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-lean-on-3/9f87d188-19fe-42ab-816f-388470f10618.jsonl",
+      "solved": true,
+      "wallMs": 50940,
+      "gross": {
+        "input": 9624,
+        "output": 5553,
+        "cacheRead": 281714,
+        "cacheCreate": 35878,
+        "total": 332769,
+        "messages": 12
+      },
+      "plumbing": {
+        "input": 16,
+        "output": 5073,
+        "cacheRead": 217389,
+        "cacheCreate": 8215,
+        "total": 230693,
+        "messages": 8
+      },
+      "net": {
+        "input": 9608,
+        "output": 480,
+        "cacheRead": 64325,
+        "cacheCreate": 27663,
+        "total": 102076,
+        "messages": 4
+      },
+      "explorers": 4,
+      "diffTokens": 1364
+    },
+    {
+      "problem": "v1-off",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "0a171aae-b614-4dfb-85a4-980798194ec6",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-0/0a171aae-b614-4dfb-85a4-980798194ec6.jsonl",
+      "solved": true,
+      "wallMs": 44443,
+      "gross": {
+        "input": 7470,
+        "output": 6011,
+        "cacheRead": 196703,
+        "cacheCreate": 33922,
+        "total": 244106,
+        "messages": 9
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7470,
+        "output": 6011,
+        "cacheRead": 196703,
+        "cacheCreate": 33922,
+        "total": 244106,
+        "messages": 9
+      },
+      "explorers": 5,
+      "diffTokens": 1362
+    },
+    {
+      "problem": "v1-off",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "c4571a67-e859-41d5-8ead-7cdc77c03dc5",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-1/c4571a67-e859-41d5-8ead-7cdc77c03dc5.jsonl",
+      "solved": true,
+      "wallMs": 62264,
+      "gross": {
+        "input": 7478,
+        "output": 11683,
+        "cacheRead": 305783,
+        "cacheCreate": 39418,
+        "total": 364362,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7478,
+        "output": 11683,
+        "cacheRead": 305783,
+        "cacheCreate": 39418,
+        "total": 364362,
+        "messages": 13
+      },
+      "explorers": 5,
+      "diffTokens": 1424
+    },
+    {
+      "problem": "v1-off",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "3a6b5c3e-31f7-4c26-8fef-854933ca9142",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-2/3a6b5c3e-31f7-4c26-8fef-854933ca9142.jsonl",
+      "solved": true,
+      "wallMs": 50609,
+      "gross": {
+        "input": 10046,
+        "output": 7056,
+        "cacheRead": 239954,
+        "cacheCreate": 42037,
+        "total": 299093,
+        "messages": 11
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 10046,
+        "output": 7056,
+        "cacheRead": 239954,
+        "cacheCreate": 42037,
+        "total": 299093,
+        "messages": 11
+      },
+      "explorers": 5,
+      "diffTokens": 1413
+    },
+    {
+      "problem": "v1-off",
+      "arm": "off",
+      "trial": 3,
+      "sessionId": "c110c029-7826-400b-a0b6-b52f1035cf0d",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-3/c110c029-7826-400b-a0b6-b52f1035cf0d.jsonl",
+      "solved": true,
+      "wallMs": 45674,
+      "gross": {
+        "input": 7470,
+        "output": 6171,
+        "cacheRead": 195219,
+        "cacheCreate": 32263,
+        "total": 241123,
+        "messages": 9
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7470,
+        "output": 6171,
+        "cacheRead": 195219,
+        "cacheCreate": 32263,
+        "total": 241123,
+        "messages": 9
+      },
+      "explorers": 4,
+      "diffTokens": 1396
+    },
+    {
+      "problem": "v1-search",
+      "arm": "on",
+      "trial": 0,
+      "sessionId": "fed34817-9286-462f-b87b-20e93755f5a6",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-search-on-0/fed34817-9286-462f-b87b-20e93755f5a6.jsonl",
+      "solved": true,
+      "wallMs": 53415,
+      "gross": {
+        "input": 9626,
+        "output": 6945,
+        "cacheRead": 314089,
+        "cacheCreate": 40110,
+        "total": 370770,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 18,
+        "output": 6441,
+        "cacheRead": 249764,
+        "cacheCreate": 12424,
+        "total": 268647,
+        "messages": 9
+      },
+      "net": {
+        "input": 9608,
+        "output": 504,
+        "cacheRead": 64325,
+        "cacheCreate": 27686,
+        "total": 102123,
+        "messages": 4
+      },
+      "explorers": 4,
+      "diffTokens": 1368
+    },
+    {
+      "problem": "v1-search",
+      "arm": "on",
+      "trial": 1,
+      "sessionId": "bd364bae-08ee-407e-9006-2ab50124eb88",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-search-on-1/bd364bae-08ee-407e-9006-2ab50124eb88.jsonl",
+      "solved": true,
+      "wallMs": 65124,
+      "gross": {
+        "input": 9761,
+        "output": 17309,
+        "cacheRead": 389645,
+        "cacheCreate": 63789,
+        "total": 480504,
+        "messages": 16
+      },
+      "plumbing": {
+        "input": 149,
+        "output": 16262,
+        "cacheRead": 293018,
+        "cacheCreate": 16698,
+        "total": 326127,
+        "messages": 10
+      },
+      "net": {
+        "input": 9612,
+        "output": 1047,
+        "cacheRead": 96627,
+        "cacheCreate": 47091,
+        "total": 154377,
+        "messages": 6
+      },
+      "explorers": 6,
+      "diffTokens": 1386
+    },
+    {
+      "problem": "v1-search",
+      "arm": "on",
+      "trial": 2,
+      "sessionId": "b4368cc8-25eb-4f64-bcc1-1abe34d8997d",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-search-on-2/b4368cc8-25eb-4f64-bcc1-1abe34d8997d.jsonl",
+      "solved": true,
+      "wallMs": 63197,
+      "gross": {
+        "input": 9761,
+        "output": 11759,
+        "cacheRead": 385780,
+        "cacheCreate": 65649,
+        "total": 472949,
+        "messages": 16
+      },
+      "plumbing": {
+        "input": 149,
+        "output": 10712,
+        "cacheRead": 289153,
+        "cacheCreate": 18558,
+        "total": 318572,
+        "messages": 10
+      },
+      "net": {
+        "input": 9612,
+        "output": 1047,
+        "cacheRead": 96627,
+        "cacheCreate": 47091,
+        "total": 154377,
+        "messages": 6
+      },
+      "explorers": 5,
+      "diffTokens": 1320
+    },
+    {
+      "problem": "v1-search",
+      "arm": "on",
+      "trial": 3,
+      "sessionId": "ff5721e7-530a-4838-bd7c-30edf2473adb",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-search-on-3/ff5721e7-530a-4838-bd7c-30edf2473adb.jsonl",
+      "solved": true,
+      "wallMs": 57775,
+      "gross": {
+        "input": 12824,
+        "output": 7483,
+        "cacheRead": 269560,
+        "cacheCreate": 54198,
+        "total": 344065,
+        "messages": 12
+      },
+      "plumbing": {
+        "input": 12,
+        "output": 6161,
+        "cacheRead": 173026,
+        "cacheCreate": 7708,
+        "total": 186907,
+        "messages": 6
+      },
+      "net": {
+        "input": 12812,
+        "output": 1322,
+        "cacheRead": 96534,
+        "cacheCreate": 46490,
+        "total": 157158,
+        "messages": 6
+      },
+      "explorers": 4,
+      "diffTokens": 1410
+    },
+    {
+      "problem": "v4-dagrag",
+      "arm": "on",
+      "trial": 0,
+      "sessionId": "a4c3a4a0-dc03-4404-9481-ced8451c0047",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-dagrag-on-0/a4c3a4a0-dc03-4404-9481-ced8451c0047.jsonl",
+      "solved": true,
+      "wallMs": 126079,
+      "gross": {
+        "input": 9626,
+        "output": 28665,
+        "cacheRead": 317047,
+        "cacheCreate": 82454,
+        "total": 437792,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 14,
+        "output": 27246,
+        "cacheRead": 220420,
+        "cacheCreate": 22952,
+        "total": 270632,
+        "messages": 7
+      },
+      "net": {
+        "input": 9612,
+        "output": 1419,
+        "cacheRead": 96627,
+        "cacheCreate": 59502,
+        "total": 167160,
+        "messages": 6
+      },
+      "explorers": 3,
+      "diffTokens": 456
+    },
+    {
+      "problem": "v4-dagrag",
+      "arm": "on",
+      "trial": 1,
+      "sessionId": "3e0f895f-f1ab-4d31-9822-0260084de09a",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-dagrag-on-1/3e0f895f-f1ab-4d31-9822-0260084de09a.jsonl",
+      "solved": true,
+      "wallMs": 164132,
+      "gross": {
+        "input": 9626,
+        "output": 38750,
+        "cacheRead": 303681,
+        "cacheCreate": 85636,
+        "total": 437693,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 10,
+        "output": 37491,
+        "cacheRead": 158984,
+        "cacheCreate": 17435,
+        "total": 213920,
+        "messages": 5
+      },
+      "net": {
+        "input": 9616,
+        "output": 1259,
+        "cacheRead": 144697,
+        "cacheCreate": 68201,
+        "total": 223773,
+        "messages": 8
+      },
+      "explorers": 2,
+      "diffTokens": 382
+    },
+    {
+      "problem": "v4-dagrag",
+      "arm": "on",
+      "trial": 2,
+      "sessionId": "fefee847-861f-4354-85b4-fe5601ee2d21",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-dagrag-on-2/fefee847-861f-4354-85b4-fe5601ee2d21.jsonl",
+      "solved": true,
+      "wallMs": 97722,
+      "gross": {
+        "input": 9757,
+        "output": 21825,
+        "cacheRead": 337203,
+        "cacheCreate": 73588,
+        "total": 442373,
+        "messages": 14
+      },
+      "plumbing": {
+        "input": 145,
+        "output": 20652,
+        "cacheRead": 240576,
+        "cacheCreate": 14083,
+        "total": 275456,
+        "messages": 8
+      },
+      "net": {
+        "input": 9612,
+        "output": 1173,
+        "cacheRead": 96627,
+        "cacheCreate": 59505,
+        "total": 166917,
+        "messages": 6
+      },
+      "explorers": 2,
+      "diffTokens": 409
+    },
+    {
+      "problem": "v4-dagrag",
+      "arm": "on",
+      "trial": 3,
+      "sessionId": "8ece57b3-00b1-4246-aade-0d8334cc3028",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-dagrag-on-3/8ece57b3-00b1-4246-aade-0d8334cc3028.jsonl",
+      "solved": true,
+      "wallMs": 127167,
+      "gross": {
+        "input": 9759,
+        "output": 28537,
+        "cacheRead": 369448,
+        "cacheCreate": 91006,
+        "total": 498750,
+        "messages": 15
+      },
+      "plumbing": {
+        "input": 143,
+        "output": 27374,
+        "cacheRead": 224751,
+        "cacheCreate": 22805,
+        "total": 275073,
+        "messages": 7
+      },
+      "net": {
+        "input": 9616,
+        "output": 1163,
+        "cacheRead": 144697,
+        "cacheCreate": 68201,
+        "total": 223677,
+        "messages": 8
+      },
+      "explorers": 3,
+      "diffTokens": 421
+    },
+    {
+      "problem": "v4-lean",
+      "arm": "on",
+      "trial": 0,
+      "sessionId": "1f10c930-628e-482b-91ef-1af45c487784",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-lean-on-0/1f10c930-628e-482b-91ef-1af45c487784.jsonl",
+      "solved": true,
+      "wallMs": 70691,
+      "gross": {
+        "input": 6416,
+        "output": 15560,
+        "cacheRead": 192335,
+        "cacheCreate": 34186,
+        "total": 248497,
+        "messages": 8
+      },
+      "plumbing": {
+        "input": 10,
+        "output": 15267,
+        "cacheRead": 144068,
+        "cacheCreate": 6903,
+        "total": 166248,
+        "messages": 5
+      },
+      "net": {
+        "input": 6406,
+        "output": 293,
+        "cacheRead": 48267,
+        "cacheCreate": 27283,
+        "total": 82249,
+        "messages": 3
+      },
+      "explorers": 2,
+      "diffTokens": 377
+    },
+    {
+      "problem": "v4-lean",
+      "arm": "on",
+      "trial": 1,
+      "sessionId": "8de9e0c4-46ee-4960-b909-20ec7bc10de0",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-lean-on-1/8de9e0c4-46ee-4960-b909-20ec7bc10de0.jsonl",
+      "solved": true,
+      "wallMs": 128265,
+      "gross": {
+        "input": 6420,
+        "output": 28872,
+        "cacheRead": 262418,
+        "cacheCreate": 47917,
+        "total": 345627,
+        "messages": 10
+      },
+      "plumbing": {
+        "input": 14,
+        "output": 28579,
+        "cacheRead": 214151,
+        "cacheCreate": 20634,
+        "total": 263378,
+        "messages": 7
+      },
+      "net": {
+        "input": 6406,
+        "output": 293,
+        "cacheRead": 48267,
+        "cacheCreate": 27283,
+        "total": 82249,
+        "messages": 3
+      },
+      "explorers": 3,
+      "diffTokens": 403
+    },
+    {
+      "problem": "v4-lean",
+      "arm": "on",
+      "trial": 2,
+      "sessionId": "b6b64dcf-505e-40b9-a196-f9611b04ca59",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-lean-on-2/b6b64dcf-505e-40b9-a196-f9611b04ca59.jsonl",
+      "solved": true,
+      "wallMs": 79395,
+      "gross": {
+        "input": 6422,
+        "output": 16616,
+        "cacheRead": 277498,
+        "cacheCreate": 35092,
+        "total": 335628,
+        "messages": 11
+      },
+      "plumbing": {
+        "input": 16,
+        "output": 16323,
+        "cacheRead": 229231,
+        "cacheCreate": 7809,
+        "total": 253379,
+        "messages": 8
+      },
+      "net": {
+        "input": 6406,
+        "output": 293,
+        "cacheRead": 48267,
+        "cacheCreate": 27283,
+        "total": 82249,
+        "messages": 3
+      },
+      "explorers": 3,
+      "diffTokens": 361
+    },
+    {
+      "problem": "v4-off",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "78de8ff1-70d5-4f41-9641-67f5fb94323c",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-0/78de8ff1-70d5-4f41-9641-67f5fb94323c.jsonl",
+      "solved": true,
+      "wallMs": 66370,
+      "gross": {
+        "input": 7462,
+        "output": 15358,
+        "cacheRead": 103390,
+        "cacheCreate": 31096,
+        "total": 157306,
+        "messages": 5
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7462,
+        "output": 15358,
+        "cacheRead": 103390,
+        "cacheCreate": 31096,
+        "total": 157306,
+        "messages": 5
+      },
+      "explorers": 2,
+      "diffTokens": 407
+    },
+    {
+      "problem": "v4-off",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "888bea40-1d13-4816-b968-444348afac47",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-1/888bea40-1d13-4816-b968-444348afac47.jsonl",
+      "solved": true,
+      "wallMs": 53397,
+      "gross": {
+        "input": 7462,
+        "output": 11749,
+        "cacheRead": 102198,
+        "cacheCreate": 29903,
+        "total": 151312,
+        "messages": 5
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7462,
+        "output": 11749,
+        "cacheRead": 102198,
+        "cacheCreate": 29903,
+        "total": 151312,
+        "messages": 5
+      },
+      "explorers": 2,
+      "diffTokens": 378
+    },
+    {
+      "problem": "v4-off",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "d5219f19-c8aa-4ef9-8a71-8c6a033c01b6",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-2/d5219f19-c8aa-4ef9-8a71-8c6a033c01b6.jsonl",
+      "solved": true,
+      "wallMs": 83565,
+      "gross": {
+        "input": 7468,
+        "output": 19007,
+        "cacheRead": 183894,
+        "cacheCreate": 47812,
+        "total": 258181,
+        "messages": 8
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7468,
+        "output": 19007,
+        "cacheRead": 183894,
+        "cacheCreate": 47812,
+        "total": 258181,
+        "messages": 8
+      },
+      "explorers": 3,
+      "diffTokens": 371
+    },
+    {
+      "problem": "v4-off",
+      "arm": "off",
+      "trial": 3,
+      "sessionId": "97b0a617-4aa3-427f-a5ed-7318ad02d926",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-3/97b0a617-4aa3-427f-a5ed-7318ad02d926.jsonl",
+      "solved": true,
+      "wallMs": 61502,
+      "gross": {
+        "input": 7468,
+        "output": 13811,
+        "cacheRead": 180539,
+        "cacheCreate": 42677,
+        "total": 244495,
+        "messages": 8
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7468,
+        "output": 13811,
+        "cacheRead": 180539,
+        "cacheCreate": 42677,
+        "total": 244495,
+        "messages": 8
+      },
+      "explorers": 3,
+      "diffTokens": 433
+    },
+    {
+      "problem": "v4-search",
+      "arm": "on",
+      "trial": 0,
+      "sessionId": "19862327-0a04-4399-8adc-1de7964dbe8e",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-search-on-0/19862327-0a04-4399-8adc-1de7964dbe8e.jsonl",
+      "solved": true,
+      "wallMs": 73449,
+      "gross": {
+        "input": 9624,
+        "output": 15273,
+        "cacheRead": 302109,
+        "cacheCreate": 52712,
+        "total": 379718,
+        "messages": 12
+      },
+      "plumbing": {
+        "input": 16,
+        "output": 14773,
+        "cacheRead": 237784,
+        "cacheCreate": 17461,
+        "total": 270034,
+        "messages": 8
+      },
+      "net": {
+        "input": 9608,
+        "output": 500,
+        "cacheRead": 64325,
+        "cacheCreate": 35251,
+        "total": 109684,
+        "messages": 4
+      },
+      "explorers": 3,
+      "diffTokens": 378
+    },
+    {
+      "problem": "v4-search",
+      "arm": "on",
+      "trial": 1,
+      "sessionId": "ce6a38f9-732c-46c0-9206-bee79a1cc088",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-search-on-1/ce6a38f9-732c-46c0-9206-bee79a1cc088.jsonl",
+      "solved": true,
+      "wallMs": 74083,
+      "gross": {
+        "input": 6418,
+        "output": 14315,
+        "cacheRead": 227885,
+        "cacheCreate": 36623,
+        "total": 285241,
+        "messages": 9
+      },
+      "plumbing": {
+        "input": 12,
+        "output": 14000,
+        "cacheRead": 179618,
+        "cacheCreate": 9283,
+        "total": 202913,
+        "messages": 6
+      },
+      "net": {
+        "input": 6406,
+        "output": 315,
+        "cacheRead": 48267,
+        "cacheCreate": 27340,
+        "total": 82328,
+        "messages": 3
+      },
+      "explorers": 3,
+      "diffTokens": 434
+    },
+    {
+      "problem": "v4-search",
+      "arm": "on",
+      "trial": 2,
+      "sessionId": "6a6205da-c06b-4405-84d8-f6c1713eb3a1",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-search-on-2/6a6205da-c06b-4405-84d8-f6c1713eb3a1.jsonl",
+      "solved": true,
+      "wallMs": 91545,
+      "gross": {
+        "input": 6420,
+        "output": 18027,
+        "cacheRead": 259245,
+        "cacheCreate": 43175,
+        "total": 326867,
+        "messages": 10
+      },
+      "plumbing": {
+        "input": 14,
+        "output": 17708,
+        "cacheRead": 210978,
+        "cacheCreate": 15835,
+        "total": 244535,
+        "messages": 7
+      },
+      "net": {
+        "input": 6406,
+        "output": 319,
+        "cacheRead": 48267,
+        "cacheCreate": 27340,
+        "total": 82332,
+        "messages": 3
+      },
+      "explorers": 3,
+      "diffTokens": 377
+    },
+    {
+      "problem": "v4-search",
+      "arm": "on",
+      "trial": 3,
+      "sessionId": "7fe7d24e-5e35-4e61-bbd8-7ce90f41177c",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-search-on-3/7fe7d24e-5e35-4e61-bbd8-7ce90f41177c.jsonl",
+      "solved": true,
+      "wallMs": 94759,
+      "gross": {
+        "input": 6420,
+        "output": 19093,
+        "cacheRead": 259589,
+        "cacheCreate": 43561,
+        "total": 328663,
+        "messages": 10
+      },
+      "plumbing": {
+        "input": 14,
+        "output": 18775,
+        "cacheRead": 211322,
+        "cacheCreate": 16221,
+        "total": 246332,
+        "messages": 7
+      },
+      "net": {
+        "input": 6406,
+        "output": 318,
+        "cacheRead": 48267,
+        "cacheCreate": 27340,
+        "total": 82331,
+        "messages": 3
+      },
+      "explorers": 3,
+      "diffTokens": 425
+    },
+    {
+      "problem": "v1-dagrag",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "0a171aae-b614-4dfb-85a4-980798194ec6",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-0/0a171aae-b614-4dfb-85a4-980798194ec6.jsonl",
+      "solved": true,
+      "wallMs": 44443,
+      "gross": {
+        "input": 7470,
+        "output": 6011,
+        "cacheRead": 196703,
+        "cacheCreate": 33922,
+        "total": 244106,
+        "messages": 9
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7470,
+        "output": 6011,
+        "cacheRead": 196703,
+        "cacheCreate": 33922,
+        "total": 244106,
+        "messages": 9
+      },
+      "explorers": 5,
+      "diffTokens": 1362
+    },
+    {
+      "problem": "v1-search",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "0a171aae-b614-4dfb-85a4-980798194ec6",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-0/0a171aae-b614-4dfb-85a4-980798194ec6.jsonl",
+      "solved": true,
+      "wallMs": 44443,
+      "gross": {
+        "input": 7470,
+        "output": 6011,
+        "cacheRead": 196703,
+        "cacheCreate": 33922,
+        "total": 244106,
+        "messages": 9
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7470,
+        "output": 6011,
+        "cacheRead": 196703,
+        "cacheCreate": 33922,
+        "total": 244106,
+        "messages": 9
+      },
+      "explorers": 5,
+      "diffTokens": 1362
+    },
+    {
+      "problem": "v1-lean",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "0a171aae-b614-4dfb-85a4-980798194ec6",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-0/0a171aae-b614-4dfb-85a4-980798194ec6.jsonl",
+      "solved": true,
+      "wallMs": 44443,
+      "gross": {
+        "input": 7470,
+        "output": 6011,
+        "cacheRead": 196703,
+        "cacheCreate": 33922,
+        "total": 244106,
+        "messages": 9
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7470,
+        "output": 6011,
+        "cacheRead": 196703,
+        "cacheCreate": 33922,
+        "total": 244106,
+        "messages": 9
+      },
+      "explorers": 5,
+      "diffTokens": 1362
+    },
+    {
+      "problem": "v1-dagrag",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "c4571a67-e859-41d5-8ead-7cdc77c03dc5",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-1/c4571a67-e859-41d5-8ead-7cdc77c03dc5.jsonl",
+      "solved": true,
+      "wallMs": 62264,
+      "gross": {
+        "input": 7478,
+        "output": 11683,
+        "cacheRead": 305783,
+        "cacheCreate": 39418,
+        "total": 364362,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7478,
+        "output": 11683,
+        "cacheRead": 305783,
+        "cacheCreate": 39418,
+        "total": 364362,
+        "messages": 13
+      },
+      "explorers": 5,
+      "diffTokens": 1424
+    },
+    {
+      "problem": "v1-search",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "c4571a67-e859-41d5-8ead-7cdc77c03dc5",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-1/c4571a67-e859-41d5-8ead-7cdc77c03dc5.jsonl",
+      "solved": true,
+      "wallMs": 62264,
+      "gross": {
+        "input": 7478,
+        "output": 11683,
+        "cacheRead": 305783,
+        "cacheCreate": 39418,
+        "total": 364362,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7478,
+        "output": 11683,
+        "cacheRead": 305783,
+        "cacheCreate": 39418,
+        "total": 364362,
+        "messages": 13
+      },
+      "explorers": 5,
+      "diffTokens": 1424
+    },
+    {
+      "problem": "v1-lean",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "c4571a67-e859-41d5-8ead-7cdc77c03dc5",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-1/c4571a67-e859-41d5-8ead-7cdc77c03dc5.jsonl",
+      "solved": true,
+      "wallMs": 62264,
+      "gross": {
+        "input": 7478,
+        "output": 11683,
+        "cacheRead": 305783,
+        "cacheCreate": 39418,
+        "total": 364362,
+        "messages": 13
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7478,
+        "output": 11683,
+        "cacheRead": 305783,
+        "cacheCreate": 39418,
+        "total": 364362,
+        "messages": 13
+      },
+      "explorers": 5,
+      "diffTokens": 1424
+    },
+    {
+      "problem": "v1-dagrag",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "3a6b5c3e-31f7-4c26-8fef-854933ca9142",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-2/3a6b5c3e-31f7-4c26-8fef-854933ca9142.jsonl",
+      "solved": true,
+      "wallMs": 50609,
+      "gross": {
+        "input": 10046,
+        "output": 7056,
+        "cacheRead": 239954,
+        "cacheCreate": 42037,
+        "total": 299093,
+        "messages": 11
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 10046,
+        "output": 7056,
+        "cacheRead": 239954,
+        "cacheCreate": 42037,
+        "total": 299093,
+        "messages": 11
+      },
+      "explorers": 5,
+      "diffTokens": 1413
+    },
+    {
+      "problem": "v1-search",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "3a6b5c3e-31f7-4c26-8fef-854933ca9142",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-2/3a6b5c3e-31f7-4c26-8fef-854933ca9142.jsonl",
+      "solved": true,
+      "wallMs": 50609,
+      "gross": {
+        "input": 10046,
+        "output": 7056,
+        "cacheRead": 239954,
+        "cacheCreate": 42037,
+        "total": 299093,
+        "messages": 11
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 10046,
+        "output": 7056,
+        "cacheRead": 239954,
+        "cacheCreate": 42037,
+        "total": 299093,
+        "messages": 11
+      },
+      "explorers": 5,
+      "diffTokens": 1413
+    },
+    {
+      "problem": "v1-lean",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "3a6b5c3e-31f7-4c26-8fef-854933ca9142",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-2/3a6b5c3e-31f7-4c26-8fef-854933ca9142.jsonl",
+      "solved": true,
+      "wallMs": 50609,
+      "gross": {
+        "input": 10046,
+        "output": 7056,
+        "cacheRead": 239954,
+        "cacheCreate": 42037,
+        "total": 299093,
+        "messages": 11
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 10046,
+        "output": 7056,
+        "cacheRead": 239954,
+        "cacheCreate": 42037,
+        "total": 299093,
+        "messages": 11
+      },
+      "explorers": 5,
+      "diffTokens": 1413
+    },
+    {
+      "problem": "v1-dagrag",
+      "arm": "off",
+      "trial": 3,
+      "sessionId": "c110c029-7826-400b-a0b6-b52f1035cf0d",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-3/c110c029-7826-400b-a0b6-b52f1035cf0d.jsonl",
+      "solved": true,
+      "wallMs": 45674,
+      "gross": {
+        "input": 7470,
+        "output": 6171,
+        "cacheRead": 195219,
+        "cacheCreate": 32263,
+        "total": 241123,
+        "messages": 9
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7470,
+        "output": 6171,
+        "cacheRead": 195219,
+        "cacheCreate": 32263,
+        "total": 241123,
+        "messages": 9
+      },
+      "explorers": 4,
+      "diffTokens": 1396
+    },
+    {
+      "problem": "v1-search",
+      "arm": "off",
+      "trial": 3,
+      "sessionId": "c110c029-7826-400b-a0b6-b52f1035cf0d",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-3/c110c029-7826-400b-a0b6-b52f1035cf0d.jsonl",
+      "solved": true,
+      "wallMs": 45674,
+      "gross": {
+        "input": 7470,
+        "output": 6171,
+        "cacheRead": 195219,
+        "cacheCreate": 32263,
+        "total": 241123,
+        "messages": 9
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7470,
+        "output": 6171,
+        "cacheRead": 195219,
+        "cacheCreate": 32263,
+        "total": 241123,
+        "messages": 9
+      },
+      "explorers": 4,
+      "diffTokens": 1396
+    },
+    {
+      "problem": "v1-lean",
+      "arm": "off",
+      "trial": 3,
+      "sessionId": "c110c029-7826-400b-a0b6-b52f1035cf0d",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v1-off-off-3/c110c029-7826-400b-a0b6-b52f1035cf0d.jsonl",
+      "solved": true,
+      "wallMs": 45674,
+      "gross": {
+        "input": 7470,
+        "output": 6171,
+        "cacheRead": 195219,
+        "cacheCreate": 32263,
+        "total": 241123,
+        "messages": 9
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7470,
+        "output": 6171,
+        "cacheRead": 195219,
+        "cacheCreate": 32263,
+        "total": 241123,
+        "messages": 9
+      },
+      "explorers": 4,
+      "diffTokens": 1396
+    },
+    {
+      "problem": "v4-dagrag",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "78de8ff1-70d5-4f41-9641-67f5fb94323c",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-0/78de8ff1-70d5-4f41-9641-67f5fb94323c.jsonl",
+      "solved": true,
+      "wallMs": 66370,
+      "gross": {
+        "input": 7462,
+        "output": 15358,
+        "cacheRead": 103390,
+        "cacheCreate": 31096,
+        "total": 157306,
+        "messages": 5
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7462,
+        "output": 15358,
+        "cacheRead": 103390,
+        "cacheCreate": 31096,
+        "total": 157306,
+        "messages": 5
+      },
+      "explorers": 2,
+      "diffTokens": 407
+    },
+    {
+      "problem": "v4-search",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "78de8ff1-70d5-4f41-9641-67f5fb94323c",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-0/78de8ff1-70d5-4f41-9641-67f5fb94323c.jsonl",
+      "solved": true,
+      "wallMs": 66370,
+      "gross": {
+        "input": 7462,
+        "output": 15358,
+        "cacheRead": 103390,
+        "cacheCreate": 31096,
+        "total": 157306,
+        "messages": 5
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7462,
+        "output": 15358,
+        "cacheRead": 103390,
+        "cacheCreate": 31096,
+        "total": 157306,
+        "messages": 5
+      },
+      "explorers": 2,
+      "diffTokens": 407
+    },
+    {
+      "problem": "v4-lean",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "78de8ff1-70d5-4f41-9641-67f5fb94323c",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-0/78de8ff1-70d5-4f41-9641-67f5fb94323c.jsonl",
+      "solved": true,
+      "wallMs": 66370,
+      "gross": {
+        "input": 7462,
+        "output": 15358,
+        "cacheRead": 103390,
+        "cacheCreate": 31096,
+        "total": 157306,
+        "messages": 5
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7462,
+        "output": 15358,
+        "cacheRead": 103390,
+        "cacheCreate": 31096,
+        "total": 157306,
+        "messages": 5
+      },
+      "explorers": 2,
+      "diffTokens": 407
+    },
+    {
+      "problem": "v4-dagrag",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "888bea40-1d13-4816-b968-444348afac47",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-1/888bea40-1d13-4816-b968-444348afac47.jsonl",
+      "solved": true,
+      "wallMs": 53397,
+      "gross": {
+        "input": 7462,
+        "output": 11749,
+        "cacheRead": 102198,
+        "cacheCreate": 29903,
+        "total": 151312,
+        "messages": 5
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7462,
+        "output": 11749,
+        "cacheRead": 102198,
+        "cacheCreate": 29903,
+        "total": 151312,
+        "messages": 5
+      },
+      "explorers": 2,
+      "diffTokens": 378
+    },
+    {
+      "problem": "v4-search",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "888bea40-1d13-4816-b968-444348afac47",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-1/888bea40-1d13-4816-b968-444348afac47.jsonl",
+      "solved": true,
+      "wallMs": 53397,
+      "gross": {
+        "input": 7462,
+        "output": 11749,
+        "cacheRead": 102198,
+        "cacheCreate": 29903,
+        "total": 151312,
+        "messages": 5
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7462,
+        "output": 11749,
+        "cacheRead": 102198,
+        "cacheCreate": 29903,
+        "total": 151312,
+        "messages": 5
+      },
+      "explorers": 2,
+      "diffTokens": 378
+    },
+    {
+      "problem": "v4-lean",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "888bea40-1d13-4816-b968-444348afac47",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-1/888bea40-1d13-4816-b968-444348afac47.jsonl",
+      "solved": true,
+      "wallMs": 53397,
+      "gross": {
+        "input": 7462,
+        "output": 11749,
+        "cacheRead": 102198,
+        "cacheCreate": 29903,
+        "total": 151312,
+        "messages": 5
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7462,
+        "output": 11749,
+        "cacheRead": 102198,
+        "cacheCreate": 29903,
+        "total": 151312,
+        "messages": 5
+      },
+      "explorers": 2,
+      "diffTokens": 378
+    },
+    {
+      "problem": "v4-dagrag",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "d5219f19-c8aa-4ef9-8a71-8c6a033c01b6",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-2/d5219f19-c8aa-4ef9-8a71-8c6a033c01b6.jsonl",
+      "solved": true,
+      "wallMs": 83565,
+      "gross": {
+        "input": 7468,
+        "output": 19007,
+        "cacheRead": 183894,
+        "cacheCreate": 47812,
+        "total": 258181,
+        "messages": 8
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7468,
+        "output": 19007,
+        "cacheRead": 183894,
+        "cacheCreate": 47812,
+        "total": 258181,
+        "messages": 8
+      },
+      "explorers": 3,
+      "diffTokens": 371
+    },
+    {
+      "problem": "v4-search",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "d5219f19-c8aa-4ef9-8a71-8c6a033c01b6",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-2/d5219f19-c8aa-4ef9-8a71-8c6a033c01b6.jsonl",
+      "solved": true,
+      "wallMs": 83565,
+      "gross": {
+        "input": 7468,
+        "output": 19007,
+        "cacheRead": 183894,
+        "cacheCreate": 47812,
+        "total": 258181,
+        "messages": 8
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7468,
+        "output": 19007,
+        "cacheRead": 183894,
+        "cacheCreate": 47812,
+        "total": 258181,
+        "messages": 8
+      },
+      "explorers": 3,
+      "diffTokens": 371
+    },
+    {
+      "problem": "v4-lean",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "d5219f19-c8aa-4ef9-8a71-8c6a033c01b6",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-2/d5219f19-c8aa-4ef9-8a71-8c6a033c01b6.jsonl",
+      "solved": true,
+      "wallMs": 83565,
+      "gross": {
+        "input": 7468,
+        "output": 19007,
+        "cacheRead": 183894,
+        "cacheCreate": 47812,
+        "total": 258181,
+        "messages": 8
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7468,
+        "output": 19007,
+        "cacheRead": 183894,
+        "cacheCreate": 47812,
+        "total": 258181,
+        "messages": 8
+      },
+      "explorers": 3,
+      "diffTokens": 371
+    },
+    {
+      "problem": "v4-dagrag",
+      "arm": "off",
+      "trial": 3,
+      "sessionId": "97b0a617-4aa3-427f-a5ed-7318ad02d926",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-3/97b0a617-4aa3-427f-a5ed-7318ad02d926.jsonl",
+      "solved": true,
+      "wallMs": 61502,
+      "gross": {
+        "input": 7468,
+        "output": 13811,
+        "cacheRead": 180539,
+        "cacheCreate": 42677,
+        "total": 244495,
+        "messages": 8
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7468,
+        "output": 13811,
+        "cacheRead": 180539,
+        "cacheCreate": 42677,
+        "total": 244495,
+        "messages": 8
+      },
+      "explorers": 3,
+      "diffTokens": 433
+    },
+    {
+      "problem": "v4-search",
+      "arm": "off",
+      "trial": 3,
+      "sessionId": "97b0a617-4aa3-427f-a5ed-7318ad02d926",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-3/97b0a617-4aa3-427f-a5ed-7318ad02d926.jsonl",
+      "solved": true,
+      "wallMs": 61502,
+      "gross": {
+        "input": 7468,
+        "output": 13811,
+        "cacheRead": 180539,
+        "cacheCreate": 42677,
+        "total": 244495,
+        "messages": 8
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7468,
+        "output": 13811,
+        "cacheRead": 180539,
+        "cacheCreate": 42677,
+        "total": 244495,
+        "messages": 8
+      },
+      "explorers": 3,
+      "diffTokens": 433
+    },
+    {
+      "problem": "v4-lean",
+      "arm": "off",
+      "trial": 3,
+      "sessionId": "97b0a617-4aa3-427f-a5ed-7318ad02d926",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v4-off-off-3/97b0a617-4aa3-427f-a5ed-7318ad02d926.jsonl",
+      "solved": true,
+      "wallMs": 61502,
+      "gross": {
+        "input": 7468,
+        "output": 13811,
+        "cacheRead": 180539,
+        "cacheCreate": 42677,
+        "total": 244495,
+        "messages": 8
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7468,
+        "output": 13811,
+        "cacheRead": 180539,
+        "cacheCreate": 42677,
+        "total": 244495,
+        "messages": 8
+      },
+      "explorers": 3,
+      "diffTokens": 433
+    }
+  ]
+}
