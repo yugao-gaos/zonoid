@@ -4,7 +4,7 @@
 # produces real hardness divergence. Emits the W/H/C decomposition + win-guards.
 # Usage: bash bench/run-v4.sh [TRIALS]   (default 5)
 set -uo pipefail
-cd __INSTALL_DIR__ || exit 1
+cd ${ZONOID_REPO:-$HOME/.claude/orchestrator} || exit 1
 
 TRIALS="${1:-5}"
 SPEC=bench/specs/v4-hard.md

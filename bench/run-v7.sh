@@ -11,7 +11,7 @@
 #
 # Usage: bash bench/run-v7.sh [TRIALS]   (default 5)
 set -uo pipefail
-cd __INSTALL_DIR__ || exit 1
+cd ${ZONOID_REPO:-$HOME/.claude/orchestrator} || exit 1
 
 TRIALS="${1:-5}"
 TMP=bench/.v7tmp

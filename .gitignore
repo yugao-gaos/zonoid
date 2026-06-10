@@ -26,3 +26,20 @@ models/
 /.claude/launch.json
 /.claude/scheduled_tasks.lock
 README.md.bak
+# Invalidated v1-v7 bench results (oracle contamination — not shipped)
+bench/results.jsonl
+bench/results-v2.jsonl
+bench/results-v3.jsonl
+bench/results-v4.jsonl
+bench/results-v5.jsonl
+bench/results-v5-haiku.jsonl
+bench/results-v7.jsonl
+bench/report.json
+bench/report-v2.json
+bench/report-v3.json
+bench/report-v4.json
+bench/report-v5.json
+bench/report-v5-haiku.json
+bench/report-v7.json
+bench/run-v2.log
+bench/*.log

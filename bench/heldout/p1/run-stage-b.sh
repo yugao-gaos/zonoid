@@ -2,7 +2,7 @@
 # Phase 1 Stage B: warm corroboration arm (on --consult=search), N=2 per candidate.
 # All rigging guards FAILED (cold at ceiling) so these are parity/harm checks, not win runs.
 set -u
-REPO=__INSTALL_DIR__
+REPO=${ZONOID_REPO:-$(cd "$(dirname "$0")/../.."; pwd)}
 P1=$REPO/bench/heldout/p1
 OUT=$P1/results.jsonl
 run() {

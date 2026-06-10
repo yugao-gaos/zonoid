@@ -2,7 +2,7 @@
 # Phase 1 Stage A: ALL COLD runs (rigging guards + cold arms). Direct node, NO timeout wrapper,
 # incremental appends. Trap candidates x3, tls-local probe x2, controls x3.
 set -u
-REPO=__INSTALL_DIR__
+REPO=${ZONOID_REPO:-$(cd "$(dirname "$0")/../.."; pwd)}
 P1=$REPO/bench/heldout/p1
 OUT=$P1/results.jsonl
 run() {

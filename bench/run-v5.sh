@@ -2,7 +2,7 @@
 # v5 GROUNDED driver: v5-grounded x {on (--consult=search), off} x trials 0..N-1, 2-at-a-time.
 # Tests whether a grounded + RETRIEVABLE KB note collapses hardness where v4 (general) nulled.
 set -uo pipefail
-cd __INSTALL_DIR__ || exit 1
+cd ${ZONOID_REPO:-$HOME/.claude/orchestrator} || exit 1
 TRIALS="${1:-5}"
 SPEC=bench/specs/v5-grounded.md
 PROBLEM=v5-grounded

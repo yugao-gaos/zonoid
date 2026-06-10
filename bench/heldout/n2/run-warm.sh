@@ -1,7 +1,7 @@
 #!/bin/bash
 # Warm arm: 5 trials, on --consult=search. Direct node, NO timeout wrapper, incremental append.
 set -u
-REPO=__INSTALL_DIR__
+REPO=${ZONOID_REPO:-$(cd "$(dirname "$0")/../.."; pwd)}
 OUT=$REPO/bench/heldout/n2/locale-sum.warm.jsonl
 : > "$OUT"
 for t in 0 1 2 3 4; do

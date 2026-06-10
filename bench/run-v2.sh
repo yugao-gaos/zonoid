@@ -3,7 +3,7 @@
 # Runs graph-dependent x {on(mandatory),off} x trials 0..4 = 10 opus arms,
 # 2-at-a-time (on+off per trial), collects results, builds report-v2, cleans up.
 set -uo pipefail
-cd __INSTALL_DIR__ || exit 1
+cd ${ZONOID_REPO:-$HOME/.claude/orchestrator} || exit 1
 
 SPEC=bench/specs/graph-dependent.md
 TMP=bench/.v2tmp
