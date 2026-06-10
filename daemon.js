@@ -344,7 +344,15 @@ function sweepStaleLoops() {
     let reason = null;
     if (L.iterations > L.config.maxIterations) reason = 'iteration cap reached';
     else if (L.spent > L.config.tokenBudget) reason = 'token budget exhausted';
-    else if (!sessionIsLive(L.session)) reason = `driving session '${L.session}' dead`;
+    else if (!sessionIsLive(L.session)) {
+      // Bootstrap grace: a freshly-started session-bound loop has no RUNNING agent and no touched
+      // claim until its FIRST spawn, so sessionIsLive reads false on the loop's very first tick.
+      // Skip the session-dead demotion while the loop itself is fresh (within the same
+      // stale_minutes window sessionIsLive uses); the other demotion reasons still apply.
+      const grace = Date.now() - (state.overlay.config.stale_minutes ?? 10) * 60000;
+      const last = Date.parse(L.lastProgress || L.startedAt || 0);
+      if (!last || last < grace) reason = `driving session '${L.session}' dead`;
+    }
     else {
       const last = Date.parse(L.lastProgress || L.startedAt || 0);
       if (!last || last < cutoff) reason = `no progress >${mins}m`;
