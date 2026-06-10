@@ -20,6 +20,7 @@ const { embed, cosine, DIMS } = require('./lib/embed');
 const judge = require('./lib/judge');
 const delta = require('./lib/delta');
 const followups = require('./lib/followups');
+const verdicts = require('./lib/verdicts');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -1388,6 +1389,13 @@ const handler = async (req, res) => {
         const fr = followups.resolveGate(T.ov, action, b.decision);
         if (fr) Object.assign(result, fr);
         overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
+      } else if (action && action.kind === 'stale-hold' && (b.decision === 'release' || b.decision === 'keep')) {
+        // Stale hold flagged by the completion sweep: 'release' drops the not_ready override so
+        // the task re-derives from its (all-done) deps; 'keep' re-justifies the hold (note stamped
+        // so the sweep stops re-flagging it). See lib/verdicts.js.
+        const sr = verdicts.resolveStaleHold(T.ov, action, b.decision, b.answer);
+        if (sr) Object.assign(result, sr);
+        overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
       } else {
         overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
       }
@@ -1582,6 +1590,13 @@ const handler = async (req, res) => {
         const fErr = followups.validate(b.follow_ups);
         if (fErr) return send(res, 400, { ok: false, error: fErr });
       }
+      // Optional structured verdicts about EXISTING tasks (complete_task only): same up-front
+      // validation contract — a malformed payload 400s before ANY state lands. See lib/verdicts.js.
+      if (b.verdicts != null) {
+        if (b.status !== 'done') return send(res, 400, { ok: false, error: 'verdicts only allowed with status "done"' });
+        const vErr = verdicts.validate(b.verdicts);
+        if (vErr) return send(res, 400, { ok: false, error: vErr });
+      }
       if (b.status === 'done' && T.ov.config.require_review && T.ov.status[b.key] !== 'tested')
         return send(res, 409, { ok: false, error: 'review required: task must be "tested" before "done" (require_review policy is on)' });
       const cur = T.ov.status[b.key];
@@ -1643,12 +1658,39 @@ const handler = async (req, res) => {
         }
         cache.agg.delete(T.ws); cache.aggAt.delete(T.ws); // new snapshot nodes appear in the very next build
       }
+      // Structured verdicts about EXISTING tasks: release drops the target's explicit not_ready
+      // hold (status re-derives from deps), hold sets/refreshes one, cancel routes through the
+      // existing cancel semantics (terminal + cooperative flag + native snapshot). The enforcement
+      // half of "nothing acts on prose" for judgments about tasks that already exist.
+      let verdictResults = null;
+      if (b.status === 'done' && Array.isArray(b.verdicts) && b.verdicts.length) {
+        verdictResults = verdicts.apply(T.ov, b.key, b.verdicts);
+        for (const r of verdictResults) if (r.action === 'cancel') snapshotNative(T.ov, r.task_key); // canceled is terminal — preserve past the retention sweep
+      }
+      // Stale-hold guard: this completion may have satisfied an explicit hold's stated gate. Holds
+      // whose note references the completed task auto-release; the rest queue as 'review' guidance
+      // ("release or re-justify") — never silently dropped. Persist first so the graph build below
+      // derives from the completion (and any verdicts) just applied.
+      let staleHolds = null;
+      if (b.status === 'done') {
+        T.save();
+        const sh = verdicts.sweepStaleHolds(T.ov, b.key, buildGraph(T.ws));
+        if (sh.released.length || sh.flagged.length) staleHolds = sh;
+      }
+      // Prose-verdict lint (non-fatal): a summary that says "GO on <key>" without a structured
+      // verdict for <key> gets a warning in the response — prose alone is never acted on.
+      const lintWarning = b.status === 'done' ? verdicts.lintProse(b.summary, b.verdicts, b.key) : null;
       T.save();
       // Write-through to the native task file so ~/.claude/tasks doesn't drift from the overlay.
       // Daemon writes via fs (no edit-gate), best-effort. Skip statuses with no native mapping.
       if (ns && b.key) { const i = String(b.key).indexOf('/'); if (i > 0) nt.writeStatus(b.key.slice(0, i), b.key.slice(i + 1), ns); }
       notifyChange();
-      return send(res, 200, followUpResults ? { ok: true, follow_ups: followUpResults } : { ok: true });
+      const statusResp = { ok: true };
+      if (followUpResults) statusResp.follow_ups = followUpResults;
+      if (verdictResults) statusResp.verdicts = verdictResults;
+      if (staleHolds) statusResp.stale_holds = staleHolds;
+      if (lintWarning) statusResp.warning = lintWarning;
+      return send(res, 200, statusResp);
     }
 
     // Attach a Tier-2 knowledge item (file/snippet/link/note) to a task.
