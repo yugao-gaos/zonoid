@@ -1,4 +1,6 @@
-# Claude Code Orchestrator
+# Darwin
+
+*The self-learning orchestrator for Claude Code — agents that measurably get better as the knowledge graph deepens.*
 
 **Auto-routing + a cross-session task-dependency graph, built *on top of* native Claude Code tasks.**
 
