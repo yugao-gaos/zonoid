@@ -26,6 +26,7 @@ const costflow = require('./lib/costflow');
 const humanInput = require('./lib/human-input');
 const frontier = require('./lib/frontier');
 const analytics = require('./lib/analytics');
+const graphStore = require('./lib/graph-store');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -95,7 +96,7 @@ const CATCHALL_ESCALATE_TOKENS = 1e6;
 // existing tokenBudget — no separate knob.) Defaults live in lib/optimize.js.
 const OPTIMIZE_DEFAULTS = () => ({ ...optimize.DEFAULTS });
 
-let state = { workspace: null, overlay: overlayStore.EMPTY(), routes: [], agents: {}, mainTranscript: null };
+let state = { workspace: null, overlay: overlayStore.EMPTY(), routes: [], agents: {}, mainTranscript: null, graphStore: null };
 // Persist + restore the workspace, so a daemon respawn (e.g. after a crash/kill) keeps serving
 // the same project instead of coming back with no workspace.
 const WS_FILE = path.join(BASE, 'workspace');
@@ -110,7 +111,7 @@ function migrateBlindEdges(workspace, overlay) {
   if (tagged > 0) { try { overlayStore.save(workspace, overlay); } catch { /* best effort */ } }
   return tagged;
 }
-try { const w = fs.readFileSync(WS_FILE, 'utf8').trim(); if (w) { state.workspace = w; state.overlay = overlayStore.load(w); migrateBlindEdges(w, state.overlay); } } catch { /* none yet */ }
+try { const w = fs.readFileSync(WS_FILE, 'utf8').trim(); if (w) { state.workspace = w; state.overlay = overlayStore.load(w); migrateBlindEdges(w, state.overlay); state.graphStore = graphStore.open(path.join(state.workspace, '.graph')); graphStore.initGitAttributes(state.workspace); } } catch { /* none yet */ }
 // Persist + restore agent records (incl. transcript_path/session) so token attribution survives a restart.
 const AGENTS_FILE = path.join(BASE, 'agents.json');
 try { const a = JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf8')); if (a && typeof a === 'object') state.agents = a; } catch { /* none yet */ }
@@ -337,8 +338,7 @@ function sweepStaleVerdicts() {
       context: `self-heal surfaced a verdict-pending hand-off — status='${status}', last owner='${agentId || '?'}' not running. Status is intentionally NOT auto-changed (auto-promoting tested→done would hide a real failure).`,
       trigger: 'repeated_failure',
     });
-    const item = state.overlay.guidance.find((g) => g.id === id);
-    if (item) item.verdictKey = key;
+    overlayStore.annotateGuidance(state.overlay, id, { verdictKey: key });
     already.add(key);
     dirty = true;
   }
@@ -1254,6 +1254,8 @@ const handler = async (req, res) => {
       state.workspace = b.path;
       state.overlay = overlayStore.load(b.path);
       migrateBlindEdges(b.path, state.overlay);   // tag blind similarity edges UNVERIFIED on workspace switch (idempotent)
+      state.graphStore = graphStore.open(require('path').join(b.path, '.graph'));
+      graphStore.initGitAttributes(b.path);
       if (b.transcript) state.mainTranscript = b.transcript; // enables real loop token accounting
       try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(WS_FILE, b.path); } catch { /* best effort */ }
       return send(res, 200, { ok: true, workspace: state.workspace });
@@ -1569,17 +1571,7 @@ const handler = async (req, res) => {
             const r = overlayStore.supersedeNote(T.ov, oldId, keep);
             if (r && r.ok) supersededNow.push('note:' + oldId);
           }
-          for (const e of T.ov.edges) {
-            if (e.kind !== 'context') continue;
-            if (supersededNow.includes(e.from)) e.from = keepKey;
-            if (supersededNow.includes(e.to)) e.to = keepKey;
-          }
-          const seen = new Set();
-          T.ov.edges = T.ov.edges.filter((e) => {
-            if (e.from === e.to) return false;                                   // self-loop
-            const sig = `${e.from}>>${e.to}>>${e.fromWorkspace || ''}>>${e.kind || 'blocking'}`;
-            if (seen.has(sig)) return false; seen.add(sig); return true;
-          });
+          overlayStore.repointEdges(T.ov, supersededNow, keepKey);
           if (!T.ov.judgedClusters) T.ov.judgedClusters = {};
           judge.stampCluster(T.ov.judgedClusters, [keepKey, ...supersededNow], T.ov.epoch || 0);
           result.decision = 'consolidate'; result.keep = keepKey; result.superseded = supersededNow;
