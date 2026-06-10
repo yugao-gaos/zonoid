@@ -31,6 +31,17 @@ const ACCEPTANCE = {
   'graph-dependent':[['node', 'bench/sandbox/resolve-owner.test.js']],
   'v4-hard':[['node', 'bench/sandbox/task-tokens.test.js']],
   'v5-grounded':[['node', 'bench/sandbox/resolve-deps.test.js']],
+  'wincase-c':[['node', 'bench/sandbox/wincase-resolve.test.js']],
+  // v7 per-arm aliases: distinct problem label => distinct worktree, so the 4 arms (off + 3 ON
+  // consult modes, all arm=on) never collide on one worktree. Same acceptance test as their base.
+  'v1-off':[['node', 'bench/sandbox/resolve-owner.test.js']],
+  'v1-dagrag':[['node', 'bench/sandbox/resolve-owner.test.js']],
+  'v1-search':[['node', 'bench/sandbox/resolve-owner.test.js']],
+  'v1-lean':[['node', 'bench/sandbox/resolve-owner.test.js']],
+  'v4-off':[['node', 'bench/sandbox/task-tokens.test.js']],
+  'v4-dagrag':[['node', 'bench/sandbox/task-tokens.test.js']],
+  'v4-search':[['node', 'bench/sandbox/task-tokens.test.js']],
+  'v4-lean':[['node', 'bench/sandbox/task-tokens.test.js']],
 };
 
 // ON arm joins the REAL cloude graph (read context) without hijacking the daemon workspace.
@@ -61,6 +72,17 @@ const ON_PREAMBLE_SEARCH =
   'You have the orchestrator-graph MCP. Before writing code you MUST call search_knowledge with a ' +
   'query describing this task, and apply any relevant retrieved note (a recorded decision/gotcha). ' +
   'Graph is READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n';
+// DAG+RAG (--consult=dagrag): combine BOTH context channels before coding. (a) the task's DAG
+// context — its dependency summaries via get_task_detail (the structured prior-work interface); AND
+// (b) semantic recall — search_knowledge(query) over the grounded KB. Tests whether structured graph
+// context AND retrieved free-text knowledge together beat either alone.
+const ON_PREAMBLE_DAGRAG =
+  'You have the orchestrator-graph MCP. Before writing any code you MUST consult BOTH: ' +
+  '(a) this task\'s DAG context — call get_task_detail to read its dependency summaries (the ' +
+  'structured interface of prior work it builds on); AND (b) the knowledge base — call ' +
+  'search_knowledge with a query describing this task and apply any relevant retrieved note ' +
+  '(a recorded decision/gotcha). Combine both before writing code. The graph is strictly ' +
+  'READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n';
 
 function arg(name, def) {
   const i = process.argv.indexOf('--' + name);
@@ -72,7 +94,7 @@ function arg(name, def) {
 function consultMode() {
   const eq = process.argv.find((a) => a.startsWith('--consult='));
   let v = eq ? eq.split('=')[1] : arg('consult', process.env.BENCH_CONSULT || 'permissive');
-  return v === 'mandatory' ? 'mandatory' : v === 'lean' ? 'lean' : v === 'search' ? 'search' : 'permissive';
+  return v === 'mandatory' ? 'mandatory' : v === 'lean' ? 'lean' : v === 'search' ? 'search' : v === 'dagrag' ? 'dagrag' : 'permissive';
 }
 
 function main() {
@@ -108,7 +130,7 @@ function main() {
   const sessionId = crypto.randomUUID();
   const body = specBody.split(REPO).join(wt);
   const cm = consultMode();
-  const onPreamble = cm === 'mandatory' ? ON_PREAMBLE_MANDATORY : cm === 'lean' ? ON_PREAMBLE_LEAN : cm === 'search' ? ON_PREAMBLE_SEARCH : ON_PREAMBLE_PERMISSIVE;
+  const onPreamble = cm === 'mandatory' ? ON_PREAMBLE_MANDATORY : cm === 'lean' ? ON_PREAMBLE_LEAN : cm === 'search' ? ON_PREAMBLE_SEARCH : cm === 'dagrag' ? ON_PREAMBLE_DAGRAG : ON_PREAMBLE_PERMISSIVE;
   const prompt = (arm === 'on' ? onPreamble : '') + body;
   const mcpConfig = path.join(REPO, `bench/mcp-${arm}.json`);
 
