@@ -9,8 +9,10 @@
 //   - weighted distribution T·w/W along outgoing edges (blocking 1.0 vs context weights)
 //   - SCC collapse: context-edge cycles condense into one component before the topo sort
 //   - splitSessionTokens: tasks sharing one transcript divide its total by claim-window duration
+//   - sessionCatchalls: per-session catch-all nodes own unclaimed transcript tokens, edge to the
+//     session's outputs, trap as named waste when the session produced nothing — conservation holds
 'use strict';
-const { computeFlow, splitSessionTokens, sccs } = require('../lib/costflow');
+const { computeFlow, splitSessionTokens, sessionCatchalls, sccs } = require('../lib/costflow');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -112,6 +114,69 @@ const conserved = (flow, total) => near(flow.totals.productive + flow.totals.tra
     { id: 'b', transcript: '/t/shared.jsonl', window: null },
   ], (tp) => usage[tp]);
   ok('split: degenerate windows fall back to equal shares', near(own2.get('a'), 500) && near(own2.get('b'), 500));
+}
+
+// --- 8) sessionCatchalls: shape, ownership, edges ----------------------------------------------
+{
+  const sessions = [
+    { id: 'S1', total: 1000, claimed: 0 },     // produced tasks via subagents — nothing claimed its own transcript
+    { id: 'S2', total: 500, claimed: 500 },    // fully claimed by task splits, but created a task → zero-own contributor
+    { id: 'S3', total: 800, claimed: 0 },      // produced NOTHING — trapped tokens, named waste
+    { id: 'S4', total: 0, claimed: 0 },        // empty + no outputs → no node at all
+    { id: 'S5', total: 300, claimed: 400 },    // over-claimed (float drift) → floors at 0, no outputs → dropped
+  ];
+  const tasks = [
+    { id: 'S1/1', session: 'S1' }, { id: 'S1/2', session: 'S1' },
+    { id: 'S2/1', session: 'S2' },
+    { id: 'note:n1', session: null },          // notes carry no session — never edged
+  ];
+  const ca = sessionCatchalls(sessions, tasks, 0.5);
+  const ids = ca.nodes.map((n) => n.id);
+  ok('catchall: one node per accountable session', ids.length === 3 && ids.includes('session:S1') && ids.includes('session:S2') && ids.includes('session:S3'));
+  ok('catchall: empty/zero sessions dropped', !ids.includes('session:S4') && !ids.includes('session:S5'));
+  ok('catchall: own = total − claimed, floored', near(ca.nodes.find((n) => n.id === 'session:S1').own, 1000) && near(ca.nodes.find((n) => n.id === 'session:S2').own, 0));
+  ok('catchall: every node flagged kind session', ca.nodes.every((n) => n.kind === 'session' && !n.merged));
+  ok('catchall: context edges to the session outputs only', ca.edges.length === 3
+    && ca.edges.filter((e) => e.from === 'session:S1').length === 2
+    && ca.edges.every((e) => e.weight === 0.5)
+    && !ca.edges.some((e) => e.from === 'session:S3'));
+}
+
+// --- 9) catch-alls in the flow: chat lands via merged outputs; barren sessions are named waste --
+{
+  // S1's task merged → S1's chat tokens become productive THROUGH the task.
+  // S3 produced nothing → its 800 trap as waste under the session node itself.
+  const sessions = [{ id: 'S1', total: 1000, claimed: 0 }, { id: 'S3', total: 800, claimed: 0 }];
+  const tasks = [{ id: 'S1/1', session: 'S1', own: 200, merged: true }];
+  const ca = sessionCatchalls(sessions, tasks);
+  const flow = computeFlow(
+    [...tasks.map((t) => ({ id: t.id, own: t.own, merged: t.merged })), ...ca.nodes],
+    ca.edges,
+  );
+  ok('flow: merged output claims its session chat cost (200 own + 1000 inherited)', flow.results.length === 1 && near(flow.results[0].T, 1200));
+  ok('flow: barren session traps as NAMED waste', flow.waste.length === 1 && flow.waste[0].task === 'session:S3' && near(flow.waste[0].trapped, 800));
+  ok('flow: conservation incl. catch-alls (results + waste == total)', conserved(flow, 2000));
+}
+
+// --- 10) conservation with catch-alls on a mixed graph (claimed splits + unclaimed remainder) ---
+{
+  // One shared transcript: 600 of 1000 split to two tasks, 400 left for the catch-all.
+  const usage = { '/t/s.jsonl': { total: 1000 } };
+  const own = splitSessionTokens([
+    { id: 'S/1', transcript: '/t/s.jsonl', window: { start: '2026-06-10T10:00:00Z', end: '2026-06-10T10:30:00Z' } },
+    { id: 'S/2', transcript: '/t/s.jsonl', window: { start: '2026-06-10T10:30:00Z', end: '2026-06-10T10:40:00Z' } },
+  ], (tp) => usage[tp]);
+  const claimed = own.get('S/1') + own.get('S/2'); // == 1000: splits claim the whole transcript
+  ok('catchall+split: splits claim the full shared transcript', near(claimed, 1000));
+  const ca = sessionCatchalls([{ id: 'S', total: 1000, claimed }], [{ id: 'S/1', session: 'S' }, { id: 'S/2', session: 'S' }]);
+  const nodes = [
+    { id: 'S/1', own: own.get('S/1'), merged: true },
+    { id: 'S/2', own: own.get('S/2') },
+    ...ca.nodes,
+  ];
+  const flow = computeFlow(nodes, ca.edges);
+  ok('catchall+split: conservation exact across splits + catch-all', conserved(flow, 1000));
+  ok('catchall+split: zero-own catch-all adds nothing to waste', !flow.waste.some((w) => w.task.startsWith('session:') && w.trapped > 1e-6));
 }
 
 console.log('-----');
