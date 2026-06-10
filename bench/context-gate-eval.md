@@ -51,6 +51,28 @@ REGRET = Σ [ overhead paid when gate INJECTED but label=NO ] + [ win missed whe
 The gate identifies non-beneficial retrieval; on v1–v7 it abstains with **0 regret** — 
 we do not lose where memory doesn't help, and we avoid **~690,510 tok-eq** of over-deliberation tax that the always-inject arms paid.
 
+## Phase 1 held-out eval (clean labels — 2026-06-10)
+
+Ground truth derived from `bench/heldout/p1/results.jsonl`: `needs_context = cold(off) never solved AND warm(on) solved`.
+All 7 held-out candidates have `needs_context=NO` (cold arm solved in every trial).
+Gate run against the live KB (165 current note nodes, MiniLM semantic scoring).
+
+| candidate | needs_context | gate | top1 | gap | reason |
+| --- | :---: | :---: | ---: | ---: | --- |
+| native-store | NO | abstain | 0.516 | 0.146 | non-empirical |
+| claim-task | NO | abstain | 0.471 | 0.059 | low-confidence |
+| wt-gc | NO | abstain | 0.623 | 0.119 | non-empirical |
+| tls-local | NO | abstain | 0.523 | 0.150 | non-local |
+| ctl-loop-next | NO | abstain | 0.437 | 0.032 | low-confidence |
+| ctl-stale-claims | NO | abstain | 0.605 | 0.111 | non-empirical |
+| ctl-agg-report | NO | abstain | 0.407 | 0.200 | low-confidence |
+
+**n=7, YES=0, NO=7 | TP=0 FP=0 FN=0 TN=7 | precision=N/A (no injects) | recall=N/A (no YES labels) | regret=0**
+
+The gate correctly abstains on all Phase 1 held-out tasks. No false injects. Since all ground-truth labels are NO, precision/recall are undefined (no positive class in this set). Regret = 0.
+
+_Note: the v1-v7 benchmark headline above uses a different label derivation (ON underperforms OFF on cost-weighted metric); Phase 1 held-out uses the stronger criterion (cold arm never solved). Results are consistent: the gate abstains correctly in both evaluation regimes._
+
 ## Held-out POSITIVE recalibration (the first real win)
 
 The conservative v1–v7 gate was tuned to ABSTAIN; this section is the INJECT-side calibration
