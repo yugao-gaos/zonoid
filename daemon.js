@@ -1285,9 +1285,30 @@ const handler = async (req, res) => {
     }
 
     // Read-only ready set (for the nudge hook + UI; does NOT advance the loop/budget).
+    // ?session=<sid>  → only ready tasks that are transitive descendants of tasks the session created/claimed.
+    // ?roots=k1,k2    → only ready tasks that are transitive descendants of the given keys.
+    // No param        → all ready tasks (original behaviour).
     if (p === '/ready') {
       const g = buildGraph(state.workspace);
-      return send(res, 200, { ready: g.tasks.filter((t) => t.status === 'ready').map((t) => ({ key: t.id, label: t.label })) });
+      const sessionParam = u.searchParams.get('session');
+      const rootsParam = u.searchParams.get('roots');
+      let ready = g.tasks.filter((t) => t.status === 'ready');
+      if (sessionParam || rootsParam) {
+        // Seed set: tasks created in this session or explicit roots.
+        const seeds = new Set();
+        if (rootsParam) for (const k of rootsParam.split(',').map((s) => s.trim()).filter(Boolean)) seeds.add(k);
+        if (sessionParam) for (const t of g.tasks) { if (t.session === sessionParam) seeds.add(t.id); }
+        // Forward adjacency: dep → tasks it unblocks (i.e. descendants).
+        const children = {};
+        for (const t of g.tasks) for (const dep of t.deps) { (children[dep] = children[dep] || []).push(t.id); }
+        // BFS from seeds to collect all descendants.
+        const descendants = new Set(seeds);
+        const queue = [...seeds];
+        while (queue.length) { const n = queue.shift(); for (const c of (children[n] || [])) { if (!descendants.has(c)) { descendants.add(c); queue.push(c); } } }
+        // Return ready descendants only (exclude seeds themselves — already done/in-progress).
+        ready = ready.filter((t) => descendants.has(t.id) && !seeds.has(t.id));
+      }
+      return send(res, 200, { ready: ready.map((t) => ({ key: t.id, label: t.label })) });
     }
 
     // Read-only "what changed since T" delta — the change sensor for the nightly-QA loop. Derived
@@ -2691,7 +2712,43 @@ module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestR
 
 if (require.main === module) {
   const server = http.createServer(handler);
-  server.listen(PORT, '127.0.0.1', () => process.stdout.write(`orchestrator daemon on http://127.0.0.1:${PORT}\n`));
+
+  const PORT_BASE = PORT;
+  const MAX_PORT_ATTEMPTS = 10;
+
+  function writeDaemonPort(port) {
+    if (!state.workspace) return; // workspace not yet set; skip (clients fall back to default)
+    const graphDir = path.join(state.workspace, '.graph');
+    try { fs.mkdirSync(graphDir, { recursive: true }); } catch { /* exists */ }
+    fs.writeFileSync(path.join(graphDir, 'daemon.port'), String(port));
+  }
+
+  function removeDaemonPort() {
+    if (!state.workspace) return;
+    try { fs.unlinkSync(path.join(state.workspace, '.graph', 'daemon.port')); } catch { /* already gone */ }
+  }
+
+  ['exit', 'SIGINT', 'SIGTERM'].forEach(sig => process.on(sig, removeDaemonPort));
+
+  function tryListen(port, attemptsLeft) {
+    if (attemptsLeft === 0) {
+      process.stderr.write(`orchestrator: all ports ${PORT_BASE}-${PORT_BASE + MAX_PORT_ATTEMPTS - 1} in use — set ORCH_PORT to an available port\n`);
+      process.exit(1);
+    }
+    server.once('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        tryListen(port + 1, attemptsLeft - 1);
+      } else {
+        throw err;
+      }
+    });
+    server.listen(port, '127.0.0.1', () => {
+      process.stdout.write(`orchestrator daemon on http://127.0.0.1:${port}\n`);
+      writeDaemonPort(port);
+    });
+  }
+
+  tryListen(PORT_BASE, MAX_PORT_ATTEMPTS);
 
   // Periodic liveness sweep: reclaim zombie loops even when NO driver is polling next_action (a loop
   // bound to a closed conversation is otherwise never re-evaluated). decideAll already sweeps on each
