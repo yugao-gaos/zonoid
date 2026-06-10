@@ -200,7 +200,7 @@ status      = overlay.status[key]  ??  derive(native.status, deps)
 `get_full_graph` · `get_adjacent` · `get_dependency_tree` (vertical) · `start_task` ·
 `complete_task` · `set_status` · `get_dependency_summaries` (Tier 1) · `get_task_detail`
 (Tier 2) · `attach_knowledge` · `add_dependency` (ghost via `from_workspace`) ·
-`peek_workspace` · `next_action` · `loop_start` · `loop_stop` · `loop_status`
+`peek_workspace` · `next_action` · `loop_control` (action: `start` | `stop` | `status`)
 
 Self-learning git tools: `git_init` · `branch_task` · `git_status` · `merge_attempt` ·
 `remove_worktree`. Metric-driven loop: `set_task_metric` · `measure_task` · `set_task_benchmark`.
