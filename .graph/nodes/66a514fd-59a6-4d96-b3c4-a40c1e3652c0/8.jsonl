@@ -1,0 +1,18 @@
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/1","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:01:05.747Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"6e9b897c-2966-4730-ae2a-5f4512fd0c59/1","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:01:05.747Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"f38c7d2a-e05b-4d1d-a418-ae62c414fba2/2","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:01:05.747Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"f38c7d2a-e05b-4d1d-a418-ae62c414fba2/4","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:01:05.747Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"f38c7d2a-e05b-4d1d-a418-ae62c414fba2/7","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:01:05.747Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/11","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:01:05.747Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"f38c7d2a-e05b-4d1d-a418-ae62c414fba2/11","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:01:05.747Z"}
+{"evt":"status_changed","id":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","workspace":"/Users/imyu/Desktop/cloude","status":"done","actor":"overlay-sync","ts":"2026-06-10T19:01:05.747Z"}
+{"evt":"summary_set","id":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","workspace":"/Users/imyu/Desktop/cloude","summary":"9 findings: 2 high (unauthed /workspace+/peek arbitrary-dir read & workspace hijack; effective() memo cache not cleared between requests -> stale statuses), 4 med, 3 low","actor":"overlay-sync","ts":"2026-06-10T19:01:05.747Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/1","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"6e9b897c-2966-4730-ae2a-5f4512fd0c59/1","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"f38c7d2a-e05b-4d1d-a418-ae62c414fba2/2","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"f38c7d2a-e05b-4d1d-a418-ae62c414fba2/4","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"f38c7d2a-e05b-4d1d-a418-ae62c414fba2/7","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/11","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
+{"evt":"edge_added","from":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","to":"f38c7d2a-e05b-4d1d-a418-ae62c414fba2/11","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
+{"evt":"status_changed","id":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","workspace":"/Users/imyu/Desktop/cloude","status":"done","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
+{"evt":"summary_set","id":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/8","workspace":"/Users/imyu/Desktop/cloude","summary":"9 findings: 2 high (unauthed /workspace+/peek arbitrary-dir read & workspace hijack; effective() memo cache not cleared between requests -> stale statuses), 4 med, 3 low","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
