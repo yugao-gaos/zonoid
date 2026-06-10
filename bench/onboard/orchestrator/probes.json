@@ -49,6 +49,27 @@
     "retrieval_query": "escalation triggers default set ambiguous intent irreversible action low confidence high impact repeated failure scope expansion five tunable config"
   },
   {
+    "id": "proj-merge-conflict-abort",
+    "kind": "project",
+    "scenario": "In this project's autonomous self-improvement loop, multiple candidate attempts on separate branches compete and the daemon picks a winner to merge back. A reviewer worries: when the daemon merges the winning attempt branch and it CONFLICTS with the base, what does the system do — does it force the merge, leave the working tree in a half-merged conflicted state, or something else? Describe the exact conflict behavior and what the merge call returns on conflict.",
+    "rubric": "PASS only if the answer states that on conflict the merge is NOT forced and the tree is NOT left half-merged: the system runs `git merge --abort` to restore a clean tree and returns a structured result indicating conflict plus the list of conflicted files (e.g. {merged:false, conflict:true, files:[...]}). FAIL if it says the merge is forced, left in a conflicted state for manual resolution, or invents a different mechanism.",
+    "retrieval_query": "merge_attempt winner branch conflict git merge --no-ff --abort clean tree returns conflict files never force"
+  },
+  {
+    "id": "proj-gate-fail-open",
+    "kind": "project",
+    "scenario": "This project ships a PreToolUse edit-gate hook that blocks file edits unless the current conversation has claimed a task in the orchestrator. A user reports: 'I stopped the orchestrator daemon to debug something, and I expected all my edits to be blocked by the gate — but edits went through fine.' Is this a bug in the gate, or intended behavior? Explain precisely what the gate does when it cannot reach the daemon, and why.",
+    "rubric": "PASS only if the answer says this is INTENTIONAL fail-OPEN behavior: when the daemon is unreachable the gate allows the edit (exit 0) rather than bricking all editing, and only DENIES on a definitive 'no claim for this session' from a reachable daemon. FAIL if it says the gate fails closed / should block when the daemon is down, or calls the observed behavior a bug.",
+    "retrieval_query": "orch-gate PreToolUse hook daemon unreachable fail open allow edit exit 0 deny only definitive no claim"
+  },
+  {
+    "id": "proj-ingest-reversible",
+    "kind": "project",
+    "scenario": "An engineer ran an automated 'onboarding' pass that injected a batch of learned knowledge notes into the live orchestrator graph. They now want to cleanly identify and REMOVE exactly those injected notes without touching hand-authored nodes. By what specific, deliberate convention can these auto-injected notes be distinguished and reversibly removed, and through what graph mechanism were they added so that removal is clean?",
+    "rubric": "PASS only if the answer identifies that auto-injected notes follow a reversible-overlay convention: their titles carry a distinguishing prefix (the '[ingest]' prefix) and they are added as OVERLAY note nodes (e.g. via POST /overlay/note), so they can be filtered by that prefix and removed without disturbing base/hand-authored nodes. FAIL if it proposes a generic git revert, manual hunting, a tag/label it invents, or doesn't mention the prefix + overlay reversibility convention.",
+    "retrieval_query": "injected notes reversible overlay note prefix ingest filter remove POST overlay note without touching base nodes"
+  },
+  {
     "id": "ctl-git-revert-pushed",
     "kind": "control",
     "scenario": "I pushed a commit to a shared remote branch that other teammates have already pulled, and the commit is bad. What's the safe way to undo its changes without rewriting the shared history (i.e. without a force-push that breaks everyone else's clones)?",

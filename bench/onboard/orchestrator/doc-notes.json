@@ -820,5 +820,11 @@
     "summary": "connector path (local stdio servers don't render it).",
     "source": "skills/setup/SKILL.md",
     "kind": "constraint"
+  },
+  {
+    "title": "gate",
+    "summary": "gate — never run it automatically:",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
   }
 ]

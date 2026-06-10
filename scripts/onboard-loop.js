@@ -59,12 +59,12 @@ function sh(cmd, args, opts = {}) {
 // ---- step wrappers: each shells the existing script, never reimplements it ------------------
 
 function mine(repoAbs, outDir) {
-  for (const s of ['onboard-mine-git.js', 'onboard-mine-docs.js']) {
+  for (const s of ['onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-config.js']) {
     const r = sh(NODE, [path.join(SELF_REPO, 'scripts', s), '--repo', repoAbs, '--out', outDir]);
     if (r.status !== 0) console.error(`[loop] WARN: ${s} exited ${r.status} (continuing)`);
   }
-  // structure miner takes --out as a FILE path, others take a DIR; keep its conventional location.
-  const rs = sh(NODE, [path.join(SELF_REPO, 'scripts', 'onboard-mine-structure.js'), '--repo', repoAbs, '--out', path.join(outDir, 'structure.json')]);
+  // structure miner takes --out as a DIR (it appends /structure.json itself).
+  const rs = sh(NODE, [path.join(SELF_REPO, 'scripts', 'onboard-mine-structure.js'), '--repo', repoAbs, '--out', outDir]);
   if (rs.status !== 0) console.error(`[loop] WARN: onboard-mine-structure.js exited ${rs.status} (continuing)`);
 }
 

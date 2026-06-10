@@ -1,0 +1,62 @@
+[
+  {
+    "title": "Config default: ESCALATION_DEFAULTS (daemon.js)",
+    "summary": "daemon.js: `const ESCALATION_DEFAULTS = () => ({ ambiguous_intent: true, irreversible_action: true, low_confidence_high_impact: true, repeated_failure: true, scope_expansion: true })`. instead of guessing. All default ON; tunable per-workspace via POST /config { escalation }. This is a shipped default — verify what it controls and why this value, then keep only if non-obvious.",
+    "kind": "config",
+    "source": "daemon.js:65"
+  },
+  {
+    "title": "Config default: OPTIMIZE_DEFAULTS (daemon.js)",
+    "summary": "daemon.js: `const OPTIMIZE_DEFAULTS = () => ({ ...optimize.DEFAULTS })`. existing tokenBudget — no separate knob.) Defaults live in lib/optimize.js. This is a shipped default — verify what it controls and why this value, then keep only if non-obvious.",
+    "kind": "config",
+    "source": "daemon.js:70"
+  },
+  {
+    "title": "Config default: SUGGEST_DUP_THRESHOLD (daemon.js)",
+    "summary": "daemon.js: `const SUGGEST_DUP_THRESHOLD = 0.6`. high label/summary overlap with an OPEN task ⇒ likely a re-plan duplicate This is a shipped default — verify what it controls and why this value, then keep only if non-obvious.",
+    "kind": "config",
+    "source": "daemon.js:470"
+  },
+  {
+    "title": "Config default: DEFAULT_AUTOWIRE_THRESHOLD (daemon.js)",
+    "summary": "daemon.js: `const DEFAULT_AUTOWIRE_THRESHOLD = 0.25`. seen task auto-gets a weighted context edge to each context-eligible match scoring >= this. This is a shipped default — verify what it controls and why this value, then keep only if non-obvious.",
+    "kind": "config",
+    "source": "daemon.js:535"
+  },
+  {
+    "title": "Config default: DEFAULT_PROTOCOL (lib/mcp-core.js)",
+    "summary": "lib/mcp-core.js: `const DEFAULT_PROTOCOL = '2025-06-18'`. This is a shipped default — verify what it controls and why this value, then keep only if non-obvious.",
+    "kind": "config",
+    "source": "lib/mcp-core.js:20"
+  },
+  {
+    "title": "Config default: DEFAULT_TIMEOUT_MS (lib/measure.js)",
+    "summary": "lib/measure.js: `const DEFAULT_TIMEOUT_MS = 120000`. bounded so a runaway measure command can't hang the daemon This is a shipped default — verify what it controls and why this value, then keep only if non-obvious.",
+    "kind": "config",
+    "source": "lib/measure.js:12"
+  },
+  {
+    "title": "Config default: DEFAULT_CONTEXT_WEIGHT (lib/overlay.js)",
+    "summary": "lib/overlay.js: `const DEFAULT_CONTEXT_WEIGHT = 0.5`. `weight` read as this, so the field is backward-compatible (substrate for relevance traversal). This is a shipped default — verify what it controls and why this value, then keep only if non-obvious.",
+    "kind": "config",
+    "source": "lib/overlay.js:44"
+  },
+  {
+    "title": "Config default: DEDUP_THRESHOLD (scripts/extract-decisions.js)",
+    "summary": "scripts/extract-decisions.js: `const DEDUP_THRESHOLD = Number(process.env.EXTRACT_DEDUP_THRESHOLD || 0.45)`. This is a shipped default — verify what it controls and why this value, then keep only if non-obvious.",
+    "kind": "config",
+    "source": "scripts/extract-decisions.js:39"
+  },
+  {
+    "title": "Config default: DEFAULT_DAEMON (scripts/onboard-harness.js)",
+    "summary": "scripts/onboard-harness.js: `const DEFAULT_DAEMON = 'http:`. localhost:8787'; This is a shipped default — verify what it controls and why this value, then keep only if non-obvious.",
+    "kind": "config",
+    "source": "scripts/onboard-harness.js:43"
+  },
+  {
+    "title": "Config default: DEFAULT_DAEMON (scripts/onboard-loop.js)",
+    "summary": "scripts/onboard-loop.js: `const DEFAULT_DAEMON = process.env.ORCH_DAEMON || 'http:`. localhost:8787'; This is a shipped default — verify what it controls and why this value, then keep only if non-obvious.",
+    "kind": "config",
+    "source": "scripts/onboard-loop.js:45"
+  }
+]
