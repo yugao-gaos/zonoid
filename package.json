@@ -1,7 +1,14 @@
 {
-  "name": "orchestrator-daemon",
-  "private": true,
-  "description": "Task-graph daemon. Core is dependency-light (Node builtins only). transformers.js is an OPTIONAL dependency for local semantic retrieval (lib/embed.js) — the daemon degrades to lexical-only search if it is absent.",
+  "name": "@zonoid/core",
+  "version": "0.9.0",
+  "description": "Execution-coupled memory and self-optimization for AI agent fleets. Traces every token, scores every outcome, routes future work toward what earns its cost.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node daemon.js",
+    "test": "ZONOID_SKIP_LIVE=1 node test/context-gate-regression.test.js"
+  },
   "optionalDependencies": {
     "@xenova/transformers": "2.17.2"
   }
