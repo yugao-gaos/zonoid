@@ -1,0 +1,7 @@
+{
+  "repo": "__INSTALL_DIR__",
+  "candidates": 53,
+  "kept": 12,
+  "rejected": 6,
+  "model": "agent-as-validator"
+}

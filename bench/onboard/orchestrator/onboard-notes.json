@@ -1,0 +1,101 @@
+{
+  "_meta": {
+    "repo": "__INSTALL_DIR__",
+    "produced_by": "onboard-learn validation pass (agent-as-validator; nested headless spawn blocked by sandbox, so the session agent performed the same read-validate-keep/reject judgment directly against source)",
+    "bar": "KEEP only NON-OBVIOUS, code-verified, load-bearing facts; REJECT restatements / process-noise / unverifiable"
+  },
+  "kept": [
+    {
+      "title": "Note-node IDs use a millisecond timestamp with NO random suffix — same-ms collision risk",
+      "summary": "addNoteNode mints id = `note-${Date.now().toString(36)}` (lib/overlay.js:180), with no randomness. addGhost right below uses Date.now()+Math.random(). Two notes created within the same millisecond (e.g. a batch inject loop) can collide on id and silently overwrite. This is a latent bug, not visible from the function name.",
+      "evidence": "lib/overlay.js:180 vs lib/overlay.js:196",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Git ops target an arbitrary repo, NOT the daemon workspace — resolve repoPath > task.repo > workspace",
+      "summary": "Every git/measure/merge op resolves its repo by precedence explicit repoPath > the task's overlay `repos[key]` field > the daemon workspace, because the common case is the workspace is NOT itself a git repo. Worktrees+branches are keyed by sha1(repo path) so distinct repos never collide on disk. Forgetting set_task_repo silently runs git against the wrong tree.",
+      "evidence": "lib/git.js:1-8, wsHash; daemon /git/* resolution",
+      "kind": "invariant",
+      "source": "git/doc candidate, verified"
+    },
+    {
+      "title": "Winner merge auto-aborts on conflict and never forces — judge escalates instead",
+      "summary": "merge() uses `git merge --no-ff`; on conflict it collects conflicted paths via diff --diff-filter=U, then runs `git merge --abort` to leave a CLEAN tree and returns {merged:false, conflict:true, files}. It NEVER resolves or forces. Callers (the judge) must handle the conflict + escalate; assuming merge always lands is wrong.",
+      "evidence": "lib/git.js:95-109",
+      "kind": "invariant",
+      "source": "doc candidate, verified"
+    },
+    {
+      "title": "Native task JSON is read-only to us; all non-native state lives in the overlay",
+      "summary": "Native task files are the source of truth for native fields (status, intra-session deps) but are unsafe to write (.lock, may be overwritten by Claude Code) and are confined to lib/native-tasks.js. Everything else (cross-session/workspace edges, richer status, notes, summaries, per-task repo, metrics) lives in OUR per-workspace overlay store. Mutate native ONLY via TaskUpdate — never write the file.",
+      "evidence": "lib/overlay.js header; lib/native-tasks.js",
+      "kind": "invariant",
+      "source": "doc candidate, verified"
+    },
+    {
+      "title": "Cross-session task IDs MUST be namespaced session-uuid/id — bare ids are session-local",
+      "summary": "Native task IDs are local ('1','2',…) and unique only within one session dir. Any cross-session reference must be {session-uuid}/{id} (e.g. the task keys c0bd3682…/7). A bare id will resolve to the wrong task or none. Native sessions share no tasks (only Agent Teams share, within one team).",
+      "evidence": "task key scheme; README rationale",
+      "kind": "convention",
+      "source": "doc candidate, verified"
+    },
+    {
+      "title": "search_knowledge / GET /search is lexical token-overlap, not embeddings",
+      "summary": "Retrieval scores each node by token overlap (suggestToks/scoreNodeAgainstTokens) of the query against label+summary, filters score>0, sorts desc, slices k (default 5, max 50). It is purely lexical: a note only retrieves if it shares surface tokens with the query — so note WORDING matters for recall. There is no semantic/embedding match.",
+      "evidence": "daemon.js:846-859 /search handler",
+      "kind": "gotcha",
+      "source": "git candidate, verified"
+    },
+    {
+      "title": "The stop signal has ONE source of truth shared by the hook and the in-process heartbeat",
+      "summary": "stopSignalFor(session) (daemon.js:261) is the single resolver for cancel_requested (per-task) and stop_requested (per-agent); it backs BOTH the /should-stop route (PreToolUse hook) and the heartbeat's decideAction. So a flagged stop halts an in-process loop the SAME way it halts a hooked CLI agent — don't add a second divergent stop check.",
+      "evidence": "daemon.js:257-269",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Daemon stays mechanical; judgement/planning live in subagent skills",
+      "summary": "Deliberate split: the daemon only exposes isolated worktrees + a merge primitive + mechanical iterate-vs-stop control (lib/optimize.js, decided by rule precedence, NOT by an LLM free-choice). Judgement, planning, and benchmark research are subagent SKILLS. If a skill wants a new daemon endpoint to make a decision, it is probably overreaching — push the intelligence to the skill.",
+      "evidence": "lib/optimize.js; README design note",
+      "kind": "decision",
+      "source": "doc candidate, verified"
+    },
+    {
+      "title": "A stuck optimization escalates to a human and HALTS — it never auto-cancels the problem",
+      "summary": "When the last K rounds yield no usable winner (all no-winner / all guardrail-regressed), the loop raises request_guidance and stops rather than quietly dropping or replanning. One of exactly five escalation triggers. So a genuinely-broken metric problem reaches a human instead of silently vanishing from the graph.",
+      "evidence": "daemon.js:62 escalation triggers; lib/optimize.js",
+      "kind": "invariant",
+      "source": "doc candidate, verified"
+    },
+    {
+      "title": "Measure benchmark work by output_tokens, not a gross-minus-plumbing 'net'",
+      "summary": "MCP token attribution is sticky and buckets cache_read into 'plumbing', so a gross−plumbing 'net' produces a spurious '65% less work' artifact. Trust output_tokens for actual work and cost-weighted gross (cache_read ×0.1) for cost. This is the methodology that produced the v2–v5 NO-WIN readings — re-deriving 'net' will mislead you the same way.",
+      "evidence": "README bench caveat; bench/report-v*.md",
+      "kind": "gotcha",
+      "source": "doc candidate, verified"
+    },
+    {
+      "title": "Context cost is ENTIRELY payload size; a lean payload reaches cost parity",
+      "summary": "A/B finding (v2→v3): work was parity ON vs OFF on self-solvable tasks; the whole ON-vs-OFF cost delta was cache_read from re-attending the loaded payload + tool schemas each turn. Shrinking get_learnings (~25k → ~1-3k via compact:true) brought cost to parity. No work/quality benefit was measured — unproven, not disproven. THIS is why the onboarding reframe scores COMPETENCE, not tokens.",
+      "evidence": "bench/report-v3.md; README finding",
+      "kind": "decision",
+      "source": "verdict candidate, verified+distilled"
+    },
+    {
+      "title": "Desktop app runs .mcp.json servers but NOT settings.json hooks",
+      "summary": "So the MCP server self-boots the daemon and registers the workspace on startup — the graph + tools work hookless. Hook-only features (auto-router PreToolUse gate, terminal status line) require the CLI; in the desktop app the orchestration discipline is instruction-level only. Don't assume the gate hook is enforcing anything in the desktop app.",
+      "evidence": "README constraint; mcp-graph.js",
+      "kind": "gotcha",
+      "source": "doc candidate, verified"
+    }
+  ],
+  "rejected": [
+    { "candidate": "v5 on haiku / v5 grounded / v4 hardness / W-H-C decomposition / v3 lean-consult / v1 baseline checkpoints", "reason": "process — point-in-time benchmark lab-notebook entries; their durable conclusion is captured by the two distilled 'cost=payload' / 'output_tokens' notes" },
+    { "candidate": "chore: gitignore loops.json runtime state", "reason": "restatement — trivial repo hygiene, not load-bearing" },
+    { "candidate": "Initial commit: orchestrator daemon …", "reason": "restatement — snapshot commit, zero delta over reading current code" },
+    { "candidate": "Checkpoint: combined multi-session work (PRE-cleanup)", "reason": "process — transient checkpoint" },
+    { "candidate": "137 doc-notes (most)", "reason": "restatement/generic — heuristic cue-matcher over-recalled; the durable ones are distilled above, the rest narrate usage or repeat the same fact" },
+    { "candidate": "structure.json per-file nodes (31)", "reason": "restatement — the module-role map is obvious from reading file headers; kept only as orientation, not as KB notes" }
+  ]
+}
