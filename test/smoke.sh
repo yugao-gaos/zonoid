@@ -244,6 +244,32 @@ chk "benchmark still set after rejects" "$(g 'task/detail?key='"$BK" | jq -r .be
 chk "clear benchmark (empty)"    "$(jpost task/benchmark "$(printf '{"key":"%s"}' "$BK")" | jq -r '.ok and (.benchmark==null)')" "true"
 chk "benchmark cleared on node"  "$(g 'task/detail?key='"$BK" | jq -r '.benchmark==null')" "true"
 
+# loop workspace PIN: a loop carries the workspace it was started for (mcp-core injects the calling
+# session's pin as body.workspace) and the heartbeat decides it against THAT graph — even after
+# another session flips the daemon-global /workspace pointer. Regression: the heartbeat used the
+# GLOBAL workspace, saw the other workspace's empty graph, and demoted a live loop with "DAG drained".
+WA=/tmp/orch-smoke-wa; WB=/tmp/orch-smoke-wb; mkdir -p "$WA" "$WB"
+SA=77777777-0000-0000-0000-000000000003
+PA="$HOME/.claude/projects/-tmp-orch-smoke-wa"; TA="$HOME/.claude/tasks/$SA"
+mkdir -p "$PA" "$TA"; : > "$PA/$SA.jsonl"
+echo '{"id":"1","subject":"pinned-work","status":"pending","blockedBy":[]}' > "$TA/1.json"; sleep 1.2
+jpost workspace "$(printf '{"path":"%s"}' "$WA")" >/dev/null            # global pointer = A
+LIDP=$(jpost loop/start "$(printf '{"maxIterations":50,"workspace":"%s"}' "$WA")" | jq -r .loopId)
+chk "loop captured workspace pin" "$(g "loop/status?loopId=$LIDP" | jq -r .workspace)" "$WA"
+jpost workspace "$(printf '{"path":"%s"}' "$WB")" >/dev/null            # another session flips global -> B (0-task graph)
+chk "global pointer now B"        "$(g ping | jq -r .workspace)"        "$WB"
+PDEC=$(g next-action | jq --arg id "$LIDP" '.loops[]|select(.loopId==$id)')   # heartbeat with global=B
+chk "pinned loop still spawns A"  "$(echo "$PDEC" | jq -r .action)"     "spawn"
+chk "spawned task is A's"         "$(echo "$PDEC" | jq -r '.tasks[0].key')" "$SA/1"
+chk "pinned loop stays active"    "$(g "loop/status?loopId=$LIDP" | jq -r .active)" "true"
+# the pin survives a daemon restart (persisted in loops.json); global pointer restores to B (WS_FILE)
+stop; boot
+chk "pin persisted on restart"    "$(g "loop/status?loopId=$LIDP" | jq -r .workspace)" "$WA"
+chk "pinned decision after restart" "$(ldec "$LIDP" .action)"           "spawn"
+jpost loop/stop "$(printf '{"loopId":"%s"}' "$LIDP")" >/dev/null
+jpost workspace "$(b_ws)" >/dev/null                                    # restore global pointer for the sections below
+rm -rf "$TA" "$PA"
+
 # format-drift detection
 echo 'NOT JSON' > "$T/3.json"; sleep 1.7
 chk "drift -> health unhealthy" "$(g health | jq -r .native_format.healthy)"     "false"
