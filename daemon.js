@@ -1238,6 +1238,15 @@ const handler = async (req, res) => {
     // Policy: require_review makes the daemon reject `done` unless the task is `tested` first.
     if (p === '/config' && m === 'POST') {
       const b = await readBody(req);
+      // Per-repo test commands: { test_cmds: { "<ABSOLUTE repo path>": "npm test" } }. Merge
+      // semantics like `escalation`; a falsy value clears that repo's entry. STORE/RETRIEVE ONLY —
+      // the daemon never executes these (it stays mechanical); agents (e.g. the nightly QA loop)
+      // look them up and run them. Validated FIRST so a 400 leaves no other field half-applied.
+      if (b.test_cmds && typeof b.test_cmds === 'object') {
+        const bad = Object.keys(b.test_cmds).find((rp) => !path.isAbsolute(rp));
+        if (bad) return send(res, 400, { ok: false, error: `test_cmds keys must be absolute repo paths: got "${bad}"` });
+        for (const [rp, cmd] of Object.entries(b.test_cmds)) overlayStore.setTestCmd(state.overlay, rp, cmd);
+      }
       if (b.require_review != null) state.overlay.config.require_review = !!b.require_review;
       if (b.self_plan != null) state.overlay.config.self_plan = !!b.self_plan; // opt-in self-scheduling (default off)
       if (b.stale_minutes != null) state.overlay.config.stale_minutes = Number(b.stale_minutes); // liveness sweep threshold (min)
@@ -1328,7 +1337,7 @@ const handler = async (req, res) => {
     if (p === '/git/status') {
       const repo = resolveRepo(u.searchParams.get('key'), u.searchParams.get('repo_path'));
       if (!repo) return send(res, 200, { isRepo: false });
-      return send(res, 200, { repo, isRepo: git.isRepo(repo), worktrees: git.listWorktrees(repo) });
+      return send(res, 200, { repo, isRepo: git.isRepo(repo), worktrees: git.listWorktrees(repo), test_cmd: overlayStore.testCmdFor(state.overlay, repo) });
     }
     // Create an isolated worktree+branch for a task attempt; record it on the overlay.
     if (p === '/git/worktree' && m === 'POST') {
@@ -1823,6 +1832,7 @@ const handler = async (req, res) => {
         knowledge: state.overlay.knowledge[key] || [],
         git: state.overlay.git[key] || null,
         repo: (state.overlay.repos && state.overlay.repos[key]) || null,
+        test_cmd: overlayStore.testCmdFor(state.overlay, (state.overlay.repos && state.overlay.repos[key]) || null),  // the task's repo's test command (store-only; agents run it)
         metric: (state.overlay.metrics && state.overlay.metrics[key]) || null,
         measurement: (state.overlay.measurements && state.overlay.measurements[key]) || null,
         benchmark: (state.overlay.benchmarks && state.overlay.benchmarks[key]) || null,
