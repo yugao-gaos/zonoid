@@ -21,6 +21,7 @@ const judge = require('./lib/judge');
 const delta = require('./lib/delta');
 const followups = require('./lib/followups');
 const verdicts = require('./lib/verdicts');
+const { gateTask } = require('./lib/context-gate');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -161,8 +162,8 @@ function saveAgents() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeF
 // Resolve the TARGET git repo for a task's git op. Precedence (back-compat default = workspace):
 //   explicit (request body repo_path) > task's overlay repo field > daemon workspace.
 // Lets the loop branch/merge/measure on a repo distinct from the daemon's own workspace.
-function resolveRepo(key, explicit, ov = state.overlay) {
-  return explicit || (key && ov.repos && ov.repos[key]) || state.workspace;
+function resolveRepo(key, explicit, ov = state.overlay, ws = state.workspace) {
+  return explicit || (key && ov.repos && ov.repos[key]) || ws;
 }
 
 // Per-request workspace targeting for graph-MUTATING routes (the workspace-gremlin fix): a write
@@ -217,10 +218,12 @@ function validateBenchmark(b) {
 // --- agent liveness: never leave a phantom in_progress claim ---------------------------------
 // releaseClaim clears a task's status OVERRIDE (not a terminal state) so it re-derives to
 // ready/not_ready, recording why. Returns true if it actually released an in_progress claim.
-function releaseClaim(key, reason) {
-  if (state.overlay.status[key] !== 'in_progress') return false;
-  delete state.overlay.status[key];
-  state.overlay.notes[key] = String(reason).slice(0, 280);
+// `ov` = the overlay holding the claim (defaults to the current workspace's — callers targeting
+// another workspace pass that workspace's overlay; the native write-through is workspace-agnostic).
+function releaseClaim(key, reason, ov = state.overlay) {
+  if (ov.status[key] !== 'in_progress') return false;
+  delete ov.status[key];
+  ov.notes[key] = String(reason).slice(0, 280);
   // Also revert the native status (start_task wrote it to in_progress via write-through); otherwise
   // the task would still derive as in_progress from its native file. 'pending' = available to retry.
   const i = key.indexOf('/');
@@ -247,12 +250,15 @@ function staleClaimKeys(overlay, agents, nowMs) {
 }
 // Sweep abandoned claims: release every staleClaimKeys() orphan back to ready. Authoritative
 // liveness — survives restart (overlay is persisted) and needs no stop hook. Returns true if any.
-function sweepStaleClaims() {
+// Parameterized on (ws, ov) so the sweep operates on the REQUESTED workspace's overlay (buildGraph
+// passes its target — claims in a workspace the daemon-global state isn't pinned to still release);
+// defaults = old behavior.
+function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
   let dirty = false;
-  for (const { key, agentId, mins } of staleClaimKeys(state.overlay, state.agents, Date.now())) {
-    if (releaseClaim(key, `auto-released: worker '${agentId || '?'}' not running (stale >${mins}m)`)) dirty = true;
+  for (const { key, agentId, mins } of staleClaimKeys(ov, state.agents, Date.now())) {
+    if (releaseClaim(key, `auto-released: worker '${agentId || '?'}' not running (stale >${mins}m)`, ov)) dirty = true;
   }
-  if (dirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
+  if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
   return dirty;
 }
 // staleVerdictKeys (pure): which 'tested'/'ready' tasks are stale verdict-pending hand-offs — owner
@@ -879,18 +885,24 @@ function taskTokens(key, session, dedicated, st = state) {
 // Build the graph for one workspace: its task nodes + any ghost stubs they reference.
 function buildGraph(ws) {
   if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], []) };
+  // The TARGET workspace's overlay: state.overlay when ws IS the current workspace (in-memory
+  // coherence), else loaded fresh — so reads of another workspace serve THAT workspace's
+  // notes/summaries/assignees instead of the daemon-global overlay's (the read-side gremlin fix).
+  const own = ws === state.workspace;
+  const ovWs = own ? state.overlay : overlayStore.load(ws);
   // Release dead/abandoned claims BEFORE reading native, busting the aggregate cache so a reverted
-  // native status is reflected in this same build (not one poll later).
-  if (ws === state.workspace && sweepStaleClaims()) { cache.agg.delete(ws); cache.aggAt.delete(ws); }
+  // native status is reflected in this same build (not one poll later). Sweeps the TARGET
+  // workspace's overlay, so stale claims release wherever the read lands.
+  if (sweepStaleClaims(ws, ovWs)) { cache.agg.delete(ws); cache.aggAt.delete(ws); }
   const R = makeResolver();
   const native = aggregateCached(ws);
   const ghostMap = {}; // "ws|key" -> ghost stub
   const sessionCount = {}; for (const t of native) sessionCount[t.session] = (sessionCount[t.session] || 0) + 1;
+  const stWs = own ? state : { ...state, overlay: ovWs };   // taskTokens reads assignee from the target overlay
 
   // Stamp lifecycle timestamps in OUR own overlay (current workspace only — the writable store).
   // firstSeen: set once, never overwritten. lastChanged: set on first sight + whenever the
   // effective status changes. lastStatus tracks the value used to detect changes. Not backfilled.
-  const own = ws === state.workspace;
   let tsDirty = false;
   const newlySeen = []; // task keys first seen THIS build — candidates for one-shot auto-wiring
 
@@ -910,17 +922,16 @@ function buildGraph(ws) {
       }
     }
     const status = R.effective(ws, t.key);
-    let ts = (own && state.overlay.timestamps[t.key]) || null;
+    let ts = ovWs.timestamps[t.key] || null;   // read from the target overlay; stamping stays own-only below
     if (own) {
       if (!ts) { ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; state.overlay.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key); }
       else if (ts.lastStatus !== status) { ts.lastChanged = now(); ts.lastStatus = status; tsDirty = true; }
     }
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status, note: state.overlay.notes[t.key] || '', agent_id: state.overlay.assignee[t.key] || null, summary: state.overlay.summaries[t.key] || '', git: state.overlay.git[t.key] || null, repo: (state.overlay.repos && state.overlay.repos[t.key]) || null, metric: (state.overlay.metrics && state.overlay.metrics[t.key]) || null, measurement: (state.overlay.measurements && state.overlay.measurements[t.key]) || null, benchmark: (state.overlay.benchmarks && state.overlay.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1) };
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', git: ovWs.git[t.key] || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs) };
   });
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
-  const ovForNotes = own ? state.overlay : overlayStore.load(ws);
-  for (const n of Object.values(ovForNotes.note_nodes || {})) {
+  for (const n of Object.values(ovWs.note_nodes || {})) {
     tasks.push({ id: 'note:' + n.id, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: [], note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null,
       // Temporal/state-change fields (null on pre-temporal notes — back-compat): validFrom/validTo
       // bound when the fact was true; supersedes/supersededBy chain it to the note it replaced / was
@@ -949,10 +960,10 @@ function buildGraph(ws) {
   }
   if (tsDirty || edgesDirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
   const ghosts = Object.values(ghostMap);
-  return { tasks, ghosts, summary: summaryFor(tasks, ghosts) };
+  return { tasks, ghosts, summary: summaryFor(tasks, ghosts, ovWs) };
 }
 
-function summaryFor(tasks, ghosts) {
+function summaryFor(tasks, ghosts, ov = state.overlay) {
   const real = tasks.filter((t) => t.kind !== 'note'); // note nodes aren't tasks — keep counts honest
   const notes = tasks.length - real.length;
   const c = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0]));
@@ -963,7 +974,7 @@ function summaryFor(tasks, ghosts) {
     notes,
     statuses: c,
     sessions: new Set(real.map((t) => t.session)).size,
-    edges: state.overlay.edges.length,
+    edges: ov.edges.length,
     ghosts: ghosts.length,
     agents: { total: a.length, running: a.filter((x) => x.state === 'running').length, done: a.filter((x) => x.state === 'done').length },
     lastRoute: state.routes[state.routes.length - 1] || null,
@@ -1188,6 +1199,25 @@ const handler = async (req, res) => {
       const history = isTruthy(u.searchParams.get('history'));
       const ws = u.searchParams.get('workspace') || state.workspace;
       const g = buildGraph(ws);
+      // GATED retrieval (?gated=1) — consult the context-need gate (lib/context-gate.js, the
+      // abstain-by-default classifier calibrated on test/context-gate-regression.test.js) BEFORE
+      // returning anything. INJECT (high-confidence, empirical, project-local top note) ⇒ gate
+      // metadata + ONLY that note, in the same result shape as ungated /search. ABSTAIN ⇒ metadata
+      // + NO notes — deliberately small and cheap, so asking first costs ~nothing. Honors the
+      // per-request ?workspace= exactly like the ungated path. NOTE: the FIRST gated call may take
+      // 10–90s while MiniLM lazy-loads (lib/embed.js); embed() degrading to null ⇒ all-zero scores
+      // ⇒ abstain('low-confidence') — conservative, never a hard failure.
+      if (isTruthy(u.searchParams.get('gated'))) {
+        const noteCands = g.tasks
+          .filter((n) => (n.kind || 'task') === 'note' && !n.validTo)   // current notes only
+          .map((n) => ({ key: n.id, title: n.label, summary: n.summary, vec: n.vec }));
+        const r = await gateTask({ label: q }, noteCands, { embedQuery: embed, cosine });
+        const meta = { query: q, gated: true, decision: r.decision, reason: r.reason, top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality, topType: r.topType, via: r.via };
+        if (r.decision !== 'inject') return send(res, 200, { ...meta, results: [] });
+        const top = noteCands.find((n) => n.key === r.topKey);
+        const results = top ? [{ key: top.key, title: top.title, summary: String(top.summary || '').slice(0, 200), score: r.top1, kind: 'note', via: r.via }] : [];
+        return send(res, 200, { ...meta, results });
+      }
       const qt = suggestToks(q);
       const qvec = await embed(q);   // null-safe: null ⇒ pure-lexical (back-compat)
       const knownT = knownAsOf ? Date.parse(knownAsOf) : NaN;
@@ -1319,7 +1349,7 @@ const handler = async (req, res) => {
     // List unresolved guidance. Read-only. `pending` = BLOCKING items (what the loop is waiting on);
     // `review` = housekeeping items that queue without pausing the loop.
     if (p === '/guidance' && m === 'GET') {
-      const all = overlayStore.pendingGuidance(state.overlay);
+      const all = overlayStore.pendingGuidance(targetOverlay(null, u).ov);   // honor ?workspace=
       return send(res, 200, { pending: all.filter((g) => g.severity !== 'review'), review: all.filter((g) => g.severity === 'review') });
     }
     // Resolve a guidance item — now ACTING on the decision, not just recording text.
@@ -1448,9 +1478,10 @@ const handler = async (req, res) => {
     }
     // Report repo state + active attempt worktrees for the target repo.
     if (p === '/git/status') {
-      const repo = resolveRepo(u.searchParams.get('key'), u.searchParams.get('repo_path'));
+      const T = targetOverlay(null, u);   // honor ?workspace= (read-side gremlin fix)
+      const repo = resolveRepo(u.searchParams.get('key'), u.searchParams.get('repo_path'), T.ov, T.ws);
       if (!repo) return send(res, 200, { isRepo: false });
-      return send(res, 200, { repo, isRepo: git.isRepo(repo), worktrees: git.listWorktrees(repo), test_cmd: overlayStore.testCmdFor(state.overlay, repo) });
+      return send(res, 200, { repo, isRepo: git.isRepo(repo), worktrees: git.listWorktrees(repo), test_cmd: overlayStore.testCmdFor(T.ov, repo) });
     }
     // Create an isolated worktree+branch for a task attempt; record it on the overlay.
     if (p === '/git/worktree' && m === 'POST') {
@@ -2004,10 +2035,11 @@ const handler = async (req, res) => {
     // Tier 1 (cheap): a task's base context = its dependencies' summaries — BOTH blocking deps
     // and non-blocking context edges (the latter let it inherit completed nodes' summaries).
     if (p === '/task/context') {
-      const g = buildGraph(u.searchParams.get('workspace') || state.workspace);
+      const T = targetOverlay(null, u);   // honor ?workspace= (read-side gremlin fix)
+      const g = buildGraph(T.ws);
       const t = g.tasks.find((x) => x.id === u.searchParams.get('key'));
       if (!t) return send(res, 404, { ok: false, error: 'unknown task' });
-      const mk = (d, kind) => { const dep = g.tasks.find((x) => x.id === d); return { key: d, label: dep ? dep.label : d, status: dep ? dep.status : '?', summary: (dep && dep.summary) || state.overlay.summaries[d] || '', via: kind }; };
+      const mk = (d, kind) => { const dep = g.tasks.find((x) => x.id === d); return { key: d, label: dep ? dep.label : d, status: dep ? dep.status : '?', summary: (dep && dep.summary) || T.ov.summaries[d] || '', via: kind }; };
       const summaries = [
         ...t.deps.filter((d) => !d.startsWith('ghost:')).map((d) => mk(d, 'blocking')),
         ...t.context_deps.filter((d) => !d.startsWith('ghost:')).map((d) => mk(d, 'context')),
@@ -2039,7 +2071,8 @@ const handler = async (req, res) => {
     if (p === '/task/tree') {
       const key = u.searchParams.get('key');
       const maxDepth = Math.min(parseInt(u.searchParams.get('depth') || '6', 10) || 6, 25);
-      const g = buildGraph(u.searchParams.get('workspace') || state.workspace);
+      const T = targetOverlay(null, u);   // honor ?workspace= (read-side gremlin fix)
+      const g = buildGraph(T.ws);
       const byId = Object.fromEntries(g.tasks.map((t) => [t.id, t]));
       const root = byId[key];
       if (!root) return send(res, 404, { ok: false, error: 'unknown task' });
@@ -2061,7 +2094,7 @@ const handler = async (req, res) => {
             seen.add(d);
             const dep = byId[d];
             if (!dep) continue;
-            ancestors.push({ key: dep.id, label: dep.label, status: dep.status, summary: state.overlay.summaries[dep.id] || '', depth: depth + 1, via: k });
+            ancestors.push({ key: dep.id, label: dep.label, status: dep.status, summary: T.ov.summaries[dep.id] || '', depth: depth + 1, via: k });
             next.push({ key: d, depth: depth + 1 });
           }
         }
@@ -2073,23 +2106,24 @@ const handler = async (req, res) => {
     // Tier 2 (on demand): full detail for one task — knowledge, summary, assignee, token usage.
     if (p === '/task/detail') {
       const key = u.searchParams.get('key');
-      const g = buildGraph(u.searchParams.get('workspace') || state.workspace);
+      const T = targetOverlay(null, u);   // honor ?workspace= (read-side gremlin fix)
+      const g = buildGraph(T.ws);
       const t = g.tasks.find((x) => x.id === key);
       if (!t) return send(res, 404, { ok: false, error: 'unknown task' });
-      const assignee = state.overlay.assignee[key] || null;
+      const assignee = T.ov.assignee[key] || null;
       const agent = assignee ? state.agents[assignee] : null;
       return send(res, 200, {
         task: t,
-        summary: state.overlay.summaries[key] || '',
-        knowledge: state.overlay.knowledge[key] || [],
-        git: state.overlay.git[key] || null,
-        repo: (state.overlay.repos && state.overlay.repos[key]) || null,
-        test_cmd: overlayStore.testCmdFor(state.overlay, (state.overlay.repos && state.overlay.repos[key]) || null),  // the task's repo's test command (store-only; agents run it)
-        metric: (state.overlay.metrics && state.overlay.metrics[key]) || null,
-        measurement: (state.overlay.measurements && state.overlay.measurements[key]) || null,
-        benchmark: (state.overlay.benchmarks && state.overlay.benchmarks[key]) || null,
+        summary: T.ov.summaries[key] || '',
+        knowledge: T.ov.knowledge[key] || [],
+        git: T.ov.git[key] || null,
+        repo: (T.ov.repos && T.ov.repos[key]) || null,
+        test_cmd: overlayStore.testCmdFor(T.ov, (T.ov.repos && T.ov.repos[key]) || null),  // the task's repo's test command (store-only; agents run it)
+        metric: (T.ov.metrics && T.ov.metrics[key]) || null,
+        measurement: (T.ov.measurements && T.ov.measurements[key]) || null,
+        benchmark: (T.ov.benchmarks && T.ov.benchmarks[key]) || null,
         assignee,
-        cancel_requested: state.overlay.cancel_requested[key] || null,  // advisory cooperative-cancel flag
+        cancel_requested: T.ov.cancel_requested[key] || null,  // advisory cooperative-cancel flag
         tokenUsage: agent && agent.transcript_path ? usageCached(agent.transcript_path) : null,
         transcript: agent ? agent.transcript_path : null,
       });
@@ -2174,11 +2208,14 @@ const handler = async (req, res) => {
       a.state = 'done'; a.endedAt = now();
       // Cascade: release any in_progress task this agent still holds (it stopped without completing),
       // so the claim doesn't linger as a phantom in_progress. Fixes the stale-status bug directly.
+      // Target the AGENT'S workspace (recorded at /agent/start), not the daemon-global overlay —
+      // the claim lives where the agent's session was pinned (read-side gremlin fix).
+      const T = targetOverlay({ workspace: b.workspace || a.workspace }, u);
       let released = 0;
-      for (const [key, st] of Object.entries(state.overlay.status))
-        if (st === 'in_progress' && state.overlay.assignee[key] === b.agent_id
-            && releaseClaim(key, `auto-released: agent '${b.agent_id}' stopped without completing`)) released++;
-      if (released) overlayStore.save(state.workspace, state.overlay);
+      for (const [key, st] of Object.entries(T.ov.status))
+        if (st === 'in_progress' && T.ov.assignee[key] === b.agent_id
+            && releaseClaim(key, `auto-released: agent '${b.agent_id}' stopped without completing`, T.ov)) released++;
+      if (released) T.save();
       saveAgents();
       notifyChange();
       return send(res, 200, { ok: true, released });
@@ -2187,11 +2224,12 @@ const handler = async (req, res) => {
     // Cross-session visibility: list every known agent with task/session/workspace/startedAt and
     // its current cooperative-stop flag, so one session can SEE a worker running in another.
     if (p === '/agents') {
+      const ovStops = targetOverlay(null, u).ov;   // stop flags live per-workspace; honor ?workspace=
       const list = agentsArr().map((a) => ({
         agent_id: a.agent_id, agent_type: a.agent_type, state: a.state,
         task: a.task || null, session: a.session || null, workspace: a.workspace || null,
         startedAt: a.startedAt || null, endedAt: a.endedAt || null,
-        stop_requested: state.overlay.stop_requested[a.agent_id] || null,
+        stop_requested: ovStops.stop_requested[a.agent_id] || null,
       }));
       return send(res, 200, { agents: list });
     }
@@ -2201,23 +2239,25 @@ const handler = async (req, res) => {
     // /agent/stop-requested) and self-terminate. Returns the resolved agent or 404.
     if (p === '/agent/stop' && m === 'POST') {
       const b = await readBody(req);
+      const T = targetOverlay(b, u);   // flag lands in the CALLER's workspace overlay
       let agentId = b.agent_id || null;
-      if (!agentId && b.task_key) agentId = state.overlay.assignee[b.task_key] || agentsArr().find((a) => a.task === b.task_key)?.agent_id || null;
+      if (!agentId && b.task_key) agentId = T.ov.assignee[b.task_key] || agentsArr().find((a) => a.task === b.task_key)?.agent_id || null;
       if (!agentId) return send(res, 404, { ok: false, error: 'no agent for that agent_id/task_key' });
-      state.overlay.stop_requested[agentId] = now();
-      overlayStore.save(state.workspace, state.overlay);
+      T.ov.stop_requested[agentId] = now();
+      T.save();
       notifyChange();
-      return send(res, 200, { ok: true, agent_id: agentId, stop_requested: state.overlay.stop_requested[agentId] });
+      return send(res, 200, { ok: true, agent_id: agentId, stop_requested: T.ov.stop_requested[agentId] });
     }
     // A worker polls this to learn whether it should cooperatively stop.
     if (p === '/agent/stop-requested') {
       const id = u.searchParams.get('agent_id');
       if (!id) return send(res, 400, { ok: false, error: 'agent_id required' });
-      return send(res, 200, { agent_id: id, stop_requested: state.overlay.stop_requested[id] || null });
+      return send(res, 200, { agent_id: id, stop_requested: targetOverlay(null, u).ov.stop_requested[id] || null });
     }
 
     if (p === '/state') {
-      const ws = u.searchParams.get('workspace') || state.workspace;
+      const T = targetOverlay(null, u);   // honor ?workspace= for the overlay-backed fields too
+      const ws = T.ws;
       const g = buildGraph(ws);
       // Compact projection (?compact=1): slim each task to id/label/status/deps(+assignee) and drop
       // heavy fields (note, summary, tokens, git, timestamps, session) so overview reads stay small.
@@ -2228,9 +2268,9 @@ const handler = async (req, res) => {
           if (t.agent_id) o.assignee = t.agent_id;
           return o;
         });
-        return send(res, 200, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: state.overlay.edges, summary: g.summary });
+        return send(res, 200, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: T.ov.edges, summary: g.summary });
       }
-      return send(res, 200, { workspace: ws, tasks: g.tasks, ghosts: g.ghosts, edges: state.overlay.edges, routes: state.routes, agents: agentsArr(), summary: g.summary });
+      return send(res, 200, { workspace: ws, tasks: g.tasks, ghosts: g.ghosts, edges: T.ov.edges, routes: state.routes, agents: agentsArr(), summary: g.summary });
     }
 
     if (p.startsWith('/agent/')) {
