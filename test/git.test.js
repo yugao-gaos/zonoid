@@ -45,6 +45,44 @@ try {
   ok('listWorktrees back to 1 entry', git.listWorktrees(ws).length === 1);
   ok('removeWorktree idempotent (removed=false)', git.removeWorktree(ws, KEY).removed === false);
 
+  // ---- per-path lease (Item 1: two agents cannot claim the same worktree path) ----
+  // createWorktree leaves a lease file alongside the worktree.
+  const c2 = git.createWorktree(ws, KEY, { owner: 'agent-A' });
+  ok('createWorktree reports leased=true', c2.leased === true);
+  ok('lease file exists after create', fs.existsSync(git.leasePath(c2.worktree)));
+  const heldLease = git.readLease(c2.worktree);
+  ok('lease records owner', heldLease && heldLease.owner === 'agent-A');
+  ok('lease records pid', heldLease && heldLease.pid === process.pid);
+
+  // A SECOND, different owner (simulated via a live foreign pid) cannot steal a live lease.
+  // We hand-write a competing lease for a fresh path and try to acquire it.
+  const KEY2 = 'sess-abc/contend';
+  const wt2 = git.worktreePath(ws, KEY2);
+  fs.mkdirSync(path.dirname(wt2), { recursive: true });
+  // pid 1 (init/launchd) is always alive and is NOT this process -> a live, foreign lease.
+  fs.writeFileSync(git.leasePath(wt2), JSON.stringify({ owner: 'agent-B', pid: 1, ts: Date.now() }), { flag: 'wx' });
+  const contend = git.createWorktree(ws, KEY2, { owner: 'agent-C' });
+  ok('createWorktree contended on held live lease', contend.contended === true);
+  ok('contended worktree NOT created on disk', !fs.existsSync(path.join(wt2, '.git')));
+  ok('held lease owner surfaced', contend.held && contend.held.owner === 'agent-B');
+  fs.rmSync(git.leasePath(wt2), { force: true });
+
+  // A STALE lease (dead pid + aged ts) is reclaimable.
+  const KEY3 = 'sess-abc/stale';
+  const wt3 = git.worktreePath(ws, KEY3);
+  fs.mkdirSync(path.dirname(wt3), { recursive: true });
+  // pid 2^31-1 is effectively never a live process; ts far in the past beats the stale window.
+  fs.writeFileSync(git.leasePath(wt3), JSON.stringify({ owner: 'crashed', pid: 2147483647, ts: 1 }), { flag: 'wx' });
+  const acq = git.acquireLease(wt3, 'agent-D');
+  ok('stale lease reclaimed', acq.ok === true && acq.reclaimed === true);
+  ok('reclaimed lease owned by new owner', git.readLease(wt3).owner === 'agent-D');
+  git.releaseLease(wt3);
+  ok('releaseLease removes file', !fs.existsSync(git.leasePath(wt3)));
+
+  // removeWorktree frees the lease so the path can be re-leased.
+  git.removeWorktree(ws, KEY);
+  ok('removeWorktree frees lease', !fs.existsSync(git.leasePath(c2.worktree)));
+
   // not-a-repo case
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-bare-'));
   ok('isRepo false on non-repo', git.isRepo(bare) === false);
@@ -53,7 +91,10 @@ try {
   fs.rmSync(bare, { recursive: true, force: true });
 } finally {
   fs.rmSync(ws, { recursive: true, force: true });
-  fs.rmSync(git.worktreePath(ws, KEY), { recursive: true, force: true });
+  for (const k of [KEY, 'sess-abc/contend', 'sess-abc/stale']) {
+    fs.rmSync(git.worktreePath(ws, k), { recursive: true, force: true });
+    fs.rmSync(git.leasePath(git.worktreePath(ws, k)), { force: true });
+  }
 }
 
 console.log('-----');

@@ -181,6 +181,18 @@ function classifyWorktree(repo, wtDir, registered, retentionMs, now) {
 function gcWorktree(repo, item, confirm) {
   // Remove the worktree, then delete its branch (best-effort).
   if (!confirm) return { done: false, note: 'dry-run' };
+  // Dirty-worktree guard: classification happened earlier in the scan; a worktree can acquire
+  // uncommitted work in the interim. Re-probe IMMEDIATELY before the destructive remove and refuse
+  // to reap anything with uncommitted changes (or whose probe fails) — `worktree remove --force`
+  // would otherwise silently discard that work. Makes "never reap uncommitted work" airtight.
+  const recheck = git(item.dir, ['status', '--porcelain']);
+  if (!recheck.ok) {
+    return { done: false, note: `SKIPPED — status re-probe failed (${recheck.stderr || recheck.code}); not reaping` };
+  }
+  if (recheck.stdout.length > 0) {
+    const n = recheck.stdout.split('\n').length;
+    return { done: false, note: `SKIPPED — ${n} uncommitted change(s) appeared since scan; not reaping` };
+  }
   const notes = [];
   const rm = git(repo, ['worktree', 'remove', '--force', item.dir]);
   if (rm.ok) notes.push('worktree removed');
@@ -330,4 +342,6 @@ function main() {
   console.log(`  git worktree prune — ${prune.ok ? 'ok' : 'failed: ' + (prune.stderr || prune.code)}`);
 }
 
-main();
+module.exports = { git, gcWorktree, gcEmpty, classifyWorktree, registeredWorktrees };
+
+if (require.main === module) main();
