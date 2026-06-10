@@ -202,8 +202,9 @@ status      = overlay.status[key]  ??  derive(native.status, deps)
 (Tier 2) · `attach_knowledge` · `add_dependency` (ghost via `from_workspace`) ·
 `peek_workspace` · `next_action` · `loop_start` · `loop_stop` · `loop_status`
 
-Self-learning git tools: `git_init` · `branch_task` · `git_status` · `merge_attempt` ·
-`remove_worktree`. Metric-driven loop: `set_task_metric` · `measure_task` · `set_task_benchmark`.
+Self-learning git tools: `branch_task` (auto-inits git in the target repo when needed) ·
+`merge_attempt` · `remove_worktree`. Metric-driven loop: `set_task_metric` · `measure_task` ·
+`set_task_benchmark`.
 
 ---
 
@@ -246,7 +247,7 @@ order **explicit `repo_path` (body/query) > the task's overlay repo field > daem
 *distinct from the daemon workspace* (the common case: the workspace is not itself a git repo).
 A task carries its target via `POST /git/repo {key, repo_path}` (MCP `set_task_repo`; clear with an
 empty path); it surfaces as `repo` on the task node and `/task/detail`. The git MCP tools
-(`branch_task`/`merge_attempt`/`remove_worktree`/`git_status`) also take an optional `repo_path`.
+(`branch_task`/`merge_attempt`/`remove_worktree`) also take an optional `repo_path`.
 Covered by `test/repo-target.test.js` and the git section of `test/smoke.sh`.
 
 **Inline metric spec:** a task/problem node can carry an **inline metric spec** — the objective the

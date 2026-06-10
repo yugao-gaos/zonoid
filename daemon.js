@@ -1532,7 +1532,7 @@ const handler = async (req, res) => {
       const T = targetOverlay(b, u);
       if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
       const repo = resolveRepo(b.key, b.repo_path, T.ov);
-      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: run git_init first' });
+      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' });
       const info = git.createWorktree(repo, b.key);
       overlayStore.setGit(T.ov, b.key, info);
       T.save();
@@ -1557,7 +1557,7 @@ const handler = async (req, res) => {
       const T = targetOverlay(b, u);
       if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
       const repo = resolveRepo(b.key, b.repo_path, T.ov);
-      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: run git_init first' });
+      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' });
       const result = git.mergeBranch(repo, b.key, { message: b.message });
       if (result.merged) {
         // Persist the merge outcome on the task node (merged + commit sha) so cost-flow
@@ -1620,7 +1620,7 @@ const handler = async (req, res) => {
       const spec = T.ov.metrics && T.ov.metrics[b.key];
       if (!spec) return send(res, 409, { ok: false, error: 'no metric spec on task: set one with set_task_metric first' });
       const repo = resolveRepo(b.key, b.repo_path, T.ov);
-      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: run git_init first' });
+      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' });
       // Baseline = repo root (current main, no attempt); attempt = the task's isolated worktree.
       const cwd = b.baseline ? repo : git.createWorktree(repo, b.key).worktree;
       let result;
