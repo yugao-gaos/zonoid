@@ -53,6 +53,49 @@ const CANDIDATES = {
     deps: [],
     grader: 'bench/heldout/graders/locale-sum.grader.js',
   },
+  // ---- Phase 1 proxy-validation candidates (task #12). deps:[] everywhere (no oracle in worktree).
+  'native-store': {
+    spec: 'bench/heldout/specs/native-store.md',
+    artifact: 'bench/sandbox/task-store-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/native-store.grader.js',
+  },
+  'claim-task': {
+    spec: 'bench/heldout/specs/claim-task.md',
+    artifact: 'bench/sandbox/claim-task-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/claim-task.grader.js',
+  },
+  'wt-gc': {
+    spec: 'bench/heldout/specs/wt-gc.md',
+    artifact: 'bench/sandbox/gc-plan-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/wt-gc.grader.js',
+  },
+  'tls-local': {
+    spec: 'bench/heldout/specs/tls-local.md',
+    artifact: 'bench/sandbox/local-https-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/tls-local.grader.js',
+  },
+  'ctl-loop-next': {
+    spec: 'bench/heldout/specs/ctl-loop-next.md',
+    artifact: 'bench/sandbox/loop-next-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/ctl-loop-next.grader.js',
+  },
+  'ctl-stale-claims': {
+    spec: 'bench/heldout/specs/ctl-stale-claims.md',
+    artifact: 'bench/sandbox/stale-claims-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/ctl-stale-claims.grader.js',
+  },
+  'ctl-agg-report': {
+    spec: 'bench/heldout/specs/ctl-agg-report.md',
+    artifact: 'bench/sandbox/agg-report-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/ctl-agg-report.grader.js',
+  },
 };
 
 // Warm-arm preambles. Default = search (semantic RAG): the agent MUST search_knowledge and apply any
