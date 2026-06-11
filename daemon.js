@@ -302,6 +302,31 @@ function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
   if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
   return dirty;
 }
+// Auto-retry failed tasks: flip back to 'pending' if maxRetries > 0 and retryCount < maxRetries.
+// Mirrors sweepStaleClaims in structure. Returns true if any task was retried.
+function sweepFailedTasks(ws = state.workspace, ov = state.overlay) {
+  let dirty = false;
+  const g = buildGraph(ws);
+  for (const t of g.tasks) {
+    if (t.status !== 'failed') continue;
+    const maxRetries = (ov.retryConfig && ov.retryConfig[t.id] && ov.retryConfig[t.id].maxRetries) || 0;
+    if (maxRetries <= 0) continue;
+    const retryCount = (ov.retryConfig && ov.retryConfig[t.id] && ov.retryConfig[t.id].retryCount) || 0;
+    if (retryCount >= maxRetries) continue;
+    const newCount = retryCount + 1;
+    if (!ov.retryConfig) ov.retryConfig = {};
+    if (!ov.retryConfig[t.id]) ov.retryConfig[t.id] = {};
+    ov.retryConfig[t.id].retryCount = newCount;
+    // Flip status back to pending so the task re-enters the ready pipeline
+    delete ov.status[t.id];
+    const i = t.id.indexOf('/');
+    if (i > 0) { try { nt.writeStatus(t.id.slice(0, i), t.id.slice(i + 1), 'pending'); } catch { /* best effort */ } }
+    console.log(`[retry] task ${t.id} attempt ${newCount}/${maxRetries}`);
+    dirty = true;
+  }
+  if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
+  return dirty;
+}
 // staleVerdictKeys (pure): which 'tested'/'ready' tasks are stale verdict-pending hand-offs — owner
 // not live AND lastChanged past stale_minutes. These are SURFACED as guidance, NEVER auto-resolved
 // (auto-promoting tested→done would hide a real failure). Same (overlay, agents, nowMs, bootMs)
@@ -322,24 +347,20 @@ function staleVerdictKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
   }
   return out;
 }
-// Surface stale verdict-pending hand-offs as escalation/guidance (one open item per key, tagged with
-// verdictKey for idempotency). Never mutates task status. Runs at the top of decideAll() so the
-// freshly-built ctx.pendingGuidance picks the items up and the existing gate halts the loop.
+// Reset stale verdict-pending hand-offs back to pending so the loop re-dispatches them.
+// The agent that picks them up can read the codebase and task description to determine current
+// state — no human escalation needed. Mirrors sweepStaleClaims in structure.
 function sweepStaleVerdicts() {
   const stale = staleVerdictKeys(state.overlay, state.agents, Date.now());
   if (!stale.length) return false;
-  const already = new Set(overlayStore.pendingGuidance(state.overlay).map((g) => g.verdictKey).filter(Boolean));
-  const mins = state.overlay.config.stale_minutes ?? 10;
   let dirty = false;
   for (const { key, status, agentId } of stale) {
-    if (already.has(key)) continue;                            // one open escalation per key
-    const id = overlayStore.addGuidance(state.overlay, {
-      question: `Stale '${status}' task ${key}: no live owner for >${mins}m. Promote to done, mark failed, or reassign?`,
-      context: `self-heal surfaced a verdict-pending hand-off — status='${status}', last owner='${agentId || '?'}' not running. Status is intentionally NOT auto-changed (auto-promoting tested→done would hide a real failure).`,
-      trigger: 'repeated_failure',
-    });
-    overlayStore.annotateGuidance(state.overlay, id, { verdictKey: key });
-    already.add(key);
+    delete state.overlay.status[key];
+    delete state.overlay.assignee[key];
+    state.overlay.notes[key] = `auto-requeued: '${status}' owner '${agentId || '?'}' not running — reset to pending for re-dispatch`;
+    const i = key.indexOf('/');
+    if (i > 0) { try { nt.writeStatus(key.slice(0, i), key.slice(i + 1), 'pending'); } catch { /* best effort */ } }
+    console.log(`[self-heal] task ${key} (was ${status}) reset to pending — owner gone`);
     dirty = true;
   }
   if (dirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
@@ -647,7 +668,8 @@ function decideOne(L, ctx) {
 // batch settings — generous but bounded). Inactive loops are skipped. Caller persists the registry.
 function decideAll() {
   sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
-  sweepStaleVerdicts();   // surface abandoned verdict-pending hand-offs (tested/ready, no live owner) as guidance — never mutates status
+  sweepStaleVerdicts();   // reset abandoned verdict-pending hand-offs (tested/ready, no live owner) back to pending for re-dispatch
+  sweepFailedTasks();   // auto-retry: flip failed tasks back to pending if maxRetries allows it
   const active = [...loops.values()].filter((L) => L.active);
   // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
   // concurrency bound is about total spawned workers, not per-workspace.
@@ -1013,7 +1035,8 @@ function buildGraph(ws) {
       if (!ts) { ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; state.overlay.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key); }
       else if (ts.lastStatus !== status) { ts.lastChanged = now(); ts.lastStatus = status; tsDirty = true; }
     }
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', git: ovWs.git[t.key] || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs) };
+    const _rc = ovWs.retryConfig && ovWs.retryConfig[t.key];
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', git: ovWs.git[t.key] || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0 };
   });
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
@@ -1120,13 +1143,26 @@ function digestRejected(verdicts, failures, labelFor) {
 function readUsage(p) {
   try {
     let input = 0, output = 0, cacheRead = 0, cacheCreate = 0, messages = 0;
+    const byModel = {};
     for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
       if (!line.trim()) continue;
       let o; try { o = JSON.parse(line); } catch { continue; }
       const u = (o.message && o.message.usage) || o.usage;
-      if (u) { messages++; input += u.input_tokens || 0; output += u.output_tokens || 0; cacheRead += u.cache_read_input_tokens || 0; cacheCreate += u.cache_creation_input_tokens || 0; }
+      if (u) {
+        messages++;
+        input += u.input_tokens || 0; output += u.output_tokens || 0;
+        cacheRead += u.cache_read_input_tokens || 0; cacheCreate += u.cache_creation_input_tokens || 0;
+        const m = (o.message && o.message.model) || o.model;
+        if (m) {
+          if (!byModel[m]) byModel[m] = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+          byModel[m].input_tokens += u.input_tokens || 0;
+          byModel[m].output_tokens += u.output_tokens || 0;
+          byModel[m].cache_read_input_tokens += u.cache_read_input_tokens || 0;
+          byModel[m].cache_creation_input_tokens += u.cache_creation_input_tokens || 0;
+        }
+      }
     }
-    return { input_tokens: input, output_tokens: output, cache_read_input_tokens: cacheRead, cache_creation_input_tokens: cacheCreate, total: input + output, messages };
+    return { input_tokens: input, output_tokens: output, cache_read_input_tokens: cacheRead, cache_creation_input_tokens: cacheCreate, total: input + output, messages, by_model: byModel };
   } catch (e) { return { error: e.code || e.message }; }
 }
 
@@ -1264,6 +1300,11 @@ const handler = async (req, res) => {
     if (p === '/workspace' && m === 'POST') {
       const b = await readBody(req);
       if (!b.path) return send(res, 400, { ok: false, error: 'path required' });
+      // Without force:true, refuse to overwrite an already-set workspace (prevents boot-time
+      // calls from random sessions clobbering the pinned workspace).
+      if (!b.force && state.workspace && state.workspace !== b.path) {
+        return send(res, 200, { ok: true, workspace: state.workspace, skipped: true });
+      }
       state.workspace = b.path;
       state.overlay = overlayStore.load(b.path);
       migrateBlindEdges(b.path, state.overlay);   // tag blind similarity edges UNVERIFIED on workspace switch (idempotent)
@@ -1888,6 +1929,13 @@ const handler = async (req, res) => {
       if (b.status === 'canceled') T.ov.cancel_requested[b.key] = now();
       else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
       overlayStore.setStatus(T.ov, b.key, b.status, b.note);
+      // Auto-retry config: persist maxRetries when provided; never reset retryCount on failure so
+      // the sweep can compare against maxRetries.
+      if (b.max_retries != null) {
+        if (!T.ov.retryConfig) T.ov.retryConfig = {};
+        if (!T.ov.retryConfig[b.key]) T.ov.retryConfig[b.key] = {};
+        T.ov.retryConfig[b.key].maxRetries = Number(b.max_retries);
+      }
       // Stamp lastChanged for accurate stale-sweep timing. buildGraph stamps for native-backed
       // tasks; direct overlay writes (overlay-only claims, tests) need this for the sweep to
       // correctly distinguish fresh vs stale claims.
@@ -2078,10 +2126,15 @@ const handler = async (req, res) => {
     // skipped, so re-running is cheap. Null embeds (model unavailable) leave the item lexical-only.
     if (p === '/overlay/backfill-embeddings' && m === 'POST') {
       let notesEmbedded = 0, notesSkipped = 0, knEmbedded = 0, knSkipped = 0, failed = 0;
+      const gs = state.graphStore || graphStore.open(require('path').join(state.workspace, '.graph'));
+      const ts = new Date().toISOString();
       for (const n of Object.values(state.overlay.note_nodes || {})) {
         if (Array.isArray(n.vec)) { notesSkipped++; continue; }
         const v = await embed(`${n.title || ''} ${n.summary || ''}`);
-        if (v) { n.vec = v; notesEmbedded++; } else failed++;
+        if (v) {
+          n.vec = v; notesEmbedded++;
+          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
+        } else failed++;
       }
       for (const items of Object.values(state.overlay.knowledge || {})) {
         for (const it of (items || [])) {
@@ -2373,8 +2426,8 @@ const handler = async (req, res) => {
         benchmark: (T.ov.benchmarks && T.ov.benchmarks[key]) || null,
         assignee,
         cancel_requested: T.ov.cancel_requested[key] || null,  // advisory cooperative-cancel flag
-        tokenUsage: agent && agent.transcript_path ? usageCached(agent.transcript_path) : null,
-        transcript: agent ? agent.transcript_path : null,
+        tokenUsage: (() => { const tp = taskTranscript(key, t.session, true); return tp ? usageCached(tp) : null; })(),
+        transcript: (() => { const tp = taskTranscript(key, t.session, true); return tp || null; })(),
       });
     }
 
@@ -2611,6 +2664,15 @@ const handler = async (req, res) => {
         window: { start: t.firstSeen, end: t.lastChanged },
       }));
       const ownTok = costflow.splitSessionTokens(claims, usageCached);
+      // Sum raw per-category + per-model tokens across ALL transcripts (tasks + session files)
+      let rawInput=0, rawOutput=0, rawCacheRead=0;
+      const rawByModel={};
+      const mergeModel=(bm)=>{ if(!bm) return; for(const [m,v] of Object.entries(bm)){ if(!rawByModel[m]) rawByModel[m]={input_tokens:0,output_tokens:0,cache_read_input_tokens:0}; rawByModel[m].input_tokens+=v.input_tokens||0; rawByModel[m].output_tokens+=v.output_tokens||0; rawByModel[m].cache_read_input_tokens+=v.cache_read_input_tokens||0; } };
+      const seenTp=new Set();
+      for (const c of claims) if(c.transcript&&!seenTp.has(c.transcript)){ seenTp.add(c.transcript); const u=usageCached(c.transcript); rawInput+=u.input_tokens||0; rawOutput+=u.output_tokens||0; rawCacheRead+=u.cache_read_input_tokens||0; mergeModel(u.by_model); }
+      // also include session transcripts not covered by task claims
+      const projDirRaw = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
+      try { for(const e of fs.readdirSync(projDirRaw,{withFileTypes:true})) { if(!e.isFile()||!e.name.endsWith('.jsonl')) continue; const tp=path.join(projDirRaw,e.name); if(seenTp.has(tp)) continue; const u=usageCached(tp); rawInput+=u.input_tokens||0; rawOutput+=u.output_tokens||0; rawCacheRead+=u.cache_read_input_tokens||0; mergeModel(u.by_model); } } catch {}
       // 2) nodes + contributor→consumer edges (deps weigh 1.0; context edges their stored weight)
       const nodes = g.tasks.map((t) => ({ id: t.id, own: ownTok.get(t.id) || 0, merged: !!(t.git && t.git.merged), label: t.label }));
       const seen = new Set(nodes.map((n) => n.id));
@@ -2676,7 +2738,8 @@ const handler = async (req, res) => {
         workspace: T.ws,
         autonomy_score: human.tokens > 0 ? Math.round((flow.totals.productive / human.tokens) * 10) / 10 : null,
         human,
-        totals: { total: productive + trapped, productive, trapped },
+        totals: { total: productive + trapped, productive, trapped, input_tokens: rnd(rawInput), output_tokens: rnd(rawOutput), cache_read: rnd(rawCacheRead) },
+        by_model: Object.fromEntries(Object.entries(rawByModel).map(([m,v])=>[m,{input_tokens:rnd(v.input_tokens),output_tokens:rnd(v.output_tokens),cache_read:rnd(v.cache_read_input_tokens)}])),
         sessions: { count: catchalls.nodes.length, unattributed: rnd(catchalls.nodes.reduce((s, n) => s + n.own, 0)) },
         results: flow.results.map((r) => ({ task: r.task, kind: kindOf(r.task), label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
         waste: flow.waste.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
@@ -2735,6 +2798,33 @@ const handler = async (req, res) => {
       const a = state.agents[id];
       if (!a) return send(res, 404, 'unknown agent', 'text/plain');
       return send(res, 200, `Agent: ${a.agent_id}\nType: ${a.agent_type}\nState: ${a.state}\nTranscript: ${a.transcript_path || '-'}\n\n--- output ---\n${a.transcript_path ? readTranscript(a.transcript_path) : '(no transcript path)'}`, 'text/plain; charset=utf-8');
+    }
+
+    if (p === '/cron/usage' && m === 'GET') {
+      const usageFile = path.join(__dirname, 'logs', 'cron-token-usage.jsonl');
+      const entries = [];
+      try {
+        const lines = fs.readFileSync(usageFile, 'utf8').split('\n');
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t) continue;
+          try { entries.push(JSON.parse(t)); } catch { /* skip malformed */ }
+        }
+      } catch { /* file missing -> empty */ }
+      entries.sort((a, b) => String(b.ts || '').localeCompare(String(a.ts || '')));
+      // Group by task: last 20 entries per task + per-task totals
+      const byTaskMap = {};
+      for (const e of entries) {
+        const k = e.task || '(unknown)';
+        if (!byTaskMap[k]) byTaskMap[k] = { lastRun: e.ts || null, totalInput: 0, totalOutput: 0, totalCache: 0, runCount: 0 };
+        const g = byTaskMap[k];
+        g.totalInput  += e.input_tokens  || 0;
+        g.totalOutput += e.output_tokens || 0;
+        g.totalCache  += e.cache_read_tokens || 0;
+        g.runCount++;
+        if (!g.lastRun || String(e.ts || '') > String(g.lastRun)) g.lastRun = e.ts || null;
+      }
+      return send(res, 200, { entries: entries.slice(0, 200), byTask: byTaskMap });
     }
 
     if ((p === '/' || p === '/graph') && m === 'GET') return send(res, 200, fs.readFileSync(path.join(PUBLIC, 'graph.html'), 'utf8'), 'text/html; charset=utf-8');
