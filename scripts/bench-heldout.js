@@ -96,6 +96,25 @@ const CANDIDATES = {
     deps: [],
     grader: 'bench/heldout/graders/ctl-agg-report.grader.js',
   },
+  // ---- Phase 2 classifier-validation candidates (task #13). Easy + hard coding.
+  'sum-basic': {
+    spec: 'bench/heldout/specs/sum-basic.md',
+    artifact: 'bench/sandbox/format-duration-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/sum-basic.grader.js',
+  },
+  'overlay-save': {
+    spec: 'bench/heldout/specs/overlay-save.md',
+    artifact: 'lib/overlay.js',
+    deps: [],
+    grader: 'bench/heldout/graders/overlay-save.grader.js',
+  },
+  'bench-metric': {
+    spec: 'bench/heldout/specs/bench-metric.md',
+    artifact: 'bench/sandbox/compute-ratio-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/bench-metric.grader.js',
+  },
 };
 
 // Warm-arm preambles. Default = search (semantic RAG): the agent MUST search_knowledge and apply any
@@ -112,9 +131,9 @@ const PREAMBLE = {
     'Combine both before coding. Graph is READ-ONLY — do NOT create/modify/claim/complete nodes.\n\n',
   // GATE-FIRST consult: ask the context-need gate, retrieve only on decision:"inject".
   gated:
-    'You have the orchestrator-graph MCP. Before writing code you MUST call search_knowledge with ' +
-    'gated:true and a query describing this task. If decision is "inject", read and apply the ' +
-    'returned note; if "abstain", proceed WITHOUT retrieval (do NOT re-query ungated). ' +
+    'You have the orchestrator-graph MCP. Call search_knowledge EXACTLY ONCE with gated:true before writing code. ' +
+    'decision:"inject" → apply the returned note then write code. ' +
+    'decision:"abstain" → write code immediately, DO NOT call search_knowledge again under any circumstances. ' +
     'Graph is READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n',
 };
 
@@ -124,7 +143,7 @@ function main() {
   const trial = parseInt(arg('trial', '0'), 10);
   const cfg = CANDIDATES[candidate];
   if (!cfg || !['on', 'off'].includes(arm)) {
-    console.error('usage: bench-heldout.js --candidate <silent-cap|task-transcript> --arm on|off --trial <int> [--consult=search]');
+    console.error('usage: bench-heldout.js --candidate <name> --arm on|off --trial <int> [--consult=search] [--model opus]');
     process.exit(2);
   }
   const cm = consultMode();
@@ -138,6 +157,20 @@ function main() {
   spawnSync('git', ['-C', REPO, 'branch', '-D', branch], { stdio: 'ignore' });
   const add = spawnSync('git', ['-C', REPO, 'worktree', 'add', '-b', branch, wtRel, 'HEAD'], { encoding: 'utf8' });
   if (add.status !== 0) { console.error('worktree add failed: ' + add.stderr); process.exit(1); }
+
+  // (b-pre) Strip oracle material from the solve worktree so the agent cannot inspect graders or
+  // other candidates' specs to reverse-engineer the rubric. Grading runs from the main REPO path,
+  // not the worktree, so removing these files here has no effect on scoring.
+  fs.rmSync(path.join(wt, 'bench', 'heldout', 'graders'), { recursive: true, force: true });
+  fs.rmSync(path.join(wt, 'bench', 'heldout', 'frozen'), { recursive: true, force: true });
+  const specsDir = path.join(wt, 'bench', 'heldout', 'specs');
+  const thisSpec = path.resolve(path.join(wt, cfg.spec));
+  try {
+    for (const f of fs.readdirSync(specsDir)) {
+      const full = path.join(specsDir, f);
+      if (path.resolve(full) !== thisSpec) fs.rmSync(full, { force: true });
+    }
+  } catch { /* specsDir may not exist */ }
 
   // (b) stage deps (dependency module only — NEVER a test or grader). Make sandbox dir.
   fs.mkdirSync(path.join(wt, 'bench', 'sandbox'), { recursive: true });
@@ -197,7 +230,7 @@ function main() {
 
   let grade = { ok: false, pass: 0, total: 0, edgePass: 0, edgeTotal: 0, error: artifactPresent ? null : 'no artifact produced' };
   if (artifactPresent) {
-    const g = spawnSync('node', [path.join(REPO, cfg.grader), frozenArtifact], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    const g = spawnSync('node', [path.join(REPO, cfg.grader), frozenArtifact, wt], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     try { grade = JSON.parse((g.stdout || '').trim().split('\n').filter(Boolean).pop()); }
     catch (e) { grade = { ok: false, pass: 0, total: 0, edgePass: 0, edgeTotal: 0, error: 'grader parse fail: ' + (g.stderr || e.message).slice(0, 200) }; }
   }

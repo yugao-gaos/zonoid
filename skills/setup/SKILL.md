@@ -99,23 +99,25 @@ every tool call prompts — blocking unattended runs.
 
 Two scheduled tasks are required infrastructure — install them if missing.
 
+**Detect workspace path first** — run `git rev-parse --show-toplevel` in the current directory. If that fails (not a git repo), use `$PWD`. Call this `WORKSPACE`. Substitute it verbatim into every prompt below — never hardcode a path.
+
 **Detect state:** call `mcp__scheduled-tasks__list_scheduled_tasks`. Check for `nightly-orchestrator-qa` and `orch-loop-recovery`. Install only what's missing.
 
 **`nightly-orchestrator-qa`** — deep self-learn QA sweep, runs at 2:09am daily:
 - cronExpression: `9 2 * * *`
 - description: `Nightly self-learn QA sweep over the orchestrator task graph (daemon :8787), per skills/self-learn-qa`
-- prompt: `Invoke the self-learn-qa skill. Workspace: /Users/imyu/Desktop/cloude. Orchestrator daemon: http://localhost:8787.`
+- prompt: `Invoke the self-learn-qa skill. Workspace: <WORKSPACE>. Orchestrator daemon: http://localhost:8787.`
 
 **`orch-loop-recovery`** — recovery driver, runs every 5 minutes:
 - cronExpression: `*/5 * * * *`
 - description: `Recovery driver: keeps the orchestrator task graph moving by ensuring an active loop exists and polling next_action every 5 minutes`
 - notifyOnCompletion: false
 - prompt:
-  > You are the orchestrator recovery driver for the workspace at /Users/imyu/Desktop/cloude. Your job is lightweight: ensure the task graph keeps moving. Run fast, do the minimum.
+  > You are the orchestrator recovery driver for the workspace at <WORKSPACE>. Your job is lightweight: ensure the task graph keeps moving. Run fast, do the minimum.
   >
   > 1. Call `mcp__orchestrator-graph__next_action`. If empty `loops` array, go to step 2. If entries exist, go to step 3.
   > 2. No active loop — call `mcp__orchestrator-graph__get_full_graph` (scope: "frontier"). If `ready` tasks exist: call `loop_control({ action: "start", tokenBudget: 80000, maxIterations: 100, minPoll: 30, maxPoll: 300, batch: 4, maxConcurrency: 6 })`, then `next_action` again, go to step 3. If no `ready` tasks: exit silently.
-  > 3. Act on each loop entry: `stop`/`idle` → nothing. `spawn` → for each task dispatch a background subagent (Agent tool, run_in_background: true) with prompt: "You are a worker agent. TASK_ID: <key> (<label>). Workspace: /Users/imyu/Desktop/cloude. Daemon: http://localhost:8787. Call start_task(TASK_ID, agent_id), do the work, then complete_task(TASK_ID, summary) on success or set_status(TASK_ID, 'failed', reason) on failure. Never exit silently." `judge_edges`/`plan`/`optimize`/`await_user` → ignore.
+  > 3. Act on each loop entry: `stop`/`idle` → nothing. `spawn` → for each task dispatch a background subagent (Agent tool, run_in_background: true) with prompt: "You are a worker agent. TASK_ID: <key> (<label>). Workspace: <WORKSPACE>. Daemon: http://localhost:8787. Call start_task(TASK_ID, agent_id), do the work, then complete_task(TASK_ID, summary) on success or set_status(TASK_ID, 'failed', reason) on failure. Never exit silently." `judge_edges`/`plan`/`optimize`/`await_user` → ignore.
   > 4. Done. Do not reschedule. Never call request_guidance. If daemon unreachable, exit silently.
 
 After installing, tell the user to click **"Run now"** on `orch-loop-recovery` in the Scheduled sidebar to pre-approve tool permissions for future unattended runs.
@@ -146,3 +148,43 @@ node "$BASE/scripts/onboard-learn.js" --repo "$REPO" --in "$REPO/.graph/onboard"
 ```
 **Honesty:** `onboard.js` has no inject path of its own; the `--confirm` gate cannot be reached
 from the setup trigger. Every injected node is titled `[ingest] …` and stays filterable/removable.
+
+## 9. Graph auto-commit hook (optional)
+
+Installs a `post-commit` git hook that calls `claude` after each real code commit to selectively stage and commit `.graph/` node files that were modified around the time of that commit.
+
+**Detect state:** check if `<workspace>/.git/hooks/post-commit` exists and contains `ORCH_GRAPH_AUTOCOMMIT`.
+
+**Install if missing:**
+
+Write `<workspace>/.git/hooks/post-commit`:
+```sh
+#!/bin/sh
+# Graph auto-commit: commit .graph/ changes causally related to each code commit.
+# Enable by setting ORCH_GRAPH_AUTOCOMMIT=1 in ~/.claude/settings.json env block.
+
+[ "${ORCH_GRAPH_AUTOCOMMIT}" = "1" ] || exit 0
+
+# Skip if no .graph/ changes pending
+if git diff --quiet -- .graph/ && ! git ls-files --others --exclude-standard -- .graph/ | grep -q .; then
+  exit 0
+fi
+
+COMMIT_HASH=$(git rev-parse --short HEAD)
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+claude --dangerously-skip-permissions -p "
+The git commit $COMMIT_HASH just landed in $REPO_ROOT. Commit the causally related .graph/ changes:
+1. Run: find .graph -name '*.jsonl' -newer .git/COMMIT_EDITMSG
+2. If files found, stage them: git add <those files>
+3. Commit: git commit --no-verify -m 'chore: graph snapshot [$COMMIT_HASH]'
+4. If nothing to stage, exit silently.
+Do not touch anything outside .graph/.
+" 2>/dev/null &
+```
+
+Make it executable: `chmod +x <workspace>/.git/hooks/post-commit`
+
+**Add the flag to `~/.claude/settings.json`:** merge `"ORCH_GRAPH_AUTOCOMMIT": "0"` into the `env` object (off by default). Read the file first and merge carefully — do not clobber existing keys.
+
+**Tell the user:** set `ORCH_GRAPH_AUTOCOMMIT=1` in `~/.claude/settings.json` env block to enable. The hook runs after every commit; if no `.graph/` changes are pending it exits instantly.

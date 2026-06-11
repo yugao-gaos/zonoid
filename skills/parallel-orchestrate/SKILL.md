@@ -28,8 +28,12 @@ parallelizable work, with a token-efficient context handoff between dependent ta
      parallelizing, check the tasks don't share files; if they do, serialize.
 
 4. **Each subagent follows this contract** (this is what saves tokens):
-   - **On start:** `mcp__orchestrator-graph__start_task(task_key, agent_id)` to claim it
-     (drives the live graph), then `mcp__orchestrator-graph__get_dependency_summaries(task_key)`
+   - **On start — FIRST call `mcp__orchestrator-graph__start_task(task_key, agent_id)`** before
+     any file writes. Both `Edit`/`Write` tools **and** `Bash` file-write commands are gated;
+     a valid claim unlocks them for the session. `ORCH_GATE_OFF=1` as an inline env prefix
+     does **not** work — the hook is a separate process and only inherits the Claude Code process
+     env, not a shell command's inline env assignment. Then call
+     `mcp__orchestrator-graph__get_dependency_summaries(task_key)`
      — **Tier 1**: the concise summaries of your dependencies. This is usually enough base
      context. Only if you need depth, call `get_task_detail(dep_key)` (**Tier 2**) for a
      specific dependency's knowledge/output. Then consult the knowledge base **gate-first**:

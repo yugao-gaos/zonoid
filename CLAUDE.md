@@ -27,7 +27,16 @@ multi-file change), the main agent should **not implement inline**. Instead:
 
 Do the work inline only for genuinely trivial edits (a one-liner, a doc tweak, a config change).
 This is instruction-level in the desktop app (which runs no settings.json hooks); in the CLI a
-PreToolUse exit-2 gate (`hooks/orch-gate.sh`) hard-blocks edits by default — agents must claim a task before editing. Users opt out per-conversation with `orch off`.
+PreToolUse exit-2 gate (`hooks/orch-gate.sh` + `hooks/orch-gate-bash.sh`) hard-blocks **both**
+`Edit`/`Write` tools and `Bash` file-write commands — agents must claim a task before editing.
+Users opt out per-conversation with `orch off`.
+
+**Gate contract for subagents:** call `mcp__orchestrator-graph__start_task(task_key, agent_id)`
+**before** any file write. The gate checks `/active-claim?session=<session_id>` on the daemon —
+a valid claim unlocks all writes for that session. `ORCH_GATE_OFF=1` as an inline env prefix
+(e.g. `ORCH_GATE_OFF=1 python3 ...`) **does not work** from subagents — the hook runs as a
+separate process inheriting the Claude Code process env, not the shell command env. Never
+attempt to bypass the gate via workarounds (rsync, fabricated claims, etc.); claim properly.
 
 ## Capture durable decisions as note nodes
 

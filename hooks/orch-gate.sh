@@ -27,6 +27,7 @@ case "$FP" in
   /tmp/*|/private/tmp/*)                 exit 0 ;;  # scratch / task output
   */.claude/orchestrator/*)              ;;         # orchestrator source: never exempt, fall through to claim check
   */scratch/*)                           exit 0 ;;  # workspace scratch dir
+  *.log|*/logs/*)                        exit 0 ;;  # log writes are not substantive work
 esac
 
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')

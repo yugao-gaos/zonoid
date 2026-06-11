@@ -341,6 +341,212 @@ function tmpDir() {
   fs.rmSync(dir2, { recursive: true });
 }
 
+
+// ── NEW EVENT TYPES ───────────────────────────────────────────────────────────
+
+// ── loadGraph — assignee_set ──────────────────────────────────────────────
+{
+  const dir   = tmpDir();
+  const store = gs.open(dir);
+
+  const assignee = { agent_id: 'agent-abc', claimed_at: '2026-01-01T00:00:00.000Z' };
+  gs.appendEvent(store, 'task/a1', { evt: 'assignee_set', assignee, actor: 'test' });
+  const { nodes } = gs.loadGraph(store);
+
+  ok('assignee_set: node exists', !!nodes['task/a1']);
+  ok('assignee_set: node.assignee.agent_id correct', nodes['task/a1'].assignee.agent_id === 'agent-abc');
+  ok('assignee_set: node.assignee.claimed_at correct', nodes['task/a1'].assignee.claimed_at === '2026-01-01T00:00:00.000Z');
+
+  // Later assignee_set overwrites
+  gs.appendEvent(store, 'task/a1', { evt: 'assignee_set', assignee: { agent_id: 'agent-xyz' }, actor: 'test' });
+  const { nodes: n2 } = gs.loadGraph(store);
+  ok('assignee_set: later event overwrites', n2['task/a1'].assignee.agent_id === 'agent-xyz');
+
+  fs.rmSync(dir, { recursive: true });
+}
+
+// ── loadGraph — timestamps_set ────────────────────────────────────────────
+{
+  const dir   = tmpDir();
+  const store = gs.open(dir);
+
+  const timestamps = { firstSeen: '2026-01-01T00:00:00.000Z', lastChanged: '2026-01-02T00:00:00.000Z', lastStatus: 'in_progress' };
+  gs.appendEvent(store, 'task/t1', { evt: 'timestamps_set', timestamps, actor: 'test' });
+  const { nodes } = gs.loadGraph(store);
+
+  ok('timestamps_set: node exists', !!nodes['task/t1']);
+  ok('timestamps_set: firstSeen correct', nodes['task/t1'].timestamps.firstSeen === '2026-01-01T00:00:00.000Z');
+  ok('timestamps_set: lastStatus correct', nodes['task/t1'].timestamps.lastStatus === 'in_progress');
+
+  fs.rmSync(dir, { recursive: true });
+}
+
+// ── loadGraph — metrics_set ───────────────────────────────────────────────
+{
+  const dir   = tmpDir();
+  const store = gs.open(dir);
+
+  const metrics = { metric: 'latency_p99', direction: 'min', measure_command: 'npm run bench' };
+  gs.appendEvent(store, 'task/m1', { evt: 'metrics_set', metrics, actor: 'test' });
+  const { nodes } = gs.loadGraph(store);
+
+  ok('metrics_set: node exists', !!nodes['task/m1']);
+  ok('metrics_set: metric correct', nodes['task/m1'].metrics.metric === 'latency_p99');
+  ok('metrics_set: direction correct', nodes['task/m1'].metrics.direction === 'min');
+
+  fs.rmSync(dir, { recursive: true });
+}
+
+// ── loadGraph — measurements_set ──────────────────────────────────────────
+{
+  const dir   = tmpDir();
+  const store = gs.open(dir);
+
+  const measurements = { value: 42.5, measured_at: '2026-01-01T00:00:00.000Z', command: 'npm run bench' };
+  gs.appendEvent(store, 'task/ms1', { evt: 'measurements_set', measurements, actor: 'test' });
+  const { nodes } = gs.loadGraph(store);
+
+  ok('measurements_set: node exists', !!nodes['task/ms1']);
+  ok('measurements_set: value correct', nodes['task/ms1'].measurements.value === 42.5);
+  ok('measurements_set: command correct', nodes['task/ms1'].measurements.command === 'npm run bench');
+
+  fs.rmSync(dir, { recursive: true });
+}
+
+// ── loadGraph — benchmarks_set on system:benchmarks ──────────────────────
+{
+  const dir   = tmpDir();
+  const store = gs.open(dir);
+
+  const benchmarks = { 'task/b1': { metric: 'latency_p99', value: 100, unit: 'ms', source: 'internal', confidence: 'high' } };
+  gs.appendEvent(store, 'system:benchmarks', { evt: 'benchmarks_set', benchmarks, actor: 'test' });
+  const { nodes } = gs.loadGraph(store);
+
+  ok('benchmarks_set: system:benchmarks node exists', !!nodes['system:benchmarks']);
+  ok('benchmarks_set: benchmarks field present', !!nodes['system:benchmarks'].benchmarks);
+  ok('benchmarks_set: nested value correct', nodes['system:benchmarks'].benchmarks['task/b1'].value === 100);
+
+  fs.rmSync(dir, { recursive: true });
+}
+
+// ── loadGraph — repo_config_set on system:repos ───────────────────────────
+{
+  const dir   = tmpDir();
+  const store = gs.open(dir);
+
+  const repos = { 'task/r1': '/home/user/myrepo' };
+  gs.appendEvent(store, 'system:repos', { evt: 'repo_config_set', repos, actor: 'test' });
+  const { nodes } = gs.loadGraph(store);
+
+  ok('repo_config_set: system:repos node exists', !!nodes['system:repos']);
+  ok('repo_config_set: repos field present', !!nodes['system:repos'].repos);
+  ok('repo_config_set: repo path correct', nodes['system:repos'].repos['task/r1'] === '/home/user/myrepo');
+
+  fs.rmSync(dir, { recursive: true });
+}
+
+// ── Edge deduplication: same edge_added twice → one edge ─────────────────
+{
+  const dir   = tmpDir();
+  const store = gs.open(dir);
+
+  const ev = { evt: 'edge_added', from: 'task/dup-a', to: 'task/dup-b', kind: 'blocking', actor: 'test' };
+  gs.appendEvent(store, 'task/dup-a', ev);
+  gs.appendEvent(store, 'task/dup-a', ev);
+
+  const { edges } = gs.loadGraph(store);
+  const matching = edges.filter((e) => e.from === 'task/dup-a' && e.to === 'task/dup-b' && e.kind === 'blocking');
+  ok('edge dedup: two identical edge_added events produce exactly one edge', matching.length === 1);
+
+  fs.rmSync(dir, { recursive: true });
+}
+
+// ── emitDiff idempotency: same assignee saved twice → only 1 event ────────
+{
+  const tmpBase = tmpDir();
+  const oldPluginData = process.env.CLAUDE_PLUGIN_DATA;
+  process.env.CLAUDE_PLUGIN_DATA = tmpBase;
+
+  // Clear module cache so overlay + graph-store pick up the new env.
+  for (const key of Object.keys(require.cache)) {
+    if (key.includes('/lib/overlay') || key.includes('/lib/graph-store') || key.includes('/lib/native-tasks')) {
+      delete require.cache[key];
+    }
+  }
+
+  try {
+    const overlayStore = require('../lib/overlay');
+    const gs2          = require('../lib/graph-store');
+
+    const WS = path.join(tmpBase, 'ws-idem');
+    fs.mkdirSync(WS, { recursive: true });
+    gs2.forWorkspace(WS);
+
+    // First save: set assignee
+    const ov1 = overlayStore.load(WS);
+    ov1.assignee['task/idem'] = { agent_id: 'agent-x' };
+    overlayStore.save(WS, ov1);
+
+    // Second save: same assignee value (load re-sets prev-state baseline)
+    const ov2 = overlayStore.load(WS);
+    overlayStore.save(WS, ov2);
+
+    // Count assignee_set events across all node files in this workspace
+    const nodesDir = path.join(WS, '.graph', 'nodes');
+    const allJsonl = fs.readdirSync(nodesDir, { recursive: true }).filter((f) => f.endsWith('.jsonl'));
+    let assigneeSetCount = 0;
+    for (const f of allJsonl) {
+      const raw = fs.readFileSync(path.join(nodesDir, f), 'utf8');
+      for (const line of raw.split('\n')) {
+        if (!line.trim()) continue;
+        try { if (JSON.parse(line).evt === 'assignee_set') assigneeSetCount++; } catch { /* ignore */ }
+      }
+    }
+    ok('emitDiff idempotency: only 1 assignee_set event emitted for identical saves', assigneeSetCount === 1);
+  } finally {
+    process.env.CLAUDE_PLUGIN_DATA = oldPluginData;
+    for (const key of Object.keys(require.cache)) {
+      if (key.includes('/lib/overlay') || key.includes('/lib/graph-store') || key.includes('/lib/native-tasks')) {
+        delete require.cache[key];
+      }
+    }
+    fs.rmSync(tmpBase, { recursive: true, force: true });
+  }
+}
+
+// ── loadGraph handles missing nodes dir without throwing ──────────────────
+{
+  const dir = tmpDir();
+  try {
+    const store = {
+      nodesDir:       path.join(dir, 'nonexistent', 'nodes'),
+      checkpointFile: path.join(dir, 'nonexistent', 'checkpoint.json'),
+    };
+    let result, threw = false;
+    try { result = gs.loadGraph(store); } catch { threw = true; }
+    ok('loadGraph: missing nodes dir does not throw', !threw);
+    ok('loadGraph: returns empty nodes map', result && Object.keys(result.nodes).length === 0);
+    ok('loadGraph: returns empty edges array', result && result.edges.length === 0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// ── forWorkspace returns correct nodesDir and checkpointFile ─────────────
+{
+  const dir = tmpDir();
+  const wsTag = `ws-fw-${Date.now()}`;
+  const WS  = path.join(dir, wsTag);
+  fs.mkdirSync(WS, { recursive: true });
+  try {
+    const store = gs.forWorkspace(WS);
+    ok('forWorkspace: nodesDir correct',      store.nodesDir       === path.join(WS, '.graph', 'nodes'));
+    ok('forWorkspace: checkpointFile correct', store.checkpointFile === path.join(WS, '.graph', 'checkpoint.json'));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

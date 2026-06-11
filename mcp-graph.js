@@ -13,7 +13,7 @@ const DAEMON = path.join(__dirname, 'daemon.js');
 // of its cwd; unset => cwd). Passed into makeCall so every MUTATING (POST) tool call carries it —
 // graph writes land in THIS session's workspace even when another session flipped the daemon's
 // global state.workspace (the workspace-gremlin fix).
-const WS = process.env.ORCH_WORKSPACE || process.cwd();
+const WS = process.env.ORCH_WORKSPACE || (() => { try { return require('fs').readFileSync(require('path').join(process.env.CLAUDE_PLUGIN_DATA || require('path').join(require('os').homedir(),'.claude','orchestrator'), 'workspace'), 'utf8').trim() || null; } catch {} return null; })() || process.cwd();
 const CALL = core.makeCall(PORT, WS);
 
 // ---- boot the daemon if it isn't up (hookless environments) ----

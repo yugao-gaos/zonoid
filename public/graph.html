@@ -3,17 +3,54 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Darwin</title>
+<title>Zonoid</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: #0d1117; color: #e6edf3; }
-  header { padding: 12px 16px; border-bottom: 1px solid #21262d; display: flex; gap: 8px 14px; align-items: baseline; flex-wrap: wrap; }
-  h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header { padding: 0 16px; border-bottom: 1px solid #21262d; display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; height: var(--hdr-h); }
+  h1 { font-size: 15px; margin: 0; font-weight: 700; letter-spacing: -.01em; display: flex; align-items: center; gap: 8px; }
+  .logo-mark { display: block; flex-shrink: 0; }
+  .hd-left { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .hd-mid  { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .hd-right{ display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
+  .settings-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; font-family: inherit; }
+  .settings-btn:hover { background: #161b22; color: #e6edf3; }
+  /* settings popup */
+  #settingsPopup { position: fixed; top: var(--hdr-h); right: 14px; width: 320px; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 14px 16px; }
+  #settingsPopup.show { display: block; }
+  .sprow { margin-bottom: 14px; }
+  .sprow:last-child { margin-bottom: 0; }
+  .splabel { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: #6e7681; margin-bottom: 5px; }
+  .spinput { width: 100%; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12px; box-sizing: border-box; }
+  .spinput:focus { outline: none; border-color: #58a6ff; }
+  .spdesc { font-size: 11px; color: #6e7681; margin-top: 3px; }
+  .spstatus { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; margin-top: 4px; }
+  .spstatus .dot { width: 7px; height: 7px; border-radius: 50%; background: #3fb950; }
+  .spstatus .dot.err { background: #f85149; }
+  .spsave { background: #1f6feb33; border: 1px solid #1f6feb55; color: #79c0ff; border-radius: 6px; padding: 5px 14px; cursor: pointer; font: inherit; font-size: 12px; width: 100%; margin-top: 4px; }
+  .spsave:hover { background: #1f6feb55; }
   .sum span { color: #8b949e; } .sum b { color: #e6edf3; }
+  /* hero metrics */
+  .hero { display: inline-flex; flex-direction: column; align-items: center; padding: 0 20px; cursor: pointer; border-right: 1px solid #21262d; position: relative; }
+  .hero:last-of-type { border-right: none; }
+  .hero .hlabel { font-size: 9px; text-transform: uppercase; letter-spacing: .09em; color: #6e7681; margin-bottom: 1px; }
+  .hero .hval { font-size: 20px; font-weight: 800; line-height: 1; color: #e6edf3; font-variant-numeric: tabular-nums; }
+  .hero .hval.accent { color: #79c0ff; }
+  .hero .hval.green  { color: #3fb950; }
+  .hero .htip { display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 220px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px 12px; font-size: 11px; line-height: 1.5; color: #c9d1d9; z-index: 200; pointer-events: none; text-align: left; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  .hero .htip .tip-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #8b949e; margin-bottom: 4px; }
+  .hero .htip .tip-bench { margin-top: 8px; padding-top: 8px; border-top: 1px solid #21262d; }
+  .hero .htip .tip-bench-label { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: #6e7681; }
+  .hero .htip .tip-bar { height: 4px; background: #21262d; border-radius: 2px; margin: 4px 0 2px; overflow: hidden; }
+  .hero .htip .tip-bar-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+  .hero:hover .htip { display: block; }
+  .sum-sep { color: #30363d; margin: 0 4px; }
   .chip { font-size: 11px; padding: 1px 8px; border-radius: 10px; border: 1px solid #30363d; }
   h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #8b949e; margin: 16px 16px 8px; }
-  .wrap { display: flex; }
-  .left { flex: 1; min-width: 0; }
+  :root { --dock-h: 52px; --hdr-h: 48px; }
+  body { margin: 0; padding-bottom: var(--dock-h); font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: #0d1117; color: #e6edf3; }
+  .wrap { display: flex; height: calc(100vh - var(--hdr-h) - var(--dock-h)); overflow: hidden; }
+  .left { flex: 1; min-width: 0; overflow: auto; }
   /* (legacy DAG-column view removed — Flow is the structure view) */
   .badge { display: inline-block; font-size: 10px; background: #1f6feb33; color: #79c0ff; border: 1px solid #1f6feb55; border-radius: 9px; padding: 0 6px; margin-left: 6px; }
   .s-not_ready  { border-left-color: #6e7681; opacity: .55; } .s-not_ready .st { color: #6e7681; }
@@ -27,7 +64,7 @@
   .s-note       { border-left-color: #d29922; background: #d2992211; } .s-note .st { color: #e3b341; }
   @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 #1f6feb66; } 50% { box-shadow: 0 0 0 5px #1f6feb00; } }
   /* detail drawer */
-  #panel { width: 0; transition: width .2s; overflow: hidden; border-left: 1px solid #21262d; background: #11151c; }
+  #panel { width: 0; transition: width .2s; overflow: hidden; border-left: 1px solid #21262d; background: #11151c; height: 100%; overflow-y: auto; flex-shrink: 0; }
   #panel.open { width: 380px; }
   .pad { padding: 16px; width: 348px; }
   .pclose { float: right; color: #8b949e; cursor: pointer; }
@@ -47,17 +84,17 @@
   .toggle button { background: #161b22; color: #8b949e; border: none; padding: 3px 12px; cursor: pointer; font: inherit; }
   .toggle button.on { background: #1f6feb33; color: #79c0ff; }
   /* cloud view */
-  #cloud { display: none; width: 100%; height: calc(100vh - 130px); position: relative; }
+  #cloud { display: none; width: 100%; height: 100%; position: relative; }
   #cloud.show { display: block; }
   #cloudsvg { width: 100%; height: 100%; display: block; cursor: grab; background: #0d1117; }
   #cloudsvg:active { cursor: grabbing; }
   #cloudsvg text { font: 11px ui-monospace, Menlo, monospace; fill: #e6edf3; pointer-events: none; user-select: none; }
   #cloudsvg circle { cursor: pointer; }
   /* dagre pane (shared by Frontier + Focus views) */
-  #flow { display: none; width: 100%; }
-  #flow.show { display: block; }
-  #flowgraph { width: 100%; overflow: hidden; border-bottom: 1px solid #21262d; }
-  #flowsvg { width: 100%; display: block; background: #0d1117; cursor: grab; }
+  #flow { display: none; width: 100%; height: 100%; }
+  #flow.show { display: flex; flex-direction: column; }
+  #flowgraph { width: 100%; flex: 1; overflow: hidden; }
+  #flowsvg { width: 100%; height: 100%; display: block; background: #0d1117; cursor: grab; }
   #flowsvg:active { cursor: grabbing; }
   #flowsvg text { font: 11px ui-monospace, Menlo, monospace; pointer-events: none; user-select: none; }
   #flowsvg g.fn { cursor: pointer; }
@@ -69,8 +106,22 @@
   @keyframes wipmarch { to { stroke-dashoffset: -10; } }
   /* Focus view: steady amber halo on the focused node */
   #flowsvg g.fn.focused .fhalo { opacity: 1; stroke: #e3b341; }
-  #flowhidden { padding: 10px 16px 0; }
-  #floworphans { padding: 12px 16px 28px; }
+  /* ── Status Dock ── */
+  #statusDock { position: fixed; bottom: 0; left: 0; right: 0; height: var(--dock-h); background: #0d1117; border-top: 1px solid #21262d; display: flex; align-items: center; padding: 0 12px; gap: 2px; z-index: 50; justify-content: space-between; }
+  .sd-group { display: flex; align-items: center; gap: 2px; }
+  .sditem { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 12px; height: 40px; border-radius: 8px; gap: 2px; min-width: 52px; }
+  .sditem.clickable { cursor: pointer; }
+  .sditem.clickable:hover { background: #161b22; }
+  .sdicon { font-size: 13px; line-height: 1; }
+  .sdlbl { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; color: #6e7681; }
+  .sdnum { font-size: 15px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; color: #e6edf3; }
+  .sdnum.zero { color: #484f58; font-weight: 400; }
+  .sditem.wip-active .sdicon { animation: sdpulse 1.2s ease-in-out infinite; }
+  @keyframes sdpulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+  @keyframes sdflash { 0%{color:#79c0ff;transform:scale(1.2)} 100%{color:inherit;transform:scale(1)} }
+  .sdnum.flash { animation: sdflash .35s ease-out; }
+  .sddiv { width: 1px; height: 24px; background: #21262d; margin: 0 4px; flex-shrink: 0; }
+  #flowstats { display: none; }
   .otoggle { cursor: pointer; font-size: 12px; font-weight: 600; color: #e6edf3; padding: 6px 0; user-select: none; }
   .ogroups { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
   .ogh { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; margin-bottom: 5px; }
@@ -84,9 +135,36 @@
   .agbtn:hover { color: #79c0ff; }
   #activityPopup { position: fixed; top: 52px; right: 14px; width: 460px; max-width: calc(100vw - 28px); max-height: 72vh; overflow: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 4px 14px 14px; }
   #activityPopup.show { display: block; }
+  /* history popup + stats bar */
+  #flowstats { padding: 6px 16px 10px; font-size: 12px; color: #6e7681; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #flowstats .hstat { color: #8b949e; } #flowstats .hstat b { color: #e6edf3; }
+  .hbtn { background: none; border: 1px solid #30363d; color: #58a6ff; border-radius: 6px; padding: 2px 10px; cursor: pointer; font: inherit; font-size: 11px; }
+  .hbtn:hover { background: #1c2230; }
+  #historyPopup { position: fixed; bottom: var(--dock-h); left: 0; right: 0; height: 28vh; background: #11151c; border-top: 1px solid #30363d; box-shadow: 0 -6px 28px #0007; z-index: 60; display: none; flex-direction: column; }
+  #historyPopup.show { display: flex; }
+  .hphead { padding: 10px 16px; border-bottom: 1px solid #21262d; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .hphead h3 { margin: 0; font-size: 13px; font-weight: 600; }
+  .hpfilters { display: flex; gap: 6px; flex-wrap: wrap; margin-left: 4px; }
+  .hpfilter { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 1px 9px; font-size: 11px; cursor: pointer; color: #8b949e; }
+  .hpfilter.on { background: #1f6feb33; border-color: #1f6feb55; color: #79c0ff; }
+  .hpscroll { flex: 1; overflow-y: auto; padding: 8px 16px; }
+  .hprow { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid #161b22; cursor: pointer; }
+  .hprow:hover { background: #1c2230; margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+  .hprow .hdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .hprow .hlbl { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+  .hprow .hst { font-size: 11px; color: #8b949e; flex-shrink: 0; }
+  .hpfoot { padding: 8px 16px; border-top: 1px solid #21262d; display: flex; align-items: center; gap: 10px; font-size: 12px; color: #8b949e; flex-shrink: 0; }
   /* cost-flow popup (token attribution / autonomy score) — same chrome as activityPopup */
   #costPopup { position: fixed; top: 52px; right: 14px; width: 520px; max-width: calc(100vw - 28px); max-height: 72vh; overflow: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 4px 14px 14px; }
   #costPopup.show { display: block; }
+  /* cron token usage popup */
+  #cronPopup { position: fixed; top: 52px; right: 14px; width: 600px; max-width: calc(100vw - 28px); max-height: 72vh; overflow: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 4px 14px 14px; }
+  #cronPopup.show { display: block; }
+  .crontbl { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  .crontbl th { color: #6e7681; font-weight: 600; text-align: left; padding: 4px 8px; border-bottom: 1px solid #21262d; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+  .crontbl td { padding: 4px 8px; border-bottom: 1px solid #21262d22; color: #e6edf3; font-variant-numeric: tabular-nums; }
+  .crontbl tr:last-child td { border-bottom: none; }
+  .crontbl .num { text-align: right; color: #79c0ff; }
   .cfrow { display: flex; gap: 10px; align-items: baseline; font-size: 12px; padding: 3px 0; border-bottom: 1px solid #1c2128; }
   .cfrow .cfl { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c9d1d9; }
   .cfrow .cfm { color: #8b949e; font-size: 11px; }
@@ -140,22 +218,108 @@
 </head>
 <body>
 <header>
-  <h1>🕸 Darwin</h1>
-  <div class="toggle" id="viewToggle">
-    <button data-view="frontier" class="on">Frontier</button>
-    <button data-view="cloud">Cloud</button>
-    <button data-view="focus" style="display:none">Focus</button>
+  <div class="hd-left">
+    <h1>
+      <svg class="logo-mark" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="11" cy="4" r="2.5" fill="#58a6ff"/>
+        <circle cx="4" cy="17" r="2.5" fill="#3fb950"/>
+        <circle cx="18" cy="17" r="2.5" fill="#d29922"/>
+        <line x1="11" y1="6.5" x2="4" y2="14.5" stroke="#30363d" stroke-width="1.5"/>
+        <line x1="11" y1="6.5" x2="18" y2="14.5" stroke="#30363d" stroke-width="1.5"/>
+        <line x1="4" y1="17" x2="18" y2="17" stroke="#30363d" stroke-width="1.5"/>
+      </svg>
+      Zonoid
+    </h1>
+    <div class="toggle" id="viewToggle">
+      <button data-view="frontier" class="on">Frontier Tasks</button>
+      <button data-view="cloud">Force Cloud</button>
+    </div>
   </div>
-  <div class="sum" id="sum"></div>
+  <div class="hd-mid" id="sum"></div>
+  <div class="hd-right">
+    <button class="settings-btn" title="Settings" onclick="toggleSettingsPopup()">⚙</button>
+  </div>
 </header>
+<div id="settingsPopup">
+  <span class="appclose" onclick="document.getElementById('settingsPopup').classList.remove('show')">✕</span>
+  <h2 style="margin:0 0 14px">Settings</h2>
+  <div class="sprow">
+    <div class="splabel">Daemon URL</div>
+    <input class="spinput" id="sp-url" type="text" placeholder="http://localhost:8787" />
+    <div class="spdesc">Leave blank to use the default (same origin / localhost:8787)</div>
+    <div class="spstatus" id="sp-conn"><span class="dot"></span><span id="sp-conn-label">Connected</span></div>
+  </div>
+  <div class="sprow">
+    <div class="splabel">Refresh interval (seconds)</div>
+    <input class="spinput" id="sp-interval" type="number" min="1" max="60" placeholder="3" />
+  </div>
+  <div class="sprow">
+    <div class="splabel">Cron token usage</div>
+    <button class="hbtn" onclick="document.getElementById('settingsPopup').classList.remove('show'); toggleCronPopup()" style="width:100%;margin-top:2px">View cron usage ▾</button>
+  </div>
+  <button class="spsave" onclick="saveSettings()">Save</button>
+</div>
 <div id="guidance"></div>
+<div id="statusDock">
+  <div class="sd-group">
+    <div class="sditem wip-active clickable" id="sd-wip" title="Tasks in progress">
+      <span class="sdicon" style="color:#58a6ff">●</span>
+      <span class="sdnum zero" id="sdv-wip">0</span>
+      <span class="sdlbl">WIP</span>
+    </div>
+    <div class="sditem clickable" id="sd-agents" onclick="toggleActivityPopup()" title="Agents — click for routing &amp; subagent log">
+      <span class="sdicon" style="color:#8b949e">⚡</span>
+      <span class="sdnum zero" id="sdv-agents">0</span>
+      <span class="sdlbl">Agents</span>
+    </div>
+  </div>
+  <div class="sd-group">
+    <div class="sditem" id="sd-total" title="Total tasks">
+      <span class="sdicon" style="color:#6e7681">◉</span>
+      <span class="sdnum zero" id="sdv-total">0</span>
+      <span class="sdlbl">Tasks</span>
+    </div>
+    <div class="sditem" id="sd-done" title="Done">
+      <span class="sdicon" style="color:#3fb950">✓</span>
+      <span class="sdnum zero" id="sdv-done">0</span>
+      <span class="sdlbl">Done</span>
+    </div>
+    <div class="sditem" id="sd-failed" title="Failed">
+      <span class="sdicon" style="color:#ff7b72">✕</span>
+      <span class="sdnum zero" id="sdv-failed">0</span>
+      <span class="sdlbl">Failed</span>
+    </div>
+    <div class="sditem" id="sd-canceled" title="Canceled">
+      <span class="sdicon" style="color:#484f58">⊘</span>
+      <span class="sdnum zero" id="sdv-canceled">0</span>
+      <span class="sdlbl">Canceled</span>
+    </div>
+    <div class="sditem" id="sd-notes" title="Note nodes">
+      <span class="sdicon" style="color:#d29922">◆</span>
+      <span class="sdnum zero" id="sdv-notes">0</span>
+      <span class="sdlbl">Notes</span>
+    </div>
+  </div>
+  <div class="sd-group">
+    <button class="hbtn" id="sd-history" onclick="openHistory()" style="align-self:center">History ▾</button>
+  </div>
+</div>
 <div class="wrap">
   <div class="left">
-    <h2 style="margin-left:16px">Task graph <span class="muted" id="ws"></span></h2>
+    <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
     <div id="cloud"><svg id="cloudsvg"></svg></div>
-    <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div><div id="flowhidden"></div><div id="floworphans"></div></div>
+    <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div><div id="flowstats"></div></div>
   </div>
   <div id="panel"><div class="pad" id="pad"></div></div>
+</div>
+<div id="historyPopup">
+  <div class="hphead">
+    <h3>History</h3>
+    <div class="hpfilters" id="hpfilters"></div>
+    <button class="appclose" onclick="closeHistory()" style="margin-left:auto">✕</button>
+  </div>
+  <div class="hpscroll" id="hpscroll"></div>
+  <div class="hpfoot" id="hpfoot"></div>
 </div>
 <div id="activityPopup">
   <span class="appclose" onclick="document.getElementById('activityPopup').classList.remove('show')">✕</span>
@@ -166,6 +330,11 @@
 <div id="costPopup">
   <span class="appclose" onclick="document.getElementById('costPopup').classList.remove('show')">✕</span>
   <section class="feed"><h2 style="margin-left:0">Cost flow · autonomy</h2><div id="costbody"></div></section>
+</div>
+<!-- cron token usage popup -->
+<div id="cronPopup">
+  <span class="appclose" onclick="document.getElementById('cronPopup').classList.remove('show')">✕</span>
+  <section class="feed"><h2 style="margin-left:0">Cron token usage</h2><div id="cronbody"><div class="empty">loading…</div></div></section>
 </div>
 <!-- note-inspect modal: lives OUTSIDE #guidance so triage re-renders can't close it -->
 <div id="noteOverlay" onclick="if(event.target===this)closeNotePopup()"><div id="notePopup"></div></div>
@@ -3994,6 +4163,7 @@ function stubFalse(){return false}module.exports=stubFalse},{}],279:[function(re
 const BASE = (location.protocol === 'http:' || location.protocol === 'https:') ? '' : 'http://localhost:8787';
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let selected=null;
+let lastDetailFp='';
 let lastState=null; // most recent full /state payload, for re-render on view switch
 let currentView=(v=>v==='cloud'?'cloud':'frontier')(localStorage.getItem('orchView'));  // Flow renamed → Frontier (stale 'flow' migrates; Frontier stays the default)
 let focusedId=null;            // Focus view target; survives view switches, NOT persisted
@@ -4011,16 +4181,24 @@ async function openDetail(key){
   if(d.error||!d.task){ pad.innerHTML='<span class="pclose" onclick="closeDetail()">✕</span>not found'; return; }
   const t=d.task, u=d.tokenUsage||{};
   const know=(d.knowledge||[]).map(k=>`<div class="row">${esc(k.type||'item')}: ${esc(k.value||JSON.stringify(k))}${k.note?'<div class="muted">'+esc(k.note)+'</div>':''}</div>`).join('')||'<div class="empty">none</div>';
+  const depList=t.deps.length?t.deps.map(x=>esc(x.replace('ghost:','(ghost) '))).join('<br>'):'none';
   pad.innerHTML =
-    `<span class="pclose" onclick="closeDetail()">✕</span>`+
-    `<span class="pclose" style="margin-right:12px" title="Focus view: this node's full ancestry + descendants" onclick="focusNode('${esc(key)}')">⌖ Focus</span>`+
-    `<div class="ptitle">${esc(t.label)}</div><div class="muted">${esc(t.id)}</div>`+
-    `<div class="kv"><div class="k">Status</div><div class="v st s-${esc(t.status)}">${esc(t.status)}${t.agent_id?'<span class="badge">'+esc(t.agent_id)+'</span>':''}</div></div>`+
-    (d.summary?`<div class="kv"><div class="k">Summary (interface)</div><div class="v">${esc(d.summary)}</div></div>`:'')+
-    `<div class="kv"><div class="k">Dependencies</div><div class="v">${t.deps.length?t.deps.map(x=>esc(x.replace('ghost:',' (ghost) '))).join('<br>'):'none'}</div></div>`+
-    `<div class="kv"><div class="k">Knowledge (Tier 2)</div><div class="v">${know}</div></div>`+
-    (u&&!u.error?`<div class="kv"><div class="k">Token usage</div><div class="v usage"><div>total <b>${u.total||0}</b></div><div>in ${u.input_tokens||0}</div><div>out ${u.output_tokens||0}</div><div>cache ${(u.cache_read_input_tokens||0)}</div><div>${u.messages||0} msgs</div></div></div>`:'')+
-    (d.transcript?`<div class="kv"><div class="k">Transcript</div><div class="v"><a href="${BASE}/agent/${encodeURIComponent(d.assignee)}" target="_blank">open subagent transcript</a></div></div>`:'');
+    `<button class="pclose" onclick="closeDetail()" aria-label="Close">✕</button>`+
+    `<div class="ptitle">${esc(t.label)}</div>`+
+    `<div style="margin:4px 0 10px;display:flex;align-items:center;gap:8px">`+
+    `<span class="st s-${esc(t.status)}" style="font-size:12px;font-weight:600">${statusLabel(t.status)}</span>`+
+    (t.agent_id?`<span class="badge">${esc(t.agent_id)}</span>`:'')+
+    `</div>`+
+    (u&&!u.error?`<div class="kv"><div class="k">Token usage</div><div class="v usage"><div>total <b>${fmtK(u.total||0)}</b></div><div>out <b>${fmtK(u.output_tokens||0)}</b></div><div>in ${fmtK(u.input_tokens||0)}</div><div>cache ${fmtK(u.cache_read_input_tokens||0)}</div></div></div>`:'')+
+    `<div style="margin-bottom:12px"><button id="focusToggleBtn" style="width:100%;background:none;border:1px solid #30363d;color:#8b949e;border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;text-align:center;letter-spacing:.02em" onclick="toggleFocus('${esc(key)}')">${currentView==='focus'&&focusedId===key?'✕ Exit Focus':'⌖ Focus view'}</button></div>`+
+    (d.summary?`<div style="font-size:12px;line-height:1.5;color:#c9d1d9;margin-bottom:12px">${esc(d.summary)}</div>`:
+    `<div class="muted" style="font-size:12px;margin-bottom:12px">No summary yet.</div>`)+
+    `<details style="font-size:12px"><summary style="cursor:pointer;color:#58a6ff;list-style:none;padding:4px 0">Details ▾</summary>`+
+    `<div class="kv"><div class="k">ID</div><div class="v muted" style="font-size:11px">${esc(t.id)}</div></div>`+
+    `<div class="kv"><div class="k">Dependencies</div><div class="v">${depList}</div></div>`+
+    `<div class="kv"><div class="k">Knowledge</div><div class="v">${know}</div></div>`+
+    (d.transcript?`<div class="kv"><div class="k">Transcript</div><div class="v"><a href="${BASE}/agent/${encodeURIComponent(d.assignee)}" target="_blank">open subagent transcript ↗</a></div></div>`:'')+
+    `</details>`;
 }
 function closeDetail(){ selected=null; document.getElementById('panel').classList.remove('open'); }
 // Top-bar autonomy score: the VALUE rendered always-visible in the summary bar (the popup stays
@@ -4039,17 +4217,129 @@ function stateFingerprint(d){
   const guidFp=(d.guidance||[]).map(g=>g.id+':'+g.resolved).join('|');
   return JSON.stringify({sc, taskFp, guidFp, agents: s.agents, archived: s.archived});
 }
+function statusLabel(s){ const m={'not_ready':'Not ready','in_progress':'In progress','canceled':'Canceled','not ready':'Not ready','in progress':'In progress'}; return m[s]||(s.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())); }
+function fmtK(n){ if(n==null)return'—'; return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n)); }
+function setDockVal(id, val, nonZeroColor){
+  const el=document.getElementById(id); if(!el) return;
+  const prev=el.dataset.prev;
+  const str=String(val);
+  if(prev!==str){
+    el.dataset.prev=str;
+    el.textContent=str;
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  }
+  el.classList.toggle('zero', val===0||val==='0'||val==='—');
+  if(nonZeroColor && val!==0) el.style.color=nonZeroColor; else el.style.color='';
+}
+function updateDock(s, sc){
+  const wip=(sc.in_progress||0)+(sc.ready||0);
+  setDockVal('sdv-wip', sc.in_progress||0, '#58a6ff');
+  setDockVal('sdv-agents', (s.agents.running||0)+'▶', s.agents.running>0?'#58a6ff':null);
+  setDockVal('sdv-total', s.tasks_total||0, null);
+  setDockVal('sdv-done', sc.done||0, '#3fb950');
+  setDockVal('sdv-failed', sc.failed||0, '#ff7b72');
+  setDockVal('sdv-canceled', sc.canceled||0, null);
+  const notes=(sc.note||0);
+  setDockVal('sdv-notes', notes, '#d29922');
+  const wipEl=document.getElementById('sd-wip');
+  if(wipEl) wipEl.classList.toggle('wip-active', (sc.in_progress||0)>0);
+  // History button: show total not-in-frontier count if available
+  const excl=_historyItems.length;
+  const hbtn=document.getElementById('sd-history');
+  if(hbtn && excl>0) hbtn.textContent='History ('+excl+') ▾';
+}
 async function tick(){
   let d; try{ d=await(await fetch(BASE+'/state')).json(); }catch{ return; }
   refreshCost();
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
-  document.getElementById('ws').textContent=d.workspace?('· '+d.workspace):'';
+
   const cf=costCache, cfShare=cf&&cf.totals.total>0?Math.round(cf.totals.productive*100/cf.totals.total):null;
-  document.getElementById('sum').innerHTML=`<span>tasks <b>${s.tasks_total}</b></span>`+
-    order.filter(k=>sc[k]).map(k=>`<span class="chip s-${k}"><b>${sc[k]}</b> ${k.replace('_',' ')}</span>`).join('')+
-    (s.ghosts?`<span class="chip s-ghost"><b>${s.ghosts}</b> ghost</span>`:'')+
-    `<span class="agbtn" onclick="toggleActivityPopup()" title="routing &amp; subagents">· agents <b>${s.agents.running}</b>▶ <b>${s.agents.done}</b>✓ ▾</span>`+
-    `<span class="agbtn" onclick="toggleCostPopup()" title="token cost-flow attribution — click for detail">· ⚖ <b>${cf?(cf.autonomy_score==null?'—':cf.autonomy_score+'×'):'cost'}</b>${cfShare==null?'':` <span class="muted">${cfShare}% productive</span>`} ▾</span>`;
+  document.getElementById('ws').textContent=d.workspace?d.workspace.split('/').pop():'';
+  const autoScore=cf&&cf.autonomy_score!=null?cf.autonomy_score+'×':'—';
+  const prodTok=cf?fmtK(cf.totals.productive):'—';
+  const totalTok=cf?fmtK(cf.totals.total):'—';
+  // Per-model pricing ($/M tokens): [input, output, cache_read]
+  const MODEL_RATES={'claude-opus-4-8':[15,75,1.5],'claude-opus-4-7':[15,75,1.5],'claude-sonnet-4-6':[3,15,0.3],'claude-sonnet-4-5':[3,15,0.3],'claude-haiku-4-5':[0.8,4,0.08],'claude-fable-5':[3,15,0.3]};
+  const rateFor=m=>{ for(const k of Object.keys(MODEL_RATES)) if(m&&m.startsWith(k.slice(0,-2))) return MODEL_RATES[k]; return [3,15,0.3]; };
+  const modelCost=(m,v)=>{ const [ri,ro,rc]=rateFor(m); return (v.input_tokens/1e6)*ri+(v.output_tokens/1e6)*ro+(v.cache_read/1e6)*rc; };
+  const bm=cf&&cf.by_model||{};
+  const billCost=cf?Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[m,v])=>s+modelCost(m,v),0):null;
+  const fmtUSD=n=>n==null?'—':n>=1000?'$'+Math.round(n/1000)+'K':n>=1?'$'+n.toFixed(0):'$'+n.toFixed(2);
+  const billStr=fmtUSD(billCost);
+  // Plan recommendation based on weekly output token rate
+  const outTokTotal=cf?cf.totals.output_tokens:0;
+  // estimate weekly rate: costCache refreshes periodically; use total as proxy for "lifetime"
+  // show plan fit based on absolute total (lifetime context)
+  const planRec=outTokTotal>50e6?'API direct (Max plan capacity far exceeded)':outTokTotal>10e6?'API direct or Max 20× ($200/mo)':outTokTotal>3e6?'Max 20× ($200/mo) or API direct':outTokTotal>1e6?'Max 5× ($100/mo) or Max 20×':'Max 5× ($100/mo) likely sufficient';
+  // Header: 4 hero metrics
+  const autoRaw=cf&&cf.autonomy_score!=null?cf.autonomy_score:null;
+  // Industry benchmarks: autonomy ~3–5× typical agentic; productive% ~40–60% of total
+  const autoMedian=4, autoMax=10;
+  const autoPct=autoRaw!=null?Math.min(100,Math.round(autoRaw/autoMax*100)):null;
+  const autoMedianPct=Math.round(autoMedian/autoMax*100);
+  const autoColor=autoRaw==null?'#484f58':autoRaw>=autoMedian?'#3fb950':'#e3b341';
+  const autoVs=autoRaw==null?'':(autoRaw>=autoMedian?`<b style="color:#3fb950">+${(autoRaw-autoMedian).toFixed(1)}× above median</b>`:`<b style="color:#e3b341">${(autoMedian-autoRaw).toFixed(1)}× below median</b>`);
+  const prodRaw=cf?cf.totals.productive:null;
+  const totalRaw=cf?cf.totals.total:null;
+  const prodPct=totalRaw>0?Math.round(prodRaw/totalRaw*100):null;
+  const prodMedianPct=50;
+  const prodBarColor=prodPct==null?'#484f58':prodPct>=prodMedianPct?'#3fb950':'#e3b341';
+  const prodVs=prodPct==null?'':(prodPct>=prodMedianPct?`<b style="color:#3fb950">+${prodPct-prodMedianPct}pp above median</b>`:`<b style="color:#e3b341">${prodMedianPct-prodPct}pp below median</b>`);
+  document.getElementById('sum').innerHTML=
+    `<span class="hero" onclick="toggleCostPopup()">` +
+    `<span class="hlabel">Autonomy</span><span class="hval accent">${autoScore}</span>` +
+    `<span class="htip"><div class="tip-title">Autonomy Score</div>` +
+    `How many tokens the AI produced for every token you typed. Higher = more leverage. 1× means parity with human input; 10× means the AI did 10× more work than you directed.` +
+    `<div class="tip-bench"><div class="tip-bench-label">vs industry median (${autoMedian}×)</div>` +
+    `<div class="tip-bar"><div class="tip-bar-fill" style="width:${autoPct??0}%;background:${autoColor}"></div></div>` +
+    `<div style="font-size:10px;color:#8b949e">You: <b style="color:${autoColor}">${autoScore}</b> · Median: ${autoMedian}× · ${autoVs}</div></div></span>` +
+    `</span>` +
+    `<span class="hero" onclick="toggleCostPopup()">` +
+    `<span class="hlabel">Productive Tok</span><span class="hval green">${prodTok}</span>` +
+    `<span class="htip"><div class="tip-title">Productive Tokens</div>` +
+    `Tokens from AI output that actually landed as committed work — not retries, reverts, or trapped loops. This is your real output throughput.` +
+    `<div class="tip-bench"><div class="tip-bench-label">productive % vs median (${prodMedianPct}%)</div>` +
+    `<div class="tip-bar"><div class="tip-bar-fill" style="width:${prodPct??0}%;background:${prodBarColor}"></div></div>` +
+    `<div style="font-size:10px;color:#8b949e">You: <b style="color:${prodBarColor}">${prodPct!=null?prodPct+'%':'—'}</b> of total · Median: ${prodMedianPct}% · ${prodVs}</div></div></span>` +
+    `</span>` +
+    `<span class="hero" onclick="toggleCostPopup()">` +
+    `<span class="hlabel">Total Tok</span><span class="hval">${totalTok}</span>` +
+    `<span class="htip"><div class="tip-title">Total Tokens</div>` +
+    `AI output tokens across all task sessions — split into work that landed vs. work that was retried, reverted, or looped. Does not include conversation overhead (see Billing).` +
+    `<div class="tip-bench" style="margin-top:6px">` +
+    `<div style="display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:10px;color:#8b949e">` +
+    `<span>✓ Productive</span><b style="color:#3fb950">${prodTok}</b>` +
+    `<span>✕ Trapped</span><b style="color:#6e7681">${cf?fmtK(cf.totals.trapped):'—'}</b>` +
+    `</div></div></span>` +
+    `</span>` +
+    `<span class="hero" onclick="window.open('https://www.anthropic.com/pricing','_blank')">` +
+    `<span class="hlabel">Billing ↗</span><span class="hval" style="color:#d29922">${billStr}</span>` +
+    `<span class="htip" style="width:280px"><div class="tip-title">Estimated API Cost</div>` +
+    `Per-model breakdown across all sessions.` +
+    `<div class="tip-bench" style="margin-top:6px">` +
+    `<div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:2px 6px;font-size:10px;color:#8b949e;align-items:center">` +
+    `<span></span><span style="color:#6e7681;font-size:9px">MODEL</span><span style="color:#6e7681;font-size:9px">IN</span><span style="color:#6e7681;font-size:9px">OUT</span><span style="color:#6e7681;font-size:9px">CACHE</span><span style="color:#6e7681;font-size:9px">COST</span>` +
+    Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&(bm[m].input_tokens+bm[m].output_tokens)>0).sort(([,a],[,b])=>(b.output_tokens)-(a.output_tokens)).map(([m,v])=>{
+      const [ri,ro,rc]=rateFor(m); const cost=modelCost(m,v);
+      const short=m.replace('claude-','').replace(/-(\d+)-(\d+)/,'$1');
+      return `<span style="width:6px;height:6px;border-radius:50%;background:${m.includes('opus')?'#79c0ff':m.includes('fable')?'#d29922':m.includes('haiku')?'#3fb950':'#8b949e'};display:inline-block"></span>`+
+        `<span style="color:#c9d1d9">${short}</span>`+
+        `<span>${fmtK(v.input_tokens)}</span>`+
+        `<span style="color:#3fb950">${fmtK(v.output_tokens)}</span>`+
+        `<span style="color:#79c0ff">${fmtK(v.cache_read)}</span>`+
+        `<span style="color:#d29922">${fmtUSD(cost)}</span>`;
+    }).join('')+
+    `</div>` +
+    `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #21262d;font-size:10px;color:#8b949e;display:flex;justify-content:space-between">` +
+    `<span>Total est.</span><b style="color:#d29922">${billStr}</b>` +
+    `</div>` +
+    `<div style="margin-top:6px;font-size:9px;color:#6e7681">Rates: input · output (5×) · cache read (1/10×). Click metric to open official pricing.</div>` +
+    `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #21262d;font-size:10px;color:#6e7681">` +
+    `<span style="color:#8b949e">Plan fit:</span> ${planRec}` +
+    `</div></div></span>` +
+    `</span>`;
+  // Status dock update
+  updateDock(s, sc);
   lastState=d;
   // Only rebuild the graph layout when something actually changed — skip the expensive
   // dagre layout + DOM teardown on quiet polls.
@@ -4061,7 +4351,11 @@ async function tick(){
     else if(currentView==='focus') renderFocus(d);
     else renderFrontier(d);
   }
-  if(selected) openDetail(selected); // refresh open panel live (cheap, always run)
+  if(selected){
+  const dt=lastState&&lastState.tasks&&lastState.tasks.find(t=>t.id===selected);
+  const fp=dt?dt.status+(dt.agent_id||'')+(dt.summary||''):'';
+  if(fp!==lastDetailFp){ lastDetailFp=fp; openDetail(selected); }
+}
   const rt=document.getElementById('routes');
   rt.innerHTML=!d.routes.length?'<div class="empty">none</div>':d.routes.slice().reverse().slice(0,6).map(r=>`<div class="row"><span class="tag ${esc(r.decision)}">${esc(r.decision)}</span> ${esc(r.prompt.slice(0,60))}</div>`).join('');
   const ag=document.getElementById('agents');
@@ -4337,11 +4631,24 @@ function setView(v){
   if(v!=='cloud' && cloudSim) cloudSim.stop();
   if(v!=='cloud') dagState[v].init=false;   // next render restores that view's saved pan/zoom, or first-fits
   if(lastState){ if(v==='cloud') renderCloud(lastState); else if(v==='focus') renderFocus(lastState); else renderFrontier(lastState); }
+  updateFocusBtn();
 }
 function focusNode(key){
-  focusedId=key; dagState.focus={init:false,tf:null};   // fresh fit per focused node
+  focusedId=key; dagState.focus={init:false,tf:null};
   const fb=document.querySelector('#viewToggle button[data-view="focus"]'); if(fb) fb.style.display='';
   setView('focus');
+}
+function toggleFocus(key){
+  if(currentView==='focus' && focusedId===key){ setView('frontier'); }
+  else { focusNode(key); }
+}
+function updateFocusBtn(){
+  const btn=document.getElementById('focusToggleBtn');
+  if(!btn) return;
+  const active=currentView==='focus';
+  btn.textContent=active?'✕ Exit Focus':'⌖ Focus view';
+  btn.style.color=active?'#f85149':'#8b949e';
+  btn.style.borderColor=active?'#f85149':'#30363d';
 }
 document.querySelectorAll('#viewToggle button').forEach(b=> b.addEventListener('click', ()=>setView(b.dataset.view)) );
 
@@ -4396,12 +4703,13 @@ function renderCloud(d){
 
   const maxAge=Math.max(1, ...simNodes.map(n=>n.age||0));
   const radiusOf=n=>{ if(n.archive) return 16; let r=6+Math.min(12,n.deg*2); if(n.tier==='mid') r*=0.8; if(n.tier==='bg') r*=0.55; if(n.age!=null) r*=(1-0.5*(n.age/maxAge)); return Math.max(3,r); };
-  const opacityOf=n=>{ let o=n.tier==='fg'?1:n.tier==='mid'?0.55:0.25; if(n.age!=null) o*=(1-0.45*(n.age/maxAge)); return Math.max(0.12,o); };
+  const isInactive=n=>n.t&&(n.t.status==='done'||n.t.status==='canceled');
+  const opacityOf=n=>{ let o=n.tier==='fg'?1:n.tier==='mid'?0.55:0.25; if(n.age!=null) o*=(1-0.45*(n.age/maxAge)); if(isInactive(n)) o*=0.25; return Math.max(0.06,o); };
   const colorOf=n=> n.archive?'#8b949e':(STATUS_COLOR[n.t.status]||'#6e7681');
   const targetRadius=n=>{ let b=n.tier==='fg'?0.12:n.tier==='mid'?0.30:0.46; if(n.age!=null) b+=0.18*(n.age/maxAge); return Math.min(W,H)*Math.min(0.49,b); };
   const tierOfId=id=> byNode[id]?byNode[id].tier:'bg';
   const endId=e=> typeof e==='object'?e.id:e;
-  const linkOpacity=l=>{ const a=tierOfId(endId(l.source)), b=tierOfId(endId(l.target)); const w=x=>x==='fg'?0.9:x==='mid'?0.4:0.07; return Math.max(w(a),w(b)); };
+  const linkOpacity=l=>{ const a=tierOfId(endId(l.source)), b=tierOfId(endId(l.target)); const w=x=>x==='fg'?0.9:x==='mid'?0.4:0.07; let o=Math.max(w(a),w(b)); const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)]; if(ns&&nt2&&isInactive(ns)&&isInactive(nt2)) o*=0.15; return o; };
 
   // restore prior positions so live polling doesn't re-scramble the layout
   for(const n of simNodes){ const p=cloudPos[n.id]; if(p){ n.x=p.x; n.y=p.y; } else { n.x=cx+(Math.random()-0.5)*60; n.y=cy+(Math.random()-0.5)*60; } }
@@ -4458,6 +4766,8 @@ function renderCloud(d){
     });
   cloudSim.alpha(sig!==cloudSig?0.6:0).restart();   // fresh layout only on change; otherwise static
   cloudSig=sig;
+  const statsElC = document.getElementById('flowstats');
+  if (statsElC) { statsElC.style.display = 'none'; statsElC.innerHTML = ''; }
 }
 
 // ---- shared link model ------------------------------------------------------
@@ -4518,12 +4828,12 @@ function frontierSelect(tasks, links, byId){
   return keep;
 }
 // Focus selection: one node's full ancestry + full descendants (blocking + context).
-function focusSelect(links, id){
+function focusSelect(links, id, depth=2){
   const up={}, down={};
   for(const l of links){ if(l.kind==='supersede') continue; (up[l.to]=up[l.to]||[]).push(l.from); (down[l.from]=down[l.from]||[]).push(l.to); }
   const keep=new Set([id]);
-  const walk=m=>{ const st=[id]; while(st.length){ const x=st.pop(); for(const n of (m[x]||[])) if(!keep.has(n)){ keep.add(n); st.push(n); } } };
-  walk(up); walk(down);
+  const walk=(m,start)=>{ let frontier=[start]; for(let d=0;d<depth;d++){ const next=[]; for(const x of frontier) for(const n of (m[x]||[])) if(!keep.has(n)){ keep.add(n); next.push(n); } frontier=next; } };
+  walk(up,id); walk(down,id);
   return keep;
 }
 
@@ -4614,10 +4924,11 @@ function renderFrontier(d){
   const orphans=tasks.filter(t=>deg[t.id]===0);
   const keep=frontierSelect(tasks,links,byId);
   const shown=tasks.filter(t=>deg[t.id]>0 && keep.has(t.id));
-  const hidden=tasks.filter(t=>deg[t.id]>0 && !keep.has(t.id));
+  const excluded=[...tasks.filter(t=>deg[t.id]>0 && !keep.has(t.id)), ...orphans];
   renderDagSubset('frontier', shown, links, byId);
-  renderHiddenBar(hidden);
-  renderFlowOrphans(orphans);
+  renderHistoryStats(excluded);
+  const statsElF = document.getElementById('flowstats');
+  if (statsElF) { statsElF.style.display = 'none'; statsElF.innerHTML = ''; }
 }
 // ---- Focus view: one node's full ancestry + descendants ----------------------
 function renderFocus(d){
@@ -4625,57 +4936,48 @@ function renderFocus(d){
   if(!focusedId || !byId[focusedId]){ setView('frontier'); return; }   // focused node vanished
   const shown=(k=>tasks.filter(t=>k.has(t.id)))(focusSelect(links,focusedId));
   renderDagSubset('focus', shown, links, byId);
-  document.getElementById('flowhidden').innerHTML='';
-  document.getElementById('floworphans').innerHTML='';
 }
 
-// compact chip shared by the Independent tray and the hidden bar
-const chipHTML=t=>`<div class="ochip s-${esc(t.status)}" data-key="${esc(t.id)}" title="${esc(t.label)} — ${esc(t.status)}"><span class="odot" style="background:${STATUS_COLOR[t.status]||'#6e7681'}"></span>${esc(truncate(t.label,30))}</div>`;
-// Frontier cut: one-line collapsed bar; expands to status-grouped chips.
-function renderHiddenBar(hidden){
-  const box=document.getElementById('flowhidden');
-  if(!hidden.length){ box.innerHTML=''; return; }
-  const open=box.dataset.open==='1';
-  let html=`<div class="otoggle">${open?'▾':'▸'} ${hidden.length} hidden <span class="muted">(done/notes outside frontier)</span></div>`;
-  if(open){
-    const groups={}; for(const t of hidden) (groups[t.status]=groups[t.status]||[]).push(t);
-    const order=['in_progress','ready','tested','failed','not_ready','done','canceled'];
-    const keys=Object.keys(groups).sort((a,b)=>{const ia=order.indexOf(a),ib=order.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);});
-    html+='<div class="ogroups">';
-    for(const k of keys){
-      html+=`<div class="ogroup"><div class="ogh">${esc(k.replace('_',' '))} <span class="muted">(${groups[k].length})</span></div><div class="ochips">`;
-      for(const t of groups[k]) html+=chipHTML(t);
-      html+='</div></div>';
-    }
-    html+='</div>';
-  }
-  box.innerHTML=html;
-  box.querySelector('.otoggle').onclick=()=>{ box.dataset.open=open?'0':'1'; renderHiddenBar(hidden); };
-  box.querySelectorAll('.ochip').forEach(c=>c.onclick=()=>openDetail(c.dataset.key));
+let _historyItems=[];
+let _historyFilter='all';
+let _historyPage=0;
+const HP=30;
+function renderHistoryStats(excluded){
+  _historyItems=excluded;
 }
-function renderFlowOrphans(orphans){
-  const box=document.getElementById('floworphans');
-  if(!orphans.length){ box.innerHTML=''; return; }
-  const hasTime=orphans.some(t=>t.lastChanged||t.firstSeen);
-  const now=Date.now();
-  const bucket=t=>{ const ts=t.lastChanged||t.firstSeen; if(!ts) return 'Unknown'; const days=(now-Date.parse(ts))/86400000; return days<1?'Today':days<7?'This week':days<30?'This month':'Older'; };
-  const groups={}; for(const t of orphans){ const k=hasTime?bucket(t):t.status; (groups[k]=groups[k]||[]).push(t); }
-  const order=hasTime?['Today','This week','This month','Older','Unknown']:['in_progress','ready','tested','done','failed','canceled','not_ready'];
-  const keys=Object.keys(groups).sort((a,b)=>{const ia=order.indexOf(a),ib=order.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);});
-  const open=box.dataset.open!=='0';
-  let html=`<div class="otoggle">${open?'▾':'▸'} Independent &nbsp;<span class="muted">${orphans.length} standalone task(s) · no dependencies${hasTime?' · by recency':''}</span></div>`;
-  if(open){
-    html+='<div class="ogroups">';
-    for(const k of keys){
-      html+=`<div class="ogroup"><div class="ogh">${esc(hasTime?k:k.replace('_',' '))} <span class="muted">(${groups[k].length})</span></div><div class="ochips">`;
-      for(const t of groups[k]) html+=chipHTML(t);
-      html+='</div></div>';
-    }
-    html+='</div>';
-  }
-  box.innerHTML=html;
-  box.querySelector('.otoggle').onclick=()=>{ box.dataset.open=open?'0':'1'; renderFlowOrphans(orphans); };
-  box.querySelectorAll('.ochip').forEach(c=>c.onclick=()=>openDetail(c.dataset.key));
+function openHistory(){
+  _historyPage=0; _historyFilter='all';
+  renderHistoryPopup(); document.getElementById('historyPopup').classList.add('show');
+}
+function closeHistory(){ document.getElementById('historyPopup').classList.remove('show'); }
+function renderHistoryPopup(){
+  const filtered=_historyFilter==='all'?_historyItems:_historyItems.filter(t=>t.status===_historyFilter);
+  const total=filtered.length, pages=Math.ceil(total/HP);
+  const page=_historyItems.filter(t=>_historyFilter==='all'||t.status===_historyFilter).slice(_historyPage*HP,(_historyPage+1)*HP);
+  // filters
+  const statuses=[...new Set(_historyItems.map(t=>t.status))];
+  document.getElementById('hpfilters').innerHTML=
+    `<button class="hpfilter${_historyFilter==='all'?' on':''}" onclick="setHpFilter('all')">All (${_historyItems.length})</button>`+
+    statuses.map(s=>`<button class="hpfilter${_historyFilter===s?' on':''}" onclick="setHpFilter('${s}')">${statusLabel(s)} (${_historyItems.filter(t=>t.status===s).length})</button>`).join('');
+  // rows
+  document.getElementById('hpscroll').innerHTML=page.map(t=>
+    `<div class="hprow" onclick="openDetail('${esc(t.id)}');closeHistory()">`+
+    `<span class="hdot" style="background:${STATUS_COLOR[t.status]||'#6e7681'}"></span>`+
+    `<span class="hlbl">${esc(t.label)}</span>`+
+    `<span class="hst">${statusLabel(t.status)}</span>`+
+    `</div>`).join('');
+  // footer
+  document.getElementById('hpfoot').innerHTML=
+    `<span>${total} items</span>`+
+    (pages>1?`<button class="hbtn" onclick="hpPrev()" ${_historyPage===0?'disabled':''}>‹ Prev</button>`+
+    `<span>${_historyPage+1} / ${pages}</span>`+
+    `<button class="hbtn" onclick="hpNext()" ${_historyPage>=pages-1?'disabled':''}>Next ›</button>`:'');
+}
+function setHpFilter(f){ _historyFilter=f; _historyPage=0; renderHistoryPopup(); }
+function hpPrev(){ if(_historyPage>0){ _historyPage--; renderHistoryPopup(); } }
+function hpNext(){
+  const filtered=_historyFilter==='all'?_historyItems:_historyItems.filter(t=>t.status===_historyFilter);
+  if((_historyPage+1)*HP<filtered.length){ _historyPage++; renderHistoryPopup(); }
 }
 
 window.addEventListener('resize', ()=>{
@@ -4685,6 +4987,31 @@ window.addEventListener('resize', ()=>{
 });
 // Activity feeds collapsed by default; remembered in localStorage
 function toggleActivityPopup(){ document.getElementById('activityPopup').classList.toggle('show'); }
+function toggleSettingsPopup(){
+  const p=document.getElementById('settingsPopup'); p.classList.toggle('show');
+  if(p.classList.contains('show')){
+    const saved=JSON.parse(localStorage.getItem('zonoid-settings')||'{}');
+    document.getElementById('sp-url').value=saved.daemonUrl||'';
+    document.getElementById('sp-interval').value=saved.refreshInterval||'';
+    checkSettingsConn();
+  }
+}
+async function checkSettingsConn(){
+  const url=(document.getElementById('sp-url').value.trim()||BASE)+'/active-claim?session=ping';
+  const dot=document.querySelector('#sp-conn .dot'), lbl=document.getElementById('sp-conn-label');
+  try{ await fetch(url,{signal:AbortSignal.timeout(1500)}); dot.className='dot'; lbl.textContent='Connected'; }
+  catch{ dot.className='dot err'; lbl.textContent='Unreachable'; }
+}
+function saveSettings(){
+  const url=document.getElementById('sp-url').value.trim();
+  const interval=parseInt(document.getElementById('sp-interval').value)||0;
+  const s={};
+  if(url) s.daemonUrl=url;
+  if(interval>0) s.refreshInterval=interval;
+  localStorage.setItem('zonoid-settings',JSON.stringify(s));
+  document.getElementById('settingsPopup').classList.remove('show');
+  if(interval>0) clearInterval(window._pollInterval), window._pollInterval=setInterval(loadData, interval*1000);
+}
 // Cost-flow popup: fetch /costflow on open (it walks every transcript — too heavy for tick()).
 async function toggleCostPopup(){
   const p=document.getElementById('costPopup'); p.classList.toggle('show');
@@ -4707,6 +5034,32 @@ async function toggleCostPopup(){
 }
 document.addEventListener('click', ev=>{ const p=document.getElementById('costPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.agbtn'))) return; p.classList.remove('show'); });
 document.addEventListener('click', ev=>{ const p=document.getElementById('activityPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.agbtn'))) return; p.classList.remove('show'); });
+document.addEventListener('click', ev=>{ const p=document.getElementById('cronPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)) return; p.classList.remove('show'); });
+document.addEventListener('click', ev=>{ const p=document.getElementById('settingsPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.settings-btn'))) return; p.classList.remove('show'); });
+async function toggleCronPopup(){
+  const p=document.getElementById('cronPopup'); p.classList.toggle('show');
+  if(!p.classList.contains('show')) return;
+  const el=document.getElementById('cronbody'); el.innerHTML='<div class="empty">loading…</div>';
+  let d; try{ d=await(await fetch(BASE+'/cron/usage')).json(); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
+  const entries=d.entries||[], byTask=d.byTask||{};
+  if(!entries.length){ el.innerHTML='<div class="empty">No data yet</div>'; return; }
+  const fmtTs=ts=>{ if(!ts) return '—'; try{ return new Date(ts).toLocaleString(); }catch{ return ts; } };
+  const fmtN=n=>n==null?'—':Number(n).toLocaleString();
+  const tasks=Object.keys(byTask);
+  let html='<table class="crontbl"><thead><tr><th>Task</th><th>Last run</th><th>Runs</th><th class="num">Input</th><th class="num">Output</th><th class="num">Cache</th><th class="num">Total</th></tr></thead><tbody>';
+  for(const t of tasks){
+    const g=byTask[t];
+    const total=(g.totalInput||0)+(g.totalOutput||0)+(g.totalCache||0);
+    html+=`<tr><td>${esc(t)}</td><td>${esc(fmtTs(g.lastRun))}</td><td class="num">${g.runCount}</td><td class="num">${fmtN(g.totalInput)}</td><td class="num">${fmtN(g.totalOutput)}</td><td class="num">${fmtN(g.totalCache)}</td><td class="num">${fmtN(total)}</td></tr>`;
+  }
+  html+='</tbody></table>';
+  html+=`<h2 style="margin-left:0;margin-top:14px">Recent runs (${entries.length})</h2><table class="crontbl"><thead><tr><th>Time</th><th>Task</th><th>Action</th><th class="num">Input</th><th class="num">Output</th><th class="num">Cache</th></tr></thead><tbody>`;
+  for(const e of entries.slice(0,50)){
+    html+=`<tr><td>${esc(fmtTs(e.ts))}</td><td>${esc(e.task||'')}</td><td>${esc(e.action||'')}</td><td class="num">${fmtN(e.input_tokens)}</td><td class="num">${fmtN(e.output_tokens)}</td><td class="num">${fmtN(e.cache_read_tokens)}</td></tr>`;
+  }
+  html+='</tbody></table>';
+  el.innerHTML=html;
+}
 setView(currentView);              // apply persisted view + toggle state on load
 tick(); setInterval(tick, 2000);   // safety poll
 try { const es = new EventSource(BASE + '/events'); es.onmessage = () => tick(); } catch (e) {}  // live push

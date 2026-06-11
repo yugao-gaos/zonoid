@@ -22,7 +22,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
-const crypto = require('crypto');
+const overlayStore = require('../lib/overlay.js');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-apprestart-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
@@ -72,14 +72,14 @@ async function waitForPing(ms = 8000) {
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
-// Read in_progress keys directly from the overlay JSON (authoritative store on disk).
-// Uses the same hash-based filename logic as lib/overlay.js#fileFor.
+// Read in_progress keys via overlayStore.load — the daemon's own rehydration path. Since the
+// overlay-split refactor, per-task status lives in the workspace graph-store (WS/.graph), not the
+// overlay JSON (which now persists only LOCAL_FIELDS). load() replays the graph-store events, so
+// it surfaces overlay-only claims AND honors the release event the sweep now emits (a swept claim
+// becomes 'ready', not 'in_progress'). This is exactly what a restarted daemon would read back.
 function overlayInProgress() {
   try {
-    const h = crypto.createHash('sha1').update(WS).digest('hex').slice(0, 16);
-    const base = path.basename(WS).replace(/[^A-Za-z0-9._-]/g, '_');
-    const fpath = path.join(SANDBOX, 'overlay', `${base}-${h}.json`);
-    const ov = JSON.parse(fs.readFileSync(fpath, 'utf8'));
+    const ov = overlayStore.load(WS);
     return Object.entries(ov.status || {}).filter(([, v]) => v === 'in_progress').map(([k]) => k);
   } catch { return []; }
 }

@@ -1671,7 +1671,7 @@ const handler = async (req, res) => {
           for (const oldKey of keys) {
             if (oldKey === keepKey) continue;
             const oldId = String(oldKey).replace(/^note:/, '');
-            const r = overlayStore.supersedeNote(T.ov, oldId, keep);
+            const r = overlayStore.supersedeNote(T.ov, oldId, keep, undefined, T.ws);
             if (r && r.ok) supersededNow.push('note:' + oldId);
           }
           overlayStore.repointEdges(T.ov, supersededNow, keepKey);
@@ -2060,7 +2060,7 @@ const handler = async (req, res) => {
       let superseded = null;
       if (b.supersedes) {
         const oldId = String(b.supersedes).replace(/^note:/, '');
-        const r = overlayStore.supersedeNote(T.ov, oldId, id, b.valid_from);
+        const r = overlayStore.supersedeNote(T.ov, oldId, id, b.valid_from, T.ws);
         if (!r.ok) return send(res, 400, { ok: false, error: r.error });
         superseded = { old_key: 'note:' + oldId, at: r.at };
       }
@@ -2112,7 +2112,7 @@ const handler = async (req, res) => {
       if (!b.old_key || !b.new_key) return send(res, 400, { ok: false, error: 'old_key and new_key required' });
       const oldId = String(b.old_key).replace(/^note:/, '');
       const newId = String(b.new_key).replace(/^note:/, '');
-      const r = overlayStore.supersedeNote(T.ov, oldId, newId, b.at);
+      const r = overlayStore.supersedeNote(T.ov, oldId, newId, b.at, T.ws);
       if (!r.ok) return send(res, 400, { ok: false, error: r.error });
       T.save();
       notifyChange();
@@ -2267,7 +2267,7 @@ const handler = async (req, res) => {
           const supersededNow = [];
           for (const oldKey of v.consolidate.supersede) {
             const oldId = String(oldKey).replace(/^note:/, '');
-            const r = overlayStore.supersedeNote(T.ov, oldId, keep);
+            const r = overlayStore.supersedeNote(T.ov, oldId, keep, undefined, T.ws);
             if (r && r.ok) { applied.superseded++; supersededNow.push('note:' + oldId); }
           }
           // Re-point context edges: any edge touching a superseded note → swap that endpoint to the keeper.

@@ -59,22 +59,21 @@ try {
   overlayStore.setStatus(ov1, 'task/a', 'in_progress');
   overlayStore.setSummary(ov1, 'task/a', 'some summary');
 
-  // Add local fields
+  // Add local fields (ephemeral runtime — kept on disk)
+  ov1.config.test_key = 'val-1';
+  // Add moved-to-graph-store fields
   ov1.assignee['task/a'] = 'agent-1';
   ov1.timestamps['task/a'] = { firstSeen: '2026-01-01T00:00:00.000Z' };
 
   overlayStore.save(WS1, ov1);
 
-  // Read raw JSON from disk
+  // Read raw JSON from disk — find the file for WS1 via config discriminator
   const overlayDir = path.join(TMP, 'overlay');
   const files = fs.readdirSync(overlayDir).filter((f) => f.endsWith('.json'));
-  // Find the file for WS1 (there should be exactly one)
   const diskFile = files.map((f) => path.join(overlayDir, f)).find((f) => {
-    // parse and see if it doesn't have edges (local-only file for any ws will do,
-    // but we need the right one — use assignee as a discriminator)
     try {
       const d = JSON.parse(fs.readFileSync(f, 'utf8'));
-      return d.assignee && d.assignee['task/a'] === 'agent-1';
+      return d.config && d.config.test_key === 'val-1';
     } catch { return false; }
   });
 
@@ -91,10 +90,17 @@ try {
     ok('1. save() strips note_nodes from disk', !Object.prototype.hasOwnProperty.call(diskData, 'note_nodes'));
     ok('1. save() strips snapshots from disk',  !Object.prototype.hasOwnProperty.call(diskData, 'snapshots'));
 
+    // Test 1 (continued): moved-to-graph-store fields must NOT be on disk
+    ok('1. save() strips assignee from disk',     !Object.prototype.hasOwnProperty.call(diskData, 'assignee'));
+    ok('1. save() strips timestamps from disk',   !Object.prototype.hasOwnProperty.call(diskData, 'timestamps'));
+    ok('1. save() strips metrics from disk',      !Object.prototype.hasOwnProperty.call(diskData, 'metrics'));
+    ok('1. save() strips measurements from disk', !Object.prototype.hasOwnProperty.call(diskData, 'measurements'));
+    ok('1. save() strips benchmarks from disk',   !Object.prototype.hasOwnProperty.call(diskData, 'benchmarks'));
+    ok('1. save() strips repos from disk',        !Object.prototype.hasOwnProperty.call(diskData, 'repos'));
+
     // Test 2: local fields MUST be on disk
-    ok('2. save() keeps assignee on disk',    Object.prototype.hasOwnProperty.call(diskData, 'assignee'));
-    ok('2. save() keeps timestamps on disk',  Object.prototype.hasOwnProperty.call(diskData, 'timestamps'));
-    ok('2. assignee value correct on disk',   diskData.assignee && diskData.assignee['task/a'] === 'agent-1');
+    ok('2. save() keeps config on disk', Object.prototype.hasOwnProperty.call(diskData, 'config'));
+    ok('2. config value correct on disk', diskData.config && diskData.config.test_key === 'val-1');
   }
 
   // ── Test 3: load() rehydrates edges from graph-store ─────────────────────
