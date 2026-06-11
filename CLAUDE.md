@@ -53,3 +53,11 @@ When to record:
 
 Do NOT record chatter, restatements, or transient status. Keep summaries tight. On a borderline
 case, lean toward NOT recording — note-node noise is worse than a missed minor point.
+
+## KB note authoring
+
+**Override signal:** When a note contradicts the spec or existing code — e.g. "spec says return null here, but you must also check byWindow" — the note title MUST start with `OVERRIDE:` or the summary must start with `SPEC IS INCOMPLETE:`. This prefix signals to consuming agents that the note takes priority over what the spec or code says, and they must not dismiss the discrepancy as a note error.
+
+**Standalone tokens in title:** Note titles must use isolated vocabulary that matches how agents query — NOT camelCase compounds or hyphenated phrases. Write "task transcript" not "taskTranscript", "time window overlap" not "time-window-overlap". Word boundaries matter for the embedding tokenizer; fused tokens produce poor retrieval recall and the note may never surface for the queries it was written to answer.
+
+**Provenance wiring:** Agents creating notes MUST pass `wires_to=[current_task_key]` in `record_decision` so the DAG edge is created at note-creation time. Do not rely on cosine autowire — semantic similarity is best-effort and misses structurally important edges. Example: if working task #17, pass `wires_to=["17"]`.

@@ -11,6 +11,10 @@ PROMPT=$(printf '%s' "$INPUT" | jq -r '.prompt // empty')
 DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
 MARK="$DIR/$SID.off"
 
+# Reset per-turn edit counter for main session scope gate
+SID_EARLY=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+[ -n "$SID_EARLY" ] && echo "0" > "/tmp/orch-edit-count-$SID_EARLY" 2>/dev/null
+
 # --- toggle directives (match "orch on/off", optionally @-prefixed, as the whole intent) ---
 low=$(printf '%s' "$PROMPT" | tr '[:upper:]' '[:lower:]')
 if printf '%s' "$low" | grep -Eq '(^|[[:space:]])@?orch[[:space:]]+on([[:space:]]|$|[[:punct:]])'; then
@@ -26,6 +30,37 @@ fi
 
 # --- gate: do nothing if this conversation has opted out (default is on) ---
 [ -f "$MARK" ] && exit 0
+
+# --- ready-task flag: check/refresh every message, inject when tasks are waiting ---
+if [ -n "$SID" ]; then
+  FLAG_FILE="/tmp/orch-ready-$SID"
+  NOW=$(date +%s)
+  NEED_QUERY=0
+  if [ ! -f "$FLAG_FILE" ]; then
+    NEED_QUERY=1
+  else
+    FLAG_TS=$(python3 -c "import json; d=json.load(open('$FLAG_FILE')); print(d.get('ts',0))" 2>/dev/null || echo "0")
+    AGE=$((NOW - FLAG_TS))
+    if [ "$AGE" -gt 600 ]; then
+      NEED_QUERY=1
+    fi
+  fi
+  if [ "$NEED_QUERY" = "1" ]; then
+    READY_RESP=$(curl -s --max-time 0.5 "localhost:$PORT/ready" 2>/dev/null)
+    READY_COUNT=$(printf '%s' "$READY_RESP" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("ready",[])))' 2>/dev/null || echo "0")
+    if [ "$READY_COUNT" -gt 0 ] 2>/dev/null; then
+      LABELS=$(printf '%s' "$READY_RESP" | python3 -c '
+import sys, json
+d = json.load(sys.stdin)
+labels = [t.get("label", t.get("key","?")) for t in d.get("ready", [])]
+print(json.dumps(labels))
+' 2>/dev/null || echo "[]")
+      python3 -c "import json; json.dump({'ts': $NOW, 'count': $READY_COUNT, 'labels': $LABELS}, open('$FLAG_FILE','w'))" 2>/dev/null
+    else
+      rm -f "$FLAG_FILE"
+    fi
+  fi
+fi
 
 # --- classify (heuristic; instant, offline) ---
 RESULT=$(printf '%s' "$INPUT" | python3 -c '
@@ -150,6 +185,52 @@ if [ -n "$SID" ]; then
     fi
   fi
 fi
+
+# Inject ready-task context when flag file exists (first time only; suppress while busy)
+if [ -n "$SID" ]; then
+  FLAG_FILE="/tmp/orch-ready-$SID"
+  BUSY_FILE="/tmp/orch-busy-$SID"
+  # Determine if this is an autonomous loop tick (re-surface on wakeup turns)
+  IS_LOOP_TICK=0
+  if printf '%s' "$PROMPT" | grep -qiE '(Autonomous loop tick|autonomous-loop-dynamic)'; then
+    IS_LOOP_TICK=1
+    rm -f "$BUSY_FILE"
+  fi
+  # If flag file was deleted (tasks dispatched or no more ready tasks), clear busy marker too
+  if [ ! -f "$FLAG_FILE" ]; then
+    rm -f "$BUSY_FILE"
+  fi
+  if [ -f "$FLAG_FILE" ] && [ ! -f "$BUSY_FILE" ]; then
+    READY_INFO=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$FLAG_FILE'))
+    count = d.get('count', 0)
+    labels = d.get('labels', [])
+    label_str = ', '.join(labels)
+    print(f\"{count}|{label_str}\")
+except Exception:
+    pass
+" 2>/dev/null)
+    if [ -n "$READY_INFO" ]; then
+      READY_N=$(printf '%s' "$READY_INFO" | cut -d'|' -f1)
+      READY_LABELS=$(printf '%s' "$READY_INFO" | cut -d'|' -f2-)
+      FLAG_TS=$(python3 -c "import json; d=json.load(open('$FLAG_FILE')); print(d.get('ts',0))" 2>/dev/null || echo "0")
+      CTX="${CTX:+$CTX
+}[Orchestrator] ${READY_N} tasks ready: [${READY_LABELS}].
+If you are working on something higher priority, use ScheduleWakeup(delaySeconds=7200, reason=\"idle heartbeat\", prompt=\"<<autonomous-loop-dynamic>>\") as a fallback.
+If user accepts or 2hr wakeup fires with no user activity since flag was set (check flag ts=${FLAG_TS} vs now): call loop_control({action:\"start\", tokenBudget:80000, maxIterations:100, minPoll:30, maxPoll:300, batch:4, maxConcurrency:6}) then delete the flag file /tmp/orch-ready-$SID.
+If loop already active: ScheduleWakeup(delaySeconds=270, reason=\"watching active loop\", prompt=\"<<autonomous-loop-dynamic>>\").
+Never claim tasks directly — loop_control handles dispatch to subagents."
+      # Mark busy so subsequent messages skip this nudge
+      : > "$BUSY_FILE"
+    fi
+  fi
+fi
+
+# Always append ScheduleWakeup heartbeat instruction
+CTX="${CTX:+$CTX
+}[Orchestrator heartbeat] Call ScheduleWakeup(delaySeconds=7200, reason=\"idle heartbeat\", prompt=\"<<autonomous-loop-dynamic>>\") to keep this session alive for background work. On wakeup: check ready tasks + active loop via next_action. If BOTH are empty (nothing ready, no active loop) — do NOT reschedule. Let the loop end."
 
 [ -z "$CTX" ] && exit 0
 printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":%s}}' "$(printf '%s' "$CTX" | jq -Rs .)"

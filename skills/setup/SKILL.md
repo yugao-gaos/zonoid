@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Orchestrator setup & doctor/wizard. Checks the daemon, detects Agent Teams / workflow availability, explains the per-conversation toggle, and (interactively, step by step) sets up locally-trusted HTTPS via mkcert so the daemon can be added as a custom connector for inline MCP Apps UI. Run when installing the orchestrator, when "team" routing isn't working, or when the user wants the inline-chat dashboard.
+description: Orchestrator setup & doctor/wizard. Checks the daemon, detects Agent Teams / workflow availability, explains the per-conversation toggle, and (interactively, step by step) sets up locally-trusted HTTPS via mkcert so the daemon can be added as a custom connector for inline MCP Apps UI. Run when installing the orchestrator, when "team" routing isn't working, when the user wants the inline-chat dashboard, when scheduled tasks keep prompting for permissions on every run, or when recreating/migrating scheduled tasks to a new workspace.
 ---
 
 # Orchestrator setup / doctor / wizard
