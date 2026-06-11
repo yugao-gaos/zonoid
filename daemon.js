@@ -2676,7 +2676,7 @@ const handler = async (req, res) => {
       // 2) nodes + contributor→consumer edges (deps weigh 1.0; context edges their stored weight)
       // exploration flag: attempt branches are valuable search cost, not pure waste
       const isExplorationTask = (t) => !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
-      const nodes = g.tasks.map((t) => ({ id: t.id, own: ownTok.get(t.id) || 0, merged: !!(t.git && t.git.merged), exploration: isExplorationTask(t), label: t.label }));
+      const nodes = g.tasks.map((t) => ({ id: t.id, own: ownTok.get(t.id) || 0, merged: !!(t.git && t.git.merged) || t.status === 'done', exploration: isExplorationTask(t), label: t.label }));
       const seen = new Set(nodes.map((n) => n.id));
       for (const gh of g.ghosts) {
         const gid = `ghost:${gh.workspace}|${gh.key}`;
