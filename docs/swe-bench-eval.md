@@ -12,14 +12,15 @@ Evaluation:    hidden test suite runs against patch → pass/fail score
 
 Three conditions — OFF uses published scores where available, ON runs are new:
 
-| Condition | Description | Run? |
-|---|---|---|
-| **OFF** | No KB — cite published paper/leaderboard scores | No (cite) |
-| **ON (plain KB)** | Cold-start onboard, min-score filter, no LLM judge | Yes |
-| **ON (self-learning)** | Cold-start + LLM judge quality filter + gate compounding | Yes |
+All runs use **Claude Sonnet 4.6** for apples-to-apples comparison.
 
-SWE-Bench-CL: paper benchmarks Claude 3.7 Sonnet memory-disabled — use as OFF baseline.
-FeatureBench + SWE-bench Verified: published leaderboard scores for Claude Sonnet — cite directly.
+| Condition | SWE-Bench-CL | FeatureBench |
+|---|---|---|
+| **OFF** | Run (4.6) | Cite leaderboard if 4.6 score exists, else run |
+| **ON (plain KB)** | Run (4.6) | Run (4.6) |
+| **ON (self-learning)** | Run (4.6) | Run (4.6) |
+
+SWE-bench Verified: deferred — run after SWE-Bench-CL and FeatureBench if additional control is needed.
 
 ## Benchmarks
 
@@ -119,14 +120,16 @@ FeatureBench: report L1 vs L2 breakdown separately.
 
 | Phase | Tasks | Cost |
 |---|---|---|
+| SWE-Bench-CL OFF | ~500 | ~$52 |
 | SWE-Bench-CL ON plain KB | ~500 | ~$57 |
 | SWE-Bench-CL ON self-learning | ~500 | ~$67 |
+| FeatureBench OFF (if no 4.6 score) | 200 | ~$30 |
 | FeatureBench ON plain KB | 200 | ~$32 |
 | FeatureBench ON self-learning | 200 | ~$38 |
-| SWE-bench Verified ON plain KB | 100 | ~$11 |
-| SWE-bench Verified ON self-learning | 100 | ~$13 |
 | Onboarding + judge runs (~30 repos) | — | ~$15 |
-| **Total** | | **~$233** |
+| **Total** | | **~$291** |
+
+SWE-bench Verified deferred — add ~$35 if needed later.
 
 ## Blockers checklist
 - [ ] SWE-Bench-CL harness availability (check arXiv 2507.00014 GitHub for eval code)
