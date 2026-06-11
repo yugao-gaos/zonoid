@@ -1,214 +1,107 @@
-# Zonoid KB Injection — SWE-bench Eval Runbook
+# Zonoid KB Injection — Eval Runbook
 
-## Overview
+## Experiment design
 
-**Hypothesis:** Pre-task repo knowledge injection (via Zonoid KB) improves agent resolved rate and reduces token usage on software engineering benchmarks.
+**Core principle:** agent never sees the test suite during solving. Tests run post-hoc against the submitted patch. This eliminates the TDD confound where tests act as a precise spec.
 
-- **Primary benchmark:** SWE-bench Verified (500 validated tasks across 12 popular OSS repos)
-- **Secondary benchmark:** SWE-EVO (continuous eval against recent commits)
-- **Design:** A/B — baseline (vanilla Claude Code / OpenHands) vs treatment (Claude Code + Zonoid KB injected into system prompt / AGENTS.md)
-
-The KB block surfaces non-obvious repo conventions, architecture decisions, and gotchas captured during onboarding. The hypothesis is that reducing exploration overhead (fewer read-only tool calls early in the trajectory) converts to both higher resolved rates and lower token cost.
-
----
-
-## Prerequisites
-
-**Runtime:**
-- Python 3.10+
-- Docker (for SWE-bench harness containers)
-- Node.js 18+
-
-**Python packages:**
-```bash
-pip install swe-bench datasets scipy numpy pandas
+```
+Agent input:   repo code + issue/spec description (NO tests)
+Agent solves:  generates a patch
+Evaluation:    hidden test suite runs against patch → pass/fail score
 ```
 
-**Zonoid daemon running:**
-```bash
-node daemon.js
-```
+Two conditions run on identical task sets:
+- **OFF (baseline):** vanilla agent, no KB injection
+- **ON (treatment):** same agent + Zonoid KB block injected into system prompt before first turn
 
-Verify health: `curl http://localhost:8787/health`
+## Benchmarks
 
----
+### Primary 1: SWE-Bench-CL
+- **Paper:** arXiv 2507.00014
+- **What it is:** SWE-bench Verified reorganized into chronologically ordered sequences per repo. Agents accumulate memory across a sequence of related issues in the same codebase.
+- **Why it fits:** Directly measures forward transfer — does KB from session N help session N+1 on the same repo? This is exactly Zonoid's core claim.
+- **Metrics:** Resolved rate per session, Composite Continual Learning Score (CCLS), forward transfer, backward transfer
+- **Zonoid advantage:** Replace the FAISS-backed memory module with Zonoid KB. KB compounds across the sequence — patterns mined from early issues help later ones.
+- **Agent sees tests?** No — inherits SWE-bench standard: tests withheld during solving, run post-hoc.
 
-## Task selection (100 stratified tasks)
+### Primary 2: FeatureBench (ICLR 2026)
+- **Paper:** arXiv 2602.10975 | GitHub: LiberCoders/FeatureBench
+- **What it is:** Feature addition tasks on real repos. Agent receives NL description + function signature + call path annotations. No tests. 200 tasks, 24 repos.
+- **Why it fits:** No oracle. Agent must navigate architecture without hints. Ablation in paper: withholding tests drops performance 60%→10%, proving tests are the dominant SWE-bench signal.
+- **Metrics:** Resolved rate (pass@1), L1 (incremental) vs L2 (from-scratch) breakdown
+- **Zonoid advantage:** KB gives agent architectural context (module boundaries, conventions, gotchas) that substitutes for the oracle signal removed by withholding tests.
+- **Agent sees tests?** No — this is the benchmark's explicit design.
 
-Sample 100 tasks proportionally by repo so the distribution mirrors SWE-bench Verified overall. Use seed=42 for reproducibility.
+### Control: SWE-bench Verified
+- Standard benchmark. Tests withheld from agent. Expected low KB delta (tasks are mostly small bug fixes where architecture matters less).
+- Included to show the contrast: "KB helps when architectural navigation is the bottleneck (SWE-Bench-CL, FeatureBench); marginal gains when patch is small and localized (SWE-bench Verified)."
 
-```python
-import pandas as pd
-from datasets import load_dataset
+## Narrative claim
+> "SWE-bench's test-oracle explains ~50pp of agent performance (FeatureBench ablation). On benchmarks designed for architectural navigation and cross-task learning — where no oracle exists — Zonoid KB injection closes a meaningful fraction of the remaining gap."
 
-ds = load_dataset("princeton-nlp/SWE-bench_Verified", split="test")
-df = pd.DataFrame(ds)
-
-# Stratified sample: proportional by repo, seed=42
-sample = (
-    df.groupby("repo", group_keys=False)
-    .apply(lambda g: g.sample(frac=100 / len(df), random_state=42))
-    .head(100)
-    .reset_index(drop=True)
-)
-
-sample.to_json("tasks_100.jsonl", orient="records", lines=True)
-print(sample["repo"].value_counts())
-```
-
-Pin the exact instance IDs before starting any runs — do not resample mid-experiment.
-
----
+## Environment setup
+- Python 3.10+, Docker, Node.js 18+
+- `pip install swe-bench datasets scipy numpy pandas`
+- Zonoid daemon: `node daemon.js`
+- SWE-Bench-CL: clone from arXiv 2507.00014 GitHub
+- FeatureBench: `git clone https://github.com/LiberCoders/FeatureBench`
 
 ## Step 1: Warm up embeddings
-
-MiniLM must be loaded before the eval loop or the first onboard call will block on a cold model download.
-
-```bash
-node scripts/warmup-embeddings.js
-```
-
-Wait for `embeddings ready` in stdout before proceeding.
-
----
+`node scripts/warmup-embeddings.js`
 
 ## Step 2: Onboard repos (treatment only)
-
-For each unique repo in `tasks_100.jsonl`, check out the pinned commit SHA that the SWE-bench harness uses, then run onboarding against that state.
-
+For each unique repo in the task sample, at the pinned commit:
 ```bash
-# Pin to the harness commit first
-cd /path/to/repo
-git checkout <instance_base_sha>
+node scripts/onboard-loop.js --repo /path/to/repo --workspace /path/to/repo --max-rounds 2
+```
+See docs/onboard-workspace.md for Docker/pinned-commit instructions.
 
-# Run onboarding (2 rounds is enough for most repos)
-node scripts/onboard-loop.js \
-  --repo /path/to/repo \
-  --workspace /path/to/repo \
-  --max-rounds 2
+## Step 3: Export KB per repo
+```bash
+node scripts/export-kb.js --repo /path/to/repo --k 30 --min-score 0.1 > kb-blocks/repo-name.md
 ```
 
-> **Important:** Always onboard against the same commit SHA the harness uses. Onboarding a different commit means the KB may reference code that doesn't exist in the container.
-
-Repeat for each unique repo. Onboarding is idempotent — rerunning updates existing KB entries rather than duplicating them.
-
----
-
-## Step 3: Export KB for each repo
-
-After onboarding, export a Markdown KB block for each repo. This is what gets injected into the agent.
-
-```bash
-node scripts/export-kb.js \
-  --repo /path/to/repo \
-  --k 30 \
-  --min-score 0.1 \
-  > kb-blocks/repo-name.md
-```
-
-`--k 30` retrieves the top 30 most relevant KB entries. `--min-score 0.1` drops low-confidence entries that may add noise. Check file sizes — a typical repo block is 2–8 KB; anything over 20 KB may need `--k` reduced to stay within context budget.
-
----
-
-## Step 4: Baseline runs
-
-Run the standard OpenHands or SWE-agent config with no KB injection. Collect all patches to `baseline_patches/`.
-
-Use the same model (Claude Sonnet) and temperature (0) for both arms. Record `input_tokens`, `output_tokens`, and `tool_calls` per trajectory from the agent logs.
-
----
-
-## Step 5: Treatment runs (OpenHands)
-
-Before each agent run, inject the repo's KB block as `AGENTS.md` inside the harness container. OpenHands loads `AGENTS.md` automatically as persistent memory visible to the agent throughout the trajectory.
+## Step 4: Inject KB into agent (treatment runs)
+Write KB block to AGENTS.md in the container's /repo before agent starts. OpenHands loads it automatically. For SWE-agent, pass via instance template variable.
 
 ```python
-import subprocess
-import pathlib
-
-def inject_kb(container_id: str, kb_block: str) -> None:
-    """Write kb_block into /repo/AGENTS.md inside the running container."""
+def inject_kb(container_id, kb_block):
     pathlib.Path('/tmp/AGENTS.md').write_text(kb_block)
-    subprocess.run(
-        ['docker', 'cp', '/tmp/AGENTS.md', f'{container_id}:/repo/AGENTS.md'],
-        check=True,
-    )
+    subprocess.run(['docker', 'cp', '/tmp/AGENTS.md', f'{container_id}:/repo/AGENTS.md'])
 ```
 
-Call `inject_kb` after the container starts but before the agent trajectory begins. Collect patches to `treatment_patches/`.
+## Step 5: Run baseline (OFF) and treatment (ON)
+Same agent config, same tasks, same model. Only difference: presence/absence of KB block in system prompt.
 
----
+Collect patches → evaluate via benchmark harness (Docker + test suite) → record resolved (0/1) per task.
 
-## Step 6: Evaluate both runs
-
+## Step 6: SWE-Bench-CL specific — sequential task ordering
+Tasks must be run in chronological order per repo. After each task completes (ON condition), update the KB:
 ```bash
-python -m swebench.harness.run_evaluation \
-  --predictions_path baseline_patches/predictions.jsonl \
-  --run_id baseline_001
-
-python -m swebench.harness.run_evaluation \
-  --predictions_path treatment_patches/predictions.jsonl \
-  --run_id treatment_001
+# After task N completes, drain new patterns before task N+1
+node scripts/onboard-loop.js --repo /path/to/repo --workspace /path/to/repo --max-rounds 1
+node scripts/export-kb.js --repo /path/to/repo > kb-blocks/repo-name.md
 ```
+This simulates genuine compounding: KB grows with each resolved issue.
 
-The harness writes per-instance results to `results/`. Parse `results/<run_id>.json` to extract `resolved` flags and token counts.
+## Step 7: Metrics collection
+Per task: resolved (0/1), input_tokens, output_tokens, tool_calls, session_index (for CL sequences).
 
----
+SWE-Bench-CL: also compute CCLS and forward transfer coefficient.
+FeatureBench: report L1 vs L2 breakdown separately.
 
-## Step 7: Metrics and analysis
-
-Collect per task: `resolved` (0/1), `input_tokens`, `output_tokens`, `tool_calls`.
-
-**Resolved rate — two-proportion z-test:**
-
-```python
-from scipy import stats
-import numpy as np
-
-baseline = results_df[results_df["arm"] == "baseline"]
-treatment = results_df[results_df["arm"] == "treatment"]
-
-n_b = len(baseline)
-n_t = len(treatment)
-p_b = baseline["resolved"].mean()
-p_t = treatment["resolved"].mean()
-
-# Pooled proportion
-p_pool = (baseline["resolved"].sum() + treatment["resolved"].sum()) / (n_b + n_t)
-se = np.sqrt(p_pool * (1 - p_pool) * (1/n_b + 1/n_t))
-z = (p_t - p_b) / se
-p_value = 2 * (1 - stats.norm.cdf(abs(z)))
-
-print(f"Baseline resolved: {p_b:.1%}  Treatment resolved: {p_t:.1%}")
-print(f"z={z:.3f}  p={p_value:.4f}")
-```
-
-**Token counts — Mann-Whitney U (non-parametric, tokens are skewed):**
-
-```python
-stat, p = stats.mannwhitneyu(
-    treatment["input_tokens"],
-    baseline["input_tokens"],
-    alternative="less",  # H1: treatment uses fewer input tokens
-)
-print(f"Mann-Whitney U={stat:.0f}  p={p:.4f}")
-```
-
-Report effect size (Cohen's h for resolved rate, rank-biserial correlation for tokens) alongside p-values. 100 tasks gives ~80% power to detect a 10 pp improvement at α=0.05.
-
----
+## Step 8: Statistical analysis
+- Two-proportion z-test on resolved rate (ON vs OFF), per benchmark
+- n=200 for FeatureBench (all tasks), n=~500 for SWE-Bench-CL sequences
+- Mann-Whitney U on token counts
+- For CL: linear regression of (session_index → resolved_rate_delta) to show KB compounds over time
 
 ## Estimated cost
-
-~$90–120 total for a 100-task A/B on Claude Sonnet 4.5 (both arms combined), assuming average trajectory length of ~30 tool calls and ~15k tokens per task. Onboarding adds ~$5–10 across all repos.
-
----
+~$150–200 total across all three benchmarks (ON + OFF runs, Claude Sonnet 4.5).
 
 ## Blockers checklist
-
-- [ ] Onboard must run at pinned commit SHA (not HEAD) — see Step 2
-- [ ] Warm MiniLM before eval loop — `warmup-embeddings.js` must complete first
-- [ ] Pass `--workspace` flag to all daemon calls for foreign repos (see `onboard-workspace.md`)
-- [ ] Verify daemon health at `http://localhost:8787/health` before starting
-- [ ] Confirm Docker has enough disk space for all harness containers (~2 GB per repo)
-- [ ] Export KB blocks before starting treatment runs (Step 3 must precede Step 5)
+- [ ] SWE-Bench-CL harness availability (check arXiv 2507.00014 GitHub for eval code)
+- [ ] FeatureBench harness: clone LiberCoders/FeatureBench, verify eval pipeline
+- [ ] Warmup MiniLM before eval loop (warmup-embeddings.js)
+- [ ] Onboard at pinned commit (see onboard-workspace.md)
+- [ ] Sequential KB update between CL tasks (step 6)
