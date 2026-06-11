@@ -10,9 +10,16 @@ Agent solves:  generates a patch
 Evaluation:    hidden test suite runs against patch → pass/fail score
 ```
 
-Two conditions run on identical task sets:
-- **OFF (baseline):** vanilla agent, no KB injection
-- **ON (treatment):** same agent + Zonoid KB block injected into system prompt before first turn
+Three conditions — OFF uses published scores where available, ON runs are new:
+
+| Condition | Description | Run? |
+|---|---|---|
+| **OFF** | No KB — cite published paper/leaderboard scores | No (cite) |
+| **ON (plain KB)** | Cold-start onboard, min-score filter, no LLM judge | Yes |
+| **ON (self-learning)** | Cold-start + LLM judge quality filter + gate compounding | Yes |
+
+SWE-Bench-CL: paper benchmarks Claude 3.7 Sonnet memory-disabled — use as OFF baseline.
+FeatureBench + SWE-bench Verified: published leaderboard scores for Claude Sonnet — cite directly.
 
 ## Benchmarks
 
@@ -70,10 +77,16 @@ def inject_kb(container_id, kb_block):
     subprocess.run(['docker', 'cp', '/tmp/AGENTS.md', f'{container_id}:/repo/AGENTS.md'])
 ```
 
-## Step 5: Run baseline (OFF) and treatment (ON)
-Same agent config, same tasks, same model. Only difference: presence/absence of KB block in system prompt.
+## Step 5: Run ON conditions (OFF is cited from published scores)
 
-Collect patches → evaluate via benchmark harness (Docker + test suite) → record resolved (0/1) per task.
+Run two ON passes on the same task set:
+
+**ON (plain KB):** inject cold-start KB block only, no LLM judge.
+**ON (self-learning):** run `onboard-loop` with `--judge` enabled before injecting. Judge filters KB to highest-signal notes only.
+
+Same agent config, same model for both. Collect patches → evaluate via benchmark harness → record resolved (0/1) per task.
+
+This gives a clean ablation: does the LLM judge step earn its token cost?
 
 ## Step 6: SWE-Bench-CL specific — sequential task ordering
 Tasks must be run in chronological order per repo. **No re-onboarding between tasks** — the gate handles compounding automatically.
@@ -102,7 +115,16 @@ FeatureBench: report L1 vs L2 breakdown separately.
 - For CL: linear regression of (session_index → resolved_rate_delta) to show KB compounds over time
 
 ## Estimated cost
-~$150–200 total across all three benchmarks (ON + OFF runs, Claude Sonnet 4.5).
+~$182 total (ON runs only — OFF cited from published scores, Claude Sonnet 4.5):
+
+| Phase | Tasks | Cost |
+|---|---|---|
+| SWE-Bench-CL ON plain KB | ~500 | ~$57 |
+| SWE-Bench-CL ON self-learning | ~500 | ~$67 |
+| FeatureBench ON | 200 | ~$32 |
+| SWE-bench Verified ON | 100 | ~$11 |
+| Onboarding + judge runs (~30 repos) | — | ~$15 |
+| **Total** | | **~$182** |
 
 ## Blockers checklist
 - [ ] SWE-Bench-CL harness availability (check arXiv 2507.00014 GitHub for eval code)
