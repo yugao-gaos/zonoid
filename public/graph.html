@@ -160,6 +160,21 @@
   /* cron token usage popup */
   #cronPopup { position: fixed; top: 52px; right: 14px; width: 600px; max-width: calc(100vw - 28px); max-height: 72vh; overflow: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 4px 14px 14px; }
   #cronPopup.show { display: block; }
+  /* billing breakdown popup */
+  #billingPopup { position: fixed; top: 52px; right: 14px; width: 560px; max-width: calc(100vw - 28px); max-height: 80vh; overflow: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 61; display: none; padding: 4px 16px 16px; }
+  #billingPopup.show { display: block; }
+  .bpsec { margin-top: 16px; }
+  .bpsec h3 { font-size: 9px; text-transform: uppercase; letter-spacing: .09em; color: #6e7681; margin: 0 0 10px; }
+  .bpbar { height: 5px; background: #21262d; border-radius: 3px; overflow: hidden; margin: 4px 0 2px; }
+  .bpbar-fill { height: 100%; border-radius: 3px; }
+  .bprow { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
+  .bprow .bplabel { flex: 1; color: #c9d1d9; }
+  .bprow .bpnum { font-variant-numeric: tabular-nums; color: #8b949e; min-width: 60px; text-align: right; }
+  .bprow .bpcost { font-variant-numeric: tabular-nums; color: #d29922; min-width: 50px; text-align: right; }
+  .bpdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .bpdiv { border-top: 1px solid #21262d; margin: 12px 0; }
+  .bptotal { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; padding: 8px 0 0; }
+  .bpnote { font-size: 10px; color: #6e7681; line-height: 1.5; margin-top: 8px; padding: 8px 10px; background: #161b22; border-radius: 6px; border-left: 2px solid #30363d; }
   .crontbl { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
   .crontbl th { color: #6e7681; font-weight: 600; text-align: left; padding: 4px 8px; border-bottom: 1px solid #21262d; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
   .crontbl td { padding: 4px 8px; border-bottom: 1px solid #21262d22; color: #e6edf3; font-variant-numeric: tabular-nums; }
@@ -253,10 +268,6 @@
     <div class="splabel">Refresh interval (seconds)</div>
     <input class="spinput" id="sp-interval" type="number" min="1" max="60" placeholder="3" />
   </div>
-  <div class="sprow">
-    <div class="splabel">Cron token usage</div>
-    <button class="hbtn" onclick="document.getElementById('settingsPopup').classList.remove('show'); toggleCronPopup()" style="width:100%;margin-top:2px">View cron usage ▾</button>
-  </div>
   <button class="spsave" onclick="saveSettings()">Save</button>
 </div>
 <div id="guidance"></div>
@@ -330,6 +341,12 @@
 <div id="costPopup">
   <span class="appclose" onclick="document.getElementById('costPopup').classList.remove('show')">✕</span>
   <section class="feed"><h2 style="margin-left:0">Cost flow · autonomy</h2><div id="costbody"></div></section>
+</div>
+<!-- billing breakdown popup -->
+<div id="billingPopup">
+  <span class="appclose" onclick="document.getElementById('billingPopup').classList.remove('show')">✕</span>
+  <h2 style="margin:10px 0 0">Billing Breakdown</h2>
+  <div id="billingBody"><div class="empty" style="padding:20px 0">loading…</div></div>
 </div>
 <!-- cron token usage popup -->
 <div id="cronPopup">
@@ -4312,31 +4329,13 @@ async function tick(){
     `<span>✕ Trapped</span><b style="color:#6e7681">${cf?fmtK(cf.totals.trapped):'—'}</b>` +
     `</div></div></span>` +
     `</span>` +
-    `<span class="hero" onclick="window.open('https://www.anthropic.com/pricing','_blank')">` +
-    `<span class="hlabel">Billing ↗</span><span class="hval" style="color:#d29922">${billStr}</span>` +
-    `<span class="htip" style="width:280px"><div class="tip-title">Estimated API Cost</div>` +
-    `Per-model breakdown across all sessions.` +
-    `<div class="tip-bench" style="margin-top:6px">` +
-    `<div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:2px 6px;font-size:10px;color:#8b949e;align-items:center">` +
-    `<span></span><span style="color:#6e7681;font-size:9px">MODEL</span><span style="color:#6e7681;font-size:9px">IN</span><span style="color:#6e7681;font-size:9px">OUT</span><span style="color:#6e7681;font-size:9px">CACHE</span><span style="color:#6e7681;font-size:9px">COST</span>` +
-    Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&(bm[m].input_tokens+bm[m].output_tokens)>0).sort(([,a],[,b])=>(b.output_tokens)-(a.output_tokens)).map(([m,v])=>{
-      const [ri,ro,rc]=rateFor(m); const cost=modelCost(m,v);
-      const short=m.replace('claude-','').replace(/-(\d+)-(\d+)/,'$1');
-      return `<span style="width:6px;height:6px;border-radius:50%;background:${m.includes('opus')?'#79c0ff':m.includes('fable')?'#d29922':m.includes('haiku')?'#3fb950':'#8b949e'};display:inline-block"></span>`+
-        `<span style="color:#c9d1d9">${short}</span>`+
-        `<span>${fmtK(v.input_tokens)}</span>`+
-        `<span style="color:#3fb950">${fmtK(v.output_tokens)}</span>`+
-        `<span style="color:#79c0ff">${fmtK(v.cache_read)}</span>`+
-        `<span style="color:#d29922">${fmtUSD(cost)}</span>`;
-    }).join('')+
-    `</div>` +
-    `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #21262d;font-size:10px;color:#8b949e;display:flex;justify-content:space-between">` +
-    `<span>Total est.</span><b style="color:#d29922">${billStr}</b>` +
-    `</div>` +
-    `<div style="margin-top:6px;font-size:9px;color:#6e7681">Rates: input · output (5×) · cache read (1/10×). Click metric to open official pricing.</div>` +
-    `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #21262d;font-size:10px;color:#6e7681">` +
-    `<span style="color:#8b949e">Plan fit:</span> ${planRec}` +
-    `</div></div></span>` +
+    `<span class="hero" id="hero-infra" onclick="toggleBillingPopup()">` +
+    `<span class="hlabel">Infra Tok</span><span class="hval" id="hval-infra" style="color:#8b949e">—</span>` +
+    `<span class="htip"><div class="tip-title">Infra Overhead</div>Tokens spent by Zonoid's own machinery — cron heartbeats, classifier, gate checks, nudges. This is added to your Anthropic bill on top of your productive work. Click Billing for the full breakdown.</span>` +
+    `</span>` +
+    `<span class="hero" onclick="toggleBillingPopup()">` +
+    `<span class="hlabel">Billing</span><span class="hval" style="color:#d29922">${billStr}</span>` +
+    `<span class="htip" style="width:200px"><div class="tip-title">Estimated API Cost</div>Click for full breakdown: productive vs trapped, infra overhead, per-model split.</span>` +
     `</span>`;
   // Status dock update
   updateDock(s, sc);
@@ -5035,6 +5034,96 @@ async function toggleCostPopup(){
 document.addEventListener('click', ev=>{ const p=document.getElementById('costPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.agbtn'))) return; p.classList.remove('show'); });
 document.addEventListener('click', ev=>{ const p=document.getElementById('activityPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.agbtn'))) return; p.classList.remove('show'); });
 document.addEventListener('click', ev=>{ const p=document.getElementById('cronPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)) return; p.classList.remove('show'); });
+document.addEventListener('click', ev=>{ const p=document.getElementById('billingPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.hero'))) return; p.classList.remove('show'); });
+
+let _lastCronData=null;
+async function fetchCronData(){ try{ const d=await(await fetch(BASE+'/cron/usage')).json(); _lastCronData=d; return d; }catch{ return null; } }
+// Fetch cron totals periodically and update infra hero
+async function refreshInfraHero(){
+  const d=await fetchCronData(); if(!d) return;
+  const entries=d.entries||[];
+  const total=entries.reduce((s,e)=>(s+(e.input_tokens||0)+(e.output_tokens||0)+(e.cache_read_tokens||0)),0);
+  const el=document.getElementById('hval-infra'); if(el) el.textContent=fmtK(total);
+}
+refreshInfraHero(); setInterval(refreshInfraHero, 30000);
+
+async function toggleBillingPopup(){
+  const p=document.getElementById('billingPopup'); p.classList.toggle('show');
+  if(!p.classList.contains('show')) return;
+  const el=document.getElementById('billingBody'); el.innerHTML='<div class="empty" style="padding:20px 0">loading…</div>';
+  let cf, cd;
+  try{ [cf,cd]=await Promise.all([fetch(BASE+'/costflow').then(r=>r.json()), fetchCronData()]); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
+
+  const t=cf.totals||{};
+  const bm=cf.by_model||{};
+  const human=cf.human||{};
+  const entries=(cd&&cd.entries)||[];
+
+  // Cron aggregates
+  const cronIn=entries.reduce((s,e)=>s+(e.input_tokens||0),0);
+  const cronOut=entries.reduce((s,e)=>s+(e.output_tokens||0),0);
+  const cronCache=entries.reduce((s,e)=>s+(e.cache_read_tokens||0),0);
+  const cronTotal=cronIn+cronOut+cronCache;
+
+  // Cost helpers
+  const rateFor=m=>{ if(m.includes('opus')) return [15,75,1.5]; if(m.includes('haiku')) return [0.8,4,0.08]; if(m.includes('fable')) return [3,15,0.3]; return [3,15,0.3]; };
+  const modelCost=(m,v)=>{ const [ri,ro,rc]=rateFor(m); return ((v.input_tokens||0)*ri+(v.output_tokens||0)*ro+(v.cache_read||0)*rc)/1e6; };
+  const cronCost=entries.reduce((s,e)=>{ const [ri,ro,rc]=rateFor(e.model||''); return s+(e.input_tokens||0)*ri/1e6+(e.output_tokens||0)*ro/1e6+(e.cache_read_tokens||0)*rc/1e6; },0);
+  const fmtUSD=v=>v<0.01?'<$0.01':v<1?'$'+v.toFixed(2):'$'+Math.round(v).toLocaleString();
+  const fmtN=n=>n==null?'—':Number(n).toLocaleString();
+
+  const totalCost=Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[m,v])=>s+modelCost(m,v),0);
+  const productive=t.productive||0, trapped=t.trapped||0, totalTok=(t.total||0);
+  const prodPct=totalTok>0?Math.round(productive/totalTok*100):0;
+  const trapPct=totalTok>0?Math.round(trapped/totalTok*100):0;
+
+  const modelRows=Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&((bm[m].input_tokens||0)+(bm[m].output_tokens||0))>0)
+    .sort(([,a],[,b])=>(b.output_tokens||0)-(a.output_tokens||0))
+    .map(([m,v])=>{
+      const cost=modelCost(m,v);
+      const dot=m.includes('opus')?'#79c0ff':m.includes('fable')?'#d29922':m.includes('haiku')?'#3fb950':'#8b949e';
+      const short=m.replace('claude-','').replace(/-\d{8}$/,'');
+      return `<div class="bprow"><span class="bpdot" style="background:${dot}"></span><span class="bplabel">${short}</span>`+
+        `<span class="bpnum" style="color:#6e7681;font-size:10px">in ${fmtK(v.input_tokens)} · out ${fmtK(v.output_tokens)} · cache ${fmtK(v.cache_read)}</span>`+
+        `<span class="bpcost">${fmtUSD(cost)}</span></div>`;
+    }).join('');
+
+  el.innerHTML=
+    `<div class="bpsec"><h3>Token Economy</h3>`+
+    `<div class="bprow"><span class="bpdot" style="background:#3fb950"></span><span class="bplabel">Productive</span><span class="bpnum">${fmtK(productive)}</span><span class="bpcost" style="color:#3fb950">${prodPct}%</span></div>`+
+    `<div class="bpbar"><div class="bpbar-fill" style="width:${prodPct}%;background:#3fb950"></div></div>`+
+    `<div class="bprow"><span class="bpdot" style="background:#484f58"></span><span class="bplabel">Trapped / wasted</span><span class="bpnum">${fmtK(trapped)}</span><span class="bpcost" style="color:#6e7681">${trapPct}%</span></div>`+
+    `<div class="bpbar"><div class="bpbar-fill" style="width:${trapPct}%;background:#484f58"></div></div>`+
+    `</div>`+
+
+    `<div class="bpdiv"></div>`+
+
+    `<div class="bpsec"><h3>Infra Overhead (Zonoid's own cost)</h3>`+
+    `<div class="bprow"><span class="bpdot" style="background:#8b949e"></span><span class="bplabel">Cron runs (heartbeat, recovery, KB)</span><span class="bpnum">${fmtK(cronTotal)}</span><span class="bpcost">${fmtUSD(cronCost)}</span></div>`+
+    `<div class="bprow" style="padding-left:16px"><span class="bplabel" style="color:#6e7681;font-size:11px">input</span><span class="bpnum">${fmtN(cronIn)}</span></div>`+
+    `<div class="bprow" style="padding-left:16px"><span class="bplabel" style="color:#6e7681;font-size:11px">output</span><span class="bpnum">${fmtN(cronOut)}</span></div>`+
+    `<div class="bprow" style="padding-left:16px"><span class="bplabel" style="color:#6e7681;font-size:11px">cache read</span><span class="bpnum">${fmtN(cronCache)}</span></div>`+
+    `<div class="bpnote">⚠ Double-count note: cron tokens are logged separately and may also appear in task-session totals above if the cron agent claimed a task. Productive/Trapped figures count task output only; infra overhead is additive on top.</div>`+
+    `</div>`+
+
+    `<div class="bpdiv"></div>`+
+
+    `<div class="bpsec"><h3>By Model</h3>${modelRows}</div>`+
+
+    `<div class="bpdiv"></div>`+
+
+    `<div class="bpsec"><h3>Human Input</h3>`+
+    `<div class="bprow"><span class="bplabel">Messages</span><span class="bpnum">${fmtN(human.messages)}</span></div>`+
+    `<div class="bprow"><span class="bplabel">Input tokens</span><span class="bpnum">${fmtN(human.tokens)}</span></div>`+
+    `<div class="bprow"><span class="bplabel">Autonomy ratio</span><span class="bpnum" style="color:#79c0ff">${cf.autonomy_score!=null?cf.autonomy_score.toFixed(1)+'×':'—'}</span></div>`+
+    `</div>`+
+
+    `<div class="bpdiv"></div>`+
+
+    `<div class="bptotal"><span>Task sessions est.</span><span style="color:#d29922">${fmtUSD(totalCost)}</span></div>`+
+    `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ infra overhead</span><span style="color:#8b949e;font-size:11px">${fmtUSD(cronCost)}</span></div>`+
+    `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px"><span>Total est.</span><span style="color:#d29922">${fmtUSD(totalCost+cronCost)}</span></div>`+
+    `<div style="margin-top:8px;font-size:10px;color:#6e7681">Rates: Sonnet $3/$15/M · Opus $15/$75/M · Haiku $0.8/$4/M (input/output). Cache reads at 10% of input rate.</div>`;
 document.addEventListener('click', ev=>{ const p=document.getElementById('settingsPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.settings-btn'))) return; p.classList.remove('show'); });
 async function toggleCronPopup(){
   const p=document.getElementById('cronPopup'); p.classList.toggle('show');
