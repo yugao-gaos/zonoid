@@ -16,7 +16,8 @@ const mcpCore = require('./lib/mcp-core');
 const git = require('./lib/git');
 const measure = require('./lib/measure');
 const optimize = require('./lib/optimize');
-const { embed, cosine, embedStatus, DIMS } = require('./lib/embed');
+const { embed, cosine, embedStatus, ping: embedPing, DIMS } = require('./lib/embed');
+const { haikusGate } = require('./lib/embed-haiku');
 const judge = require('./lib/judge');
 const delta = require('./lib/delta');
 const followups = require('./lib/followups');
@@ -2038,6 +2039,23 @@ const handler = async (req, res) => {
       // lexical scoring — retrieval never hard-fails.
       b.vec = await embed(`${b.title} ${b.summary}`);
       const id = overlayStore.addNoteNode(T.ov, b);
+      // If the sidecar was still loading (vec null), schedule a one-shot retry.
+      // Closes the narrow startup window where a note gets stored without a vector.
+      if (!b.vec) {
+        const _retryText = `${b.title} ${b.summary}`;
+        setTimeout(async () => {
+          try {
+            const v = await embed(_retryText);
+            if (!v) return;
+            const node = T.ov.note_nodes && T.ov.note_nodes[id];
+            if (node && !node.vec) {
+              node.vec = v;
+              const gs = (T.ws === state.workspace) ? state.graphStore : null;
+              if (gs) graphStore.appendEvent(gs, id, { evt: 'note_vec_set', id, vec: v, actor: 'retry', ts: Date.now() });
+            }
+          } catch { /* best effort */ }
+        }, 45000);  // 45s — MiniLM typically ready within 30s of first spawn
+      }
       // Sync in-memory: addNoteNode mutates T.ov.note_nodes in-place when T.ov IS state.overlay.
       // This explicit mirror guards future refactors and also keeps state.overlay.knowledge in
       // sync so /search can rank note knowledge items without a daemon restart.
@@ -2533,15 +2551,20 @@ const handler = async (req, res) => {
           new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1800)),
         ]);
       } catch (_) {
-        // timeout or embed not ready — lexical fallback
-        const { contentTokens: ct2 } = require('./lib/context-gate');
-        const qt = new Set(ct2(prompt));
-        gateResult = await gateTask({ label: prompt }, noteCands, {
-          lexScore: (_qText, n) => {
-            const nt = ct2(`${n.title || ''} ${n.summary || ''}`);
-            return nt.filter((t) => qt.has(t)).length / Math.max(nt.length, 1);
-          },
-        });
+        // MiniLM not ready — try Haiku gate before falling back to pure lexical
+        const haiku = await haikusGate({ label: prompt }, noteCands).catch(() => null);
+        if (haiku) {
+          gateResult = haiku;
+        } else {
+          const { contentTokens: ct2 } = require('./lib/context-gate');
+          const qt = new Set(ct2(prompt));
+          gateResult = await gateTask({ label: prompt }, noteCands, {
+            lexScore: (_qText, n) => {
+              const nt = ct2(`${n.title || ''} ${n.summary || ''}`);
+              return nt.filter((t) => qt.has(t)).length / Math.max(nt.length, 1);
+            },
+          });
+        }
       }
 
       const rag_score = gateResult.top1 || 0;
@@ -2985,4 +3008,9 @@ if (require.main === module) {
   // (a zero-match note at creation can gain a real neighbor later). Re-check is side-effect-free —
   // no match ⇒ no edge, no write. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepOrphanNotes(); } catch { /* best effort */ } }, 300000).unref();
+
+  // Heartbeat to MiniLM sidecar every 60s so the sidecar knows the daemon is alive.
+  // The sidecar exits if it misses 2 consecutive pings (2 min), keeping its lifecycle
+  // tied to the daemon without requiring a clean shutdown signal.
+  setInterval(() => { embedPing().catch(() => {}); }, 60000).unref();
 }
