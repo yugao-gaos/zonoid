@@ -248,7 +248,10 @@ function validateBenchmark(b) {
 // ready/not_ready, recording why. Returns true if it actually released an in_progress claim.
 // `ov` = the overlay holding the claim (defaults to the current workspace's — callers targeting
 // another workspace pass that workspace's overlay; the native write-through is workspace-agnostic).
-function releaseClaim(key, reason, ov = state.overlay) {
+// Optional `ctx` = { agentId, mins, tokenUsage } — when provided, a continuity note node is written
+// onto the overlay and wired as a context edge to the task, so the next agent that claims it sees
+// what happened. If tokenUsage has token counts they are also appended to the cost log.
+function releaseClaim(key, reason, ov = state.overlay, ctx = null) {
   if (ov.status[key] !== 'in_progress') return false;
   delete ov.status[key];
   ov.notes[key] = String(reason).slice(0, 280);
@@ -256,6 +259,60 @@ function releaseClaim(key, reason, ov = state.overlay) {
   // the task would still derive as in_progress from its native file. 'pending' = available to retry.
   const i = key.indexOf('/');
   if (i > 0) { try { nt.writeStatus(key.slice(0, i), key.slice(i + 1), 'pending'); } catch { /* best effort */ } }
+  // Continuity note: record what happened so the next agent that picks up this task has context.
+  if (ctx) {
+    const { agentId, mins, tokenUsage } = ctx;
+    const tokStr = tokenUsage && typeof tokenUsage.total === 'number'
+      ? ` Partial tokens: input=${tokenUsage.input_tokens || 0} output=${tokenUsage.output_tokens || 0} cache_read=${tokenUsage.cache_read_input_tokens || 0} total=${tokenUsage.total}.`
+      : '';
+    const noteSummary = `Task was reset to ready after being stale for >${mins}m. Agent '${agentId || '?'}' held the claim but is no longer running (orphaned or crashed).${tokStr} The task has NOT been completed — pick it up fresh or review any partial work before re-attempting.`;
+    try {
+      const noteId = overlayStore.addNoteNode(ov, {
+        title: `Continuity: stale claim reset (agent '${agentId || '?'}')`,
+        summary: noteSummary,
+        created_by: 'daemon:sweepStaleClaims',
+      });
+      // Wire note → task as a context edge so the next agent's get_dependency_summaries sees it.
+      overlayStore.addEdge(ov, 'note:' + noteId, key, null, 'context', overlayStore.DEFAULT_CONTEXT_WEIGHT);
+    } catch { /* best effort — never block the release */ }
+    // Partial cost accounting: if there are token counts, append to the cost log.
+    if (tokenUsage && typeof tokenUsage.total === 'number' && tokenUsage.total > 0) {
+      try {
+        const costLogPath = path.join(__dirname, 'logs', 'cron-token-usage.jsonl');
+        const entry = JSON.stringify({
+          ts: new Date().toISOString(),
+          event: 'stale_claim_release',
+          task: key,
+          agent_id: agentId || null,
+          stale_mins: mins,
+          input_tokens: tokenUsage.input_tokens || 0,
+          output_tokens: tokenUsage.output_tokens || 0,
+          cache_read_tokens: tokenUsage.cache_read_input_tokens || 0,
+          total_tokens: tokenUsage.total,
+        });
+        fs.mkdirSync(path.dirname(costLogPath), { recursive: true });
+        fs.appendFileSync(costLogPath, entry + '\n');
+      } catch { /* best effort */ }
+    } else {
+      // No token usage tracked — at minimum log the release event for observability.
+      try {
+        const costLogPath = path.join(__dirname, 'logs', 'cron-token-usage.jsonl');
+        const entry = JSON.stringify({
+          ts: new Date().toISOString(),
+          event: 'stale_claim_release',
+          task: key,
+          agent_id: agentId || null,
+          stale_mins: mins,
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_read_tokens: 0,
+          total_tokens: 0,
+        });
+        fs.mkdirSync(path.dirname(costLogPath), { recursive: true });
+        fs.appendFileSync(costLogPath, entry + '\n');
+      } catch { /* best effort */ }
+    }
+  }
   return true;
 }
 // vouchedLive (pure): can a registry record that says 'running' be TRUSTED as live? Within one
@@ -297,8 +354,13 @@ function staleClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
 // defaults = old behavior.
 function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
   let dirty = false;
+  const stWs = ws === state.workspace ? state : { ...state, overlay: ov };
   for (const { key, agentId, mins } of staleClaimKeys(ov, state.agents, Date.now())) {
-    if (releaseClaim(key, `auto-released: worker '${agentId || '?'}' not running (stale >${mins}m)`, ov)) dirty = true;
+    // Snapshot token usage BEFORE clearing the claim so we can finalize it in the cost log
+    // and include it in the continuity note for the next agent.
+    const tp = taskTranscript(key, null, true, stWs);
+    const tokenUsage = tp ? usageCached(tp) : null;
+    if (releaseClaim(key, `auto-released: worker '${agentId || '?'}' not running (stale >${mins}m)`, ov, { agentId, mins, tokenUsage })) dirty = true;
   }
   if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
   return dirty;
@@ -1275,6 +1337,7 @@ const handler = async (req, res) => {
       const nowMs = Date.now();
       const cutoff = nowMs - staleMins * 60000;
       let released = 0;
+      const stWsSweep = ws === state.workspace ? state : { ...state, overlay: ovWs };
       if (b.force) {
         // force:true bypasses vouchedLive entirely — only the lastChanged window applies.
         // Safe for app-restart recovery: any in_progress claim whose lastChanged is older
@@ -1284,14 +1347,18 @@ const handler = async (req, res) => {
           const agentId = ovWs.assignee[key];
           const ts = ovWs.timestamps[key];
           if (ts && Date.parse(ts.lastChanged) > cutoff) continue;   // recently active — skip
-          if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${staleMins}m (force=true)`, ovWs)) released++;
+          const tp = taskTranscript(key, null, true, stWsSweep);
+          const tokenUsage = tp ? usageCached(tp) : null;
+          if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${staleMins}m (force=true)`, ovWs, { agentId, mins: staleMins, tokenUsage })) released++;
         }
       } else {
         // Normal sweep: honor vouchedLive (recently-pinged agents are protected).
         const sweepOv = staleMins !== (ovWs.config.stale_minutes ?? 10)
           ? { ...ovWs, config: { ...ovWs.config, stale_minutes: staleMins } } : ovWs;
         for (const { key, agentId, mins } of staleClaimKeys(sweepOv, state.agents, nowMs)) {
-          if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${mins}m`, ovWs)) released++;
+          const tp = taskTranscript(key, null, true, stWsSweep);
+          const tokenUsage = tp ? usageCached(tp) : null;
+          if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${mins}m`, ovWs, { agentId, mins, tokenUsage })) released++;
         }
       }
       if (released) { overlayStore.save(ws, ovWs); notifyChange(); cache.agg.delete(ws); cache.aggAt.delete(ws); }
@@ -1457,6 +1524,7 @@ const handler = async (req, res) => {
       const knownAsOf = u.searchParams.get('knownAsOf') || '';
       const history = isTruthy(u.searchParams.get('history'));
       const ws = u.searchParams.get('workspace') || state.workspace;
+      const task_key = u.searchParams.get('task_key') || '';
       const g = buildGraph(ws);
       // GATED retrieval (?gated=1) — consult the context-need gate (lib/context-gate.js, the
       // abstain-by-default classifier calibrated on test/context-gate-regression.test.js) BEFORE
@@ -1481,6 +1549,28 @@ const handler = async (req, res) => {
         const results = top ? [{ key: top.key, title: top.title, summary: String(top.summary || '').slice(0, 200), score: r.top1, kind: 'note', via: r.via }] : [];
         return send(res, 200, { ...meta, results });
       }
+      // DAG tier: collect context_deps of the requested task — always inject, no gate.
+      const dagNotes = [];
+      if (task_key) {
+        const taskNode = g.tasks.find(t => t.id === task_key);
+        if (taskNode) {
+          for (const depKey of (taskNode.context_deps || [])) {
+            const noteNode = g.tasks.find(t => t.id === depKey);
+            if (noteNode && noteNode.kind === 'note') {
+              dagNotes.push({
+                key: depKey,
+                title: noteNode.label,
+                summary: String(noteNode.summary || '').slice(0, 200),
+                score: 1.0,
+                kind: 'note',
+                tier: 'dag',
+                via: 'dag'
+              });
+            }
+          }
+        }
+      }
+      const dagKeys = new Set(dagNotes.map(n => n.key));
       const qt = suggestToks(q);
       const qvec = await embed(q);   // null-safe: null ⇒ pure-lexical (back-compat)
       const knownT = knownAsOf ? Date.parse(knownAsOf) : NaN;
@@ -1506,20 +1596,21 @@ const handler = async (req, res) => {
         if (qvec && Array.isArray(vec)) return { score: cosine(qvec, vec), via: 'semantic' };
         return { score: scoreNodeAgainstTokens(lexNode, qt).score, via: 'lexical' };
       };
-      const results = [];
+      const ragResults = [];
       // (a) graph nodes (tasks + note nodes).
       for (const node of g.tasks) {
+        if (dagKeys.has(node.id)) continue;  // skip DAG-injected notes
         if (!temporalOk(node)) continue;
         const { score, via } = scoreHybrid(node.vec, node);
         if (!(score > 0)) continue;
-        const r = { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task', via };
+        const r = { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task', tier: 'rag', via };
         // Surface temporal provenance on note hits so callers can reason about state changes.
         if ((node.kind || 'task') === 'note' && (node.validFrom || node.validTo || node.supersededBy || node.supersedes)) {
           r.validFrom = node.validFrom || null; r.validTo = node.validTo || null;
           r.supersededBy = node.supersededBy || null; r.supersedes = node.supersedes || null;
           r.current = !node.validTo;
         }
-        results.push(r);
+        ragResults.push(r);
       }
       // (b) per-task Tier-2 knowledge items (overlay.knowledge[key][]) — not graph nodes, but
       // semantically searchable. Scored with the same hybrid path over a synthetic lex node.
@@ -1528,14 +1619,18 @@ const handler = async (req, res) => {
         (items || []).forEach((it, i) => {
           const text = knowledgeText(it);
           if (!text) return;
+          const key = `${tkey}#k${i}`;
+          if (dagKeys.has(key)) return;  // skip DAG-injected items
           const lexNode = { label: text, summary: '' };
           const { score, via } = scoreHybrid(it && it._vec, lexNode);
           if (!(score > 0)) return;
-          results.push({ key: `${tkey}#k${i}`, title: text.slice(0, 80), summary: text.slice(0, 200), score: Math.round(score * 1000) / 1000, kind: 'knowledge', via });
+          ragResults.push({ key, title: text.slice(0, 80), summary: text.slice(0, 200), score: Math.round(score * 1000) / 1000, kind: 'knowledge', tier: 'rag', via });
         });
       }
-      results.sort((a, b) => b.score - a.score);
-      return send(res, 200, { query: q, k, asOf: asOf || null, knownAsOf: knownAsOf || null, history, results: results.slice(0, k) });
+      ragResults.sort((a, b) => b.score - a.score);
+      // DAG notes always prepend (bypass gate); RAG fills remaining slots up to k.
+      const results = [...dagNotes, ...ragResults].slice(0, k + dagNotes.length);
+      return send(res, 200, { query: q, k, asOf: asOf || null, knownAsOf: knownAsOf || null, history, results });
     }
 
     // Read-only in_progress claims (for the PreToolUse gate hook). Optional ?session= filters to
@@ -1560,6 +1655,17 @@ const handler = async (req, res) => {
       }
       const claims = sid ? all.filter((t) => t.session === sid) : all;
       return send(res, 200, { claimed: claims.length > 0, claims });
+    }
+
+    // Lightweight session-type probe for the PreToolUse gate. Returns whether the session
+    // belongs to a registered subagent (spawned via the Agent tool) vs. a main/driving session.
+    // A session is a subagent session if any registered agent record carries it as its .session.
+    if (p === '/session-info') {
+      const sid = u.searchParams.get('session');
+      if (!sid) return send(res, 400, { error: 'session required' });
+      const agents = agentsArr();
+      const isSubagent = agents.some((a) => a.session === sid);
+      return send(res, 200, { session: sid, is_subagent: isSubagent });
     }
 
     // Enforced cooperative-stop probe for the PreToolUse hook. Maps session -> its claimed
@@ -2034,10 +2140,10 @@ const handler = async (req, res) => {
       if (opReplay(res, b)) return;   // duplicate of a retried request that already landed (one note, not two)
       const T = targetOverlay(b, u);
       if (!b.title || !b.summary) return send(res, 400, { ok: false, error: 'title and summary required' });
-      // Embed-on-write: compute the note's semantic vector (title+summary) so /search can cosine-rank
+      // Embed-on-write: compute the note's semantic vector (title-only) so /search can cosine-rank
       // it. embed() returns null (never throws) if the model is unavailable ⇒ the note falls back to
       // lexical scoring — retrieval never hard-fails.
-      b.vec = await embed(`${b.title} ${b.summary}`);
+      b.vec = await embed(b.title);
       const id = overlayStore.addNoteNode(T.ov, b);
       // If the sidecar was still loading (vec null), schedule a one-shot retry.
       // Closes the narrow startup window where a note gets stored without a vector.
@@ -2097,6 +2203,13 @@ const handler = async (req, res) => {
         }
         if (best) hint = `this may contradict/duplicate note ${best.key} — if it replaces it, call supersede_note(old_key=${best.key}, new_key=note:${id}) so the stale note is retired; if uncertain, leave both.`;
       }
+      if (Array.isArray(b.wires_to)) {
+        for (const taskKey of b.wires_to) {
+          overlayStore.addEdge(T.ov, 'note:' + id, taskKey, null, 'context', 1.0);
+          const gs = (T.ws === state.workspace) ? state.graphStore : null;
+          if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, ts: Date.now() });
+        }
+      }
       T.save();
       notifyChange();
       return sendOp(res, b, 200, { ok: true, id, key: 'note:' + id, superseded, autowired, hint });
@@ -2148,7 +2261,7 @@ const handler = async (req, res) => {
       const ts = new Date().toISOString();
       for (const n of Object.values(state.overlay.note_nodes || {})) {
         if (Array.isArray(n.vec)) { notesSkipped++; continue; }
-        const v = await embed(`${n.title || ''} ${n.summary || ''}`);
+        const v = await embed(n.title || '');
         if (v) {
           n.vec = v; notesEmbedded++;
           graphStore.appendEvent(gs, n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
@@ -2173,11 +2286,15 @@ const handler = async (req, res) => {
     // returns null for one note we leave it and count it `failed`, continuing the loop. Operates on
     // the LIVE in-memory overlay (the sole safe writer of the file). Body: none.
     if (p === '/overlay/reembed' && m === 'POST') {
+      const body2 = await readBody(req).catch(() => ({}));
+      const force2 = body2 && body2.force;
       let embedded = 0, skipped = 0, failed = 0;
+      const gs2 = state.graphStore || graphStore.open(require('path').join(state.workspace, '.graph'));
+      const ts2 = new Date().toISOString();
       for (const n of Object.values(state.overlay.note_nodes || {})) {
-        if (Array.isArray(n.vec) && n.vec.length === DIMS) { skipped++; continue; }
-        const v = await embed(`${n.title || ''} ${n.summary || ''}`);
-        if (v) { n.vec = v; embedded++; } else failed++;   // null embed ⇒ leave it, count failed, continue
+        if (!force2 && Array.isArray(n.vec) && n.vec.length === DIMS) { skipped++; continue; }
+        const v = await embed(n.title || '');
+        if (v) { n.vec = v; embedded++; graphStore.appendEvent(gs2, n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'reembed', ts: ts2 }); } else failed++;   // null embed ⇒ leave it, count failed, continue
       }
       overlayStore.save(state.workspace, state.overlay);
       notifyChange();
@@ -2891,6 +3008,77 @@ const handler = async (req, res) => {
       let status = null;
       try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
       return send(res, 200, { ok: true, total: status && status.total, remaining: status && status.remaining, outDir });
+    }
+
+    // In-memory drain job state map (keyed by `${repo}::${outDir}`).
+    // Declared once at module scope lazily via the daemon's closure.
+    if (!global.__drainJobs) global.__drainJobs = new Map();
+    const drainJobs = global.__drainJobs;
+
+    if (p === '/onboard/drain-queue' && m === 'POST') {
+      const b = await readBody(req);
+      const { repo, outDir, batchSize } = b;
+      if (!repo || !outDir) return send(res, 400, { ok: false, error: 'repo and outDir required' });
+      const jobKey = `${repo}::${outDir}`;
+      if (drainJobs.has(jobKey)) {
+        const existing = drainJobs.get(jobKey);
+        if (!existing.done && !existing.error) {
+          return send(res, 200, { ok: true, status: existing, message: 'drain already in progress' });
+        }
+      }
+      // Read initial queue status.
+      const { spawnSync, spawn } = require('child_process');
+      const learnScript = path.join(__dirname, 'scripts', 'onboard-learn.js');
+      const statusR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: __dirname, encoding: 'utf8' });
+      let initStatus = null;
+      try { initStatus = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
+      const total = (initStatus && initStatus.total) || 0;
+      const remaining = (initStatus && initStatus.remaining) || 0;
+      const job = { repo, outDir, total, processed: total - remaining, remaining, done: remaining === 0, error: null };
+      drainJobs.set(jobKey, job);
+      if (job.done) return send(res, 200, { ok: true, status: job, message: 'queue already empty' });
+      // Kick off async background drain loop.
+      const bs = String(batchSize || 50);
+      (async () => {
+        try {
+          while (true) {
+            await new Promise((resolve, reject) => {
+              const child = spawn(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', bs], { stdio: 'inherit', cwd: __dirname });
+              child.on('close', code => code === 0 ? resolve() : reject(new Error(`drain exited ${code}`)));
+            });
+            const stR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: __dirname, encoding: 'utf8' });
+            let st = null;
+            try { st = JSON.parse(stR.stdout || ''); } catch { /* ignore */ }
+            if (st) {
+              job.total = st.total || job.total;
+              job.remaining = st.remaining || 0;
+              job.processed = job.total - job.remaining;
+            }
+            if (!st || job.remaining === 0) break;
+          }
+          // Inject learned notes into the graph.
+          spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm'], { stdio: 'inherit', cwd: __dirname });
+          job.done = true;
+          job.remaining = 0;
+          job.processed = job.total;
+        } catch (err) {
+          job.error = String(err && err.message || err);
+          job.done = true;
+        }
+      })();
+      return send(res, 200, { ok: true, status: job });
+    }
+
+    if (p === '/onboard/drain-queue' && m === 'GET') {
+      const u = new URL(req.url, 'http://localhost');
+      const repo = u.searchParams.get('repo');
+      const outDir = u.searchParams.get('outDir');
+      if (!repo || !outDir) return send(res, 400, { ok: false, error: 'repo and outDir query params required' });
+      const jobKey = `${repo}::${outDir}`;
+      if (!global.__drainJobs || !global.__drainJobs.has(jobKey)) {
+        return send(res, 404, { ok: false, error: 'no drain job found for this repo+outDir' });
+      }
+      return send(res, 200, { ok: true, status: global.__drainJobs.get(jobKey) });
     }
 
     if (p === '/onboard/drain-next' && m === 'POST') {
