@@ -151,7 +151,7 @@ from the setup trigger. Every injected node is titled `[ingest] …` and stays f
 
 ## 9. Graph auto-commit hook (optional)
 
-Installs a `post-commit` git hook that calls `claude` after each real code commit to selectively stage and commit `.graph/` node files that were modified around the time of that commit.
+Installs a `post-commit` git hook that calls `claude` after each real code commit to stage and commit `.graph/` node files changed since the last graph snapshot. Uses a `.git/GRAPH_CHECKPOINT` marker to track what's been committed — catches all pending changes, not just the narrow commit window.
 
 **Detect state:** check if `<workspace>/.git/hooks/post-commit` exists and contains `ORCH_GRAPH_AUTOCOMMIT`.
 
@@ -160,25 +160,30 @@ Installs a `post-commit` git hook that calls `claude` after each real code commi
 Write `<workspace>/.git/hooks/post-commit`:
 ```sh
 #!/bin/sh
-# Graph auto-commit: commit .graph/ changes causally related to each code commit.
-# Enable by setting ORCH_GRAPH_AUTOCOMMIT=1 in ~/.claude/settings.json env block.
-
 [ "${ORCH_GRAPH_AUTOCOMMIT}" = "1" ] || exit 0
 
-# Skip if no .graph/ changes pending
-if git diff --quiet -- .graph/ && ! git ls-files --others --exclude-standard -- .graph/ | grep -q .; then
-  exit 0
-fi
-
-COMMIT_HASH=$(git rev-parse --short HEAD)
+CHECKPOINT=".git/GRAPH_CHECKPOINT"
 REPO_ROOT=$(git rev-parse --show-toplevel)
+COMMIT_HASH=$(git rev-parse --short HEAD)
+
+# On first run, catch all pending changes
+[ -f "$CHECKPOINT" ] || touch -t 197001010000 "$CHECKPOINT"
+
+# Find .graph/ files modified since last snapshot
+CHANGED=$(find .graph -name "*.jsonl" -newer "$CHECKPOINT" 2>/dev/null)
+[ -n "$CHANGED" ] || exit 0
 
 claude --dangerously-skip-permissions -p "
-The git commit $COMMIT_HASH just landed in $REPO_ROOT. Commit the causally related .graph/ changes:
-1. Run: find .graph -name '*.jsonl' -newer .git/COMMIT_EDITMSG
-2. If files found, stage them: git add <those files>
-3. Commit: git commit --no-verify -m 'chore: graph snapshot [$COMMIT_HASH]'
-4. If nothing to stage, exit silently.
+The git commit $COMMIT_HASH just landed in $REPO_ROOT.
+Stage and commit these .graph/ files (changed since last graph snapshot):
+
+$CHANGED
+
+Steps:
+1. git add $CHANGED
+2. git commit --no-verify -m 'chore: graph snapshot [$COMMIT_HASH]'
+3. touch $REPO_ROOT/$CHECKPOINT
+
 Do not touch anything outside .graph/.
 " 2>/dev/null &
 ```
