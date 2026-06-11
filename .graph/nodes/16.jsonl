@@ -1,3 +1,4 @@
 {"evt":"status_changed","id":"16","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-11T13:45:45.136Z"}
 {"evt":"assignee_set","id":"16","workspace":"/Users/imyu/Desktop/zonoid","assignee":"supersede-fix-agent","actor":"overlay-sync","ts":"2026-06-11T13:45:45.136Z"}
 {"evt":"timestamps_set","id":"16","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T13:45:45.134Z","lastChanged":"2026-06-11T13:45:45.134Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-11T13:45:45.136Z"}
+{"evt":"status_changed","id":"16","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-11T13:51:12.246Z"}

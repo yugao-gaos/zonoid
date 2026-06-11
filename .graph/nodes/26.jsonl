@@ -1,0 +1,7 @@
+{"evt":"status_changed","id":"26","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-11T14:05:00.854Z"}
+{"evt":"timestamps_set","id":"26","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T14:05:00.853Z","lastChanged":"2026-06-11T14:05:00.853Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-11T14:05:00.854Z"}
+{"evt":"status_changed","id":"26","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-11T14:05:49.320Z"}
+{"evt":"status_changed","id":"26","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-11T14:18:37.075Z"}
+{"evt":"status_changed","id":"26","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-11T14:19:35.662Z"}
+{"evt":"status_changed","id":"26","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-11T14:19:52.595Z"}
+{"evt":"status_changed","id":"26","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-11T14:21:50.914Z"}
