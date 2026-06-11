@@ -56,7 +56,46 @@ If the user wants it: show the change, get explicit confirmation, then merge
 `.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"` into `~/.claude/settings.json`; note it needs
 a Claude Code restart. The tool works without it ("team" routing falls back to Workflow).
 
-## 6. Scheduled tasks (idempotent install)
+## 6. Permissions allowlist (subagent unblock)
+
+Background subagents (orch-loop, orch-loop-recovery cron, scheduled tasks) inherit the
+session's permission settings. Without an explicit allowlist in `.claude/settings.local.json`,
+every tool call prompts — blocking unattended runs.
+
+**Detect state:** check if `<workspace>/.claude/settings.local.json` exists and has
+`permissions.allow` with at least the core entries below.
+
+**Write if missing or incomplete** (idempotent — merge, don't clobber):
+```json
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Bash(curl*)", "Bash(ls*)", "Bash(cat*)", "Bash(find*)", "Bash(grep*)", "Bash(jq*)", "Bash(node*)",
+      "mcp__orchestrator-graph__next_action", "mcp__orchestrator-graph__get_full_graph",
+      "mcp__orchestrator-graph__set_status", "mcp__orchestrator-graph__start_task",
+      "mcp__orchestrator-graph__complete_task", "mcp__orchestrator-graph__record_decision",
+      "mcp__orchestrator-graph__search_knowledge", "mcp__orchestrator-graph__get_learnings",
+      "mcp__orchestrator-graph__get_task_detail", "mcp__orchestrator-graph__list_agents",
+      "mcp__orchestrator-graph__list_guidance", "mcp__orchestrator-graph__request_guidance",
+      "mcp__orchestrator-graph__loop_control", "mcp__orchestrator-graph__suggest_links",
+      "mcp__orchestrator-graph__attach_knowledge", "mcp__orchestrator-graph__branch_task",
+      "mcp__orchestrator-graph__add_dependency", "mcp__orchestrator-graph__remove_dependency",
+      "mcp__orchestrator-graph__get_dependency_summaries", "mcp__orchestrator-graph__graph_delta",
+      "mcp__orchestrator-graph__show_dashboard", "mcp__orchestrator-graph__peek_workspace",
+      "mcp__orchestrator-graph__drain_kb_batch", "mcp__orchestrator-graph__enqueue_kb",
+      "mcp__orchestrator-graph__measure_task", "mcp__orchestrator-graph__merge_attempt",
+      "mcp__orchestrator-graph__remove_worktree", "mcp__orchestrator-graph__supersede_note",
+      "mcp__orchestrator-graph__supersede_task", "mcp__orchestrator-graph__configure_task",
+      "TaskCreate", "TaskUpdate", "TaskGet", "TaskList",
+      "ScheduleWakeup", "Agent"
+    ]
+  }
+}
+```
+`settings.local.json` is gitignored/local — safe to write freely.
+
+## 7. Scheduled tasks (idempotent install)
 
 Two scheduled tasks are required infrastructure — install them if missing.
 
@@ -81,7 +120,7 @@ Two scheduled tasks are required infrastructure — install them if missing.
 
 After installing, tell the user to click **"Run now"** on `orch-loop-recovery` in the Scheduled sidebar to pre-approve tool permissions for future unattended runs.
 
-## 7. First-run KB onboarding (drop-in entry, human-gated)
+## 8. First-run KB onboarding (drop-in entry, human-gated)
 When setup runs in a **new repo** (one with no KB bootstrapped yet), offer to onboard it so a
 fresh project gets a starter knowledge base. This is the drop-in entry point.
 

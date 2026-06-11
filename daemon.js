@@ -1500,26 +1500,23 @@ const handler = async (req, res) => {
     // claims whose task belongs to that conversation; `claimed` reflects the filtered set.
     if (p === '/active-claim') {
       const sid = u.searchParams.get('session');
-      // Search all known workspaces so a session's tasks are found regardless of which
-      // workspace the daemon is currently pointing at (fixes cross-workspace gate failure).
-      const allWorkspaces = (() => {
-        const projectsDir = path.join(require('os').homedir(), '.claude', 'projects');
+      const g = buildGraph(state.workspace);
+      let all = g.tasks.filter((t) => t.status === 'in_progress').map((t) => ({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id }));
+      // Fallback: read native task files directly for the queried session.
+      // Handles cross-workspace cases where daemon's current workspace differs from the session's project.
+      if (sid && !all.some((t) => t.session === sid)) {
+        const sessionDir = path.join(os.homedir(), '.claude', 'tasks', sid);
         try {
-          return require('fs').readdirSync(projectsDir, { withFileTypes: true })
-            .filter((e) => e.isDirectory())
-            .map((e) => e.name.replace(/^-/, '/').replace(/-/g, (m, o, s) => s[o - 1] === '/' ? '-' : '/').replace(/^\//, ''))
-            .filter(Boolean);
-        } catch { return []; }
-      })();
-      const workspacesToSearch = [state.workspace, ...allWorkspaces.filter((w) => w !== state.workspace)];  // search all; claim valid regardless of daemon's current workspace
-      let allTasks = [];
-      for (const ws of workspacesToSearch) {
-        try {
-          const g = buildGraph(ws);
-          allTasks = allTasks.concat(g.tasks.filter((t) => t.status === 'in_progress').map((t) => ({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id })));
-        } catch { /* skip unreadable workspace */ }
+          for (const f of fs.readdirSync(sessionDir).filter((f) => f.endsWith('.json'))) {
+            try {
+              const t = JSON.parse(fs.readFileSync(path.join(sessionDir, f), 'utf8'));
+              if (t && t.status === 'in_progress')
+                all.push({ key: sid + '/' + t.id, label: t.subject || String(t.id), session: sid, agent_id: null });
+            } catch { /* skip */ }
+          }
+        } catch { /* no tasks for session */ }
       }
-      const claims = sid ? allTasks.filter((t) => t.session === sid) : allTasks;
+      const claims = sid ? all.filter((t) => t.session === sid) : all;
       return send(res, 200, { claimed: claims.length > 0, claims });
     }
 
@@ -1993,6 +1990,15 @@ const handler = async (req, res) => {
       // lexical scoring — retrieval never hard-fails.
       b.vec = await embed(`${b.title} ${b.summary}`);
       const id = overlayStore.addNoteNode(T.ov, b);
+      // Sync in-memory: addNoteNode mutates T.ov.note_nodes in-place when T.ov IS state.overlay.
+      // This explicit mirror guards future refactors and also keeps state.overlay.knowledge in
+      // sync so /search can rank note knowledge items without a daemon restart.
+      if (T.ws === state.workspace) {
+        if (!state.overlay.note_nodes[id]) state.overlay.note_nodes[id] = T.ov.note_nodes[id];
+        if (Array.isArray(b.knowledge) && b.knowledge.length > 0 && !state.overlay.knowledge[id]) {
+          state.overlay.knowledge[id] = b.knowledge;
+        }
+      }
       // DEMOTED (edge-judge rework): we no longer BLINDLY auto-wire similarity edges on note create.
       // Similarity ≠ a real DAG edge — the default verdict is NO edge. Instead a new note just bumps
       // the EPOCH (a node was added), which makes it (and any newly-relevant neighbors) eligible in the

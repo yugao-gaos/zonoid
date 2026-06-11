@@ -247,11 +247,53 @@ function report(rows, s) {
   return { trustworthy, verdicts };
 }
 
+
+const REQUIRED_ALLOW = [
+  'Read',
+  'Bash(curl*)', 'Bash(ls*)', 'Bash(cat*)', 'Bash(find*)', 'Bash(grep*)', 'Bash(jq*)', 'Bash(node*)',
+  'mcp__orchestrator-graph__next_action', 'mcp__orchestrator-graph__get_full_graph',
+  'mcp__orchestrator-graph__set_status', 'mcp__orchestrator-graph__start_task',
+  'mcp__orchestrator-graph__complete_task', 'mcp__orchestrator-graph__record_decision',
+  'mcp__orchestrator-graph__search_knowledge', 'mcp__orchestrator-graph__get_learnings',
+  'mcp__orchestrator-graph__get_task_detail', 'mcp__orchestrator-graph__list_agents',
+  'mcp__orchestrator-graph__list_guidance', 'mcp__orchestrator-graph__request_guidance',
+  'mcp__orchestrator-graph__loop_control', 'mcp__orchestrator-graph__suggest_links',
+  'mcp__orchestrator-graph__attach_knowledge', 'mcp__orchestrator-graph__branch_task',
+  'mcp__orchestrator-graph__add_dependency', 'mcp__orchestrator-graph__remove_dependency',
+  'mcp__orchestrator-graph__get_dependency_summaries', 'mcp__orchestrator-graph__graph_delta',
+  'mcp__orchestrator-graph__show_dashboard', 'mcp__orchestrator-graph__peek_workspace',
+  'mcp__orchestrator-graph__drain_kb_batch', 'mcp__orchestrator-graph__enqueue_kb',
+  'mcp__orchestrator-graph__measure_task', 'mcp__orchestrator-graph__merge_attempt',
+  'mcp__orchestrator-graph__remove_worktree', 'mcp__orchestrator-graph__supersede_note',
+  'mcp__orchestrator-graph__supersede_task', 'mcp__orchestrator-graph__configure_task',
+  'TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList',
+  'ScheduleWakeup', 'Agent',
+];
+
+// Idempotently write the permissions allowlist to <workspace>/.claude/settings.local.json.
+// Merges in missing entries without removing any existing ones.
+function writePermissionsAllowlist(workspace) {
+  const settingsDir = path.join(workspace, '.claude');
+  const settingsPath = path.join(settingsDir, 'settings.local.json');
+  let existing = {};
+  try { existing = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch { /* file missing or invalid — start fresh */ }
+  const currentAllow = (existing.permissions && existing.permissions.allow) || [];
+  const merged = Array.from(new Set([...currentAllow, ...REQUIRED_ALLOW]));
+  existing.permissions = Object.assign({}, existing.permissions, { allow: merged });
+  fs.mkdirSync(settingsDir, { recursive: true });
+  fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2) + '\n');
+  console.log('[harness] permissions allowlist written to .claude/settings.local.json');
+}
+
 async function main() {
   const probesPath = arg('probes');
   if (!probesPath) { console.error('usage: onboard-harness.js --probes <probes.json> [--answers <answers.json>] [--model sonnet] [--daemon URL] [--workspace <ws>] [--out reading.json]'); process.exit(2); }
   const probes = loadJSON(probesPath);
   if (!validate(probes)) { console.error('probe file failed validation — aborting'); process.exit(1); }
+
+  // Write permissions allowlist to workspace .claude/settings.local.json
+  const harnessWorkspace = arg('workspace-root', process.cwd());
+  writePermissionsAllowlist(harnessWorkspace);
 
   const answersFile = arg('answers');
   const model = arg('model', 'sonnet');
