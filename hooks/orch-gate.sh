@@ -1,16 +1,16 @@
 #!/bin/bash
-# PreToolUse(Write|Edit) GATE: refuse inline file edits unless THIS conversation has a task
-# claimed in_progress in the orchestrator graph (enforces "file a task + start_task before
-# editing"). Exit 2 = deny (blocks the tool call in this harness); exit 0 = allow.
+# PreToolUse(Write|Edit) GATE: enforce task-claim discipline for substantive inline edits.
 #
-# Escape hatch: export ORCH_GATE_OFF=1 to always allow.
+# Subagents (spawned via the Agent tool): must have a valid active claim — same as before.
+# Main/driving sessions: allowed up to 2 single-file edits per turn (reset by classify.sh);
+#   blocked on 3rd+ edit OR if the new_string/content exceeds 100 lines (large inline work).
+#   Both cases print a message guiding the user to dispatch a subagent.
+#
 # Default-on: like the other orchestrator hooks, the gate is active by default. A conversation
 #   opts out with 'orch off' (drops sessions/<id>.off). If that marker is present, exit 0.
 # Fail-open: if the daemon is unreachable we allow (exit 0) rather than bricking edits when the
 #   daemon is down. We deny only on a definitive "no claim for this session".
 PORT="${ORCH_PORT:-8787}"
-
-[ "$ORCH_GATE_OFF" = "1" ] && exit 0   # escape hatch
 
 INPUT=$(cat)
 
@@ -40,7 +40,7 @@ RESP=$(curl -s --max-time 0.6 "localhost:$PORT/active-claim?session=$SID" 2>/dev
 
 if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
   # Check if the claimed task has a metric spec (self-learning mode)
-  TASK_KEY=$(printf '%s' "$RESP" | jq -r '.task_key // empty')
+  TASK_KEY=$(printf '%s' "$RESP" | jq -r '.claims[0].key // empty')
   if [ -n "$TASK_KEY" ]; then
     DETAIL=$(curl -s --max-time 0.6 "localhost:$PORT/task/detail?key=$TASK_KEY" 2>/dev/null)
     HAS_METRIC=$(printf '%s' "$DETAIL" | jq -e '.task.metric != null' >/dev/null 2>&1 && echo "yes" || echo "no")
@@ -58,5 +58,30 @@ if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
   exit 0                               # an in_progress task is claimed for this session -> allow
 fi
 
-echo "orch-gate: file a task (TaskCreate) and start_task before editing; set ORCH_GATE_OFF=1 to bypass" >&2
-exit 2
+# No active claim. Check whether this is a subagent session or a main/driving session.
+SINFO=$(curl -s --max-time 0.6 "localhost:$PORT/session-info?session=$SID" 2>/dev/null)
+IS_SUB=$(printf '%s' "$SINFO" | jq -r '.is_subagent // "unknown"' 2>/dev/null)
+
+if [ "$IS_SUB" = "true" ]; then
+  # Registered subagent with no claim — must file a task first.
+  echo "orch-gate: file a task (TaskCreate) and start_task before editing" >&2
+  exit 2
+fi
+
+# Main/driving session (or daemon lacks session-info endpoint — fail open toward main-session path).
+# Allow up to 2 edits per turn; block large content (>100 lines).
+COUNTER_FILE="/tmp/orch-edit-count-$SID"
+COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo "0")
+
+# Extract content size: new_string (Edit) or content (Write)
+CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // .tool_input.content // empty' 2>/dev/null)
+LINE_COUNT=$(printf '%s' "$CONTENT" | wc -l | tr -d ' ')
+
+if [ "$COUNT" -ge 2 ] || [ "${LINE_COUNT:-0}" -gt 100 ]; then
+  echo "orch-gate: Main session multi-file or large edit detected — dispatch a subagent (TaskCreate + Agent tool) for substantive work." >&2
+  exit 2
+fi
+
+# Allow and increment counter
+echo $((COUNT + 1)) > "$COUNTER_FILE"
+exit 0

@@ -8,6 +8,9 @@ AGENT_ID=$(printf '%s' "$INPUT" | jq -r '.agent_id // empty')
 AGENT_TYPE=$(printf '%s' "$INPUT" | jq -r '.agent_type // "agent"')
 TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty')
 [ -z "$AGENT_ID" ] && exit 0
+# Extract the subagent's own session ID from its transcript path (e.g. /path/<session_id>.jsonl)
+SUBAGENT_SID=$(basename "$TRANSCRIPT" .jsonl 2>/dev/null)
+[ "$SUBAGENT_SID" = "$TRANSCRIPT" ] && SUBAGENT_SID=""  # basename unchanged = no extension stripped = not a .jsonl path
 curl -s --max-time 0.5 -XPOST "localhost:$PORT/agent/start" -H 'content-type: application/json' \
-  -d "{\"agent_id\":\"$AGENT_ID\",\"agent_type\":\"$AGENT_TYPE\",\"transcript_path\":\"$TRANSCRIPT\",\"session\":\"$SID\"}" >/dev/null 2>&1
+  -d "{\"agent_id\":\"$AGENT_ID\",\"agent_type\":\"$AGENT_TYPE\",\"transcript_path\":\"$TRANSCRIPT\",\"session\":\"$SID\",\"subagent_session\":\"$SUBAGENT_SID\"}" >/dev/null 2>&1
 exit 0

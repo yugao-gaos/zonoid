@@ -4,11 +4,9 @@
 # to close the bypass path (e.g. `python3 -c "open('file','w').write(...)"`, tee, cp, redirects).
 # Exit 2 = deny; exit 0 = allow.
 #
-# Escape hatch: export ORCH_GATE_OFF=1 to always allow.
+# Main/driving sessions: allowed up to 2 file-write commands per turn; blocked on 3rd+.
 # Fail-open: if the daemon is unreachable we allow (exit 0).
 PORT="${ORCH_PORT:-8787}"
-
-[ "$ORCH_GATE_OFF" = "1" ] && exit 0   # escape hatch
 
 INPUT=$(cat)
 CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
@@ -74,7 +72,7 @@ RESP=$(curl -s --max-time 0.6 "localhost:$PORT/active-claim?session=$SID" 2>/dev
 
 if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
   # Check if the claimed task has a metric spec (self-learning mode)
-  TASK_KEY=$(printf '%s' "$RESP" | jq -r '.task_key // empty')
+  TASK_KEY=$(printf '%s' "$RESP" | jq -r '.claims[0].key // empty')
   if [ -n "$TASK_KEY" ]; then
     DETAIL=$(curl -s --max-time 0.6 "localhost:$PORT/task/detail?key=$TASK_KEY" 2>/dev/null)
     HAS_METRIC=$(printf '%s' "$DETAIL" | jq -e '.task.metric != null' >/dev/null 2>&1 && echo "yes" || echo "no")
@@ -92,5 +90,26 @@ if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
   exit 0                               # claimed in_progress -> allow
 fi
 
-echo "orch-gate: file a task (TaskCreate) and start_task before writing files via Bash; set ORCH_GATE_OFF=1 to bypass" >&2
-exit 2
+# No active claim. Check whether this is a subagent session or a main/driving session.
+SINFO=$(curl -s --max-time 0.6 "localhost:$PORT/session-info?session=$SID" 2>/dev/null)
+IS_SUB=$(printf '%s' "$SINFO" | jq -r '.is_subagent // "unknown"' 2>/dev/null)
+
+if [ "$IS_SUB" = "true" ]; then
+  # Registered subagent with no claim — must file a task first.
+  echo "orch-gate: file a task (TaskCreate) and start_task before writing files via Bash" >&2
+  exit 2
+fi
+
+# Main/driving session (or daemon lacks session-info endpoint — fail open toward main-session path).
+# Allow up to 2 file-write commands per turn; block on 3rd+.
+COUNTER_FILE="/tmp/orch-edit-count-$SID"
+COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo "0")
+
+if [ "$COUNT" -ge 2 ]; then
+  echo "orch-gate: Main session multi-file or large edit detected — dispatch a subagent (TaskCreate + Agent tool) for substantive work." >&2
+  exit 2
+fi
+
+# Allow and increment counter
+echo $((COUNT + 1)) > "$COUNTER_FILE"
+exit 0

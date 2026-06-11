@@ -365,26 +365,24 @@ function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
   if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
   return dirty;
 }
-// Auto-retry failed tasks: flip back to 'pending' if maxRetries > 0 and retryCount < maxRetries.
+// Auto-retry failed tasks: flip ALL failed tasks back to ready with a note about the prior attempt.
 // Mirrors sweepStaleClaims in structure. Returns true if any task was retried.
 function sweepFailedTasks(ws = state.workspace, ov = state.overlay) {
   let dirty = false;
   const g = buildGraph(ws);
   for (const t of g.tasks) {
     if (t.status !== 'failed') continue;
-    const maxRetries = (ov.retryConfig && ov.retryConfig[t.id] && ov.retryConfig[t.id].maxRetries) || 0;
-    if (maxRetries <= 0) continue;
-    const retryCount = (ov.retryConfig && ov.retryConfig[t.id] && ov.retryConfig[t.id].retryCount) || 0;
-    if (retryCount >= maxRetries) continue;
-    const newCount = retryCount + 1;
     if (!ov.retryConfig) ov.retryConfig = {};
     if (!ov.retryConfig[t.id]) ov.retryConfig[t.id] = {};
-    ov.retryConfig[t.id].retryCount = newCount;
+    const retryCount = (ov.retryConfig[t.id].retryCount || 0) + 1;
+    ov.retryConfig[t.id].retryCount = retryCount;
+    const prevAgent = ov.assignee && ov.assignee[t.id];
+    ov.notes[t.id] = `auto-requeued after failure (attempt ${retryCount})${prevAgent ? ` — prior agent: '${prevAgent}'` : ''}. Review previous summary before re-attempting.`.slice(0, 280);
     // Flip status back to pending so the task re-enters the ready pipeline
     delete ov.status[t.id];
     const i = t.id.indexOf('/');
     if (i > 0) { try { nt.writeStatus(t.id.slice(0, i), t.id.slice(i + 1), 'pending'); } catch { /* best effort */ } }
-    console.log(`[retry] task ${t.id} attempt ${newCount}/${maxRetries}`);
+    console.log(`[retry] task ${t.id} attempt ${retryCount} (prev agent: ${prevAgent || '?'})`);
     dirty = true;
   }
   if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
@@ -428,6 +426,18 @@ function sweepStaleVerdicts() {
   }
   if (dirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
   return dirty;
+}
+
+// Sweep the agent registry: mark 'running' entries as 'dead' when not vouched live.
+function sweepStaleAgents() {
+  const mins = state.overlay?.config?.stale_minutes ?? 10;
+  const now = Date.now();
+  for (const [id, a] of Object.entries(state.agents)) {
+    if (!a || a.state !== 'running') continue;
+    if (vouchedLive(a, mins, now, BOOT_MS)) continue;
+    state.agents[id] = { ...a, state: 'dead', endedAt: new Date().toISOString() };
+  }
+  saveAgents();
 }
 
 // Is a driving conversation `session` still live? Authoritative, same basis as sweepStaleClaims:
@@ -1664,7 +1674,7 @@ const handler = async (req, res) => {
       const sid = u.searchParams.get('session');
       if (!sid) return send(res, 400, { error: 'session required' });
       const agents = agentsArr();
-      const isSubagent = agents.some((a) => a.session === sid);
+      const isSubagent = agents.some((a) => a.subagent_session === sid);
       return send(res, 200, { session: sid, is_subagent: isSubagent });
     }
 
@@ -2148,7 +2158,7 @@ const handler = async (req, res) => {
       // If the sidecar was still loading (vec null), schedule a one-shot retry.
       // Closes the narrow startup window where a note gets stored without a vector.
       if (!b.vec) {
-        const _retryText = `${b.title} ${b.summary}`;
+        const _retryText = b.title;
         setTimeout(async () => {
           try {
             const v = await embed(_retryText);
@@ -3191,6 +3201,7 @@ if (require.main === module) {
   // called — catches the case after a Claude app restart where the user hasn't issued any command
   // yet but old agent claims are blocking work. Matches the loop-sweep cadence (60s).
   setInterval(() => { try { sweepStaleClaims(); } catch { /* best effort */ } }, 60000).unref();
+  setInterval(() => { try { sweepStaleAgents(); } catch { /* best effort */ } }, 60000).unref();
 
   // Periodic orphan-note self-heal: re-wire note nodes that are still orphaned as the graph grows
   // (a zero-match note at creation can gain a real neighbor later). Re-check is side-effect-free —
