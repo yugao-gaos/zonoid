@@ -2,3 +2,4 @@
 {"evt":"status_changed","id":"eeb6964e-000b-485a-aec3-2f1c367255cc/1","workspace":"/Users/imyu/Desktop/cloude","status":"canceled","actor":"overlay-sync","ts":"2026-06-10T19:01:05.747Z"}
 {"evt":"edge_added","from":"eeb6964e-000b-485a-aec3-2f1c367255cc/1","to":"64f85b97-3bb2-43c8-9ae3-38ab0a9b7c34/2","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
 {"evt":"status_changed","id":"eeb6964e-000b-485a-aec3-2f1c367255cc/1","workspace":"/Users/imyu/Desktop/cloude","status":"canceled","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
+{"evt":"timestamps_set","id":"eeb6964e-000b-485a-aec3-2f1c367255cc/1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-10T23:48:50.798Z","lastChanged":"2026-06-10T23:48:50.798Z","lastStatus":"canceled"},"actor":"overlay-sync","ts":"2026-06-10T23:48:51.998Z"}

@@ -1,0 +1,5 @@
+{"evt":"status_changed","id":"task-13","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-11T12:11:39.661Z"}
+{"evt":"assignee_set","id":"task-13","workspace":"/Users/imyu/Desktop/zonoid","assignee":"README-agent-13","actor":"overlay-sync","ts":"2026-06-11T12:11:39.661Z"}
+{"evt":"timestamps_set","id":"task-13","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T12:11:39.659Z","lastChanged":"2026-06-11T12:11:39.659Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-11T12:11:39.661Z"}
+{"evt":"status_changed","id":"task-13","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-11T12:12:12.692Z"}
+{"evt":"summary_set","id":"task-13","workspace":"/Users/imyu/Desktop/zonoid","summary":"Rewrote README.md with terse technical structure: tagline, bullet features, install, ASCII architecture diagram, self-learning loop description, MCP tools table, license. Replaced marketing copy with accurate technical content.","actor":"overlay-sync","ts":"2026-06-11T12:12:12.692Z"}

@@ -12,3 +12,9 @@
 {"evt":"edge_added","from":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/9","to":"6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/6","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z","weight":0.365}
 {"evt":"edge_added","from":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/9","to":"6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/7","kind":"context","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z","weight":0.333}
 {"evt":"status_changed","id":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/9","workspace":"/Users/imyu/Desktop/cloude","status":"done","actor":"overlay-sync","ts":"2026-06-10T19:08:57.822Z"}
+{"evt":"edge_added","from":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/9","to":"6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/6","kind":"context","actor":"overlay-sync","ts":"2026-06-10T20:37:55.270Z","weight":0.365}
+{"evt":"edge_added","from":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/9","to":"6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/7","kind":"context","actor":"overlay-sync","ts":"2026-06-10T20:37:55.270Z","weight":0.333}
+{"evt":"edge_added","from":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/9","to":"f38c7d2a-e05b-4d1d-a418-ae62c414fba2/7","kind":"context","actor":"overlay-sync","ts":"2026-06-10T20:37:55.270Z","weight":0.463}
+{"evt":"edge_added","from":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/9","to":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/4","kind":"context","actor":"overlay-sync","ts":"2026-06-10T21:13:23.311Z","weight":0.258}
+{"evt":"timestamps_set","id":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/9","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-10T23:48:50.790Z","lastChanged":"2026-06-10T23:48:50.790Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-10T23:48:51.998Z"}
+{"evt":"edge_added","from":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/9","to":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/14","kind":"context","actor":"overlay-sync","ts":"2026-06-11T04:34:09.931Z","weight":0.289}

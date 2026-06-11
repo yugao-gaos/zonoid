@@ -1,0 +1,3 @@
+{"evt":"status_changed","id":"18","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-11T12:14:46.581Z"}
+{"evt":"timestamps_set","id":"18","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T12:14:46.580Z","lastChanged":"2026-06-11T12:14:46.580Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-11T12:14:46.581Z"}
+{"evt":"status_changed","id":"18","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-11T12:15:34.166Z"}

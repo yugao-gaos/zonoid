@@ -1,0 +1,4 @@
+{"evt":"status_changed","id":"kb-drain-dispatch","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-11T01:17:21.197Z"}
+{"evt":"assignee_set","id":"kb-drain-dispatch","workspace":"/Users/imyu/Desktop/zonoid","assignee":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d","actor":"overlay-sync","ts":"2026-06-11T01:17:21.197Z"}
+{"evt":"timestamps_set","id":"kb-drain-dispatch","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T01:17:21.195Z","lastChanged":"2026-06-11T01:17:21.195Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-11T01:17:21.197Z"}
+{"evt":"status_changed","id":"kb-drain-dispatch","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-11T02:40:35.198Z"}
