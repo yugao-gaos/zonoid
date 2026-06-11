@@ -74,7 +74,7 @@ function mine(repoAbs, outDir) {
 // 2. --drain --batch N: process batches until the queue is drained (cursor === total).
 // 3. When done, --inject --confirm as usual.
 // Falls back to the legacy single-pass learn if no queue file exists (backward compat).
-function learnAndInject(repoAbs, model, inject, outDir, batchSize) {
+function learnAndInject(repoAbs, model, inject, outDir, batchSize, dispatch) {
   const learnScript = path.join(SELF_REPO, 'scripts', 'onboard-learn.js');
   const queueFile = path.join(outDir, 'onboard-queue.json');
 
@@ -103,6 +103,15 @@ function learnAndInject(repoAbs, model, inject, outDir, batchSize) {
       if (inj.status !== 0) { console.error(`[loop] inject failed (exit ${inj.status}).`); return false; }
       return true;
     }
+  }
+
+  // Dispatch mode: enqueue done; let the orchestrator drive drain batches as capacity allows.
+  if (dispatch) {
+    const statusR = sh(NODE, [learnScript, '--repo', repoAbs, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let status = null;
+    try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
+    console.error(`[loop] dispatch mode: ${status ? status.remaining : '?'} candidates remaining — process via drain_kb_batch MCP tool or POST /onboard/drain-next`);
+    return 'dispatched';
   }
 
   // Drain loop: keep calling --drain --batch N until queue is done.
@@ -207,6 +216,7 @@ function answersForRound(round, baseAnswers, roundsList) {
   const dryRun = has('dry-run');
   const harnessCmd = arg('harness-cmd', null); // hermetic self-test hook; default = real harness
   const batchSize = parseInt(arg('batch', '50'), 10) || 50;
+  const dispatch = has('dispatch');
 
   // dry-run answer plumbing
   const baseAnswers = dryRun ? arg('answers') : null;
@@ -259,7 +269,7 @@ function answersForRound(round, baseAnswers, roundsList) {
     } else {
       mine(repoAbs, outDir);
       // Use queue-based learn+inject if not in dry-run.
-      const injected = learnAndInject(repoAbs, model, inject, outDir, batchSize);
+      const injected = learnAndInject(repoAbs, model, inject, outDir, batchSize, dispatch);
       if (!injected && inject) console.error('[loop] WARN: deepen produced no injected notes this round; next measure may be flat.');
     }
     prevMetric = metric;

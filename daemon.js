@@ -1071,6 +1071,19 @@ function summaryFor(tasks, ghosts, ov = state.overlay) {
 // GENUINE dead-end failures. Superseded/duplicate/consolidated failures are replaced work, not dead
 // ends, so they are excluded. `labelFor(key)` resolves a task label ('' if unknown). Pure — unit-tested.
 // Truthy query-param test for flags like ?compact=1 / =true / =yes (any non-falsey present value).
+
+// Per-IP gated-search rate limiter: max 3 gated calls per 60s window.
+const gatedSearchCounts = new Map(); // ip -> { count, windowStart }
+function checkGatedRateLimit(ip) {
+  const now = Date.now();
+  const entry = gatedSearchCounts.get(ip);
+  if (!entry || now - entry.windowStart >= 60_000) {
+    gatedSearchCounts.set(ip, { count: 1, windowStart: now });
+    return false; // not rate-limited
+  }
+  entry.count++;
+  return entry.count > 3; // rate-limited if over 3
+}
 function isTruthy(v) { return v != null && v !== '' && v !== '0' && v !== 'false' && v !== 'no'; }
 
 // Lean transform of the full /learnings payload: a planner re-attends learnings every tick, so the
@@ -1412,6 +1425,10 @@ const handler = async (req, res) => {
       // 10–90s while MiniLM lazy-loads (lib/embed.js); embed() degrading to null ⇒ all-zero scores
       // ⇒ abstain('low-confidence') — conservative, never a hard failure.
       if (isTruthy(u.searchParams.get('gated'))) {
+        const clientIp = req.socket.remoteAddress || 'unknown';
+        if (checkGatedRateLimit(clientIp)) {
+          return send(res, 200, { query: q, gated: true, decision: 'abstain', reason: 'rate-limited', results: [] });
+        }
         const noteCands = g.tasks
           .filter((n) => (n.kind || 'task') === 'note' && !n.validTo)   // current notes only
           .map((n) => ({ key: n.id, title: n.label, summary: n.summary, vec: n.vec }));
@@ -1482,10 +1499,27 @@ const handler = async (req, res) => {
     // Read-only in_progress claims (for the PreToolUse gate hook). Optional ?session= filters to
     // claims whose task belongs to that conversation; `claimed` reflects the filtered set.
     if (p === '/active-claim') {
-      const g = buildGraph(state.workspace);
       const sid = u.searchParams.get('session');
-      const all = g.tasks.filter((t) => t.status === 'in_progress').map((t) => ({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id }));
-      const claims = sid ? all.filter((t) => t.session === sid) : all;
+      // Search all known workspaces so a session's tasks are found regardless of which
+      // workspace the daemon is currently pointing at (fixes cross-workspace gate failure).
+      const allWorkspaces = (() => {
+        const projectsDir = path.join(require('os').homedir(), '.claude', 'projects');
+        try {
+          return require('fs').readdirSync(projectsDir, { withFileTypes: true })
+            .filter((e) => e.isDirectory())
+            .map((e) => e.name.replace(/^-/, '/').replace(/-/g, (m, o, s) => s[o - 1] === '/' ? '-' : '/').replace(/^\//, ''))
+            .filter(Boolean);
+        } catch { return []; }
+      })();
+      const workspacesToSearch = [state.workspace, ...allWorkspaces.filter((w) => w !== state.workspace)];  // search all; claim valid regardless of daemon's current workspace
+      let allTasks = [];
+      for (const ws of workspacesToSearch) {
+        try {
+          const g = buildGraph(ws);
+          allTasks = allTasks.concat(g.tasks.filter((t) => t.status === 'in_progress').map((t) => ({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id })));
+        } catch { /* skip unreadable workspace */ }
+      }
+      const claims = sid ? allTasks.filter((t) => t.session === sid) : allTasks;
       return send(res, 200, { claimed: claims.length > 0, claims });
     }
 
@@ -2698,6 +2732,46 @@ const handler = async (req, res) => {
     }
 
     if ((p === '/' || p === '/graph') && m === 'GET') return send(res, 200, fs.readFileSync(path.join(PUBLIC, 'graph.html'), 'utf8'), 'text/html; charset=utf-8');
+
+    // KB learner queue endpoints — mine+enqueue candidates or drain one batch via LLM.
+    // These wrap the onboard-learn.js scripts so the orchestrator heartbeat can drive
+    // learning as capacity-fill work without a blocking shell loop.
+    if (p === '/onboard/enqueue' && m === 'POST') {
+      const b = await readBody(req);
+      const repo = b.repo;
+      if (!repo) return send(res, 400, { ok: false, error: 'repo required' });
+      const outDir = b.outDir || path.join(__dirname, 'bench', 'onboard', path.basename(repo));
+      const { spawnSync } = require('child_process');
+      const SCRIPTS = path.join(__dirname, 'scripts');
+      // Run miners first (fast, no LLM).
+      for (const s of ['onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-config.js']) {
+        spawnSync(process.execPath, [path.join(SCRIPTS, s), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: __dirname });
+      }
+      spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-mine-structure.js'), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: __dirname });
+      // Enqueue all candidates (no cap).
+      const enqR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--enqueue'], { stdio: 'inherit', cwd: __dirname });
+      if (enqR.status !== 0) return send(res, 500, { ok: false, error: `enqueue failed (exit ${enqR.status})` });
+      // Read queue status.
+      const statusR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: __dirname, encoding: 'utf8' });
+      let status = null;
+      try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
+      return send(res, 200, { ok: true, total: status && status.total, remaining: status && status.remaining, outDir });
+    }
+
+    if (p === '/onboard/drain-next' && m === 'POST') {
+      const b = await readBody(req);
+      const { repo, outDir, batchSize } = b;
+      if (!repo || !outDir) return send(res, 400, { ok: false, error: 'repo and outDir required' });
+      const { spawnSync } = require('child_process');
+      const learnScript = path.join(__dirname, 'scripts', 'onboard-learn.js');
+      const drainR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', String(batchSize || 50)], { stdio: 'inherit', cwd: __dirname });
+      if (drainR.status !== 0) return send(res, 500, { ok: false, error: `drain failed (exit ${drainR.status})` });
+      const statusR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: __dirname, encoding: 'utf8' });
+      let status = null;
+      try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
+      return send(res, 200, { ok: true, status });
+    }
+
     return send(res, 404, { error: 'not found', path: p });
   } catch (e) {
     return send(res, 500, { error: String((e && e.stack) || e) });

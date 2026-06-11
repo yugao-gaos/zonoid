@@ -27,7 +27,7 @@ multi-file change), the main agent should **not implement inline**. Instead:
 
 Do the work inline only for genuinely trivial edits (a one-liner, a doc tweak, a config change).
 This is instruction-level in the desktop app (which runs no settings.json hooks); in the CLI a
-PreToolUse exit-2 gate (`hooks/orch-gate.sh`) CAN hard-block edits when enabled. Follow it by default.
+PreToolUse exit-2 gate (`hooks/orch-gate.sh`) hard-blocks edits by default — agents must claim a task before editing. Users opt out per-conversation with `orch off`.
 
 ## Capture durable decisions as note nodes
 

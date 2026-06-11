@@ -1,0 +1,9 @@
+{
+  "name": "@zonoid/cli",
+  "version": "0.1.0",
+  "description": "Zonoid orchestrator installer",
+  "bin": { "zonoid": "./bin/zonoid.js" },
+  "main": "./bin/zonoid.js",
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}
