@@ -8,7 +8,7 @@ Empirical studies on the self-learning task knowledge graph.
 
 | Paper | Result | Date |
 |-------|--------|------|
-| [KB Injection Lifts Agent Solve Rate](quality-gain/) | OFF 20% → ON 80% on held-out benchmark (n=5 each arm) | June 2026 |
+| [KB Injection Lifts Agent Solve Rate](quality-gain/) | OFF 50% → ON 80% on held-out benchmark (n=20 each arm, +30pp) | June 2026 |
 
 ---
 

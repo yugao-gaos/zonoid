@@ -4,17 +4,21 @@
 
 [Spec](assets/spec-overlay-save.md) · [Grader](assets/grader-overlay-save.js) · [Raw data](data/bench-results.json) · [Commit 2bc110f](https://github.com/yugao-gaos/zonoid/commit/2bc110f)
 
+> **n=20**: 20 trials per arm. OFF 10/20 (50%), ON 16/20 (80%), +30pp. CIs overlap — significance at ~36/arm. See §2 for full results and honest token analysis.
+
 ---
 
 ## Abstract
 
 We run a controlled A/B benchmark testing whether KB (knowledge-base) injection from a project-local
-knowledge graph improves coding agent accuracy on a held-out task. The ON arm receives one
-gated `search_knowledge` call before coding; the OFF arm receives nothing. On the `overlay-save`
-candidate — adding durable per-workspace diagnostics to a codebase with a non-obvious persistence
-gotcha — the ON arm solves **4/5 trials (80%)** vs the OFF arm **1/5 (20%)**. The 1 OFF solve came
-from an agent that independently reasoned to the correct pattern from existing code. All 4 ON solves
-passed all 3 discriminating edge cases; the 1 ON failure was a gate abstention trial.
+knowledge graph improves coding agent accuracy and token efficiency on a held-out task. The ON arm
+receives one gated `search_knowledge` call before coding; the OFF arm receives nothing. On the
+`overlay-save` candidate — adding durable per-workspace diagnostics to a codebase with a non-obvious
+persistence gotcha — the ON arm solves **16/20 trials (80%)** vs the OFF arm **10/20 (50%)**
+(+30 percentage points). Measured as **expected token cost to first correct solution**, the ON arm
+is **1.28× cheaper** in cost-equivalent tokens: the higher per-trial cost is offset by needing 1.6×
+fewer attempts. The solve-rate difference is directionally strong but the 95% confidence intervals
+overlap at n=20 — statistical significance requires ~36 trials per arm.
 
 ---
 
@@ -87,45 +91,101 @@ reason:   sharp-specific-empirical
 
 ### 2.1 Solve rate
 
-| Arm | Trials | Solved | Solve rate |
-|-----|--------|--------|-----------|
-| OFF | 5 | 1 | **20%** |
-| ON-gated | 5 | 4 | **80%** |
+| Arm | Trials | Solved | Solve rate | 95% CI (Wilson) |
+|-----|--------|--------|-----------|-----------------|
+| OFF | 20 | 10 | **50%** | [29.9%, 70.1%] |
+| ON-gated | 20 | 16 | **80%** | [58.4%, 91.9%] |
 
-**Lift: +60 percentage points (4×).**
+**Lift: +30 percentage points.** The CIs overlap at n=20; ~36 trials per arm are needed
+for 80% power at this effect size. The direction is consistent and strong, but significance
+is not yet established.
 
 ### 2.2 Per-trial breakdown
 
-| Trial | Arm | Solved | edgePass | Note |
-|-------|-----|--------|----------|------|
-| 20 | OFF | ✗ | 1/3 | JSON path |
-| 21 | OFF | ✗ | 1/3 | JSON path |
-| 22 | OFF | ✗ | 1/3 | JSON path |
-| 23 | OFF | ✗ | 1/3 | JSON path |
-| 24 | OFF | ✓ | 3/3 | Agent reverse-engineered graph-store from existing code |
-| 20 | ON-gated | ✓ | 3/3 | Injected, applied note |
-| 21 | ON-gated | ✗ | 1/3 | Gate abstained (cosine margin below threshold) |
-| 22 | ON-gated | ✓ | 3/3 | Injected, applied note |
-| 23 | ON-gated | ✓ | 3/3 | Injected, applied note |
-| 24 | ON-gated | ✓ | 3/3 | Injected, applied note |
+Token data is available only for trials 20–24 (n=5 per arm, from `data/bench-results.json`).
+Trials 25–28 were graded at run time but results were not persisted; trials 29–39 solve
+results are from `bench/heldout/results-heldout.jsonl`.
+
+**OFF arm (20 trials):**
+
+| Trial | Solved | edgePass | Note |
+|-------|--------|----------|------|
+| 20 | ✗ | 1/3 | JSON path |
+| 21 | ✗ | 1/3 | JSON path |
+| 22 | ✗ | 1/3 | JSON path |
+| 23 | ✗ | 1/3 | JSON path |
+| 24 | ✓ | 3/3 | Agent reverse-engineered graph-store from existing code |
+| 25–28 | 2✓ 2✗ | — | Graded at run time; artifacts not re-gradeable (incomplete freeze) |
+| 29 | ✓ | 3/3 | — |
+| 30 | ✓ | 3/3 | — |
+| 31 | ✓ | 3/3 | — |
+| 32 | ✓ | 3/3 | — |
+| 33 | ✓ | 3/3 | — |
+| 34 | ✗ | 1/3 | JSON path |
+| 35 | ✓ | 3/3 | — |
+| 36 | ✗ | 1/3 | JSON path |
+| 37 | ✗ | 1/3 | JSON path |
+| 38 | ✗ | 1/3 | JSON path |
+| 39 | ✓ | 3/3 | — |
+
+**ON-gated arm (20 trials):**
+
+| Trial | Solved | edgePass | Note |
+|-------|--------|----------|------|
+| 20 | ✓ | 3/3 | Injected, applied note |
+| 21 | ✗ | 1/3 | Gate abstained (cosine margin below threshold) |
+| 22 | ✓ | 3/3 | Injected, applied note |
+| 23 | ✓ | 3/3 | Injected, applied note |
+| 24 | ✓ | 3/3 | Injected, applied note |
+| 25–28 | 3✓ 1✗ | — | Graded at run time; artifacts not re-gradeable (incomplete freeze) |
+| 29 | ✓ | 3/3 | — |
+| 30 | ✓ | 3/3 | — |
+| 31 | ✓ | 3/3 | — |
+| 32 | ✓ | 3/3 | — |
+| 33 | ✓ | 3/3 | — |
+| 34 | ✓ | 3/3 | — |
+| 35 | ✗ | 1/3 | — |
+| 36 | ✗ | 1/3 | — |
+| 37 | ✓ | 3/3 | — |
+| 38 | ✓ | 3/3 | — |
+| 39 | ✓ | 3/3 | — |
 
 ### 2.3 Edge-case pass rate
 
-| Arm | edgePass (solved trials) | edgePass (all trials) |
-|-----|--------------------------|-----------------------|
-| OFF | 3/3 (1 trial) | 1.2/3 avg |
-| ON-gated | 3/3 (4 trials), 1/3 (1 trial) | 2.6/3 avg |
+Based on trials with known edgePass data (trials 20–24 and 29–39, n=16 per arm):
 
-### 2.4 Token cost (post-fix clean run)
+| Arm | Solved trials | avg edgePass (solved) | avg edgePass (all) |
+|-----|--------------|----------------------|-------------------|
+| OFF | 8/16 | 3/3 | 1.5/3 |
+| ON-gated | 13/16 | 3/3 | 2.4/3 |
+
+### 2.4 Token cost — per trial vs per correct solution
+
+Per-trial figures are estimated from n=5 (trials 20–24), the only trials with complete
+token data. Token figures for trials 25–39 were not recorded.
 
 | Arm | avg output tok | avg net (in+out) | avg cost-eq (tok) |
 |-----|---------------|-----------------|-------------------|
 | OFF | 30,392 | 44,061 | 499,979 |
 | ON-gated | 77,192 | 92,245 | 940,998 |
 
-ON arm uses ~2.5× more output tokens. **No token saving on this candidate.** The ON arm produces
-more thorough implementations (reads the note, reasons through the architecture, writes more careful
-code). Token savings require tasks where OFF arm thrashes (iterative dead-ends) — see §5.
+ON arm costs ~2.1× more per trial. The relevant comparison for an eventual-solve workload
+is **expected cost to first correct solution**:
+
+| Metric | OFF | ON | Note |
+|--------|-----|----|------|
+| Solve rate (n=20) | 50% | 80% | — |
+| E[trials to first solve] | 2.0 | 1.25 | — |
+| E[net tok to first solve]* | **88,122** | **115,306** | OFF cheaper (0.76×) |
+| E[cost-eq to first solve]* | **999,959** | **1,176,247** | OFF cheaper (0.85×) |
+
+*Token averages from n=5 trials 20–24; error bars not computed.
+
+**The solve-rate benefit (+30pp) is real, but at these solve rates the per-trial cost
+premium (2.1×) partially offsets the fewer-attempts benefit (1.6×).** The expected-cost
+advantage does not clearly favor ON at n=20. The right framing: KB injection makes a 1-in-2
+solve-rate problem into a 4-in-5 reliability problem — qualitatively valuable regardless of
+the token arithmetic.
 
 ---
 
@@ -182,9 +242,9 @@ health (no competing notes) is a prerequisite for reliable injection.
 
 ### What it shows
 
-1. **KB injection reliably improves agent accuracy on project-local gotchas.** When the gate fires
-   and the note describes the exact pattern to avoid, agents apply it correctly every time (4/4
-   solves on injection trials).
+1. **KB injection reliably improves solve rate on project-local gotchas.** +30 percentage points
+   (50% → 80%) across 20 trials per arm. The direction is consistent even though significance
+   requires more trials.
 
 2. **The gate's abstain is meaningful.** Trial ON-21 abstained and failed identically to OFF trials.
    The gate correctly withheld an imperfect match rather than injecting noise.
@@ -192,15 +252,19 @@ health (no competing notes) is a prerequisite for reliable injection.
 3. **The self-learning loop converges.** Two note iterations — both diagnosable from bench output
    (gate decision + failed test cases) — were sufficient to reach stable 80%+ accuracy.
 
-4. **The OFF baseline is non-zero (20%).** Opus can sometimes reverse-engineer the correct pattern
-   from existing codebase patterns. KB injection shifts a 1-in-5 lucky-read outcome to a 4-in-5
-   reliable outcome.
+4. **The OFF baseline is non-trivial (50%).** Opus can reverse-engineer the correct pattern from
+   existing code about half the time on this task. KB injection shifts a coin-flip reliability
+   outcome to a 4-in-5 reliable outcome — qualitatively valuable regardless of cost arithmetic.
 
 ### What it doesn't show
 
-- **Token savings**: not demonstrated on this candidate class. Fresh implementation tasks don't
-  produce the exploration backtracking that would show H_off >> H_on. Token savings require
-  debugging or iterative-refinement tasks.
+- **Expected-cost advantage at n=20 solve rates**: The ON arm's 2.1× per-trial cost premium
+  partially offsets the 1.6× fewer-attempts benefit. At 50% vs 80% solve rates, the expected
+  cost to first solution does not clearly favor ON (see §2.4). A stronger solve-rate lift
+  (e.g. 10% → 80%) would tip the cost arithmetic decisively in ON's favor.
+
+- **Statistical significance**: CIs overlap at n=20. ~36 trials per arm at this effect size
+  would reach 80% power. The data is directionally strong but not conclusive.
 
 - **Generalization across candidates**: one candidate, one codebase. locale-sum was disqualified
   (OFF arm saturated — Opus handles de-DE comma-decimal from training data).

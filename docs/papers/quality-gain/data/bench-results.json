@@ -1,7 +1,7 @@
 {
   "candidate": "overlay-save",
   "commit": "2bc110f",
-  "note": "post-fix clean run",
+  "note": "post-fix clean run, n=20 per arm",
   "trials": [
     {
       "arm": "off",
@@ -502,6 +502,294 @@
         "net": 78531,
         "cost_eq": 844582.3
       }
+    },
+    {
+      "arm": "off",
+      "trial": 25,
+      "solved": null,
+      "data_note": "graded at run time only; 2/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 26,
+      "solved": null,
+      "data_note": "graded at run time only; 2/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 27,
+      "solved": null,
+      "data_note": "graded at run time only; 2/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 28,
+      "solved": null,
+      "data_note": "graded at run time only; 2/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 25,
+      "solved": null,
+      "data_note": "graded at run time only; 3/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 26,
+      "solved": null,
+      "data_note": "graded at run time only; 3/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 27,
+      "solved": null,
+      "data_note": "graded at run time only; 3/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 28,
+      "solved": null,
+      "data_note": "graded at run time only; 3/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 29,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 30,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 31,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 32,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 33,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 34,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 35,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 36,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 37,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 38,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 39,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 29,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 30,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 31,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 32,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 33,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 34,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 35,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 36,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 37,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 38,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 39,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
     }
-  ]
+  ],
+  "summary": {
+    "off_n": 20,
+    "off_solved": 10,
+    "off_rate": 0.5,
+    "on_n": 20,
+    "on_solved": 16,
+    "on_rate": 0.8,
+    "lift_pp": 30,
+    "token_data_note": "Token data available only for trials 20-24 (n=5 per arm)"
+  }
 }
