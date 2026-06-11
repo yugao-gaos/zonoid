@@ -97,8 +97,35 @@ Operate ONLY via MCP tools — never shell the daemon directly.
    "we don't know the best approach — try a few and pick," don't make one flat task. Build the
    **problem → attempts → judge** shape from the `self-learn-judge` skill:
    - a **problem task `P`** (the thing to solve, carries the eventual verdict),
+   - Read the task description and metric spec on `P`, then **independently generate 2-3 candidate
+     approaches** — do NOT wait for or accept a prescribed implementation. The skill discovers the
+     solution itself.
    - N **attempt tasks** each `branch_task`'d from `P` (rival approaches, isolated worktrees),
    - a **judge task `J`** `blocked_by` all attempts (or let `P` self-judge).
+
+   **Attempt worker protocol (enforce this in each attempt task's prompt):**
+   a. Read the task description and metric spec from `P`.
+   b. Generate candidate approach independently (not given by the planner).
+   c. Implement in isolation within the attempt worktree.
+   d. **Baseline measurement FIRST** — before any file edits, call `measure_task` on the problem
+      task `P` to capture the baseline metric. Store it as `"baseline"` in knowledge via
+      `enqueue_kb`. If `measure_task` fails or returns null, **abort and report** — do not proceed
+      without a baseline. Never edit files before capturing the baseline.
+   e. Implement the approach, then measure again to compute delta.
+   f. **Daemon-touching changes**: if the candidate approach modifies `daemon.js`, the attempt
+      worktree MUST spin up its own isolated daemon instance and measure against that port — never
+      restart or modify the live `:8787` daemon during an attempt:
+      ```
+      ORCH_PORT=8799 CLAUDE_PLUGIN_DATA=/tmp/orch-test-$$ node daemon.js &
+      # ... measure_task against port 8799 ...
+      kill %1
+      ```
+   g. Call the `self-learn-judge` skill with both baseline and post-implementation metrics.
+
+   **Gate reminder**: if the problem task has a metric spec, the orch-gate will block file writes
+   unless the agent is operating inside a claimed worktree. Attempt workers must call `start_task`
+   and ensure they are in the correct worktree before any edit.
+
    This sets the loop up to learn — the judge's verdict becomes durable Tier-2 knowledge that a
    future planner run reads via `get_learnings`.
 

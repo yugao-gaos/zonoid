@@ -4334,6 +4334,7 @@ async function tick(){
     `<div class="tip-bench" style="margin-top:8px">` +
     `<div style="display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:10px;color:#8b949e">` +
     `<span>✓ Productive</span><b style="color:#3fb950">${prodTok}</b>` +
+    `<span>~ Exploration</span><b style="color:#e3b341">${cf?fmtK(cf.totals.exploration??0):'—'}</b>` +
     `<span>✕ Trapped</span><b style="color:#6e7681">${cf?fmtK(cf.totals.trapped):'—'}</b>` +
     `<span>Total</span><b style="color:#e6edf3">${totalTok}</b>` +
     `</div>` +
@@ -4342,6 +4343,14 @@ async function tick(){
     `<div style="font-size:10px;color:#8b949e">${prodPct!=null?prodPct+'%':'—'} of total · ${prodVs}</div>` +
     `</div></span>` +
     `</span>` +
+    (cf&&(cf.totals.exploration??0)>0 ?
+    `<span class="hero" onclick="toggleCostPopup()">` +
+    `<span class="hlabel">Exploration Tok</span><span class="hval" style="color:#e3b341">${cf?fmtK(cf.totals.exploration??0):'—'}</span>` +
+    `<span class="hval-sub">branch attempts</span>` +
+    `<span class="htip"><div class="tip-title">Exploration Tokens</div>` +
+    `Tokens from parallel branch attempts that did not merge. Valuable search cost — the AI tried multiple approaches to find the best solution.` +
+    `</span>` +
+    `</span>` : '') +
     `<span class="hero" id="hero-infra" onclick="toggleBillingPopup()">` +
     `<span class="hlabel">Infra Tok</span><span class="hval" style="color:#8b949e">${cronTokCache!=null?fmtK(cronTokCache):'—'}</span>` +
     `<span class="hval-sub">cron only</span>` +

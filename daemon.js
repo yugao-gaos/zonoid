@@ -2674,7 +2674,9 @@ const handler = async (req, res) => {
       const projDirRaw = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
       try { for(const e of fs.readdirSync(projDirRaw,{withFileTypes:true})) { if(!e.isFile()||!e.name.endsWith('.jsonl')) continue; const tp=path.join(projDirRaw,e.name); if(seenTp.has(tp)) continue; const u=usageCached(tp); rawInput+=u.input_tokens||0; rawOutput+=u.output_tokens||0; rawCacheRead+=u.cache_read_input_tokens||0; mergeModel(u.by_model); } } catch {}
       // 2) nodes + contributor→consumer edges (deps weigh 1.0; context edges their stored weight)
-      const nodes = g.tasks.map((t) => ({ id: t.id, own: ownTok.get(t.id) || 0, merged: !!(t.git && t.git.merged), label: t.label }));
+      // exploration flag: attempt branches are valuable search cost, not pure waste
+      const isExplorationTask = (t) => !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
+      const nodes = g.tasks.map((t) => ({ id: t.id, own: ownTok.get(t.id) || 0, merged: !!(t.git && t.git.merged), exploration: isExplorationTask(t), label: t.label }));
       const seen = new Set(nodes.map((n) => n.id));
       for (const gh of g.ghosts) {
         const gid = `ghost:${gh.workspace}|${gh.key}`;
@@ -2730,19 +2732,33 @@ const handler = async (req, res) => {
       // 3) denominator: genuinely human-typed tokens in this workspace's main-session transcripts
       const human = humanInput.humanInputTokens(projDir, { since: u.searchParams.get('since') || null });
       const rnd = (x) => Math.round(x);
-      // Round for presentation but keep the conservation identity exact in the payload:
-      // total is re-derived as productive + trapped (each ≤0.5 token from the raw value).
-      const productive = rnd(flow.totals.productive), trapped = rnd(flow.totals.trapped);
+      // Build a set of exploration task ids (attempt branches) for post-processing waste
+      const explorationIds = new Set(g.tasks.filter(isExplorationTask).map((t) => t.id));
+      // Split waste into exploration (attempt branches) and trapped (true waste)
       const kindOf = (id) => (id.startsWith('session:') ? 'session' : undefined);
+      const wasteExploration = [], wasteTrapped = [];
+      for (const w of flow.waste) {
+        // A component is exploration if its representative task is an attempt branch,
+        // or if ALL members are attempt branches (for merged components).
+        const isExp = explorationIds.has(w.task) ||
+          (w.members && w.members.length > 0 && w.members.every((m) => explorationIds.has(m)));
+        (isExp ? wasteExploration : wasteTrapped).push(w);
+      }
+      const productive = rnd(flow.totals.productive);
+      const explorationTok = rnd(wasteExploration.reduce((s, w) => s + w.trapped, 0));
+      const trappedTok = rnd(wasteTrapped.reduce((s, w) => s + w.trapped, 0));
+      // autonomy_score: exploration IS autonomous work, so include it in the numerator
+      const autonomousTokens = flow.totals.productive + wasteExploration.reduce((s, w) => s + w.trapped, 0);
       return send(res, 200, {
         workspace: T.ws,
-        autonomy_score: human.tokens > 0 ? Math.round((flow.totals.productive / human.tokens) * 10) / 10 : null,
+        autonomy_score: human.tokens > 0 ? Math.round((autonomousTokens / human.tokens) * 10) / 10 : null,
         human,
-        totals: { total: productive + trapped, productive, trapped, input_tokens: rnd(rawInput), output_tokens: rnd(rawOutput), cache_read: rnd(rawCacheRead) },
+        totals: { total: productive + explorationTok + trappedTok, productive, exploration: explorationTok, trapped: trappedTok, input_tokens: rnd(rawInput), output_tokens: rnd(rawOutput), cache_read: rnd(rawCacheRead) },
         by_model: Object.fromEntries(Object.entries(rawByModel).map(([m,v])=>[m,{input_tokens:rnd(v.input_tokens),output_tokens:rnd(v.output_tokens),cache_read:rnd(v.cache_read_input_tokens)}])),
         sessions: { count: catchalls.nodes.length, unattributed: rnd(catchalls.nodes.reduce((s, n) => s + n.own, 0)) },
         results: flow.results.map((r) => ({ task: r.task, kind: kindOf(r.task), label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
-        waste: flow.waste.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
+        waste: wasteTrapped.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
+        exploration: wasteExploration.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, tokens: rnd(w.trapped) })),
       });
     }
 

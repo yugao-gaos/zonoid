@@ -137,6 +137,20 @@ ${SCAFFOLD_LIST}"
     ;;
 esac
 
+# Check if the active claimed task has a metric spec (self-learning mode hint)
+if [ -n "$SID" ]; then
+  CLAIM_RESP=$(curl -s --max-time 0.6 "localhost:$PORT/active-claim?session=$SID" 2>/dev/null)
+  CLAIM_TASK_KEY=$(printf '%s' "$CLAIM_RESP" | jq -r '.task_key // empty' 2>/dev/null)
+  if [ -n "$CLAIM_TASK_KEY" ]; then
+    TASK_DETAIL=$(curl -s --max-time 0.6 "localhost:$PORT/task/detail?key=$CLAIM_TASK_KEY" 2>/dev/null)
+    HAS_METRIC=$(printf '%s' "$TASK_DETAIL" | jq -e '.task.metric != null' >/dev/null 2>&1 && echo "yes" || echo "no")
+    if [ "$HAS_METRIC" = "yes" ]; then
+      CTX="${CTX:+$CTX
+}[Self-learning mode] This task has a metric spec. You must: (1) call branch_task before editing, (2) measure baseline before changes, (3) follow branch→implement→measure→judge loop."
+    fi
+  fi
+fi
+
 [ -z "$CTX" ] && exit 0
 printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":%s}}' "$(printf '%s' "$CTX" | jq -Rs .)"
 exit 0
