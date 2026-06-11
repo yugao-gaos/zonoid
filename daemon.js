@@ -2133,7 +2133,7 @@ const handler = async (req, res) => {
         const v = await embed(`${n.title || ''} ${n.summary || ''}`);
         if (v) {
           n.vec = v; notesEmbedded++;
-          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
+          graphStore.appendEvent(gs, n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
         } else failed++;
       }
       for (const items of Object.values(state.overlay.knowledge || {})) {
