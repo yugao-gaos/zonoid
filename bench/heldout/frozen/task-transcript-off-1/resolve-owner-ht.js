@@ -1,23 +1,15 @@
-'use strict';
-
-// Resolve the transcript file that holds a given task's token usage.
-// A task is claimed by an assignee (a logical agent id); we resolve that
-// agent to a transcript either directly (transcript_path) or via its session
-// (session -> sessionTranscript). Returns the path string, or null.
 function resolveOwner(taskKey, registry) {
-  if (!registry) return null;
-
-  const agentId = registry.assignee && registry.assignee[taskKey];
+  const agentId = registry.assignee[taskKey];
   if (agentId == null) return null;
 
-  const agent = registry.agents && registry.agents[agentId];
-  if (!agent) return null;
+  const agent = registry.agents[agentId];
+  if (agent == null) return null;
 
   if (agent.transcript_path != null) return agent.transcript_path;
 
-  if (agent.session != null && registry.sessionTranscript) {
-    const path = registry.sessionTranscript[agent.session];
-    if (path != null) return path;
+  if (agent.session != null) {
+    const transcript = registry.sessionTranscript[agent.session];
+    if (transcript != null) return transcript;
   }
 
   return null;

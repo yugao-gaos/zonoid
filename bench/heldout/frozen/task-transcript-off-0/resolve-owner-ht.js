@@ -3,14 +3,13 @@
 /**
  * Resolve the transcript path that holds a task's token usage.
  *
- * A task is claimed by an assignee (a logical agent id). The agent is resolved
- * to a transcript either directly (agent record carries `transcript_path`) or
- * indirectly (agent record carries a `session` that maps to a transcript via
- * `sessionTranscript`). Returns the transcript path, or null if none applies.
+ * Look up the task's assignee, then resolve that agent to a transcript:
+ *   1. the agent record's own `transcript_path`, if present; otherwise
+ *   2. the agent record's `session` mapped through `sessionTranscript`.
  *
  * @param {string} taskKey
  * @param {object} registry
- * @returns {string|null}
+ * @returns {string|null} the transcript path, or null if none is attributable.
  */
 function resolveOwner(taskKey, registry) {
   if (!registry) return null;
@@ -23,11 +22,11 @@ function resolveOwner(taskKey, registry) {
   const agent = agents && agents[agentId];
   if (!agent) return null;
 
-  if (agent.transcript_path) return agent.transcript_path;
+  if (agent.transcript_path != null) return agent.transcript_path;
 
-  if (agent.session && sessionTranscript) {
+  if (agent.session != null && sessionTranscript) {
     const path = sessionTranscript[agent.session];
-    if (path) return path;
+    if (path != null) return path;
   }
 
   return null;

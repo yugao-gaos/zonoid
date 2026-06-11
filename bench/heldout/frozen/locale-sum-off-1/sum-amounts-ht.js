@@ -1,48 +1,35 @@
 'use strict';
 
-// Parse one amount string into an integer number of cents (signed), or null if
-// the value is missing / empty / not a parseable monetary value.
-//
-// Working in integer cents keeps the running total exact: we never accumulate
-// floats, so there is no drift (e.g. 0.1 + 0.2 problems) and no x.xx5 rounding
-// ambiguity from non-representable doubles.
-function parseToCents(amount) {
-  if (typeof amount !== 'string') return null;
+// Parse one row's `amount` string into a Number, or null if it isn't a
+// parseable monetary value. Strips surrounding whitespace and a leading
+// currency symbol; honors a leading sign.
+function parseAmount(raw) {
+  if (typeof raw !== 'string') return null;
 
-  const s = amount.trim();
+  // Drop whitespace and any `$` symbol; what remains must be a plain number.
+  const s = raw.replace(/\$/g, '').trim();
   if (s === '') return null;
+  if (!/^[+-]?\d+(\.\d+)?$/.test(s)) return null;
 
-  // Optional leading sign and/or '$' in either order, then digits with an
-  // optional fractional part. Anything else is "not a monetary value".
-  const m = s.match(/^([+-]?)\s*\$?\s*([+-]?)\s*(\d+)?(?:\.(\d+))?$/);
-  if (!m) return null;
-
-  const intPart = m[3] || '';
-  const fracPart = m[4] || '';
-  if (intPart === '' && fracPart === '') return null; // no digits at all
-
-  const negative = m[1] === '-' || m[2] === '-';
-
-  let cents = Number(intPart || '0') * 100;
-  cents += Number((fracPart + '00').slice(0, 2)); // first two decimal digits
-
-  // Half-up (away from zero) at the cent: a 3rd decimal digit of 5..9 rounds up.
-  const rest = fracPart.slice(2);
-  if (rest.length && rest[0] >= '5') cents += 1;
-
-  return negative ? -cents : cents;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
 }
 
+// Sum the `amount` of every row, skipping any row that isn't a parseable
+// monetary value, and round the grand total to 2 decimals (half-up at the
+// cent). Always returns a Number; an empty/all-bad feed returns 0.
 function sumAmounts(rows) {
   if (!Array.isArray(rows)) return 0;
 
-  let totalCents = 0;
+  let total = 0;
   for (const row of rows) {
-    const cents = parseToCents(row && row.amount);
-    if (cents !== null) totalCents += cents; // bad rows contribute 0
+    if (!row) continue;
+    const amount = parseAmount(row.amount);
+    if (amount !== null) total += amount;
   }
 
-  return totalCents / 100;
+  const rounded = Math.round((total + Number.EPSILON) * 100) / 100;
+  return Number.isFinite(rounded) ? rounded : 0;
 }
 
 module.exports = { sumAmounts };
