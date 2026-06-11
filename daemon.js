@@ -1663,6 +1663,13 @@ const handler = async (req, res) => {
           }
         } catch { /* no tasks for session */ }
       }
+      // Secondary lookup: for tasks (e.g. followup/ keys) whose .session is a key-prefix rather than
+      // an agent's actual session, match via agent_id → agents[agent_id].subagent_session === sid.
+      if (sid) {
+        for (const t of all.filter((t) => t.session !== sid && t.agent_id && state.agents[t.agent_id]?.subagent_session === sid)) {
+          all.push({ ...t, session: sid });
+        }
+      }
       const claims = sid ? all.filter((t) => t.session === sid) : all;
       return send(res, 200, { claimed: claims.length > 0, claims });
     }
