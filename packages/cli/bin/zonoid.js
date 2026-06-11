@@ -47,7 +47,13 @@ function writeSettings(cwd) {
     return;
   }
   const src = path.join(INSTALL_DIR, '.claude', 'settings.sample.json');
-  const content = fs.readFileSync(src, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR);
+  let content;
+  try {
+    content = fs.readFileSync(src, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR);
+  } catch (e) {
+    log(`error: sample file not found at ${src} — is the install complete?`);
+    process.exit(1);
+  }
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, content);
   log(`Written: ${dest}`);
@@ -62,7 +68,13 @@ function writeMcp(cwd) {
     return;
   }
   const src = path.join(INSTALL_DIR, 'mcp.sample.json');
-  const content = fs.readFileSync(src, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR);
+  let content;
+  try {
+    content = fs.readFileSync(src, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR);
+  } catch (e) {
+    log(`error: sample file not found at ${src} — is the install complete?`);
+    process.exit(1);
+  }
   fs.writeFileSync(dest, content);
   log(`Written: ${dest}`);
 }
