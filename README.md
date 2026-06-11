@@ -1,107 +1,83 @@
-# ZONOID
+# Zonoid
 
-> OpenTelemetry for AI agents — with a learning loop.
+Every AI edit, tracked. Every lesson, kept.
 
-Uber burned through its entire 2026 AI budget in four months, then capped per-engineer spend at $1,500/month. Microsoft revoked Claude Code licenses fleet-wide the same month. Uber's COO named the problem plainly: *"That link is not there yet"* — the one between dollars spent on AI and results delivered to users.
+Zonoid is a task-graph daemon that gates AI agent file edits behind named tasks and builds a
+persistent knowledge base from each session — observability and traceability for AI coding agents.
 
-The problem isn't the models. **Nobody can see where the tokens went.**
+- **Traceable edits:** agents must claim a task before touching a file; every change has a named reason
+- **Persistent context:** session discoveries are mined, LLM-evaluated, and injected into future runs
+- **One-command setup:** wires MCP + pre-tool hooks into any Claude Code project in under a minute
 
-ZONOID traces every token your agents spend to the task it served, scores whether the result earned its cost, and closes the loop — so your fleet gets measurably cheaper as it runs.
-
-```sh
-npx @zonoid/cli init
-```
-
----
-
-## What it does
-
-| Layer | What you get |
-|---|---|
-| **Trace** | Every token linked to the task it served — full chain from conversation to result |
-| **Score** | Metric/judge loop evaluates whether each outcome was worth the spend |
-| **Optimize** | Rival strategies compete automatically; winners propagate across the fleet |
-| **Audit** | Bi-temporal knowledge graph — every decision is time-stamped, reversible, never deleted |
-
----
-
-## The receipts model
-
-Every token your agents spend produces a receipt:
-
-- **What was it spent on?** Task, subtask, and agent are linked at execution time — not reconstructed from logs
-- **Was it worth it?** An automated judge scores the output against the task's success metric
-- **What did the agent learn?** Losing strategies are retired; winning ones compound
-
-Because receipts live in a graph, your agents learn to spend less.
-
----
-
-## Quick start
-
-**Claude Code plugin (recommended):**
+## Install
 
 ```sh
 npx @zonoid/cli init
 ```
 
-Then from any Claude Code session:
+Adds a task-graph daemon at localhost:8787, a pre-tool hook that gates edits behind task claims,
+and an MCP surface that lets the agent read and write the knowledge graph.
+
+## How it works
 
 ```
-/zonoid          # open the live dashboard
-/orch-loop       # start the optimization heartbeat
+┌─────────────────────────────────────────┐
+│            Claude Code Agent            │
+│  (TaskCreate → start_task → edit files) │
+└────────────┬────────────────────────────┘
+             │ every Write/Edit tool call
+             ▼
+┌─────────────────────────────────────────┐
+│         orch-gate.sh (PreToolUse)       │
+│  checks /active-claim?session=<id>      │
+│  ┌─ no claim ──► EXIT 2 (blocked)    │  │
+│  └─ claimed  ──► EXIT 0 (allowed)    │  │
+└────────────┬────────────────────────────┘
+             │ HTTP :8787
+             ▼
+┌─────────────────────────────────────────┐
+│      Zonoid Daemon (daemon.js)          │
+│  ┌──────────────┐  ┌─────────────────┐  │
+│  │  Task Graph  │  │  Knowledge Base │  │
+│  │  (DAG +      │  │  (mine → eval   │  │
+│  │   overlay)   │  │   → inject)     │  │
+│  └──────────────┘  └─────────────────┘  │
+└─────────────────────────────────────────┘
+             │ MCP (stdio)
+             ▼
+┌─────────────────────────────────────────┐
+│  create_task · start_task · complete_task│
+│  search_knowledge · suggest_links       │
+│  record_decision · get_full_graph       │
+└─────────────────────────────────────────┘
 ```
 
-**MCP server (any MCP client):**
+## Dashboard
 
-Add to your `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "zonoid": {
-      "command": "node",
-      "args": ["${HOME}/.zonoid/mcp-graph.js"]
-    }
-  }
-}
+```
+http://localhost:8787/graph
 ```
 
----
+## Self-learning loop
 
-## Key capabilities
+After each session, Zonoid mines the task graph and agent transcripts for reusable patterns —
+architectural decisions, gotchas, constraints — and queues them for LLM evaluation. Accepted
+candidates are injected as knowledge notes into the graph. Future sessions inherit those notes
+as Tier-1 context via `search_knowledge` and `suggest_links`, so the agent starts each run with
+the accumulated findings of every prior session rather than a blank slate.
 
-**Execution-coupled memory** — the task graph *is* the memory layer. No separate database, no log pipeline. When an agent completes work, the graph captures what it did, what context it consumed, and what it produced — automatically.
+## MCP tools
 
-**Self-learning loop** — a metric/judge/optimize cycle runs continuously. Strategies compete in Elo-style tournaments; the orchestrator routes future work toward the winners. This is automated measurement, not prompt engineering.
-
-**Bi-temporal knowledge graph** — every node carries two timestamps: when the fact was valid, and when it was recorded. Query any past state without losing the present. Decisions are never deleted, only superseded.
-
-**Context gate** — before spending tokens on retrieval, the gate estimates whether the context will actually help. Calibrated on your own task history. Regret is measured and reported.
-
----
-
-## How it compares
-
-Tools like Langfuse and Helicone observe from *outside* the execution boundary — they see token counts and latency, not task structure. ZONOID is coupled to execution: the graph is built *by* the agents as they run, not reconstructed from API logs. The difference matters when you want to close the loop. You can't optimize what you can't attribute.
-
----
-
-## Status
-
-| Capability | State |
+| Tool | Purpose |
 |---|---|
-| Task graph + cross-session edges | live |
-| Context gate (gated retrieval) | live |
-| Metric/judge/optimize loop | live |
-| Bi-temporal knowledge graph | live |
-| Local embeddings (MiniLM 384-dim) | live — cold-boot ~90s on first run |
-| Context gate recalibration | in progress |
-
----
+| `create_task` | Register a new task node in the graph before starting work |
+| `start_task` | Claim a task and mark it in_progress — required before any file edit |
+| `complete_task` | Mark a task done with a concise summary; optionally queue follow-ups |
+| `search_knowledge` | Retrieve relevant knowledge notes (decisions, constraints, gotchas) for a query |
+| `suggest_links` | Rank existing tasks by relevance to wire a new task into the graph |
+| `record_decision` | Capture a durable decision or finding as a note node for future sessions |
+| `get_full_graph` | Read the current task graph (frontier slice by default, full graph on request) |
 
 ## License
 
-Apache 2.0. Contributions via DCO sign-off (`git commit -s`).
-
-Built on [Claude Code](https://claude.ai/code).
+MIT
