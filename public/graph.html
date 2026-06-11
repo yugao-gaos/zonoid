@@ -4032,6 +4032,13 @@ function refreshCost(){
   costBusy=true;
   fetch(BASE+'/costflow').then(r=>r.json()).then(d=>{ if(d&&!d.error&&d.totals) costCache=d; }).catch(()=>{}).finally(()=>{ costAt=Date.now(); costBusy=false; });
 }
+let lastRenderFp='';
+function stateFingerprint(d){
+  const s=d.summary||{}, sc=s.statuses||{};
+  const taskFp=(d.tasks||[]).map(t=>t.id+':'+t.status+(t.agent_id?'/'+t.agent_id:'')).sort().join('|');
+  const guidFp=(d.guidance||[]).map(g=>g.id+':'+g.resolved).join('|');
+  return JSON.stringify({sc, taskFp, guidFp, agents: s.agents, archived: s.archived});
+}
 async function tick(){
   let d; try{ d=await(await fetch(BASE+'/state')).json(); }catch{ return; }
   refreshCost();
@@ -4044,10 +4051,17 @@ async function tick(){
     `<span class="agbtn" onclick="toggleActivityPopup()" title="routing &amp; subagents">· agents <b>${s.agents.running}</b>▶ <b>${s.agents.done}</b>✓ ▾</span>`+
     `<span class="agbtn" onclick="toggleCostPopup()" title="token cost-flow attribution — click for detail">· ⚖ <b>${cf?(cf.autonomy_score==null?'—':cf.autonomy_score+'×'):'cost'}</b>${cfShare==null?'':` <span class="muted">${cfShare}% productive</span>`} ▾</span>`;
   lastState=d;
-  if(currentView==='cloud') renderCloud(d);
-  else if(currentView==='focus') renderFocus(d);
-  else renderFrontier(d);
-  if(selected) openDetail(selected); // refresh open panel live
+  // Only rebuild the graph layout when something actually changed — skip the expensive
+  // dagre layout + DOM teardown on quiet polls.
+  const fp=stateFingerprint(d);
+  const graphChanged=fp!==lastRenderFp;
+  if(graphChanged){
+    lastRenderFp=fp;
+    if(currentView==='cloud') renderCloud(d);
+    else if(currentView==='focus') renderFocus(d);
+    else renderFrontier(d);
+  }
+  if(selected) openDetail(selected); // refresh open panel live (cheap, always run)
   const rt=document.getElementById('routes');
   rt.innerHTML=!d.routes.length?'<div class="empty">none</div>':d.routes.slice().reverse().slice(0,6).map(r=>`<div class="row"><span class="tag ${esc(r.decision)}">${esc(r.decision)}</span> ${esc(r.prompt.slice(0,60))}</div>`).join('');
   const ag=document.getElementById('agents');
@@ -4475,24 +4489,31 @@ function frontierSelect(tasks, links, byId){
     const ts=t=>Date.parse(t.lastChanged||t.firstSeen||'')||0;
     return new Set(tasks.slice().sort((a,b)=>ts(b)-ts(a)).slice(0,15).map(t=>t.id));
   }
+  // Unified BFS: threshold = depth * 0.25 for done/note; max(0, depth*0.25 - 0.2) for live nodes.
+  // Blocking edges use weight=1.0; context edges use stored weight defaulting to 0.5.
+  // Natural cap: depth 4 (done) / depth 5 (live). No unconditional root walks.
   const keep=new Set(seeds);
-  const adj={};
-  for(const l of links){ if(l.kind==='supersede') continue; (adj[l.from]=adj[l.from]||[]).push(l.to); (adj[l.to]=adj[l.to]||[]).push(l.from); }
-  for(const s of seeds) for(const n of (adj[s]||[])) keep.add(n);
-  const importantCtx=t=>{
-    const cds=(t.context_deps||[]).filter(x=>!String(x).startsWith('ghost:')&&byId[x]);
-    const cw=t.context_weights||{}; const wt=x=>cw[x]!=null?cw[x]:0.5;
-    const top=cds.slice().sort((a,b)=>wt(b)-wt(a)).slice(0,3);
-    return cds.filter(x=>wt(x)>=0.5||top.includes(x));
-  };
-  const queue=[...keep].map(id=>[id,0]);
+  const visited=new Set(seeds);
+  const queue=seeds.map(id=>[id,0]);
   while(queue.length){
     const [id,depth]=queue.shift(); const t=byId[id]; if(!t) continue;
-    for(const dep of (t.deps||[]))      // blocking ancestry: always, all the way to root
-      if(!String(dep).startsWith('ghost:')&&byId[dep]&&!keep.has(dep)){ keep.add(dep); queue.push([dep,depth+1]); }
-    if(depth>=4) continue;              // context ancestry capped ~4 hops from seed
-    for(const dep of importantCtx(t))
-      if(!keep.has(dep)){ keep.add(dep); queue.push([dep,depth+1]); }
+    const nextDepth=depth+1; const base=nextDepth*0.30;
+    const threshFor=dep=>{ const n=byId[dep]; return n&&LIVE_STATUS.has(n.status)?Math.max(0,base-0.2):base; };
+    const cw=t.context_weights||{};
+    for(const dep of (t.deps||[])){    // blocking: weight=1.0
+      if(String(dep).startsWith('ghost:')||!byId[dep]||visited.has(dep)) continue;
+      if(1.0>=threshFor(dep)){ keep.add(dep); visited.add(dep); queue.push([dep,nextDepth]); }
+    }
+    for(const dep of (t.context_deps||[])){   // context: stored weight, default 0.5
+      if(String(dep).startsWith('ghost:')||!byId[dep]||visited.has(dep)) continue;
+      const wt=cw[dep]!=null?cw[dep]:0.5;
+      if(wt>=threshFor(dep)){ keep.add(dep); visited.add(dep); queue.push([dep,nextDepth]); }
+    }
+    // Reverse: live nodes that depend on a seed are also visible (depth 0 only)
+    if(depth===0) for(const other of tasks){
+      if(visited.has(other.id)||!LIVE_STATUS.has(other.status)) continue;
+      if([...(other.deps||[]),...(other.context_deps||[])].includes(id)){ keep.add(other.id); visited.add(other.id); queue.push([other.id,1]); }
+    }
   }
   return keep;
 }
@@ -4689,6 +4710,123 @@ document.addEventListener('click', ev=>{ const p=document.getElementById('activi
 setView(currentView);              // apply persisted view + toggle state on load
 tick(); setInterval(tick, 2000);   // safety poll
 try { const es = new EventSource(BASE + '/events'); es.onmessage = () => tick(); } catch (e) {}  // live push
+
+// ---- Onboarding / Learning stage detection ----
+// A workspace is considered onboarded when it has at least one note node whose
+// title starts with "[ingest]". Until then, show a setup banner and disable
+// any task-creation buttons.
+async function checkOnboardingState() {
+  // Respect a per-workspace "dismissed" preference stored in localStorage.
+  const wsKey = 'onboard_dismissed_' + (location.hostname || 'local');
+  if (localStorage.getItem(wsKey) === '1') return;
+
+  let notes = [];
+  try {
+    const res = await fetch(BASE + '/search?q=ingest&k=5');
+    const data = await res.json();
+    // /search returns { results: [...] } or an array directly — handle both.
+    const items = Array.isArray(data) ? data : (data.results || []);
+    notes = items.filter(n => n.kind === 'note' && typeof n.title === 'string' && n.title.startsWith('[ingest]'));
+  } catch (e) {
+    // If the endpoint fails, skip the check silently.
+    return;
+  }
+
+  if (notes.length > 0) {
+    // Already onboarded — ensure banner is gone and buttons are enabled.
+    removeOnboardBanner();
+    return;
+  }
+
+  showOnboardBanner(wsKey);
+}
+
+function showOnboardBanner(wsKey) {
+  if (document.getElementById('onboard-banner')) return; // already shown
+
+  const banner = document.createElement('div');
+  banner.id = 'onboard-banner';
+  banner.style.cssText = [
+    'margin: 0',
+    'padding: 14px 18px',
+    'background: #161b22',
+    'border-bottom: 1px solid #30363d',
+    'border-left: 4px solid #1f6feb',
+    'color: #c9d1d9',
+    'font-size: 13px',
+    'position: relative',
+  ].join(';');
+
+  banner.innerHTML = [
+    '<div style="font-weight:600;font-size:14px;color:#79c0ff;margin-bottom:6px">Setup &amp; Learning in progress</div>',
+    '<div style="margin-bottom:10px;color:#adbac7">This workspace hasn\'t been onboarded yet. Run <code style="background:#0d1117;padding:1px 5px;border-radius:4px;color:#e6edf3">node scripts/onboard.js --repo &lt;path&gt;</code> to mine and validate KB notes, then inject them before using the orchestrator.</div>',
+    '<div style="display:flex;gap:0;align-items:center;flex-wrap:wrap">',
+      '<div style="display:flex;align-items:center;gap:6px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:6px 12px;font-size:12px">',
+        '<span style="color:#8b949e">Step 1</span>',
+        '<span style="color:#e6edf3;font-weight:600">Mine</span>',
+      '</div>',
+      '<div style="color:#484f58;padding:0 8px">→</div>',
+      '<div style="display:flex;align-items:center;gap:6px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:6px 12px;font-size:12px">',
+        '<span style="color:#8b949e">Step 2</span>',
+        '<span style="color:#e6edf3;font-weight:600">Validate</span>',
+      '</div>',
+      '<div style="color:#484f58;padding:0 8px">→</div>',
+      '<div style="display:flex;align-items:center;gap:6px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:6px 12px;font-size:12px">',
+        '<span style="color:#8b949e">Step 3</span>',
+        '<span style="color:#e6edf3;font-weight:600">Review &amp; Inject</span>',
+      '</div>',
+    '</div>',
+    '<button onclick="dismissOnboardBanner()" title="Hide for this session" style="',
+      'position:absolute;top:10px;right:14px;',
+      'background:transparent;border:1px solid #30363d;border-radius:6px;',
+      'color:#8b949e;cursor:pointer;font:inherit;font-size:12px;padding:2px 10px;',
+    '">Dismiss</button>',
+  ].join('');
+
+  // Insert before the graph area (after #guidance).
+  const guidance = document.getElementById('guidance');
+  guidance.parentNode.insertBefore(banner, guidance.nextSibling);
+
+  // Disable task-creation buttons if any exist.
+  setTaskCreationDisabled(true);
+
+  // Store wsKey on the banner so dismiss can use it.
+  banner.dataset.wsKey = wsKey;
+}
+
+function removeOnboardBanner() {
+  const b = document.getElementById('onboard-banner');
+  if (b) b.remove();
+  setTaskCreationDisabled(false);
+}
+
+function dismissOnboardBanner() {
+  const b = document.getElementById('onboard-banner');
+  if (!b) return;
+  if (b.dataset.wsKey) localStorage.setItem(b.dataset.wsKey, '1');
+  removeOnboardBanner();
+}
+
+function setTaskCreationDisabled(disabled) {
+  // Target any buttons whose text content or id suggests task creation.
+  document.querySelectorAll('button').forEach(btn => {
+    const label = (btn.textContent || '').trim().toLowerCase();
+    const id = (btn.id || '').toLowerCase();
+    if (label.includes('new task') || label.includes('create task') || id.includes('new-task') || id.includes('create-task')) {
+      if (disabled) {
+        btn.disabled = true;
+        btn.title = 'Complete onboarding first';
+      } else {
+        btn.disabled = false;
+        if (btn.title === 'Complete onboarding first') btn.title = '';
+      }
+    }
+  });
+}
+
+// Run the onboarding check once after the first tick has a chance to populate state.
+// A short delay ensures the page has rendered before we potentially inject the banner.
+setTimeout(checkOnboardingState, 500);
 </script>
 </body>
 </html>

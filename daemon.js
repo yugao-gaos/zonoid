@@ -2737,7 +2737,29 @@ if (require.main === module) {
     }
     server.once('error', (err) => {
       if (err.code === 'EADDRINUSE') {
-        tryListen(port + 1, attemptsLeft - 1);
+        if (port === PORT_BASE) {
+          // Check if the existing process is already a zonoid daemon.
+          http.get(`http://127.0.0.1:${port}/ping`, (res) => {
+            let body = '';
+            res.on('data', (chunk) => { body += chunk; });
+            res.on('end', () => {
+              try {
+                const json = JSON.parse(body);
+                if (json && json.ok) {
+                  process.stdout.write(`Daemon already running at port ${port}\n`);
+                  process.exit(0);
+                }
+              } catch { /* fall through */ }
+              process.stderr.write(`Port ${port} is in use by another process. Set ORCH_PORT=<n> to use a different port.\n`);
+              process.exit(1);
+            });
+          }).on('error', () => {
+            process.stderr.write(`Port ${port} is in use by another process. Set ORCH_PORT=<n> to use a different port.\n`);
+            process.exit(1);
+          });
+        } else {
+          tryListen(port + 1, attemptsLeft - 1);
+        }
       } else {
         throw err;
       }
@@ -2745,6 +2767,19 @@ if (require.main === module) {
     server.listen(port, '127.0.0.1', () => {
       process.stdout.write(`orchestrator daemon on http://127.0.0.1:${port}\n`);
       writeDaemonPort(port);
+
+      // Optional HTTPS listener for the custom-connector path (needs a locally-trusted cert — run
+      // scripts/setup-https.sh, which uses mkcert). Off unless cert + key exist. Then connect a
+      // custom connector to https://localhost:<ORCH_HTTPS_PORT>/mcp .
+      const HTTPS_PORT = process.env.ORCH_HTTPS_PORT ? Number(process.env.ORCH_HTTPS_PORT) : 8788;
+      const CERT = process.env.ORCH_TLS_CERT || path.join(BASE, 'certs', 'cert.pem');
+      const KEY = process.env.ORCH_TLS_KEY || path.join(BASE, 'certs', 'key.pem');
+      try {
+        if (fs.existsSync(CERT) && fs.existsSync(KEY)) {
+          require('https').createServer({ cert: fs.readFileSync(CERT), key: fs.readFileSync(KEY) }, handler)
+            .listen(HTTPS_PORT, '127.0.0.1', () => process.stdout.write(`orchestrator HTTPS on https://127.0.0.1:${HTTPS_PORT}\n`));
+        }
+      } catch (e) { process.stderr.write(`HTTPS listener skipped: ${e.message}\n`); }
     });
   }
 
@@ -2764,17 +2799,4 @@ if (require.main === module) {
   // (a zero-match note at creation can gain a real neighbor later). Re-check is side-effect-free —
   // no match ⇒ no edge, no write. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepOrphanNotes(); } catch { /* best effort */ } }, 300000).unref();
-
-  // Optional HTTPS listener for the custom-connector path (needs a locally-trusted cert — run
-  // scripts/setup-https.sh, which uses mkcert). Off unless cert + key exist. Then connect a
-  // custom connector to https://localhost:<ORCH_HTTPS_PORT>/mcp .
-  const HTTPS_PORT = process.env.ORCH_HTTPS_PORT ? Number(process.env.ORCH_HTTPS_PORT) : 8788;
-  const CERT = process.env.ORCH_TLS_CERT || path.join(BASE, 'certs', 'cert.pem');
-  const KEY = process.env.ORCH_TLS_KEY || path.join(BASE, 'certs', 'key.pem');
-  try {
-    if (fs.existsSync(CERT) && fs.existsSync(KEY)) {
-      require('https').createServer({ cert: fs.readFileSync(CERT), key: fs.readFileSync(KEY) }, handler)
-        .listen(HTTPS_PORT, '127.0.0.1', () => process.stdout.write(`orchestrator HTTPS on https://127.0.0.1:${HTTPS_PORT}\n`));
-    }
-  } catch (e) { process.stderr.write(`HTTPS listener skipped: ${e.message}\n`); }
 }

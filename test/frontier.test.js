@@ -14,57 +14,128 @@ const DAY = 864e5;
 const iso = (daysAgo) => new Date(NOW - daysAgo * DAY).toISOString();
 const T = (id, status, extra = {}) => ({ id, label: id, status, deps: [], context_deps: [], context_weights: {}, ...extra });
 
-// --- frontierKeep: seeds + neighbors + ancestry ---
+// --- frontierKeep: seeds always kept ---
 {
-  // a(ready) -> blocks on b(done) -> blocks on c(done) -> blocks on d(done): blocking ancestry to root.
-  // a has context deps: hi(weight .9), lo(weight .1) + third(no weight) — lo is kept only via top-3.
-  // far(done) is connected to nothing live — dropped.
-  const tasks = [
-    T('a', 'ready', { deps: ['b'], context_deps: ['hi', 'lo'], context_weights: { hi: 0.9, lo: 0.1 } }),
-    T('b', 'done', { deps: ['c'] }),
-    T('c', 'done', { deps: ['d'] }),
-    T('d', 'done'),
-    T('hi', 'done'), T('lo', 'done'),
-    T('far', 'done'),
-  ];
+  const tasks = [T('a', 'ready'), T('far', 'done')];
   const keep = F.frontierKeep(tasks);
   ok('live seed kept', keep.has('a'));
-  ok('blocking ancestry walks to root', keep.has('b') && keep.has('c') && keep.has('d'));
-  ok('important context dep kept', keep.has('hi'));
-  ok('low-weight context dep still top-3 kept', keep.has('lo'));
   ok('unconnected done node dropped', !keep.has('far'));
 }
+
+// --- frontierKeep: hop-weight formula (blocking) ---
 {
-  // Low-weight context dep beyond top-3 is NOT walked from a non-seed hop.
-  const cw = { c1: 0.9, c2: 0.8, c3: 0.7, c4: 0.1 };
+  // depth 1 blocking dep (weight=1.0 >= 0.30): kept
+  // depth 2 blocking dep (weight=1.0 >= 0.60): kept
+  // depth 3 blocking dep (weight=1.0 >= 0.90): kept
+  // depth 4 blocking dep (weight=1.0 >= 1.20): NOT kept (1.0 < 1.20)
   const tasks = [
-    T('seed', 'in_progress', { deps: ['mid'] }),
-    T('mid', 'done', { context_deps: ['c1', 'c2', 'c3', 'c4'], context_weights: cw }),
-    T('c1', 'done'), T('c2', 'done'), T('c3', 'done'), T('c4', 'done'),
+    T('seed', 'ready', { deps: ['b1'] }),
+    T('b1', 'done', { deps: ['b2'] }),
+    T('b2', 'done', { deps: ['b3'] }),
+    T('b3', 'done', { deps: ['b4'] }),
+    T('b4', 'done', { deps: ['b5'] }),
+    T('b5', 'done'),
   ];
   const keep = F.frontierKeep(tasks);
-  ok('important context of ancestor kept', keep.has('c1') && keep.has('c2') && keep.has('c3'));
-  ok('unimportant beyond-top-3 context dropped', !keep.has('c4'));
+  ok('blocking dep at depth 1 kept', keep.has('b1'));
+  ok('blocking dep at depth 2 kept', keep.has('b2'));
+  ok('blocking dep at depth 3 kept', keep.has('b3'));
+  ok('blocking dep at depth 3 kept (1.0 >= 0.90)', keep.has('b3'));
+  ok('blocking dep at depth 4 NOT kept (1.0 < 1.20)', !keep.has('b4'));
+}
+
+// --- frontierKeep: hop-weight formula (context) ---
+{
+  // depth 1, weight 0.3 (>= 0.25): kept
+  const tasks = [
+    T('seed', 'ready', { context_deps: ['c'], context_weights: { c: 0.3 } }),
+    T('c', 'done'),
+  ];
+  ok('context dep depth 1 weight 0.3 kept (0.3 >= 0.30 boundary)', F.frontierKeep(tasks).has('c'));
 }
 {
-  // 1-hop neighbors kept in EITHER direction: a done dependent of a live node stays.
+  // depth 2, weight 0.3 (< 0.50): NOT kept
+  const tasks = [
+    T('seed', 'ready', { deps: ['mid'] }),
+    T('mid', 'done', { context_deps: ['c'], context_weights: { c: 0.3 } }),
+    T('c', 'done'),
+  ];
+  ok('context dep depth 2 weight 0.3 NOT kept (0.3 < 0.60)', !F.frontierKeep(tasks).has('c'));
+}
+{
+  // depth 2, weight 0.6 (>= 0.50): kept
+  const tasks = [
+    T('seed', 'ready', { deps: ['mid'] }),
+    T('mid', 'done', { context_deps: ['c'], context_weights: { c: 0.6 } }),
+    T('c', 'done'),
+  ];
+  ok('context dep depth 2 weight 0.6 kept (0.6 >= 0.60 boundary)', F.frontierKeep(tasks).has('c'));
+}
+{
+  // depth 3, blocking (weight=1.0 >= 0.75): kept (already covered by blocking test above; here via context chain)
+  // depth 4, weight 0.9 (< 1.00): NOT kept
+  const tasks = [
+    T('seed', 'ready', { deps: ['b1'] }),
+    T('b1', 'done', { deps: ['b2'] }),
+    T('b2', 'done', { deps: ['b3'] }),
+    T('b3', 'done', { context_deps: ['c'], context_weights: { c: 0.9 } }),
+    T('c', 'done'),
+  ];
+  const keep = F.frontierKeep(tasks);
+  ok('blocking dep at depth 3 kept (1.0 >= 0.90)', keep.has('b3'));
+  ok('context dep depth 4 weight 0.9 NOT kept (0.9 < 1.20)', !keep.has('c'));
+}
+
+// --- frontierKeep: default context weight (0.5) ---
+{
+  // depth 1: 0.5 >= 0.25 → kept
+  const tasksD1 = [
+    T('seed', 'ready', { context_deps: ['c'] }),
+    T('c', 'done'),
+  ];
+  ok('context dep depth 1 default weight 0.5 kept', F.frontierKeep(tasksD1).has('c'));
+
+  // depth 2: 0.5 < 0.60 → NOT kept (default weight cut at depth 2 with 0.30 coefficient)
+  const tasksD2 = [
+    T('seed', 'ready', { deps: ['mid'] }),
+    T('mid', 'done', { context_deps: ['c'] }),
+    T('c', 'done'),
+  ];
+  ok('context dep depth 2 default weight 0.5 NOT kept (0.5 < 0.60)', !F.frontierKeep(tasksD2).has('c'));
+
+  // depth 3: 0.5 < 0.75 → NOT kept
+  const tasksD3 = [
+    T('seed', 'ready', { deps: ['b1'] }),
+    T('b1', 'done', { deps: ['b2'] }),
+    T('b2', 'done', { context_deps: ['c'] }),
+    T('c', 'done'),
+  ];
+  ok('context dep depth 3 default weight 0.5 NOT kept (0.5 < 0.75)', !F.frontierKeep(tasksD3).has('c'));
+}
+
+// --- frontierKeep: reverse direction (live dependent of seed) ---
+{
   const tasks = [
     T('seed', 'ready'),
-    T('dependent', 'done', { deps: ['seed'] }),
+    T('live-dep', 'not_ready', { deps: ['seed'] }),
+    T('done-dep', 'done', { deps: ['seed'] }),
   ];
   const keep = F.frontierKeep(tasks);
-  ok('1-hop downstream neighbor kept', keep.has('dependent'));
+  ok('live downstream dependent of seed kept via reverse scan', keep.has('live-dep'));
+  ok('done downstream dependent of seed NOT kept via reverse scan', !keep.has('done-dep'));
 }
+
+// --- frontierKeep: no live seeds fallback ---
 {
-  // No live seeds: fall back to the 15 most recently changed.
   const tasks = [];
   for (let i = 0; i < 20; i++) tasks.push(T(`t${i}`, 'done', { lastChanged: iso(i) }));
   const keep = F.frontierKeep(tasks);
   ok('fallback keeps 15 when nothing live', keep.size === 15);
   ok('fallback keeps most recent', keep.has('t0') && !keep.has('t19'));
 }
+
+// --- frontierKeep: ghost refs safely skipped ---
 {
-  // Ghost refs never crash and are not kept as nodes.
   const tasks = [T('a', 'ready', { deps: ['ghost:other|x'] })];
   const keep = F.frontierKeep(tasks);
   ok('ghost dep skipped safely', keep.has('a') && keep.size === 1);

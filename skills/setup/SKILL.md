@@ -22,7 +22,7 @@ silently; tell the user what to expect.
 - Workflows: on by default unless `.disableWorkflows==true`. `claude --version` to check.
 
 ## 3. Per-conversation toggle
-Harness is OFF by default per conversation: `orch on` enables, `orch off` disables.
+Harness is ON by default per conversation: `orch off` disables, `orch on` re-enables.
 
 ## 4. HTTPS / inline-UI connector wizard (interactive)
 Goal: serve the daemon's `/mcp` over locally-trusted HTTPS so it can be added as a **custom
