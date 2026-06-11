@@ -76,13 +76,18 @@ Same agent config, same tasks, same model. Only difference: presence/absence of 
 Collect patches → evaluate via benchmark harness (Docker + test suite) → record resolved (0/1) per task.
 
 ## Step 6: SWE-Bench-CL specific — sequential task ordering
-Tasks must be run in chronological order per repo. After each task completes (ON condition), update the KB:
-```bash
-# After task N completes, drain new patterns before task N+1
-node scripts/onboard-loop.js --repo /path/to/repo --workspace /path/to/repo --max-rounds 1
-node scripts/export-kb.js --repo /path/to/repo > kb-blocks/repo-name.md
+Tasks must be run in chronological order per repo. **No re-onboarding between tasks** — the gate handles compounding automatically.
+
+When the agent claims a task (`start_task`) and completes it (`complete_task` with verdict), the verdict is recorded in the graph. `search_knowledge` on the next task surfaces prior context automatically. KB compounds through normal gated workflow — no separate mining step needed between tasks.
+
+The only mining step is the **cold-start onboard before the first task in each repo sequence** (Step 2). After that, the gate + `complete_task` cycle maintains the KB:
+
 ```
-This simulates genuine compounding: KB grows with each resolved issue.
+Task N:   agent claims → edits (gated) → complete_task (verdict recorded in graph)
+Task N+1: search_knowledge → prior task context surfaced automatically
+```
+
+This is Zonoid's actual product behavior, not a simulation. The experiment measures it as it works in practice.
 
 ## Step 7: Metrics collection
 Per task: resolved (0/1), input_tokens, output_tokens, tool_calls, session_index (for CL sequences).
@@ -104,4 +109,4 @@ FeatureBench: report L1 vs L2 breakdown separately.
 - [ ] FeatureBench harness: clone LiberCoders/FeatureBench, verify eval pipeline
 - [ ] Warmup MiniLM before eval loop (warmup-embeddings.js)
 - [ ] Onboard at pinned commit (see onboard-workspace.md)
-- [ ] Sequential KB update between CL tasks (step 6)
+- [ ] Verify gate + complete_task verdict recording works end-to-end before first CL run
