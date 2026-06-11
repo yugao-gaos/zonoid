@@ -121,10 +121,12 @@ FeatureBench: report L1 vs L2 breakdown separately.
 |---|---|---|
 | SWE-Bench-CL ON plain KB | ~500 | ~$57 |
 | SWE-Bench-CL ON self-learning | ~500 | ~$67 |
-| FeatureBench ON | 200 | ~$32 |
-| SWE-bench Verified ON | 100 | ~$11 |
+| FeatureBench ON plain KB | 200 | ~$32 |
+| FeatureBench ON self-learning | 200 | ~$38 |
+| SWE-bench Verified ON plain KB | 100 | ~$11 |
+| SWE-bench Verified ON self-learning | 100 | ~$13 |
 | Onboarding + judge runs (~30 repos) | — | ~$15 |
-| **Total** | | **~$182** |
+| **Total** | | **~$233** |
 
 ## Blockers checklist
 - [ ] SWE-Bench-CL harness availability (check arXiv 2507.00014 GitHub for eval code)
