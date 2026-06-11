@@ -1,1 +1,2 @@
 {"evt":"timestamps_set","id":"688a3742-0944-4215-8815-733d85936f12/18","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-10T23:48:50.751Z","lastChanged":"2026-06-10T23:48:50.751Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-10T23:48:51.998Z"}
+{"evt":"edge_added","from":"688a3742-0944-4215-8815-733d85936f12/18","to":"followup/restart-daemon-to-activate-session-info--xzib","kind":"context","actor":"overlay-sync","ts":"2026-06-11T22:07:26.977Z","weight":0.272}

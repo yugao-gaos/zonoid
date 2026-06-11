@@ -12,3 +12,4 @@
 {"evt":"edge_added","from":"c0bd3682-e50c-41f2-b061-4a6d9fbf243a/1","to":"c0bd3682-e50c-41f2-b061-4a6d9fbf243a/2","kind":"context","actor":"overlay-sync","ts":"2026-06-10T20:37:55.270Z","weight":0.289}
 {"evt":"edge_added","from":"c0bd3682-e50c-41f2-b061-4a6d9fbf243a/1","to":"c0bd3682-e50c-41f2-b061-4a6d9fbf243a/6","kind":"context","actor":"overlay-sync","ts":"2026-06-10T20:37:55.270Z","weight":0.25}
 {"evt":"timestamps_set","id":"c0bd3682-e50c-41f2-b061-4a6d9fbf243a/1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-10T23:48:50.781Z","lastChanged":"2026-06-10T23:48:50.781Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-10T23:48:51.998Z"}
+{"evt":"edge_added","from":"c0bd3682-e50c-41f2-b061-4a6d9fbf243a/1","to":"df63dcd1-69b2-48ae-926b-1f360ad2fc0c/3","kind":"context","actor":"overlay-sync","ts":"2026-06-11T19:44:56.187Z"}

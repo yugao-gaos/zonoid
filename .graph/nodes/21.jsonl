@@ -1,3 +1,7 @@
 {"evt":"status_changed","id":"21","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-11T13:22:17.939Z"}
 {"evt":"timestamps_set","id":"21","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T13:22:17.939Z","lastChanged":"2026-06-11T13:22:17.939Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-11T13:22:17.939Z"}
 {"evt":"status_changed","id":"21","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-11T13:23:04.453Z"}
+{"evt":"status_changed","id":"21","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-11T22:55:20.265Z"}
+{"evt":"assignee_set","id":"21","workspace":"/Users/imyu/Desktop/zonoid","assignee":"subagent-note-standards","actor":"overlay-sync","ts":"2026-06-11T22:55:20.265Z"}
+{"evt":"status_changed","id":"21","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-11T22:55:42.564Z"}
+{"evt":"summary_set","id":"21","workspace":"/Users/imyu/Desktop/zonoid","summary":"Added \"## KB note authoring\" section to /Users/imyu/Desktop/zonoid/CLAUDE.md with three rules: override signal (OVERRIDE:/SPEC IS INCOMPLETE: prefixes), standalone tokens in titles (no camelCase/hyphenated compounds), and provenance wiring (wires_to at note-creation time). Recorded the same content as graph note note-mqa3j03bqhi.","actor":"overlay-sync","ts":"2026-06-11T22:55:42.564Z"}
