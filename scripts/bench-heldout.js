@@ -154,20 +154,20 @@ const PREAMBLE = {
   search:
     'You have the orchestrator-graph MCP. Before writing code you MUST call search_knowledge with a ' +
     'query describing this task, and apply any relevant retrieved note (a recorded decision/gotcha). ' +
-    'Graph is READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n',
+    'Graph is READ-ONLY — do NOT create, modify, claim, complete, or record_decision on any tasks/nodes.\n\n',
   dagrag:
     'You have the orchestrator-graph MCP. Before writing any code you MUST consult BOTH: ' +
     '(a) this task\'s DAG context via get_task_detail; AND (b) the knowledge base — call ' +
     'search_knowledge with a query describing this task and apply any relevant retrieved note. ' +
-    'Combine both before coding. Graph is READ-ONLY — do NOT create/modify/claim/complete nodes.\n\n',
+    'Combine both before coding. Graph is READ-ONLY — do NOT create/modify/claim/complete/record_decision on nodes.\n\n',
   autonomous:
-    'You have the orchestrator-graph MCP available. Graph is READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n',
+    'You have the orchestrator-graph MCP available. Graph is READ-ONLY — do NOT create, modify, claim, complete, or record_decision on any tasks/nodes.\n\n',
   // GATE-FIRST consult: ask the context-need gate, retrieve only on decision:"inject".
   gated:
     'You have the orchestrator-graph MCP. Call search_knowledge EXACTLY ONCE with gated:true before writing code. ' +
     'decision:"inject" → apply the returned note then write code. ' +
     'decision:"abstain" → write code immediately, DO NOT call search_knowledge again under any circumstances. ' +
-    'Graph is READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n',
+    'Graph is READ-ONLY — do NOT create, modify, claim, complete, or record_decision on any tasks/nodes.\n\n',
   // ITERATIVE consult: plateau-based multi-round retrieval driven by the daemon's continue verdict.
   iterative:
     'You have the orchestrator-graph MCP. Before writing code call search_knowledge with a query describing this task ' +
@@ -175,7 +175,7 @@ const PREAMBLE = {
     'The response includes continue:true/false. If continue:true you MAY call search_knowledge again ONCE with a DIFFERENT ' +
     'phrasing and pass exclude_keys = the note keys you already received, and round = 2 (then 3 for a third attempt). Stop searching when ' +
     'continue:false or after 3 rounds. Apply all relevant retrieved notes, then write code. ' +
-    'Graph is READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n',
+    'Graph is READ-ONLY — do NOT create, modify, claim, complete, or record_decision on any tasks/nodes.\n\n',
 };
 
 function main() {
@@ -242,7 +242,9 @@ function main() {
     '--output-format', 'stream-json', '--verbose',
     '--dangerously-skip-permissions', '--add-dir', wt,
   ];
-  const env = arm === 'on' ? { ...process.env, ORCH_WORKSPACE } : process.env;
+  const env = arm === 'on'
+    ? { ...process.env, ORCH_WORKSPACE, ORCH_GATE_OFF: '1' }
+    : { ...process.env, ORCH_GATE_OFF: '1' };
   const t0 = Date.now();
   const run = spawnSync('perl', args, { cwd: wt, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const wallMs = Date.now() - t0;

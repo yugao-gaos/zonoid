@@ -22,7 +22,7 @@ const judge = require('./lib/judge');
 const delta = require('./lib/delta');
 const followups = require('./lib/followups');
 const verdicts = require('./lib/verdicts');
-const { gateTask } = require('./lib/context-gate');
+const { gateTask, contentTokens, classifyNoteType, noteText } = require('./lib/context-gate');
 const costflow = require('./lib/costflow');
 const humanInput = require('./lib/human-input');
 const frontier = require('./lib/frontier');
@@ -139,10 +139,21 @@ function migrateBlindEdges(workspace, overlay) {
   if (tagged > 0) { try { overlayStore.save(workspace, overlay); } catch { /* best effort */ } }
   return tagged;
 }
-try { const w = fs.readFileSync(WS_FILE, 'utf8').trim(); if (w) { state.workspace = w; state.overlay = overlayStore.load(w); migrateBlindEdges(w, state.overlay); state.graphStore = graphStore.open(path.join(state.workspace, '.graph')); graphStore.initGitAttributes(state.workspace); } } catch { /* none yet */ }
+
+// Boot phase tracker — set to 'loading' immediately; advanced through real init milestones;
+// set to 'ready' once the daemon is fully operational. Exposed via GET /health (always 200).
+// Steps: bind -> workspace -> agents -> loops -> ready (4 steps after bind).
+const BOOT_STEPS = ['bind', 'workspace', 'agents', 'loops', 'ready'];
+const bootState = { phase: 'loading', step: 'bind', progress: 0 };
+function advanceBoot(step) {
+  bootState.step = step;
+  const idx = BOOT_STEPS.indexOf(step);
+  bootState.progress = idx >= 0 ? idx / (BOOT_STEPS.length - 1) : bootState.progress;
+  if (step === 'ready') bootState.phase = 'ready';
+}
+
 // Persist + restore agent records (incl. transcript_path/session) so token attribution survives a restart.
 const AGENTS_FILE = path.join(BASE, 'agents.json');
-try { const a = JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf8')); if (a && typeof a === 'object') state.agents = a; } catch { /* none yet */ }
 // Restart survival: do NOT blind-demote running→unknown on boot. Workers are independent OS
 // processes that often SURVIVE a daemon restart; demoting them let the staleness sweep release
 // their live claims, which the heartbeat then re-spawned → duplicate/colliding work. The sweep
@@ -188,7 +199,8 @@ function newLoop(over) {
 const loops = new Map();   // loopId -> entry
 // Restore the registry on boot. Prefer the keyed loops.json; if absent, migrate a legacy singleton
 // loop.json into ONE entry (backward compat) so an in-flight run survives the upgrade.
-(function restoreLoops() {
+// Called from loadState() after server bind so the port is held before any disk I/O.
+function restoreLoops() {
   let restored = false;
   try {
     const blob = JSON.parse(fs.readFileSync(LOOPS_FILE, 'utf8'));
@@ -210,7 +222,42 @@ const loops = new Map();   // loopId -> entry
       }
     } catch { /* fresh — empty registry */ }
   }
-})();
+}
+
+// loadState: called AFTER server.listen() so the port is held before any disk I/O. Advances
+// bootState through each phase milestone; sets phase:'ready' when fully operational.
+// Yields to the event loop between phases so /health (whitelisted through the 503 gate) can
+// report live progress while the synchronous per-phase loads run.
+const yieldLoop = () => new Promise((r) => setImmediate(r));
+async function loadState() {
+  // Phase 1: workspace + overlay restore
+  advanceBoot('workspace');
+  await yieldLoop();
+  try {
+    const w = fs.readFileSync(WS_FILE, 'utf8').trim();
+    if (w) {
+      state.workspace = w;
+      state.overlay = overlayStore.load(w);
+      migrateBlindEdges(w, state.overlay);
+      state.graphStore = graphStore.open(path.join(state.workspace, '.graph'));
+      graphStore.initGitAttributes(state.workspace);
+    }
+  } catch { /* none yet */ }
+
+  // Phase 2: agent records restore
+  advanceBoot('agents');
+  await yieldLoop();
+  try { const a = JSON.parse(fs.readFileSync(AGENTS_FILE, 'utf8')); if (a && typeof a === 'object') state.agents = a; } catch { /* none yet */ }
+
+  // Phase 3: loop registry restore
+  advanceBoot('loops');
+  await yieldLoop();
+  restoreLoops();
+
+  // Fully operational
+  advanceBoot('ready');
+  process.stdout.write(`orchestrator boot complete (phase:ready)\n`);
+}
 function saveLoops() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(LOOPS_FILE, JSON.stringify(Object.fromEntries(loops))); } catch { /* best effort */ } }
 function saveAgents() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(AGENTS_FILE, JSON.stringify(state.agents)); } catch { /* best effort */ } }
 
@@ -810,8 +857,14 @@ function decideAll() {
   }
   const out = [];
   for (const L of active) {
-    const d = decideOne(L, ctxFor(L.workspace || state.workspace));
-    out.push({ loopId: L.id, ...d });
+    const ctx = ctxFor(L.workspace || state.workspace);
+    const d = decideOne(L, ctx);
+    const entry = { loopId: L.id, ...d };
+    if (ctx.reviewPending > 0) {
+      const pend = overlayStore.pendingGuidance(ctx.ov);
+      entry.review_items = pend.filter((g) => g.severity === 'review').map((g) => ({ id: g.id, question: g.question }));
+    }
+    out.push(entry);
   }
   return out;
 }
@@ -1340,10 +1393,78 @@ function sendOp(res, b, code, body) {
   return send(res, code, body);
 }
 
+
+// Route modules: each handles a group of endpoints. Built once; ctx is live via getters.
+const metaRoute = require('./routes/meta');
+const graphRoute = require('./routes/graph');
+const taskRoute = require('./routes/task');
+const overlayRoute = require('./routes/overlay');
+const gitRoute = require('./routes/git');
+const judgeRoute = require('./routes/judge');
+const analyticsRoute = require('./routes/analytics');
+const onboardRoute = require('./routes/onboard');
+const sessionRoute = require('./routes/session');
+const execRoute = require('./routes/exec');
+const uiRoute = require('./routes/ui');
+
+// ctx: live access to daemon state + helpers. State fields use getters so reassignment
+// (state = {...} at /reset; state.workspace = ... at /workspace) is always visible.
+const ctx = {
+  get state() { return state; },
+  setState(s) { state = s; },
+  setWorkspace(p, transcript) {
+    state.workspace = p;
+    state.overlay = overlayStore.load(p);
+    migrateBlindEdges(p, state.overlay);
+    state.graphStore = graphStore.open(require('path').join(p, '.graph'));
+    graphStore.initGitAttributes(p);
+    if (transcript) state.mainTranscript = transcript;
+    try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(WS_FILE, p); } catch { /* best effort */ }
+  },
+  send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, resolveRepo,
+  validateMetricSpec, validateBenchmark,
+  overlayStore, nt, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
+  cache, loops, saveLoops, saveAgents,
+  get bootState() { return bootState; },
+  GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL,
+  sseClients, agentsArr,
+  taskTranscript, usageCached, harnessTranscriptForTask,
+  staleClaimKeys, releaseClaim, sweepStaleClaims, sweepStaleLoops,
+  snapshotNative, now, isTruthy,
+  embed, cosine, embedStatus, DIMS, EMBED_MODEL,
+  gateTask, haikusGate,
+  scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks,
+  SUGGEST_DUP_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,
+  autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD,
+  noteCurrentAsOf, gatedSearchCounts, checkGatedRateLimit,
+  knowledgeText, digestRejected, leanLearnings,
+  respCacheGet, respCachePut, frontier,
+  followups, verdicts, stopSignalFor,
+  opReplay,
+  ALL_STATUSES, ESCALATION_DEFAULTS, OPTIMIZE_DEFAULTS, LOOP_CONFIG_KEYS, CATCHALL_ESCALATE_TOKENS,
+  newLoop, decideAll,
+  MAX_ROUTES,
+};
+const routeModules = [
+  metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
+  gitRoute(ctx), judgeRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
+  sessionRoute(ctx), execRoute(ctx), uiRoute(ctx),
+];
+
+// Paths served even while the daemon is still in the loading phase.
+// Writes rely on 503 + client retry + op_id idempotency — no queueing needed.
+const LOADING_WHITELIST = new Set(['/health', '/version', '/ping', '/', '/graph']);
+
 const handler = async (req, res) => {
   const u = new URL(req.url, `http://localhost:${PORT}`);
   const p = u.pathname, m = req.method;
   try {
+    // 503 loading gate: hold non-whitelisted traffic until boot completes.
+    if (bootState.phase !== 'ready' && !LOADING_WHITELIST.has(p)) {
+      res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '2' });
+      return res.end(JSON.stringify({ ok: false, phase: bootState.phase, step: bootState.step, progress: bootState.progress }));
+    }
+
     // Auth gate: /mcp + destructive/write endpoints require the token (when one is configured).
     // Default-deny for writes, workspace-targeting, and agent/file-read endpoints (review H1).
     // Public reads of the CURRENT workspace + the dashboard stay open; any ?workspace= read is gated too.
@@ -1352,1501 +1473,8 @@ const handler = async (req, res) => {
       || p.startsWith('/guidance') || p === '/supersede' || p === '/judge/verdict' || p === '/analytics/tool-call';
     if ((protectedPath || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 
-    if (p === '/ping') return send(res, 200, { ok: true, workspace: state.workspace });
-
-    // Build identity of the RUNNING process (frozen at boot) — the safety surface a restart script
-    // asserts against the source dir's git HEAD to prove the new code is actually serving.
-    if (p === '/version') return send(res, 200, { head: GIT_HEAD, bootedAt: BOOTED_AT, features: FEATURES });
-
-    // SSE stream for live dashboard updates.
-    if (p === '/events' && m === 'GET') {
-      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'Access-Control-Allow-Origin': '*' });
-      res.write('retry: 3000\n\ndata: changed\n\n');
-      sseClients.add(res);
-      const ka = setInterval(() => { try { res.write(': ka\n\n'); } catch { /* */ } }, 25000);
-      req.on('close', () => { clearInterval(ka); sseClients.delete(res); });
-      return;
-    }
-
-    // MCP Streamable HTTP transport — lets this daemon be added as a custom connector
-    // (Settings → Connectors → http://localhost:8787/mcp), which unlocks inline MCP Apps UI.
-    if (p === '/mcp') {
-      const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, GET, OPTIONS', 'Access-Control-Allow-Headers': 'content-type, mcp-session-id, mcp-protocol-version', 'Access-Control-Expose-Headers': 'mcp-session-id' };
-      if (m === 'OPTIONS') { res.writeHead(204, cors); return res.end(); }
-      if (m === 'GET') { res.writeHead(200, { ...cors, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' }); return res.write(': connected\n\n'); }
-      if (m === 'POST') {
-        const msg = await readBody(req);
-        const resp = await mcpCore.handleRpc(msg, { call: MCP_CALL, uiHtml: mcpCore.uiHtml });
-        if (resp === undefined) { res.writeHead(202, cors); return res.end(); }
-        res.writeHead(200, { ...cors, 'Content-Type': 'application/json', 'Mcp-Session-Id': 'orchestrator', 'Connection': 'close' });
-        return res.end(JSON.stringify(resp));
-      }
-      return send(res, 405, { error: 'method not allowed' });
-    }
-    if (p === '/reset' && m === 'POST') { state = { workspace: state.workspace, overlay: state.workspace ? overlayStore.load(state.workspace) : overlayStore.EMPTY(), routes: [], agents: {}, mainTranscript: state.mainTranscript }; return send(res, 200, { ok: true }); }
-
-    // Force-release orphaned claims — useful after a Claude app restart where agents from the
-    // previous session still look 'running' (their lastSeen >= daemon bootMs). With force:true the
-    // boot-window grace is bypassed by treating nowMs as the effective boot point, so any claim
-    // whose lastChanged is older than stale_minutes is released regardless of when this daemon booted.
-    // Default stale_minutes:1 — safe for interactive restart recovery; active agents ping more often.
-    if (p === '/sweep' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      const ws = T.ws;
-      const ovWs = T.ov;
-      const staleMins = b.stale_minutes != null ? Number(b.stale_minutes) : 1;
-      const nowMs = Date.now();
-      const cutoff = nowMs - staleMins * 60000;
-      let released = 0;
-      const stWsSweep = ws === state.workspace ? state : { ...state, overlay: ovWs };
-      if (b.force) {
-        // force:true bypasses vouchedLive entirely — only the lastChanged window applies.
-        // Safe for app-restart recovery: any in_progress claim whose lastChanged is older
-        // than staleMins is released, regardless of when the daemon booted or agent state.
-        for (const [key, st] of Object.entries(ovWs.status)) {
-          if (st !== 'in_progress') continue;
-          const agentId = ovWs.assignee[key];
-          const ts = ovWs.timestamps[key];
-          if (ts && Date.parse(ts.lastChanged) > cutoff) continue;   // recently active — skip
-          const tp = taskTranscript(key, null, true, stWsSweep);
-          const tokenUsage = tp ? usageCached(tp) : null;
-          if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${staleMins}m (force=true)`, ovWs, { agentId, mins: staleMins, tokenUsage })) released++;
-        }
-      } else {
-        // Normal sweep: honor vouchedLive (recently-pinged agents are protected).
-        const sweepOv = staleMins !== (ovWs.config.stale_minutes ?? 10)
-          ? { ...ovWs, config: { ...ovWs.config, stale_minutes: staleMins } } : ovWs;
-        for (const { key, agentId, mins } of staleClaimKeys(sweepOv, state.agents, nowMs)) {
-          const tp = taskTranscript(key, null, true, stWsSweep);
-          const tokenUsage = tp ? usageCached(tp) : null;
-          if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${mins}m`, ovWs, { agentId, mins, tokenUsage })) released++;
-        }
-      }
-      if (released) { overlayStore.save(ws, ovWs); notifyChange(); cache.agg.delete(ws); cache.aggAt.delete(ws); }
-      return send(res, 200, { ok: true, released });
-    }
-
-    if (p === '/workspace' && m === 'POST') {
-      const b = await readBody(req);
-      if (!b.path) return send(res, 400, { ok: false, error: 'path required' });
-      // Without force:true, refuse to overwrite an already-set workspace (prevents boot-time
-      // calls from random sessions clobbering the pinned workspace).
-      if (!b.force && state.workspace && state.workspace !== b.path) {
-        return send(res, 200, { ok: true, workspace: state.workspace, skipped: true });
-      }
-      state.workspace = b.path;
-      state.overlay = overlayStore.load(b.path);
-      migrateBlindEdges(b.path, state.overlay);   // tag blind similarity edges UNVERIFIED on workspace switch (idempotent)
-      state.graphStore = graphStore.open(require('path').join(b.path, '.graph'));
-      graphStore.initGitAttributes(b.path);
-      if (b.transcript) state.mainTranscript = b.transcript; // enables real loop token accounting
-      try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(WS_FILE, b.path); } catch { /* best effort */ }
-      return send(res, 200, { ok: true, workspace: state.workspace });
-    }
-
-    // MCP tool-usage analytics. The beacon (write) is fired by mcp-core.handleRpc on every
-    // tools/call from either transport; the report (read) enumerates the FULL tool registry so
-    // never-called tools show up as zero rows — the empirical basis for pruning decisions.
-    if (p === '/analytics/tool-call' && m === 'POST') {
-      const b = await readBody(req);
-      if (!b.tool || typeof b.tool !== 'string') return send(res, 400, { ok: false, error: 'tool required' });
-      analytics.record(analyticsState, b.tool, !!b.error, b.workspace || state.workspace || null);
-      analyticsFlush.soon();
-      return send(res, 200, { ok: true });
-    }
-    if (p === '/analytics/tools' && m === 'GET') {
-      const tools = analytics.report(analyticsState, mcpCore.TOOLS.map((t) => t.name));
-      return send(res, 200, { ok: true, total_calls: tools.reduce((s2, t) => s2 + t.total, 0), tools });
-    }
-    if (p === '/analytics' && m === 'GET') return send(res, 200, fs.readFileSync(path.join(PUBLIC, 'analytics.html'), 'utf8'), 'text/html; charset=utf-8');
-
-    // Format-health + status — fails loud if the native task format drifts.
-    if (p === '/health') {
-      const allLoops = [...loops.values()];
-      const loopHealth = { count: allLoops.length, active: allLoops.filter((L) => L.active).length, iterations: allLoops.reduce((s, L) => s + L.iterations, 0), spent: allLoops.reduce((s, L) => s + L.spent, 0) };
-      return send(res, 200, { ok: true, workspace: state.workspace, mainTranscript: !!state.mainTranscript, loops: loopHealth, embedding: embedStatus(), native_format: state.workspace ? nt.formatHealth(state.workspace) : null });
-    }
-
-    // Read-only ready set (for the nudge hook + UI; does NOT advance the loop/budget).
-    // ?session=<sid>  → only ready tasks that are transitive descendants of tasks the session created/claimed.
-    // ?roots=k1,k2    → only ready tasks that are transitive descendants of the given keys.
-    // No param        → all ready tasks (original behaviour).
-    if (p === '/ready') {
-      const g = buildGraph(state.workspace);
-      const sessionParam = u.searchParams.get('session');
-      const rootsParam = u.searchParams.get('roots');
-      let ready = g.tasks.filter((t) => t.status === 'ready');
-      if (sessionParam || rootsParam) {
-        // Seed set: tasks created in this session or explicit roots.
-        const seeds = new Set();
-        if (rootsParam) for (const k of rootsParam.split(',').map((s) => s.trim()).filter(Boolean)) seeds.add(k);
-        if (sessionParam) for (const t of g.tasks) { if (t.session === sessionParam) seeds.add(t.id); }
-        // Forward adjacency: dep → tasks it unblocks (i.e. descendants).
-        const children = {};
-        for (const t of g.tasks) for (const dep of t.deps) { (children[dep] = children[dep] || []).push(t.id); }
-        // BFS from seeds to collect all descendants.
-        const descendants = new Set(seeds);
-        const queue = [...seeds];
-        while (queue.length) { const n = queue.shift(); for (const c of (children[n] || [])) { if (!descendants.has(c)) { descendants.add(c); queue.push(c); } } }
-        // Return ready descendants only (exclude seeds themselves — already done/in-progress).
-        ready = ready.filter((t) => descendants.has(t.id) && !seeds.has(t.id));
-      }
-      return send(res, 200, { ready: ready.map((t) => ({ key: t.id, label: t.label })) });
-    }
-
-    // Read-only "what changed since T" delta — the change sensor for the nightly-QA loop. Derived
-    // ENTIRELY from timestamps the daemon already records (overlay.timestamps, note created_at,
-    // timestamped verdict knowledge items): no new persisted state, no mutation beyond what reads
-    // already do (buildGraph's own bookkeeping). ?since=<ISO-8601> required — 400 on missing/
-    // unparseable. Buckets: status_changes (tasks whose status changed after T, incl. reached
-    // done/tested/canceled), tasks_created, notes_added, merges (timestamped verdicts ONLY —
-    // a verdict without a timestamp is not derivable and is omitted, never invented). Top-level
-    // { since, now, counts } summarizes. See lib/delta.js.
-    if (p === '/graph/delta' && m === 'GET') {
-      const parsed = delta.parseSince(u.searchParams.get('since'));
-      if (!parsed.ok) return send(res, 400, { ok: false, error: parsed.error });
-      const ws = u.searchParams.get('workspace') || state.workspace;
-      const g = buildGraph(ws);
-      const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
-      return send(res, 200, delta.computeDelta(g.tasks, ov, parsed.ms));
-    }
-
-    if (p === '/graph/init' && m === 'POST') {
-      const b = await readBody(req);
-      const { ws } = targetOverlay(b, u);
-      if (!ws) return send(res, 400, { ok: false, error: 'workspace required' });
-      graphStore.open(require('path').join(ws, '.graph'));
-      graphStore.initGitAttributes(ws);
-      require('fs').writeFileSync(require('path').join(ws, '.graph', '.gitkeep'), '');
-      return send(res, 200, { ok: true, workspace: ws });
-    }
-
-    // Read-only learnings digest: what the graph has accumulated, for a self-planner to read on a
-    // 'plan' tick. Three buckets — verdicts (attempt judgements), failures (failed/canceled tasks),
-    // recent (recent completions' summaries). Reads the current workspace overlay/graph; no writes.
-    if (p === '/learnings') {
-      const ws = u.searchParams.get('workspace') || state.workspace;
-      const g = buildGraph(ws);
-      const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
-      // (a) Verdicts: knowledge items whose value parses to an object carrying a `winner` field.
-      const verdicts = [];
-      for (const [key, items] of Object.entries(ov.knowledge || {})) {
-        for (const it of (items || [])) {
-          let v = it && it.value;
-          if (typeof v === 'string') { try { v = JSON.parse(v); } catch { v = null; } }
-          if (v && typeof v === 'object' && 'winner' in v) verdicts.push({ key, verdict: v });
-        }
-      }
-      // (b) Failures: failed/canceled task labels + notes (most recent first by lastChanged).
-      const byChanged = (a, b) => String((ov.timestamps[b.id] || {}).lastChanged || '').localeCompare(String((ov.timestamps[a.id] || {}).lastChanged || ''));
-      const failures = g.tasks.filter((t) => t.status === 'failed' || t.status === 'canceled')
-        .sort(byChanged).slice(0, 25)
-        .map((t) => ({ key: t.id, label: t.label, status: t.status, note: ov.notes[t.id] || '' }));
-      // (c) Recent: recently-done tasks with their summary (the interface other work pulls).
-      const recent = g.tasks.filter((t) => t.status === 'done' && (ov.summaries[t.id] || ''))
-        .sort(byChanged).slice(0, 25)
-        .map((t) => ({ key: t.id, label: t.label, summary: ov.summaries[t.id] || '' }));
-      // (d) Rejected: a digested ledger of approaches NOT to re-propose — verdict losers (beaten by a
-      // winner) plus GENUINE dead-end failures (superseded/duplicate/consolidated excluded). Labels
-      // resolved from the graph when available.
-      const labelFor = (k) => { const t = g.tasks.find((x) => x.id === k); return t ? t.label : ''; };
-      const rejected = digestRejected(verdicts, failures, labelFor);
-      const full = { verdicts: verdicts.slice(0, 25), failures, recent, rejected };
-      // Lean mode (?compact=1): drop the high-volume buckets a planner doesn't need every turn —
-      // keeps the digested rejected[] ledger, trims verdicts to the bottom line, drops recent, and
-      // collapses failures to a count. Default returns the full payload unchanged.
-      const compact = isTruthy(u.searchParams.get('compact'));
-      return send(res, 200, compact ? leanLearnings(full) : full);
-    }
-
-    // Query-by-text retrieval (rung-1) — HYBRID semantic + lexical. Ranks EVERY node (especially
-    // note nodes, incl. [ingest] knowledge) AND per-task Tier-2 knowledge items by relevance to a
-    // free-text query — no anchor task needed.
-    //   PRIMARY: semantic cosine — embed the query, cosine against each item's stored vector.
-    //   FALLBACK (per item): the lexical token scorer (scoreNodeAgainstTokens) when the item lacks a
-    //     vector OR the model can't embed the query. Retrieval NEVER hard-fails: a null query-embed
-    //     ⇒ the whole search degrades to the original lexical behavior.
-    // Returns top-k compact { key, title, summary (truncated), score, kind }. Default k=5. `via`
-    // ('semantic'|'lexical') is added per result so callers can see which path scored it.
-    if (p === '/search') {
-      const q = u.searchParams.get('q') || '';
-      const k = Math.max(1, Math.min(parseInt(u.searchParams.get('k') || '5', 10) || 5, 50));
-      // asOf (ISO instant): as-of retrieval — return the note that was CURRENT at that time, not just
-      //   the latest. Notes outside their [validFrom, validTo) window are dropped. Absent ⇒ default,
-      //   which returns only notes still current (validTo == null) PLUS all non-temporal/task nodes.
-      // history=1: include superseded notes too (don't drop on validTo), so a caller can see the
-      //   full timeline for a query. Ignored when asOf is set (asOf already picks one point in time).
-      const asOf = u.searchParams.get('asOf') || '';
-      // knownAsOf (ISO instant): TRANSACTION-time axis — "as the KB was KNOWN at time T". Drops note
-      //   hits whose created_at (when the KB learned the fact) is AFTER T, so a backdated insert (valid_from
-      //   set in the past) can't silently rewrite what an earlier-knowledge query returns. COMPOSES with
-      //   asOf (valid-time): asOf alone = true-as-of-T1; +knownAsOf = recorded-by-T2; both = the canonical
-      //   bitemporal query. Absent ⇒ behavior identical to before (back-compat). Fail-open on unparseable.
-      const knownAsOf = u.searchParams.get('knownAsOf') || '';
-      const history = isTruthy(u.searchParams.get('history'));
-      const ws = u.searchParams.get('workspace') || state.workspace;
-      const task_key = u.searchParams.get('task_key') || '';
-      // Iterative retrieval: `round` (1-based) + `exclude_keys` (comma-separated note keys already
-      // injected in prior rounds). Excluded keys are dropped from RAG candidates before ranking.
-      // The response gains `continue` — true iff round < 3 AND a NEW note scored >= 0.5 (plateau verdict).
-      const round = Math.max(1, parseInt(u.searchParams.get('round') || '1', 10) || 1);
-      const excludeKeys = new Set((u.searchParams.get('exclude_keys') || '').split(',').map((s) => s.trim()).filter(Boolean));
-      const plateauContinue = (notes) => round < 3 && notes.some((n) => n.tier === 'rag' && (n.kind || 'note') === 'note' && n.score >= 0.5);
-      const gated = isTruthy(u.searchParams.get('gated'));
-      const g = buildGraph(ws);
-      // GATED retrieval (?gated=1) — the context-need gate (lib/context-gate.js, the abstain-by-
-      // default classifier calibrated on test/context-gate-regression.test.js) now ANNOTATES the
-      // bundle instead of suppressing it: gated and ungated calls run the SAME single pipeline
-      // (DAG tier → temporal filter → hybrid scoring → structBoost rerank → path provenance →
-      // sorted top-k), and gated responses ADD gate metadata + inject:true flags on approved
-      // results. The gate's four guards run over the same note-only candidate subset, using
-      // PRE-boost raw scores, so inject/abstain decisions are calibration-identical to the old
-      // suppressing branch. NOTE: the FIRST gated call may take 10–90s while MiniLM lazy-loads
-      // (lib/embed.js); embed() degrading to null ⇒ all-zero gate scores ⇒
-      // abstain('low-confidence') — conservative, never a hard failure.
-      // DAG tier: collect context_deps of the requested task — always inject, no gate.
-      const dagNotes = [];
-      if (task_key) {
-        const taskNode = g.tasks.find(t => t.id === task_key);
-        if (taskNode) {
-          for (const depKey of (taskNode.context_deps || [])) {
-            const noteNode = g.tasks.find(t => t.id === depKey);
-            if (noteNode && noteNode.kind === 'note') {
-              dagNotes.push({
-                key: depKey,
-                title: noteNode.label,
-                summary: String(noteNode.summary || '').slice(0, 200),
-                score: 1.0,
-                kind: 'note',
-                tier: 'dag',
-                via: 'dag',
-                path: [`context_dep of task/${task_key}`]
-              });
-            }
-          }
-        }
-      }
-      const dagKeys = new Set(dagNotes.map(n => n.key));
-
-      // Build adjacency map for BFS path computation (undirected over deps + context_deps).
-      const adjMap = new Map(); // key -> [{neighborKey, edgeType}]
-      const ensureAdj = (k) => { if (!adjMap.has(k)) adjMap.set(k, []); };
-      for (const node of g.tasks) {
-        ensureAdj(node.id);
-        for (const dep of (node.deps || [])) {
-          ensureAdj(dep);
-          adjMap.get(node.id).push({ neighborKey: dep, edgeType: 'dep' });
-          adjMap.get(dep).push({ neighborKey: node.id, edgeType: 'dep' });
-        }
-        for (const dep of (node.context_deps || [])) {
-          ensureAdj(dep);
-          adjMap.get(node.id).push({ neighborKey: dep, edgeType: 'context_dep' });
-          adjMap.get(dep).push({ neighborKey: node.id, edgeType: 'context_dep' });
-        }
-      }
-
-      // BFS: shortest path (max 2 hops, max 50 nodes visited) from startKey to any node in targetSet.
-      // Returns array of hop strings like ["context_dep:note:foo"], or null if not found.
-      const bfsPath = (startKey, targetSet) => {
-        if (targetSet.has(startKey)) return [];
-        const visited = new Set([startKey]);
-        const queue = [{ key: startKey, path: [] }];
-        let visits = 0;
-        while (queue.length > 0 && visits < 50) {
-          const { key: cur, path } = queue.shift();
-          if (path.length >= 2) continue;
-          visits++;
-          for (const { neighborKey, edgeType } of (adjMap.get(cur) || [])) {
-            if (visited.has(neighborKey)) continue;
-            visited.add(neighborKey);
-            const newPath = [...path, `${edgeType}:${neighborKey}`];
-            if (targetSet.has(neighborKey)) return newPath;
-            queue.push({ key: neighborKey, path: newPath });
-          }
-        }
-        return null;
-      };
-
-      const qt = suggestToks(q);
-      const qvec = await embed(q);   // null-safe: null ⇒ pure-lexical (back-compat)
-      const knownT = knownAsOf ? Date.parse(knownAsOf) : NaN;
-      const temporalOk = (node) => {
-        // valid-time axis (validFrom/validTo) — unchanged.
-        let ok;
-        if (asOf) ok = noteCurrentAsOf(node, asOf);            // point-in-time
-        else if (history) ok = true;                           // whole timeline
-        else if ((node.kind || 'task') !== 'note') ok = true;  // tasks always pass
-        else ok = !node.validTo;                               // default: only still-current notes
-        if (!ok) return false;
-        // transaction-time axis (created_at) — drop note hits not yet KNOWN at knownAsOf. Composes
-        // with the valid-time decision above. Fail-open on unparseable dates (cf. noteCurrentAsOf).
-        if (knownAsOf && (node.kind || 'task') === 'note' && !Number.isNaN(knownT)) {
-          const c = Date.parse(node.created_at);
-          if (!Number.isNaN(c) && c > knownT) return false;    // recorded after T ⇒ not yet known
-        }
-        return true;
-      };
-      // Score one item HYBRID: semantic cosine when both the query AND the item have a vector,
-      // else the lexical token overlap. Returns { score, via }.
-      const scoreHybrid = (vec, lexNode) => {
-        if (qvec && Array.isArray(vec)) return { score: cosine(qvec, vec), via: 'semantic' };
-        return { score: scoreNodeAgainstTokens(lexNode, qt).score, via: 'lexical' };
-      };
-      // Gate candidate pool (gated mode only): the SAME note subset the old gated branch scored —
-      // kind 'note', still-current, non-DAG, non-excluded — with the RAW (pre-structBoost) cosine,
-      // so gate calibration is unaffected by reranking. No query vector ⇒ all-zero scores ⇒ the
-      // gate abstains 'low-confidence', exactly as before.
-      const gateCands = [];
-      let gateVia = 'lexical';
-      if (gated) {
-        for (const n of g.tasks) {
-          if ((n.kind || 'task') !== 'note' || n.validTo || dagKeys.has(n.id) || excludeKeys.has(n.id)) continue;
-          let rawScore = 0;
-          if (qvec && Array.isArray(n.vec)) { rawScore = cosine(qvec, n.vec); gateVia = 'semantic'; }
-          gateCands.push({ key: n.id, title: n.label, summary: n.summary, score: rawScore });
-        }
-      }
-      // Anchor set for RAG path BFS: DAG-tier keys + the query task_key itself.
-      const pathAnchors = new Set(dagKeys);
-      if (task_key) pathAnchors.add(task_key);
-
-      const ragResults = [];
-      // (a) graph nodes (tasks + note nodes).
-      for (const node of g.tasks) {
-        if (dagKeys.has(node.id)) continue;  // skip DAG-injected notes
-        if (excludeKeys.has(node.id)) continue;  // already injected in a prior round
-        if (!temporalOk(node)) continue;
-        const { score, via } = scoreHybrid(node.vec, node);
-        if (!(score > 0)) continue;
-        const foundPath = bfsPath(node.id, pathAnchors);
-        const r = { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task', tier: 'rag', via, path: foundPath || [] };
-        // Surface temporal provenance on note hits so callers can reason about state changes.
-        if ((node.kind || 'task') === 'note' && (node.validFrom || node.validTo || node.supersededBy || node.supersedes)) {
-          r.validFrom = node.validFrom || null; r.validTo = node.validTo || null;
-          r.supersededBy = node.supersededBy || null; r.supersedes = node.supersedes || null;
-          r.current = !node.validTo;
-        }
-        ragResults.push(r);
-      }
-      // (b) per-task Tier-2 knowledge items (overlay.knowledge[key][]) — not graph nodes, but
-      // semantically searchable. Scored with the same hybrid path over a synthetic lex node.
-      const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
-      for (const [tkey, items] of Object.entries(ov.knowledge || {})) {
-        (items || []).forEach((it, i) => {
-          const text = knowledgeText(it);
-          if (!text) return;
-          const key = `${tkey}#k${i}`;
-          if (dagKeys.has(key)) return;  // skip DAG-injected items
-          if (excludeKeys.has(key)) return;  // already injected in a prior round
-          const lexNode = { label: text, summary: '' };
-          const { score, via } = scoreHybrid(it && it._vec, lexNode);
-          if (!(score > 0)) return;
-          // Knowledge items are children of tkey; path via the parent task node.
-          let kPath;
-          if (pathAnchors.has(tkey)) { kPath = [`dep:${tkey}`]; }
-          else { const p = bfsPath(tkey, pathAnchors); kPath = p || []; }
-          ragResults.push({ key, title: text.slice(0, 80), summary: text.slice(0, 200), score: Math.round(score * 1000) / 1000, kind: 'knowledge', tier: 'rag', via, path: kPath });
-        });
-      }
-      ragResults.sort((a, b) => b.score - a.score);
-      // Structural rerank: boost items whose graph neighbors also appear in ragResults.
-      // "Structure outranks similarity once you have a foothold." (note-mqaaf1ox5pn)
-      // Runs for BOTH gated and ungated calls — the gate already took its raw scores above.
-      {
-        // Build adjacency lookup: key → Set of neighbor keys (via deps + context_deps, both directions).
-        const adjMap = new Map();
-        for (const node of g.tasks) {
-          const neighbors = adjMap.get(node.id) || new Set();
-          adjMap.set(node.id, neighbors);
-          for (const d of (node.deps || [])) {
-            neighbors.add(d);
-            const dn = adjMap.get(d) || new Set();
-            dn.add(node.id);
-            adjMap.set(d, dn);
-          }
-          for (const d of (node.context_deps || [])) {
-            neighbors.add(d);
-            const dn = adjMap.get(d) || new Set();
-            dn.add(node.id);
-            adjMap.set(d, dn);
-          }
-        }
-        // Build score lookup for items in ragResults.
-        const ragScoreMap = new Map();
-        for (const r of ragResults) ragScoreMap.set(r.key, r.score);
-        // Apply boost from neighbor scores.
-        for (const r of ragResults) {
-          const neighbors = adjMap.get(r.key);
-          let maxNeighborScore = 0;
-          if (neighbors) {
-            for (const nk of neighbors) {
-              const ns = ragScoreMap.get(nk);
-              if (ns !== undefined && ns > maxNeighborScore) maxNeighborScore = ns;
-            }
-          }
-          const boost = Math.round(0.1 * maxNeighborScore * 1000) / 1000;
-          r.structBoost = boost;
-          r.score = Math.round((r.score + boost) * 1000) / 1000;
-        }
-        ragResults.sort((a, b) => b.score - a.score);
-      }
-      // DAG notes always prepend (bypass gate); RAG fills remaining slots up to k.
-      const results = [...dagNotes, ...ragResults].slice(0, k + dagNotes.length);
-      const payload = { query: q, k, asOf: asOf || null, knownAsOf: knownAsOf || null, history, round, continue: plateauContinue(results), results };
-      if (!gated) return send(res, 200, payload);
-      // GATED: same ranked bundle + gate annotation. DAG-tier notes always inject (bypass gate).
-      for (const r0 of results) if (r0.tier === 'dag') r0.inject = true;
-      const clientIp = req.socket.remoteAddress || 'unknown';
-      if (checkGatedRateLimit(clientIp)) {
-        return send(res, 200, { ...payload, gated: true, decision: 'abstain', reason: 'rate-limited' });
-      }
-      // Four-guard decision over the pre-scored note-only pool (calibration-identical to the old path).
-      const r = await gateTask({ label: q }, gateCands, { preScored: true, via: gateVia });
-      // Append every verdict (inject AND abstain) to the gate journal — training-data flywheel for
-      // the learned gate; abstain rows are essential for false-negative mining.
-      try {
-        const journalRow = JSON.stringify({
-          ts: new Date().toISOString(), workspace: ws, query: q,
-          task_key: task_key || null, decision: r.decision, reason: r.reason,
-          top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality,
-          topType: r.topType, topKey: r.topKey || null, via: r.via,
-          embedModel: EMBED_MODEL,
-        });
-        fs.appendFileSync(path.join(ws, '.graph', 'gate-journal.jsonl'), journalRow + '\n');
-      } catch { /* journal failure must not break the search response */ }
-      const meta = { gated: true, decision: r.decision, reason: r.reason, top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality, topType: r.topType, via: r.via };
-      if (r.decision === 'inject' && r.topKey) {
-        // Flag the approved note in the bundle; if reranking pushed it below the top-k cut, append it.
-        let hit = results.find((x) => x.key === r.topKey);
-        if (!hit) {
-          hit = ragResults.find((x) => x.key === r.topKey);
-          if (hit) results.push(hit);
-        }
-        if (hit) hit.inject = true;
-      }
-      return send(res, 200, { ...payload, ...meta });
-    }
-
-    // Read-only in_progress claims (for the PreToolUse gate hook). Optional ?session= filters to
-    // claims whose task belongs to that conversation; `claimed` reflects the filtered set.
-    if (p === '/active-claim') {
-      const sid = u.searchParams.get('session');
-      const g = buildGraph(state.workspace);
-      let all = g.tasks.filter((t) => t.status === 'in_progress').map((t) => ({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id }));
-      // Fallback: read native task files directly for the queried session.
-      // Handles cross-workspace cases where daemon's current workspace differs from the session's project.
-      if (sid && !all.some((t) => t.session === sid)) {
-        const sessionDir = path.join(os.homedir(), '.claude', 'tasks', sid);
-        try {
-          for (const f of fs.readdirSync(sessionDir).filter((f) => f.endsWith('.json'))) {
-            try {
-              const t = JSON.parse(fs.readFileSync(path.join(sessionDir, f), 'utf8'));
-              if (t && t.status === 'in_progress')
-                all.push({ key: sid + '/' + t.id, label: t.subject || String(t.id), session: sid, agent_id: null });
-            } catch { /* skip */ }
-          }
-        } catch { /* no tasks for session */ }
-      }
-      // Secondary lookup: for tasks (e.g. followup/ keys) whose .session is a key-prefix rather than
-      // an agent's actual session, match via agent_id → agents[agent_id].subagent_session === sid.
-      if (sid) {
-        for (const t of all.filter((t) => t.session !== sid && t.agent_id && state.agents[t.agent_id]?.subagent_session === sid)) {
-          all.push({ ...t, session: sid });
-        }
-      }
-      const claims = sid ? all.filter((t) => t.session === sid) : all;
-      return send(res, 200, { claimed: claims.length > 0, claims });
-    }
-
-    // Lightweight session-type probe for the PreToolUse gate. Returns whether the session
-    // belongs to a registered subagent (spawned via the Agent tool) vs. a main/driving session.
-    // A session is a subagent session if any registered agent record carries it as its .session.
-    if (p === '/session-info') {
-      const sid = u.searchParams.get('session');
-      if (!sid) return send(res, 400, { error: 'session required' });
-      const agents = agentsArr();
-      const isSubagent = agents.some((a) => a.subagent_session === sid);
-      return send(res, 200, { session: sid, is_subagent: isSubagent });
-    }
-
-    // Enforced cooperative-stop probe for the PreToolUse hook. Maps session -> its claimed
-    // in_progress task(s) -> assigned agent, and reports whether the worker should halt because
-    // a cancel was requested on the task OR a stop was requested on the agent. Pure read.
-    if (p === '/should-stop') {
-      const sid = u.searchParams.get('session');
-      // `agent` = the calling agent_id the PreToolUse hook forwards (present for a subagent, absent for
-      // the main thread). hook=true keys an agent-stop to that actor so the requester isn't self-blocked.
-      const actor = u.searchParams.get('agent') || null;
-      const sig = stopSignalFor(sid, { actor, hook: true });
-      return send(res, 200, sig ? { stop: true, ...sig } : { stop: false });
-    }
-
-    // Policy: require_review makes the daemon reject `done` unless the task is `tested` first.
-    if (p === '/config' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      // Per-repo test commands: { test_cmds: { "<ABSOLUTE repo path>": "npm test" } }. Merge
-      // semantics like `escalation`; a falsy value clears that repo's entry. STORE/RETRIEVE ONLY —
-      // the daemon never executes these (it stays mechanical); agents (e.g. the nightly QA loop)
-      // look them up and run them. Validated FIRST so a 400 leaves no other field half-applied.
-      if (b.test_cmds && typeof b.test_cmds === 'object') {
-        const bad = Object.keys(b.test_cmds).find((rp) => !path.isAbsolute(rp));
-        if (bad) return send(res, 400, { ok: false, error: `test_cmds keys must be absolute repo paths: got "${bad}"` });
-        for (const [rp, cmd] of Object.entries(b.test_cmds)) overlayStore.setTestCmd(T.ov, rp, cmd);
-      }
-      if (b.require_review != null) T.ov.config.require_review = !!b.require_review;
-      if (b.self_plan != null) T.ov.config.self_plan = !!b.self_plan; // opt-in self-scheduling (default off)
-      if (b.stale_minutes != null) T.ov.config.stale_minutes = Number(b.stale_minutes); // liveness sweep threshold (min)
-      if (b.archive_after_days != null) T.ov.config.archive_after_days = Number(b.archive_after_days); // /state archival window (days)
-      // Escalation toggles: which triggers warrant pausing for the user. All default ON; pass an
-      // `escalation` object to tune any subset (the judge/agent honors these before request_guidance).
-      if (b.escalation && typeof b.escalation === 'object') {
-        const cur = T.ov.config.escalation || ESCALATION_DEFAULTS();
-        for (const k of Object.keys(ESCALATION_DEFAULTS())) if (b.escalation[k] != null) cur[k] = !!b.escalation[k];
-        T.ov.config.escalation = cur;
-      }
-      // Optimize-loop knobs (⑥): epsilon (per-cycle improvement floor) + diminishing_rounds (K).
-      // Merge any subset onto the defaults (the converged-vs-iterate control sanitizes them again).
-      if (b.optimize && typeof b.optimize === 'object') {
-        const cur = { ...OPTIMIZE_DEFAULTS(), ...(T.ov.config.optimize || {}) };
-        if (b.optimize.epsilon != null) cur.epsilon = Number(b.optimize.epsilon);
-        if (b.optimize.diminishing_rounds != null) cur.diminishing_rounds = Number(b.optimize.diminishing_rounds);
-        T.ov.config.optimize = cur;
-      }
-      T.save();
-      return send(res, 200, { ok: true, config: T.ov.config });
-    }
-
-    // --- escalation gate: "only stop when the user is needed" -----------------------------
-    // Raise a guidance question: queue it AND halt the autonomous loop. The agent/judge calls this
-    // (via request_guidance) instead of guessing when it hits a decision the user must make.
-    if (p === '/guidance' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.question) return send(res, 400, { ok: false, error: 'question required' });
-      const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity });
-      const effectiveSeverity = b.severity === 'review' ? 'review' : 'blocking';
-      if (effectiveSeverity !== 'review') { for (const L of loops.values()) L.active = false; saveLoops(); }   // workspace-wide gate: halt every loop until the user answers (review items queue without pausing)
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, id });
-    }
-    // List unresolved guidance. Read-only. `pending` = BLOCKING items (what the loop is waiting on);
-    // `review` = housekeeping items that queue without pausing the loop.
-    if (p === '/guidance' && m === 'GET') {
-      const all = overlayStore.pendingGuidance(targetOverlay(null, u).ov);   // honor ?workspace=
-      return send(res, 200, { pending: all.filter((g) => g.severity !== 'review'), review: all.filter((g) => g.severity === 'review') });
-    }
-    // Resolve a guidance item — now ACTING on the decision, not just recording text.
-    // Body: { id, decision?, keep?, answer? }.
-    //   dup-cluster item + decision='consolidate' → supersede every non-keeper note into the keeper
-    //     (keep = body.keep || newest-by-created_at), re-point THIS overlay's context edges off the
-    //     superseded notes onto the keeper, drop self-loops/dups (the SAME logic /judge/verdict's
-    //     consolidate uses), then resolveGuidance. The keeper inherits the cluster's edges.
-    //   dup-cluster item + decision='distinct' → permanently mark the cluster signature DISTINCT so
-    //     dupClusters/the judge queue skip it forever ("don't ask again"), then resolveGuidance.
-    //   anything else → resolveGuidance(id, answer || decision) — a plain text answer (back-compat).
-    // Resolving the last BLOCKING item leaves pendingGuidance empty so the loop gate stops firing.
-    if (p === '/guidance/resolve' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.id) return send(res, 400, { ok: false, error: 'id required' });
-      const item = Array.isArray(T.ov.guidance) ? T.ov.guidance.find((g) => g.id === b.id) : null;
-      if (!item) return send(res, 404, { ok: false, error: 'unknown guidance id' });
-      const action = item.action || null;
-      const result = { ok: true };
-      if (action && action.kind === 'dup-cluster' && (b.decision === 'consolidate' || b.decision === 'distinct')) {
-        const keys = (action.keys || []).map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
-        if (b.decision === 'distinct') {
-          // User's definitive call: these are NOT the same fact. Skip this cluster forever.
-          overlayStore.markClusterDistinct(T.ov, keys);
-          result.decision = 'distinct';
-        } else {
-          // CONSOLIDATE — keeper defaults to newest by created_at when none chosen. Same effect as the
-          // judge's consolidate verdict: supersede non-keepers, re-point context edges, drop self-loops.
-          let keepKeyRaw = b.keep ? String(b.keep) : null;
-          if (!keepKeyRaw) {
-            const sorted = keys.slice().sort((ka, kb) => {
-              const na = T.ov.note_nodes[ka.replace(/^note:/, '')];
-              const nb = T.ov.note_nodes[kb.replace(/^note:/, '')];
-              return Date.parse((na && na.created_at) || 0) - Date.parse((nb && nb.created_at) || 0);
-            });
-            keepKeyRaw = sorted[sorted.length - 1] || keys[0];
-          }
-          const keep = String(keepKeyRaw).replace(/^note:/, '');
-          const keepKey = 'note:' + keep;
-          const supersededNow = [];
-          for (const oldKey of keys) {
-            if (oldKey === keepKey) continue;
-            const oldId = String(oldKey).replace(/^note:/, '');
-            const r = overlayStore.supersedeNote(T.ov, oldId, keep, undefined, T.ws);
-            if (r && r.ok) supersededNow.push('note:' + oldId);
-          }
-          overlayStore.repointEdges(T.ov, supersededNow, keepKey);
-          if (!T.ov.judgedClusters) T.ov.judgedClusters = {};
-          judge.stampCluster(T.ov.judgedClusters, [keepKey, ...supersededNow], T.ov.epoch || 0);
-          result.decision = 'consolidate'; result.keep = keepKey; result.superseded = supersededNow;
-        }
-        overlayStore.resolveGuidance(T.ov, b.id, b.decision);
-      } else if (action && action.kind === 'follow-up' && (b.decision === 'approve' || b.decision === 'reject')) {
-        // Gated (disruptive) follow-up: 'approve' drops the not_ready override so the task
-        // re-derives READY and the loop picks it up; 'reject' cancels it (terminal + cancel flag).
-        const fr = followups.resolveGate(T.ov, action, b.decision);
-        if (fr) Object.assign(result, fr);
-        overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
-      } else if (action && action.kind === 'stale-hold' && (b.decision === 'release' || b.decision === 'keep')) {
-        // Stale hold flagged by the completion sweep: 'release' drops the not_ready override so
-        // the task re-derives from its (all-done) deps; 'keep' re-justifies the hold (note stamped
-        // so the sweep stops re-flagging it). See lib/verdicts.js.
-        const sr = verdicts.resolveStaleHold(T.ov, action, b.decision, b.answer);
-        if (sr) Object.assign(result, sr);
-        overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
-      } else {
-        overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
-      }
-      T.save();
-      notifyChange();
-      result.pending = overlayStore.pendingGuidance(T.ov).length;
-      return send(res, 200, result);
-    }
-
-    // --- replan reconciliation: supersede an old task with its replacement -----------------
-    // Cancel the OLD task (with a note pointing at NEW) and link old->new via a supersede edge, so
-    // a replan reads as old→new instead of leaving orphaned canceled duplicates beside fresh ones.
-    if (p === '/supersede' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.old_key || !b.new_key) return send(res, 400, { ok: false, error: 'old_key and new_key required' });
-      const note = `superseded by ${b.new_key}${b.reason ? ': ' + b.reason : ''}`;
-      overlayStore.setStatus(T.ov, b.old_key, 'canceled', note);
-      snapshotNative(T.ov, b.old_key); // canceled is terminal — preserve the node past the retention sweep
-      overlayStore.addEdge(T.ov, b.old_key, b.new_key, null, 'supersede');
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, old_key: b.old_key, new_key: b.new_key });
-    }
-
-    // --- git: isolated attempt worktrees (foundation for side-by-side experiments) ---------
-    // Each /git/* op targets a repo resolved by resolveRepo(key, explicit): explicit repo_path >
-    // task's overlay repo field > daemon workspace. Lets the loop run on an arbitrary repo distinct
-    // from the daemon's own workspace; absent any override it stays the workspace (back-compat).
-    //
-    // Set/clear the target repo path a task's git ops run against (persisted on the overlay).
-    if (p === '/git/repo' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
-      overlayStore.setRepo(T.ov, b.key, b.repo_path);
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, key: b.key, repo: T.ov.repos[b.key] || null });
-    }
-    // Initialize git in the target repo (idempotent). Run once before /git/worktree.
-    if (p === '/git/init' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      const repo = resolveRepo(b.key, b.repo_path, T.ov);
-      if (!repo) return send(res, 400, { ok: false, error: 'no repo: set a workspace or pass repo_path' });
-      const r = git.initRepo(repo);
-      notifyChange();
-      return send(res, 200, { ...r, repo });
-    }
-    // Report repo state + active attempt worktrees for the target repo.
-    if (p === '/git/status') {
-      const T = targetOverlay(null, u);   // honor ?workspace= (read-side gremlin fix)
-      const repo = resolveRepo(u.searchParams.get('key'), u.searchParams.get('repo_path'), T.ov, T.ws);
-      if (!repo) return send(res, 200, { isRepo: false });
-      return send(res, 200, { repo, isRepo: git.isRepo(repo), worktrees: git.listWorktrees(repo), test_cmd: overlayStore.testCmdFor(T.ov, repo) });
-    }
-    // Create an isolated worktree+branch for a task attempt; record it on the overlay.
-    if (p === '/git/worktree' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
-      const repo = resolveRepo(b.key, b.repo_path, T.ov);
-      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' });
-      const info = git.createWorktree(repo, b.key);
-      overlayStore.setGit(T.ov, b.key, info);
-      T.save();
-      notifyChange();
-      return send(res, 200, { ...info, repo });
-    }
-    // Remove a task attempt's worktree+branch (idempotent) and drop its overlay record.
-    if (p === '/git/worktree/remove' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
-      const repo = resolveRepo(b.key, b.repo_path, T.ov);
-      if (repo) git.removeWorktree(repo, b.key);
-      delete T.ov.git[b.key];
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true });
-    }
-    // Merge a winning attempt's branch back into the base branch. The merge half of the judge loop.
-    if (p === '/git/merge' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
-      const repo = resolveRepo(b.key, b.repo_path, T.ov);
-      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' });
-      const result = git.mergeBranch(repo, b.key, { message: b.message });
-      if (result.merged) {
-        // Persist the merge outcome on the task node (merged + commit sha) so cost-flow
-        // attribution (/costflow) can treat it as a sink without keyword-matching commits.
-        overlayStore.setGit(T.ov, b.key, { merged: true, merge_sha: result.head || null, merged_at: now() });
-        T.save();
-      }
-      notifyChange();
-      return send(res, 200, result);
-    }
-
-    // --- metric-driven loop: inline metric spec on a task/problem node ----------------------
-    // Set/clear the INLINE metric spec a task is optimizing. The measure node (later) runs
-    // measure_command in the attempt's worktree and parses a number via `parse`; the judge weighs
-    // `metric` in `direction`. Absent ⇒ rationale-only judging (back-compat). Pass a falsy spec to
-    // clear. Validated: { metric, direction∈{min,max}, measure_command } required; parse/target/
-    // guardrails optional. Each guardrail (if any) must itself carry metric/direction/measure_command.
-    if (p === '/task/metric' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
-      if (b.spec) {
-        const err = validateMetricSpec(b.spec);
-        if (err) return send(res, 400, { ok: false, error: err });
-      }
-      overlayStore.setMetricSpec(T.ov, b.key, b.spec || null);
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, key: b.key, metric: T.ov.metrics[b.key] || null });
-    }
-
-    // Set/clear the researched competitor/industry-average BENCHMARK for a task's metric — the
-    // EXTERNAL axis the judge compares the winning attempt's measured value against (beyond our own
-    // baseline). A record is { metric, value (number), unit?, source, note?, confidence?, researched_at? }.
-    // Absent ⇒ baseline-only judging (back-compat). Pass a falsy benchmark to clear. Validated:
-    // metric/value/source required; an invalid record is rejected (400) leaving any prior benchmark untouched.
-    if (p === '/task/benchmark' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
-      if (b.benchmark) {
-        const err = validateBenchmark(b.benchmark);
-        if (err) return send(res, 400, { ok: false, error: err });
-      }
-      overlayStore.setBenchmark(T.ov, b.key, b.benchmark || null);
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, key: b.key, benchmark: T.ov.benchmarks[b.key] || null });
-    }
-
-    // Run the task's metric spec and store the measured value(s) on the node — the MEASURE half of
-    // the metric-driven loop. Resolves the repo via resolveRepo (NO workspace hardcode) and runs in
-    // the attempt's worktree (createWorktree gives the existing one) by default; pass baseline:true to
-    // measure the repo's current main (repo root, no attempt) and store it as the judge's reference.
-    // Surfaces the measured value(s) on the task node + /task/detail (overlay measurements[key]).
-    if (p === '/task/measure' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
-      const spec = T.ov.metrics && T.ov.metrics[b.key];
-      if (!spec) return send(res, 409, { ok: false, error: 'no metric spec on task: set one with configure_task (metric) first' });
-      const repo = resolveRepo(b.key, b.repo_path, T.ov);
-      if (!repo || !git.isRepo(repo)) return send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' });
-      // Baseline = repo root (current main, no attempt); attempt = the task's isolated worktree.
-      const cwd = b.baseline ? repo : git.createWorktree(repo, b.key).worktree;
-      let result;
-      try { result = measure.runMeasure(cwd, spec); }
-      catch (e) { return send(res, 422, { ok: false, error: String(e.message || e) }); }
-      const record = { ...result, command: spec.measure_command, measured_at: new Date().toISOString() };
-      overlayStore.setMeasurement(T.ov, b.key, b.baseline ? { baseline: record } : record);
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, key: b.key, baseline: !!b.baseline, repo, measurement: T.ov.measurements[b.key] });
-    }
-
-    // Add a dependency edge. Local by default; pass fromWorkspace for a ghost (foreign provider).
-    // The consumer (`to`) must belong to the current workspace; the edge is stored here.
-    if (p === '/overlay/edge' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.from || !b.to) return send(res, 400, { ok: false, error: 'from and to required' });
-      overlayStore.addEdge(T.ov, b.from, b.to, b.fromWorkspace, b.kind, b.weight);
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, edges: T.ov.edges.length, ghost: !!b.fromWorkspace, kind: b.kind === 'context' ? 'context' : 'blocking' });
-    }
-
-    // Remove a dependency edge (idempotent). Mirrors /overlay/edge add. Optional kind narrows the
-    // match ('blocking'|'context'); omit to drop every edge from->to. Lets a graph re-parallelize.
-    if (p === '/overlay/edge/remove' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.from || !b.to) return send(res, 400, { ok: false, error: 'from and to required' });
-      const before = T.ov.edges.length;
-      overlayStore.removeEdge(T.ov, b.from, b.to, b.fromWorkspace, b.kind);
-      const removed = before - T.ov.edges.length;
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, removed, edges: T.ov.edges.length });
-    }
-
-    // Declare a task a genuine ROOT: clears the unwired quarantine (see buildGraph stamp +
-    // the /overlay/status claim guard) and records the reason in the task's note.
-    if (p === '/mark-root' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      const key = b.task_key || b.key;
-      if (!key) return send(res, 400, { ok: false, error: 'task_key required' });
-      const wasUnwired = !!(T.ov.unwired && T.ov.unwired[key]);
-      if (T.ov.unwired) delete T.ov.unwired[key];
-      T.ov.notes[key] = `root: ${b.reason || 'declared standalone root'}`.slice(0, 280);
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, key, was_unwired: wasUnwired });
-    }
-
-    if (p === '/overlay/status' && m === 'POST') {
-      const b = await readBody(req);
-      if (opReplay(res, b)) return;   // duplicate of a retried request that already landed
-      const T = targetOverlay(b, u);
-      if (!ALL_STATUSES.includes(b.status)) return send(res, 400, { ok: false, error: 'invalid status', allowed: ALL_STATUSES });
-      // Optional structural follow-ups (complete_task only): validate UP FRONT so a malformed
-      // payload 400s before ANY state lands (no half-applied completion). See lib/followups.js.
-      if (b.follow_ups != null) {
-        if (b.status !== 'done') return send(res, 400, { ok: false, error: 'follow_ups only allowed with status "done"' });
-        const fErr = followups.validate(b.follow_ups);
-        if (fErr) return send(res, 400, { ok: false, error: fErr });
-      }
-      // Optional structured verdicts about EXISTING tasks (complete_task only): same up-front
-      // validation contract — a malformed payload 400s before ANY state lands. See lib/verdicts.js.
-      if (b.verdicts != null) {
-        if (b.status !== 'done') return send(res, 400, { ok: false, error: 'verdicts only allowed with status "done"' });
-        const vErr = verdicts.validate(b.verdicts);
-        if (vErr) return send(res, 400, { ok: false, error: vErr });
-      }
-      if (b.status === 'done' && T.ov.config.require_review && T.ov.status[b.key] !== 'tested')
-        return send(res, 409, { ok: false, error: 'review required: task must be "tested" before "done" (require_review policy is on)' });
-      const cur = T.ov.status[b.key];
-      // Optimistic concurrency: caller may pin the status it observed. If the overlay has since
-      // moved on (another session/agent wrote it), reject with 409 so the stale writer re-reads
-      // instead of clobbering (last-write-wins was the live-collision bug). expected_status may be
-      // null/'' to assert "no prior status".
-      if (b.expected_status !== undefined && (cur || null) !== (b.expected_status || null))
-        return send(res, 409, { ok: false, error: 'stale write: status changed under you', current: cur || null, expected: b.expected_status || null });
-      // cancel-wins: 'canceled' is terminal. A late heartbeat trying to resume work (-> in_progress)
-      // must not silently override a human cancel. Require explicit force/reopen to leave canceled.
-      if (cur === 'canceled' && b.status !== 'canceled' && !b.force && !b.reopen)
-        return send(res, 409, { ok: false, error: 'task is canceled (terminal): pass force/reopen to override', current: cur, attempted: b.status });
-      // claim-steal guard (CAS on ownership): a claim (-> in_progress, with an agent_id) must not
-      // silently steal a task already in_progress under a DIFFERENT agent. This was the live-collision
-      // bug — two workers each wrote in_progress, last-write-won the assignee. Refuse with 409 unless
-      // force:true (an explicit takeover). Re-claim by the same agent is a no-op pass-through.
-      if (b.status === 'in_progress' && b.agent_id && cur === 'in_progress' && !b.force) {
-        const owner = T.ov.assignee[b.key];
-        if (owner && owner !== b.agent_id)
-          return send(res, 409, { ok: false, error: 'task is already in_progress by another agent: pass force to take over', current: cur, owner, attempted_by: b.agent_id });
-      }
-      // Unwired quarantine: refuse to CLAIM a task that was created with no edges and never
-      // wired in — the creator must add_dependency (blocking/context) or declare it a root via
-      // /mark-root first. Only blocks the claim transition; other status writes pass through.
-      if (b.status === 'in_progress' && T.ov.unwired && T.ov.unwired[b.key])
-        return send(res, 409, { ok: false, error: 'task is unwired — if you are a worker agent, call request_guidance to escalate to your dispatcher (do NOT mark_root just to unblock yourself); if you created this task, wire it with add_dependency (blocking/context), or mark_root only if it is genuinely a standalone root' });
-      // Record an advisory cancel-requested flag so an in-flight worker can observe it and stop
-      // cooperatively even before its own write lands.
-      if (b.status === 'canceled') T.ov.cancel_requested[b.key] = now();
-      else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
-      overlayStore.setStatus(T.ov, b.key, b.status, b.note);
-      // Auto-retry config: persist maxRetries when provided; never reset retryCount on failure so
-      // the sweep can compare against maxRetries.
-      if (b.max_retries != null) {
-        if (!T.ov.retryConfig) T.ov.retryConfig = {};
-        if (!T.ov.retryConfig[b.key]) T.ov.retryConfig[b.key] = {};
-        T.ov.retryConfig[b.key].maxRetries = Number(b.max_retries);
-      }
-      // Stamp lastChanged for accurate stale-sweep timing. buildGraph stamps for native-backed
-      // tasks; direct overlay writes (overlay-only claims, tests) need this for the sweep to
-      // correctly distinguish fresh vs stale claims.
-      { const ts = T.ov.timestamps[b.key] = T.ov.timestamps[b.key] || {}; const n = now(); if (!ts.firstSeen) ts.firstSeen = n; if (ts.lastStatus !== b.status || b.status === 'in_progress') { ts.lastChanged = n; ts.lastStatus = b.status; } }
-      if (b.agent_id) {
-        T.ov.assignee[b.key] = b.agent_id;                          // who's working it (animation)
-        // Also surface the worker in the Subagents panel/counter when it claims/finishes a task.
-        const a = state.agents[b.agent_id] || { agent_id: b.agent_id, agent_type: b.agent_id, transcript_path: null, startedAt: now(), endedAt: null };
-        a.lastSeen = now();   // wall-clock re-assert — restores vouchedLive() after a daemon restart
-        if (b.status === 'in_progress') { a.state = 'running'; a.endedAt = null; }
-        else if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) { a.state = 'done'; a.endedAt = now(); }
-        state.agents[b.agent_id] = a; saveAgents();
-      }
-      if (b.summary != null) T.ov.summaries[b.key] = String(b.summary).slice(0, 2000); // on-complete interface
-      // Map overlay status -> native (used by the write-through below and the snapshot's status).
-      const NATIVE_STATUS = { in_progress: 'in_progress', done: 'completed', tested: 'completed' };
-      const ns = NATIVE_STATUS[b.status];
-      // Terminal status: snapshot the native fields into the overlay before the retention sweep
-      // can garbage-collect the native file (see snapshotNative).
-      if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) snapshotNative(T.ov, b.key, ns);
-      // Structural follow-ups: each validated item becomes an overlay-originated graph task
-      // (snapshot-backed node, key 'followup/<id>', description = the prompt) with a context edge
-      // from THIS completed task so its summary flows in as Tier-1 context. Routing: ready (the
-      // heartbeat loop drains it) / scheduled (one-time NATIVE scheduled task fires it at `when`)
-      // / gated (severity-'review' guidance; released or canceled on the user's answer). The
-      // scheduled-task fs write is best-effort — the graph task exists either way; `armed:false`
-      // in the response means the fireAt must be armed manually. See lib/followups.js + README.
-      let followUpResults = null;
-      if (b.status === 'done' && Array.isArray(b.follow_ups) && b.follow_ups.length) {
-        followUpResults = followups.apply(T.ov, b.key, b.follow_ups);
-        for (const r of followUpResults) {
-          if (r.routing === 'scheduled') {
-            const w = followups.writeScheduledTask({ id: r.key.slice('followup/'.length), title: r.title, prompt: r.prompt, taskKey: r.key, when: r.when, fireAt: r.fireAt, cwd: T.ws });
-            r.armed = w.armed; if (w.skillPath) r.skill = w.skillPath; if (w.note) r.note = w.note; if (w.error) r.error = w.error;
-          }
-          delete r.prompt; // lean response — the prompt lives on the node (description) already
-        }
-        cache.agg.delete(T.ws); cache.aggAt.delete(T.ws); // new snapshot nodes appear in the very next build
-      }
-      // Structured verdicts about EXISTING tasks: release drops the target's explicit not_ready
-      // hold (status re-derives from deps), hold sets/refreshes one, cancel routes through the
-      // existing cancel semantics (terminal + cooperative flag + native snapshot). The enforcement
-      // half of "nothing acts on prose" for judgments about tasks that already exist.
-      let verdictResults = null;
-      if (b.status === 'done' && Array.isArray(b.verdicts) && b.verdicts.length) {
-        verdictResults = verdicts.apply(T.ov, b.key, b.verdicts);
-        for (const r of verdictResults) if (r.action === 'cancel') snapshotNative(T.ov, r.task_key); // canceled is terminal — preserve past the retention sweep
-      }
-      // Stale-hold guard: this completion may have satisfied an explicit hold's stated gate. Holds
-      // whose note references the completed task auto-release; the rest queue as 'review' guidance
-      // ("release or re-justify") — never silently dropped. Persist first so the graph build below
-      // derives from the completion (and any verdicts) just applied.
-      let staleHolds = null;
-      if (b.status === 'done') {
-        T.save();
-        const sh = verdicts.sweepStaleHolds(T.ov, b.key, buildGraph(T.ws));
-        if (sh.released.length || sh.flagged.length) staleHolds = sh;
-      }
-      // Prose-verdict lint (non-fatal): a summary that says "GO on <key>" without a structured
-      // verdict for <key> gets a warning in the response — prose alone is never acted on.
-      const lintWarning = b.status === 'done' ? verdicts.lintProse(b.summary, b.verdicts, b.key) : null;
-      T.save();
-      // Write-through to the native task file so ~/.claude/tasks doesn't drift from the overlay.
-      // Daemon writes via fs (no edit-gate), best-effort. Skip statuses with no native mapping.
-      if (ns && b.key) { const i = String(b.key).indexOf('/'); if (i > 0) nt.writeStatus(b.key.slice(0, i), b.key.slice(i + 1), ns); }
-      notifyChange();
-      const statusResp = { ok: true };
-      if (followUpResults) statusResp.follow_ups = followUpResults;
-      if (verdictResults) statusResp.verdicts = verdictResults;
-      if (staleHolds) statusResp.stale_holds = staleHolds;
-      if (lintWarning) statusResp.warning = lintWarning;
-      return sendOp(res, b, 200, statusResp);
-    }
-
-    // Attach a Tier-2 knowledge item (file/snippet/link/note) to a task.
-    if (p === '/overlay/knowledge' && m === 'POST') {
-      const b = await readBody(req);
-      if (opReplay(res, b)) return;   // duplicate of a retried request that already landed
-      const T = targetOverlay(b, u);
-      if (!b.key || !b.item) return send(res, 400, { ok: false, error: 'key and item required' });
-      // Embed-on-write: stamp a semantic vector on the knowledge item (over its text) so /search can
-      // cosine-rank it. embed() is null-safe ⇒ lexical fallback when the model is unavailable.
-      const kvec = await embed(knowledgeText(b.item));
-      if (kvec) b.item._vec = kvec;
-      (T.ov.knowledge[b.key] = T.ov.knowledge[b.key] || []).push(b.item);
-      T.save();
-      notifyChange();
-      return sendOp(res, b, 200, { ok: true, count: T.ov.knowledge[b.key].length });
-    }
-
-    // Create an overlay-only NOTE node: durable decision/finding captured as a Tier-1 context
-    // provider in the graph (NOT a native todo). Surfaces via buildGraph + context edges.
-    if (p === '/overlay/note' && m === 'POST') {
-      const b = await readBody(req);
-      if (opReplay(res, b)) return;   // duplicate of a retried request that already landed (one note, not two)
-      const T = targetOverlay(b, u);
-      if (!b.title || !b.summary) return send(res, 400, { ok: false, error: 'title and summary required' });
-      // Embed-on-write: compute the note's semantic vector (title-only) so /search can cosine-rank
-      // it. embed() returns null (never throws) if the model is unavailable ⇒ the note falls back to
-      // lexical scoring — retrieval never hard-fails.
-      b.vec = await embed(b.title);
-      const id = overlayStore.addNoteNode(T.ov, b);
-      // If the sidecar was still loading (vec null), schedule a one-shot retry.
-      // Closes the narrow startup window where a note gets stored without a vector.
-      if (!b.vec) {
-        const _retryText = b.title;
-        setTimeout(async () => {
-          try {
-            const v = await embed(_retryText);
-            if (!v) return;
-            const node = T.ov.note_nodes && T.ov.note_nodes[id];
-            if (node && !node.vec) {
-              node.vec = v;
-              const gs = (T.ws === state.workspace) ? state.graphStore : null;
-              if (gs) graphStore.appendEvent(gs, id, { evt: 'note_vec_set', id, vec: v, actor: 'retry', ts: Date.now() });
-            }
-          } catch { /* best effort */ }
-        }, 45000);  // 45s — MiniLM typically ready within 30s of first spawn
-      }
-      // Sync in-memory: addNoteNode mutates T.ov.note_nodes in-place when T.ov IS state.overlay.
-      // This explicit mirror guards future refactors and also keeps state.overlay.knowledge in
-      // sync so /search can rank note knowledge items without a daemon restart.
-      if (T.ws === state.workspace) {
-        if (!state.overlay.note_nodes[id]) state.overlay.note_nodes[id] = T.ov.note_nodes[id];
-        if (Array.isArray(b.knowledge) && b.knowledge.length > 0 && !state.overlay.knowledge[id]) {
-          state.overlay.knowledge[id] = b.knowledge;
-        }
-      }
-      // DEMOTED (edge-judge rework): we no longer BLINDLY auto-wire similarity edges on note create.
-      // Similarity ≠ a real DAG edge — the default verdict is NO edge. Instead a new note just bumps
-      // the EPOCH (a node was added), which makes it (and any newly-relevant neighbors) eligible in the
-      // judge queue: RAG generates candidates, the AGENT adjudicates which become edges (see /judge/*).
-      // `autowired` is kept in the response shape for back-compat but is always 0 now.
-      const autowired = 0;
-      overlayStore.bumpEpoch(T.ov);
-      // Optional one-shot supersede: a newer decision invalidates an older note WITHOUT deleting it.
-      // `supersedes` is the OLD note's key ('note:<id>' or bare '<id>'). Stamps validTo on the old,
-      // chains old↔new, and sets the new note's validFrom to the changeover instant.
-      let superseded = null;
-      if (b.supersedes) {
-        const oldId = String(b.supersedes).replace(/^note:/, '');
-        const r = overlayStore.supersedeNote(T.ov, oldId, id, b.valid_from, T.ws);
-        if (!r.ok) return send(res, 400, { ok: false, error: r.error });
-        superseded = { old_key: 'note:' + oldId, at: r.at };
-      }
-      // Contradiction/duplicate hint (non-fatal, NEVER auto-supersedes): when the note was created
-      // WITHOUT `supersedes`, scan CURRENT notes for a strong title+summary token-overlap near-match
-      // (same scorer + threshold as the /task/suggest duplicate warning) and surface it as a `hint`
-      // so the agent can decide whether to stamp the timeline via supersede_note.
-      let hint = null;
-      if (!b.supersedes) {
-        const qt = suggestToks(`${b.title} ${b.summary}`);
-        let best = null;
-        for (const n of Object.values(T.ov.note_nodes || {})) {
-          if (n.id === id || n.validTo) continue;   // skip self + already-retired notes
-          const { score } = scoreNodeAgainstTokens({ label: n.title, summary: n.summary }, qt);
-          if (score >= SUGGEST_DUP_THRESHOLD && (!best || score > best.score)) best = { key: 'note:' + n.id, score };
-        }
-        if (best) hint = `this may contradict/duplicate note ${best.key} — if it replaces it, call supersede_note(old_key=${best.key}, new_key=note:${id}) so the stale note is retired; if uncertain, leave both.`;
-      }
-      if (Array.isArray(b.wires_to)) {
-        for (const taskKey of b.wires_to) {
-          overlayStore.addEdge(T.ov, 'note:' + id, taskKey, null, 'context', 1.0);
-          const gs = (T.ws === state.workspace) ? state.graphStore : null;
-          if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, actor: b.actor || 'record-decision', ts: Date.now() });
-        }
-      }
-      T.save();
-      notifyChange();
-      return sendOp(res, b, 200, { ok: true, id, key: 'note:' + id, superseded, autowired, hint });
-    }
-
-    // DEMOTED (edge-judge rework): re-enqueue an EXISTING note for ADJUDICATION instead of blindly
-    // re-writing similarity edges. The old behavior wrote note -> neighbor cosine edges directly; that
-    // is exactly the blind RAG-as-DAG pass we replaced. Now this just resets the note's judged
-    // watermark (judgedAtEpoch -> 0) so the judge queue re-pulls it on its next tick and the AGENT
-    // decides which candidates (if any) become real edges. Body: { key:'note:<id>'|'<id>' }.
-    if (p === '/overlay/note/rewire' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.key) return send(res, 400, { ok: false, error: 'key required' });
-      const id = String(b.key).replace(/^note:/, '');
-      const n = (T.ov.note_nodes || {})[id];
-      if (!n) return send(res, 404, { ok: false, error: 'unknown note' });
-      if (!T.ov.judgedAtEpoch) T.ov.judgedAtEpoch = {};
-      delete T.ov.judgedAtEpoch['note:' + id];   // never judged ⇒ re-pullable by /judge/next
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, key: 'note:' + id, requeued: true, autowired: 0 });
-    }
-
-    // Supersede note OLD with note NEW: a newer decision invalidates an older one without deleting
-    // history. Stamps validTo on OLD, links the chain, sets NEW.validFrom = changeover. Both notes
-    // must already exist. Keys accept 'note:<id>' or bare '<id>'. `at` (ISO) overrides the instant.
-    if (p === '/overlay/note/supersede' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      if (!b.old_key || !b.new_key) return send(res, 400, { ok: false, error: 'old_key and new_key required' });
-      const oldId = String(b.old_key).replace(/^note:/, '');
-      const newId = String(b.new_key).replace(/^note:/, '');
-      const r = overlayStore.supersedeNote(T.ov, oldId, newId, b.at, T.ws);
-      if (!r.ok) return send(res, 400, { ok: false, error: r.error });
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, old_key: 'note:' + oldId, new_key: 'note:' + newId, at: r.at });
-    }
-
-    // One-time BACKFILL: embed every existing note node + Tier-2 knowledge item that lacks a vector,
-    // so historical knowledge (created before embed-on-write) becomes semantically searchable. Run
-    // once after enabling embeddings. The LIVE daemon does it against its own in-memory overlay (the
-    // sole safe writer of the file — no clobber). Idempotent: items that already carry a vector are
-    // skipped, so re-running is cheap. Null embeds (model unavailable) leave the item lexical-only.
-    if (p === '/overlay/backfill-embeddings' && m === 'POST') {
-      let notesEmbedded = 0, notesSkipped = 0, knEmbedded = 0, knSkipped = 0, failed = 0;
-      const gs = state.graphStore || graphStore.open(require('path').join(state.workspace, '.graph'));
-      const ts = new Date().toISOString();
-      for (const n of Object.values(state.overlay.note_nodes || {})) {
-        if (Array.isArray(n.vec)) { notesSkipped++; continue; }
-        const v = await embed(n.title || '');
-        if (v) {
-          n.vec = v; notesEmbedded++;
-          graphStore.appendEvent(gs, n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
-        } else failed++;
-      }
-      for (const items of Object.values(state.overlay.knowledge || {})) {
-        for (const it of (items || [])) {
-          if (it && Array.isArray(it._vec)) { knSkipped++; continue; }
-          const v = await embed(knowledgeText(it));
-          if (v && it && typeof it === 'object') { it._vec = v; knEmbedded++; } else failed++;
-        }
-      }
-      overlayStore.save(state.workspace, state.overlay);
-      notifyChange();
-      return send(res, 200, { ok: true, notes: { embedded: notesEmbedded, skipped: notesSkipped }, knowledge: { embedded: knEmbedded, skipped: knSkipped }, failed });
-    }
-
-    // Maintenance: (re-)embed every NOTE node that lacks a real 384-dim vector, so the SEMANTIC
-    // note-wiring path can cosine-match it. Prerequisite for semantic autowire — a vec-less note can
-    // never be matched semantically. Idempotent: a note that already carries a 384-dim vec is skipped
-    // (a null/empty/wrong-dim vec is treated as missing and re-embedded). embed() never throws; if it
-    // returns null for one note we leave it and count it `failed`, continuing the loop. Operates on
-    // the LIVE in-memory overlay (the sole safe writer of the file). Body: none.
-    if (p === '/overlay/reembed' && m === 'POST') {
-      const body2 = await readBody(req).catch(() => ({}));
-      const force2 = body2 && body2.force;
-      let embedded = 0, skipped = 0, failed = 0;
-      const gs2 = state.graphStore || graphStore.open(require('path').join(state.workspace, '.graph'));
-      const ts2 = new Date().toISOString();
-      for (const n of Object.values(state.overlay.note_nodes || {})) {
-        if (!force2 && Array.isArray(n.vec) && n.vec.length === DIMS) { skipped++; continue; }
-        const v = await embed(n.title || '');
-        if (v) { n.vec = v; embedded++; graphStore.appendEvent(gs2, n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'reembed', ts: ts2 }); } else failed++;   // null embed ⇒ leave it, count failed, continue
-      }
-      overlayStore.save(state.workspace, state.overlay);
-      notifyChange();
-      return send(res, 200, { ok: true, embedded, skipped, failed });
-    }
-
-    // --- edge-judge: RAG recall (dumb) → agent adjudication (precision) ---------------------
-    // GET /judge/next?budget=N — hand the judge agent up to N work items from the PERSISTED cursor,
-    // advancing + persisting it (wraps past the end; idles when nothing is pullable). The daemon does
-    // NO reasoning here: it only recalls CANDIDATES (via /search's semantic path) and surfaces
-    // UNVERIFIED edges. Two item kinds:
-    //   (a) 'orphan'  — an under-connected note → `candidates`: top-8 semantic neighbors (cosine
-    //                    >= RAG_RECALL_THRESHOLD, the LOOSE recall bar), each {key,title,summary,score}.
-    //   (b) 'edge'    — an UNVERIFIED blind similarity edge → `from`/`to` endpoints' {title,summary,key}
-    //                    for the agent's keep-or-prune call.
-    // Default budget = config.judge.budgetPerRun (~6). Pure read — only the cursor is persisted.
-    if (p === '/judge/next') {
-      const cfg = state.overlay.config.judge || {};
-      const defBudget = Number(cfg.budgetPerRun) || 6;
-      const budget = Math.max(1, Math.min(parseInt(u.searchParams.get('budget') || String(defBudget), 10) || defBudget, 50));
-      const g = buildGraph(state.workspace);
-      const byId = new Map(g.tasks.map((t) => [t.id, t]));
-      const detail = (key) => { const t = byId.get(key); return t ? { key, title: t.label, summary: String(t.summary || '').slice(0, 200), kind: t.kind || 'task', status: t.status } : { key, title: key, summary: '', missing: true }; };
-      const queue = judge.buildQueue(state.overlay);
-      const slice = judge.nextSlice(queue, state.overlay.judgeCursor || 0, budget);
-      const items = slice.items.map((it) => {
-        if (it.kind === 'edge') {
-          return { kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to) };
-        }
-        if (it.kind === 'dup-cluster') {
-          // attach each member note's {key,title,summary,created_at} so the agent picks a keeper (newest
-          // / most complete) and supersedes the rest without extra reads. Read from the overlay store.
-          const notes = it.keys.map((k) => {
-            const n = state.overlay.note_nodes[String(k).replace(/^note:/, '')];
-            return n ? { key: k, title: n.title, summary: String(n.summary || '').slice(0, 300), created_at: n.created_at || null } : { key: k, title: k, summary: '', created_at: null, missing: true };
-          });
-          return { kind: 'dup-cluster', id: it.id, keys: it.keys, notes };
-        }
-        // orphan note → attach RAG candidates (recall). The note itself + its candidates.
-        const note = byId.get(it.id) || { id: it.id, label: it.id, summary: '', vec: null };
-        const candidates = noteRagCandidates(state.overlay, g, it.id, note.label, note.summary, note.vec, 8)
-          .map((c) => ({ key: c.key, title: c.title, summary: c.summary, score: c.score, status: c.status, via: c.via }));
-        return { kind: 'orphan', id: it.id, note: detail(it.id), candidates };
-      });
-      // Persist the advanced cursor so the NEXT tick resumes past these items (never re-walks).
-      if (!slice.idle && slice.cursorAfter !== (state.overlay.judgeCursor || 0)) {
-        state.overlay.judgeCursor = slice.cursorAfter;
-        overlayStore.save(state.workspace, state.overlay);
-      }
-      return send(res, 200, {
-        epoch: state.overlay.epoch || 0,
-        budget, idle: slice.idle, total: slice.total,
-        cursorBefore: slice.cursorBefore, cursorAfter: slice.cursorAfter,
-        items,
-      });
-    }
-
-    // POST /judge/verdict — apply the AGENT's adjudications. Body: { verdicts: [ ... ] } (or a single
-    // verdict object). Each verdict is one of:
-    //   { createEdge: { from, to, weight? } }   — a REASONED context edge (note PROVIDER -> consumer).
-    //                                             Tagged judged:true,by:'judge' (a real assertion, not cosine).
-    //   { keepEdge:   { from, to } }            — affirm an UNVERIFIED edge meets the context bar (flip judged:true).
-    //   { pruneEdge:  { from, to, kind? } }     — remove an edge that does NOT meet the bar.
-    //   { consolidate: { keep, supersede:[...], why? } } — NODE dedup: supersede each non-canonical note
-    //                                             into `keep` (non-destructive: stamps validTo, keeps the
-    //                                             note, as-of retrieval recovers it), RE-POINT this overlay's
-    //                                             context edges from each superseded note onto `keep` (dedup,
-    //                                             drop self-loops), and mark the cluster judged. Idempotent.
-    //   { surfaceCluster: { keys, why? } }      — ONE cluster-level guidance item for an ambiguous cluster
-    //                                             (no auto-consolidation). Marks the cluster judged.
-    // Each verdict may carry `markJudged: '<note-key>'` (or `item: {kind,id}`) so the source work item's
-    // note watermark is stamped judgedAtEpoch=epoch — a 'no edge' decision included. Idempotent.
-    if (p === '/judge/verdict' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);
-      const verdicts = Array.isArray(b.verdicts) ? b.verdicts : (b.createEdge || b.keepEdge || b.pruneEdge || b.consolidate || b.surfaceCluster || b.markJudged || b.item ? [b] : []);
-      const epoch = T.ov.epoch || 0;
-      if (!T.ov.judgedAtEpoch) T.ov.judgedAtEpoch = {};
-      if (!T.ov.judgedClusters) T.ov.judgedClusters = {};
-      const applied = { created: 0, kept: 0, pruned: 0, surfaced: 0, judged: 0, consolidated: 0, superseded: 0, repointed: 0, clustersJudged: 0 };
-      for (const v of verdicts) {
-        if (v && v.createEdge && v.createEdge.from && v.createEdge.to) {
-          const before = T.ov.edges.length;
-          overlayStore.addEdge(T.ov, v.createEdge.from, v.createEdge.to, null, 'context', v.createEdge.weight);
-          // Stamp the edge as a JUDGED assertion (not a blind cosine edge).
-          const e = T.ov.edges.find((x) => x.from === v.createEdge.from && x.to === v.createEdge.to && x.kind === 'context');
-          if (e) { e.judged = true; e.by = 'judge'; }
-          if (T.ov.edges.length > before || e) applied.created++;
-        }
-        if (v && v.keepEdge && v.keepEdge.from && v.keepEdge.to) {
-          if (judge.keepEdge(T.ov, v.keepEdge.from, v.keepEdge.to)) applied.kept++;
-        }
-        if (v && v.pruneEdge && v.pruneEdge.from && v.pruneEdge.to) {
-          const before = T.ov.edges.length;
-          overlayStore.removeEdge(T.ov, v.pruneEdge.from, v.pruneEdge.to, null, v.pruneEdge.kind);
-          if (T.ov.edges.length < before) applied.pruned++;
-        }
-        if (v && v.consolidate && v.consolidate.keep && Array.isArray(v.consolidate.supersede)) {
-          // NODE dedup — AUTO-CONSOLIDATE a confirmed same-fact cluster. Non-destructive: supersedeNote
-          // stamps validTo on each old note (history kept; as-of retrieval recovers it) and chains it to
-          // the keeper. THEN re-point this overlay's CONTEXT edges off the superseded notes onto the
-          // keeper (so the keeper inherits the cluster's edges; nothing dangles to a now-hidden note),
-          // de-duping and dropping any resulting self-loop. Finally mark the cluster judged.
-          const keep = String(v.consolidate.keep).replace(/^note:/, '');
-          const supersededNow = [];
-          for (const oldKey of v.consolidate.supersede) {
-            const oldId = String(oldKey).replace(/^note:/, '');
-            const r = overlayStore.supersedeNote(T.ov, oldId, keep, undefined, T.ws);
-            if (r && r.ok) { applied.superseded++; supersededNow.push('note:' + oldId); }
-          }
-          // Re-point context edges: any edge touching a superseded note → swap that endpoint to the keeper.
-          const keepKey = 'note:' + keep;
-          for (const e of T.ov.edges) {
-            if (e.kind !== 'context') continue;
-            if (supersededNow.includes(e.from)) { e.from = keepKey; applied.repointed++; }
-            if (supersededNow.includes(e.to)) { e.to = keepKey; applied.repointed++; }
-          }
-          // Drop self-loops and dedup (a note that had an edge to the keeper, or to another cluster member,
-          // now collapses). Keep the FIRST occurrence of each (from,to,fromWorkspace,kind).
-          const seen = new Set();
-          T.ov.edges = T.ov.edges.filter((e) => {
-            if (e.from === e.to) return false;                                   // self-loop
-            const sig = `${e.from}>>${e.to}>>${e.fromWorkspace || ''}>>${e.kind || 'blocking'}`;
-            if (seen.has(sig)) return false;
-            seen.add(sig);
-            return true;
-          });
-          // Mark the cluster (keeper + superseded) judged so it isn't re-offered until membership/epoch change.
-          judge.stampCluster(T.ov.judgedClusters, [keepKey, ...v.consolidate.supersede.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k)], epoch);
-          applied.consolidated++; applied.clustersJudged++;
-        }
-        if (v && v.surfaceCluster && Array.isArray(v.surfaceCluster.keys) && v.surfaceCluster.keys.length) {
-          // ONE cluster-level guidance item (not per-pair) for a genuinely ambiguous cluster.
-          // severity 'review': queues for the user but never pauses the loop — consolidation is
-          // still NEVER auto-applied without the user's confirm.
-          const keys = v.surfaceCluster.keys.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
-          // Attach a structured ACTION payload so the dashboard can render each note's title + a keeper
-          // picker and the resolver can act (consolidate/distinct) without re-deriving the cluster.
-          const notesMeta = keys.map((k) => {
-            const n = T.ov.note_nodes[String(k).replace(/^note:/, '')];
-            return { key: k, title: (n && n.title) || k, created_at: (n && n.created_at) || null };
-          });
-          overlayStore.addGuidance(T.ov, {
-            question: `Ambiguous duplicate cluster (${keys.length} notes): are these the SAME fact to consolidate, or distinct? Notes: ${keys.join(', ')}`,
-            context: `judge surfaced a node-dedup cluster it could not confidently consolidate. ${v.surfaceCluster.why || ''}`.slice(0, 2000),
-            trigger: 'ambiguous_intent',
-            severity: 'review',
-            action: { kind: 'dup-cluster', keys, signature: judge.clusterSignature(keys), notes: notesMeta },
-          });
-          judge.stampCluster(T.ov.judgedClusters, keys, epoch);
-          applied.surfaced++; applied.clustersJudged++;
-        }
-        // Stamp the source item's note watermark so a 'no edge' (or any) verdict isn't re-pulled until
-        // epoch grows. markJudged is an explicit note key; item:{kind:'orphan',id} also stamps that note.
-        const noteKey = v && (v.markJudged || (v.item && v.item.kind === 'orphan' ? v.item.id : null));
-        if (noteKey) { judge.stampJudged(T.ov.judgedAtEpoch, noteKey, epoch); applied.judged++; }
-      }
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, epoch, applied, edges: T.ov.edges.length });
-    }
-
-    // Read the full supersede chain (oldest→newest) for a note, with each link's validity window.
-    // Pure read — for the dashboard's "supersedes / superseded by" indicator and timeline queries.
-    if (p === '/note/chain') {
-      const raw = u.searchParams.get('key') || u.searchParams.get('id') || '';
-      const id = String(raw).replace(/^note:/, '');
-      const chain = overlayStore.noteChain(state.overlay, id).map((cid) => {
-        const n = state.overlay.note_nodes[cid];
-        return { key: 'note:' + cid, title: n.title, validFrom: n.validFrom || null, validTo: n.validTo || null, current: !n.validTo };
-      });
-      return send(res, 200, { key: 'note:' + id, chain });
-    }
-
-    // Tier 1 (cheap): a task's base context = its dependencies' summaries — BOTH blocking deps
-    // and non-blocking context edges (the latter let it inherit completed nodes' summaries).
-    if (p === '/task/context') {
-      const T = targetOverlay(null, u);   // honor ?workspace= (read-side gremlin fix)
-      const g = buildGraph(T.ws);
-      const t = g.tasks.find((x) => x.id === u.searchParams.get('key'));
-      if (!t) return send(res, 404, { ok: false, error: 'unknown task' });
-      const mk = (d, kind) => { const dep = g.tasks.find((x) => x.id === d); return { key: d, label: dep ? dep.label : d, status: dep ? dep.status : '?', summary: (dep && dep.summary) || T.ov.summaries[d] || '', via: kind }; };
-      const summaries = [
-        ...t.deps.filter((d) => !d.startsWith('ghost:')).map((d) => mk(d, 'blocking')),
-        ...t.context_deps.filter((d) => !d.startsWith('ghost:')).map((d) => mk(d, 'context')),
-      ];
-      const allGhostRefs = [...t.deps, ...t.context_deps];
-      const ghost = g.ghosts.filter((gh) => allGhostRefs.includes(`ghost:${gh.workspace}|${gh.key}`)).map((gh) => ({ workspace: gh.workspace, key: gh.key, label: gh.label, status: gh.status }));
-      return send(res, 200, { task: { id: t.id, label: t.label, status: t.status }, dependencySummaries: summaries, ghostDependencies: ghost });
-    }
-
-    // Suggest existing tasks (INCLUDING completed) a task should link to, by token overlap of
-    // label + summary. Completed matches → context edges (summary becomes Tier-1 context);
-    // open matches the agent may promote to blocking. Call after TaskCreate to avoid orphan roots.
-    if (p === '/task/suggest') {
-      const ws = u.searchParams.get('workspace') || state.workspace;
-      const g = buildGraph(ws);
-      const key = u.searchParams.get('key');
-      const target = g.tasks.find((x) => x.id === key);
-      if (!target) return send(res, 404, { ok: false, error: 'unknown task' });
-      const out = scoreMatches(g, target).slice(0, 5);
-      const duplicates = out.filter((c) => c.duplicate).map((c) => c.key);
-      let hint = 'Link DONE matches as kind:context (their summary becomes Tier-1 context); link a true prerequisite as kind:blocking. Skip unrelated ones.';
-      if (duplicates.length) hint = `WARNING: this looks like a near-duplicate of OPEN task(s) ${duplicates.join(', ')}. If it is the same work re-planned, do NOT keep both — call supersede_task(old_task_key=<existing>, new_task_key=${target.id}) so the graph reconciles old→new instead of leaving orphaned duplicates. ` + hint;
-      return send(res, 200, { task: { id: target.id, label: target.label }, suggestions: out, duplicates, hint });
-    }
-
-    // Vertical traversal: walk UP the dependency chain (transitive deps / deps-of-deps),
-    // returning each ancestor with its summary + depth. Cheap (summaries only). Ghost deps
-    // are a frontier (not auto-expanded across workspaces — use /peek on demand).
-    if (p === '/task/tree') {
-      const key = u.searchParams.get('key');
-      const maxDepth = Math.min(parseInt(u.searchParams.get('depth') || '6', 10) || 6, 25);
-      const T = targetOverlay(null, u);   // honor ?workspace= (read-side gremlin fix)
-      const g = buildGraph(T.ws);
-      const byId = Object.fromEntries(g.tasks.map((t) => [t.id, t]));
-      const root = byId[key];
-      if (!root) return send(res, 404, { ok: false, error: 'unknown task' });
-      const ancestors = [], ghostFrontier = [], seen = new Set([key]);
-      let frontier = [{ key, depth: 0 }];
-      while (frontier.length) {
-        const next = [];
-        for (const { key: k, depth } of frontier) {
-          if (depth >= maxDepth) continue;
-          const t = byId[k];
-          if (!t) continue;
-          for (const d of t.deps) {
-            if (d.startsWith('ghost:')) {
-              const gh = g.ghosts.find((x) => `${x.workspace}|${x.key}` === d.slice('ghost:'.length));
-              if (gh) ghostFrontier.push({ workspace: gh.workspace, key: gh.key, label: gh.label, status: gh.status, via: k, depth: depth + 1 });
-              continue;
-            }
-            if (seen.has(d)) continue;
-            seen.add(d);
-            const dep = byId[d];
-            if (!dep) continue;
-            ancestors.push({ key: dep.id, label: dep.label, status: dep.status, summary: T.ov.summaries[dep.id] || '', depth: depth + 1, via: k });
-            next.push({ key: d, depth: depth + 1 });
-          }
-        }
-        frontier = next;
-      }
-      return send(res, 200, { root: { key: root.id, label: root.label, status: root.status }, maxDepth, ancestors, ghostFrontier });
-    }
-
-    // Tier 2 (on demand): full detail for one task — knowledge, summary, assignee, token usage.
-    if (p === '/task/detail') {
-      const key = u.searchParams.get('key');
-      const T = targetOverlay(null, u);   // honor ?workspace= (read-side gremlin fix)
-      const g = buildGraph(T.ws);
-      const t = g.tasks.find((x) => x.id === key);
-      if (!t) return send(res, 404, { ok: false, error: 'unknown task' });
-      const assignee = T.ov.assignee[key] || null;
-      const agent = assignee ? state.agents[assignee] : null;
-      return send(res, 200, {
-        task: t,
-        summary: T.ov.summaries[key] || '',
-        knowledge: T.ov.knowledge[key] || [],
-        git: T.ov.git[key] || null,
-        repo: (T.ov.repos && T.ov.repos[key]) || null,
-        test_cmd: overlayStore.testCmdFor(T.ov, (T.ov.repos && T.ov.repos[key]) || null),  // the task's repo's test command (store-only; agents run it)
-        metric: (T.ov.metrics && T.ov.metrics[key]) || null,
-        measurement: (T.ov.measurements && T.ov.measurements[key]) || null,
-        benchmark: (T.ov.benchmarks && T.ov.benchmarks[key]) || null,
-        assignee,
-        cancel_requested: T.ov.cancel_requested[key] || null,  // advisory cooperative-cancel flag
-        tokenUsage: (() => { const tp = taskTranscript(key, t.session, true); return tp ? usageCached(tp) : null; })(),
-        transcript: (() => { const tp = taskTranscript(key, t.session, true); return tp || null; })(),
-      });
-    }
-
-    // On-demand: load another workspace's full graph without changing the current one.
-    if (p === '/peek') {
-      const ws = u.searchParams.get('workspace');
-      if (!ws) return send(res, 400, { ok: false, error: 'workspace required' });
-      return send(res, 200, buildGraph(ws));
-    }
-
-    if (p === '/task/adjacent') {
-      const key = u.searchParams.get('key');
-      const g = buildGraph(u.searchParams.get('workspace') || state.workspace);
-      const t = g.tasks.find((x) => x.id === key);
-      if (!t) return send(res, 404, { ok: false, error: 'unknown task', key });
-      const deps = g.tasks.filter((x) => t.deps.includes(x.id));
-      const ghostDeps = g.ghosts.filter((gh) => t.deps.includes(`ghost:${gh.workspace}|${gh.key}`));
-      const dependents = g.tasks.filter((x) => x.deps.includes(key));
-      return send(res, 200, { task: t, dependencies: deps, ghostDependencies: ghostDeps, dependents });
-    }
-
-    // Heartbeat loop control. The registry is KEYED by loopId — /loop/start INSERTS a fresh entry
-    // (never clobbers an existing one), so concurrent driving conversations each get their own loop.
-    if (p === '/loop/start' && m === 'POST') {
-      const b = await readBody(req);
-      // Accept a caller-supplied loopId (idempotent restart) or mint one. If it already exists we
-      // RESET that entry in place rather than refusing — but we never overwrite a DIFFERENT loop.
-      const loopId = (b.loopId && String(b.loopId)) || crypto.randomUUID();
-      const L = newLoop({ id: loopId });
-      L.active = true; L.startedAt = now(); L.lastProgress = now();
-      L.session = b.session || null;   // the conversation driving this loop — addresses its cooperative-stop signal
-      // Workspace PIN (captured once, persists via loops.json): the heartbeat decides this loop
-      // against THIS workspace's graph even if another session later flips the daemon-global
-      // state.workspace. mcp-core injects the calling session's pin into every POST body; a bare
-      // caller pins to the global workspace as of NOW. null (legacy entries) ⇒ dynamic global fallback.
-      L.workspace = b.workspace || state.workspace || null;
-      L.real = !!state.mainTranscript;
-      L.baseline = state.mainTranscript ? (usageCached(state.mainTranscript).total || 0) : 0;
-      for (const k of LOOP_CONFIG_KEYS) if (b[k] != null) L.config[k] = b[k];
-      loops.set(loopId, L);
-      saveLoops();
-      return send(res, 200, { ok: true, loopId, loop: L });
-    }
-    if (p === '/loop/stop' && m === 'POST') {
-      const b = await readBody(req);
-      const loopId = b.loopId || u.searchParams.get('loopId');
-      if (!loopId) return send(res, 400, { ok: false, error: 'loopId required' });
-      const L = loops.get(loopId);
-      if (!L) return send(res, 404, { ok: false, error: 'unknown loopId', loopId });
-      L.active = false; saveLoops();
-      return send(res, 200, { ok: true, loopId });
-    }
-    if (p === '/loop/status') {
-      const loopId = u.searchParams.get('loopId');
-      if (loopId) {
-        const L = loops.get(loopId);
-        if (!L) return send(res, 404, { ok: false, error: 'unknown loopId', loopId });
-        return send(res, 200, L);
-      }
-      return send(res, 200, { loops: Object.fromEntries(loops) });
-    }
-    if (p === '/next-action') { const r = decideAll(); saveLoops(); return send(res, 200, { loops: r }); }
+    // Route modules handle all extracted endpoint groups.
+    for (const route of routeModules) { if (await route(p, m, req, res, u, null)) return; }
 
     // Multi-signal classifier: embed prompt, run context gate, compute rag/dag/complexity scores.
     // Input: { prompt: string }
@@ -2952,438 +1580,11 @@ const handler = async (req, res) => {
       return send(res, 200, result);
     }
 
-    if (p === '/route' && m === 'POST') {
-      const b = await readBody(req);
-      state.routes.push({ ts: now(), prompt: String(b.prompt || '').slice(0, 280), decision: b.decision || 'solo', reason: String(b.reason || '').slice(0, 280) });
-      if (state.routes.length > MAX_ROUTES) state.routes.shift();
-      return send(res, 200, { ok: true });
-    }
-
-    if (p === '/agent/start' && m === 'POST') {
-      const b = await readBody(req);
-      if (!b.agent_id) return send(res, 400, { ok: false, error: 'agent_id required' });
-      const prev = state.agents[b.agent_id] || {};
-      // Capture task/session/workspace so a colliding worker is visible across sessions (GET /agents).
-      state.agents[b.agent_id] = { agent_id: b.agent_id, agent_type: b.agent_type || prev.agent_type || 'agent', state: 'running', transcript_path: b.transcript_path || prev.transcript_path || null, task: b.task || prev.task || null, session: b.session || prev.session || null, subagent_session: b.subagent_session || prev.subagent_session || null, workspace: b.workspace || prev.workspace || state.workspace || null, startedAt: prev.startedAt || now(), lastSeen: now(), endedAt: null };
-      saveAgents();
-      notifyChange();
-      return send(res, 200, { ok: true });
-    }
-    if (p === '/agent/done' && m === 'POST') {
-      const b = await readBody(req);
-      const a = state.agents[b.agent_id];
-      if (!a) return send(res, 404, { ok: false, error: 'unknown agent' });
-      a.state = 'done'; a.endedAt = now(); a.lastSeen = now();
-      // Cascade: release any in_progress task this agent still holds (it stopped without completing),
-      // so the claim doesn't linger as a phantom in_progress. Fixes the stale-status bug directly.
-      // Target the AGENT'S workspace (recorded at /agent/start), not the daemon-global overlay —
-      // the claim lives where the agent's session was pinned (read-side gremlin fix).
-      const T = targetOverlay({ workspace: b.workspace || a.workspace }, u);
-      let released = 0;
-      for (const [key, st] of Object.entries(T.ov.status))
-        if (st === 'in_progress' && T.ov.assignee[key] === b.agent_id
-            && releaseClaim(key, `auto-released: agent '${b.agent_id}' stopped without completing`, T.ov)) released++;
-      if (released) T.save();
-      saveAgents();
-      notifyChange();
-      return send(res, 200, { ok: true, released });
-    }
-
-    // Cross-session visibility: list every known agent with task/session/workspace/startedAt and
-    // its current cooperative-stop flag, so one session can SEE a worker running in another.
-    if (p === '/agents') {
-      const ovStops = targetOverlay(null, u).ov;   // stop flags live per-workspace; honor ?workspace=
-      const list = agentsArr().map((a) => ({
-        agent_id: a.agent_id, agent_type: a.agent_type, state: a.state,
-        task: a.task || null, session: a.session || null, workspace: a.workspace || null,
-        startedAt: a.startedAt || null, endedAt: a.endedAt || null,
-        stop_requested: ovStops.stop_requested[a.agent_id] || null,
-      }));
-      return send(res, 200, { agents: list });
-    }
-
-    // Cooperative stop: raise an advisory stop flag for a worker (by agent_id, or by task_key via
-    // its assignee). No cross-process kill — the worker is expected to poll /agents (or
-    // /agent/stop-requested) and self-terminate. Returns the resolved agent or 404.
-    if (p === '/agent/stop' && m === 'POST') {
-      const b = await readBody(req);
-      const T = targetOverlay(b, u);   // flag lands in the CALLER's workspace overlay
-      let agentId = b.agent_id || null;
-      if (!agentId && b.task_key) agentId = T.ov.assignee[b.task_key] || agentsArr().find((a) => a.task === b.task_key)?.agent_id || null;
-      if (!agentId) return send(res, 404, { ok: false, error: 'no agent for that agent_id/task_key' });
-      T.ov.stop_requested[agentId] = now();
-      T.save();
-      notifyChange();
-      return send(res, 200, { ok: true, agent_id: agentId, stop_requested: T.ov.stop_requested[agentId] });
-    }
-    // A worker polls this to learn whether it should cooperatively stop.
-    if (p === '/agent/stop-requested') {
-      const id = u.searchParams.get('agent_id');
-      if (!id) return send(res, 400, { ok: false, error: 'agent_id required' });
-      return send(res, 200, { agent_id: id, stop_requested: targetOverlay(null, u).ov.stop_requested[id] || null });
-    }
-
-    // Token cost-flow attribution ("autonomy score"): who consumed every token, and did it land?
-    // Each task's OWN tokens (honest splits: tasks sharing one session transcript divide its total
-    // by claim-window duration instead of each double-counting the whole session) flow along its
-    // outgoing dependency/context edges (lib/costflow.js). Merged-to-main nodes are SINKS that
-    // claim their accumulated cost; terminal non-merged nodes trap theirs — named waste.
-    // autonomy_score = productive tokens ÷ genuinely human-TYPED input tokens parsed from the
-    // workspace's main-session transcripts (lib/human-input.js). ?since=ISO bounds the HUMAN-INPUT
-    // window only (graph tokens are lifetime-of-task). Conservation: productive + trapped == total.
-    // STRICT mode: merged = git-VERIFIED merge only (agent self-reported "done" earns no productive
-    // credit), and the flow runs over OUTPUT tokens only — input/cache tokens are reported raw for
-    // transparency but never counted as "produced". totals.total is the output-only flow total.
-    if (p === '/costflow' && m === 'GET') {
-      const cfWs = u.searchParams.get('workspace') || state.workspace;
-      if (!cfWs) return send(res, 400, { ok: false, error: 'no workspace set' });
-      // TTL response cache (cleared by notifyChange on every mutation) — SCC+flow is expensive
-      // and dashboards poll this. Checked before targetOverlay so a hit skips the overlay load too.
-      const cfKey = `costflow|${cfWs}|${u.searchParams.get('since') || ''}`;
-      const cfHit = respCacheGet(cfWs, cfKey);
-      if (cfHit !== undefined) return send(res, 200, cfHit);
-      const T = targetOverlay(null, u);
-      const g = buildGraph(T.ws);
-      const stWs = T.ws === state.workspace ? state : { ...state, overlay: T.ov };
-      // 1) honest per-task own tokens (real tasks only; notes/ghosts are zero-cost contributors)
-      const claims = g.tasks.filter((t) => t.kind !== 'note').map((t) => ({
-        id: t.id,
-        transcript: taskTranscript(t.id, t.session, true, stWs),
-        window: { start: t.firstSeen, end: t.lastChanged },
-      }));
-      // strict flow: claim splits over OUTPUT tokens only (raw input/cache stay display-only below)
-      const usageOutputOnly = (tp) => { const u2 = usageCached(tp); return { total: (u2 && u2.output_tokens) || 0 }; };
-      const ownTok = costflow.splitSessionTokens(claims, usageOutputOnly);
-      // Sum raw per-category + per-model tokens across ALL transcripts (tasks + session files)
-      let rawInput=0, rawOutput=0, rawCacheRead=0;
-      const rawByModel={};
-      const mergeModel=(bm)=>{ if(!bm) return; for(const [m,v] of Object.entries(bm)){ if(!rawByModel[m]) rawByModel[m]={input_tokens:0,output_tokens:0,cache_read_input_tokens:0}; rawByModel[m].input_tokens+=v.input_tokens||0; rawByModel[m].output_tokens+=v.output_tokens||0; rawByModel[m].cache_read_input_tokens+=v.cache_read_input_tokens||0; } };
-      const seenTp=new Set();
-      for (const c of claims) if(c.transcript&&!seenTp.has(c.transcript)){ seenTp.add(c.transcript); const u=usageCached(c.transcript); rawInput+=u.input_tokens||0; rawOutput+=u.output_tokens||0; rawCacheRead+=u.cache_read_input_tokens||0; mergeModel(u.by_model); }
-      // also include session transcripts not covered by task claims
-      const projDirRaw = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
-      try { for(const e of fs.readdirSync(projDirRaw,{withFileTypes:true})) { if(!e.isFile()||!e.name.endsWith('.jsonl')) continue; const tp=path.join(projDirRaw,e.name); if(seenTp.has(tp)) continue; const u=usageCached(tp); rawInput+=u.input_tokens||0; rawOutput+=u.output_tokens||0; rawCacheRead+=u.cache_read_input_tokens||0; mergeModel(u.by_model); } } catch {}
-      // 2) nodes + contributor→consumer edges (deps weigh 1.0; context edges their stored weight)
-      // exploration flag: attempt branches are valuable search cost, not pure waste
-      const supersededIds = new Set((T.ov.edges || []).filter(e => e.kind === 'supersede').map(e => e.from));
-      const isExplorationTask = (t) => t.kind === 'note' || supersededIds.has(t.id) || t.status === 'canceled' || t.status === 'failed' || !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
-      const nodes = g.tasks.map((t) => ({ id: t.id, own: ownTok.get(t.id) || 0, merged: !!(t.git && t.git.merged), exploration: isExplorationTask(t), label: t.label }));
-      const seen = new Set(nodes.map((n) => n.id));
-      for (const gh of g.ghosts) {
-        const gid = `ghost:${gh.workspace}|${gh.key}`;
-        if (!seen.has(gid)) { nodes.push({ id: gid, own: 0, merged: false, label: gh.label || '' }); seen.add(gid); }
-      }
-      const edges = [];
-      for (const t of g.tasks) {
-        for (const d of t.deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: 1 });
-        for (const d of t.context_deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: (t.context_weights && t.context_weights[d]) ?? overlayStore.DEFAULT_CONTEXT_WEIGHT });
-      }
-      // 2b) catch-all session nodes (design note-mq89ptfjx0y): every main-session transcript in the
-      // project dir gets a synthesized `session:` node owning its tokens NOT split to any task claim,
-      // with context edges to the tasks/notes that session created. Sessions that produced nothing
-      // become terminal traps — their tokens are NAMED waste. In-memory only: flagged kind:'session'
-      // in this payload, never persisted, never a native todo / task-view entry.
-      const projDir = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
-      const claimedByTp = new Map();
-      for (const c of claims) if (c.transcript) claimedByTp.set(c.transcript, (claimedByTp.get(c.transcript) || 0) + (ownTok.get(c.id) || 0));
-      let sessFiles = [];
-      try { sessFiles = fs.readdirSync(projDir, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith('.jsonl')); } catch { /* no transcripts yet */ }
-      const sessions = sessFiles.map((e) => {
-        const tp = path.join(projDir, e.name);
-        let total = 0; try { total = ((usageCached(tp) || {}).output_tokens) || 0; } catch { total = 0; }
-        return { id: e.name.slice(0, -'.jsonl'.length), total, claimed: claimedByTp.get(tp) || 0 };
-      });
-      const catchalls = costflow.sessionCatchalls(sessions, g.tasks, overlayStore.DEFAULT_CONTEXT_WEIGHT);
-      for (const cn of catchalls.nodes) if (!seen.has(cn.id)) { nodes.push(cn); seen.add(cn.id); }
-      for (const ce of catchalls.edges) if (seen.has(ce.from) && seen.has(ce.to)) edges.push(ce);
-      // Escalation hook (note-mq89ptfjx0y refinement): a catch-all burning >1M tokens with ZERO
-      // outgoing edges is either real waste or a missing task — raise it through the existing
-      // escalation gate, tagged sessionKey for idempotency (same pattern as sweepStaleVerdicts'
-      // verdictKey, but matched against ALL items incl. resolved: a session once judged stays judged).
-      // severity 'review' — triage info, never pauses the loop.
-      const escalated = new Set((T.ov.guidance || []).map((gd) => gd.sessionKey).filter(Boolean));
-      let escDirty = false;
-      for (const cn of catchalls.nodes) {
-        if (cn.own < CATCHALL_ESCALATE_TOKENS || catchalls.edges.some((e) => e.from === cn.id)) continue;
-        const sid = cn.id.slice('session:'.length);
-        if (escalated.has(sid)) continue;
-        const gid = overlayStore.addGuidance(T.ov, {
-          question: `Session ${sid.slice(0, 8)} burned ${(cn.own / 1e6).toFixed(1)}M tokens with zero graph-visible outputs. Real waste, or missing task nodes?`,
-          context: `cost-flow catch-all: ${Math.round(cn.own)} unattributed tokens in main-session transcript ${sid}.jsonl and no task/note created by that session. Either the work evaporated (waste) or it produced something the graph never captured (record it as a task/note so the cost can flow).`,
-          trigger: 'low_confidence_high_impact',
-          severity: 'review',
-        });
-        const item = (T.ov.guidance || []).find((x) => x.id === gid);
-        if (item) item.sessionKey = sid;
-        escalated.add(sid);
-        escDirty = true;
-      }
-      if (escDirty) { T.save(); notifyChange(); }
-      const flow = costflow.computeFlow(nodes, edges);
-      // 3) denominator: genuinely human-typed tokens in this workspace's main-session transcripts
-      const human = humanInput.humanInputTokens(projDir, { since: u.searchParams.get('since') || null });
-      const rnd = (x) => Math.round(x);
-      // Build a set of exploration task ids (attempt branches) for post-processing waste
-      const explorationIds = new Set(g.tasks.filter(isExplorationTask).map((t) => t.id));
-      // Split waste into exploration (attempt branches) and trapped (true waste)
-      const kindOf = (id) => (id.startsWith('session:') ? 'session' : undefined);
-      const wasteExploration = [], wasteTrapped = [];
-      for (const w of flow.waste) {
-        // A component is exploration if its representative task is an attempt branch,
-        // or if ALL members are attempt branches (for merged components).
-        const isExp = explorationIds.has(w.task) ||
-          (w.members && w.members.length > 0 && w.members.every((m) => explorationIds.has(m)));
-        (isExp ? wasteExploration : wasteTrapped).push(w);
-      }
-      const productive = rnd(flow.totals.productive);
-      const explorationTok = rnd(wasteExploration.reduce((s, w) => s + w.trapped, 0));
-      const trappedTok = rnd(wasteTrapped.reduce((s, w) => s + w.trapped, 0));
-      return send(res, 200, respCachePut(cfWs, cfKey, {
-        workspace: T.ws,
-        autonomy_score: human.tokens > 0 ? Math.round((flow.totals.productive / human.tokens) * 10) / 10 : null,
-        human,
-        totals: { total: productive + explorationTok + trappedTok, productive, exploration: explorationTok, trapped: trappedTok, input_tokens: rnd(rawInput), output_tokens: rnd(rawOutput), cache_read: rnd(rawCacheRead) },
-        by_model: Object.fromEntries(Object.entries(rawByModel).map(([m,v])=>[m,{input_tokens:rnd(v.input_tokens),output_tokens:rnd(v.output_tokens),cache_read:rnd(v.cache_read_input_tokens)}])),
-        sessions: { count: catchalls.nodes.length, unattributed: rnd(catchalls.nodes.reduce((s, n) => s + n.own, 0)) },
-        results: flow.results.map((r) => ({ task: r.task, kind: kindOf(r.task), label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
-        waste: wasteTrapped.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
-        exploration: wasteExploration.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, tokens: rnd(w.trapped) })),
-      }));
-    }
-
-    if (p === '/harness/overhead' && m === 'GET') {
-      const T = targetOverlay(null, u);
-      if (!T.ws) return send(res, 400, { ok: false, error: 'no workspace set' });
-      const projDir = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
-      const since = u.searchParams.get('since') || null;
-      const overhead = humanInput.harnessOverheadTokens(projDir, { since });
-      const human = humanInput.humanInputTokens(projDir, { since });
-      let totalSessionInput = 0;
-      try {
-        for (const e of fs.readdirSync(projDir, { withFileTypes: true })) {
-          if (!e.isFile() || !e.name.endsWith('.jsonl')) continue;
-          const tp = path.join(projDir, e.name);
-          let raw; try { raw = fs.readFileSync(tp, 'utf8'); } catch { continue; }
-          for (const line of raw.split('\n')) {
-            const t = line.trim(); if (!t) continue;
-            try {
-              const d = JSON.parse(t);
-              const u = d.usage || (d.message && d.message.usage);
-              if (u) totalSessionInput += (u.input_tokens || 0);
-            } catch { /* skip */ }
-          }
-        }
-      } catch { /* best effort */ }
-      const system_reminder_est = Math.max(0, totalSessionInput - overhead.tokens - human.tokens);
-      return send(res, 200, { overhead, human, total_input_est: overhead.tokens + human.tokens, total_session_input: totalSessionInput, system_reminder_est, harness_fraction: totalSessionInput > 0 ? Math.round(((overhead.tokens + system_reminder_est) / totalSessionInput) * 1000) / 1000 : 0 });
-    }
-
-    if (p === '/state') {
-      // TTL response cache keyed on workspace + the params that shape the payload (scope/compact/
-      // include_archived); cleared by notifyChange on every mutation. Checked before targetOverlay
-      // so a hit skips both the overlay load and the buildGraph rebuild.
-      const stWs = u.searchParams.get('workspace') || state.workspace;
-      const stKey = `state|${stWs}|${u.searchParams.get('scope') || ''}|${u.searchParams.get('compact') || ''}|${u.searchParams.get('include_archived') || ''}`;
-      const stHit = respCacheGet(stWs, stKey);
-      if (stHit !== undefined) return send(res, 200, stHit);
-      const T = targetOverlay(null, u);   // honor ?workspace= for the overlay-backed fields too
-      const ws = T.ws;
-      const g = buildGraph(ws);
-      // Serialize edges with their EFFECTIVE weight (a context edge with no stored weight reads as
-      // the default), so clients can rank context edges without consulting task.context_weights.
-      const edgesOut = T.ov.edges.map((e) => (e.kind === 'context' ? { ...e, weight: overlayStore.edgeWeight(e) } : e));
-      // Archive window: stale terminal tasks + superseded notes older than this drop out of the
-      // payload. ?include_archived=1 disables the sweep; POST /config { archive_after_days } tunes it.
-      const includeArchived = isTruthy(u.searchParams.get('include_archived'));
-      const cfgDays = Number((T.ov.config || {}).archive_after_days);
-      const windowMs = includeArchived ? Infinity : (cfgDays > 0 ? cfgDays : frontier.DEFAULT_ARCHIVE_DAYS) * 864e5;
-      // Frontier digest (?scope=frontier): summary counts + the active frontier (live nodes, their
-      // 1-hop neighbors, weight-guided important deps/context ancestry) as slim nodes with clipped
-      // summaries — the lean default for the get_full_graph MCP tool on large graphs. The whole-graph
-      // dump stays the HTTP default (scope=all; the dashboard does its own frontier selection).
-      // `scope` is the shared enum the planned adjacent/tree merge slots into.
-      if (u.searchParams.get('scope') === 'frontier') {
-        const f = frontier.projectFrontier(g.tasks, g.ghosts, edgesOut, { windowMs });
-        return send(res, 200, respCachePut(stWs, stKey, { workspace: ws, scope: 'frontier', tasks: f.tasks, ghosts: f.ghosts, edges: f.edges, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } }));
-      }
-      // Archival sweep on the default/full payload: archived nodes are excluded here but remain on
-      // disk, still queryable via /search + suggest_links. Frontier-retained nodes never archive
-      // (a stale done task that is still an important context provider stays). summary.statuses
-      // keeps the honest whole-graph counts; summary.archived says how many nodes were omitted.
-      let tasks = g.tasks, archived = 0;
-      if (isFinite(windowMs)) {
-        const arch = frontier.archivedIds(g.tasks, { windowMs, keep: frontier.frontierKeep(g.tasks) });
-        archived = arch.size;
-        if (archived) tasks = tasks.filter((t) => !arch.has(t.id));
-      }
-      const summary = { ...g.summary, archived };
-      // Compact projection (?compact=1): slim each task to id/label/status/deps(+assignee) and drop
-      // heavy fields (note, summary, tokens, git, timestamps, session) so overview reads stay small.
-      if (u.searchParams.get('compact')) {
-        const slim = tasks.map((t) => {
-          const o = { id: t.id, label: t.label, status: t.status, deps: t.deps };
-          if (t.kind) o.kind = t.kind;
-          if (t.agent_id) o.assignee = t.agent_id;
-          if (t.git && t.git.merged) o.merged = true;   // merge outcome survives the slim projection
-          return o;
-        });
-        return send(res, 200, respCachePut(stWs, stKey, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary }));
-      }
-      return send(res, 200, respCachePut(stWs, stKey, { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr(), summary }));
-    }
-
-    if (p.startsWith('/agent/')) {
-      const id = decodeURIComponent(p.slice('/agent/'.length));
-      const a = state.agents[id];
-      if (!a) return send(res, 404, 'unknown agent', 'text/plain');
-      return send(res, 200, `Agent: ${a.agent_id}\nType: ${a.agent_type}\nState: ${a.state}\nTranscript: ${a.transcript_path || '-'}\n\n--- output ---\n${a.transcript_path ? readTranscript(a.transcript_path) : '(no transcript path)'}`, 'text/plain; charset=utf-8');
-    }
-
-    if (p === '/cron/usage' && m === 'GET') {
-      const usageFile = path.join(__dirname, 'logs', 'cron-token-usage.jsonl');
-      const entries = [];
-      try {
-        const lines = fs.readFileSync(usageFile, 'utf8').split('\n');
-        for (const line of lines) {
-          const t = line.trim();
-          if (!t) continue;
-          try { entries.push(JSON.parse(t)); } catch { /* skip malformed */ }
-        }
-      } catch { /* file missing -> empty */ }
-      entries.sort((a, b) => String(b.ts || '').localeCompare(String(a.ts || '')));
-      // Group by task: last 20 entries per task + per-task totals
-      const byTaskMap = {};
-      for (const e of entries) {
-        const k = e.task || '(unknown)';
-        if (!byTaskMap[k]) byTaskMap[k] = { lastRun: e.ts || null, totalInput: 0, totalOutput: 0, totalCache: 0, runCount: 0 };
-        const g = byTaskMap[k];
-        g.totalInput  += e.input_tokens  || 0;
-        g.totalOutput += e.output_tokens || 0;
-        g.totalCache  += e.cache_read_tokens || 0;
-        g.runCount++;
-        if (!g.lastRun || String(e.ts || '') > String(g.lastRun)) g.lastRun = e.ts || null;
-      }
-      return send(res, 200, { entries: entries.slice(0, 200), byTask: byTaskMap });
-    }
-
-    if ((p === '/' || p === '/graph') && m === 'GET') return send(res, 200, fs.readFileSync(path.join(PUBLIC, 'graph.html'), 'utf8'), 'text/html; charset=utf-8');
-
-    // KB learner queue endpoints — mine+enqueue candidates or drain one batch via LLM.
-    // These wrap the onboard-learn.js scripts so the orchestrator heartbeat can drive
-    // learning as capacity-fill work without a blocking shell loop.
-    if (p === '/onboard/enqueue' && m === 'POST') {
-      const b = await readBody(req);
-      const repo = b.repo;
-      if (!repo) return send(res, 400, { ok: false, error: 'repo required' });
-      const outDir = b.outDir || path.join(__dirname, 'bench', 'onboard', path.basename(repo));
-      const { spawnSync } = require('child_process');
-      const SCRIPTS = path.join(__dirname, 'scripts');
-      // Run miners first (fast, no LLM).
-      for (const s of ['onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-config.js']) {
-        spawnSync(process.execPath, [path.join(SCRIPTS, s), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: __dirname });
-      }
-      spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-mine-structure.js'), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: __dirname });
-      // Enqueue all candidates (no cap).
-      const enqR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--enqueue'], { stdio: 'inherit', cwd: __dirname });
-      if (enqR.status !== 0) return send(res, 500, { ok: false, error: `enqueue failed (exit ${enqR.status})` });
-      // Read queue status.
-      const statusR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: __dirname, encoding: 'utf8' });
-      let status = null;
-      try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
-      return send(res, 200, { ok: true, total: status && status.total, remaining: status && status.remaining, outDir });
-    }
-
-    // In-memory drain job state map (keyed by `${repo}::${outDir}`).
-    // Declared once at module scope lazily via the daemon's closure.
-    if (!global.__drainJobs) global.__drainJobs = new Map();
-    const drainJobs = global.__drainJobs;
-
-    if (p === '/onboard/drain-queue' && m === 'POST') {
-      const b = await readBody(req);
-      const { repo, outDir, batchSize } = b;
-      if (!repo || !outDir) return send(res, 400, { ok: false, error: 'repo and outDir required' });
-      const jobKey = `${repo}::${outDir}`;
-      if (drainJobs.has(jobKey)) {
-        const existing = drainJobs.get(jobKey);
-        if (!existing.done && !existing.error) {
-          return send(res, 200, { ok: true, status: existing, message: 'drain already in progress' });
-        }
-      }
-      // Read initial queue status.
-      const { spawnSync, spawn } = require('child_process');
-      const learnScript = path.join(__dirname, 'scripts', 'onboard-learn.js');
-      const statusR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: __dirname, encoding: 'utf8' });
-      let initStatus = null;
-      try { initStatus = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
-      const total = (initStatus && initStatus.total) || 0;
-      const remaining = (initStatus && initStatus.remaining) || 0;
-      const job = { repo, outDir, total, processed: total - remaining, remaining, done: remaining === 0, error: null };
-      drainJobs.set(jobKey, job);
-      if (job.done) return send(res, 200, { ok: true, status: job, message: 'queue already empty' });
-      // Kick off async background drain loop.
-      const bs = String(batchSize || 50);
-      (async () => {
-        try {
-          while (true) {
-            await new Promise((resolve, reject) => {
-              const child = spawn(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', bs], { stdio: 'inherit', cwd: __dirname });
-              child.on('close', code => code === 0 ? resolve() : reject(new Error(`drain exited ${code}`)));
-            });
-            const stR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: __dirname, encoding: 'utf8' });
-            let st = null;
-            try { st = JSON.parse(stR.stdout || ''); } catch { /* ignore */ }
-            if (st) {
-              job.total = st.total || job.total;
-              job.remaining = st.remaining || 0;
-              job.processed = job.total - job.remaining;
-            }
-            if (!st || job.remaining === 0) break;
-          }
-          // Inject learned notes into the graph.
-          spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm'], { stdio: 'inherit', cwd: __dirname });
-          job.done = true;
-          job.remaining = 0;
-          job.processed = job.total;
-        } catch (err) {
-          job.error = String(err && err.message || err);
-          job.done = true;
-        }
-      })();
-      return send(res, 200, { ok: true, status: job });
-    }
-
-    if (p === '/onboard/drain-queue' && m === 'GET') {
-      const u = new URL(req.url, 'http://localhost');
-      const repo = u.searchParams.get('repo');
-      const outDir = u.searchParams.get('outDir');
-      if (!repo || !outDir) return send(res, 400, { ok: false, error: 'repo and outDir query params required' });
-      const jobKey = `${repo}::${outDir}`;
-      if (!global.__drainJobs || !global.__drainJobs.has(jobKey)) {
-        return send(res, 404, { ok: false, error: 'no drain job found for this repo+outDir' });
-      }
-      return send(res, 200, { ok: true, status: global.__drainJobs.get(jobKey) });
-    }
-
-    if (p === '/onboard/drain-next' && m === 'POST') {
-      const b = await readBody(req);
-      const { repo, outDir, batchSize } = b;
-      if (!repo || !outDir) return send(res, 400, { ok: false, error: 'repo and outDir required' });
-      const { spawnSync } = require('child_process');
-      const learnScript = path.join(__dirname, 'scripts', 'onboard-learn.js');
-      const drainR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', String(batchSize || 50)], { stdio: 'inherit', cwd: __dirname });
-      if (drainR.status !== 0) return send(res, 500, { ok: false, error: `drain failed (exit ${drainR.status})` });
-      const statusR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: __dirname, encoding: 'utf8' });
-      let status = null;
-      try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
-      return send(res, 200, { ok: true, status });
-    }
-
     return send(res, 404, { error: 'not found', path: p });
   } catch (e) {
     return send(res, 500, { error: String((e && e.stack) || e) });
   }
 };
-
 // Compaction guard: git WORKTREE checkouts (under worktrees/, used for attempt branches) also run
 // daemons and also carry a tracked .graph — independent compaction there guarantees merge
 // conflicts when the attempt branch lands. Mechanical predicate: in a worktree `.git` is a FILE
@@ -3425,11 +1626,21 @@ if (require.main === module) {
     try { fs.unlinkSync(path.join(state.workspace, '.graph', 'daemon.port')); } catch { /* already gone */ }
   }
 
+  let httpsServer = null; // assigned in the listen callback when certs exist; closed on signal
+
   process.on('exit', removeDaemonPort); // 'exit' must stay synchronous — port cleanup only
-  // SIGINT/SIGTERM: stop accepting connections, let in-flight requests drain, force-exit after 5s.
+  // SIGINT/SIGTERM: release BOTH listening ports at SIGNAL time, not exit time. server.close()
+  // alone waits for open connections — and SSE clients hold theirs indefinitely, so exit rode the
+  // 5s force-timer while the (previously never-closed) HTTPS listener kept 8788 bound; a relaunch
+  // in that window crashed EADDRINUSE (observed twice 2026-06-12). closeAllConnections() drops
+  // SSE/keep-alive sockets so a successor can bind within ~1s of the signal.
   ['SIGINT', 'SIGTERM'].forEach(sig => process.on(sig, () => {
     removeDaemonPort();
     server.close(() => process.exit(0));
+    if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
+    if (httpsServer) {
+      try { httpsServer.close(); if (typeof httpsServer.closeAllConnections === 'function') httpsServer.closeAllConnections(); } catch { /* already down */ }
+    }
     setTimeout(() => process.exit(0), 5000).unref();
   }));
 
@@ -3457,6 +1668,13 @@ if (require.main === module) {
               process.exit(1);
             });
           }).on('error', () => {
+            // Port busy but no daemon answering /ping: most likely a dying predecessor draining
+            // in-flight requests. Retry the SAME port briefly instead of giving up (restart race).
+            if ((tryListen._samePortRetries = (tryListen._samePortRetries || 0) + 1) <= 30) {
+              process.stdout.write(`port ${port} busy (predecessor draining?) — retrying in 500ms (${tryListen._samePortRetries}/30)\n`);
+              setTimeout(() => tryListen(port, attemptsLeft), 500);
+              return;
+            }
             process.stderr.write(`Port ${port} is in use by another process. Set ORCH_PORT=<n> to use a different port.\n`);
             process.exit(1);
           });
@@ -3469,7 +1687,12 @@ if (require.main === module) {
     });
     server.listen(port, '127.0.0.1', () => {
       process.stdout.write(`orchestrator daemon on http://127.0.0.1:${port}\n`);
-      writeDaemonPort(port);
+
+      // BIND-EARLY: the port is now held; load state asynchronously so /health (whitelisted
+      // through the 503 gate) reports boot progress while everything else gets an honest 503.
+      // writeDaemonPort needs state.workspace, so it runs after loadState resolves.
+      loadState().then(() => writeDaemonPort(port))
+        .catch((e) => { process.stderr.write(`loadState failed: ${(e && e.stack) || e}\n`); process.exit(1); });
 
       // Optional HTTPS listener for the custom-connector path (needs a locally-trusted cert — run
       // scripts/setup-https.sh, which uses mkcert). Off unless cert + key exist. Then connect a
@@ -3479,8 +1702,20 @@ if (require.main === module) {
       const KEY = process.env.ORCH_TLS_KEY || path.join(BASE, 'certs', 'key.pem');
       try {
         if (fs.existsSync(CERT) && fs.existsSync(KEY)) {
-          require('https').createServer({ cert: fs.readFileSync(CERT), key: fs.readFileSync(KEY) }, handler)
-            .listen(HTTPS_PORT, '127.0.0.1', () => process.stdout.write(`orchestrator HTTPS on https://127.0.0.1:${HTTPS_PORT}\n`));
+          httpsServer = require('https').createServer({ cert: fs.readFileSync(CERT), key: fs.readFileSync(KEY) }, handler);
+          // Retry EADDRINUSE on the HTTPS port: a restarting predecessor can hold it for a few
+          // seconds while its in-flight requests drain. An unhandled 'error' here crashed the whole
+          // relaunch (observed twice 2026-06-12); retry instead, give up (HTTPS only) after ~15s.
+          let httpsAttempts = 30;
+          httpsServer.on('error', (err) => {
+            if (err.code === 'EADDRINUSE' && --httpsAttempts > 0) {
+              setTimeout(() => httpsServer.listen(HTTPS_PORT, '127.0.0.1'), 500);
+            } else {
+              process.stderr.write(`HTTPS listener skipped: ${err.message}\n`);
+              httpsServer = null;
+            }
+          });
+          httpsServer.listen(HTTPS_PORT, '127.0.0.1', () => process.stdout.write(`orchestrator HTTPS on https://127.0.0.1:${HTTPS_PORT}\n`));
         }
       } catch (e) { process.stderr.write(`HTTPS listener skipped: ${e.message}\n`); }
     });

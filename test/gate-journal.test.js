@@ -1,17 +1,20 @@
 #!/usr/bin/env node
-// Tests that every gated /search verdict (inject AND abstain) is appended as a parseable JSONL
+// Tests that every /search verdict — gated AND ungated (shadow) — is appended as a parseable JSONL
 // row to .graph/gate-journal.jsonl inside the workspace dir. Uses a sandboxed daemon on a private
 // port (never the live one at 8787) with a temp workspace — does NOT pollute the real journal.
 //
 // Covers:
 //   1. ABSTAIN: gated call with no note vectors → gate low-confidence → journals one row with
-//      ts (ISO), decision:'abstain', top1 (number), embedModel, task_key present (null ok).
+//      ts (ISO), decision:'abstain', top1 (number), embedModel, task_key present (null ok),
+//      gated:true, round (number).
 //   2. ABSTAIN also journals when called with an explicit ?task_key= parameter.
 //   3. INJECT: gated call against a note with a real MiniLM vec that scores above threshold →
 //      journals decision:'inject'. SKIPPED if model weights not cached locally.
 //   4. Journal-write failure does NOT break the search response (fail-open): simulated by
 //      making .graph/ a read-only directory, then verifying the HTTP response is still 200.
 //      SKIPPED on platforms where chmod restriction isn't reliable for the daemon subprocess.
+//   5. UNGATED shadow: an ungated /search call journals a row with gated:false and a numeric
+//      round field, while the response body contains no gate metadata keys (decision/reason/etc.).
 //
 // Run: node test/gate-journal.test.js
 // Also runs fine under: ZONOID_SKIP_LIVE=1 node test/gate-journal.test.js
@@ -147,6 +150,14 @@ function countRows(pred) { return readJournal(JOURNAL).filter(pred).length; }
     ok('abstain row: locality field present', Object.prototype.hasOwnProperty.call(row, 'locality'));
     ok('abstain row: topType field present', Object.prototype.hasOwnProperty.call(row, 'topType'));
     ok('abstain row: via field present (string or null)', row.via === null || typeof row.via === 'string');
+    ok('abstain row: gated is true', row.gated === true);
+    ok('abstain row: round is a number', typeof row.round === 'number');
+    // ── new KB-state / query fields ──────────────────────────────────────────────────────────────
+    ok('abstain row: kbCands is a non-negative number', typeof row.kbCands === 'number' && row.kbCands >= 0);
+    ok('abstain row: cluster is a number <= kbCands', typeof row.cluster === 'number' && row.cluster >= 0 && row.cluster <= row.kbCands);
+    ok('abstain row: near45 is a number <= kbCands', typeof row.near45 === 'number' && row.near45 >= 0 && row.near45 <= row.kbCands);
+    ok('abstain row: qTokens is a positive number', typeof row.qTokens === 'number' && row.qTokens > 0);
+    ok('abstain row: empTop10 is between 0 and 1', typeof row.empTop10 === 'number' && row.empTop10 >= 0 && row.empTop10 <= 1);
 
     // ── 2. ABSTAIN with explicit task_key — journals task_key correctly ─────────────────────────
     const gatedWithKey = `/search?gated=1&workspace=${encodeURIComponent(WS)}&q=${encodeURIComponent('another abstain query')}&task_key=test-task-123`;
@@ -159,6 +170,8 @@ function countRows(pred) { return readJournal(JOURNAL).filter(pred).length; }
     ok('abstain+task_key: task_key in journal row', row2.task_key === 'test-task-123');
     ok('abstain+task_key: decision field present', typeof row2.decision === 'string');
     ok('abstain+task_key: embedModel correct', row2.embedModel === 'Xenova/all-MiniLM-L6-v2');
+    ok('abstain+task_key: gated is true', row2.gated === true);
+    ok('abstain+task_key: round is a number', typeof row2.round === 'number');
 
     // ── 3. INJECT path — requires MiniLM model weights ──────────────────────────────────────────
     if (!HAS_MODEL) {
@@ -230,6 +243,41 @@ function countRows(pred) { return readJournal(JOURNAL).filter(pred).length; }
           if (!restored) { try { fs.chmodSync(graphDir, 0o755); } catch { /* best effort */ } }
         }
       }
+    }
+
+    // ── 5. UNGATED shadow: journals gated:false + numeric round; response has NO gate metadata ──
+    {
+      const countBeforeUngated = readJournal(JOURNAL).length;
+      const ungatedPath = `/search?workspace=${encodeURIComponent(WS)}&q=${encodeURIComponent('ungated shadow journal test query')}&round=2`;
+      const ung = await get(ungatedPath);
+      ok('ungated shadow: HTTP 200', ung.status === 200);
+
+      // The journal must have grown by exactly one row.
+      const afterUngated = readJournal(JOURNAL);
+      ok('ungated shadow: exactly one new row appended', afterUngated.length === countBeforeUngated + 1);
+
+      const ungRow = afterUngated[afterUngated.length - 1];
+      ok('ungated shadow row: parseable JSON', ungRow !== null && typeof ungRow === 'object');
+      ok('ungated shadow row: gated is false', ungRow.gated === false);
+      ok('ungated shadow row: round is a number', typeof ungRow.round === 'number');
+      ok('ungated shadow row: ts is ISO string', typeof ungRow.ts === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(ungRow.ts));
+      ok('ungated shadow row: decision field present', typeof ungRow.decision === 'string');
+      ok('ungated shadow row: top1 is a number', typeof ungRow.top1 === 'number');
+      ok('ungated shadow row: embedModel correct', ungRow.embedModel === 'Xenova/all-MiniLM-L6-v2');
+      // ── new KB-state / query fields ────────────────────────────────────────────────────────────
+      ok('ungated shadow row: kbCands is a non-negative number', typeof ungRow.kbCands === 'number' && ungRow.kbCands >= 0);
+      ok('ungated shadow row: cluster is a number <= kbCands', typeof ungRow.cluster === 'number' && ungRow.cluster >= 0 && ungRow.cluster <= ungRow.kbCands);
+      ok('ungated shadow row: near45 is a number <= kbCands', typeof ungRow.near45 === 'number' && ungRow.near45 >= 0 && ungRow.near45 <= ungRow.kbCands);
+      ok('ungated shadow row: qTokens is a positive number', typeof ungRow.qTokens === 'number' && ungRow.qTokens > 0);
+      ok('ungated shadow row: empTop10 is between 0 and 1', typeof ungRow.empTop10 === 'number' && ungRow.empTop10 >= 0 && ungRow.empTop10 <= 1);
+
+      // Response body must NOT contain top-level gate metadata keys (decision, reason, top1, etc.).
+      const gateMetaKeys = ['decision', 'reason', 'top1', 'margin', 'gap', 'locality', 'topType'];
+      const bodyKeys = Object.keys(ung.body);
+      ok('ungated shadow response: no gate metadata keys in body',
+        gateMetaKeys.every((k) => !bodyKeys.includes(k)));
+      // The 'gated' key must also be absent from the ungated response (that field is gated-only).
+      ok('ungated shadow response: no gated key in body', !bodyKeys.includes('gated'));
     }
 
   } finally {

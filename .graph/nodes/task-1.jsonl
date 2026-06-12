@@ -1,5 +1,0 @@
-{"evt":"status_changed","id":"task-1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-11T01:40:27.865Z"}
-{"evt":"timestamps_set","id":"task-1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T01:40:27.865Z","lastChanged":"2026-06-11T01:40:27.865Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-11T01:40:27.865Z"}
-{"evt":"status_changed","id":"task-1","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-11T01:44:27.733Z"}
-{"evt":"summary_set","id":"task-1","workspace":"/Users/imyu/Desktop/zonoid","summary":"Added POST /onboard/enqueue + /onboard/drain-next endpoints, enqueue_kb + drain_kb_batch MCP tools, --dispatch flag on onboard-loop.js","actor":"overlay-sync","ts":"2026-06-11T01:44:27.733Z"}
-{"evt":"timestamps_set","id":"task-1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T01:40:27.865Z","lastChanged":"2026-06-11T01:44:27.733Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-11T01:44:27.842Z"}

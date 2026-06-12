@@ -151,6 +151,195 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ok('judged dup-cluster drops from buildQueue', !judge.buildQueue(o).some((i) => i.kind === 'dup-cluster'));
 }
 
+// --- buildQueue ordering: dup-clusters BEFORE edges BEFORE orphans ----------------------------
+// Rationale: a dup-cluster degrades every future retrieval (measured: clones depressed a winner
+// note from 0.787→0.480); an unverified autowire edge was created at a deliberately loose 0.25
+// threshold and mis-wiring is cheap. So priority is: dup-cluster > edge > orphan.
+{
+  const dim = 384;
+  const v = (k) => { const a = new Array(dim).fill(0); a[0] = 1; a[1] = k * 0.01; let n = Math.hypot(a[0], a[1]); a[0] /= n; a[1] /= n; return a; };
+  const o = ov.EMPTY(); o.epoch = 1;
+  // Two notes that form a dup cluster (similar vectors)
+  o.note_nodes = {
+    c1: { id: 'c1', title: 'Clone 1', summary: '', validTo: null, vec: v(1) },
+    c2: { id: 'c2', title: 'Clone 2', summary: '', validTo: null, vec: v(2) },
+    // A third orphan note with no vec (so it's an orphan but not a cluster member)
+    n1: { id: 'n1', title: 'Orphan', summary: '', validTo: null, vec: null },
+  };
+  // One unverified edge
+  o.edges = [
+    { from: 'note:zz', to: 'note:yy', kind: 'context', judged: false },
+  ];
+  const q = judge.buildQueue(o);
+  const kinds = q.map((i) => i.kind);
+  // Find positions
+  const dupPos   = kinds.indexOf('dup-cluster');
+  const edgePos  = kinds.indexOf('edge');
+  const orphanPos = kinds.indexOf('orphan');
+  ok('dup-cluster item appears in queue', dupPos !== -1);
+  ok('edge item appears in queue', edgePos !== -1);
+  ok('orphan item appears in queue', orphanPos !== -1);
+  ok('dup-cluster comes before edge', dupPos < edgePos);
+  ok('dup-cluster comes before orphan', dupPos < orphanPos);
+  ok('edge comes before orphan', edgePos < orphanPos);
+  // judgeQueueDepth membership must agree with buildQueue membership (ordering doesn't change count)
+  ok('judgeQueueDepth matches buildQueue length', judge.judgeQueueDepth(o) === q.length);
+}
+
+// --- nextSlice priority-vs-cursor: the live drain regression -----------------------------------
+// Exact live failure: 9 dup-cluster items + ~490 edge items, cursor at 166, budget 20.
+// Old behaviour: slice walked queue[166..186] → 20 edges, 0 dup-clusters (clusters are at [0..8]).
+// New behaviour: every slice serves all priority items first, then fills remaining budget from
+//   the tail (edges+orphans) starting at the cursor.  cursorAfter advances over the TAIL only.
+{
+  const dim = 384;
+  const makeVec = (k) => {
+    const a = new Array(dim).fill(0); a[0] = 1; a[1] = k * 0.005;
+    const n = Math.hypot(a[0], a[1]); a[0] /= n; a[1] /= n; return a;
+  };
+  const o = ov.EMPTY(); o.epoch = 1;
+
+  // Build 9 dup-cluster pairs (each pair forms one cluster; cluster items = 9).
+  // We need 9 separate clusters, not one big one → use orthogonal axes for each pair.
+  // Each cluster note gets an outgoing context edge so it is NOT an orphan (notes in a dup-cluster
+  // typically already have edges; this keeps the tail pure-edge to match the live scenario).
+  o.note_nodes = {};
+  o.edges = [];
+  for (let c = 0; c < 9; c++) {
+    const va = new Array(dim).fill(0); va[c] = 1; va[c + 1] = 0.005; const na = Math.hypot(va[c], va[c + 1]); va[c] /= na; va[c + 1] /= na;
+    const vb = new Array(dim).fill(0); vb[c] = 1; vb[c + 1] = 0.006; const nb = Math.hypot(vb[c], vb[c + 1]); vb[c] /= nb; vb[c + 1] /= nb;
+    o.note_nodes[`dc${c}a`] = { id: `dc${c}a`, title: `C${c}A`, summary: '', validTo: null, vec: va };
+    o.note_nodes[`dc${c}b`] = { id: `dc${c}b`, title: `C${c}B`, summary: '', validTo: null, vec: vb };
+    // Give each a judged outgoing context edge → connected, not orphan.
+    o.edges.push({ from: `note:dc${c}a`, to: `task:connected`, kind: 'context', judged: true });
+    o.edges.push({ from: `note:dc${c}b`, to: `task:connected`, kind: 'context', judged: true });
+  }
+
+  // Build 490 unverified edge items (no overlapping note keys so they don't form clusters)
+  for (let i = 0; i < 490; i++) {
+    o.edges.push({ from: `note:src${i}`, to: `note:dst${i}`, kind: 'context', judged: false });
+  }
+
+  const queue = judge.buildQueue(o);
+  const clusterCount = queue.filter((i) => i.kind === 'dup-cluster').length;
+  const tailCount    = queue.filter((i) => i.kind !== 'dup-cluster').length;
+  ok('live-regression: 9 dup-cluster items in queue', clusterCount === 9);
+  ok('live-regression: 490 edge items in tail (cluster notes are connected, not orphans)', tailCount === 490);
+
+  // Set cursor to 166 (past the reordered front in the old flat queue).
+  const cursor = 166;
+  const slice = judge.nextSlice(queue, cursor, 20);
+
+  ok('live-regression: received 20 items total', slice.items.length === 20);
+  ok('live-regression: all 9 dup-clusters present', slice.items.filter((i) => i.kind === 'dup-cluster').length === 9);
+  ok('live-regression: 11 tail items (budget 20 - 9 priority)', slice.items.filter((i) => i.kind !== 'dup-cluster').length === 11);
+  ok('live-regression: cursorBefore is 166', slice.cursorBefore === 166);
+  ok('live-regression: cursorAfter is 177 (166+11), NOT 186', slice.cursorAfter === 177);
+  ok('live-regression: idle:false', slice.idle === false);
+  ok('live-regression: total is full queue length', slice.total === queue.length);
+}
+
+// --- nextSlice priority exhausted → subsequent slice is pure tail -----------------------------
+{
+  const dim = 384;
+  const va = new Array(dim).fill(0); va[0] = 1; va[1] = 0.005; const na = Math.hypot(va[0], va[1]); va[0] /= na; va[1] /= na;
+  const vb = new Array(dim).fill(0); vb[0] = 1; vb[1] = 0.006; const nb = Math.hypot(vb[0], vb[1]); vb[0] /= nb; vb[1] /= nb;
+  const o = ov.EMPTY(); o.epoch = 1;
+  o.note_nodes = {
+    p1: { id: 'p1', title: 'P1', summary: '', validTo: null, vec: va },
+    p2: { id: 'p2', title: 'P2', summary: '', validTo: null, vec: vb },
+  };
+  // Give cluster notes outgoing context edges → they are connected, not orphans.
+  // Tail is purely the 10 unverified edges.
+  o.edges = [
+    { from: 'note:p1', to: 'task:t1', kind: 'context', judged: true },
+    { from: 'note:p2', to: 'task:t1', kind: 'context', judged: true },
+  ];
+  for (let i = 0; i < 10; i++) {
+    o.edges.push({ from: `note:e${i}a`, to: `note:e${i}b`, kind: 'context', judged: false });
+  }
+  const queue = judge.buildQueue(o);
+  const clusterCount = queue.filter((i) => i.kind === 'dup-cluster').length;
+  ok('priority-exhausted: 1 cluster in queue', clusterCount === 1);
+
+  // Stamp the cluster as judged → it disappears from priority.
+  const clusterItem = queue.find((i) => i.kind === 'dup-cluster');
+  judge.stampCluster(o.judgedClusters, clusterItem.keys, o.epoch);
+
+  const queue2 = judge.buildQueue(o);
+  ok('priority-exhausted: cluster gone after stamp', queue2.filter((i) => i.kind === 'dup-cluster').length === 0);
+
+  // A slice now is pure tail — cursor advances normally.
+  const slice2 = judge.nextSlice(queue2, 0, 5);
+  ok('priority-exhausted: pure-tail slice has 5 edge items', slice2.items.length === 5 && slice2.items.every((i) => i.kind === 'edge'));
+  ok('priority-exhausted: cursorAfter is 5', slice2.cursorAfter === 5);
+}
+
+// --- nextSlice: un-judged cluster reappears next slice without consuming the edge cursor ------
+{
+  // A cluster that was served in a slice but NOT given a verdict (skipped) should reappear on the
+  // very next slice without any cursor change for the tail items.
+  const dim = 384;
+  const va = new Array(dim).fill(0); va[0] = 1; va[1] = 0.005; const na = Math.hypot(va[0], va[1]); va[0] /= na; va[1] /= na;
+  const vb = new Array(dim).fill(0); vb[0] = 1; vb[1] = 0.006; const nb = Math.hypot(vb[0], vb[1]); vb[0] /= nb; vb[1] /= nb;
+  const o = ov.EMPTY(); o.epoch = 1;
+  o.note_nodes = {
+    r1: { id: 'r1', title: 'R1', summary: '', validTo: null, vec: va },
+    r2: { id: 'r2', title: 'R2', summary: '', validTo: null, vec: vb },
+  };
+  // Give cluster notes outgoing judged edges → connected, not orphans.
+  // Tail is purely the 2 unverified edges (length 2).
+  o.edges = [
+    { from: 'note:r1', to: 'task:t1', kind: 'context', judged: true },
+    { from: 'note:r2', to: 'task:t1', kind: 'context', judged: true },
+    { from: 'note:ea', to: 'note:eb', kind: 'context', judged: false },
+    { from: 'note:ec', to: 'note:ed', kind: 'context', judged: false },
+  ];
+  const queue = judge.buildQueue(o);
+  ok('reappear: 1 cluster + 2 tail edges', queue.filter((i) => i.kind === 'dup-cluster').length === 1 && queue.filter((i) => i.kind !== 'dup-cluster').length === 2);
+  // Slice 1: serve cluster + 1 tail item (budget 2 total: 1 priority + 1 tail).
+  const s1 = judge.nextSlice(queue, 0, 2);
+  ok('reappear: slice1 has 1 cluster + 1 tail', s1.items.filter((i) => i.kind === 'dup-cluster').length === 1 && s1.items.filter((i) => i.kind !== 'dup-cluster').length === 1);
+  ok('reappear: cursorAfter after slice1 is 1 (only tail moved)', s1.cursorAfter === 1);
+
+  // Do NOT stamp the cluster (simulate skipped verdict).
+  // Slice 2 with the new cursorAfter: cluster reappears, tail resumes at 1.
+  const s2 = judge.nextSlice(queue, s1.cursorAfter, 2);
+  ok('reappear: cluster reappears in slice2 (not stamped)', s2.items.filter((i) => i.kind === 'dup-cluster').length === 1);
+  ok('reappear: tail in slice2 starts at edge[1] (cursor=1)', s2.items.filter((i) => i.kind !== 'dup-cluster').length === 1 && s2.items.find((i) => i.kind !== 'dup-cluster').id === 'note:ec>>note:ed');
+  // Tail length is 2; cursor was 1; take 1 → cursorAfter = (1+1) % 2 = 0 (wraps).
+  ok('reappear: cursorAfter after slice2 wraps to 0 (tail length 2)', s2.cursorAfter === 0);
+
+  // Stamp the cluster now: it disappears from slice3.
+  const ci = queue.find((i) => i.kind === 'dup-cluster');
+  judge.stampCluster(o.judgedClusters, ci.keys, o.epoch);
+  const queue3 = judge.buildQueue(o);
+  const s3 = judge.nextSlice(queue3, s2.cursorAfter, 2);
+  ok('reappear: after stamp, cluster absent from slice3', s3.items.filter((i) => i.kind === 'dup-cluster').length === 0);
+}
+
+// --- nextSlice: epoch wrap unaffected by priority split ----------------------------------------
+{
+  const o = ov.EMPTY(); o.epoch = 1;
+  o.edges = [];
+  for (let i = 0; i < 5; i++) {
+    o.edges.push({ from: `note:w${i}a`, to: `note:w${i}b`, kind: 'context', judged: false });
+  }
+  // No clusters — pure tail queue of 5 edge items.
+  const queue = judge.buildQueue(o);
+  ok('epoch-wrap: pure-tail queue of 5', queue.length === 5);
+
+  // Walk to the end and verify wrap.
+  const s1 = judge.nextSlice(queue, 3, 3); // takes [3,4] then wraps to [0] → 3 items total
+  ok('epoch-wrap: takes 3 items wrapping', s1.items.length === 3);
+  ok('epoch-wrap: cursorAfter wraps to 1', s1.cursorAfter === 1); // (3+3)%5 = 1
+
+  // Bump epoch — tail membership changes (all edges still unverified, epoch doesn't affect edges).
+  ov.bumpEpoch(o);
+  const queue2 = judge.buildQueue(o);
+  ok('epoch-wrap: queue unchanged after epoch bump (edges are epoch-independent)', queue2.length === 5);
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

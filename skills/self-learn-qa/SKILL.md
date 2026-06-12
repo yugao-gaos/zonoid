@@ -52,6 +52,34 @@ Why a note and not a config key: `POST /config` only accepts whitelisted fields 
 read-back tool, and the failure diff (step 5) needs last night's results persisted anyway —
 the run record carries both the watermark and the results with zero daemon surface added.
 
+## Headless shell discipline (permission allowlist)
+
+This skill runs unattended at night. Every Bash call must either be a built-in read-only
+command (which never prompts) or deterministically match the project allowlist in
+`.claude/settings.json`. **Anything else raises a permission prompt nobody is awake to answer
+— the run stalls and dies.** (2026-06-12 run: first `date` call waited 2.1h; a `$()`-for-loop
+killed the run outright.)
+
+**The only shell you run:**
+- `npm test` — the repo's canonical suite.
+- `./scripts/qa-suite.sh` — full per-file sweep over `test/*.test.js` (per-file exit codes,
+  bounded failure excerpts). This committed script replaces every ad-hoc loop you might be
+  tempted to write.
+- `./scripts/qa-suite.sh test/<name>.test.js` — single-suite rerun (the step-6 flake check).
+- `date -u <+format>` — timestamps.
+- Built-in read-only commands (`ls`, `cat`, `grep`, `head`, `tail`, `jq`, `sed -n`) — these
+  are auto-approved, including as pipe filters (`npm test 2>&1 | tail -40` is fine).
+
+**Never, in any Bash call:** command substitution `$(...)`, `for`/`while` loops, heredocs,
+`cd`-prefixed compounds, env-var prefixes (`VAR=x cmd`), or redirection to files (`>`/`>>`).
+The headless classifier cannot statically verify these and will stall or block. If a sweep
+seems to need one, `qa-suite.sh` already does it — otherwise it is out of scope for the night.
+
+**Foreign repos:** a `test_cmd` may only be run if the allowlist covers it. Not covered ⇒
+treat the repo exactly like one with no `test_cmd`: skip it, report
+`skipped=<repo> (test_cmd not allowlisted)`, and let the morning reader add the settings
+entry alongside the `test_cmd`. Never improvise an alternative invocation to dodge a prompt.
+
 ## Procedure
 
 You are the nightly QA subagent. Operate via MCP tools for ALL graph/daemon interaction —
@@ -82,15 +110,19 @@ the design (the daemon stores `test_cmd` but never executes it; the QA agent run
 
 5. **Run each suite and diff.** For each QA-able repo, run its `test_cmd` (shell, cwd =
    the repo path; capture exit code + output, keep only the failing-test identifiers and the
-   last ~50 lines of output). Diff against last night's `failures=[...]` for that repo from
-   the run record:
+   last ~50 lines of output). Headless rule: the command must satisfy the shell discipline
+   above — for this workspace that means `npm test` and `./scripts/qa-suite.sh`; a foreign
+   `test_cmd` the allowlist doesn't cover goes to `skipped=` instead of being run. Diff
+   against last night's `failures=[...]` for that repo from the run record:
    - **NEW** — failing tonight, not recorded last night → flake-check (step 6).
    - **STILL-FAILING** — recorded last night, still failing → do NOT re-file (its problem
      node already exists); mention in the run record.
    - **FIXED** — recorded last night, passing tonight → list under `fixed=`.
 
 6. **Flake discipline (hard rule).** For each repo with NEW failures, rerun the same
-   `test_cmd` ONCE. A NEW failure is **reproducible** only if it appears in BOTH runs.
+   `test_cmd` ONCE (in this workspace, rerun just the failing suite:
+   `./scripts/qa-suite.sh test/<name>.test.js`). A NEW failure is **reproducible** only if
+   it appears in BOTH runs.
    Non-reproducing failures go under `flakes=` in the run record and nowhere else — never a
    problem node, never a guidance question.
 
@@ -151,5 +183,8 @@ the design (the daemon stores `test_cmd` but never executes it; the QA agent run
   skill's scope.
 - **Bounded everything.** ≤5 problem nodes/night, ≤1 rerun/suite, ~50-line output excerpts,
   ONE guidance question. The nightly loop's token budget is a hard cap, not a suggestion.
+- **Allowlisted shell or no shell.** Every Bash call must pass headless (see Headless shell
+  discipline). A permission prompt at 2am is a dead run — never improvise loops, `$()`, or
+  env prefixes to "just check something".
 - **Escalate, don't fix.** Even an "obvious" one-line fix waits for morning. The night shift
   files and proposes; it never ships.

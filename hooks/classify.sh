@@ -99,19 +99,19 @@ GATE_DECISION=$(printf '%s' "$CLASSIFY_RESP" | python3 -c 'import sys,json;d=jso
 COMPLEXITY=$(printf '%s' "$CLASSIFY_RESP" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d.get("complexity",0.5))' 2>/dev/null || echo "0.5")
 
 # --- model selection ---
-# main_model: complexity<0.4 AND abstain -> haiku; complexity>0.7 OR inject -> opus; else -> sonnet
-MAIN_MODEL="sonnet"
+# main_model: complexity<0.4 AND abstain -> sonnet-4.6; complexity>0.7 OR inject -> fable-5; else -> opus-4.8
+MAIN_MODEL="claude-opus-4-8"
 COMPLEXITY_LT04=$(python3 -c "exit(0 if float('${COMPLEXITY}') < 0.4 else 1)" 2>/dev/null && echo "yes" || echo "no")
 COMPLEXITY_GT07=$(python3 -c "exit(0 if float('${COMPLEXITY}') > 0.7 else 1)" 2>/dev/null && echo "yes" || echo "no")
 if [ "$COMPLEXITY_LT04" = "yes" ] && [ "${GATE_DECISION}" = "abstain" ]; then
-  MAIN_MODEL="haiku"
+  MAIN_MODEL="claude-sonnet-4-6"
 elif [ "$COMPLEXITY_GT07" = "yes" ] || [ "${GATE_DECISION}" = "inject" ]; then
-  MAIN_MODEL="opus"
+  MAIN_MODEL="claude-fable-5"
 fi
 case "$MAIN_MODEL" in
-  opus)   SUB_MODEL="sonnet" ;;
-  sonnet) SUB_MODEL="haiku" ;;
-  *)      SUB_MODEL="haiku" ;;
+  claude-fable-5)  SUB_MODEL="claude-opus-4-8 (fast)" ;;
+  claude-opus-4-8) SUB_MODEL="claude-sonnet-4-6" ;;
+  *)               SUB_MODEL="claude-sonnet-4-6" ;;
 esac
 
 # --- build additionalContext ---
@@ -231,6 +231,26 @@ fi
 # Always append ScheduleWakeup heartbeat instruction
 CTX="${CTX:+$CTX
 }[Orchestrator heartbeat] Call ScheduleWakeup(delaySeconds=7200, reason=\"idle heartbeat\", prompt=\"<<autonomous-loop-dynamic>>\") to keep this session alive for background work. On wakeup: check ready tasks + active loop via next_action. If BOTH are empty (nothing ready, no active loop) — do NOT reschedule. Let the loop end."
+
+# Judge queue pressure nudge. Skipped entirely when ORCH_GATE_OFF=1 (bench sandbox must not be
+# nudged into judge work — it would contaminate bench measurements). Fail-silent on curl error.
+if [ "${ORCH_GATE_OFF:-0}" != "1" ]; then
+  PRESSURE=$(curl -s --max-time 0.6 "localhost:${PORT}/judge/pressure" 2>/dev/null)
+  if [ -n "$PRESSURE" ]; then
+    NUDGE=$(printf '%s' "$PRESSURE" | jq -r '.nudge // false' 2>/dev/null)
+    if [ "$NUDGE" = "true" ]; then
+      JDEPTH=$(printf '%s' "$PRESSURE" | jq -r '.depth // 0' 2>/dev/null)
+      JDUPS=$(printf '%s' "$PRESSURE" | jq -r '.dupClusters // 0' 2>/dev/null)
+      JKEY=$(printf '%s' "$PRESSURE" | jq -r '.harness_task_key // "followup/harness-judge-drain"' 2>/dev/null)
+      # Generate a short random suffix for the per-pass agent_id (ensures each hourly pass gets a
+      # unique agent identity; complete_task after each pass resets the task to 'done' so the next
+      # start_task sees no in_progress conflict regardless of suffix).
+      JSUFFIX=$(head -c 4 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' | head -c 8 || echo "$(date +%s | tail -c 8)")
+      CTX="${CTX:+$CTX
+}[Judge] backlog: ${JDEPTH} items (${JDUPS} dup-clusters) — dispatch ONE background self-learn-edge-judge subagent (model: sonnet — NOT haiku, verdict discrimination degrades; budget 20) this turn; do not block the user's request on it. The subagent MUST: (1) call mcp__orchestrator-graph__start_task with task_key=\"${JKEY}\" and agent_id=\"judge-drain-${JSUFFIX}\" BEFORE judging; (2) call mcp__orchestrator-graph__complete_task with the same task_key and agent_id, and a summary including the count of items judged, AFTER finishing."
+    fi
+  fi
+fi
 
 [ -z "$CTX" ] && exit 0
 printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":%s}}' "$(printf '%s' "$CTX" | jq -Rs .)"

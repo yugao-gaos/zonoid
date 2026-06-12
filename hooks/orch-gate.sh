@@ -12,6 +12,11 @@
 #   daemon is down. We deny only on a definitive "no claim for this session".
 PORT="${ORCH_PORT:-8787}"
 
+# ── Env off-switch ─────────────────────────────────────────────────────────
+# Harnesses that spawn claude processes (e.g. bench runner) can set ORCH_GATE_OFF=1
+# in the child process environment to ungate those sessions entirely.
+[ "${ORCH_GATE_OFF:-0}" = "1" ] && exit 0
+
 INPUT=$(cat)
 
 # Path allowlist: harness plumbing that is NOT "substantive multi-step work" and must never be

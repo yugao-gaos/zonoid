@@ -4,3 +4,4 @@
 {"evt":"edge_added","from":"note:note-mq8wyx1ricg","to":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/1","kind":"context","actor":"overlay-sync","ts":"2026-06-12T09:39:31.783Z","weight":0.354}
 {"evt":"edge_added","from":"note:note-mq8wyx1ricg","to":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/6","kind":"context","actor":"overlay-sync","ts":"2026-06-12T09:47:51.268Z","weight":0.267}
 {"evt":"edge_added","from":"note:note-mq8wyx1ricg","to":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/10","kind":"context","actor":"overlay-sync","ts":"2026-06-12T10:22:00.426Z","weight":0.25}
+{"evt":"edge_added","from":"note:note-mq8wyx1ricg","to":"followup/restart-daemon-to-activate-note-dup-guar-i3j2","kind":"context","actor":"overlay-sync","ts":"2026-06-12T11:45:21.807Z","weight":0.289}

@@ -1,2 +1,3 @@
 {"evt":"timestamps_set","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/27","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T08:31:24.640Z","lastChanged":"2026-06-12T08:31:24.640Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-12T08:31:24.655Z"}
 {"evt":"edge_added","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/27","to":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/31","kind":"context","actor":"overlay-sync","ts":"2026-06-12T09:21:02.098Z","weight":0.9}
+{"evt":"edge_added","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/27","to":"ddccf8ca-a541-49a7-8912-43ff5c7ccc63/2","kind":"context","actor":"overlay-sync","ts":"2026-06-12T10:59:59.556Z","weight":0.4}
