@@ -106,6 +106,32 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       else if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) { a.state = 'done'; a.endedAt = now(); }
       state.agents[b.agent_id] = a; saveAgents();
     }
+    if (b.status === 'in_progress') {
+      try {
+        const gitUser = require('child_process').execFileSync(
+          'git', ['-C', T.ws, 'config', 'user.name'],
+          { encoding: 'utf8', timeout: 2000 }
+        ).trim() || null;
+        if (gitUser) {
+          if (!T.ov.git_users) T.ov.git_users = {};
+          T.ov.git_users[b.key] = gitUser;
+        }
+      } catch { /* no git config or not a git repo — skip silently */ }
+      if (!T.ov.work_sessions) T.ov.work_sessions = {};
+      if (!T.ov.work_sessions[b.key]) T.ov.work_sessions[b.key] = [];
+      T.ov.work_sessions[b.key].push({
+        agent_id: b.agent_id || null,
+        git_user: (T.ov.git_users && T.ov.git_users[b.key]) || null,
+        start_ts: now(),
+        end_ts: null,
+      });
+    } else {
+      const sessions = T.ov.work_sessions && T.ov.work_sessions[b.key];
+      if (sessions) {
+        const open = [...sessions].reverse().find(s => !s.end_ts);
+        if (open) open.end_ts = now();
+      }
+    }
     if (b.summary != null) T.ov.summaries[b.key] = String(b.summary).slice(0, 2000);
     const NATIVE_STATUS = { in_progress: 'in_progress', done: 'completed', tested: 'completed' };
     const ns = NATIVE_STATUS[b.status];

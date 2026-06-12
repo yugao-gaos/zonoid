@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execFileSync } = require('child_process');
 const overlayStore = require('../lib/overlay');
 const costflow = require('../lib/costflow');
 const humanInput = require('../lib/human-input');
@@ -24,6 +25,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       id: t.id,
       transcript: taskTranscript(t.id, t.session, true, stWs),
       window: { start: t.firstSeen, end: t.lastChanged },
+      work_sessions: (T.ov.work_sessions && T.ov.work_sessions[t.id]) || null,
     }));
     const usageOutputOnly = (tp) => { const u2 = usageCached(tp); return { total: (u2 && u2.output_tokens) || 0 }; };
     const ownTok = costflow.splitSessionTokens(claims, usageOutputOnly);
@@ -36,7 +38,22 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     try { for(const e of fs.readdirSync(projDirRaw,{withFileTypes:true})) { if(!e.isFile()||!e.name.endsWith('.jsonl')) continue; const tp=path.join(projDirRaw,e.name); if(seenTp.has(tp)) continue; const u2=usageCached(tp); rawInput+=u2.input_tokens||0; rawOutput+=u2.output_tokens||0; rawCacheRead+=u2.cache_read_input_tokens||0; mergeModel(u2.by_model); } } catch {}
     const supersededIds = new Set((T.ov.edges || []).filter(e => e.kind === 'supersede').map(e => e.from));
     const isExplorationTask = (t) => t.kind === 'note' || supersededIds.has(t.id) || t.status === 'canceled' || t.status === 'failed' || !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
-    const nodes = g.tasks.map((t) => ({ id: t.id, own: ownTok.get(t.id) || 0, merged: !!(t.git && t.git.merged), exploration: isExplorationTask(t), label: t.label }));
+    let mergedBranches = null;
+    try {
+      const out = execFileSync('git', ['-C', T.ws, 'branch', '--merged', 'HEAD'], { encoding: 'utf8', timeout: 5000 });
+      mergedBranches = new Set(out.split('\n').map(b => b.replace(/^\*?\s+/, '').trim()).filter(Boolean));
+    } catch { mergedBranches = new Set(); }
+    let overlayDirty = false;
+    const nodes = g.tasks.map((t) => {
+      let merged = !!(t.git && t.git.merged);
+      if (!merged && t.git && t.git.branch && mergedBranches && mergedBranches.has(t.git.branch)) {
+        merged = true;
+        overlayStore.setGit(T.ov, t.id, { merged: true, merged_at: now() });
+        overlayDirty = true;
+      }
+      return { id: t.id, own: ownTok.get(t.id) || 0, merged, exploration: isExplorationTask(t), label: t.label };
+    });
+    if (overlayDirty) { T.save(); ctx.notifyChange(); }
     const seen = new Set(nodes.map((n) => n.id));
     for (const gh of g.ghosts) {
       const gid = `ghost:${gh.workspace}|${gh.key}`;
