@@ -1,0 +1,5 @@
+{"evt":"status_changed","id":"2","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T01:07:48.740Z"}
+{"evt":"assignee_set","id":"2","workspace":"/Users/imyu/Desktop/zonoid","assignee":"paper-002-agent","actor":"overlay-sync","ts":"2026-06-12T01:07:48.740Z"}
+{"evt":"timestamps_set","id":"2","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T01:07:48.739Z","lastChanged":"2026-06-12T01:07:48.739Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-12T01:07:48.740Z"}
+{"evt":"status_changed","id":"2","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-12T01:12:14.665Z"}
+{"evt":"summary_set","id":"2","workspace":"/Users/imyu/Desktop/zonoid","summary":"Paper content fully drafted and ready at /tmp/autonomy-score-paper.md. Gate blocked the write because task key 2 does not exist in the graph and the session ID was not linked to an active claim. Needs proper TaskCreate + Agent dispatch to complete the file write.","actor":"overlay-sync","ts":"2026-06-12T01:12:14.665Z"}

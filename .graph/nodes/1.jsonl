@@ -7,3 +7,6 @@
 {"evt":"timestamps_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T18:16:25.553Z","lastChanged":"2026-06-11T18:16:25.553Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-11T18:16:25.554Z"}
 {"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-11T18:17:11.444Z"}
 {"evt":"summary_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","summary":"Updated setup skill description to include scheduled task permission prompts and workspace migration as explicit trigger conditions.","actor":"overlay-sync","ts":"2026-06-11T18:17:11.444Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T00:41:06.278Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"wrap-fix-agent","actor":"overlay-sync","ts":"2026-06-12T00:41:06.278Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-12T00:51:13.354Z"}
