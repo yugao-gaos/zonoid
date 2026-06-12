@@ -401,8 +401,8 @@ async function init() {
   console.log('    2. Open the dashboard: http://localhost:8787/graph');
   console.log('    3. Ask Claude to start working — it will create tasks automatically');
   console.log('');
-  console.log('  Tip: if Claude says "no task claimed", that\'s the gate working.');
-  console.log('  Just ask it to create a task first, then continue.\n');
+  console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
+  console.log('  Claude will create a task automatically before editing.\n');
 }
 
 const cmd = process.argv[2];
