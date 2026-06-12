@@ -1168,7 +1168,9 @@ function summaryFor(tasks, ghosts, ov = state.overlay) {
 // ends, so they are excluded. `labelFor(key)` resolves a task label ('' if unknown). Pure — unit-tested.
 // Truthy query-param test for flags like ?compact=1 / =true / =yes (any non-falsey present value).
 
-// Per-IP gated-search rate limiter: max 3 gated calls per 60s window.
+// Per-IP gated-search rate limiter: max 20 gated calls per 60s window.
+// Higher limit (was 3) to avoid blocking sequential bench trial runs — all trials share
+// the same 127.0.0.1 bucket, so a low limit causes spurious abstains between trials.
 const gatedSearchCounts = new Map(); // ip -> { count, windowStart }
 function checkGatedRateLimit(ip) {
   const now = Date.now();
@@ -1178,7 +1180,7 @@ function checkGatedRateLimit(ip) {
     return false; // not rate-limited
   }
   entry.count++;
-  return entry.count > 3; // rate-limited if over 3
+  return entry.count > 20; // rate-limited if over 20
 }
 function isTruthy(v) { return v != null && v !== '' && v !== '0' && v !== 'false' && v !== 'no'; }
 
@@ -1545,19 +1547,29 @@ const handler = async (req, res) => {
       // 10–90s while MiniLM lazy-loads (lib/embed.js); embed() degrading to null ⇒ all-zero scores
       // ⇒ abstain('low-confidence') — conservative, never a hard failure.
       if (isTruthy(u.searchParams.get('gated'))) {
+        // DAG tier: always inject context_deps of task_key, even in gated path.
+        const gatedDagNotes = [];
+        if (task_key) {
+          const t = g.tasks.find((x) => x.id === task_key);
+          for (const dep of ((t && t.context_deps) || [])) {
+            const n = g.tasks.find((x) => x.id === dep && (x.kind || 'task') === 'note' && !x.validTo);
+            if (n) gatedDagNotes.push({ key: n.id, title: n.label, summary: String(n.summary || '').slice(0, 200), score: 1.0, kind: 'note', tier: 'dag' });
+          }
+        }
+        const gatedDagKeys = new Set(gatedDagNotes.map((n) => n.key));
         const clientIp = req.socket.remoteAddress || 'unknown';
         if (checkGatedRateLimit(clientIp)) {
-          return send(res, 200, { query: q, gated: true, decision: 'abstain', reason: 'rate-limited', results: [] });
+          return send(res, 200, { query: q, gated: true, decision: 'abstain', reason: 'rate-limited', results: gatedDagNotes });
         }
         const noteCands = g.tasks
-          .filter((n) => (n.kind || 'task') === 'note' && !n.validTo)   // current notes only
+          .filter((n) => (n.kind || 'task') === 'note' && !n.validTo && !gatedDagKeys.has(n.id))
           .map((n) => ({ key: n.id, title: n.label, summary: n.summary, vec: n.vec }));
         const r = await gateTask({ label: q }, noteCands, { embedQuery: embed, cosine });
         const meta = { query: q, gated: true, decision: r.decision, reason: r.reason, top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality, topType: r.topType, via: r.via };
-        if (r.decision !== 'inject') return send(res, 200, { ...meta, results: [] });
+        if (r.decision !== 'inject') return send(res, 200, { ...meta, results: gatedDagNotes });
         const top = noteCands.find((n) => n.key === r.topKey);
-        const results = top ? [{ key: top.key, title: top.title, summary: String(top.summary || '').slice(0, 200), score: r.top1, kind: 'note', via: r.via }] : [];
-        return send(res, 200, { ...meta, results });
+        const ragResults = top ? [{ key: top.key, title: top.title, summary: String(top.summary || '').slice(0, 200), score: r.top1, kind: 'note', tier: 'rag', via: r.via }] : [];
+        return send(res, 200, { ...meta, results: [...gatedDagNotes, ...ragResults] });
       }
       // DAG tier: collect context_deps of the requested task — always inject, no gate.
       const dagNotes = [];
@@ -2742,7 +2754,7 @@ const handler = async (req, res) => {
       if (!b.agent_id) return send(res, 400, { ok: false, error: 'agent_id required' });
       const prev = state.agents[b.agent_id] || {};
       // Capture task/session/workspace so a colliding worker is visible across sessions (GET /agents).
-      state.agents[b.agent_id] = { agent_id: b.agent_id, agent_type: b.agent_type || prev.agent_type || 'agent', state: 'running', transcript_path: b.transcript_path || prev.transcript_path || null, task: b.task || prev.task || null, session: b.session || prev.session || null, workspace: b.workspace || prev.workspace || state.workspace || null, startedAt: prev.startedAt || now(), lastSeen: now(), endedAt: null };
+      state.agents[b.agent_id] = { agent_id: b.agent_id, agent_type: b.agent_type || prev.agent_type || 'agent', state: 'running', transcript_path: b.transcript_path || prev.transcript_path || null, task: b.task || prev.task || null, session: b.session || prev.session || null, subagent_session: b.subagent_session || prev.subagent_session || null, workspace: b.workspace || prev.workspace || state.workspace || null, startedAt: prev.startedAt || now(), lastSeen: now(), endedAt: null };
       saveAgents();
       notifyChange();
       return send(res, 200, { ok: true });
@@ -2904,11 +2916,9 @@ const handler = async (req, res) => {
       const productive = rnd(flow.totals.productive);
       const explorationTok = rnd(wasteExploration.reduce((s, w) => s + w.trapped, 0));
       const trappedTok = rnd(wasteTrapped.reduce((s, w) => s + w.trapped, 0));
-      // autonomy_score: exploration IS autonomous work, so include it in the numerator
-      const autonomousTokens = flow.totals.productive + wasteExploration.reduce((s, w) => s + w.trapped, 0);
       return send(res, 200, {
         workspace: T.ws,
-        autonomy_score: human.tokens > 0 ? Math.round((autonomousTokens / human.tokens) * 10) / 10 : null,
+        autonomy_score: human.tokens > 0 ? Math.round((flow.totals.productive / human.tokens) * 10) / 10 : null,
         human,
         totals: { total: productive + explorationTok + trappedTok, productive, exploration: explorationTok, trapped: trappedTok, input_tokens: rnd(rawInput), output_tokens: rnd(rawOutput), cache_read: rnd(rawCacheRead) },
         by_model: Object.fromEntries(Object.entries(rawByModel).map(([m,v])=>[m,{input_tokens:rnd(v.input_tokens),output_tokens:rnd(v.output_tokens),cache_read:rnd(v.cache_read_input_tokens)}])),
