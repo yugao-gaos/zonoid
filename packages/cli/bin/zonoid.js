@@ -48,7 +48,7 @@ function checkNodeModules() {
     ok('node_modules present');
     return;
   }
-  fix('Running npm install...');
+  fix('Running npm install — downloading ML model (~200 MB), takes 1–3 min...');
   execSync('npm install', { cwd: INSTALL_DIR, stdio: 'inherit' });
   ok('npm install done.');
 }
@@ -295,8 +295,23 @@ async function init() {
   await checkDaemon();
   await registerWorkspace(cwd);
 
-  console.log('\n✓ Done. Restart Claude Code in this directory.');
-  console.log('  Dashboard: http://localhost:8787/graph\n');
+  section('6. Warmup');
+  const warmupScript = path.join(INSTALL_DIR, 'scripts', 'warmup-embeddings.js');
+  if (fs.existsSync(warmupScript)) {
+    fix('Warming up embedding model (first search_knowledge will be instant)...');
+    const r = spawnSync('node', [warmupScript], { encoding: 'utf8', timeout: 130000 });
+    if (r.status === 0) ok('Embedding model ready.');
+    else warn('Warmup timed out — first search_knowledge may be slow.');
+  }
+
+  console.log('\n✓ Done.\n');
+  console.log('  Next steps:');
+  console.log('    1. Restart Claude Code in this directory');
+  console.log('    2. Open the dashboard: http://localhost:8787/graph');
+  console.log('    3. Ask Claude to start working — it will create tasks automatically');
+  console.log('');
+  console.log('  Tip: if Claude says "no task claimed", that\'s the gate working.');
+  console.log('  Just ask it to create a task first, then continue.\n');
 }
 
 const cmd = process.argv[2];
