@@ -1,44 +1,40 @@
+'use strict';
+
 const fs = require('fs');
 
-function sumUsage(u) {
-  if (!u) return 0;
-  return (
-    (u.input_tokens || 0) +
-    (u.output_tokens || 0) +
-    (u.cache_read_input_tokens || 0) +
-    (u.cache_creation_input_tokens || 0)
-  );
-}
-
-function readMetrics(path) {
-  const text = fs.readFileSync(path, 'utf8');
+function parseTranscript(filePath) {
+  const lines = fs.readFileSync(filePath, 'utf8').split('\n');
   let gross = 0;
-  let mcp = 0;
+  let mcpOverhead = 0;
   let output = 0;
 
-  for (const line of text.split('\n')) {
+  for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-
     let obj;
     try {
       obj = JSON.parse(trimmed);
-    } catch (e) {
-      continue; // skip non-JSON lines silently
+    } catch {
+      continue;
     }
+    if (!obj.usage) continue;
 
-    if (!obj || !obj.usage) continue;
+    const u = obj.usage;
+    const tokens =
+      (u.input_tokens || 0) +
+      (u.output_tokens || 0) +
+      (u.cache_read_input_tokens || 0) +
+      (u.cache_creation_input_tokens || 0);
 
-    const total = sumUsage(obj.usage);
-    gross += total;
-    output += obj.usage.output_tokens || 0;
+    gross += tokens;
+    output += u.output_tokens || 0;
 
     if (obj.source === 'mcp_tool') {
-      mcp += total;
+      mcpOverhead += tokens;
     }
   }
 
-  return { gross, net: gross - mcp, output };
+  return { gross, net: gross - mcpOverhead, output };
 }
 
 function ratio(on, off) {
@@ -47,9 +43,8 @@ function ratio(on, off) {
 }
 
 function computeRatio(onTranscript, offTranscript) {
-  const on = readMetrics(onTranscript);
-  const off = readMetrics(offTranscript);
-
+  const on = parseTranscript(onTranscript);
+  const off = parseTranscript(offTranscript);
   return {
     gross: ratio(on.gross, off.gross),
     net: ratio(on.net, off.net),

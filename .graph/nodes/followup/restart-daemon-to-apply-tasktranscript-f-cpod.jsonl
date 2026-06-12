@@ -1,1 +1,2 @@
 {"evt":"edge_added","from":"followup/restart-daemon-to-apply-tasktranscript-f-cpod","to":"followup/restart-daemon-to-activate-claim-session-bh6z","kind":"context","actor":"overlay-sync","ts":"2026-06-12T18:34:19.056Z","weight":0.365}
+{"evt":"edge_added","from":"followup/restart-daemon-to-apply-tasktranscript-f-cpod","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/10","kind":"context","actor":"overlay-sync","ts":"2026-06-12T19:28:56.953Z","weight":0.316}

@@ -6,11 +6,11 @@ function mergeIntervals(intervals) {
 
   for (let i = 1; i < sorted.length; i++) {
     const last = result[result.length - 1];
-    const curr = sorted[i];
-    if (curr[0] <= last[1]) {
-      last[1] = Math.max(last[1], curr[1]);
+    const [start, end] = sorted[i];
+    if (start <= last[1]) {
+      last[1] = Math.max(last[1], end);
     } else {
-      result.push(curr.slice());
+      result.push([start, end]);
     }
   }
 

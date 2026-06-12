@@ -69,7 +69,7 @@ IS_SUB=$(printf '%s' "$SINFO" | jq -r '.is_subagent // "unknown"' 2>/dev/null)
 
 if [ "$IS_SUB" = "true" ]; then
   # Registered subagent with no claim — must file a task first.
-  echo "orch-gate: file a task (TaskCreate) and start_task before editing" >&2
+  printf 'orch-gate: no task claimed. Call TaskCreate then start_task before editing.\n' >&2
   exit 2
 fi
 
@@ -83,7 +83,7 @@ CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // .tool_input.co
 LINE_COUNT=$(printf '%s' "$CONTENT" | wc -l | tr -d ' ')
 
 if [ "$COUNT" -ge 2 ] || [ "${LINE_COUNT:-0}" -gt 100 ]; then
-  echo "orch-gate: Main session multi-file or large edit detected — dispatch a subagent (TaskCreate + Agent tool) for substantive work." >&2
+  echo "orch-gate: multi-file or large edit — use TaskCreate + Agent tool to dispatch a subagent." >&2
   exit 2
 fi
 

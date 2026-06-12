@@ -1,39 +1,51 @@
 'use strict';
 
-// Parse a single amount string into a Number, or return null if it is not a
-// parseable monetary value. Honors a leading currency symbol ($) and/or sign,
-// tolerates surrounding whitespace, and never returns NaN.
-function parseAmount(raw) {
-  if (raw == null) return null;
-  const s = String(raw).trim();
-  if (s === '') return null;
+// Real upstream feed mixes en-US (1,234.56) and de-DE (1.234,56) decimal formats.
+// Disambiguation: when both separators present, the LAST one is the decimal point.
+// Comma-only with exactly 3 trailing digits → en-US thousands sep, not decimal.
+function parseAmount(str) {
+  if (typeof str !== 'string') return 0;
+  str = str.trim();
+  if (!str) return 0;
 
-  // Optional sign and optional `$`, in either order, then digits.
-  const m = s.match(/^([+-]?)\s*\$?\s*([+-]?)\s*(\d+(?:\.\d+)?)$/);
-  if (!m) return null;
+  // Strip leading currency symbol (e.g. '$'), preserve sign
+  str = str.replace(/^([+-]?)\s*[^\d,.\-+]*/, '$1');
 
-  const sign = m[1] === '-' || m[2] === '-' ? -1 : 1;
-  const n = parseFloat(m[3]);
-  if (!Number.isFinite(n)) return null;
+  const lastComma = str.lastIndexOf(',');
+  const lastPeriod = str.lastIndexOf('.');
+  let normalized;
 
-  return sign * n;
+  if (lastComma !== -1 && lastPeriod !== -1) {
+    if (lastComma > lastPeriod) {
+      // de-DE: "1.234,56" → remove period thousands seps, swap comma→period
+      normalized = str.replace(/\./g, '').replace(',', '.');
+    } else {
+      // en-US: "1,234.56" → remove comma thousands seps
+      normalized = str.replace(/,/g, '');
+    }
+  } else if (lastComma !== -1) {
+    // Only comma: 3 trailing digits → thousands sep ("1,000"); otherwise decimal ("1,50")
+    normalized = /,\d{3}$/.test(str)
+      ? str.replace(/,/g, '')
+      : str.replace(',', '.');
+  } else {
+    // Only period or no separator: period is decimal
+    normalized = str;
+  }
+
+  const val = Number(normalized);
+  return isNaN(val) ? 0 : val;
 }
 
-// Sum the `amount` of every row, returning the grand total as a Number rounded
-// to 2 decimals. Bad/missing rows contribute 0; an empty feed totals 0.
 function sumAmounts(rows) {
-  if (!Array.isArray(rows)) return 0;
+  if (!Array.isArray(rows) || rows.length === 0) return 0;
 
   let total = 0;
   for (const row of rows) {
-    const value = parseAmount(row && row.amount);
-    if (value !== null) total += value;
+    total += parseAmount(row && row.amount);
   }
 
-  // Half-up rounding at the cent; EPSILON nudge guards against binary-float
-  // representation error (e.g. 70.00000000001). `|| 0` collapses -0 to 0.
-  const rounded = Math.round((total + Number.EPSILON) * 100) / 100;
-  return rounded || 0;
+  return Math.round(total * 100) / 100;
 }
 
 module.exports = { sumAmounts };

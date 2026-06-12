@@ -5,11 +5,11 @@ function formatDuration(ms) {
   const seconds = totalSeconds % 60;
 
   const parts = [];
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  if (seconds > 0) parts.push(`${seconds}s`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  if (seconds) parts.push(`${seconds}s`);
 
-  return parts.length > 0 ? parts.join(' ') : '0s';
+  return parts.length ? parts.join(' ') : '0s';
 }
 
 module.exports = { formatDuration };

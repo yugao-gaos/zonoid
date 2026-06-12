@@ -747,7 +747,10 @@ function decideOne(L, ctx) {
   // reports the flag; the loop-driving dispatcher judges (suggest_links + add_dependency, or
   // mark_root for a true root). Wiring/mark_root clears ov.unwired → spawnable next tick.
   const isUnwired = (t) => !!(ov.unwired && ov.unwired[t.id]);
-  const ready = readyAll.filter((t) => !isUnwired(t));
+  const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
+  // Blocked tasks are excluded from the spawn pool entirely. The block is sticky (overlay flag,
+  // not derived from deps) and cleared only by unblock_task — never by dep re-derivation.
+  let ready = readyAll.filter((t) => !isUnwired(t) && !isExplicitlyBlocked(t));
   const wire = readyAll.filter(isUnwired).map((t) => ({ key: t.id, label: t.label }));
   const withWire = (dec) => (wire.length ? { ...dec, wire } : dec);
   const running = g.tasks.filter((t) => t.status === 'in_progress').length;
@@ -780,6 +783,37 @@ function decideOne(L, ctx) {
     L.spent += slots * est;                                   // account for all K efforts so the loop stops at budget
     const budget = (ov.config.judge?.budgetPerRun) ?? 6;
     return { parallel: slots, budget };
+  }
+
+  // EXPENSIVE-TASK GATE (Lever 2): tasks carrying a metric spec (cost:"high" proxy) are held
+  // for explicit user approval when cost_gate is enabled (ov.config.cost_gate:true, default off).
+  // For each such task that would otherwise spawn: file ONE blocking guidance item (idempotent —
+  // checks for an existing unresolved item first) and auto-block the task so it doesn't re-fire
+  // every tick. Approving via /guidance/resolve (decision:"approve") unblocks it; "reject" keeps
+  // it blocked. This reuses the existing guidance gate path (no new infrastructure).
+  if (ov.config && ov.config.cost_gate) {
+    for (const t of ready) {
+      const hasMetric = ov.metrics && ov.metrics[t.id];
+      if (!hasMetric) continue;
+      const alreadyPending = Array.isArray(ov.guidance) && ov.guidance.some(
+        (g) => !g.resolved && g.trigger === 'cost_gate' && g.action && g.action.taskKey === t.id
+      );
+      if (alreadyPending) continue;
+      // File a blocking guidance item so the user can approve/reject.
+      const gid = overlayStore.addGuidance(ov, {
+        question: `Expensive task "${t.label}" (${t.id}) has a metric spec and is ready to auto-dispatch. Approve to run it, or reject to keep it blocked.`,
+        context: `task_key: ${t.id}\nmetric: ${JSON.stringify(ov.metrics[t.id])}`,
+        trigger: 'cost_gate',
+        severity: 'blocking',
+        action: { kind: 'cost_gate', taskKey: t.id },
+      });
+      // Auto-block so it doesn't re-fire guidance every tick before the user responds.
+      overlayStore.setBlocked(ov, t.id, 'cost_gate: awaiting user approval');
+      overlayStore.save(ws, ov); notifyChange();
+    }
+    // Re-derive ready after auto-blocking; keep guidance-pending tasks out of the spawn pool.
+    const nowBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
+    ready = ready.filter((t) => !nowBlocked(t));
   }
 
   if (ready.length && headroom > 0) {
@@ -1212,7 +1246,7 @@ function buildGraph(ws) {
       else if (ts.lastStatus !== status) { ts.lastChanged = now(); ts.lastStatus = status; tsDirty = true; }
     }
     const _rc = ovWs.retryConfig && ovWs.retryConfig[t.key];
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0 };
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.

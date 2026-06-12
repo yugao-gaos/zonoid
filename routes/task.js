@@ -134,6 +134,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       benchmark: (T.ov.benchmarks && T.ov.benchmarks[key]) || null,
       assignee,
       cancel_requested: T.ov.cancel_requested[key] || null,
+      blocked: (T.ov.blocked && T.ov.blocked[key]) || null,
       tokenUsage: (() => { const tp = taskTranscript(key, t.session, true); return tp ? usageCached(tp) : null; })(),
       transcript: (() => { const tp = taskTranscript(key, t.session, true); return tp || null; })(),
     }); return true;

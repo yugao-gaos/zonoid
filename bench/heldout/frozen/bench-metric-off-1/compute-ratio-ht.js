@@ -1,48 +1,49 @@
+'use strict';
+
 const fs = require('fs');
 
-function metricsFor(path) {
-  let gross = 0;
-  let mcp = 0;
-  let output = 0;
+function sumUsage(lines) {
+  let gross = 0, plumbing = 0, output = 0;
 
-  const lines = fs.readFileSync(path, 'utf8').split('\n');
   for (const line of lines) {
-    if (!line.trim()) continue;
     let obj;
-    try {
-      obj = JSON.parse(line);
-    } catch (e) {
-      continue; // not valid JSON — skip silently
-    }
-    const u = obj && obj.usage;
-    if (!u) continue;
+    try { obj = JSON.parse(line); } catch { continue; }
 
-    const sum =
+    if (!obj.usage) continue;
+
+    const u = obj.usage;
+    const total =
       (u.input_tokens || 0) +
       (u.output_tokens || 0) +
       (u.cache_read_input_tokens || 0) +
       (u.cache_creation_input_tokens || 0);
 
-    gross += sum;
-    output += u.output_tokens || 0;
-    if (obj.source === 'mcp_tool') mcp += sum;
+    gross += total;
+    output += (u.output_tokens || 0);
+
+    if (obj.source === 'mcp_tool') {
+      plumbing += total;
+    }
   }
 
-  return { gross, net: gross - mcp, output };
-}
-
-function ratio(on, off) {
-  if (off === 0) return null;
-  return Math.round((on / off) * 1e4) / 1e4;
+  return { gross, net: gross - plumbing, output };
 }
 
 function computeRatio(onTranscript, offTranscript) {
-  const on = metricsFor(onTranscript);
-  const off = metricsFor(offTranscript);
+  const onLines = fs.readFileSync(onTranscript, 'utf8').split('\n');
+  const offLines = fs.readFileSync(offTranscript, 'utf8').split('\n');
+
+  const on = sumUsage(onLines);
+  const off = sumUsage(offLines);
+
+  function ratio(num, den) {
+    if (den === 0) return null;
+    return Math.round((num / den) * 10000) / 10000;
+  }
 
   return {
-    gross: ratio(on.gross, off.gross),
-    net: ratio(on.net, off.net),
+    gross:  ratio(on.gross,  off.gross),
+    net:    ratio(on.net,    off.net),
     output: ratio(on.output, off.output),
   };
 }

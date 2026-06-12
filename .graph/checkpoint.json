@@ -1,5 +1,26 @@
 {
   "nodes": {
+    "1": {
+      "id": "1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Moved #guidance from inline amber banner to a fixed popup (480px wide, max-height 72vh, dark popup styling). Added 🗂 notification count button in top bar next to settings. Button shows count badge, goes amber when blocking items exist. toggleGuidancePopup/closeGuidancePopup wired up. Auto-opens only for blocking (loop-paused) items; review-only stays closed until clicked.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "main",
+      "timestamps": {
+        "firstSeen": "2026-06-11T18:16:25.553Z",
+        "lastChanged": "2026-06-11T18:16:25.553Z",
+        "lastStatus": "in_progress"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
     "2": {
       "id": "2",
       "label": null,
@@ -199,6 +220,27 @@
       "timestamps": {
         "firstSeen": "2026-06-12T08:31:53.304Z",
         "lastChanged": "2026-06-12T08:31:53.304Z",
+        "lastStatus": "in_progress"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "34": {
+      "id": "34",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "BLOCKED by session.js bug: active-claim lookup uses t.agent_id (always undefined in buildGraph) instead of t.assignee. The subagent_session check at line 30 never fires. All file edits are gated. See follow-up task for the one-line fix that unblocks this agent.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "bench-journal-agent",
+      "timestamps": {
+        "firstSeen": "2026-06-12T16:03:34.039Z",
+        "lastChanged": "2026-06-12T16:03:34.039Z",
         "lastStatus": "in_progress"
       },
       "metrics": null,
@@ -68047,9 +68089,9 @@
       "id": "6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/5",
       "label": null,
       "kind": null,
-      "workspace": "/Users/imyu/Desktop/cloude",
+      "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
-      "summary": "Final how-we-win report written to /Users/imyu/Desktop/cloude/competitive-analysis-2026-06.md (TL;DR, what-changed, 10-row moat table, 6 battle cards, honest gaps, 7 prioritized moves, positioning check). VERDICT: execution-coupled memory is verified unoccupied at code level — nobody (Mem0, Graphiti/Zep, Letta, Cognee, claude-mem, any orchestrator, or native CC) produces memory from task completion, invalidates deterministically with provenance, or routes context via typed edges under a token budget; Mem0 even deleted graph memory from OSS. Durable core narrows to bi-temporal execution-coupled graph + metric/judge/optimize loop + local-neutral daemon (12-18+ mo native ETAs); cross-session aggregation and two-tier handoff are on a 3-12 mo subsumption clock (CLAUDE_CODE_TASK_LIST_ID, Dreaming). The category claim hangs on two proof points: bench v4 (context-REQUIRED tasks; today lift is unproven — cost parity, v5 ON did 1.29x MORE work, winnable slice ~23%) and wiring context-gate.js into the daemon (currently offline prototype). Runner graveyard (Vibe Kanban/Terragon/Crystal all dead H1 2026) confirms: position as the intelligence layer feeding fleets, never a runner UI. Darwin framing holds with amendments (substrate clock + Beads watch); final positioning sentence proposed in §7, attached as knowledge. Cleanup note: one malformed attach_knowledge call landed an empty item on bogus key '6b04b7a6-beb1-4fb5-9d0d-9dd0/placeholder' — safe to purge.",
+      "summary": "Competitive analysis brief delivered June 10. Updated June 12 follow-up dispatched.",
       "knowledge": [
         {
           "type": "note",
@@ -71963,8 +72005,21 @@
         }
       ],
       "note": null,
-      "snapshot": null,
-      "assignee": null,
+      "snapshot": {
+        "subject": "Synthesize how-we-win competitive analysis",
+        "description": "Merge the code inventory + three competitor deep-dives into a final report: moat table (our code evidence vs their code evidence), what changed since the June 8/10 positioning notes, battle-card attack lines, honest gaps, moves to widen the moat. Output: /Users/imyu/Desktop/cloude/competitive-analysis-2026-06.md",
+        "status": "completed",
+        "blockedBy": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T16:16:39.895Z"
+      },
+      "assignee": "compete-synth-update",
       "timestamps": {
         "firstSeen": "2026-06-10T23:48:50.767Z",
         "lastChanged": "2026-06-10T23:48:50.767Z",
@@ -89493,8 +89548,8 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "failed",
-      "summary": "Added structured hookSpecificOutput completion notice to orch-stop.sh. When cancel/stop fires, the hook now outputs a JSON completion notice (instead of only stderr) instructing the agent to call set_status/complete_task and reschedule ScheduleWakeup before halting. Heartbeat in classify.sh was already present from the prior commit (a166a37); only the stop hook needed updating. Committed as 27718f3.",
+      "status": "done",
+      "summary": "Fixed hooks/orch-stop.sh: added printf '%s\\n' \"$MSG\" >&2 after the JSON hookSpecificOutput printf. The smoke test (test/smoke.sh:110) captures stderr (2>&1 1>/dev/null) to find 'STOP:' — previously the message was stdout-only, so grep returned 0. classify.sh heartbeat was already present from commit a166a37 (line 237). This edit was applied directly to the ZONOID workspace main checkout (not the orchestrator source).",
       "knowledge": [],
       "note": null,
       "snapshot": {
@@ -89509,7 +89564,7 @@
         },
         "snapshotted_at": "2026-06-11T17:31:40.703Z"
       },
-      "assignee": "worker-agent-heartbeat-completion",
+      "assignee": "heartbeat-hook-agent",
       "timestamps": {
         "firstSeen": "2026-06-11T17:31:40.746Z",
         "lastChanged": "2026-06-11T17:31:40.746Z",
@@ -90624,7 +90679,7 @@
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
-      "summary": "Judged 20 items (budget exhausted): 5 dup-clusters surfaced (no genuine duplicates found — all were distinct facts or throwaway test artifacts), 12 edges kept, 3 edges pruned. Kept edges: onboarding-plateau note → tasks /10, /11, /16 (outcome notes for those exact runs); plateau note → floor/ceiling and ceiling-gating notes (prerequisite measurement context); semantic-RAG decision → wiring-validation note; asset-heavy prediction note → asset-miner task and its two measurement backing notes; orphan/temporal correction note → context-router architecture, bitemporal KB, and semantic RAG notes. Pruned: plateau→probe-generator (near-topic, not prerequisite), plateau→loop-code (near-topic), wiring-validation→orphan-problem (wrong direction). Cursor at 267/505, ~238 items remain.",
+      "summary": "Judged 20 items (7 dup-clusters + 13 edges): 4 clusters consolidated (kept newer, superseded 4 older notes: mq75a81c, mq7xridg4tn, mq81rkqks1l, mq8upg2vdbj), 3 clusters surfaced as distinct series (benchmark context-rich/greenfield, benchmark v2-v5 series, MCP consolidation pre/post-merge), 21 edges kept (architecture notes→implementation tasks, metric design→bench tasks), 9 edges pruned (status summary→task, near-topic without prerequisite relationship). Net: 1657 edges remaining in graph.",
       "knowledge": [],
       "note": null,
       "snapshot": {
@@ -90639,7 +90694,7 @@
         },
         "snapshotted_at": "2026-06-12T12:30:14.739Z"
       },
-      "assignee": "judge-drain-cfca7e3f",
+      "assignee": "judge-drain-c6806712",
       "timestamps": {
         "firstSeen": "2026-06-12T12:30:14.864Z",
         "lastChanged": "2026-06-12T12:30:14.864Z",
@@ -90933,6 +90988,421 @@
       "timestamps": {
         "firstSeen": "2026-06-12T13:26:28.961Z",
         "lastChanged": "2026-06-12T13:26:28.961Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/31": {
+      "id": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/31",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented data flywheel. (1) bench-heldout.js: added step e3 — after token extraction, copies transcript to bench/heldout/journals/{sessionId}.jsonl; adds journalPath field to result row. (2) New scripts/bench-mine-journals.js: reads results-heldout.jsonl, filters by arm (skip off by default) and solved (skip failed by default), runs extract-decisions.js --no-dedup --out <tmpfile> on each journal, merges all candidates, writes bench/heldout/journals/CANDIDATES.json. Flags: --results, --all, --include-failed, --confirm. With --confirm, reruns extract-decisions --confirm per journal to inject into KB.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Implement data flywheel: bench runner journal capture + bulk KB miner",
+        "description": "1. In bench-heldout.js: copy the Claude transcript JSONL into bench/heldout/journals/<sessionId>.jsonl right after it's located in step (e), so journals are co-located with results and survive ~/.claude cache rotation.\n2. New script scripts/bench-mine-journals.js: reads results-heldout.jsonl, runs extract-decisions.js on each journal path (filtered by arm=on or --all), deduplicates across runs, optionally --confirm injects. Prints a summary of candidates found/injected.\n3. Update bench/heldout/results-heldout.jsonl schema comment to include journalPath field.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T16:03:52.011Z"
+      },
+      "assignee": "flywheel-impl-agent",
+      "timestamps": {
+        "firstSeen": "2026-06-12T16:01:58.688Z",
+        "lastChanged": "2026-06-12T16:01:58.688Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2": {
+      "id": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Built scripts/gate-label.js + test/gate-label.test.js. Labeler reads .graph/gate-journal.jsonl, joins each row to its task's terminal outcome via /task/detail, emits four-quadrant labels (TP/FP/TN/FN) + all features to .graph/gate-labeled.jsonl. Includes note-used lexical proxy (topKey present OR >=0.5 note-content-token overlap in transcript+summary) and FN post-mortem matcher (/search?asOf=row.ts, FN if a note scores >=0.5). Idempotent/append-only (dedup by ts+task_key+query hash), fail-soft on daemon errors. Test 41/41 PASS incl FN quadrant + idempotency + null-task_key. Runs clean on real journal (50 rows, all currently unlabelable — no task_key yet, expected; the data clock just started). Worker subagent died mid test-harness debugging (spawnSync froze the parent event loop; fixed to async spawn) before calling complete_task — main agent verified files + reran test (41/41) + ran script (exit 0) and is closing it out. Labeling-policy choice flagged: inject+note_used+FAIL → labeled FP (inject didn't help despite note being read). Uncommitted. Follow-ups remain separate tasks: nightly-QA wiring + epsilon-exploration in the gate.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Build gate-label.js outcome-linkage labeler",
+        "description": "Build scripts/gate-label.js: reads .graph/gate-journal.jsonl, joins each row to its task's terminal outcome via /task/detail, emits four-quadrant labels (TP/FP/TN/FN) to .graph/gate-labeled.jsonl. This is the critical-path piece of the learned-gate flywheel — turns logged features into training labels. Includes the note-used lexical proxy and the FN post-mortem matcher. Plus a sandboxed test mirroring test/gate-journal.test.js.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": "labeler-build",
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T15:20:36.965Z"
+      },
+      "assignee": "labeler-build",
+      "timestamps": {
+        "firstSeen": "2026-06-12T15:07:59.116Z",
+        "lastChanged": "2026-06-12T15:07:59.116Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/3": {
+      "id": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Added token_cost field to gate-label.js labeled rows. Field shape: { output, input, cache_read, total } sourced from detail.tokenUsage; graceful null/absent → all zeros. Output token is the headline signal per cost-benchmark convention. Updated mock server in test/gate-label.test.js to forward tokenUsage, added 4 new assertions (token_cost.output===800, token_cost.total===7000 for the TP fixture with tokenUsage, and two zero-value assertions for the no-tokenUsage case). 47/47 tests pass. Real journal run: clean exit (50 rows all unlabelable — no task_key yet, expected).",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Add token-cost capture to gate-label.js",
+        "description": "Stamp each labeled row in gate-labeled.jsonl with the task's token cost, pulled from the tokenUsage the labeler already fetches via /task/detail. Headline output_tokens (per the orchestrator cost-benchmark convention \"use output_tokens not net\"), plus the full breakdown (input, output, cache_read) for flexibility. Additive only — do not change existing label logic. Update test/gate-label.test.js to assert the token-cost field. This makes the training data cost-aware from the start (retroactively impossible, like the schema change).",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": "token-cost-label",
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T15:42:46.966Z"
+      },
+      "assignee": "token-cost-label",
+      "timestamps": {
+        "firstSeen": "2026-06-12T15:40:47.789Z",
+        "lastChanged": "2026-06-12T15:40:47.789Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/4": {
+      "id": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/4",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Wired gate-label.js grader to opportunistic pressure-nudge, mirroring the judge pattern exactly. Changes: (1) scripts/gate-label.js: exported rowKey, readJsonl, journalPath, labeledPath via module.exports; guarded main() with require.main===module so requiring it is safe. (2) routes/label.js (new): /label/pressure GET handler — depth = gradable backlog (journal rows with non-null task_key, not already labeled, task is terminal in buildGraph); NUDGE_LABEL_DEPTH=10, NUDGE_INTERVAL_MS=1h, _lastNudgeAt in-memory throttle; ensureHarnessLabelDrainTask creates followup/harness-label-drain snapshot idempotently; test seams _setLastNudgeAt / HARNESS_LABEL_DRAIN_KEY / ensureHarnessLabelDrainTask exported. (3) daemon.js: labelRoute required and added to routeModules array. (4) hooks/classify.sh: [Grader] nudge block added after [Judge] block — same ORCH_GATE_OFF guard, curl /label/pressure, if nudge==true appends additionalContext dispatching ONE background subagent (cheap model, deterministic script run) with explicit start_task/complete_task duties using JSUFFIX random agent_id. (5) test/label-pressure.test.js (new): 24 assertions covering empty backlog, below/at threshold, throttle, dedup, non-terminal exclusion, null task_key exclusion, idempotent ensure. VERIFY: bash -n hooks/classify.sh OK; node test/label-pressure.test.js 24/24; node test/gate-label.test.js 47/47; both modules load without executing. NOTE: daemon restart required to activate the new /label/pressure route — do NOT restart here; that is a separate disruptive step.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Wire grader to opportunistic pressure-nudge (mirror the judge)",
+        "description": "Make scripts/gate-label.js self-run via the judge's pressure-nudge mechanism instead of the nightly cron. (1) New routes/label.js mirroring routes/judge.js: /label/pressure GET returns {depth, nudge, harness_task_key:'followup/harness-label-drain'}, where depth = unlabeled journal rows whose task_key is terminal, 1/hour throttle, threshold ~10; plus ensureHarnessLabelDrainTask standing task. Register in daemon.js routeModules. (2) hooks/classify.sh: add a [Grader] nudge block mirroring the [Judge] block, dispatching ONE background grader pass that runs `node scripts/gate-label.js` and claims/completes followup/harness-label-drain. (3) test/label-pressure.test.js mirroring test/judge-pressure.test.js. Explicitly NOT wiring nightly QA. Daemon restart to activate the new route is a separate disruptive step.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": "grader-nudge",
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T15:57:44.163Z"
+      },
+      "assignee": "grader-nudge",
+      "timestamps": {
+        "firstSeen": "2026-06-12T15:53:41.365Z",
+        "lastChanged": "2026-06-12T15:53:41.365Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/27": {
+      "id": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/27",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "MERGE PENDING — orch/attempt/bench-pure-coding-27: added roman-numeral pure-coding bench candidate. Spec (bench/heldout/specs/roman-numeral.md) covers toRoman(n) + fromRoman(s) with bidirectional conversion and canonical-form validation. Grader (bench/heldout/graders/roman-numeral.grader.js) has 32 cases (17 non-edge, 15 edge) testing: boundary values (3999, 3888), non-integer toRoman inputs, fromRoman rejection of IIII/VV/IC/VX/IIX/IM/MCMC/lowercase. Reference impl scores 32/32; naive impl without canonical validation scores 23/32. Registered as 'roman-numeral' in CANDIDATES dict in scripts/bench-heldout.js.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Write pure-coding bench candidate: spec + grader",
+        "description": "Design a pure-coding candidate where OFF should score ~60-80% (hard enough to have variance, spec-complete so no KB needed). Good options: sliding-window rate limiter, topological sort with cycle detection, or interval merge. Write spec (bench/heldout/specs/) and grader (bench/heldout/graders/) with held-out edge cases. Register in CANDIDATES in bench-heldout.js.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T17:48:36.375Z"
+      },
+      "assignee": "bench-spec-writer-27",
+      "timestamps": {
+        "firstSeen": "2026-06-12T08:31:24.640Z",
+        "lastChanged": "2026-06-12T08:31:24.640Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/31": {
+      "id": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/31",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "MERGE PENDING — orch/attempt/cron-next-hard-31: added cron-next-hard bench candidate with spec, grader (20 cases), and CANDIDATES registration. Features: @macro aliases (hourly/daily/midnight/weekly/monthly/yearly/annually; @reboot throws), named months (jan-dec in month field), named weekdays (sun-sat in DOW field), L (last-day-of-month, including leap-year Feb 29, 30-day months, lists like 15,L), ? (don't-care in DOM/DOW). Error cases: @reboot, unknown alias, wrong field count, out-of-range values, L in range/step, ? in list/range/step. 20 total test cases (17 edge). Worktree: ~/.claude/orchestrator/worktrees/self/cron-next-hard-31",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Hard pure-coding candidate: cron next-fire-time spec + grader",
+        "description": "cron-next candidate: nextRun(cronExpr, afterTs) UTC, 5-field cron with *, lists, ranges, steps. Spec states all rules incl. DOM/DOW union. Grader tests rule interactions (DOM∪DOW, Feb-31 skip, range-steps, year rollover, strictly-after). Target: sonnet off ~50%. Register in CANDIDATES.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T17:49:35.129Z"
+      },
+      "assignee": "cron-spec-writer-31",
+      "timestamps": {
+        "firstSeen": "2026-06-12T09:20:56.564Z",
+        "lastChanged": "2026-06-12T09:20:56.564Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/34": {
+      "id": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/34",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Built scripts/bench-learning-journal.js (reducer) and test/bench-learning-journal.test.js. The reducer reads results-heldout.jsonl, groups by (candidate, trial), prefers gated on-arm when multiple consults exist, parses gate decision from the transcript (journalPath → transcriptPath fallback), and emits paired rows with solved_delta and cost_delta_output (λ not baked in). Unpaired groups emit paired:false+missing field. Idempotent full-rebuild. Against real data: 139 groups → 80 paired, 59 unpaired (most unpaired are extra on-arm consult variants without matching off-arm); 32/32 tests pass. Note: outputTokens=0 in most historical rows (field wasn't captured pre-flywheel) → cost_delta_output=0 for those; will be populated correctly in future runs.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Wire bench runner to produce per-trial learning journals",
+        "description": "Three changes: (1) bench-heldout.js: after each trial slice gate-journal by timestamp window [t0, t0+wallMs], annotate with solved/arm labels, write bench/heldout/journals/<candidate>-<armLabel>-<trial>.json; (2) routes/graph.js: pass session_id through to gate-journal rows; (3) new scripts/bench-learn-gate.js: reads journals, extracts feature vectors + labels, outputs threshold recommendations.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T16:50:11.483Z"
+      },
+      "assignee": "bench-learnjournal",
+      "timestamps": {
+        "firstSeen": "2026-06-12T14:03:48.715Z",
+        "lastChanged": "2026-06-12T14:03:48.715Z",
+        "lastStatus": "in_progress"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/35": {
+      "id": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/35",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "MERGE PENDING — orch/attempt/fix-active-claim-35: routes/session.js line 16 mapped t.agent_id (undefined) instead of t.assignee; subagent cross-lookup on line 30 was always empty, breaking the gate for subagent sessions. One-line fix committed (969b5ca).",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix active-claim: t.agent_id → t.assignee in routes/session.js",
+        "description": "routes/session.js line 16 maps t.agent_id but buildGraph returns .assignee. This causes state.agents[t.agent_id] to always be undefined, breaking subagent gate claims.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T17:41:50.776Z"
+      },
+      "assignee": "fix-active-claim-35",
+      "timestamps": {
+        "firstSeen": "2026-06-12T16:13:32.797Z",
+        "lastChanged": "2026-06-12T16:13:32.797Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "e9d4c9d7-73dc-4558-ab81-1882239d2dc8/1": {
+      "id": "e9d4c9d7-73dc-4558-ab81-1882239d2dc8/1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Added git-based merged-branch fallback to /costflow in routes/analytics.js. Before the nodes map, runs `git branch --merged HEAD` once in the workspace (try/catch — silently skips non-git workspaces). In the map, if a task has a git branch that appears in the merged set but the overlay flag is not set, marks merged=true and calls overlayStore.setGit to backfill the overlay. After the map, saves + notifies if any backfill occurred. Also added `execFileSync` require at top of file. Syntax verified clean.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix 3: Backfill merged signal from git at costflow time",
+        "description": "In routes/analytics.js, during /costflow computation, for any task with t.git.branch but t.git.merged=false, check `git branch --merged <base>` to detect branches merged outside the daemon. If merged, treat as merged:true in the flow AND write the signal back to the overlay (setGit merged:true, merge_sha, merged_at) so future reads are correct. Independent of fixes 1 and 2.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T17:02:29.882Z"
+      },
+      "assignee": "fix3-merged-backfill",
+      "timestamps": {
+        "firstSeen": "2026-06-12T16:58:56.682Z",
+        "lastChanged": "2026-06-12T16:58:56.682Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "e9d4c9d7-73dc-4558-ab81-1882239d2dc8/2": {
+      "id": "e9d4c9d7-73dc-4558-ab81-1882239d2dc8/2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Added git_user stamp in routes/overlay.js: when status becomes in_progress, runs `git config user.name` via execFileSync (guarded try/catch) and stores result in T.ov.git_users[b.key]. Added git_user field to the buildGraph task detail object in daemon.js (line ~1215), reading from ovWs.git_users with null fallback. Both files pass node -c syntax check.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix 1: Stamp git_user on task at start_task time",
+        "description": "In routes/overlay.js, when status=in_progress is processed, read `git config user.name` from the workspace (gitSafe call) and store it in a new overlay.git_users[task_key] field. Expose git_user on the task detail (buildGraph node). This is the prerequisite for fix 2 (token-delta work_sessions).",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T17:03:16.721Z"
+      },
+      "assignee": "fix1-git-user-stamp",
+      "timestamps": {
+        "firstSeen": "2026-06-12T16:58:58.504Z",
+        "lastChanged": "2026-06-12T16:58:58.504Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "e9d4c9d7-73dc-4558-ab81-1882239d2dc8/3": {
+      "id": "e9d4c9d7-73dc-4558-ab81-1882239d2dc8/3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Part B of Fix 2 complete. analytics.js: claims now include work_sessions from T.ov.work_sessions[task_id]. costflow.js splitSessionTokens: uses sum of closed work_session durations (start_ts→end_ts) when available, falls back to firstSeen/lastChanged window for legacy tasks. Both files syntax-clean.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix 2: Token-delta work_sessions attribution model",
+        "description": "Replace time-window token splitting with exact measured deltas. At start_task: read cumulative output token count from the session transcript, record as tokens_at_start on a new work_sessions entry (alongside git_user, agent_id). At complete_task/stale-release: read again, record tokens_at_end, compute contribution=tokens_at_end - tokens_at_start. Update splitSessionTokens in lib/costflow.js to use work_session deltas when available, falling back to time-window for legacy tasks. Depends on Fix 1 being in place.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T17:04:30.358Z"
+      },
+      "assignee": "fix2-part-b-main",
+      "timestamps": {
+        "firstSeen": "2026-06-12T16:59:16.817Z",
+        "lastChanged": "2026-06-12T16:59:16.817Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "followup/fix-session-js-active-claim-t-agent-id-t-aoov": {
+      "id": "followup/fix-session-js-active-claim-t-agent-id-t-aoov",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Same fix as b3d1b5f4/35 — t.agent_id → t.assignee in routes/session.js line 16. Landed in branch orch/attempt/fix-active-claim-35 (commit 969b5ca).",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix session.js active-claim: t.agent_id → t.assignee (unblocks subagent gate)",
+        "description": "Fix a one-line bug in /Users/imyu/Desktop/zonoid/routes/session.js.\n\nLine 16 maps `agent_id: t.agent_id` but buildGraph returns tasks with `.assignee` not `.agent_id`. This means the subagent_session lookup at line 30 (`state.agents[t.agent_id]?.subagent_session === sid`) always hits `state.agents[undefined]` = undefined, so subagent claim checking never works.\n\nFix: change line 16 from:\n  let all = g.tasks.filter((t) => t.status === 'in_progress').map((t) => ({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id }));\nTo:\n  let all = g.tasks.filter((t) => t.status === 'in_progress').map((t) => ({ key: t.id, label: t.label, session: t.session, agent_id: t.assignee }));\n\nAfter making this fix, re-dispatch task #34 (bench-journal-agent) to complete the bench journal wiring work. Task #34 was started but blocked by this gate bug.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "follow_up_of": "34",
+          "created_by": "daemon"
+        },
+        "snapshotted_at": "2026-06-12T16:10:57.738Z"
+      },
+      "assignee": "fix-active-claim-35",
+      "timestamps": {
+        "firstSeen": "2026-06-12T16:10:57.773Z",
+        "lastChanged": "2026-06-12T16:10:57.773Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "followup/write-competitive-analysis-brief-update--x1r7": {
+      "id": "followup/write-competitive-analysis-brief-update--x1r7",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Wrote /Users/imyu/Desktop/cloude/competitive-analysis-2026-06-12.md — full 9-section competitive analysis brief update. Key changes from June 10: Augment Cosmos added as new primary fleet-memory threat (enterprise/cloud tier); Gas Town/Beads elevated from watch-list to primary threat with full battle card (closest architectural peer, Kilo distribution); moat sentence sharpened to \"their memory stores what happened; ours knows which task proved it, which superseded it, and what the next task needs — with receipts\"; \"self-learning\" vocabulary confirmed non-exclusive (Dreaming billing-live); CLAUDE_CODE_TASK_LIST_ID risk downgraded (not confirmed shipped); Mem0 OSS graph removal confirmed; Windsurf→Devin Desktop + ACP watch added. All June 10 bench triage D5 invalidations carried forward.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Write competitive analysis brief update 2026-06-12",
+        "description": "Write the updated competitive analysis brief to /Users/imyu/Desktop/cloude/competitive-analysis-2026-06-12.md. The brief has already been drafted — agent compete-synth-update has the content ready. Call start_task on this task key before writing.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "follow_up_of": "6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/5",
+          "created_by": "daemon"
+        },
+        "snapshotted_at": "2026-06-12T16:16:39.895Z"
+      },
+      "assignee": "compete-synth-update",
+      "timestamps": {
+        "firstSeen": "2026-06-12T16:16:39.932Z",
+        "lastChanged": "2026-06-12T16:16:39.932Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "followup/write-cron-next-implementation-af37": {
+      "id": "followup/write-cron-next-implementation-af37",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "MERGE PENDING — orch/attempt/cron-next-impl: implemented nextRun(cronExpr, afterMs) in lib/cron-next.js. Pure CommonJS, no deps. Handles all field types (*, single, list, range, step-on-star, step-on-range, combined lists), DOM/DOW union rule, non-existent date skipping, year/leap-year rollover, and throws on invalid expressions. Bench artifact at bench/sandbox/cron-next-ht.js re-exports from lib. Grader result: 13/13 pass, 7/7 edge cases pass.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Write cron-next implementation",
+        "description": "Implement nextRun function for cron expression parsing. Write the implementation to /Users/imyu/Desktop/zonoid/worktrees/bench/ht-cron-next-off-0/bench/sandbox/cron-next-ht.js",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "follow_up_of": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/23",
+          "created_by": "daemon"
+        },
+        "snapshotted_at": "2026-06-12T09:28:47.340Z"
+      },
+      "assignee": "cron-next-impl-agent",
+      "timestamps": {
+        "firstSeen": "2026-06-12T09:28:47.371Z",
+        "lastChanged": "2026-06-12T09:28:47.371Z",
         "lastStatus": "ready"
       },
       "metrics": null,
@@ -100359,7 +100829,362 @@
       "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/1",
       "kind": "context",
       "weight": 0.275
+    },
+    {
+      "from": "25",
+      "to": "34",
+      "kind": "context"
+    },
+    {
+      "from": "28",
+      "to": "34",
+      "kind": "context"
+    },
+    {
+      "from": "34",
+      "to": "followup/fix-session-js-active-claim-t-agent-id-t-aoov",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mq75a825",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/33",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "note:note-mq7dy433",
+      "to": "note:note-mq82f35x3nh",
+      "kind": "context",
+      "weight": 0.65
+    },
+    {
+      "from": "note:note-mq85codzzzj",
+      "to": "note:note-mq7iaabuefb",
+      "kind": "context",
+      "weight": 0.6
+    },
+    {
+      "from": "note:note-mq87mffnxbx",
+      "to": "note:note-mq8sikxgydu",
+      "kind": "context",
+      "weight": 0.6
+    },
+    {
+      "from": "note:note-mq8wyx1ricg",
+      "to": "c06c364d-9617-4ea9-9660-3d1545b238e3/1",
+      "kind": "context",
+      "weight": 0.267
+    },
+    {
+      "from": "note:note-mq9mlnbsmti",
+      "to": "followup/fix-session-js-active-claim-t-agent-id-t-aoov",
+      "kind": "context",
+      "weight": 0.252
+    },
+    {
+      "from": "note:note-mqa3vbpct2c",
+      "to": "note:note-mqa16klgs77",
+      "kind": "context",
+      "weight": 0.7
+    },
+    {
+      "from": "note:note-mqacooq7k57",
+      "to": "followup/fix-session-js-active-claim-t-agent-id-t-aoov",
+      "kind": "context",
+      "weight": 0.295
+    },
+    {
+      "from": "note:note-mqacooq7k57",
+      "to": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/35",
+      "kind": "context",
+      "weight": 0.267
+    },
+    {
+      "from": "note:note-mqasdxx0tnt",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqaslontp50",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/3",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqaslontp50",
+      "to": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/34",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqb1i6ssdft",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqb1i6ssdft",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/3",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqb1ic5y3qr",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqb1ixlleqr",
+      "to": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/34",
+      "kind": "context",
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mqb2pt3b1ms",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2",
+      "kind": "context",
+      "weight": 1
+    },
+    {
+      "from": "note:note-mqb3vxazrub",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2",
+      "kind": "context",
+      "weight": 1
+    },
+    {
+      "from": "note:note-mqb3vxazrub",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/4",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqb4iejccco",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/4",
+      "kind": "context",
+      "weight": 1
+    },
+    {
+      "from": "note:note-mqb5hk9xd52",
+      "to": "followup/write-competitive-analysis-2026-06-12-main",
+      "kind": "context",
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mqb8wueoi86",
+      "to": "35",
+      "kind": "context",
+      "weight": 0.5
+    },
+    {
+      "from": "014da635-9813-4932-a6b1-2e96da0b8f12/1",
+      "to": "014da635-9813-4932-a6b1-2e96da0b8f12/2",
+      "kind": "context",
+      "weight": 0.267
+    },
+    {
+      "from": "0b0c92cd-a0b8-474d-ab56-93fda4e99a2a/1",
+      "to": "followup/fix-session-js-active-claim-t-agent-id-t-aoov",
+      "kind": "context",
+      "weight": 0.257
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2",
+      "to": "followup/fix-session-js-active-claim-t-agent-id-t-aoov",
+      "kind": "context",
+      "weight": 0.43
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2",
+      "to": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/35",
+      "kind": "context",
+      "weight": 0.39
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2",
+      "to": "followup/restart-daemon-to-activate-t-assignee-fi-vcs3",
+      "kind": "context",
+      "weight": 0.39
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/22",
+      "to": "followup/harness-label-drain",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/3",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/33",
+      "kind": "context",
+      "weight": 0.316
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/10",
+      "to": "followup/fix-session-js-active-claim-t-agent-id-t-aoov",
+      "kind": "context",
+      "weight": 0.252
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/10",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/32",
+      "kind": "context",
+      "weight": 0.252
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/8",
+      "to": "followup/harness-label-drain",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "676489e6-2509-4195-81bb-fc0319e4bcc9/1",
+      "to": "followup/write-competitive-analysis-brief-update--x1r7",
+      "kind": "context",
+      "weight": 0.261
+    },
+    {
+      "from": "6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/5",
+      "to": "followup/write-competitive-analysis-brief-update--x1r7",
+      "kind": "context"
+    },
+    {
+      "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/3",
+      "kind": "context"
+    },
+    {
+      "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/4",
+      "kind": "context"
+    },
+    {
+      "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/3",
+      "to": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/34",
+      "kind": "context"
+    },
+    {
+      "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5",
+      "to": "c06c364d-9617-4ea9-9660-3d1545b238e3/1",
+      "kind": "context",
+      "weight": 0.338
+    },
+    {
+      "from": "90b13b65-412a-47ca-8973-82f04d911840/1",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/6",
+      "kind": "context",
+      "weight": 0.25
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/1",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/32",
+      "kind": "context",
+      "weight": 0.252
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/6",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5",
+      "kind": "context",
+      "weight": 0.338
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/6",
+      "to": "c06c364d-9617-4ea9-9660-3d1545b238e3/1",
+      "kind": "context",
+      "weight": 0.286
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/8",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5",
+      "kind": "context",
+      "weight": 0.298
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/29",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/7",
+      "kind": "context"
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/35",
+      "to": "followup/restart-daemon-to-activate-t-assignee-fi-vcs3",
+      "kind": "context"
+    },
+    {
+      "from": "dc3ec43f-f1a8-4a77-9403-14c5a43e2e17/8",
+      "to": "c06c364d-9617-4ea9-9660-3d1545b238e3/1",
+      "kind": "context",
+      "weight": 0.338
+    },
+    {
+      "from": "df63dcd1-69b2-48ae-926b-1f360ad2fc0c/9",
+      "to": "followup/fix-session-js-active-claim-t-agent-id-t-aoov",
+      "kind": "context",
+      "weight": 0.324
+    },
+    {
+      "from": "df63dcd1-69b2-48ae-926b-1f360ad2fc0c/9",
+      "to": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/35",
+      "kind": "context",
+      "weight": 0.307
+    },
+    {
+      "from": "e9d4c9d7-73dc-4558-ab81-1882239d2dc8/2",
+      "to": "e9d4c9d7-73dc-4558-ab81-1882239d2dc8/3",
+      "kind": "blocking"
+    },
+    {
+      "from": "eb25339f-1c71-4fc9-a316-ea83fb6a25d3/2",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5",
+      "kind": "context",
+      "weight": 0.365
+    },
+    {
+      "from": "eb25339f-1c71-4fc9-a316-ea83fb6a25d3/7",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2",
+      "kind": "context",
+      "weight": 0.272
+    },
+    {
+      "from": "eb25339f-1c71-4fc9-a316-ea83fb6a25d3/7",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/7",
+      "kind": "context",
+      "weight": 0.252
+    },
+    {
+      "from": "f9e0d871-9503-4d04-ab63-dbd2e66b4fe1/1",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/33",
+      "kind": "context",
+      "weight": 0.365
+    },
+    {
+      "from": "followup/restart-daemon-to-activate-session-info--xzib",
+      "to": "followup/restart-daemon-to-activate-t-assignee-fi-vcs3",
+      "kind": "context",
+      "weight": 0.463
+    },
+    {
+      "from": "followup/restart-daemon-to-activate-session-info--xzib",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/6",
+      "kind": "context",
+      "weight": 0.408
+    },
+    {
+      "from": "followup/restart-daemon-to-apply-tasktranscript-f-cpod",
+      "to": "followup/restart-daemon-to-activate-t-assignee-fi-vcs3",
+      "kind": "context",
+      "weight": 0.507
+    },
+    {
+      "from": "followup/restart-daemon-to-apply-tasktranscript-f-cpod",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/6",
+      "kind": "context",
+      "weight": 0.447
+    },
+    {
+      "from": "followup/restart-daemon-to-load-wires-to-changes-1b05",
+      "to": "followup/restart-daemon-to-activate-t-assignee-fi-vcs3",
+      "kind": "context",
+      "weight": 0.338
+    },
+    {
+      "from": "followup/restart-daemon-to-load-wires-to-changes-1b05",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/6",
+      "kind": "context",
+      "weight": 0.447
     }
   ],
-  "compacted_at": "2026-06-12T14:42:21.729Z"
+  "compacted_at": "2026-06-12T18:17:08.691Z"
 }

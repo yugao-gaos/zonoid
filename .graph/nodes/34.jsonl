@@ -1,6 +1,0 @@
-{"evt":"status_changed","id":"34","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T16:03:34.040Z"}
-{"evt":"assignee_set","id":"34","workspace":"/Users/imyu/Desktop/zonoid","assignee":"bench-journal-agent","actor":"overlay-sync","ts":"2026-06-12T16:03:34.040Z"}
-{"evt":"timestamps_set","id":"34","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T16:03:34.039Z","lastChanged":"2026-06-12T16:03:34.039Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-12T16:03:34.040Z"}
-{"evt":"edge_added","from":"34","to":"followup/fix-session-js-active-claim-t-agent-id-t-aoov","kind":"context","actor":"overlay-sync","ts":"2026-06-12T16:10:57.738Z"}
-{"evt":"status_changed","id":"34","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-12T16:10:57.738Z"}
-{"evt":"summary_set","id":"34","workspace":"/Users/imyu/Desktop/zonoid","summary":"BLOCKED by session.js bug: active-claim lookup uses t.agent_id (always undefined in buildGraph) instead of t.assignee. The subagent_session check at line 30 never fires. All file edits are gated. See follow-up task for the one-line fix that unblocks this agent.","actor":"overlay-sync","ts":"2026-06-12T16:10:57.738Z"}

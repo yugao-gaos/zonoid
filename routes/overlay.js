@@ -131,6 +131,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         const open = [...sessions].reverse().find(s => !s.end_ts);
         if (open) open.end_ts = now();
       }
+      if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && T.ov.claimSessions) {
+        delete T.ov.claimSessions[b.key];
+      }
     }
     if (b.summary != null) T.ov.summaries[b.key] = String(b.summary).slice(0, 2000);
     const NATIVE_STATUS = { in_progress: 'in_progress', done: 'completed', tested: 'completed' };
@@ -175,6 +178,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       statusResp.force_claims_remaining = Math.max(0, FORCE_CAP - ((T.ov.forceClaims && T.ov.forceClaims[b.key]) || 0));
     }
     sendOp(res, b, 200, statusResp); return true;
+  }
+
+  if (p === '/overlay/claim-session' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!b.task_key || !b.session_id) { send(res, 400, { ok: false, error: 'task_key and session_id required' }); return true; }
+    if (!T.ov.claimSessions) T.ov.claimSessions = {};
+    T.ov.claimSessions[b.task_key] = b.session_id;
+    T.save();
+    send(res, 200, { ok: true }); return true;
   }
 
   if (p === '/overlay/knowledge' && m === 'POST') {
@@ -305,6 +318,25 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!r.ok) { send(res, 400, { ok: false, error: r.error }); return true; }
     T.save(); notifyChange();
     send(res, 200, { ok: true, old_key: 'note:' + oldId, new_key: 'note:' + newId, at: r.at }); return true;
+  }
+
+  if (p === '/overlay/block' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
+    overlayStore.setBlocked(T.ov, b.key, b.reason);
+    T.save(); notifyChange();
+    send(res, 200, { ok: true, key: b.key, blocked: T.ov.blocked[b.key] }); return true;
+  }
+
+  if (p === '/overlay/unblock' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
+    const wasBlocked = overlayStore.isBlocked(T.ov, b.key);
+    overlayStore.clearBlocked(T.ov, b.key);
+    T.save(); notifyChange();
+    send(res, 200, { ok: true, key: b.key, was_blocked: wasBlocked }); return true;
   }
 
   if (p === '/overlay/backfill-embeddings' && m === 'POST') {

@@ -1,63 +1,51 @@
+'use strict';
+
 const fs = require('fs');
 
-const USAGE_FIELDS = [
-  'input_tokens',
-  'output_tokens',
-  'cache_read_input_tokens',
-  'cache_creation_input_tokens',
-];
-
-function lineTotal(usage) {
-  let sum = 0;
-  for (const field of USAGE_FIELDS) {
-    sum += usage[field] || 0;
-  }
-  return sum;
-}
-
-function computeMetrics(path) {
-  const content = fs.readFileSync(path, 'utf8');
+function sumUsage(lines) {
   let gross = 0;
-  let mcp = 0;
+  let mcpGross = 0;
   let output = 0;
 
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
+  for (const line of lines) {
     let obj;
-    try {
-      obj = JSON.parse(trimmed);
-    } catch (e) {
-      continue; // skip non-JSON lines
-    }
+    try { obj = JSON.parse(line); } catch { continue; }
 
-    if (!obj || !obj.usage) continue;
+    const u = obj.usage;
+    if (!u) continue;
 
-    const total = lineTotal(obj.usage);
-    gross += total;
-    output += obj.usage.output_tokens || 0;
+    const lineTotal =
+      (u.input_tokens || 0) +
+      (u.output_tokens || 0) +
+      (u.cache_read_input_tokens || 0) +
+      (u.cache_creation_input_tokens || 0);
+
+    gross += lineTotal;
+    output += (u.output_tokens || 0);
+
     if (obj.source === 'mcp_tool') {
-      mcp += total;
+      mcpGross += lineTotal;
     }
   }
 
-  return { gross, net: gross - mcp, output };
+  return { gross, net: gross - mcpGross, output };
 }
 
-function ratio(on, off) {
-  if (off === 0) return null;
-  return Math.round((on / off) * 10000) / 10000;
+function round4(n) {
+  return Math.round(n * 10000) / 10000;
 }
 
 function computeRatio(onTranscript, offTranscript) {
-  const on = computeMetrics(onTranscript);
-  const off = computeMetrics(offTranscript);
+  const onLines  = fs.readFileSync(onTranscript,  'utf8').split('\n');
+  const offLines = fs.readFileSync(offTranscript, 'utf8').split('\n');
+
+  const on  = sumUsage(onLines);
+  const off = sumUsage(offLines);
 
   return {
-    gross: ratio(on.gross, off.gross),
-    net: ratio(on.net, off.net),
-    output: ratio(on.output, off.output),
+    gross:  off.gross  === 0 ? null : round4(on.gross  / off.gross),
+    net:    off.net    === 0 ? null : round4(on.net    / off.net),
+    output: off.output === 0 ? null : round4(on.output / off.output),
   };
 }
 

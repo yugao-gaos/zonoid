@@ -1,37 +1,22 @@
-'use strict';
-
-function round2(x) {
-  return Math.round((x + Number.EPSILON) * 100) / 100;
-}
-
-function median(sorted) {
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 === 0
-    ? (sorted[mid - 1] + sorted[mid]) / 2
-    : sorted[mid];
-}
-
 function summarizeRuns(rows) {
-  const byArm = new Map();
-
+  const groups = {};
   for (const { arm, tokens } of rows) {
     if (!Number.isFinite(tokens)) continue;
-    if (!byArm.has(arm)) byArm.set(arm, []);
-    byArm.get(arm).push(tokens);
+    if (!groups[arm]) groups[arm] = [];
+    groups[arm].push(tokens);
   }
-
-  const out = {};
-  for (const [arm, tokens] of byArm) {
-    const sorted = tokens.slice().sort((a, b) => a - b);
-    const sum = sorted.reduce((acc, t) => acc + t, 0);
-    out[arm] = {
-      n: sorted.length,
-      mean: round2(sum / sorted.length),
-      median: round2(median(sorted)),
-    };
+  const result = {};
+  for (const [arm, vals] of Object.entries(groups)) {
+    const n = vals.length;
+    const mean = Math.round((vals.reduce((s, v) => s + v, 0) / n) * 100) / 100;
+    const sorted = vals.slice().sort((a, b) => a - b);
+    const mid = Math.floor(n / 2);
+    const median = n % 2 === 1
+      ? sorted[mid]
+      : Math.round(((sorted[mid - 1] + sorted[mid]) / 2) * 100) / 100;
+    result[arm] = { n, mean, median };
   }
-
-  return out;
+  return result;
 }
 
 module.exports = { summarizeRuns };

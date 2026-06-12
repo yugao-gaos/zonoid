@@ -20,6 +20,7 @@ ldec(){ local id="$1" f="$2"; g next-action | jq -r --arg id "$id" ".loops[]|sel
 rm -rf "$CLAUDE_PLUGIN_DATA"; lsof -ti tcp:$PORT 2>/dev/null | xargs kill -9 2>/dev/null; sleep 0.3
 WS=/tmp/orch-smoke; S=99999999-0000-0000-0000-000000000001
 PROJ="$HOME/.claude/projects/-tmp-orch-smoke"; T="$HOME/.claude/tasks/$S"
+rm -rf "$WS" /tmp/orch-smoke-w[ab] "$PROJ" "$T"   # also clear workspace + native-task state (else tasks/edges/notes pile up across runs → flaky failures)
 mkdir -p "$PROJ" "$T"; : > "$PROJ/$S.jsonl"
 echo '{"id":"1","subject":"a","status":"pending","blockedBy":[]}'    > "$T/1.json"
 echo '{"id":"2","subject":"b","status":"pending","blockedBy":["1"]}' > "$T/2.json"

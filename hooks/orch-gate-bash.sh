@@ -25,8 +25,9 @@ CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
 WRITE_PATTERN=0
 
 # Redirect to non-/tmp path: "> file" or ">> file" but not "> /tmp/..." or "> /dev/null"
-# Exclude fd redirects like 2>&1 (digit or & after >) which are not file writes.
-if printf '%s' "$CMD" | grep -qE '(>>?)\s*[^/\s&0-9]' 2>/dev/null; then
+# Exclude fd redirects like 2>&1 (digit or & after >) and closing angle brackets in
+# strings like "<email@host.com>" where > is immediately preceded by a word/email char.
+if printf '%s' "$CMD" | grep -qE '(^|[^[:alnum:]._@-])(>>?)\s*[^/\s&0-9]' 2>/dev/null; then
   WRITE_PATTERN=1
 fi
 if printf '%s' "$CMD" | grep -qE '(>>?)\s*/(?!(tmp|private/tmp|dev/null))' 2>/dev/null; then
@@ -177,7 +178,7 @@ IS_SUB=$(printf '%s' "$SINFO" | jq -r '.is_subagent // "unknown"' 2>/dev/null)
 
 if [ "$IS_SUB" = "true" ]; then
   # Registered subagent with no claim — must file a task first.
-  echo "orch-gate: file a task (TaskCreate) and start_task before writing files via Bash" >&2
+  printf 'orch-gate: no task claimed. Call TaskCreate then start_task before writing files.\n' >&2
   exit 2
 fi
 
@@ -187,7 +188,7 @@ COUNTER_FILE="/tmp/orch-edit-count-$SID"
 COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo "0")
 
 if [ "$COUNT" -ge 2 ]; then
-  echo "orch-gate: Main session multi-file or large edit detected — dispatch a subagent (TaskCreate + Agent tool) for substantive work." >&2
+  echo "orch-gate: multi-file or large edit — use TaskCreate + Agent tool to dispatch a subagent." >&2
   exit 2
 fi
 

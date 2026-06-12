@@ -141,6 +141,12 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         judge.stampCluster(T.ov.judgedClusters, keys, epoch);
         applied.surfaced++; applied.clustersJudged++;
       }
+      if (v && v.markDistinct && Array.isArray(v.markDistinct.keys) && v.markDistinct.keys.length) {
+        const keys = v.markDistinct.keys.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
+        overlayStore.markClusterDistinct(T.ov, keys);
+        judge.stampCluster(T.ov.judgedClusters, keys, epoch);
+        applied.stamped = (applied.stamped || 0) + 1; applied.clustersJudged++;
+      }
       const noteKey = v && (v.markJudged || (v.item && v.item.kind === 'orphan' ? v.item.id : null));
       if (noteKey) { judge.stampJudged(T.ov.judgedAtEpoch, noteKey, epoch); applied.judged++; }
     }

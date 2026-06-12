@@ -31,6 +31,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         all.push({ ...t, session: sid });
       }
     }
+    if (sid) {
+      const T = targetOverlay(null, u);
+      const cs = T.ov.claimSessions;
+      if (cs) {
+        for (const t of all.filter((t) => t.session !== sid)) {
+          if (cs[t.key] === sid && !all.some((x) => x.key === t.key && x.session === sid))
+            all.push({ ...t, session: sid });
+        }
+      }
+    }
     const claims = sid ? all.filter((t) => t.session === sid) : all;
     send(res, 200, { claimed: claims.length > 0, claims }); return true;
   }
@@ -60,6 +70,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (b.require_review != null) T.ov.config.require_review = !!b.require_review;
     if (b.self_plan != null) T.ov.config.self_plan = !!b.self_plan;
+    if (b.cost_gate != null) T.ov.config.cost_gate = !!b.cost_gate;
     if (b.stale_minutes != null) T.ov.config.stale_minutes = Number(b.stale_minutes);
     if (b.archive_after_days != null) T.ov.config.archive_after_days = Number(b.archive_after_days);
     if (b.escalation && typeof b.escalation === 'object') {
@@ -145,6 +156,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (T.ov.forceClaims && action.taskKey) delete T.ov.forceClaims[action.taskKey];
       overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : (b.decision || 'approved'));
       result.reset_task_key = action.taskKey;
+    } else if (action && action.kind === 'cost_gate' && (b.decision === 'approve' || b.decision === 'reject')) {
+      // Cost-gate approval: 'approve' unblocks the task so the loop can spawn it; 'reject' keeps it
+      // blocked (the block was set when the guidance was filed — nothing to do on reject).
+      if (b.decision === 'approve' && action.taskKey) {
+        overlayStore.clearBlocked(T.ov, action.taskKey);
+        result.unblocked_task_key = action.taskKey;
+      }
+      overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
+      result.decision = b.decision;
     } else {
       overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
     }

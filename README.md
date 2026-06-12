@@ -1,12 +1,35 @@
 # Zonoid
 
-Every AI edit, tracked. Every lesson, kept.
+An agent that knows what it knows, what it costs, and when memory actually pays.
 
-Zonoid is a task-graph daemon that gates AI agent file edits behind named tasks and builds a
-persistent knowledge base from each session — observability and traceability for AI coding agents.
+Most AI coding agents start every session cold. The ones that add memory inject everything
+they've ever seen — burning tokens on context the current task doesn't need. Zonoid does neither.
 
-- **Traceable edits:** agents must claim a task before touching a file; every change has a named reason
-- **Persistent context:** session discoveries are mined, LLM-evaluated, and injected into future runs
+It is a local daemon that makes the work graph and the knowledge graph the same structure.
+When a task completes, it leaves a knowledge note on the graph. When a new task starts, it
+inherits only the notes its dependency edges point to — under a token budget, summary-tier
+first, full-knowledge on demand. The agent retrieves exactly what this task needs, sees what
+it costs, and the context gate abstains when retrieval wouldn't pay.
+
+```
+without Zonoid                       with Zonoid
+
+agent starts cold every run    →     inherits knowledge from every task
+                                      that preceded this one in the DAG
+
+memory = inject everything     →     memory = traverse the dependency edges
+                                      that point to this task, within budget
+
+"did memory help?" = unknown   →     cold 0/8 → warm 8/8 on held-out bench
+                                      (published, with the nulls)
+```
+
+- **DAG = RAG:** the dependency graph routes knowledge — no separate retrieval index, no
+  annotation step; completing a task IS writing memory
+- **Token-aware:** two-tier handoff (2k-token summaries first, full knowledge on demand),
+  context gate that abstains when retrieval wouldn't pay
+- **Receipts:** every knowledge note carries which task produced it, which superseded it,
+  and what it cost — bi-temporal provenance, not an append-only log
 - **One-command setup:** wires MCP + pre-tool hooks into any Claude Code project in under a minute
 
 ## Install
@@ -20,6 +43,24 @@ and an MCP surface that lets the agent read and write the knowledge graph.
 
 ## How it works
 
+The work graph and the knowledge graph are the same structure. Each node is both
+a task (with status, dependencies, and a claim gate) and a potential knowledge
+source (its completion summary and attached notes flow forward along context edges).
+
+```
+  task A ──context edge──▶ task B ──context edge──▶ task C
+    │                        │                        │
+  complete                 start                    start
+    │                        │                        │
+  leaves note              inherits A's note         inherits B's note
+  on the graph             under token budget         (A's note already
+                                                       in B's summary)
+```
+
+Every Write or Edit tool call passes through orch-gate.sh (PreToolUse hook).
+The gate checks /active-claim?session=<id> on the daemon — no claimed task = blocked.
+This means every file change in the repo has a named task as its reason.
+
 ```
 ┌─────────────────────────────────────────┐
 │            Claude Code Agent            │
@@ -30,21 +71,27 @@ and an MCP surface that lets the agent read and write the knowledge graph.
 ┌─────────────────────────────────────────┐
 │         orch-gate.sh (PreToolUse)       │
 │  checks /active-claim?session=<id>      │
-│  ┌─ no claim ──► EXIT 2 (blocked)    │  │
-│  └─ claimed  ──► EXIT 0 (allowed)    │  │
+│  ┌─ no claim  ──► EXIT 2 (blocked)      │
+│  └─ claimed   ──► EXIT 0 (allowed)      │
 └────────────┬────────────────────────────┘
              │ HTTP :8787
              ▼
-┌─────────────────────────────────────────┐
-│      Zonoid Daemon (daemon.js)          │
-│  ┌──────────────┐  ┌─────────────────┐  │
-│  │  Task Graph  │  │  Knowledge Base │  │
-│  │  (DAG +      │  │  (mine → eval   │  │
-│  │   overlay)   │  │   → inject)     │  │
-│  └──────────────┘  └─────────────────┘  │
-└─────────────────────────────────────────┘
-             │ MCP (stdio)
-             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Zonoid Daemon (daemon.js)                   │
+│                                                             │
+│   Unified graph: every node is a task AND a knowledge node  │
+│                                                             │
+│   task A ──[context]──▶ task B ──[context]──▶ task C        │
+│      │                     │                                │
+│   summary + notes       inherits A's                        │
+│   written on complete   summary + notes                     │
+│                         on start_task                       │
+│                                                             │
+│   context gate: retrieves only when lift > cost             │
+│   token budget: 2k summary tier → full knowledge on demand  │
+└────────────────────────────────────┬────────────────────────┘
+                                     │ MCP (stdio)
+                                     ▼
 ┌─────────────────────────────────────────┐
 │  start_task · complete_task · set_status│
 │  search_knowledge · suggest_links       │
@@ -52,19 +99,48 @@ and an MCP surface that lets the agent read and write the knowledge graph.
 └─────────────────────────────────────────┘
 ```
 
+## Evidence
+
+Memory helps when the fact is empirical, local to your project, and not already in
+the model's pretraining — roughly a quarter of knowledge-dependent tasks on our own corpus.
+
+**Held-out causal wins (what survived our benchmark protocol):**
+
+| Arm | Result | Notes |
+|---|---|---|
+| Cold (no KB) | 0/8 correct | de-DE decimal locale format — agent could not reconstruct from scratch |
+| Warm (KB seeded) | 8/8 correct | agent cited the retrieved note verbatim in its solution |
+| Cold (no KB) | 0/10 correct | window-correlation task — zero variance across trials |
+| Warm (KB seeded) | 8.75/10 correct | same task, warm arm reproduced the solution |
+
+**Retrieval scorecard:** recall@5 0.91 / MRR 0.82 (`bench/retrieval/scorecard.md`)
+
+**Bi-temporal retrieval:** 1.0 vs 0.6 recall@5 on as-of queries (`bench/temporal/report.json`)
+
+**What we invalidated:** our first seven ON-vs-OFF benchmark versions shipped their acceptance
+tests inside the agent's worktree. The rigging guard on the eighth attempt caught the cold arm
+reverse-engineering answers from the committed test. Those seven versions are excluded from this
+release and we make no claims on them. The protocol that caught it — held-out grading where the
+agent solves from a prose spec and an external suite it never sees grades the frozen artifact,
+with a cold-arm-must-fail guard before any win is claimed — is the benchmark that ships with
+this repo (`bench/heldout/`).
+
+We are the only agent memory project we are aware of that publishes its null results and
+retracts contaminated numbers publicly.
+
+## Self-improvement loop
+
+After each session, Zonoid mines the completed task graph and agent transcripts for reusable patterns —
+architectural decisions, gotchas, constraints — and queues them for LLM evaluation. Accepted
+candidates are injected as knowledge notes into the graph. Future sessions inherit those notes
+as Tier-1 context via `search_knowledge` and `suggest_links`, so the agent starts each run with
+the accumulated findings of every prior session rather than a blank slate.
+
 ## Dashboard
 
 ```
 http://localhost:8787/graph
 ```
-
-## Self-learning loop
-
-After each session, Zonoid mines the task graph and agent transcripts for reusable patterns —
-architectural decisions, gotchas, constraints — and queues them for LLM evaluation. Accepted
-candidates are injected as knowledge notes into the graph. Future sessions inherit those notes
-as Tier-1 context via `search_knowledge` and `suggest_links`, so the agent starts each run with
-the accumulated findings of every prior session rather than a blank slate.
 
 ## MCP tools
 

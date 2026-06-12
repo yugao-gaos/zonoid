@@ -5,12 +5,12 @@ function mergeIntervals(intervals) {
   const result = [sorted[0].slice()];
 
   for (let i = 1; i < sorted.length; i++) {
-    const last = result[result.length - 1];
-    const [start, end] = sorted[i];
-    if (start <= last[1]) {
-      last[1] = Math.max(last[1], end);
+    const current = result[result.length - 1];
+    const next = sorted[i];
+    if (next[0] <= current[1]) {
+      current[1] = Math.max(current[1], next[1]);
     } else {
-      result.push([start, end]);
+      result.push(next.slice());
     }
   }
 

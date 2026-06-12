@@ -1,16 +1,16 @@
 function mergeIntervals(intervals) {
-  if (intervals.length === 0) return [];
+  if (intervals.length <= 1) return intervals.slice();
 
-  const sorted = [...intervals].sort((a, b) => a[0] - b[0]);
-  const result = [sorted[0]];
+  const sorted = intervals.slice().sort((a, b) => a[0] - b[0]);
+  const result = [sorted[0].slice()];
 
   for (let i = 1; i < sorted.length; i++) {
-    const current = sorted[i];
-    const last = result[result.length - 1];
-    if (current[0] <= last[1]) {
-      last[1] = Math.max(last[1], current[1]);
+    const current = result[result.length - 1];
+    const next = sorted[i];
+    if (next[0] <= current[1]) {
+      current[1] = Math.max(current[1], next[1]);
     } else {
-      result.push(current);
+      result.push(next.slice());
     }
   }
 

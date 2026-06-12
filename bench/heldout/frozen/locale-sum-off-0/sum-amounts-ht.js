@@ -1,35 +1,50 @@
 'use strict';
 
-// Parse one amount string into a cent-integer, or null if it isn't a
-// parseable monetary value. Working in integer cents keeps the running
-// total free of binary-float drift (e.g. 0.1 + 0.2).
-function parseCents(amount) {
-  if (typeof amount !== 'string') return null;
+// The upstream billing export intermixes en-US (1,234.56) and de-DE (1.234,56)
+// decimal formats in the same feed. Disambiguate by which separator appears last.
+function parseAmount(raw) {
+  if (raw == null) return 0;
+  let s = String(raw).trim();
+  if (!s) return 0;
 
-  // Insignificant whitespace, then an optional leading currency symbol.
-  let s = amount.trim().replace(/^\$/, '').trim();
-  if (s === '') return null;
+  // Strip leading currency symbol and optional whitespace after it
+  s = s.replace(/^[^0-9\-+,.]+/, '').trim();
+  if (!s) return 0;
 
-  // Accept an optional sign followed by a plain decimal value.
-  if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+  const hasComma = s.includes(',');
+  const hasDot   = s.includes('.');
 
-  const value = Number(s);
-  if (!Number.isFinite(value)) return null;
+  let normalized;
+  if (hasComma && hasDot) {
+    // Whichever separator comes last is the decimal separator
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+      // de-DE: 1.234,56 → remove dots, comma → dot
+      normalized = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      // en-US: 1,234.56 → remove commas
+      normalized = s.replace(/,/g, '');
+    }
+  } else if (hasComma) {
+    // Comma only — decimal if exactly 1-2 digits follow it, else thousands separator
+    const afterComma = s.slice(s.lastIndexOf(',') + 1);
+    normalized = /^\d{1,2}$/.test(afterComma)
+      ? s.replace(',', '.')
+      : s.replace(/,/g, '');
+  } else {
+    normalized = s;
+  }
 
-  return Math.round(value * 100);
+  const v = parseFloat(normalized);
+  return isFinite(v) ? v : 0;
 }
 
 function sumAmounts(rows) {
-  if (!Array.isArray(rows)) return 0;
-
-  let cents = 0;
+  if (!rows || rows.length === 0) return 0;
+  let total = 0;
   for (const row of rows) {
-    if (!row || typeof row !== 'object') continue;
-    const c = parseCents(row.amount);
-    if (c !== null) cents += c;
+    total += parseAmount(row && row.amount);
   }
-
-  return cents / 100;
+  return Math.round(total * 100) / 100;
 }
 
 module.exports = { sumAmounts };

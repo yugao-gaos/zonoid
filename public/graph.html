@@ -15,6 +15,10 @@
   .hd-right{ display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
   .settings-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; font-family: inherit; }
   .settings-btn:hover { background: #161b22; color: #e6edf3; }
+  .notif-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; padding: 0 8px; height: 28px; cursor: pointer; font-size: 12px; display: none; align-items: center; gap: 5px; font-family: inherit; }
+  .notif-btn.show { display: flex; }
+  .notif-btn:hover { background: #161b22; color: #e6edf3; }
+  .notif-btn.has-pending { border-color: #bb8009; color: #f0d77a; }
   /* settings popup */
   #settingsPopup { position: fixed; top: var(--hdr-h); right: 14px; width: 320px; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 14px 16px; }
   #settingsPopup.show { display: block; }
@@ -191,9 +195,10 @@
   .cfrow .cfm { color: #8b949e; font-size: 11px; }
   .appclose { float: right; color: #8b949e; cursor: pointer; padding: 6px 2px; font-size: 14px; }
   .appclose:hover { color: #e6edf3; }
-  /* escalation: guidance banner — the loop is paused waiting on the user */
-  #guidance { display: none; margin: 0; padding: 12px 16px; background: #d2992222; border-bottom: 1px solid #bb8009; color: #f0d77a; }
+  /* escalation: guidance popup — the loop is paused waiting on the user */
+  #guidance { position: fixed; top: calc(var(--hdr-h) + 4px); right: 14px; width: 480px; max-height: 72vh; overflow-y: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 14px 16px; color: #f0d77a; }
   #guidance.show { display: block; }
+  #guidance.has-pending { border-color: #bb8009; }
   #guidance .gtitle { font-weight: 600; color: #ffd95c; }
   #guidance .gitem { margin-top: 8px; padding: 8px 10px; background: #161b22; border: 1px solid #bb800955; border-radius: 8px; }
   #guidance .gq { color: #f0d77a; font-weight: 600; }
@@ -328,6 +333,7 @@
   </div>
   <div class="hd-mid" id="sum"></div>
   <div class="hd-right">
+    <button class="notif-btn" id="notifBtn" title="Notifications" onclick="toggleGuidancePopup()">🗂 <span id="notifCount">0</span></button>
     <button class="settings-btn" title="Settings" onclick="toggleSettingsPopup()">⚙</button>
   </div>
 </header>
@@ -4598,7 +4604,7 @@ async function renderGuidance(force){
   const sig=JSON.stringify(pending.concat(review).map(it=>it.id));
   if(!force&&sig===guidSig) return;   // queue unchanged — don't clobber in-progress typing/expansion
   guidSig=sig;
-  if(!pending.length&&!review.length){ box.classList.remove('show'); box.innerHTML=''; box.removeAttribute('style'); return; }
+  if(!pending.length){ box.classList.remove('show','has-pending'); box.innerHTML=''; const btn=document.getElementById('notifBtn'); if(btn) btn.classList.remove('show','has-pending'); return; }
   // One expandable member row per cluster note: radio keeper pick + label + lazy summary.
   const memberRow=(it,k,i)=>{
     const meta=(Array.isArray(it.action.notes)?it.action.notes:[]).find(n=>n.key===k)||{};
@@ -4640,20 +4646,17 @@ async function renderGuidance(force){
     controls(it)+
     (guidErr[it.id]?'<div class="gerr">'+esc(guidErr[it.id])+'</div>':'')+
     '</div>';
-  let html='';
+  let html='<button class="appclose" style="float:right;margin:-2px -2px 6px 8px" onclick="closeGuidancePopup()">✕</button>';
   if(pending.length) html+='<span class="gtitle">⏸ Loop paused — waiting on you ('+pending.length+')</span>'+pending.map(gitem).join('');
-  if(review.length){
-    const clusters=review.filter(isCluster);
-    html+='<details'+(guidOpen.has('review')?' open':'')+' ontoggle="guidToggle(\'review\',this.open)" style="margin-top:'+(pending.length?'8px':'0')+'">'+
-      '<summary style="cursor:pointer;font-size:12px;color:#8b949e;list-style:none">🗂 '+review.length+' to review ▸</summary>'+
-      (clusters.length?'<div class="gact" style="margin-top:6px"><button class="gbtn"'+(guidBulk?' disabled':'')+' onclick="consolidateAllClusters()">Consolidate all ('+clusters.length+')</button></div>':'')+
-      review.map(gitem).join('')+'</details>';
-  }
   box.innerHTML=html;
-  // Only blocking items warrant the amber alarm styling; review-only is a quiet neutral strip.
-  if(pending.length) box.removeAttribute('style');
-  else { box.style.background='transparent'; box.style.borderBottomColor='#21262d'; }
-  box.classList.add('show');
+  box.classList.add('has-pending');
+  const btn=document.getElementById('notifBtn');
+  if(btn){
+    const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent=pending.length;
+    btn.classList.add('has-pending','show');
+  }
+  // Auto-open only for blocking items (loop paused); review-only stays collapsed until clicked.
+  if(pending.length) box.classList.add('show');
 }
 // POST a resolution. decision: 'consolidate'|'distinct' for dup-clusters (consolidate sends the
 // picked keeper, daemon defaults to newest if omitted); absent → send the answer box as { answer }.
@@ -5118,6 +5121,11 @@ window.addEventListener('resize', ()=>{
 });
 // Activity feeds collapsed by default; remembered in localStorage
 function toggleActivityPopup(){ document.getElementById('activityPopup').classList.toggle('show'); }
+function toggleGuidancePopup(){
+  const p=document.getElementById('guidance'); p.classList.toggle('show');
+  if(p.classList.contains('show')) document.getElementById('settingsPopup').classList.remove('show');
+}
+function closeGuidancePopup(){ document.getElementById('guidance').classList.remove('show'); }
 function toggleSettingsPopup(){
   const p=document.getElementById('settingsPopup'); p.classList.toggle('show');
   if(p.classList.contains('show')){
@@ -5293,9 +5301,16 @@ async function toggleBillingPopup(){
       else if(opusPct>=50) adviceLine='Good Flagship match; move volume tasks to Base to stretch quota';
       else if(opusPct>=20) adviceLine='Balanced mix — lean into Opus for complex reasoning tasks';
       else adviceLine='Flagship (Opus) is included — use it for reasoning-heavy tasks to get more value';
+      let overflowLine='';
+      if(plan.includes('overflow')&&wTotal&&wTotal>0&&allQ&&weeks&&weeks>0){
+        const overflowFrac=Math.max(0,(wTotal-allQ)/wTotal);
+        const overflowMo=totalCost/weeks*4.33*overflowFrac;
+        overflowLine=`<div style="margin-top:4px;font-size:11px;color:#ff7b72">Est. API overflow: ~${fmtUSD(overflowMo)}/mo</div>`;
+      }
       return `<div style="margin-top:12px;padding:10px 12px;background:#161b22;border-radius:6px;border-left:3px solid #d29922">`+
         `<div style="font-size:11px;color:#6e7681;margin-bottom:3px;text-transform:uppercase;letter-spacing:.07em">Suggested plan</div>`+
         `<div style="font-size:14px;font-weight:700;color:#d29922">${plan}</div>`+
+        overflowLine+
         `<div style="margin-top:2px;font-size:10px;color:#484f58">${why}</div>`+
         `<div style="display:grid;grid-template-columns:1fr 1px 1fr;gap:0 10px;margin-top:10px;align-items:start">`+
           `<div><div style="font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:.06em">All Models</div>`+

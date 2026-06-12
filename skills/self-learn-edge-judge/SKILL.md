@@ -77,9 +77,18 @@ measurements from different runs/regimes, are DISTINCT — do NOT consolidate th
   benchmark v2/v3/v4/v5 verdicts). Consolidate ONLY the true-duplicate subset (e.g. a raw verdict and
   its explicit correction) and `surfaceCluster` the residual distinct notes — ONE cluster-level
   guidance item, never per-pair.
-- **`surfaceCluster` (UNSURE).** If you can't confidently call two notes the SAME fact vs merely
-  RELATED, do NOT consolidate — surface the cluster for a human. Conservative bias: a missed merge is
-  cheap (re-offered when membership changes); a wrong merge hides a distinct fact.
+- **Ambiguous cluster — message the dispatcher (RARE).** Only when notes express plausibly DIFFERENT
+  facts that share vocabulary and you genuinely cannot tell which is authoritative without user context.
+  **Do NOT surface repeated-ingestion duplicates** — `[ingest]` notes with near-identical content are
+  a confident `consolidate`, not an ambiguous case. The bar is: "a human seeing only these notes would
+  be unsure which to keep AND the wrong choice has real consequences."
+  When you hit this bar: call `mcp__ccd_session_mgmt__send_message` with `to=DISPATCHER_SESSION`
+  (provided in your task context) and a message like:
+  `"Dup-cluster needs decision: keys=[…], titles=[…]. Reply 'consolidate <keepKey>' or 'distinct'."`.
+  Do NOT call `surfaceCluster` — that creates a dashboard guidance item, which is the wrong path.
+  The dispatcher (orch-loop in the main session) will ask the user inline and call `/judge/verdict`
+  to record the decision. Still stamp the cluster via `markJudged` on each key so the cursor doesn't
+  re-offer it before the dispatcher resolves it.
 
 ## Verdict shapes (POST /judge/verdict)
 

@@ -1,16 +1,6 @@
 'use strict';
 
-/**
- * Decide the next action for the metric-driven improvement loop.
- *
- * @param {{ phase: 'idle'|'measured'|'attempted'|'judged',
- *           metricImproved: boolean|null,
- *           attemptsLeft: number }} state
- * @returns {'measure'|'attempt'|'judge'|'merge'|'stop'}
- */
-function nextLoopAction(state) {
-  const { phase, metricImproved, attemptsLeft } = state;
-
+function nextLoopAction({ phase, metricImproved, attemptsLeft }) {
   switch (phase) {
     case 'idle':
       return 'measure';
