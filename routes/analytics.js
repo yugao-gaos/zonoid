@@ -1,16 +1,13 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { execFileSync } = require('child_process');
 const overlayStore = require('../lib/overlay');
 const costflow = require('../lib/costflow');
-const humanInput = require('../lib/human-input');
-const nt = require('../lib/native-tasks');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, buildGraph, state, targetOverlay, taskTranscript, usageCached,
-    respCacheGet, respCachePut, isTruthy, now } = ctx;
+    respCacheGet, respCachePut, isTruthy, now, harness } = ctx;
 
   if (p === '/costflow' && m === 'GET') {
     const cfWs = u.searchParams.get('workspace') || state.workspace;
@@ -34,7 +31,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const mergeModel=(bm)=>{ if(!bm) return; for(const [m2,v] of Object.entries(bm)){ if(!rawByModel[m2]) rawByModel[m2]={input_tokens:0,output_tokens:0,cache_read_input_tokens:0}; rawByModel[m2].input_tokens+=v.input_tokens||0; rawByModel[m2].output_tokens+=v.output_tokens||0; rawByModel[m2].cache_read_input_tokens+=v.cache_read_input_tokens||0; } };
     const seenTp=new Set();
     for (const c of claims) if(c.transcript&&!seenTp.has(c.transcript)){ seenTp.add(c.transcript); const u2=usageCached(c.transcript); rawInput+=u2.input_tokens||0; rawOutput+=u2.output_tokens||0; rawCacheRead+=u2.cache_read_input_tokens||0; mergeModel(u2.by_model); }
-    const projDirRaw = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
+    const projDirRaw = harness.transcripts.projectDir(T.ws);
     try { for(const e of fs.readdirSync(projDirRaw,{withFileTypes:true})) { if(!e.isFile()||!e.name.endsWith('.jsonl')) continue; const tp=path.join(projDirRaw,e.name); if(seenTp.has(tp)) continue; const u2=usageCached(tp); rawInput+=u2.input_tokens||0; rawOutput+=u2.output_tokens||0; rawCacheRead+=u2.cache_read_input_tokens||0; mergeModel(u2.by_model); } } catch {}
     const supersededIds = new Set((T.ov.edges || []).filter(e => e.kind === 'supersede').map(e => e.from));
     const isExplorationTask = (t) => t.kind === 'note' || supersededIds.has(t.id) || t.status === 'canceled' || t.status === 'failed' || !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
@@ -64,7 +61,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       for (const d of t.deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: 1 });
       for (const d of t.context_deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: (t.context_weights && t.context_weights[d]) ?? overlayStore.DEFAULT_CONTEXT_WEIGHT });
     }
-    const projDir = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
+    const projDir = harness.transcripts.projectDir(T.ws);
     const claimedByTp = new Map();
     for (const c of claims) if (c.transcript) claimedByTp.set(c.transcript, (claimedByTp.get(c.transcript) || 0) + (ownTok.get(c.id) || 0));
     let sessFiles = [];
@@ -95,7 +92,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (escDirty) { T.save(); ctx.notifyChange(); }
     const flow = costflow.computeFlow(nodes, edges);
-    const human = humanInput.humanInputTokens(projDir, { since: u.searchParams.get('since') || null });
+    const human = harness.transcripts.humanInputTokens(projDir, { since: u.searchParams.get('since') || null });
     const rnd = (x) => Math.round(x);
     const explorationIds = new Set(g.tasks.filter(isExplorationTask).map((t) => t.id));
     const kindOf = (id) => (id.startsWith('session:') ? 'session' : undefined);
@@ -124,10 +121,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/harness/overhead' && m === 'GET') {
     const T = targetOverlay(null, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace set' }); return true; }
-    const projDir = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
+    const projDir = harness.transcripts.projectDir(T.ws);
     const since = u.searchParams.get('since') || null;
-    const overhead = humanInput.harnessOverheadTokens(projDir, { since });
-    const human = humanInput.humanInputTokens(projDir, { since });
+    const overhead = harness.transcripts.harnessOverheadTokens(projDir, { since });
+    const human = harness.transcripts.humanInputTokens(projDir, { since });
     let totalSessionInput = 0;
     try {
       for (const e of fs.readdirSync(projDir, { withFileTypes: true })) {

@@ -10,7 +10,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { URL } = require('url');
-const nt = require('./lib/native-tasks');
+const harness = require('./lib/harness').active();
 const overlayStore = require('./lib/overlay');
 const mcpCore = require('./lib/mcp-core');
 const git = require('./lib/git');
@@ -24,7 +24,6 @@ const followups = require('./lib/followups');
 const verdicts = require('./lib/verdicts');
 const { gateTask, contentTokens, classifyNoteType, noteText } = require('./lib/context-gate');
 const costflow = require('./lib/costflow');
-const humanInput = require('./lib/human-input');
 const frontier = require('./lib/frontier');
 const analytics = require('./lib/analytics');
 const graphStore = require('./lib/graph-store');
@@ -33,7 +32,6 @@ const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
 const MAX_ROUTES = 50;
 const BASE = process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'orchestrator');
-const TASKS_DIR = path.join(os.homedir(), '.claude', 'tasks');
 const LOOP_FILE = path.join(BASE, 'loop.json');     // legacy singleton file — migrated into LOOPS_FILE on first boot
 const LOOPS_FILE = path.join(BASE, 'loops.json');   // keyed registry: { [loopId]: entry }
 const MCP_CALL = mcpCore.makeCall(PORT); // self-call for /mcp tool dispatch (loopback)
@@ -57,7 +55,7 @@ const AGG_TTL = 1500, USAGE_TTL = 4000;
 // poll both, and every call rebuilds the whole graph (buildGraph) / recomputes SCC+flow. A short
 // TTL bounds the recompute cost; EVERY overlay mutation invalidates immediately — notifyChange()
 // is the choke point all mutation routes already call — so status/claim flows never read stale
-// state. The fs.watch on TASKS_DIR below covers native task-file writes that bypass the daemon.
+// state. The harness task watch below covers native task-file writes that bypass the daemon.
 // buildGraph carries side effects (timestamp stamping, unwired-quarantine stamp, autowire of
 // newly-seen tasks); caching delays those by at most RESP_TTL, which is acceptable.
 // Dependency-free: a Map of { key -> { ts, payload } }, keyed per workspace + query params.
@@ -85,7 +83,7 @@ function aggregateCached(ws) {
   // Pass the overlay's terminal-status snapshots so tasks whose native files were garbage-
   // collected by the cleanupPeriodDays retention sweep still appear in the aggregate.
   const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
-  const v = nt.aggregateWorkspace(ws, ov.snapshots);
+  const v = harness.tasks.aggregateWorkspace(ws, ov.snapshots);
   cache.agg.set(ws, v); cache.aggAt.set(ws, now);
   return v;
 }
@@ -95,9 +93,7 @@ function aggregateCached(ws) {
 // longer indefinitely durable). Read-only on native; best-effort no-op if the file is already gone.
 // `nativeStatus` (optional): the status the write-through is about to stamp on the native file.
 function snapshotNative(ov, key, nativeStatus) {
-  const i = String(key || '').indexOf('/');
-  if (i <= 0) return;
-  const t = nt.readTask(key.slice(0, i), key.slice(i + 1));
+  const t = harness.tasks.readTask(key);
   if (t) overlayStore.setSnapshot(ov, key, { subject: t.subject, description: t.description, status: nativeStatus || t.status, blockedBy: t.blockedBy || [], owner: t.owner ?? null, metadata: t.metadata ?? null });
 }
 function usageCached(p) {
@@ -107,7 +103,7 @@ function usageCached(p) {
   cache.usage.set(p, v); cache.usageAt.set(p, now);
   return v;
 }
-try { fs.watch(TASKS_DIR, { recursive: true }, () => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); }); } catch { /* TTL is the fallback */ }
+harness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); }); // TTL is the fallback when watching is unavailable
 
 const ACTION_STATUSES = ['in_progress', 'tested', 'done', 'failed', 'canceled'];
 const ALL_STATUSES = ['not_ready', 'ready', ...ACTION_STATUSES];
@@ -331,8 +327,7 @@ function releaseClaim(key, reason, ov = state.overlay, ctx = null) {
   ov.notes[key] = String(reason).slice(0, 280);
   // Also revert the native status (start_task wrote it to in_progress via write-through); otherwise
   // the task would still derive as in_progress from its native file. 'pending' = available to retry.
-  const i = key.indexOf('/');
-  if (i > 0) { try { nt.writeStatus(key.slice(0, i), key.slice(i + 1), 'pending'); } catch { /* best effort */ } }
+  try { harness.tasks.writeStatus(key, 'pending'); } catch { /* best effort */ }
   // Continuity note: record what happened so the next agent that picks up this task has context.
   if (ctx) {
     const { agentId, mins, tokenUsage } = ctx;
@@ -454,8 +449,7 @@ function sweepFailedTasks(ws = state.workspace, ov = state.overlay) {
     ov.notes[t.id] = `auto-requeued after failure (attempt ${retryCount})${prevAgent ? ` — prior agent: '${prevAgent}'` : ''}. Review previous summary before re-attempting.`.slice(0, 280);
     // Flip status back to pending so the task re-enters the ready pipeline
     delete ov.status[t.id];
-    const i = t.id.indexOf('/');
-    if (i > 0) { try { nt.writeStatus(t.id.slice(0, i), t.id.slice(i + 1), 'pending'); } catch { /* best effort */ } }
+    try { harness.tasks.writeStatus(t.id, 'pending'); } catch { /* best effort */ }
     console.log(`[retry] task ${t.id} attempt ${retryCount} (prev agent: ${prevAgent || '?'})`);
     dirty = true;
   }
@@ -493,8 +487,7 @@ function sweepStaleVerdicts() {
     delete state.overlay.status[key];
     delete state.overlay.assignee[key];
     state.overlay.notes[key] = `auto-requeued: '${status}' owner '${agentId || '?'}' not running — reset to pending for re-dispatch`;
-    const i = key.indexOf('/');
-    if (i > 0) { try { nt.writeStatus(key.slice(0, i), key.slice(i + 1), 'pending'); } catch { /* best effort */ } }
+    try { harness.tasks.writeStatus(key, 'pending'); } catch { /* best effort */ }
     console.log(`[self-heal] task ${key} (was ${status}) reset to pending — owner gone`);
     dirty = true;
   }
@@ -1172,11 +1165,11 @@ function taskTranscript(key, session, anySession, st = state) {
   const agent = assignee ? st.agents[assignee] : null;
   let tp = agent && agent.transcript_path;
   if (!tp && agent && agent.session && st.mainTranscript) {              // worker registered its own session transcript
-    tp = path.join(path.dirname(st.mainTranscript), `${agent.session}.jsonl`);
+    tp = harness.transcripts.sessionTranscriptPath(st.mainTranscript, agent.session);
   }
   if (!tp) tp = harnessTranscriptForTask(st, key, session);             // time-window correlation fallback
   if (!tp && anySession && session && st.mainTranscript) {               // task's shared session transcript
-    tp = path.join(path.dirname(st.mainTranscript), `${session}.jsonl`);
+    tp = harness.transcripts.sessionTranscriptPath(st.mainTranscript, session);
   }
   if (!tp) return null;
   try { return fs.existsSync(tp) ? tp : null; } catch { return null; }
@@ -1460,7 +1453,7 @@ const ctx = {
   },
   send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, resolveRepo,
   validateMetricSpec, validateBenchmark,
-  overlayStore, nt, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
+  overlayStore, harness, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
   GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL,

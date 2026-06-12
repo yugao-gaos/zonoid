@@ -1,7 +1,5 @@
 'use strict';
-const os = require('os');
 const path = require('path');
-const fs = require('fs');
 const overlayStore = require('../lib/overlay');
 const followups = require('../lib/followups');
 const verdicts = require('../lib/verdicts');
@@ -15,16 +13,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const g = buildGraph(state.workspace);
     let all = g.tasks.filter((t) => t.status === 'in_progress').map((t) => ({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id }));
     if (sid && !all.some((t) => t.session === sid)) {
-      const sessionDir = path.join(os.homedir(), '.claude', 'tasks', sid);
-      try {
-        for (const f of fs.readdirSync(sessionDir).filter((f) => f.endsWith('.json'))) {
-          try {
-            const t = JSON.parse(fs.readFileSync(path.join(sessionDir, f), 'utf8'));
-            if (t && t.status === 'in_progress')
-              all.push({ key: sid + '/' + t.id, label: t.subject || String(t.id), session: sid, agent_id: null });
-          } catch { /* skip */ }
-        }
-      } catch { /* no tasks for session */ }
+      for (const t of ctx.harness.tasks.readSessionTasksRaw(sid)) {
+        if (t.status === 'in_progress')
+          all.push({ key: sid + '/' + t.id, label: t.subject || String(t.id), session: sid, agent_id: null });
+      }
     }
     if (sid) {
       for (const t of all.filter((t) => t.session !== sid && t.agent_id && state.agents[t.agent_id]?.subagent_session === sid)) {

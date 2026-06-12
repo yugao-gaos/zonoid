@@ -5,7 +5,7 @@ const mcpCore = require('../lib/mcp-core');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, buildGraph, state, setState, setWorkspace,
-    GIT_HEAD, BOOTED_AT, FEATURES, sseClients, overlayStore, nt, analytics,
+    GIT_HEAD, BOOTED_AT, FEATURES, sseClients, overlayStore, harness, analytics,
     analyticsState, analyticsFlush, PUBLIC, loops, taskTranscript, usageCached,
     staleClaimKeys, releaseClaim, cache, targetOverlay, MCP_CALL,
     embedStatus, respCacheGet, respCachePut, isTruthy, frontier, agentsArr } = ctx;
@@ -105,7 +105,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const boot = ctx.bootState || { phase: 'ready', step: 'ready', progress: 1 };
     const allLoops = [...loops.values()];
     const loopHealth = { count: allLoops.length, active: allLoops.filter((L) => L.active).length, iterations: allLoops.reduce((s, L) => s + L.iterations, 0), spent: allLoops.reduce((s, L) => s + L.spent, 0) };
-    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: state.workspace, mainTranscript: !!state.mainTranscript, loops: loopHealth, embedding: embedStatus(), native_format: state.workspace ? nt.formatHealth(state.workspace) : null }); return true;
+    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: state.workspace, mainTranscript: !!state.mainTranscript, loops: loopHealth, embedding: embedStatus(), native_format: state.workspace ? harness.tasks.formatHealth(state.workspace) : null }); return true;
   }
 
   if (p === '/ready') {

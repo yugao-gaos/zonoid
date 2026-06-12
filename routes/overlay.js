@@ -145,7 +145,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       followUpResults = followups.apply(T.ov, b.key, b.follow_ups);
       for (const r of followUpResults) {
         if (r.routing === 'scheduled') {
-          const w = followups.writeScheduledTask({ id: r.key.slice('followup/'.length), title: r.title, prompt: r.prompt, taskKey: r.key, when: r.when, fireAt: r.fireAt, cwd: T.ws });
+          const w = ctx.harness.scheduler.writeScheduledTask({ id: r.key.slice('followup/'.length), title: r.title, prompt: r.prompt, taskKey: r.key, when: r.when, fireAt: r.fireAt, cwd: T.ws });
           r.armed = w.armed; if (w.skillPath) r.skill = w.skillPath; if (w.note) r.note = w.note; if (w.error) r.error = w.error;
         }
         delete r.prompt;
@@ -166,8 +166,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const lintWarning = b.status === 'done' ? verdicts.lintProse(b.summary, b.verdicts, b.key) : null;
     T.save();
-    const { nt } = ctx;
-    if (ns && b.key) { const i = String(b.key).indexOf('/'); if (i > 0) nt.writeStatus(b.key.slice(0, i), b.key.slice(i + 1), ns); }
+    if (ns && b.key) ctx.harness.tasks.writeStatus(String(b.key), ns);
     notifyChange();
     const statusResp = { ok: true };
     if (followUpResults) statusResp.follow_ups = followUpResults;
