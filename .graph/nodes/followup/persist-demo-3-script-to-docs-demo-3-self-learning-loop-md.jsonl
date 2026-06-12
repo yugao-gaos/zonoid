@@ -3,3 +3,4 @@
 {"evt":"timestamps_set","id":"followup/persist-demo-3-script-to-docs-demo-3-self-learning-loop-md","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T23:32:01.587Z","lastChanged":"2026-06-11T23:32:01.587Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-11T23:32:01.588Z"}
 {"evt":"status_changed","id":"followup/persist-demo-3-script-to-docs-demo-3-self-learning-loop-md","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-11T23:42:33.536Z"}
 {"evt":"status_changed","id":"followup/persist-demo-3-script-to-docs-demo-3-self-learning-loop-md","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-12T01:26:23.485Z"}
+{"evt":"status_changed","id":"followup/persist-demo-3-script-to-docs-demo-3-self-learning-loop-md","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-12T02:53:08.875Z"}
