@@ -44,3 +44,7 @@ bench/report-v5-haiku.json
 bench/report-v7.json
 bench/run-v2.log
 bench/*.log
+
+# runtime artifacts (never commit)
+embed.pid
+logs/
