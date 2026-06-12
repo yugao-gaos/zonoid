@@ -2236,7 +2236,7 @@ const handler = async (req, res) => {
         for (const taskKey of b.wires_to) {
           overlayStore.addEdge(T.ov, 'note:' + id, taskKey, null, 'context', 1.0);
           const gs = (T.ws === state.workspace) ? state.graphStore : null;
-          if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, ts: Date.now() });
+          if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, actor: b.actor || 'record-decision', ts: Date.now() });
         }
       }
       T.save();
