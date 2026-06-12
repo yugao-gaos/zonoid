@@ -256,6 +256,24 @@ function tmpDir() {
   fs.rmSync(dir, { recursive: true });
 }
 
+// ── loadGraph — truncated trailing line (crash mid-append) ───────────────
+{
+  const dir   = tmpDir();
+  const store = gs.open(dir);
+
+  gs.appendEvent(store, 'trunc/1', { evt: 'node_created',   actor: 'a', label: 'T', kind: 'task', workspace: '/w' });
+  gs.appendEvent(store, 'trunc/1', { evt: 'status_changed', actor: 'b', status: 'in_progress' });
+  // Simulate a crash mid-append: a partial JSON line with no trailing newline
+  const nodeFile = fs.readdirSync(store.nodesDir, { recursive: true }).find((x) => x.endsWith('.jsonl'));
+  fs.appendFileSync(path.join(store.nodesDir, nodeFile), '{"evt":"status_changed","actor":"c","stat');
+  const { nodes } = gs.loadGraph(store);
+  const n = nodes['trunc/1'];
+  ok('truncated trailing line: valid lines still load', n && n.label === 'T' && n.status === 'in_progress');
+  ok('truncated trailing line: last full event wins',   n && n.last_actor === 'b');
+
+  fs.rmSync(dir, { recursive: true });
+}
+
 // ── loadGraph — checkpoint loading ───────────────────────────────────────
 {
   const dir   = tmpDir();

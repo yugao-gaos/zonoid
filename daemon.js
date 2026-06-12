@@ -16,7 +16,7 @@ const mcpCore = require('./lib/mcp-core');
 const git = require('./lib/git');
 const measure = require('./lib/measure');
 const optimize = require('./lib/optimize');
-const { embed, cosine, embedStatus, ping: embedPing, DIMS } = require('./lib/embed');
+const { embed, cosine, embedStatus, ping: embedPing, DIMS, MODEL: EMBED_MODEL } = require('./lib/embed');
 const { haikusGate } = require('./lib/embed-haiku');
 const judge = require('./lib/judge');
 const delta = require('./lib/delta');
@@ -52,6 +52,33 @@ function authed(req, u) {
 // when native tasks change (reactive + cheap, fixing the per-call read cost).
 const cache = { agg: new Map(), aggAt: new Map(), usage: new Map(), usageAt: new Map() };
 const AGG_TTL = 1500, USAGE_TTL = 4000;
+
+// Response cache for the expensive read endpoints (/state, /costflow): dashboards + heartbeats
+// poll both, and every call rebuilds the whole graph (buildGraph) / recomputes SCC+flow. A short
+// TTL bounds the recompute cost; EVERY overlay mutation invalidates immediately — notifyChange()
+// is the choke point all mutation routes already call — so status/claim flows never read stale
+// state. The fs.watch on TASKS_DIR below covers native task-file writes that bypass the daemon.
+// buildGraph carries side effects (timestamp stamping, unwired-quarantine stamp, autowire of
+// newly-seen tasks); caching delays those by at most RESP_TTL, which is acceptable.
+// Dependency-free: a Map of { key -> { ts, payload } }, keyed per workspace + query params.
+// A hit additionally requires the workspace's overlay FILE mtime to be unchanged, so overlay
+// writes from OTHER processes (scripts/tests calling overlayStore.save directly — invisible to
+// notifyChange) also invalidate immediately. One stat per request: trivial next to a rebuild.
+const RESP_TTL = 3000;
+const respCache = new Map();
+function overlayStamp(ws) {
+  try { return fs.statSync(overlayStore.fileFor(ws)).mtimeMs; } catch { return 0; }
+}
+function respCacheGet(ws, key) {
+  const hit = respCache.get(key);
+  return (hit && Date.now() - hit.ts < RESP_TTL && hit.stamp === overlayStamp(ws)) ? hit.payload : undefined;
+}
+function respCachePut(ws, key, payload) {
+  // Stamp AFTER the build: buildGraph itself may have saved the overlay (timestamp stamping,
+  // autowire) and the payload already reflects that state — stamping post-build lets it hit.
+  respCache.set(key, { ts: Date.now(), payload, stamp: overlayStamp(ws) });
+  return payload;
+}
 function aggregateCached(ws) {
   const now = Date.now();
   if (cache.agg.has(ws) && now - (cache.aggAt.get(ws) || 0) < AGG_TTL) return cache.agg.get(ws);
@@ -80,7 +107,7 @@ function usageCached(p) {
   cache.usage.set(p, v); cache.usageAt.set(p, now);
   return v;
 }
-try { fs.watch(TASKS_DIR, { recursive: true }, () => { cache.agg.clear(); cache.aggAt.clear(); }); } catch { /* TTL is the fallback */ }
+try { fs.watch(TASKS_DIR, { recursive: true }, () => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); }); } catch { /* TTL is the fallback */ }
 
 const ACTION_STATUSES = ['in_progress', 'tested', 'done', 'failed', 'canceled'];
 const ALL_STATUSES = ['not_ready', 'ready', ...ACTION_STATUSES];
@@ -141,7 +168,7 @@ const analyticsFlush = analytics.makeFlusher(ANALYTICS_FILE, analyticsState);
 
 // SSE: push a "changed" event to connected dashboards on every mutation (live updates without polling).
 const sseClients = new Set();
-function notifyChange() { for (const r of sseClients) { try { r.write('data: changed\n\n'); } catch { sseClients.delete(r); } } }
+function notifyChange() { respCache.clear(); for (const r of sseClients) { try { r.write('data: changed\n\n'); } catch { sseClients.delete(r); } } }
 
 // Heartbeat loop: the daemon is the decider. The agent polls next_action on a schedule; the
 // daemon replies spawn/idle/stop + how long to wait before checking again (adaptive backoff),
@@ -665,7 +692,17 @@ function decideOne(L, ctx) {
   if (L.spent > L.config.tokenBudget) { L.active = false; return { ...base, action: 'stop', reason: 'token budget exhausted' }; }
 
   const g = ctx.graph;
-  const ready = g.tasks.filter((t) => t.status === 'ready');
+  const readyAll = g.tasks.filter((t) => t.status === 'ready');
+  // Unwired quarantine (livelock guard): an unwired task still derives status "ready", but
+  // /overlay/status 409s its claim — spawning a worker for it burns a slot, the worker dies on
+  // the 409, the task stays ready, and the next heartbeat respawns it forever. NEVER spawn it.
+  // Instead surface it via `wire: [{key,label}]` on the decision: the daemon stays dumb and only
+  // reports the flag; the loop-driving dispatcher judges (suggest_links + add_dependency, or
+  // mark_root for a true root). Wiring/mark_root clears ov.unwired → spawnable next tick.
+  const isUnwired = (t) => !!(ov.unwired && ov.unwired[t.id]);
+  const ready = readyAll.filter((t) => !isUnwired(t));
+  const wire = readyAll.filter(isUnwired).map((t) => ({ key: t.id, label: t.label }));
+  const withWire = (dec) => (wire.length ? { ...dec, wire } : dec);
   const running = g.tasks.filter((t) => t.status === 'in_progress').length;
   const ghostWait = g.tasks.filter((t) => t.status === 'not_ready' && t.deps.some((d) => d.startsWith('ghost:'))).length;
 
@@ -705,14 +742,14 @@ function decideOne(L, ctx) {
     if (take > 0) {
       ctx.batch.remaining -= take;
       L.lastProgress = now();                                 // progress signal for the liveness sweep (task 3)
-      const dec = { ...base, action: 'spawn', tasks: ready.slice(0, take).map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll };
+      const dec = withWire({ ...base, action: 'spawn', tasks: ready.slice(0, take).map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll });
       // A SINGLE heartbeat does BOTH: tasks first, then PARALLEL judge into the leftover slots.
       const jd = judgeDirective(take);
       if (jd) dec.judge = jd;
       return dec;
     }
     // Pool exhausted by earlier loops this tick — idle briefly and retry next heartbeat.
-    return { ...base, action: 'idle', reason: 'spawn batch exhausted this tick', next_poll_seconds: L.config.minPoll };
+    return withWire({ ...base, action: 'idle', reason: 'spawn batch exhausted this tick', next_poll_seconds: L.config.minPoll });
   }
   // CAPACITY-FILL self-learning (LOW priority — strictly after spawn): no ready task spawned this tick
   // (none ready, or no headroom). If the edge-judge queue has pending work and there are leftover slots
@@ -723,10 +760,13 @@ function decideOne(L, ctx) {
   // the in-flight / ghost-wait / drained idle branches exactly as before.
   const jd = judgeDirective(0);
   if (jd) {
-    return { ...base, action: 'judge_edges', parallel: jd.parallel, budget: jd.budget, next_poll_seconds: L.config.minPoll };
+    return withWire({ ...base, action: 'judge_edges', parallel: jd.parallel, budget: jd.budget, next_poll_seconds: L.config.minPoll });
   }
-  if (running > 0) return { ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(L.config.maxPoll, L.config.minPoll * 2) };
-  if (ghostWait > 0) return { ...base, action: 'idle', reason: 'waiting on cross-workspace dependencies', next_poll_seconds: L.config.maxPoll };
+  if (running > 0) return withWire({ ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(L.config.maxPoll, L.config.minPoll * 2) });
+  if (ghostWait > 0) return withWire({ ...base, action: 'idle', reason: 'waiting on cross-workspace dependencies', next_poll_seconds: L.config.maxPoll });
+  // ONLY unwired ready tasks remain: the DAG is NOT drained — they become spawnable once wired.
+  // Idle (don't stop/plan) and keep reporting `wire` until the dispatcher wires or roots them.
+  if (wire.length) return { ...base, action: 'idle', reason: 'ready tasks are unwired — wire them (add_dependency or mark_root) to make them spawnable', next_poll_seconds: L.config.minPoll, wire };
   // DAG drained. Metric-driven CONVERGED-VS-ITERATE control (⑥) — unchanged, now per-loop.
   const prob = pendingOptimizeProblem(g, ov);
   if (prob) { const a = applyOptimize(prob, base, L, ws, ov); if (a) return a; }
@@ -1105,7 +1145,17 @@ function buildGraph(ws) {
     const status = R.effective(ws, t.key);
     let ts = ovWs.timestamps[t.key] || null;   // read from the target overlay; stamping stays own-only below
     if (own) {
-      if (!ts) { ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; state.overlay.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key); }
+      if (!ts) {
+        ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; state.overlay.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key);
+        // Unwired quarantine: a task FIRST SEEN with no edges in either direction is stamped
+        // unwired — /overlay/status refuses an in_progress claim until the creator wires it
+        // (add_dependency clears the flag) or declares it a root (POST /mark-root). Tasks that
+        // existed before this feature already carry firstSeen and are NEVER stamped (back-compat).
+        if (!deps.length && !context_deps.length && !state.overlay.edges.some((e) => e.from === t.key || e.to === t.key)) {
+          if (!state.overlay.unwired) state.overlay.unwired = {};
+          state.overlay.unwired[t.key] = true;
+        }
+      }
       else if (ts.lastStatus !== status) { ts.lastChanged = now(); ts.lastStatus = status; tsDirty = true; }
     }
     const _rc = ovWs.retryConfig && ovWs.retryConfig[t.key];
@@ -1537,40 +1587,24 @@ const handler = async (req, res) => {
       const history = isTruthy(u.searchParams.get('history'));
       const ws = u.searchParams.get('workspace') || state.workspace;
       const task_key = u.searchParams.get('task_key') || '';
+      // Iterative retrieval: `round` (1-based) + `exclude_keys` (comma-separated note keys already
+      // injected in prior rounds). Excluded keys are dropped from RAG candidates before ranking.
+      // The response gains `continue` — true iff round < 3 AND a NEW note scored >= 0.5 (plateau verdict).
+      const round = Math.max(1, parseInt(u.searchParams.get('round') || '1', 10) || 1);
+      const excludeKeys = new Set((u.searchParams.get('exclude_keys') || '').split(',').map((s) => s.trim()).filter(Boolean));
+      const plateauContinue = (notes) => round < 3 && notes.some((n) => n.tier === 'rag' && (n.kind || 'note') === 'note' && n.score >= 0.5);
+      const gated = isTruthy(u.searchParams.get('gated'));
       const g = buildGraph(ws);
-      // GATED retrieval (?gated=1) — consult the context-need gate (lib/context-gate.js, the
-      // abstain-by-default classifier calibrated on test/context-gate-regression.test.js) BEFORE
-      // returning anything. INJECT (high-confidence, empirical, project-local top note) ⇒ gate
-      // metadata + ONLY that note, in the same result shape as ungated /search. ABSTAIN ⇒ metadata
-      // + NO notes — deliberately small and cheap, so asking first costs ~nothing. Honors the
-      // per-request ?workspace= exactly like the ungated path. NOTE: the FIRST gated call may take
-      // 10–90s while MiniLM lazy-loads (lib/embed.js); embed() degrading to null ⇒ all-zero scores
-      // ⇒ abstain('low-confidence') — conservative, never a hard failure.
-      if (isTruthy(u.searchParams.get('gated'))) {
-        // DAG tier: always inject context_deps of task_key, even in gated path.
-        const gatedDagNotes = [];
-        if (task_key) {
-          const t = g.tasks.find((x) => x.id === task_key);
-          for (const dep of ((t && t.context_deps) || [])) {
-            const n = g.tasks.find((x) => x.id === dep && (x.kind || 'task') === 'note' && !x.validTo);
-            if (n) gatedDagNotes.push({ key: n.id, title: n.label, summary: String(n.summary || '').slice(0, 200), score: 1.0, kind: 'note', tier: 'dag' });
-          }
-        }
-        const gatedDagKeys = new Set(gatedDagNotes.map((n) => n.key));
-        const clientIp = req.socket.remoteAddress || 'unknown';
-        if (checkGatedRateLimit(clientIp)) {
-          return send(res, 200, { query: q, gated: true, decision: 'abstain', reason: 'rate-limited', results: gatedDagNotes });
-        }
-        const noteCands = g.tasks
-          .filter((n) => (n.kind || 'task') === 'note' && !n.validTo && !gatedDagKeys.has(n.id))
-          .map((n) => ({ key: n.id, title: n.label, summary: n.summary, vec: n.vec }));
-        const r = await gateTask({ label: q }, noteCands, { embedQuery: embed, cosine });
-        const meta = { query: q, gated: true, decision: r.decision, reason: r.reason, top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality, topType: r.topType, via: r.via };
-        if (r.decision !== 'inject') return send(res, 200, { ...meta, results: gatedDagNotes });
-        const top = noteCands.find((n) => n.key === r.topKey);
-        const ragResults = top ? [{ key: top.key, title: top.title, summary: String(top.summary || '').slice(0, 200), score: r.top1, kind: 'note', tier: 'rag', via: r.via }] : [];
-        return send(res, 200, { ...meta, results: [...gatedDagNotes, ...ragResults] });
-      }
+      // GATED retrieval (?gated=1) — the context-need gate (lib/context-gate.js, the abstain-by-
+      // default classifier calibrated on test/context-gate-regression.test.js) now ANNOTATES the
+      // bundle instead of suppressing it: gated and ungated calls run the SAME single pipeline
+      // (DAG tier → temporal filter → hybrid scoring → structBoost rerank → path provenance →
+      // sorted top-k), and gated responses ADD gate metadata + inject:true flags on approved
+      // results. The gate's four guards run over the same note-only candidate subset, using
+      // PRE-boost raw scores, so inject/abstain decisions are calibration-identical to the old
+      // suppressing branch. NOTE: the FIRST gated call may take 10–90s while MiniLM lazy-loads
+      // (lib/embed.js); embed() degrading to null ⇒ all-zero gate scores ⇒
+      // abstain('low-confidence') — conservative, never a hard failure.
       // DAG tier: collect context_deps of the requested task — always inject, no gate.
       const dagNotes = [];
       if (task_key) {
@@ -1586,13 +1620,54 @@ const handler = async (req, res) => {
                 score: 1.0,
                 kind: 'note',
                 tier: 'dag',
-                via: 'dag'
+                via: 'dag',
+                path: [`context_dep of task/${task_key}`]
               });
             }
           }
         }
       }
       const dagKeys = new Set(dagNotes.map(n => n.key));
+
+      // Build adjacency map for BFS path computation (undirected over deps + context_deps).
+      const adjMap = new Map(); // key -> [{neighborKey, edgeType}]
+      const ensureAdj = (k) => { if (!adjMap.has(k)) adjMap.set(k, []); };
+      for (const node of g.tasks) {
+        ensureAdj(node.id);
+        for (const dep of (node.deps || [])) {
+          ensureAdj(dep);
+          adjMap.get(node.id).push({ neighborKey: dep, edgeType: 'dep' });
+          adjMap.get(dep).push({ neighborKey: node.id, edgeType: 'dep' });
+        }
+        for (const dep of (node.context_deps || [])) {
+          ensureAdj(dep);
+          adjMap.get(node.id).push({ neighborKey: dep, edgeType: 'context_dep' });
+          adjMap.get(dep).push({ neighborKey: node.id, edgeType: 'context_dep' });
+        }
+      }
+
+      // BFS: shortest path (max 2 hops, max 50 nodes visited) from startKey to any node in targetSet.
+      // Returns array of hop strings like ["context_dep:note:foo"], or null if not found.
+      const bfsPath = (startKey, targetSet) => {
+        if (targetSet.has(startKey)) return [];
+        const visited = new Set([startKey]);
+        const queue = [{ key: startKey, path: [] }];
+        let visits = 0;
+        while (queue.length > 0 && visits < 50) {
+          const { key: cur, path } = queue.shift();
+          if (path.length >= 2) continue;
+          visits++;
+          for (const { neighborKey, edgeType } of (adjMap.get(cur) || [])) {
+            if (visited.has(neighborKey)) continue;
+            visited.add(neighborKey);
+            const newPath = [...path, `${edgeType}:${neighborKey}`];
+            if (targetSet.has(neighborKey)) return newPath;
+            queue.push({ key: neighborKey, path: newPath });
+          }
+        }
+        return null;
+      };
+
       const qt = suggestToks(q);
       const qvec = await embed(q);   // null-safe: null ⇒ pure-lexical (back-compat)
       const knownT = knownAsOf ? Date.parse(knownAsOf) : NaN;
@@ -1618,14 +1693,34 @@ const handler = async (req, res) => {
         if (qvec && Array.isArray(vec)) return { score: cosine(qvec, vec), via: 'semantic' };
         return { score: scoreNodeAgainstTokens(lexNode, qt).score, via: 'lexical' };
       };
+      // Gate candidate pool (gated mode only): the SAME note subset the old gated branch scored —
+      // kind 'note', still-current, non-DAG, non-excluded — with the RAW (pre-structBoost) cosine,
+      // so gate calibration is unaffected by reranking. No query vector ⇒ all-zero scores ⇒ the
+      // gate abstains 'low-confidence', exactly as before.
+      const gateCands = [];
+      let gateVia = 'lexical';
+      if (gated) {
+        for (const n of g.tasks) {
+          if ((n.kind || 'task') !== 'note' || n.validTo || dagKeys.has(n.id) || excludeKeys.has(n.id)) continue;
+          let rawScore = 0;
+          if (qvec && Array.isArray(n.vec)) { rawScore = cosine(qvec, n.vec); gateVia = 'semantic'; }
+          gateCands.push({ key: n.id, title: n.label, summary: n.summary, score: rawScore });
+        }
+      }
+      // Anchor set for RAG path BFS: DAG-tier keys + the query task_key itself.
+      const pathAnchors = new Set(dagKeys);
+      if (task_key) pathAnchors.add(task_key);
+
       const ragResults = [];
       // (a) graph nodes (tasks + note nodes).
       for (const node of g.tasks) {
         if (dagKeys.has(node.id)) continue;  // skip DAG-injected notes
+        if (excludeKeys.has(node.id)) continue;  // already injected in a prior round
         if (!temporalOk(node)) continue;
         const { score, via } = scoreHybrid(node.vec, node);
         if (!(score > 0)) continue;
-        const r = { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task', tier: 'rag', via };
+        const foundPath = bfsPath(node.id, pathAnchors);
+        const r = { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task', tier: 'rag', via, path: foundPath || [] };
         // Surface temporal provenance on note hits so callers can reason about state changes.
         if ((node.kind || 'task') === 'note' && (node.validFrom || node.validTo || node.supersededBy || node.supersedes)) {
           r.validFrom = node.validFrom || null; r.validTo = node.validTo || null;
@@ -1643,16 +1738,94 @@ const handler = async (req, res) => {
           if (!text) return;
           const key = `${tkey}#k${i}`;
           if (dagKeys.has(key)) return;  // skip DAG-injected items
+          if (excludeKeys.has(key)) return;  // already injected in a prior round
           const lexNode = { label: text, summary: '' };
           const { score, via } = scoreHybrid(it && it._vec, lexNode);
           if (!(score > 0)) return;
-          ragResults.push({ key, title: text.slice(0, 80), summary: text.slice(0, 200), score: Math.round(score * 1000) / 1000, kind: 'knowledge', tier: 'rag', via });
+          // Knowledge items are children of tkey; path via the parent task node.
+          let kPath;
+          if (pathAnchors.has(tkey)) { kPath = [`dep:${tkey}`]; }
+          else { const p = bfsPath(tkey, pathAnchors); kPath = p || []; }
+          ragResults.push({ key, title: text.slice(0, 80), summary: text.slice(0, 200), score: Math.round(score * 1000) / 1000, kind: 'knowledge', tier: 'rag', via, path: kPath });
         });
       }
       ragResults.sort((a, b) => b.score - a.score);
+      // Structural rerank: boost items whose graph neighbors also appear in ragResults.
+      // "Structure outranks similarity once you have a foothold." (note-mqaaf1ox5pn)
+      // Runs for BOTH gated and ungated calls — the gate already took its raw scores above.
+      {
+        // Build adjacency lookup: key → Set of neighbor keys (via deps + context_deps, both directions).
+        const adjMap = new Map();
+        for (const node of g.tasks) {
+          const neighbors = adjMap.get(node.id) || new Set();
+          adjMap.set(node.id, neighbors);
+          for (const d of (node.deps || [])) {
+            neighbors.add(d);
+            const dn = adjMap.get(d) || new Set();
+            dn.add(node.id);
+            adjMap.set(d, dn);
+          }
+          for (const d of (node.context_deps || [])) {
+            neighbors.add(d);
+            const dn = adjMap.get(d) || new Set();
+            dn.add(node.id);
+            adjMap.set(d, dn);
+          }
+        }
+        // Build score lookup for items in ragResults.
+        const ragScoreMap = new Map();
+        for (const r of ragResults) ragScoreMap.set(r.key, r.score);
+        // Apply boost from neighbor scores.
+        for (const r of ragResults) {
+          const neighbors = adjMap.get(r.key);
+          let maxNeighborScore = 0;
+          if (neighbors) {
+            for (const nk of neighbors) {
+              const ns = ragScoreMap.get(nk);
+              if (ns !== undefined && ns > maxNeighborScore) maxNeighborScore = ns;
+            }
+          }
+          const boost = Math.round(0.1 * maxNeighborScore * 1000) / 1000;
+          r.structBoost = boost;
+          r.score = Math.round((r.score + boost) * 1000) / 1000;
+        }
+        ragResults.sort((a, b) => b.score - a.score);
+      }
       // DAG notes always prepend (bypass gate); RAG fills remaining slots up to k.
       const results = [...dagNotes, ...ragResults].slice(0, k + dagNotes.length);
-      return send(res, 200, { query: q, k, asOf: asOf || null, knownAsOf: knownAsOf || null, history, results });
+      const payload = { query: q, k, asOf: asOf || null, knownAsOf: knownAsOf || null, history, round, continue: plateauContinue(results), results };
+      if (!gated) return send(res, 200, payload);
+      // GATED: same ranked bundle + gate annotation. DAG-tier notes always inject (bypass gate).
+      for (const r0 of results) if (r0.tier === 'dag') r0.inject = true;
+      const clientIp = req.socket.remoteAddress || 'unknown';
+      if (checkGatedRateLimit(clientIp)) {
+        return send(res, 200, { ...payload, gated: true, decision: 'abstain', reason: 'rate-limited' });
+      }
+      // Four-guard decision over the pre-scored note-only pool (calibration-identical to the old path).
+      const r = await gateTask({ label: q }, gateCands, { preScored: true, via: gateVia });
+      // Append every verdict (inject AND abstain) to the gate journal — training-data flywheel for
+      // the learned gate; abstain rows are essential for false-negative mining.
+      try {
+        const journalRow = JSON.stringify({
+          ts: new Date().toISOString(), workspace: ws, query: q,
+          task_key: task_key || null, decision: r.decision, reason: r.reason,
+          top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality,
+          topType: r.topType, topKey: r.topKey || null, via: r.via,
+          embedModel: EMBED_MODEL,
+        });
+        fs.appendFileSync(path.join(ws, '.graph', 'gate-journal.jsonl'), journalRow + '\n');
+      } catch { /* journal failure must not break the search response */ }
+      const meta = { gated: true, decision: r.decision, reason: r.reason, top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality, topType: r.topType, via: r.via };
+      if (r.decision === 'inject' && r.topKey) {
+        // Flag the approved note in the bundle; if reranking pushed it below the top-k cut, append it.
+        let hit = results.find((x) => x.key === r.topKey);
+        if (!hit) {
+          hit = ragResults.find((x) => x.key === r.topKey);
+          if (hit) results.push(hit);
+        }
+        if (hit) hit.inject = true;
+      }
+      return send(res, 200, { ...payload, ...meta });
     }
 
     // Read-only in_progress claims (for the PreToolUse gate hook). Optional ?session= filters to
@@ -2019,6 +2192,21 @@ const handler = async (req, res) => {
       return send(res, 200, { ok: true, removed, edges: T.ov.edges.length });
     }
 
+    // Declare a task a genuine ROOT: clears the unwired quarantine (see buildGraph stamp +
+    // the /overlay/status claim guard) and records the reason in the task's note.
+    if (p === '/mark-root' && m === 'POST') {
+      const b = await readBody(req);
+      const T = targetOverlay(b, u);
+      const key = b.task_key || b.key;
+      if (!key) return send(res, 400, { ok: false, error: 'task_key required' });
+      const wasUnwired = !!(T.ov.unwired && T.ov.unwired[key]);
+      if (T.ov.unwired) delete T.ov.unwired[key];
+      T.ov.notes[key] = `root: ${b.reason || 'declared standalone root'}`.slice(0, 280);
+      T.save();
+      notifyChange();
+      return send(res, 200, { ok: true, key, was_unwired: wasUnwired });
+    }
+
     if (p === '/overlay/status' && m === 'POST') {
       const b = await readBody(req);
       if (opReplay(res, b)) return;   // duplicate of a retried request that already landed
@@ -2060,6 +2248,11 @@ const handler = async (req, res) => {
         if (owner && owner !== b.agent_id)
           return send(res, 409, { ok: false, error: 'task is already in_progress by another agent: pass force to take over', current: cur, owner, attempted_by: b.agent_id });
       }
+      // Unwired quarantine: refuse to CLAIM a task that was created with no edges and never
+      // wired in — the creator must add_dependency (blocking/context) or declare it a root via
+      // /mark-root first. Only blocks the claim transition; other status writes pass through.
+      if (b.status === 'in_progress' && T.ov.unwired && T.ov.unwired[b.key])
+        return send(res, 409, { ok: false, error: 'task is unwired — if you are a worker agent, call request_guidance to escalate to your dispatcher (do NOT mark_root just to unblock yourself); if you created this task, wire it with add_dependency (blocking/context), or mark_root only if it is genuinely a standalone root' });
       // Record an advisory cancel-requested flag so an in-flight worker can observe it and stop
       // cooperatively even before its own write lands.
       if (b.status === 'canceled') T.ov.cancel_requested[b.key] = now();
@@ -2701,6 +2894,23 @@ const handler = async (req, res) => {
         const haiku = await haikusGate({ label: prompt }, noteCands).catch(() => null);
         if (haiku) {
           gateResult = haiku;
+          // Log haiku gate tokens to the harness cost log
+          if (haiku.usage) {
+            try {
+              const costLogPath = path.join(__dirname, 'logs', 'cron-token-usage.jsonl');
+              const u = haiku.usage;
+              fs.mkdirSync(path.dirname(costLogPath), { recursive: true });
+              fs.appendFileSync(costLogPath, JSON.stringify({
+                ts: new Date().toISOString(),
+                event: 'haiku_gate',
+                model: 'claude-haiku-4-5-20251001',
+                input_tokens: u.input_tokens || 0,
+                output_tokens: u.output_tokens || 0,
+                cache_read_tokens: u.cache_read_input_tokens || 0,
+                total_tokens: (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_read_input_tokens || 0),
+              }) + '\n');
+            } catch { /* best effort */ }
+          }
         } else {
           const { contentTokens: ct2 } = require('./lib/context-gate');
           const qt = new Set(ct2(prompt));
@@ -2825,8 +3035,14 @@ const handler = async (req, res) => {
     // credit), and the flow runs over OUTPUT tokens only — input/cache tokens are reported raw for
     // transparency but never counted as "produced". totals.total is the output-only flow total.
     if (p === '/costflow' && m === 'GET') {
+      const cfWs = u.searchParams.get('workspace') || state.workspace;
+      if (!cfWs) return send(res, 400, { ok: false, error: 'no workspace set' });
+      // TTL response cache (cleared by notifyChange on every mutation) — SCC+flow is expensive
+      // and dashboards poll this. Checked before targetOverlay so a hit skips the overlay load too.
+      const cfKey = `costflow|${cfWs}|${u.searchParams.get('since') || ''}`;
+      const cfHit = respCacheGet(cfWs, cfKey);
+      if (cfHit !== undefined) return send(res, 200, cfHit);
       const T = targetOverlay(null, u);
-      if (!T.ws) return send(res, 400, { ok: false, error: 'no workspace set' });
       const g = buildGraph(T.ws);
       const stWs = T.ws === state.workspace ? state : { ...state, overlay: T.ov };
       // 1) honest per-task own tokens (real tasks only; notes/ghosts are zero-cost contributors)
@@ -2849,7 +3065,8 @@ const handler = async (req, res) => {
       try { for(const e of fs.readdirSync(projDirRaw,{withFileTypes:true})) { if(!e.isFile()||!e.name.endsWith('.jsonl')) continue; const tp=path.join(projDirRaw,e.name); if(seenTp.has(tp)) continue; const u=usageCached(tp); rawInput+=u.input_tokens||0; rawOutput+=u.output_tokens||0; rawCacheRead+=u.cache_read_input_tokens||0; mergeModel(u.by_model); } } catch {}
       // 2) nodes + contributor→consumer edges (deps weigh 1.0; context edges their stored weight)
       // exploration flag: attempt branches are valuable search cost, not pure waste
-      const isExplorationTask = (t) => !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
+      const supersededIds = new Set((T.ov.edges || []).filter(e => e.kind === 'supersede').map(e => e.from));
+      const isExplorationTask = (t) => t.kind === 'note' || supersededIds.has(t.id) || t.status === 'canceled' || t.status === 'failed' || !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
       const nodes = g.tasks.map((t) => ({ id: t.id, own: ownTok.get(t.id) || 0, merged: !!(t.git && t.git.merged), exploration: isExplorationTask(t), label: t.label }));
       const seen = new Set(nodes.map((n) => n.id));
       for (const gh of g.ghosts) {
@@ -2921,7 +3138,7 @@ const handler = async (req, res) => {
       const productive = rnd(flow.totals.productive);
       const explorationTok = rnd(wasteExploration.reduce((s, w) => s + w.trapped, 0));
       const trappedTok = rnd(wasteTrapped.reduce((s, w) => s + w.trapped, 0));
-      return send(res, 200, {
+      return send(res, 200, respCachePut(cfWs, cfKey, {
         workspace: T.ws,
         autonomy_score: human.tokens > 0 ? Math.round((flow.totals.productive / human.tokens) * 10) / 10 : null,
         human,
@@ -2931,10 +3148,44 @@ const handler = async (req, res) => {
         results: flow.results.map((r) => ({ task: r.task, kind: kindOf(r.task), label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
         waste: wasteTrapped.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
         exploration: wasteExploration.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, tokens: rnd(w.trapped) })),
-      });
+      }));
+    }
+
+    if (p === '/harness/overhead' && m === 'GET') {
+      const T = targetOverlay(null, u);
+      if (!T.ws) return send(res, 400, { ok: false, error: 'no workspace set' });
+      const projDir = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(T.ws));
+      const since = u.searchParams.get('since') || null;
+      const overhead = humanInput.harnessOverheadTokens(projDir, { since });
+      const human = humanInput.humanInputTokens(projDir, { since });
+      let totalSessionInput = 0;
+      try {
+        for (const e of fs.readdirSync(projDir, { withFileTypes: true })) {
+          if (!e.isFile() || !e.name.endsWith('.jsonl')) continue;
+          const tp = path.join(projDir, e.name);
+          let raw; try { raw = fs.readFileSync(tp, 'utf8'); } catch { continue; }
+          for (const line of raw.split('\n')) {
+            const t = line.trim(); if (!t) continue;
+            try {
+              const d = JSON.parse(t);
+              const u = d.usage || (d.message && d.message.usage);
+              if (u) totalSessionInput += (u.input_tokens || 0);
+            } catch { /* skip */ }
+          }
+        }
+      } catch { /* best effort */ }
+      const system_reminder_est = Math.max(0, totalSessionInput - overhead.tokens - human.tokens);
+      return send(res, 200, { overhead, human, total_input_est: overhead.tokens + human.tokens, total_session_input: totalSessionInput, system_reminder_est, harness_fraction: totalSessionInput > 0 ? Math.round(((overhead.tokens + system_reminder_est) / totalSessionInput) * 1000) / 1000 : 0 });
     }
 
     if (p === '/state') {
+      // TTL response cache keyed on workspace + the params that shape the payload (scope/compact/
+      // include_archived); cleared by notifyChange on every mutation. Checked before targetOverlay
+      // so a hit skips both the overlay load and the buildGraph rebuild.
+      const stWs = u.searchParams.get('workspace') || state.workspace;
+      const stKey = `state|${stWs}|${u.searchParams.get('scope') || ''}|${u.searchParams.get('compact') || ''}|${u.searchParams.get('include_archived') || ''}`;
+      const stHit = respCacheGet(stWs, stKey);
+      if (stHit !== undefined) return send(res, 200, stHit);
       const T = targetOverlay(null, u);   // honor ?workspace= for the overlay-backed fields too
       const ws = T.ws;
       const g = buildGraph(ws);
@@ -2953,7 +3204,7 @@ const handler = async (req, res) => {
       // `scope` is the shared enum the planned adjacent/tree merge slots into.
       if (u.searchParams.get('scope') === 'frontier') {
         const f = frontier.projectFrontier(g.tasks, g.ghosts, edgesOut, { windowMs });
-        return send(res, 200, { workspace: ws, scope: 'frontier', tasks: f.tasks, ghosts: f.ghosts, edges: f.edges, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } });
+        return send(res, 200, respCachePut(stWs, stKey, { workspace: ws, scope: 'frontier', tasks: f.tasks, ghosts: f.ghosts, edges: f.edges, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } }));
       }
       // Archival sweep on the default/full payload: archived nodes are excluded here but remain on
       // disk, still queryable via /search + suggest_links. Frontier-retained nodes never archive
@@ -2976,9 +3227,9 @@ const handler = async (req, res) => {
           if (t.git && t.git.merged) o.merged = true;   // merge outcome survives the slim projection
           return o;
         });
-        return send(res, 200, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary });
+        return send(res, 200, respCachePut(stWs, stKey, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary }));
       }
-      return send(res, 200, { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr(), summary });
+      return send(res, 200, respCachePut(stWs, stKey, { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr(), summary }));
     }
 
     if (p.startsWith('/agent/')) {
@@ -3133,13 +3384,30 @@ const handler = async (req, res) => {
   }
 };
 
+// Compaction guard: git WORKTREE checkouts (under worktrees/, used for attempt branches) also run
+// daemons and also carry a tracked .graph — independent compaction there guarantees merge
+// conflicts when the attempt branch lands. Mechanical predicate: in a worktree `.git` is a FILE
+// (a gitdir pointer); in the primary checkout it's a DIRECTORY. `root` defaults to the daemon's
+// own source dir (__dirname) — the repo this process was started from. A missing .git (not a
+// checkout at all) counts as primary: there is no merge story, and that instance is the only
+// one that could ever compact its stores.
+function isPrimaryCheckout(root = __dirname) {
+  try { return !fs.statSync(path.join(root, '.git')).isFile(); } catch { return true; }
+}
+
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, staleClaimKeys, staleVerdictKeys, migrateBlindEdges,
+  isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, __setOverlayForTest: (o) => { state.overlay = o; } };
 
 if (require.main === module) {
+  // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
+  process.on('unhandledRejection', (err) => {
+    process.stderr.write(`unhandledRejection: ${(err && err.stack) || err}\n`);
+  });
+
   const server = http.createServer(handler);
 
   const PORT_BASE = PORT;
@@ -3157,7 +3425,13 @@ if (require.main === module) {
     try { fs.unlinkSync(path.join(state.workspace, '.graph', 'daemon.port')); } catch { /* already gone */ }
   }
 
-  ['exit', 'SIGINT', 'SIGTERM'].forEach(sig => process.on(sig, removeDaemonPort));
+  process.on('exit', removeDaemonPort); // 'exit' must stay synchronous — port cleanup only
+  // SIGINT/SIGTERM: stop accepting connections, let in-flight requests drain, force-exit after 5s.
+  ['SIGINT', 'SIGTERM'].forEach(sig => process.on(sig, () => {
+    removeDaemonPort();
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  }));
 
   function tryListen(port, attemptsLeft) {
     if (attemptsLeft === 0) {
@@ -3234,4 +3508,28 @@ if (require.main === module) {
   // The sidecar exits if it misses 2 consecutive pings (2 min), keeping its lifecycle
   // tied to the daemon without requiring a clean shutdown signal.
   setInterval(() => { embedPing().catch(() => {}); }, 60000).unref();
+
+  // Graph-store compaction: fold terminal-status nodes' JSONL event files into checkpoint.json
+  // so .graph/ stops growing without bound. Covers every workspace store this process has
+  // loaded (graphStore.forWorkspace registry) plus the primary store, deduped by dir. One pass
+  // ~5 min after boot, then daily. Cheap; unref'd so it never holds the process open.
+  function compactGraphStores() {
+    const stores = new Map();
+    if (state.graphStore) stores.set(state.graphStore.dir, state.graphStore);
+    for (const s of graphStore.allStores()) stores.set(s.dir, s);
+    for (const s of stores.values()) {
+      try {
+        const r = graphStore.compact(s);
+        if (r.compacted) process.stdout.write(`graph compaction: folded ${r.compacted} node file(s) into ${s.checkpointFile}\n`);
+      } catch { /* best effort — never break the daemon on a bad store */ }
+    }
+  }
+  // Only the PRIMARY checkout compacts: worktree daemons (attempt branches) share tracked .graph
+  // history with main, and compacting it independently guarantees merge conflicts later.
+  if (isPrimaryCheckout()) {
+    setTimeout(() => { try { compactGraphStores(); } catch { /* best effort */ } }, 300000).unref();
+    setInterval(() => { try { compactGraphStores(); } catch { /* best effort */ } }, 86400000).unref();
+  } else {
+    process.stdout.write('graph compaction: skipped — not the primary checkout (.git is a worktree gitdir pointer)\n');
+  }
 }

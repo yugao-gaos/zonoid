@@ -1,1 +1,7 @@
 .graph/nodes/*.jsonl merge=union
+# .graph is daemon-owned state: on any merge the current branch's copy wins wholesale
+# (the daemon is the source of truth; attempt-branch worktrees would otherwise produce
+# delete/modify + checkpoint.json conflicts). The merge=ours rule below intentionally
+# overrides the older per-file union rule above — last matching line wins.
+# Requires a one-time, per-clone: git config merge.ours.driver true   (see CONTRIBUTING.md)
+.graph/** merge=ours

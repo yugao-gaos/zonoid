@@ -7,16 +7,20 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+
+// Isolate overlay persistence to a throwaway data dir so we never touch real overlays.
+// Must be set BEFORE requiring lib/overlay (BASE is read at require-time).
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'weighted-edges-'));
+process.env.CLAUDE_PLUGIN_DATA = TMP;
 const ov = require('../lib/overlay');
 const { TOOLS } = require('../lib/mcp-core');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
 
-// Isolate overlay persistence to a throwaway data dir so we never touch real overlays.
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'weighted-edges-'));
-process.env.CLAUDE_PLUGIN_DATA = TMP;
-const WS = '/fake/workspace/weighted-edges';
+// Edges are shared fields persisted to the WORKSPACE's graph-store (<ws>/.graph), so the
+// workspace must be a real writable dir — a fake path silently loses the round-trip.
+const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'weighted-edges-ws-')));
 
 try {
   // --- context edge created with weight=0.8 persists and round-trips through disk ---
@@ -74,7 +78,7 @@ try {
   addDep.run({ from: 'a', to: 'b', kind: 'context' }, fakeCall);
   ok('add_dependency forwards undefined weight when omitted', captured.body.weight === undefined);
 } finally {
-  fs.rmSync(TMP, { recursive: true, force: true });
+  for (const d of [TMP, WS]) fs.rmSync(d, { recursive: true, force: true });
 }
 
 console.log('-----');

@@ -23,9 +23,14 @@ for i in 1 2 3; do
   printf '%s' "$SUG" | jq -e '.suggestions | length > 0' >/dev/null 2>&1 && break
   sleep 0.2
 done
-printf '%s' "$SUG" | jq -e '.suggestions | length > 0' >/dev/null 2>&1 || exit 0
-
-LINES=$(printf '%s' "$SUG" | jq -r '.suggestions[] | "  - \(.key) [\(.status)] \(.label) (score \(.score), suggest \(.suggest_kind))"' | head -5)
-CTX=$(printf '[Orchestrator] New task %s created. Candidate links among existing tasks (incl. completed):\n%s\nFor relevant DONE matches call add_dependency(from=<match>, to=%s, kind="context") so their summary becomes Tier-1 context; for a true prerequisite use kind="blocking". Skip unrelated ones.' "$KEY" "$LINES" "$KEY")
+# Quarantine reminder ALWAYS fires (even with zero candidates) — a new task is unwired and
+# cannot be claimed by start_task until it's wired (add_dependency) or declared a root (mark_root).
+QUAR=$(printf 'Task %s created — it is QUARANTINED as unwired. Wire it now: suggest_links + add_dependency (blocking for prerequisites, context for related done work), or mark_root if genuinely standalone. Unwired tasks cannot be claimed by start_task.' "$KEY")
+if printf '%s' "$SUG" | jq -e '.suggestions | length > 0' >/dev/null 2>&1; then
+  LINES=$(printf '%s' "$SUG" | jq -r '.suggestions[] | "  - \(.key) [\(.status)] \(.label) (score \(.score), suggest \(.suggest_kind))"' | head -5)
+  CTX=$(printf '[Orchestrator] %s\nCandidate links among existing tasks (incl. completed):\n%s\nFor relevant DONE matches call add_dependency(from=<match>, to=%s, kind="context") so their summary becomes Tier-1 context; for a true prerequisite use kind="blocking". Skip unrelated ones.' "$QUAR" "$LINES" "$KEY")
+else
+  CTX=$(printf '[Orchestrator] %s' "$QUAR")
+fi
 printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":%s}}' "$(printf '%s' "$CTX" | jq -Rs .)"
 exit 0

@@ -43,6 +43,42 @@ All tools live in the `TOOLS` array in `lib/mcp-core.js`. Each entry is a plain 
 
 `call(method, path, body)` is an HTTP client pre-bound to the daemon port. The daemon's corresponding route lives in `daemon.js`. Add your route there, add your tool entry to `TOOLS`, and both transports (stdio + HTTP) pick it up automatically.
 
+## Testing
+
+```bash
+ZONOID_SKIP_LIVE=1 node test/<file>   # run a single test file
+npm test                              # fast regression (test/context-gate-regression.test.js)
+npm run test:all                      # full suite via scripts/run-tests.js
+```
+
+`scripts/run-tests.js` discovers every `test/*.test.js`, runs each as a child process with
+`ZONOID_SKIP_LIVE=1`, and fails if any file fails.
+
+**Sandboxed-daemon convention:** tests that need a daemon spawn a private one on a private port
+with a tmp-dir `CLAUDE_PLUGIN_DATA` (see `test/app-restart.test.js` for the pattern) — NEVER the
+live `:8787` daemon. Tests must not read or mutate real graph state.
+
+CI (`.github/workflows/test.yml`) runs `npm run test:all` on every push and PR, with
+`npm ci --omit=optional` (skips the large `@xenova/transformers` optional dependency, which is
+unnecessary under `ZONOID_SKIP_LIVE=1`).
+
+## `.graph` merge strategy
+
+`.graph/` is intentionally git-versioned, but attempt-branch worktrees (`branch_task`) can
+diverge it — merging an attempt back would hit delete/modify and `checkpoint.json` conflicts.
+`.gitattributes` therefore assigns `.graph/** merge=ours`: the daemon is the source of truth for
+graph state, so on any merge the **current branch's `.graph` wins wholesale** — graph files are
+never content-merged.
+
+Merge drivers are not portable across clones, so each clone needs a one-time:
+
+```bash
+git config merge.ours.driver true
+```
+
+Without it, git falls back to the default merge driver for `.graph` paths and you may see
+spurious conflicts.
+
 ## Pull request process
 
 1. Fork the repo and create a branch from `main`.

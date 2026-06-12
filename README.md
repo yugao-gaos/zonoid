@@ -46,7 +46,7 @@ and an MCP surface that lets the agent read and write the knowledge graph.
              │ MCP (stdio)
              ▼
 ┌─────────────────────────────────────────┐
-│  create_task · start_task · complete_task│
+│  start_task · complete_task · set_status│
 │  search_knowledge · suggest_links       │
 │  record_decision · get_full_graph       │
 └─────────────────────────────────────────┘
@@ -68,15 +68,83 @@ the accumulated findings of every prior session rather than a blank slate.
 
 ## MCP tools
 
+34 tools, served identically over both transports (stdio and the daemon's `/mcp` endpoint). The
+live registry is the `TOOLS` array in `lib/mcp-core.js`. (Tasks themselves are created with
+Claude Code's native `TaskCreate`; these tools manage them once they exist.)
+
+### Task lifecycle
+
 | Tool | Purpose |
 |---|---|
-| `create_task` | Register a new task node in the graph before starting work |
-| `start_task` | Claim a task and mark it in_progress — required before any file edit |
-| `complete_task` | Mark a task done with a concise summary; optionally queue follow-ups |
-| `search_knowledge` | Retrieve relevant knowledge notes (decisions, constraints, gotchas) for a query |
-| `suggest_links` | Rank existing tasks by relevance to wire a new task into the graph |
-| `record_decision` | Capture a durable decision or finding as a note node for future sessions |
-| `get_full_graph` | Read the current task graph (frontier slice by default, full graph on request) |
+| `start_task` | Claim a task and mark it in_progress, recording which agent is working it |
+| `complete_task` | Mark a task done and record a concise summary other tasks pull as cheap base context |
+| `set_status` | Set the overlay status for a task (prefer start_task/complete_task) |
+| `configure_task` | Configure a task's execution settings in one call: repo path, test command, metric spec, benchmark |
+| `add_dependency` | Add a dependency edge — blocking prerequisite or non-blocking context link |
+| `remove_dependency` | Remove a dependency edge from → to (idempotent) |
+| `mark_root` | Declare a task a genuine root (no prerequisites, no context providers) |
+| `supersede_task` | Retire an old task in favor of a replacement, linking them |
+
+### Graph reads
+
+| Tool | Purpose |
+|---|---|
+| `get_full_graph` | Get the workspace task graph or a focused slice of it (frontier digest by default) |
+| `get_dependency_summaries` | Tier 1 (cheap, do first): concise summaries of a task's dependencies |
+| `get_task_detail` | Tier 2 (on demand): full detail for one task — knowledge, summary, agent, token usage |
+| `suggest_links` | Suggest existing tasks (including completed ones) a task should link to, ranked by overlap |
+| `graph_delta` | What changed in the graph since a timestamp — the read-only change sensor for QA sweeps |
+| `peek_workspace` | Load another workspace's full task graph on demand (does not change current) |
+
+### Knowledge & notes
+
+| Tool | Purpose |
+|---|---|
+| `search_knowledge` | Retrieve the most relevant knowledge notes (decisions / gotchas / constraints) for a free-text query |
+| `record_decision` | Capture a durable decision, rationale, or finding as a note node in the graph |
+| `supersede_note` | Mark an existing note as superseded by a newer one without deleting history |
+| `attach_knowledge` | Attach a Tier-2 knowledge item (file / snippet / link / note) to a task |
+
+### Judge & KB
+
+| Tool | Purpose |
+|---|---|
+| `branch_task` | Create an isolated git worktree + branch (`orch/attempt/<key>`) for a task attempt |
+| `merge_attempt` | Merge a winning attempt's branch back into the base |
+| `remove_worktree` | Remove a task attempt's git worktree and delete its branch (idempotent cleanup) |
+| `measure_task` | Run the task's inline metric spec and store the measured value(s) on the node |
+| `get_learnings` | Aggregate the graph's accumulated learning: attempt verdicts, recent failures and completions |
+| `enqueue_kb` | Mine a repo and enqueue all KB candidates into the learner queue (no cap, no LLM) |
+| `drain_kb_batch` | Process one batch of queued KB candidates via LLM |
+| `drain_kb_queue` | Fire-and-forget background drain of the full KB queue; auto-injects on completion |
+| `drain_kb_queue_status` | Get the current status of a background drain job |
+
+### Loop & agent control
+
+| Tool | Purpose |
+|---|---|
+| `next_action` | Heartbeat: per-loop spawn/idle/plan/stop actions for the whole loop registry in one call |
+| `loop_control` | Manage heartbeat loops — one tool, action: start / stop / status |
+| `list_agents` | List every known agent across sessions with its task, workspace, and stop flag |
+| `request_agent_stop` | Cooperatively stop a worker by agent_id or task_key (advisory flag, no kill) |
+| `request_guidance` | Halt the autonomous loop and ask the user instead of guessing |
+| `list_guidance` | List unresolved guidance questions the loop is waiting on |
+
+### Misc
+
+| Tool | Purpose |
+|---|---|
+| `show_dashboard` | Render the task-graph dashboard inline in the conversation (interactive, live-updating) |
+
+## Development
+
+```sh
+npm test           # fast regression (single gate test)
+npm run test:all   # full suite via scripts/run-tests.js
+```
+
+CI (`.github/workflows/test.yml`) runs `npm run test:all` on every push and PR.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the testing conventions.
 
 ## License
 

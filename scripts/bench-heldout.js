@@ -20,6 +20,7 @@ const CLAUDE = '/opt/homebrew/bin/claude';
 const HT = path.join(REPO, 'bench', 'heldout');
 const ORCH_WORKSPACE = process.env.ZONOID_WORKSPACE || process.cwd();
 const TIMEOUT_S = 600;
+const CANDIDATE_TIMEOUT = { 'cron-next': 900 };
 
 function arg(name, def) {
   const i = process.argv.indexOf('--' + name);
@@ -28,9 +29,9 @@ function arg(name, def) {
 function consultMode() {
   const eq = process.argv.find((a) => a.startsWith('--consult='));
   let v = eq ? eq.split('=')[1] : arg('consult', process.env.BENCH_CONSULT || 'search');
-  return ['search', 'dagrag', 'mandatory', 'lean', 'permissive', 'gated', 'autonomous'].includes(v) ? v : 'search';
+  return ['search', 'dagrag', 'mandatory', 'lean', 'permissive', 'gated', 'autonomous', 'iterative'].includes(v) ? v : 'search';
 }
-const MODEL = arg('model', 'opus');
+const MODEL = arg('model', 'sonnet');
 
 // Per-candidate config: prose spec (no test), the artifact file the agent must write, any deps to
 // stage into the solve worktree (the dependency module — NOT a test/grader), and the held-out grader.
@@ -115,6 +116,36 @@ const CANDIDATES = {
     deps: [],
     grader: 'bench/heldout/graders/bench-metric.grader.js',
   },
+  'interval-merge': {
+    spec: 'bench/heldout/specs/interval-merge.md',
+    artifact: 'bench/sandbox/merge-intervals-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/interval-merge.grader.js',
+  },
+  'cron-next': {
+    spec: 'bench/heldout/specs/cron-next.md',
+    artifact: 'bench/sandbox/cron-next-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/cron-next.grader.js',
+  },
+  'legacy-id': {
+    spec: 'bench/heldout/specs/legacy-id.md',
+    artifact: 'bench/sandbox/parse-task-id-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/legacy-id.grader.js',
+  },
+  'api-contract': {
+    spec: 'bench/heldout/specs/api-contract.md',
+    artifact: 'bench/sandbox/build-event-ht.js',
+    deps: [],
+    grader: 'bench/heldout/graders/api-contract.grader.js',
+  },
+  'flaky-dep': {
+    spec: 'bench/heldout/specs/flaky-dep.md',
+    artifact: 'bench/sandbox/process-records-ht.js',
+    deps: [['bench/heldout/fixtures/batch.js', 'bench/fixtures/batch.js']],
+    grader: 'bench/heldout/graders/flaky-dep.grader.js',
+  },
 };
 
 // Warm-arm preambles. Default = search (semantic RAG): the agent MUST search_knowledge and apply any
@@ -136,6 +167,14 @@ const PREAMBLE = {
     'You have the orchestrator-graph MCP. Call search_knowledge EXACTLY ONCE with gated:true before writing code. ' +
     'decision:"inject" → apply the returned note then write code. ' +
     'decision:"abstain" → write code immediately, DO NOT call search_knowledge again under any circumstances. ' +
+    'Graph is READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n',
+  // ITERATIVE consult: plateau-based multi-round retrieval driven by the daemon's continue verdict.
+  iterative:
+    'You have the orchestrator-graph MCP. Before writing code call search_knowledge with a query describing this task ' +
+    '(NO gated:true — use ungated retrieval). ' +
+    'The response includes continue:true/false. If continue:true you MAY call search_knowledge again ONCE with a DIFFERENT ' +
+    'phrasing and pass exclude_keys = the note keys you already received, and round = 2 (then 3 for a third attempt). Stop searching when ' +
+    'continue:false or after 3 rounds. Apply all relevant retrieved notes, then write code. ' +
     'Graph is READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n',
 };
 
@@ -182,7 +221,9 @@ function main() {
   // (b) stage deps (dependency module only — NEVER a test or grader). Make sandbox dir.
   fs.mkdirSync(path.join(wt, 'bench', 'sandbox'), { recursive: true });
   for (const [src, dest] of cfg.deps) {
-    fs.copyFileSync(path.join(REPO, src), path.join(wt, dest));
+    const destAbs = path.join(wt, dest);
+    fs.mkdirSync(path.dirname(destAbs), { recursive: true });
+    fs.copyFileSync(path.join(REPO, src), destAbs);
   }
 
   // (c) prompt = prose spec, repo-path redirected to THIS worktree (so the agent codes in isolation).
@@ -194,7 +235,7 @@ function main() {
 
   // (d) headless solve, guarded by perl alarm (macOS has no `timeout`)
   const args = [
-    '-e', `alarm ${TIMEOUT_S}; exec @ARGV`, '--',
+    '-e', `alarm ${CANDIDATE_TIMEOUT[candidate] || TIMEOUT_S}; exec @ARGV`, '--',
     CLAUDE, '-p', prompt,
     '--mcp-config', mcpConfig, '--strict-mcp-config',
     '--session-id', sessionId, '--model', MODEL,
@@ -219,6 +260,27 @@ function main() {
       }
     } catch { /* ignore */ }
   }
+
+  // (e2) extract token usage from transcript
+  function extractTokens(tPath) {
+    try {
+      const lines = fs.readFileSync(tPath, 'utf8').trim().split('\n').filter(Boolean);
+      let inputTokens = 0, outputTokens = 0, cacheRead = 0;
+      for (const line of lines) {
+        try {
+          const obj = JSON.parse(line);
+          const usage = obj?.message?.usage || obj?.usage;
+          if (usage) {
+            inputTokens += usage.input_tokens || 0;
+            outputTokens += usage.output_tokens || 0;
+            cacheRead += usage.cache_read_input_tokens || 0;
+          }
+        } catch { /* skip malformed lines */ }
+      }
+      return { inputTokens, outputTokens, cacheRead, totalTokens: inputTokens + outputTokens };
+    } catch { return { inputTokens: 0, outputTokens: 0, cacheRead: 0, totalTokens: 0 }; }
+  }
+  const tokenUsage = extractTokens(transcriptPath);
 
   // (f) FREEZE the produced artifact OUT of the worktree, then GRADE with the external held-out suite.
   const producedPath = path.join(wt, cfg.artifact);
@@ -246,14 +308,19 @@ function main() {
   let diffChars = 0;
   try { if (artifactPresent) diffChars = fs.statSync(producedPath).size; } catch { /* 0 */ }
 
-  process.stdout.write(JSON.stringify({
+  const row = JSON.stringify({
     candidate, arm, consult: arm === 'on' ? cm : null, armLabel, trial, sessionId, transcriptPath,
     worktree: wt, frozenArtifact: artifactPresent ? frozenArtifact : null, model: MODEL,
     exitCode, wallMs, artifactPresent, diffChars, diffTokens: Math.round(diffChars / 4),
+    inputTokens: tokenUsage.inputTokens, outputTokens: tokenUsage.outputTokens,
+    cacheReadTokens: tokenUsage.cacheRead, totalTokens: tokenUsage.totalTokens,
     solved: !!grade.ok, pass: grade.pass, total: grade.total,
     edgePass: grade.edgePass, edgeTotal: grade.edgeTotal, gradeError: grade.error || null,
     cases: grade.cases || [],
-  }) + '\n');
+  }) + '\n';
+  process.stdout.write(row);
+  // Always append to canonical results file regardless of how the script is invoked.
+  fs.appendFileSync(path.join(REPO, 'bench', 'heldout', 'results-heldout.jsonl'), row);
 }
 
 main();

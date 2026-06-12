@@ -25,6 +25,15 @@ multi-file change), the main agent should **not implement inline**. Instead:
    that claims the task (`start_task`) and reports back (`complete_task`).
 4. Keep the **main thread free** to orchestrate and talk to the user — never block it on a build.
 
+**Wiring is the dispatcher's duty, not the worker's.** Whoever creates a task wires it
+(`suggest_links` + `add_dependency`) **before** dispatching — do not delegate wiring to worker
+subagents: it is unenforced (unlike the write gate), so smaller worker models reliably drop it,
+and workers lack the structural context (e.g. which sibling tasks collide on the same files).
+Worker prompts carry exactly two graph duties, stated verbatim with the exact `task_key` and
+`agent_id`: `start_task` before any write, `complete_task` with a tight summary at the end.
+(Workers still pass `wires_to=[task_key]` on any `record_decision` they make mid-task — note
+provenance is the one wiring only the worker knows.)
+
 Do the work inline only for genuinely trivial edits (a one-liner, a doc tweak, a config change).
 This is instruction-level in the desktop app (which runs no settings.json hooks); in the CLI a
 PreToolUse exit-2 gate (`hooks/orch-gate.sh` + `hooks/orch-gate-bash.sh`) hard-blocks **both**

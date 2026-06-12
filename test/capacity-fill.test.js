@@ -186,6 +186,43 @@ function ctxFor(g) { return { graph: g, pendingGuidance: [], batch: { remaining:
   ok('budget affords 0 judge efforts → not judge_edges', d.action !== 'judge_edges');
 }
 
+// === UNWIRED quarantine: ready-but-unwired tasks are never spawned, surfaced in wire[] =========
+{
+  // 3 ready tasks, q0 flagged unwired in the overlay. Spawn must take only q1/q2; q0 goes to wire[].
+  const o = makeOverlay(0);
+  o.unwired = { 's/q0': true };
+  daemon.__setOverlayForTest(o);
+  const L = makeLoop();
+  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 3)));
+  ok('unwired: action is spawn (wired siblings exist)', d.action === 'spawn');
+  ok('unwired: q0 NOT in spawn list', d.tasks && d.tasks.every((t) => t.key !== 's/q0'));
+  ok('unwired: spawns only the 2 wired tasks', d.tasks && d.tasks.length === 2);
+  ok('unwired: q0 listed in wire[]', Array.isArray(d.wire) && d.wire.length === 1 && d.wire[0].key === 's/q0' && d.wire[0].label === 'ready 0');
+}
+{
+  // ONLY unwired ready tasks remain → idle with wire[] (NOT spawn, NOT a drained stop — the
+  // dispatcher must wire/root them; they become spawnable next tick).
+  const o = makeOverlay(0);
+  o.unwired = { 's/q0': true };
+  daemon.__setOverlayForTest(o);
+  const L = makeLoop();
+  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 1)));
+  ok('all-unwired: idle, not spawn', d.action === 'idle');
+  ok('all-unwired: not a drained stop (loop stays active)', L.active === true);
+  ok('all-unwired: wire[] carries the task', Array.isArray(d.wire) && d.wire[0].key === 's/q0');
+}
+{
+  // Flag cleared (simulating add_dependency wiring it in) → the task is spawnable again.
+  const o = makeOverlay(0);
+  o.unwired = { 's/q0': true };
+  delete o.unwired['s/q0'];                                  // what lib/overlay addEdge/mark-root does
+  daemon.__setOverlayForTest(o);
+  const L = makeLoop();
+  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 1)));
+  ok('cleared: q0 spawnable after wiring', d.action === 'spawn' && d.tasks.length === 1 && d.tasks[0].key === 's/q0');
+  ok('cleared: no wire field on the decision', d.wire == null);
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -1,16 +1,32 @@
 /**
  * End-to-end test for the bi-temporal supersede round-trip.
- * Uses only HTTP calls to the running daemon at http://localhost:8787.
- * Run: node --test test/supersede-roundtrip.test.js
+ * Spawns a SANDBOXED daemon on a private port (never the live one at 8787): each run
+ * used to write two tagged notes into the live KB permanently, and the accumulated
+ * near-identical notes eventually crowded the k=10 search window and broke the test.
+ * Run: node test/supersede-roundtrip.test.js
  */
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawn } = require('child_process');
 
-const BASE = 'http://localhost:8787';
+const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-supersede-base-')));
+const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-supersede-ws-')));
+// Reuse the already-downloaded embedding weights if present, so /overlay/note doesn't try a
+// network download from the sandboxed (empty) model cache. Absent ⇒ embed() degrades to null.
+try {
+  const realModels = path.join(os.homedir(), '.claude', 'orchestrator', 'models');
+  if (fs.existsSync(realModels)) fs.symlinkSync(realModels, path.join(SANDBOX, 'models'));
+} catch { /* lexical fallback is fine */ }
 
-async function post(path, body) {
-  const res = await fetch(`${BASE}${path}`, {
+const PORT = 19700 + Math.floor(Math.random() * 100);
+const BASE = `http://127.0.0.1:${PORT}`;
+
+async function post(p, body) {
+  const res = await fetch(`${BASE}${p}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -18,15 +34,32 @@ async function post(path, body) {
   return res.json();
 }
 
-async function get(path) {
-  const res = await fetch(`${BASE}${path}`);
+async function get(p) {
+  const res = await fetch(`${BASE}${p}`);
   return res.json();
+}
+
+async function waitForPing(ms = 8000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    try { const r = await get('/ping'); if (r && r.ok) return true; } catch { /* not up yet */ }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
 }
 
 // Use a unique tag so we can reliably find just our notes in search results.
 const TAG = `supersede-test-${Date.now()}`;
 
 test('supersede round-trip', async (t) => {
+  const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
+    stdio: 'ignore',
+  });
+  try {
+  assert.ok(await waitForPing(), 'sandboxed daemon came up');
+  await post('/workspace', { path: WS });
+
   // ── 1. Create the OLD note ──────────────────────────────────────────────
   const oldTitle = `${TAG} deploy target: fly.io`;
   const oldSummary = `${TAG} we deploy the daemon to fly.io`;
@@ -92,4 +125,8 @@ test('supersede round-trip', async (t) => {
 
   const asOfNewHit = asOfResults.find(r => r.key === newKey);
   assert.ok(!asOfNewHit, 'new note NOT returned by as-of query (did not exist yet then)');
+  } finally {
+    try { child.kill(); } catch { /* already gone */ }
+    for (const d of [SANDBOX, WS]) { try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* */ } }
+  }
 });

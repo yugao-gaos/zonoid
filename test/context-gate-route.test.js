@@ -6,10 +6,10 @@
 //
 // Covers:
 //   - gated query on a NON-project-local topic (tls-local heldout spec) → decision:'abstain',
-//     results EMPTY (no notes leak through an abstain).
+//     the ranked bundle is still returned but NO result carries inject:true (annotate, not suppress).
 //   - gated query matching a project-local winner note (locale-sum heldout spec; winner
 //     note-mq7ydrv353p — same fixture as test/context-gate-regression.test.js) →
-//     decision:'inject' with THAT note in /search result shape.
+//     decision:'inject' with THAT note flagged inject:true in the /search result shape.
 //   - per-request ?workspace= targeting (notes live in a sandbox workspace, not the daemon's).
 //   - ungated /search unchanged (back-compat: results array, no decision field).
 //
@@ -111,16 +111,17 @@ const gatedPath = (name) => `/search?gated=1&workspace=${encodeURIComponent(WS)}
     ok('abstain: HTTP 200', ab.status === 200);
     ok('abstain: decision=abstain', ab.body.decision === 'abstain');
     ok('abstain: gated flag echoed', ab.body.gated === true);
-    ok('abstain: NO notes returned', Array.isArray(ab.body.results) && ab.body.results.length === 0);
+    ok('abstain: ranked bundle still returned', Array.isArray(ab.body.results));
+    ok('abstain: no result flagged inject (except dag tier)', (ab.body.results || []).every((r) => r.tier === 'dag' || r.inject !== true));
     ok('abstain: carries a reason', typeof ab.body.reason === 'string' && ab.body.reason.length > 0);
     if (ab.body.via && ab.body.via !== 'semantic') skip(`scored via=${ab.body.via} — model unavailable in daemon`);
 
     // --- 2. gated + project-local winner (locale-sum → note-mq7ydrv353p) → inject WITH the note ---
     const inj = await get(gatedPath('locale-sum'));
     ok('inject: decision=inject', inj.body.decision === 'inject');
-    ok('inject: exactly one note returned', Array.isArray(inj.body.results) && inj.body.results.length === 1);
-    const top = (inj.body.results || [])[0] || {};
-    ok('inject: the winner note (note-mq7ydrv353p)', String(top.key || '').includes('mq7ydrv353p'));
+    ok('inject: ranked bundle returned', Array.isArray(inj.body.results) && inj.body.results.length > 0);
+    const top = (inj.body.results || []).find((r) => r.inject === true && r.tier !== 'dag') || {};
+    ok('inject: the winner note (note-mq7ydrv353p) flagged inject:true', String(top.key || '').includes('mq7ydrv353p'));
     ok('inject: /search result shape (key/title/summary/score/kind)', top.kind === 'note' && typeof top.title === 'string' && typeof top.summary === 'string' && typeof top.score === 'number');
     ok('inject: gate metadata present', typeof inj.body.top1 === 'number' && typeof inj.body.gap === 'number' && typeof inj.body.locality === 'number' && typeof inj.body.margin === 'number');
     ok('inject: semantic path', inj.body.via === 'semantic');
