@@ -1,4 +1,32 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__orchestrator-graph__next_action",
+      "mcp__orchestrator-graph__get_full_graph",
+      "mcp__orchestrator-graph__set_status",
+      "mcp__orchestrator-graph__loop_control",
+      "mcp__orchestrator-graph__get_task_detail",
+      "mcp__orchestrator-graph__start_task",
+      "mcp__orchestrator-graph__complete_task",
+      "mcp__orchestrator-graph__get_learnings",
+      "mcp__orchestrator-graph__list_agents",
+      "mcp__orchestrator-graph__graph_delta",
+      "mcp__orchestrator-graph__search_knowledge",
+      "mcp__orchestrator-graph__record_decision",
+      "mcp__orchestrator-graph__suggest_links",
+      "mcp__orchestrator-graph__add_dependency",
+      "mcp__orchestrator-graph__configure_task",
+      "mcp__orchestrator-graph__request_guidance",
+      "mcp__orchestrator-graph__supersede_note",
+      "Bash(mkdir -p */logs)",
+      "Bash(echo *>> */logs/cron-token-usage.jsonl)",
+      "Bash(npm test)",
+      "Bash(npm test *)",
+      "Bash(./scripts/qa-suite.sh)",
+      "Bash(./scripts/qa-suite.sh *)",
+      "Bash(date -u *)"
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "__INSTALL_DIR__/hooks/statusline.sh",
