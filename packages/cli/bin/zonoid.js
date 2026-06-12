@@ -64,43 +64,89 @@ function checkHooks() {
   warn(`Missing hooks: ${missing.join(', ')} — re-run after verifying the install dir`);
 }
 
-function checkSettings(cwd) {
-  const dest = path.join(cwd, '.claude', 'settings.json');
-  if (!fs.existsSync(dest)) {
-    fix('settings.json missing — writing from sample...');
-    writeSettings(cwd);
-    return;
-  }
-  let content;
-  try { content = fs.readFileSync(dest, 'utf8'); } catch (e) { warn('Cannot read settings.json'); return; }
-
-  const hasTemplate = content.includes('__INSTALL_DIR__') || content.includes('${CLAUDE_PLUGIN_ROOT}');
-  // Wrong path = references a hooks/ path but not this install dir
-  const hasWrongPath = /["'].*\/hooks\//.test(content) && !content.includes(INSTALL_DIR);
-  if (hasTemplate || hasWrongPath) {
-    warn(`settings.json has ${hasTemplate ? 'unresolved template tokens' : 'wrong hook paths'} — rewriting...`);
-    writeSettings(cwd, true);
-    return;
-  }
-  ok('settings.json looks correct');
+function loadSampleSettings() {
+  const src = path.join(INSTALL_DIR, '.claude', 'settings.sample.json');
+  try {
+    return JSON.parse(
+      fs.readFileSync(src, 'utf8')
+        .replace(/__INSTALL_DIR__/g, INSTALL_DIR)
+        .replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, INSTALL_DIR)
+    );
+  } catch (e) { warn(`Sample not found at ${src}`); return null; }
 }
 
-function writeSettings(cwd, overwrite = false) {
-  const dest = path.join(cwd, '.claude', 'settings.json');
-  const src  = path.join(INSTALL_DIR, '.claude', 'settings.sample.json');
-  let content;
-  try {
-    content = fs.readFileSync(src, 'utf8')
-      .replace(/__INSTALL_DIR__/g, INSTALL_DIR)
-      .replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, INSTALL_DIR);
-  } catch (e) { warn(`Sample not found at ${src}`); return; }
-  if (overwrite && fs.existsSync(dest)) {
-    fs.copyFileSync(dest, dest + '.bak');
-    log(`Backed up existing settings to ${dest}.bak`);
+// Merge Zonoid hooks + permissions into existing settings without wiping user config.
+// hooks: append any hook entries whose command isn't already present.
+// permissions.allow: union (deduplicated).
+// statusLine: set only if not already present.
+// All other existing keys are preserved unchanged.
+function mergeSettings(existing, sample) {
+  const out = JSON.parse(JSON.stringify(existing));
+
+  // permissions.allow — union
+  const existAllow = (out.permissions && out.permissions.allow) || [];
+  const sampleAllow = (sample.permissions && sample.permissions.allow) || [];
+  const merged = [...existAllow];
+  for (const entry of sampleAllow) {
+    if (!merged.includes(entry)) merged.push(entry);
   }
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.writeFileSync(dest, content);
-  ok(`Written: ${dest}`);
+  if (!out.permissions) out.permissions = {};
+  out.permissions.allow = merged;
+
+  // hooks — append per-event any entries whose command isn't already wired
+  if (!out.hooks) out.hooks = {};
+  for (const [event, entries] of Object.entries(sample.hooks || {})) {
+    if (!out.hooks[event]) { out.hooks[event] = entries; continue; }
+    const existCmds = new Set(
+      out.hooks[event].flatMap(e => (e.hooks || []).map(h => h.command))
+    );
+    for (const entry of entries) {
+      const newCmds = (entry.hooks || []).map(h => h.command);
+      if (newCmds.some(c => !existCmds.has(c))) {
+        out.hooks[event].push(entry);
+        newCmds.forEach(c => existCmds.add(c));
+      }
+    }
+  }
+
+  // statusLine — only set if not already present
+  if (!out.statusLine && sample.statusLine) out.statusLine = sample.statusLine;
+
+  return out;
+}
+
+function checkSettings(cwd) {
+  const dest = path.join(cwd, '.claude', 'settings.json');
+  const sample = loadSampleSettings();
+  if (!sample) return;
+
+  if (!fs.existsSync(dest)) {
+    fix('settings.json missing — writing from sample...');
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, JSON.stringify(sample, null, 2));
+    ok(`Written: ${dest}`);
+    return;
+  }
+
+  let existing;
+  try { existing = JSON.parse(fs.readFileSync(dest, 'utf8')); }
+  catch (e) { warn('Cannot parse settings.json — leaving as-is'); return; }
+
+  // Check if all sample hooks are already wired to this install dir
+  const content = JSON.stringify(existing);
+  const hasTemplate = content.includes('__INSTALL_DIR__') || content.includes('${CLAUDE_PLUGIN_ROOT}');
+  const missingHooks = Object.values(sample.hooks || {}).flat()
+    .flatMap(e => (e.hooks || []).map(h => h.command))
+    .some(cmd => !content.includes(cmd));
+
+  if (!hasTemplate && !missingHooks) { ok('settings.json up to date'); return; }
+
+  fix('Merging Zonoid hooks into existing settings.json...');
+  const merged = mergeSettings(existing, sample);
+  fs.copyFileSync(dest, dest + '.bak');
+  log(`Backed up existing settings to settings.json.bak`);
+  fs.writeFileSync(dest, JSON.stringify(merged, null, 2));
+  ok('settings.json merged (your existing config preserved)');
 }
 
 function checkMcp(cwd) {
@@ -270,6 +316,50 @@ async function checkGitIdentity() {
   if (email) { execSync(`git config --global user.email "${email.replace(/"/g, '\\"')}"`); ok(`set user.email = ${email}`); }
 }
 
+const PLIST_LABEL = 'com.zonoid.daemon';
+const PLIST_PATH  = path.join(os.homedir(), 'Library', 'LaunchAgents', `${PLIST_LABEL}.plist`);
+
+function checkLaunchd() {
+  if (process.platform !== 'darwin') { log('Launchd auto-start: macOS only, skipping'); return; }
+
+  const nodeBin = process.execPath;
+  const daemonJs = path.join(INSTALL_DIR, 'daemon.js');
+
+  const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${PLIST_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${nodeBin}</string>
+    <string>${daemonJs}</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/zonoid-daemon.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/zonoid-daemon.log</string>
+</dict>
+</plist>`;
+
+  // Write plist (always refresh so node path stays current after node upgrades)
+  try {
+    fs.mkdirSync(path.dirname(PLIST_PATH), { recursive: true });
+    fs.writeFileSync(PLIST_PATH, plist);
+  } catch (e) { warn(`Could not write plist: ${e.message}`); return; }
+
+  // Unload stale registration, load fresh
+  spawnSync('launchctl', ['unload', PLIST_PATH], { stdio: 'ignore' });
+  const load = spawnSync('launchctl', ['load', '-w', PLIST_PATH], { encoding: 'utf8' });
+  if (load.status === 0) ok(`Daemon registered as launchd service — starts on login, restarts on crash`);
+  else warn(`launchctl load failed: ${(load.stderr || '').trim()}`);
+}
+
 async function init() {
   const cwd = process.cwd();
   console.log(`\nZonoid init — workspace: ${cwd}`);
@@ -292,6 +382,7 @@ async function init() {
   checkSkills();
 
   section('5. Daemon');
+  checkLaunchd();
   await checkDaemon();
   await registerWorkspace(cwd);
 
