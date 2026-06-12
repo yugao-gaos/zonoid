@@ -9,6 +9,7 @@ Empirical studies on the self-learning task knowledge graph.
 | Paper | Result | Date |
 |-------|--------|------|
 | [KB Injection Lifts Agent Solve Rate](quality-gain/) | OFF 50% → ON 80% on held-out benchmark (n=20 each arm, +30pp) | June 2026 |
+| [Measuring Autonomous Leverage: Autonomy Score and Productive Token %](autonomy-score/) | 103.5× autonomy, 92% productive on 2026-06-11 session; no industry baseline exists | June 2026 |
 
 ---
 

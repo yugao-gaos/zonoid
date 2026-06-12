@@ -90,14 +90,19 @@ function stats(xs) {
 }
 
 // Parse the input blob as a JSON array first, else as JSONL (one result object per line).
+// Normalizes `candidate` field to `problem` for compatibility with the heldout runner output.
 function parseResults(raw) {
   const t = raw.trim();
   if (!t) return [];
-  try { const j = JSON.parse(t); if (Array.isArray(j)) return j; } catch { /* fall through to JSONL */ }
+  const normalize = (r) => {
+    if (r && typeof r === 'object' && 'candidate' in r && !('problem' in r)) r.problem = r.candidate;
+    return r;
+  };
+  try { const j = JSON.parse(t); if (Array.isArray(j)) return j.map(normalize); } catch { /* fall through to JSONL */ }
   const out = [];
   for (const line of t.split('\n')) {
     const s = line.trim(); if (!s) continue;
-    try { out.push(JSON.parse(s)); } catch { /* skip junk */ }
+    try { out.push(normalize(JSON.parse(s))); } catch { /* skip junk */ }
   }
   return out;
 }
@@ -112,7 +117,7 @@ function buildReport(results) {
   for (const r of results) {
     const split = readSplit(r.transcriptPath);
     if (split.error) {
-      unreadable.push({ problem: r.problem, arm: r.arm, trial: r.trial, transcriptPath: r.transcriptPath, error: split.error });
+      unreadable.push({ problem: r.problem, arm: r.arm, trial: r.trial, transcriptPath: r.transcriptPath, error: split.error, solved: r.solved !== false });
       continue;
     }
     const run = {
@@ -181,12 +186,21 @@ function buildReport(results) {
 
   // --- v4 decomposition: per-problem Real-Work / Hardness / Consult-overhead + win evaluation. ---
   // (design note-mq72538c). Solve rate uses ALL runs (incl. dropped), not just the solved aggregates.
+  // Also include transcript-less results (those landed in unreadable) for solve-rate tracking.
   const solveTally = {}; // problem -> arm -> {solved,total}
   for (const run of runs) {
     const arm = String(run.arm).toUpperCase();
     const t = (solveTally[run.problem] || (solveTally[run.problem] = {}));
     const a = (t[arm] || (t[arm] = { solved: 0, total: 0 }));
     a.total++; if (run.solved) a.solved++;
+  }
+  // Fold in unreadable rows that have valid solved/arm/problem (no transcript but grade result present).
+  for (const r of unreadable) {
+    if (typeof r.solved !== 'boolean') continue;
+    const arm = String(r.arm).toUpperCase();
+    const t = (solveTally[r.problem] || (solveTally[r.problem] = {}));
+    const a = (t[arm] || (t[arm] = { solved: 0, total: 0 }));
+    a.total++; if (r.solved) a.solved++;
   }
   // pooled (n-1) stdev of two sample arrays (returns 0 if combined n<2).
   const pooledStdev = (xa, xb) => {
@@ -239,7 +253,7 @@ function buildReport(results) {
     };
   }).sort((a, b) => a.problem.localeCompare(b.problem));
 
-  return { rows, ratios, v4, contaminated, dropped, unreadable, runs };
+  return { rows, ratios, v4, contaminated, dropped, unreadable, runs, solveTally };
 }
 
 // --- rendering ---
@@ -342,6 +356,20 @@ function renderMarkdown(model, meta) {
   }
   L.push('');
 
+  L.push('## Solve rates (all candidates)');
+  L.push('');
+  L.push('Solve rate per candidate × arm across all trials (including those without transcripts).');
+  L.push('');
+  L.push('| problem | arm | solved | total | rate |');
+  L.push('| --- | --- | ---: | ---: | ---: |');
+  for (const [problem, arms] of Object.entries(model.solveTally).sort()) {
+    for (const [arm, tally] of Object.entries(arms).sort()) {
+      const rate = tally.total ? (tally.solved / tally.total).toFixed(3) : 'n/a';
+      L.push(`| ${problem} | ${arm} | ${tally.solved} | ${tally.total} | ${rate} |`);
+    }
+  }
+  L.push('');
+
   L.push('## Contamination & drop notes');
   L.push('');
   if (model.contaminated.length) {
@@ -397,7 +425,7 @@ function main() {
   const jsonPath = path.join(outDir, 'report.json');
 
   fs.writeFileSync(mdPath, renderMarkdown(model, meta));
-  fs.writeFileSync(jsonPath, JSON.stringify({ meta, rows: model.rows, ratios: model.ratios, v4: model.v4, contaminated: model.contaminated, dropped: model.dropped, unreadable: model.unreadable, runs: model.runs }, null, 2));
+  fs.writeFileSync(jsonPath, JSON.stringify({ meta, rows: model.rows, ratios: model.ratios, v4: model.v4, solveTally: model.solveTally, contaminated: model.contaminated, dropped: model.dropped, unreadable: model.unreadable, runs: model.runs }, null, 2));
 
   process.stderr.write(`bench-report: ${results.length} runs -> ${mdPath}, ${jsonPath}\n`);
   if (model.contaminated.length) process.stderr.write(`bench-report: WARNING ${model.contaminated.length} contaminated OFF-arm run(s)\n`);

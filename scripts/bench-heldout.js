@@ -28,7 +28,7 @@ function arg(name, def) {
 function consultMode() {
   const eq = process.argv.find((a) => a.startsWith('--consult='));
   let v = eq ? eq.split('=')[1] : arg('consult', process.env.BENCH_CONSULT || 'search');
-  return ['search', 'dagrag', 'mandatory', 'lean', 'permissive', 'gated'].includes(v) ? v : 'search';
+  return ['search', 'dagrag', 'mandatory', 'lean', 'permissive', 'gated', 'autonomous'].includes(v) ? v : 'search';
 }
 const MODEL = arg('model', 'opus');
 
@@ -129,6 +129,8 @@ const PREAMBLE = {
     '(a) this task\'s DAG context via get_task_detail; AND (b) the knowledge base — call ' +
     'search_knowledge with a query describing this task and apply any relevant retrieved note. ' +
     'Combine both before coding. Graph is READ-ONLY — do NOT create/modify/claim/complete nodes.\n\n',
+  autonomous:
+    'You have the orchestrator-graph MCP available. Graph is READ-ONLY — do NOT create, modify, claim, or complete any tasks/nodes.\n\n',
   // GATE-FIRST consult: ask the context-need gate, retrieve only on decision:"inject".
   gated:
     'You have the orchestrator-graph MCP. Call search_knowledge EXACTLY ONCE with gated:true before writing code. ' +
@@ -163,6 +165,11 @@ function main() {
   // not the worktree, so removing these files here has no effect on scoring.
   fs.rmSync(path.join(wt, 'bench', 'heldout', 'graders'), { recursive: true, force: true });
   fs.rmSync(path.join(wt, 'bench', 'heldout', 'frozen'), { recursive: true, force: true });
+  // Strip the graph store (KB materialized as raw JSONL files) so OFF-arm agents cannot read notes
+  // through the filesystem back-door. ON-arm agents access KB via MCP → live daemon, which is correct.
+  fs.rmSync(path.join(wt, '.graph'), { recursive: true, force: true });
+  // Strip prior bench results — contains solve/fail status of prior trials.
+  fs.rmSync(path.join(wt, 'bench', 'heldout', 'results-heldout.jsonl'), { force: true });
   const specsDir = path.join(wt, 'bench', 'heldout', 'specs');
   const thisSpec = path.resolve(path.join(wt, cfg.spec));
   try {
