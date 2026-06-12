@@ -352,7 +352,7 @@
 <!-- cron token usage popup -->
 <div id="cronPopup">
   <span class="appclose" onclick="document.getElementById('cronPopup').classList.remove('show')">✕</span>
-  <section class="feed"><h2 style="margin-left:0">Cron token usage</h2><div id="cronbody"><div class="empty">loading…</div></div></section>
+  <section class="feed"><h2 style="margin-left:0">Harness cost (cron + scheduled)</h2><div id="cronbody"><div class="empty">loading…</div></div></section>
 </div>
 <!-- note-inspect modal: lives OUTSIDE #guidance so triage re-renders can't close it -->
 <div id="noteOverlay" onclick="if(event.target===this)closeNotePopup()"><div id="notePopup"></div></div>
@@ -4192,6 +4192,7 @@ let cloudSig='';               // signature of node/link set; only reheat sim wh
 let flowZoom=null;             // shared d3.zoom on the dagre svg (Frontier + Focus)
 const dagState={frontier:{init:false,tf:null}, focus:{init:false,tf:null}};  // per-view pan/zoom, so switching doesn't lose it
 function truncate(s,n){ s=String(s||''); return s.length>n?s.slice(0,n)+'…':s; }
+function wrapLabel(s,perLine){ s=String(s||''); const lines=[]; while(s.length>perLine){ let cut=s.lastIndexOf(' ',perLine); if(cut<Math.floor(perLine*0.5)) cut=perLine; lines.push(s.slice(0,cut)); s=s.slice(cut).trimStart(); } if(s) lines.push(s); return lines; }
 async function openDetail(key){
   selected=key; document.getElementById('panel').classList.add('open');
   const pad=document.getElementById('pad'); pad.innerHTML='loading…';
@@ -4330,7 +4331,7 @@ async function tick(){
     `<span class="hlabel">Productive Tok</span><span class="hval green">${prodTok}</span>` +
     `<span class="hval-sub">${totalTok} total · ${prodPct!=null?prodPct+'%':'—'}</span>` +
     `<span class="htip"><div class="tip-title">Productive Tokens</div>` +
-    `Tokens from AI output that actually landed as committed work — not retries, reverts, or trapped loops.` +
+    `Output tokens only that flowed to git-merged work (verified merges — agent self-reported done doesn't count). Not retries, reverts, or trapped loops.` +
     `<div class="tip-bench" style="margin-top:8px">` +
     `<div style="display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:10px;color:#8b949e">` +
     `<span>✓ Productive</span><b style="color:#3fb950">${prodTok}</b>` +
@@ -4352,9 +4353,9 @@ async function tick(){
     `</span>` +
     `</span>` : '') +
     `<span class="hero" id="hero-infra" onclick="toggleBillingPopup()">` +
-    `<span class="hlabel">Infra Tok</span><span class="hval" style="color:#8b949e">${cronTokCache!=null?fmtK(cronTokCache):'—'}</span>` +
+    `<span class="hlabel">HARNESS COST</span><span class="hval" style="color:#8b949e">${cronTokCache!=null?fmtK(cronTokCache):'—'}</span>` +
     `<span class="hval-sub">cron only</span>` +
-    `<span class="htip"><div class="tip-title">Infra Overhead</div>Tokens spent by Zonoid's own machinery — cron heartbeats, classifier, gate checks, nudges. This is added to your Anthropic bill on top of your productive work. Click Billing for the full breakdown.</span>` +
+    `<span class="htip"><div class="tip-title">Harness cost</div>Tokens spent by Zonoid's own machinery — cron heartbeats, classifier, gate checks, nudges. This is added to your Anthropic bill on top of your productive work. Click Billing for the full breakdown.</span>` +
     `</span>` +
     `<span class="hero" onclick="toggleBillingPopup()">` +
     `<span class="hlabel">Billing</span><span class="hval" style="color:#d29922">${billStr}</span>` +
@@ -4871,9 +4872,12 @@ function renderDagSubset(view, nodes, links, byId){
   const sub=links.filter(l=>ids.has(l.from)&&ids.has(l.to));
   document.getElementById('flowgraph').style.display = nodes.length?'block':'none';
 
-  const NW=210, NH=52;
+  const NW=220, NH_BASE=52, NH_EXTRA=16, CHARS_PER_LINE=28;
+  const nodeLabel=t=>(t.kind==='note'?(t.validTo?'🕓 ':'📌 '):'')+t.label;
+  const nodeLines=t=>wrapLabel(nodeLabel(t),CHARS_PER_LINE);
+  const nodeH=t=>NH_BASE+Math.max(0,nodeLines(t).length-1)*NH_EXTRA;
   const g=new dagre.graphlib.Graph(); g.setGraph({rankdir:'LR', nodesep:24, ranksep:64, marginx:20, marginy:20}); g.setDefaultEdgeLabel(()=>({}));
-  for(const t of nodes) g.setNode(t.id,{width:NW,height:NH});
+  for(const t of nodes) g.setNode(t.id,{width:NW,height:nodeH(t)});
   for(const l of sub) g.setEdge(l.from,l.to,{kind:l.kind,w:l.w});
   dagre.layout(g);
   const gw=Math.max(g.graph().width||0,50), gh=Math.max(g.graph().height||0,50);
@@ -4909,20 +4913,25 @@ function renderDagSubset(view, nodes, links, byId){
   const np=root.select('g.fnodes').selectAll('g.fn').data(nodes, t=>t.id);
   np.exit().remove();
   const en=np.enter().append('g').attr('class','fn');
-  en.append('rect').attr('class','fhalo').attr('rx',11).attr('x',-NW/2-4).attr('y',-NH/2-4).attr('width',NW+8).attr('height',NH+8).attr('fill','none').attr('stroke','#58a6ff');
-  en.append('rect').attr('class','fbg').attr('width',NW).attr('height',NH).attr('rx',8).attr('x',-NW/2).attr('y',-NH/2);
-  en.append('rect').attr('class','flbar').attr('width',4).attr('height',NH).attr('x',-NW/2).attr('y',-NH/2);
-  en.append('text').attr('class','fttl').attr('x',-NW/2+12).attr('y',-2);
-  en.append('text').attr('class','fst').attr('x',-NW/2+12).attr('y',16);
+  en.append('rect').attr('class','fhalo').attr('rx',11).attr('fill','none').attr('stroke','#58a6ff');
+  en.append('rect').attr('class','fbg').attr('rx',8).attr('x',-NW/2);
+  en.append('rect').attr('class','flbar').attr('width',4).attr('x',-NW/2);
+  en.append('text').attr('class','fttl').attr('x',-NW/2+12);
+  en.append('text').attr('class','fttl2').attr('x',-NW/2+12);
+  en.append('text').attr('class','fst').attr('x',-NW/2+12);
   const na=en.merge(np);
+  na.select('.fhalo').attr('x',-NW/2-4).attr('y',t=>-nodeH(t)/2-4).attr('width',NW+8).attr('height',t=>nodeH(t)+8);
+  na.select('.fbg').attr('width',NW).attr('height',t=>nodeH(t)).attr('y',t=>-nodeH(t)/2);
+  na.select('.flbar').attr('height',t=>nodeH(t)).attr('y',t=>-nodeH(t)/2);
   const isFocus=t=>view==='focus'&&t.id===focusedId;   // focused node: halo + slightly larger
   na.attr('transform',t=>{ const n=g.node(t.id); return `translate(${n.x},${n.y})`+(isFocus(t)?' scale(1.12)':''); });
   na.select('.fbg').attr('fill','#161b22').attr('stroke',t=>isFocus(t)?'#e3b341':t.id===selected?'#58a6ff':'#30363d').attr('stroke-width',t=>isFocus(t)?2.5:t.id===selected?2:1);
   na.select('.flbar').attr('fill',t=>STATUS_COLOR[t.status]||'#6e7681');
-  na.select('.fttl').attr('fill','#e6edf3').attr('font-weight',600).text(t=>(t.kind==='note'?(t.validTo?'🕓 ':'📌 '):'')+truncate(t.label,t.kind==='note'?22:24));
+  na.select('.fttl').attr('fill','#e6edf3').attr('font-weight',600).attr('y',t=>nodeLines(t).length>1?-nodeH(t)/2+18:-2).text(t=>nodeLines(t)[0]);
+  na.select('.fttl2').attr('fill','#e6edf3').attr('font-weight',600).attr('font-size',13).attr('y',t=>nodeLines(t).length>1?-nodeH(t)/2+34:0).attr('opacity',t=>nodeLines(t).length>1?1:0).text(t=>{ const ls=nodeLines(t); return ls.length>1?ls.slice(1).join(' '):''; });
   // Superseded notes (validTo set) read as dimmed history; current/active notes stay full-opacity.
   na.attr('opacity', t=>(t.kind==='note'&&t.validTo)?0.5:1);
-  na.select('.fst').attr('fill',t=>STATUS_COLOR[t.status]||'#8b949e').text(t=>(t.kind==='note'?(t.validTo?'superseded':(t.supersedes?'current ✓':'note')):t.status.replace('_',' '))+(t.agent_id?' ▶'+t.agent_id:''));
+  na.select('.fst').attr('fill',t=>STATUS_COLOR[t.status]||'#8b949e').attr('y',t=>nodeLines(t).length>1?nodeH(t)/2-10:16).text(t=>(t.kind==='note'?(t.validTo?'superseded':(t.supersedes?'current ✓':'note')):t.status.replace('_',' '))+(t.agent_id?' ▶'+t.agent_id:''));
   na.on('click',(ev,t)=>openDetail(t.id));
   na.classed('wip', t=>t.status==='in_progress');   // pulsing WIP halo
   na.classed('focused', isFocus);                   // steady amber halo on the focused node
@@ -5120,7 +5129,7 @@ async function toggleBillingPopup(){
 
     `<div class="bpdiv"></div>`+
 
-    `<div class="bpsec"><h3>Infra Overhead (Zonoid's own cost)</h3>`+
+    `<div class="bpsec"><h3>Harness cost (Zonoid's own machinery)</h3>`+
     `<div class="bprow"><span class="bpdot" style="background:#8b949e"></span><span class="bplabel">Cron runs (heartbeat, recovery, KB)</span><span class="bpnum">${fmtK(cronTotal)}</span><span class="bpcost">${fmtUSD(cronCost)}</span></div>`+
     `<div class="bprow" style="padding-left:16px"><span class="bplabel" style="color:#6e7681;font-size:11px">input</span><span class="bpnum">${fmtN(cronIn)}</span></div>`+
     `<div class="bprow" style="padding-left:16px"><span class="bplabel" style="color:#6e7681;font-size:11px">output</span><span class="bpnum">${fmtN(cronOut)}</span></div>`+
@@ -5143,7 +5152,7 @@ async function toggleBillingPopup(){
     `<div class="bpdiv"></div>`+
 
     `<div class="bptotal"><span>Task sessions est.</span><span style="color:#d29922">${fmtUSD(totalCost)}</span></div>`+
-    `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ infra overhead</span><span style="color:#8b949e;font-size:11px">${fmtUSD(cronCost)}</span></div>`+
+    `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ harness cost</span><span style="color:#8b949e;font-size:11px">${fmtUSD(cronCost)}</span></div>`+
     `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px"><span>Total est.</span><span style="color:#d29922">${fmtUSD(totalCost+cronCost)}</span></div>`+
     `<div style="margin-top:8px;font-size:10px;color:#6e7681">Rates: Sonnet $3/$15/M · Opus $15/$75/M · Haiku $0.8/$4/M (input/output). Cache reads at 10% of input rate.</div>`+
     `<div style="margin-top:6px;font-size:10px;color:#484f58">Data as of ${new Date().toLocaleTimeString()} · daemon re-reads transcripts every ~4s</div>`;

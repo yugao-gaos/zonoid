@@ -2821,6 +2821,9 @@ const handler = async (req, res) => {
     // autonomy_score = productive tokens ÷ genuinely human-TYPED input tokens parsed from the
     // workspace's main-session transcripts (lib/human-input.js). ?since=ISO bounds the HUMAN-INPUT
     // window only (graph tokens are lifetime-of-task). Conservation: productive + trapped == total.
+    // STRICT mode: merged = git-VERIFIED merge only (agent self-reported "done" earns no productive
+    // credit), and the flow runs over OUTPUT tokens only — input/cache tokens are reported raw for
+    // transparency but never counted as "produced". totals.total is the output-only flow total.
     if (p === '/costflow' && m === 'GET') {
       const T = targetOverlay(null, u);
       if (!T.ws) return send(res, 400, { ok: false, error: 'no workspace set' });
@@ -2832,7 +2835,9 @@ const handler = async (req, res) => {
         transcript: taskTranscript(t.id, t.session, true, stWs),
         window: { start: t.firstSeen, end: t.lastChanged },
       }));
-      const ownTok = costflow.splitSessionTokens(claims, usageCached);
+      // strict flow: claim splits over OUTPUT tokens only (raw input/cache stay display-only below)
+      const usageOutputOnly = (tp) => { const u2 = usageCached(tp); return { total: (u2 && u2.output_tokens) || 0 }; };
+      const ownTok = costflow.splitSessionTokens(claims, usageOutputOnly);
       // Sum raw per-category + per-model tokens across ALL transcripts (tasks + session files)
       let rawInput=0, rawOutput=0, rawCacheRead=0;
       const rawByModel={};
@@ -2845,7 +2850,7 @@ const handler = async (req, res) => {
       // 2) nodes + contributor→consumer edges (deps weigh 1.0; context edges their stored weight)
       // exploration flag: attempt branches are valuable search cost, not pure waste
       const isExplorationTask = (t) => !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
-      const nodes = g.tasks.map((t) => ({ id: t.id, own: ownTok.get(t.id) || 0, merged: !!(t.git && t.git.merged) || t.status === 'done', exploration: isExplorationTask(t), label: t.label }));
+      const nodes = g.tasks.map((t) => ({ id: t.id, own: ownTok.get(t.id) || 0, merged: !!(t.git && t.git.merged), exploration: isExplorationTask(t), label: t.label }));
       const seen = new Set(nodes.map((n) => n.id));
       for (const gh of g.ghosts) {
         const gid = `ghost:${gh.workspace}|${gh.key}`;
@@ -2868,7 +2873,7 @@ const handler = async (req, res) => {
       try { sessFiles = fs.readdirSync(projDir, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith('.jsonl')); } catch { /* no transcripts yet */ }
       const sessions = sessFiles.map((e) => {
         const tp = path.join(projDir, e.name);
-        let total = 0; try { total = ((usageCached(tp) || {}).total) || 0; } catch { total = 0; }
+        let total = 0; try { total = ((usageCached(tp) || {}).output_tokens) || 0; } catch { total = 0; }
         return { id: e.name.slice(0, -'.jsonl'.length), total, claimed: claimedByTp.get(tp) || 0 };
       });
       const catchalls = costflow.sessionCatchalls(sessions, g.tasks, overlayStore.DEFAULT_CONTEXT_WEIGHT);

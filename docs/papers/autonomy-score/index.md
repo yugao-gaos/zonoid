@@ -2,13 +2,13 @@
 
 **Zonoid self-learning loop · Case study 002 · June 2026**
 
-> **Observed values (2026-06-11):** Autonomy score **103.5×** — 103.5 productive output tokens per human-typed input token. Productive token %: **92%** (16.1M of 17.5M total tokens flowed to merged work). These numbers describe one session on one project; external validity is unknown.
+> **Observed values (2026-06-11, strict mode):** Autonomy score **72×** — 72 productive output tokens per human-typed input token. Productive token %: **75.4%** (11.6M of 15.4M output tokens flowed to git-verified merged work). The earlier lenient figure (103.5× / 92%, which counted agent self-reported "done" as merged and ran the flow over input+output tokens) is superseded. These numbers describe one session on one project; external validity is unknown.
 
 ---
 
 ## Abstract
 
-We introduce two metrics for quantifying the autonomous leverage of a coding-agent orchestrator: **Autonomy Score** (productive output tokens per human-typed input token) and **Productive Token %** (fraction of total tokens that flowed to merged work). We describe their implementations in Zonoid (`lib/human-input.js` and `lib/costflow.js`), explain the key engineering choices — a token cost-flow model over the task graph, and a conservative definition of "human input" that strips all machine-injected content. On a single session measured 2026-06-11 we observe an autonomy score of 103.5× and a productive % of 92%. We are honest about what these numbers do and do not imply: they are internal consistency metrics on a task graph, not direct measurements of real-world developer productivity, and the industry evidence on AI-assisted coding productivity is at best mixed and at worst negative for experienced developers.
+We introduce two metrics for quantifying the autonomous leverage of a coding-agent orchestrator: **Autonomy Score** (productive output tokens per human-typed input token) and **Productive Token %** (fraction of total tokens that flowed to merged work). We describe their implementations in Zonoid (`lib/human-input.js` and `lib/costflow.js`), explain the key engineering choices — a token cost-flow model over the task graph, and a conservative definition of "human input" that strips all machine-injected content. On a single session measured 2026-06-11 we observe, under strict accounting (git-verified merges only, output-token flow), an autonomy score of 72× and a productive % of 75.4%. We are honest about what these numbers do and do not imply: they are internal consistency metrics on a task graph, not direct measurements of real-world developer productivity, and the industry evidence on AI-assisted coding productivity is at best mixed and at worst negative for experienced developers.
 
 ---
 
@@ -16,12 +16,13 @@ We introduce two metrics for quantifying the autonomous leverage of a coding-age
 
 Token dashboards for AI coding tools typically report total spend and per-session cost. They do not answer the question a developer actually cares about: **for each token of human effort I put in, how many tokens of productive output did the system generate on my behalf?**
 
-Two failure modes are invisible to raw token counts:
+Three failure modes are invisible to raw token counts:
 
 1. **Waste**: agents that consume tokens but produce work that never lands to git. High total spend, low productive output.
 2. **Human overhead inflation**: systems that require extensive human steering — repeated corrections, clarification loops, copy-paste of generated context. High human input, moderate output.
+3. **Outcome inefficiency**: the same outcome can cost wildly different token amounts depending on model and harness. A verbose model that lands a task for 5M tokens scores *higher* autonomy than an efficient one that lands it for 500k — the metric rewards volume, not efficiency.
 
-Autonomy Score and Productive Token % are designed to surface both failure modes in a single session.
+Autonomy Score and Productive Token % surface the first two in live telemetry. The third is not measurable in live sessions — outcome units vary from task to task, and run-to-run token variance on the same fixed task is up to 30× (Stanford/Microsoft, 2026) — it is measurable only under a controlled bench protocol; see §7.
 
 ---
 
@@ -33,7 +34,7 @@ Autonomy Score and Productive Token % are designed to surface both failure modes
 autonomy_score = productive_output_tokens ÷ human_typed_input_tokens
 ```
 
-A score of 100× means the orchestrator generated 100 productive output tokens for every token the human typed. The metric is dimensionless and scale-independent — a session with 1M tokens and one with 100M tokens are directly comparable.
+A score of 100× means the orchestrator generated 100 productive output tokens for every token the human typed. The metric is dimensionless and scale-independent — a session with 1M tokens and one with 100M tokens are directly comparable. Strict mode: only git-verified merges count as productive sinks, and the flow runs over output tokens only; agent self-reported completion earns no credit.
 
 ### 2.2 Productive Token %
 
@@ -55,7 +56,7 @@ Conservation law: `productive + trapped + exploration = total` (exact, up to flo
 
 ## 3. The Denominator Problem
 
-"Human input tokens" is harder to define than it appears. A raw count of `role:user` message tokens includes:
+"Human input tokens" is harder to define than it appears. The machine-injected categories below are collectively the **harness cost** — tokens the orchestration machinery itself injects, which must not be confused with human steering effort (the dashboard reports this same category as "Harness cost"). A raw count of `role:user` message tokens includes:
 
 - **Tool result payloads** — returned by `bash`, `read`, MCP calls. These are model outputs and system data, not human typing.
 - **`<system-reminder>` blocks** — injected by the harness at every turn; can be 2,000–8,000 tokens each.
@@ -81,7 +82,7 @@ Every task node owns tokens proportional to its share of the session transcript,
 
 ### 4.2 Sink and trap rules
 
-- A **merged** node (work landed to git main) is a **productive sink** — it claims its accumulated tokens and passes 0 downstream. Its tokens count as productive.
+- A **merged** node (git-verified merge to main — agent self-reported "done" does NOT count) is a **productive sink** — it claims its accumulated tokens and passes 0 downstream. Its tokens count as productive.
 - A **terminal non-merged** node **traps** its tokens. They count as waste (or exploration if tagged).
 - Sessions with no task outputs get **catch-all nodes**; their cost flows to productive only if they steered merged work downstream via context edges.
 
@@ -89,25 +90,30 @@ Every task node owns tokens proportional to its share of the session transcript,
 
 Context edges in the task graph create dependencies between nodes. A merged node's productive status propagates upstream: tasks that produced context consumed by a merged node are credited as productive contributors.
 
-Strongly connected components (cycles via context edges) are condensed into super-nodes using Tarjan's algorithm before flow runs in topological order. This prevents infinite flow loops in cyclic task graphs.
+The task graph is a **directed acyclic graph (DAG)** by construction at the component level: context edges may form cycles between tasks, so Tarjan SCC condensation collapses any cycle into a single super-node, and the condensation is always a DAG over which flow runs in topological order.
+
+Edge wiring is **weighted by relevance**: blocking dependency edges carry weight 1.0; context edges carry a stored relevance weight (default 0.5, set from semantic similarity at suggest_links/autowire time). A node's accumulated tokens split across outgoing edges proportionally to these weights (T·w/W).
 
 ---
 
 ## 5. Observed Values
 
-Measured 2026-06-11 on the Zonoid project:
+Measured 2026-06-11 on the Zonoid project, strict mode (output-token flow, git-verified sinks only):
 
 | Metric | Value |
 |--------|-------|
-| Total session tokens | 17.5M |
-| Productive tokens | 16.1M |
-| Productive % | **92%** |
-| Human-typed input tokens (estimated) | ~155,600 |
-| Autonomy score | **103.5×** |
+| Total output tokens (flow total) | 15.41M |
+| Productive tokens | 11.61M |
+| Productive % | **75.4%** |
+| Trapped (waste) tokens | 3.80M |
+| Human-typed input tokens (estimated) | ~161,300 |
+| Autonomy score | **72×** |
 
-The 8% non-productive tokens are split between trapped waste (tasks that were started but abandoned or superseded) and exploration tasks. No large exploration-tagged sessions were present in this measurement window.
+For context, the raw transcript sums are 2.3M input tokens, 15.4M output tokens, and 1.94B cache-read tokens; the flow runs over output tokens only. No exploration-tagged components were present in this measurement window.
 
-The autonomy score of 103.5× means the orchestrator generated roughly 103 productive output tokens for every token the human typed — steering, corrections, task definitions, and questions included.
+The autonomy score of 72× means the orchestrator generated roughly 72 git-verified productive output tokens for every token the human typed — steering, corrections, task definitions, and questions included.
+
+**Strict vs lenient.** The lenient computation (agent self-reported "done" counted as a merged sink, and the flow run over input+output tokens) gave 103.5× / 92%. The strict recomputation — productive credit only for git-verified merges, output tokens only — gives 72× / 75.4%. The gap between self-reported and verified productivity within the SAME system mirrors the self-report-vs-measurement gap documented in human studies (METR 2025: believed +20%, measured −19%).
 
 ---
 
@@ -123,21 +129,23 @@ These metrics exist in a vacuum: no vendor publishes autonomy score or productiv
 
 **Token economics:** Agentic sessions have roughly a 25:1 input-to-output ratio (Vantage, 2026), meaning output tokens are the expensive minority. A high autonomy score reflects a large multiplier on this minority — but total cost still scales with the numerator.
 
-The gap between Zonoid's 103.5× autonomy score and the METR finding of 19% slowdown is not a contradiction. Autonomy score measures token leverage within the system, not wall-clock developer productivity. A system could in principle generate many productive tokens while simultaneously increasing the human overhead of integration, review, and steering in ways not captured by either metric.
+The gap between Zonoid's 72× autonomy score and the METR finding of 19% slowdown is not a contradiction. Autonomy score measures token leverage within the system, not wall-clock developer productivity. A system could in principle generate many productive tokens while simultaneously increasing the human overhead of integration, review, and steering in ways not captured by either metric.
 
 ---
 
 ## 7. Limitations
 
-**Single session, single project.** The 103.5× and 92% figures are from one measured session on the Zonoid project. The project is purpose-built to run coding agents; its task graph, merge rate, and human steering patterns are not representative of general software development.
+**Single session, single project.** The 72× and 75.4% figures are from one measured session on the Zonoid project. The project is purpose-built to run coding agents; its task graph, merge rate, and human steering patterns are not representative of general software development.
 
 **Cost-flow model assumptions.** Token ownership by claim-window duration is a proxy. In reality, a short high-leverage task may deserve more credit than a long exploratory one. The model does not distinguish token quality, only token volume.
 
 **Human input estimation.** The `chars ÷ 3.8` estimate introduces noise. Short, high-entropy commands (e.g. `orch off`) are underweighted; long prose corrections are more accurately estimated.
 
-**Productive ≠ correct.** Tokens that flow to a merged task are called productive. But merged work can still contain bugs, introduce regressions, or require immediate follow-up. The metric measures landing rate, not quality. Paper 001 (KB Injection Lifts Agent Solve Rate) addresses agent correctness separately.
+**Productive ≠ correct.** Tokens that flow to a merged task are called productive. Merged-verification is strict — only a git-verified merge to main counts, never agent self-report — but merged work can still contain bugs, introduce regressions, or require immediate follow-up. The metric measures landing rate, not quality. Paper 001 (KB Injection Lifts Agent Solve Rate) addresses agent correctness separately.
 
 **No causal claim on human productivity.** Autonomy score does not measure whether the developer shipped more, shipped faster, or shipped better software. It measures the token leverage ratio within the orchestrator. The METR RCT evidence suggests the mapping from token leverage to human productivity is nontrivial and potentially negative in some regimes.
+
+**Outcome inefficiency is invisible.** The metrics cannot distinguish an efficient model from a verbose one — landing the same task for 500k tokens or 5M tokens looks like more autonomy in the second case. Cost-per-outcome is a benchmark metric, not a telemetry metric: it requires fixed tasks and repeated trials. Paper 001's expected-token-cost-to-first-correct-solution, where ON was 1.28× cheaper, is the controlled version of this measurement.
 
 **Exploration tagging is self-reported.** Whether a terminal task is classified as intentional exploration or waste depends on the task's tags in the graph. Miscategorized exploration inflates productive %, and miscategorized waste deflates it.
 
