@@ -1,0 +1,3 @@
+{"evt":"status_changed","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/33","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T14:03:35.843Z"}
+{"evt":"assignee_set","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/33","workspace":"/Users/imyu/Desktop/zonoid","assignee":"fix-orch-gate-bash","actor":"overlay-sync","ts":"2026-06-12T14:03:35.843Z"}
+{"evt":"timestamps_set","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/33","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T14:03:35.842Z","lastChanged":"2026-06-12T14:03:35.842Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-12T14:03:35.843Z"}
