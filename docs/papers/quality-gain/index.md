@@ -303,6 +303,13 @@ health (no competing notes) is a prerequisite for reliable injection.
 
 ### What it doesn't show
 
+- **Whole-product performance**: this measures the **KB-injection (RAG) mechanism in isolation** — a
+  single gated `search_knowledge` retrieval into one task's context. It does **not** measure Zonoid's
+  full pipeline: DAG context flow across wired tasks, multi-task orchestration, the task graph, or the
+  autonomous loop. The +18/+22pp are evidence for the retrieval/gate component, not a whole-product
+  ON-vs-OFF orchestrator result. Whole-product evaluation (full orchestrator vs plain agent on
+  context-required, interdependent tasks) is a separate effort.
+
 - **Expected-cost advantage**: The ON arm's 2.1× per-trial cost premium partially offsets the
   fewer-attempts benefit. At 64% vs 82% (overlay-save), expected cost to first solution does not
   clearly favor ON (see §2.4). A stronger lift (e.g. 10% → 80%) would tip the arithmetic.

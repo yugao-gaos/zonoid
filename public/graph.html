@@ -11,7 +11,7 @@
   h1 { font-size: 15px; margin: 0; font-weight: 700; letter-spacing: -.01em; display: flex; align-items: center; gap: 8px; }
   .logo-mark { display: block; flex-shrink: 0; }
   .hd-left { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-  .hd-mid  { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding-top: 10px; }
+  .hd-mid  { flex: 1; min-width: 0; overflow: hidden; display: flex; align-items: flex-start; justify-content: center; padding-top: 10px; }
   .hd-right{ display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
   .settings-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; font-family: inherit; }
   .settings-btn:hover { background: #161b22; color: #e6edf3; }
@@ -35,13 +35,13 @@
   .spsave:hover { background: #1f6feb55; }
   .sum span { color: #8b949e; } .sum b { color: #e6edf3; }
   /* hero metrics */
-  .hero { display: inline-flex; flex-direction: column; align-items: center; padding: 0 20px; cursor: pointer; border-right: 1px solid #21262d; position: relative; }
+  .hero { display: inline-flex; flex-direction: column; align-items: center; padding: 0 clamp(8px, 1.4vw, 20px); cursor: pointer; border-right: 1px solid #21262d; position: relative; }
   .hero:last-of-type { border-right: none; }
-  .hero .hlabel { font-size: 9px; text-transform: uppercase; letter-spacing: .09em; color: #6e7681; margin-bottom: 1px; }
-  .hero .hval { font-size: 20px; font-weight: 800; line-height: 1; color: #e6edf3; font-variant-numeric: tabular-nums; }
+  .hero .hlabel { font-size: 9px; text-transform: uppercase; letter-spacing: .09em; color: #6e7681; margin-bottom: 1px; white-space: nowrap; }
+  .hero .hval { font-size: clamp(14px, 1.4vw, 20px); font-weight: 800; line-height: 1; color: #e6edf3; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .hero .hval.accent { color: #79c0ff; }
   .hero .hval.green  { color: #3fb950; }
-  .hero .hval-sub { font-size: 10px; color: #6e7681; margin-top: 2px; font-weight: 400; font-variant-numeric: tabular-nums; }
+  .hero .hval-sub { font-size: 10px; color: #6e7681; margin-top: 2px; font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .hero .htip { display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 220px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px 12px; font-size: 11px; line-height: 1.5; color: #c9d1d9; z-index: 200; pointer-events: none; text-align: left; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
   .hero .htip .tip-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #8b949e; margin-bottom: 4px; }
   .hero .htip .tip-bench { margin-top: 8px; padding-top: 8px; border-top: 1px solid #21262d; }
@@ -4431,7 +4431,7 @@ async function tick(){
     `<div style="font-size:10px;color:#8b949e">You: <b style="color:${autoColor}">${autoScore}</b> · Median: ${autoMedian}× · ${autoVs}</div></div></span>` +
     `</span>` +
     `<span class="hero" onclick="toggleCostPopup()">` +
-    `<span class="hlabel">Productive Tok</span><span class="hval" style="color:${prodBarColor}">${prodPct!=null?prodPct+'%':'—'}</span>` +
+    `<span class="hlabel">Productivity</span><span class="hval" style="color:${prodBarColor}">${prodPct!=null?prodPct+'%':'—'}</span>` +
     `<span class="hval-sub">${prodTok} · ${totalTok} total</span>` +
     `<span class="htip"><div class="tip-title">Productive Tokens</div>` +
     `Output tokens only (not input/cache). Attributed per task by claim-window duration, then flowed through the task DAG — only tokens that reached a git-merged task count as productive.` +
@@ -5221,9 +5221,13 @@ async function toggleBillingPopup(){
   const fmtN=n=>n==null?'—':Number(n).toLocaleString();
 
   const totalCost=Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[m,v])=>s+modelCost(m,v),0);
-  const productive=t.productive||0, trapped=t.trapped||0, totalTok=(t.total||0);
+  const productive=t.productive||0, exploration=t.exploration||0, trapped=t.trapped||0;
+  const totalTok=t.output_tokens||t.total||0;
+  const unattributed=Math.max(0,totalTok-productive-exploration-trapped);
   const prodPct=totalTok>0?Math.round(productive/totalTok*100):0;
+  const explPct=totalTok>0?Math.round(exploration/totalTok*100):0;
   const trapPct=totalTok>0?Math.round(trapped/totalTok*100):0;
+  const unattPct=totalTok>0?Math.round(unattributed/totalTok*100):0;
 
   const modelRows=Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&((bm[m].input_tokens||0)+(bm[m].output_tokens||0))>0)
     .sort(([,a],[,b])=>(b.output_tokens||0)-(a.output_tokens||0))
@@ -5237,30 +5241,13 @@ async function toggleBillingPopup(){
     }).join('');
 
   el.innerHTML=
-    `<div class="bpsec"><h3>Token Economy</h3>`+
-    `<div class="bprow"><span class="bpdot" style="background:#3fb950"></span><span class="bplabel">Productive</span><span class="bpnum">${fmtK(productive)}</span><span class="bpcost" style="color:#3fb950">${prodPct}%</span></div>`+
-    `<div class="bpbar"><div class="bpbar-fill" style="width:${prodPct}%;background:#3fb950"></div></div>`+
-    `<div class="bprow"><span class="bpdot" style="background:#484f58"></span><span class="bplabel">Trapped / wasted</span><span class="bpnum">${fmtK(trapped)}</span><span class="bpcost" style="color:#6e7681">${trapPct}%</span></div>`+
-    `<div class="bpbar"><div class="bpbar-fill" style="width:${trapPct}%;background:#484f58"></div></div>`+
-    `</div>`+
-
-    `<div class="bpdiv"></div>`+
-
     `<div class="bpsec"><h3>By Model</h3>${modelRows}</div>`+
-
-    `<div class="bpdiv"></div>`+
-
-    `<div class="bpsec"><h3>Human Input</h3>`+
-    `<div class="bprow"><span class="bplabel">Messages</span><span class="bpnum">${fmtN(human.messages)}</span></div>`+
-    `<div class="bprow"><span class="bplabel">Input tokens</span><span class="bpnum">${fmtN(human.tokens)}</span></div>`+
-    `<div class="bprow"><span class="bplabel">Autonomy ratio</span><span class="bpnum" style="color:#79c0ff">${cf.autonomy_score!=null?cf.autonomy_score.toFixed(1)+'×':'—'}</span></div>`+
-    `</div>`+
 
     `<div class="bpdiv"></div>`+
 
     `<div class="bptotal"><span>Task sessions est.</span><span style="color:#d29922">${fmtUSD(totalCost)}</span></div>`+
     `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ cron/gate API cost (extra, not in sessions)</span><span style="color:#8b949e;font-size:11px">${fmtUSD(cronCost)}</span></div>`+
-    `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px"><span>Total est.</span><span style="color:#d29922">${fmtUSD(totalCost+cronCost)}</span></div>`+
+    `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px;font-size:15px;font-weight:700"><span>Total est. <span style="font-size:10px;font-weight:400;color:#484f58">this project</span></span><span style="color:#d29922;font-size:18px">${fmtUSD(totalCost+cronCost)}</span></div>`+
     (()=>{
       const tasks=(delta&&delta.tasks_created)||[];
       const oldest=tasks.reduce((min,tk)=>{ const at=Date.parse(tk.firstSeen||''); return(at&&at<min)?at:min; },Infinity);

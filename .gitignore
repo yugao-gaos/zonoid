@@ -48,3 +48,6 @@ bench/*.log
 # runtime artifacts (never commit)
 embed.pid
 logs/
+
+# Frozen .graph snapshot for the isolated bench daemon (generated, large, reproducible from .graph)
+bench/snapshot/

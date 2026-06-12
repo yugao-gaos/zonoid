@@ -91409,6 +91409,151 @@
       "measurements": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/7": {
+      "id": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/7",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Built two-lever block mechanism. Lever 1 (explicit block): setBlocked/clearBlocked/isBlocked helpers in lib/overlay.js; blocked map persisted in LOCAL_FIELDS; POST /overlay/block and /overlay/unblock endpoints in routes/overlay.js; block_task and unblock_task MCP tools in lib/mcp-core.js; enforcement in decideOne (daemon.js) excludes blocked tasks from ready pool (sticky, survives graph rebuilds); blocked field surfaced on buildGraph task nodes and /task/detail. Lever 2 (cost_gate): when ov.config.cost_gate is true, any ready task with a metric spec files a blocking guidance item (idempotent) and is auto-blocked; approving via /guidance/resolve decision:approve calls clearBlocked; cost_gate toggle added to /config endpoint. 37/37 new tests pass; label-pressure (24/24) and judge-pressure (11/11) regressions pass. Daemon restart required to activate.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Build expensive-task block mechanism (explicit block + auto-gate)",
+        "description": "Add a way to stop the autonomous loop from auto-dispatching tasks the user wants gated. TWO levers: (1) explicit per-task block — a sticky overlay flag blocked[task_key]={reason,at} set via new MCP tools block_task/unblock_task; the loop's dispatch path (decideAction/next_action spawn selection) skips blocked tasks entirely; sticky = only explicit unblock clears it, NOT auto-cleared by dep re-derivation (distinct from not_ready). (2) expensive auto-gate — a task flag cost:\"high\" (or metric/bench tasks) routes through the EXISTING guidance gate (request_guidance, held for user approval) instead of auto-spawning. Motivated by #29 (3-arm bench) being auto-run by the 2hr auto-accept. Needs daemon restart to activate.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T18:23:12.792Z"
+      },
+      "assignee": "block-mech",
+      "timestamps": {
+        "firstSeen": "2026-06-12T18:14:21.898Z",
+        "lastChanged": "2026-06-12T18:14:21.899Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/8": {
+      "id": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/8",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "1-trial smoke passed. All 9 cells solved. Pipeline producing sane cost-aware paired rows — GO on multi-trial.\n\nCELL RESULTS (3 candidates × 3 arms, trial 0):\n| candidate      | arm        | solved |\n|----------------|------------|--------|\n| bench-metric   | off        | YES 7/7|\n| bench-metric   | on-search  | YES 7/7|\n| bench-metric   | on-gated   | YES 7/7|\n| locale-sum     | off        | YES 15/15|\n| locale-sum     | on-search  | YES 15/15|\n| locale-sum     | on-gated   | YES 15/15|\n| interval-merge | off        | YES 10/10|\n| interval-merge | on-search  | YES 10/10|\n| interval-merge | on-gated   | YES 10/10|\n\nJOURNAL ROWS (from bench/heldout/learning-journal.jsonl, trial 0, gated arm paired with off):\n- bench-metric:   paired=true, solved_delta=0, cost_delta_output=+1138 tokens, gate=abstain (top1=0.516, reason=diffuse-match)\n- locale-sum:     paired=true, solved_delta=0, cost_delta_output=+8140 tokens, gate=inject  (top1=0.611, reason=sharp-specific-empirical)\n- interval-merge: paired=true, solved_delta=0, cost_delta_output=+904  tokens, gate=abstain (top1=0.379, reason=low-confidence)\n\nPIPELINE HEALTH CHECKS:\n✓ paired:true on all 3 rows (on+off arms matched correctly)\n✓ on.gate fully populated (decision, reason, top1, margin, gap, locality, topType, via) — transcript gate-extraction working\n✓ cost_delta_output NON-ZERO for all rows (2132→3270, 5555→13695, 746→1650 output tokens) — live token capture flowing\n✓ solved_delta present (all 0 — KB context neither helped nor hurt these already-solvable candidates)\n\nANOMALY: locale-sum on-gated used 13,695 output tokens vs 5,555 off — a 2.5× multiplier. Gate injected (inject decision), agent produced a notably more verbose solution. Worth watching across multi-trial to see if inject candidates systematically produce higher output costs even when solved_delta=0.\n\nVERDICT: YES — pipeline is producing sane cost-aware paired rows. Scale to multi-trial (task #29) is GO.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Smoke #29: 1-trial 3-arm × 3-candidate bench + validate learning-journal",
+        "description": "Pre-flight validation before the full multi-trial #29. Run candidates [bench-metric, locale-sum, interval-merge] × arms [off, on-search, on-gated] at trial 0 only (9 headless sonnet solves), then run the learning-journal reducer and confirm the pipeline produces sane cost-aware PAIRED rows (on.gate populated, token_cost non-zero now that capture is live, solved_delta/cost_delta_output present). If good, we scale to multi-trial on #29.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": "bench-smoke",
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T18:35:36.121Z"
+      },
+      "assignee": "bench-smoke",
+      "timestamps": {
+        "firstSeen": "2026-06-12T18:27:16.908Z",
+        "lastChanged": "2026-06-12T18:27:16.908Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/9": {
+      "id": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/9",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Full-suite bench smoke complete — 18/18 candidates × 3 arms at trial 0. Reducer run. Classification below.\n\n## 18-Candidate Classification Table (trial 0, last-wins per cell)\n\n| candidate       | off | search | gated | delta | gate.decision | gate.top1 | gate.reason            |\n|----------------|-----|--------|-------|-------|---------------|-----------|------------------------|\n| api-contract    | 0   | 1      | 0     | 0     | abstain       | 0.368     | low-confidence         |\n| bench-metric    | 1   | 1      | 1     | 0     | abstain       | 0.516     | diffuse-match          |\n| claim-task      | 1   | 1      | 1     | 0     | abstain       | 0.504     | non-empirical          |\n| cron-next       | 1   | 1      | 1     | 0     | abstain       | 0.351     | low-confidence         |\n| ctl-agg-report  | 1   | 1      | 1     | 0     | abstain       | 0.414     | low-confidence         |\n| ctl-loop-next   | 1   | 1      | 1     | 0     | abstain       | 0.429     | low-confidence         |\n| ctl-stale-claims| 1   | 1      | 1     | 0     | abstain       | 0.576     | diffuse-match          |\n| flaky-dep       | 1   | 1      | 1     | 0     | abstain       | 0.530     | non-local              |\n| interval-merge  | 1   | 1      | 1     | 0     | abstain       | 0.379     | low-confidence         |\n| legacy-id       | 0   | 0      | 0     | 0     | abstain       | 0.655     | non-local              |\n| locale-sum      | 1   | 1      | 1     | 0     | inject        | 0.611     | sharp-specific-empirical|\n| native-store    | 1   | 1      | 1     | 0     | abstain       | 0.396     | low-confidence         |\n| overlay-save    | 0   | 0      | 0     | 0     | abstain       | 0.518     | non-empirical          |\n| silent-cap      | 1   | 1      | 1     | 0     | inject        | 0.645     | sharp-specific-empirical|\n| sum-basic       | 1   | 1      | 1     | 0     | abstain       | 0.266     | low-confidence         |\n| task-transcript | 0   | 1      | 0     | 0     | no-g",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Smoke full candidate suite (all 18, 1 trial, 3 arms) + classify KB-dependent vs solo-able",
+        "description": "Run the 15 not-yet-smoked candidates × arms [off, on-search, on-gated] at trial 0 (45 solves), reuse the 3 already done (bench-metric, locale-sum, interval-merge), run the learning-journal reducer over the full set, and classify each of the 18 candidates as KB-DEPENDENT (solved_delta=+1, OFF fails / KB rescues) vs SOLO-ABLE (solved_delta=0). This classification picks the balanced multi-trial set. Validates the whole suite end-to-end before scaling.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": "suite-smoke",
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T19:21:51.249Z"
+      },
+      "assignee": "suite-smoke-resume",
+      "timestamps": {
+        "firstSeen": "2026-06-12T18:43:39.939Z",
+        "lastChanged": "2026-06-12T18:43:39.939Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "758c3ef9-ee93-4f4a-b999-fda634bf151b/1": {
+      "id": "758c3ef9-ee93-4f4a-b999-fda634bf151b/1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Rewrote README with DAG=RAG + token-mindful framing, fixed diagram, added benchmark section, moved MCP tables to bottom.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Rewrite README.md with DAG=RAG + token-mindful framing",
+        "description": "Rewrite the Zonoid README to lead with the behavioral outcome (token-mindful agent), then explain the two mechanisms: DAG=RAG unified graph + token economy accounting. Fix the diagram to show a single unified graph. Move MCP tool tables to the bottom as reference. Add benchmarks section.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T18:35:28.870Z"
+      },
+      "assignee": "readme-rewrite-a1b2",
+      "timestamps": {
+        "firstSeen": "2026-06-12T18:17:22.161Z",
+        "lastChanged": "2026-06-12T18:17:22.161Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "f9bee027-d8a2-46b0-b49a-aa7e16196a0b/1": {
+      "id": "f9bee027-d8a2-46b0-b49a-aa7e16196a0b/1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Added \"Est. API overflow\" cost line in the billing breakdown suggested plan section of graph.html (~line 5304). When the suggested plan includes 'overflow' and required variables (wTotal, allQ, weeks, totalCost) are available, computes overflowFrac = max(0, (wTotal-allQ)/wTotal) and overflowMo = totalCost/weeks*4.33*overflowFrac, then renders a red (#ff7b72) line between the plan name and the why text.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Show estimated overflow cost in billing breakdown",
+        "description": "Add an \"Est. API overflow: ~$X/mo\" line in the suggested plan section of the billing popup when the plan includes API overflow.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T19:25:06.212Z"
+      },
+      "assignee": "overflow-cost-ui",
+      "timestamps": {
+        "firstSeen": "2026-06-12T19:03:31.959Z",
+        "lastChanged": "2026-06-12T19:03:31.959Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -101184,7 +101329,285 @@
       "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/6",
       "kind": "context",
       "weight": 0.447
+    },
+    {
+      "from": "1",
+      "to": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mq7hef42qjt",
+      "to": "note:note-mq7gif55",
+      "kind": "context",
+      "weight": 0.7
+    },
+    {
+      "from": "note:note-mq8uoisbwav",
+      "to": "note:note-mq9gifkl7hh",
+      "kind": "context",
+      "weight": 0.65
+    },
+    {
+      "from": "note:note-mq8zls6ya54",
+      "to": "note:note-mq9l6l207pa",
+      "kind": "context",
+      "weight": 0.65
+    },
+    {
+      "from": "note:note-mq9kdid34r8",
+      "to": "note:note-mqa8bb7y052",
+      "kind": "context",
+      "weight": 0.6
+    },
+    {
+      "from": "note:note-mqa6xmc54yw",
+      "to": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "kind": "context",
+      "weight": 0.297
+    },
+    {
+      "from": "note:note-mqa6xmc54yw",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/10",
+      "kind": "context",
+      "weight": 0.257
+    },
+    {
+      "from": "note:note-mqaslontp50",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/8",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqb0gi2648n",
+      "to": "note:note-mq9mlnbsmti",
+      "kind": "context",
+      "weight": 0.65
+    },
+    {
+      "from": "note:note-mqb975duzqu",
+      "to": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "kind": "context",
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mqbbfla22pq",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/9",
+      "kind": "context",
+      "weight": 1
+    },
+    {
+      "from": "note:note-mqbbndrgd1k",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/9",
+      "kind": "context",
+      "weight": 1
+    },
+    {
+      "from": "014da635-9813-4932-a6b1-2e96da0b8f12/2",
+      "to": "014da635-9813-4932-a6b1-2e96da0b8f12/3",
+      "kind": "context",
+      "weight": 0.25
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2",
+      "to": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "kind": "context",
+      "weight": 0.422
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2",
+      "to": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "kind": "context",
+      "weight": 0.316
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/27",
+      "to": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "kind": "context",
+      "weight": 0.289
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/3",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/35",
+      "kind": "context",
+      "weight": 0.267
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/32",
+      "to": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "kind": "context",
+      "weight": 0.272
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/33",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/35",
+      "kind": "context",
+      "weight": 0.338
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/34",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/36",
+      "kind": "context",
+      "weight": 0.316
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/10",
+      "to": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "kind": "context",
+      "weight": 0.309
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/10",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/36",
+      "kind": "context",
+      "weight": 0.252
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/5",
+      "to": "f9bee027-d8a2-46b0-b49a-aa7e16196a0b/1",
+      "kind": "context",
+      "weight": 0.272
+    },
+    {
+      "from": "688a3742-0944-4215-8815-733d85936f12/18",
+      "to": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "kind": "context",
+      "weight": 0.272
+    },
+    {
+      "from": "688a3742-0944-4215-8815-733d85936f12/3",
+      "to": "758c3ef9-ee93-4f4a-b999-fda634bf151b/1",
+      "kind": "context",
+      "weight": 0.286
+    },
+    {
+      "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/6",
+      "to": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "kind": "context",
+      "weight": 0.408
+    },
+    {
+      "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/6",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/10",
+      "kind": "context",
+      "weight": 0.354
+    },
+    {
+      "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/8",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/9",
+      "kind": "context"
+    },
+    {
+      "from": "85bf8942-2334-4e28-9954-6d3c7726bb4c/10",
+      "to": "014da635-9813-4932-a6b1-2e96da0b8f12/3",
+      "kind": "context",
+      "weight": 0.306
+    },
+    {
+      "from": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/34",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/36",
+      "kind": "context",
+      "weight": 0.272
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/29",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/8",
+      "kind": "context"
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/35",
+      "to": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "kind": "context",
+      "weight": 0.471
+    },
+    {
+      "from": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/13",
+      "to": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "kind": "context",
+      "weight": 0.283
+    },
+    {
+      "from": "df63dcd1-69b2-48ae-926b-1f360ad2fc0c/8",
+      "to": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "kind": "context",
+      "weight": 0.331
+    },
+    {
+      "from": "df63dcd1-69b2-48ae-926b-1f360ad2fc0c/9",
+      "to": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "kind": "context",
+      "weight": 0.331
+    },
+    {
+      "from": "df63dcd1-69b2-48ae-926b-1f360ad2fc0c/9",
+      "to": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "kind": "context",
+      "weight": 0.265
+    },
+    {
+      "from": "eb25339f-1c71-4fc9-a316-ea83fb6a25d3/3",
+      "to": "014da635-9813-4932-a6b1-2e96da0b8f12/4",
+      "kind": "context",
+      "weight": 0.283
+    },
+    {
+      "from": "eb25339f-1c71-4fc9-a316-ea83fb6a25d3/7",
+      "to": "c06c364d-9617-4ea9-9660-3d1545b238e3/2",
+      "kind": "context",
+      "weight": 0.298
+    },
+    {
+      "from": "f9e0d871-9503-4d04-ab63-dbd2e66b4fe1/1",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/35",
+      "kind": "context",
+      "weight": 0.309
+    },
+    {
+      "from": "followup/fix-session-js-active-claim-t-agent-id-t-aoov",
+      "to": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "kind": "context",
+      "weight": 0.375
+    },
+    {
+      "from": "followup/restart-daemon-to-activate-session-info--xzib",
+      "to": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "kind": "context",
+      "weight": 0.833
+    },
+    {
+      "from": "followup/restart-daemon-to-activate-session-info--xzib",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/10",
+      "kind": "context",
+      "weight": 0.433
+    },
+    {
+      "from": "followup/restart-daemon-to-apply-tasktranscript-f-cpod",
+      "to": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "kind": "context",
+      "weight": 0.365
+    },
+    {
+      "from": "followup/restart-daemon-to-apply-tasktranscript-f-cpod",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/10",
+      "kind": "context",
+      "weight": 0.316
+    },
+    {
+      "from": "followup/restart-daemon-to-load-wires-to-changes-1b05",
+      "to": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "kind": "context",
+      "weight": 0.365
+    },
+    {
+      "from": "followup/restart-daemon-to-load-wires-to-changes-1b05",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/10",
+      "kind": "context",
+      "weight": 0.316
     }
   ],
-  "compacted_at": "2026-06-12T18:17:08.691Z"
+  "compacted_at": "2026-06-12T19:34:23.845Z"
 }

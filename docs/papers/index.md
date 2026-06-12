@@ -2,6 +2,16 @@
 
 Empirical studies on the self-learning task knowledge graph.
 
+> **Scope — what these papers measure.** These are **component** studies of **KB injection (RAG
+> retrieval)**: the ON arm makes a single gated `search_knowledge` call into one task's context, the
+> OFF arm makes none. They measure whether injecting a relevant project-local note lifts solve rate
+> on an *isolated* task. They do **not** measure Zonoid as a whole — DAG context flow across wired
+> tasks, multi-task orchestration, the task graph, or the autonomous loop are not exercised here. So
+> the lifts below are evidence for the **retrieval/gate mechanism**, not a whole-product ON-vs-OFF
+> result. Whole-product evaluation (full orchestrator vs plain agent, on context-required
+> interdependent tasks) is a separate effort — see [swe-bench-eval](../swe-bench-eval.md) and the
+> product end-to-end bench.
+
 ---
 
 ## Published

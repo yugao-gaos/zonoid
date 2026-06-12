@@ -21,6 +21,7 @@ const HT = path.join(REPO, 'bench', 'heldout');
 const ORCH_WORKSPACE = process.env.ZONOID_WORKSPACE || process.cwd();
 const TIMEOUT_S = 600;
 const CANDIDATE_TIMEOUT = { 'cron-next': 900 };
+const snapDaemon = require('./bench-snapshot-daemon');
 
 function arg(name, def) {
   const i = process.argv.indexOf('--' + name);
@@ -178,7 +179,7 @@ const PREAMBLE = {
     'Graph is READ-ONLY — do NOT create, modify, claim, complete, or record_decision on any tasks/nodes.\n\n',
 };
 
-function main() {
+async function main() {
   const candidate = arg('candidate');
   const arm = arg('arm');
   const trial = parseInt(arg('trial', '0'), 10);
@@ -189,6 +190,14 @@ function main() {
   }
   const cm = consultMode();
   const armLabel = arm === 'on' ? `on-${cm}` : 'off';
+
+  // Isolated snapshot mode (opt-in): the ON arm RAGs against a private daemon booted over a FROZEN
+  // .graph snapshot instead of the live churning :8787 — for reproducibility. OFF arm makes no KB
+  // call, so it's unaffected. Off by default → existing live behavior is unchanged.
+  let isolatedPort = null;
+  if (process.env.ZONOID_BENCH_ISOLATED === '1') {
+    isolatedPort = await snapDaemon.ensureRunning();
+  }
 
   // (a) isolated worktree off HEAD
   const wtRel = `worktrees/bench/ht-${candidate}-${armLabel}-${trial}`;
@@ -243,7 +252,7 @@ function main() {
     '--dangerously-skip-permissions', '--add-dir', wt,
   ];
   const env = arm === 'on'
-    ? { ...process.env, ORCH_WORKSPACE, ORCH_GATE_OFF: '1' }
+    ? { ...process.env, ORCH_WORKSPACE, ORCH_GATE_OFF: '1', ...(isolatedPort ? { ORCH_PORT: String(isolatedPort) } : {}) }
     : { ...process.env, ORCH_GATE_OFF: '1' };
   const t0 = Date.now();
   const run = spawnSync('perl', args, { cwd: wt, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
@@ -333,6 +342,7 @@ function main() {
   process.stdout.write(row);
   // Always append to canonical results file regardless of how the script is invoked.
   fs.appendFileSync(path.join(REPO, 'bench', 'heldout', 'results-heldout.jsonl'), row);
+  if (isolatedPort) snapDaemon.teardown();
 }
 
-main();
+main().catch((e) => { try { snapDaemon.teardown(); } catch { /* best effort */ } console.error(e && e.message ? e.message : e); process.exit(1); });
