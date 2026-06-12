@@ -242,6 +242,34 @@ function registerWorkspace(cwd) {
 
 // ── main ────────────────────────────────────────────────────────────────────
 
+function ask(question) {
+  const readline = require('readline');
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => rl.question(question, (ans) => { rl.close(); resolve(ans.trim()); }));
+}
+
+const PLACEHOLDER_NAMES = new Set(['orchestrator', 'root', 'admin', 'user']);
+
+async function checkGitIdentity() {
+  const gitName  = (() => { try { return execSync('git config user.name',  { encoding: 'utf8' }).trim(); } catch { return ''; } })();
+  const gitEmail = (() => { try { return execSync('git config user.email', { encoding: 'utf8' }).trim(); } catch { return ''; } })();
+
+  const nameMissing  = !gitName  || PLACEHOLDER_NAMES.has(gitName.toLowerCase());
+  const emailMissing = !gitEmail || gitEmail.endsWith('@localhost');
+
+  if (!nameMissing && !emailMissing) {
+    ok(`git identity: ${gitName} <${gitEmail}>`);
+    return;
+  }
+
+  warn('git user.name / user.email not set (commits will be anonymous)');
+  const name  = nameMissing  ? await ask(`  Your name  [${gitName  || 'e.g. Jane Smith'}]: `) : gitName;
+  const email = emailMissing ? await ask(`  Your email [${gitEmail || 'e.g. you@example.com'}]: `) : gitEmail;
+
+  if (name)  { execSync(`git config --global user.name  "${name.replace(/"/g, '\\"')}"`);  ok(`set user.name  = ${name}`); }
+  if (email) { execSync(`git config --global user.email "${email.replace(/"/g, '\\"')}"`); ok(`set user.email = ${email}`); }
+}
+
 async function init() {
   const cwd = process.cwd();
   console.log(`\nZonoid init — workspace: ${cwd}`);
@@ -257,10 +285,13 @@ async function init() {
   checkMcp(cwd);
   checkClaude(cwd);
 
-  section('3. Skills');
+  section('3. Git identity');
+  await checkGitIdentity();
+
+  section('4. Skills');
   checkSkills();
 
-  section('4. Daemon');
+  section('5. Daemon');
   await checkDaemon();
   await registerWorkspace(cwd);
 
