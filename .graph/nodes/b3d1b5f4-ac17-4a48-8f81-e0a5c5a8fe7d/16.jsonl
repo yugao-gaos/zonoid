@@ -1,2 +1,4 @@
 {"evt":"timestamps_set","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/16","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T13:43:53.468Z","lastChanged":"2026-06-11T13:43:53.468Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-11T13:43:53.492Z"}
 {"evt":"edge_added","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/16","to":"followup/restart-daemon-to-apply-tasktranscript-f-cpod","kind":"context","actor":"overlay-sync","ts":"2026-06-11T16:08:38.023Z","weight":0.283}
+{"evt":"edge_added","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/16","to":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/3","kind":"context","actor":"overlay-sync","ts":"2026-06-12T09:39:43.002Z","weight":0.387}
+{"evt":"edge_added","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/16","to":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/4","kind":"context","actor":"overlay-sync","ts":"2026-06-12T09:39:53.621Z","weight":0.258}

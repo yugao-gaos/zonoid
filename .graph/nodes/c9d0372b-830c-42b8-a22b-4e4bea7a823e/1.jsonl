@@ -1,0 +1,4 @@
+{"evt":"timestamps_set","id":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T09:39:31.758Z","lastChanged":"2026-06-12T09:39:31.758Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-12T09:39:31.783Z"}
+{"evt":"edge_added","from":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/1","to":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/5","kind":"blocking","actor":"overlay-sync","ts":"2026-06-12T09:40:49.833Z"}
+{"evt":"status_changed","id":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T09:41:41.698Z"}
+{"evt":"assignee_set","id":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-test-runner-ci","actor":"overlay-sync","ts":"2026-06-12T09:41:41.698Z"}
