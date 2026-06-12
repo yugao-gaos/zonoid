@@ -4,3 +4,7 @@
 {"evt":"status_changed","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/29","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-12T11:04:17.824Z"}
 {"evt":"status_changed","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/29","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T17:37:32.124Z"}
 {"evt":"assignee_set","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/29","workspace":"/Users/imyu/Desktop/zonoid","assignee":"bench-3arm-runner-29","actor":"overlay-sync","ts":"2026-06-12T17:37:32.124Z"}
+{"evt":"status_changed","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/29","workspace":"/Users/imyu/Desktop/zonoid","status":"not_ready","actor":"overlay-sync","ts":"2026-06-12T18:08:08.535Z"}
+{"evt":"status_changed","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/29","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-12T18:14:08.151Z"}
+{"evt":"edge_added","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/29","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/7","kind":"context","actor":"overlay-sync","ts":"2026-06-12T18:14:35.417Z"}
+{"evt":"edge_added","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/29","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/8","kind":"context","actor":"overlay-sync","ts":"2026-06-12T18:27:28.236Z"}

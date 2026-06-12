@@ -1,1 +1,2 @@
 {"evt":"timestamps_set","id":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/8","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T14:53:30.291Z","lastChanged":"2026-06-11T14:53:30.291Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-11T14:53:30.325Z"}
+{"evt":"edge_added","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/8","to":"followup/harness-label-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-12T18:12:08.931Z","weight":0.258}

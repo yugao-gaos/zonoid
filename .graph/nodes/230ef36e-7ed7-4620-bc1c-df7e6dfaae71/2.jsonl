@@ -1,3 +1,2 @@
-{"evt":"edge_added","from":"230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2","to":"followup/fix-session-js-active-claim-t-agent-id-t-aoov","kind":"context","actor":"overlay-sync","ts":"2026-06-12T16:10:57.783Z","weight":0.43}
-{"evt":"edge_added","from":"230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2","to":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/35","kind":"context","actor":"overlay-sync","ts":"2026-06-12T16:13:32.818Z","weight":0.39}
-{"evt":"edge_added","from":"230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2","to":"followup/restart-daemon-to-activate-t-assignee-fi-vcs3","kind":"context","actor":"overlay-sync","ts":"2026-06-12T17:41:50.824Z","weight":0.39}
+{"evt":"edge_added","from":"230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2","to":"8d6d6263-3492-4317-906e-01b44f9219e6/1","kind":"context","actor":"overlay-sync","ts":"2026-06-12T18:31:41.079Z","weight":0.422}
+{"evt":"edge_added","from":"230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2","to":"followup/restart-daemon-to-activate-claim-session-bh6z","kind":"context","actor":"overlay-sync","ts":"2026-06-12T18:34:19.056Z","weight":0.316}

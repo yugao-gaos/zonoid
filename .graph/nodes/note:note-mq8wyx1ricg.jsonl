@@ -7,3 +7,4 @@
 {"evt":"edge_added","from":"note:note-mq8wyx1ricg","to":"followup/restart-daemon-to-activate-note-dup-guar-i3j2","kind":"context","actor":"overlay-sync","ts":"2026-06-12T11:45:21.807Z","weight":0.289}
 {"evt":"edge_added","from":"note:note-mq8wyx1ricg","to":"da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1","kind":"context","actor":"overlay-sync","ts":"2026-06-12T14:40:04.848Z","weight":0.267}
 {"evt":"edge_added","from":"note:note-mq8wyx1ricg","to":"c06c364d-9617-4ea9-9660-3d1545b238e3/1","kind":"context","actor":"overlay-sync","ts":"2026-06-12T17:55:04.781Z","weight":0.267}
+{"evt":"note_superseded","id":"note-mq8wyx1ricg","supersededBy":"note-mqb10bq78bw","validTo":"2026-06-12T14:32:53.599Z","ts":"2026-06-12T14:32:53.599Z","actor":"supersede"}

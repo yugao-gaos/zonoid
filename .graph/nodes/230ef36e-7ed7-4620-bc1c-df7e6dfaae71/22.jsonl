@@ -1,2 +1,3 @@
 {"evt":"timestamps_set","id":"230ef36e-7ed7-4620-bc1c-df7e6dfaae71/22","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T13:21:35.794Z","lastChanged":"2026-06-11T13:21:35.794Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-11T13:21:35.826Z"}
 {"evt":"edge_added","from":"230ef36e-7ed7-4620-bc1c-df7e6dfaae71/22","to":"followup/harness-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-12T12:30:14.890Z","weight":0.258}
+{"evt":"edge_added","from":"230ef36e-7ed7-4620-bc1c-df7e6dfaae71/22","to":"followup/harness-label-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-12T18:12:08.931Z","weight":0.258}
