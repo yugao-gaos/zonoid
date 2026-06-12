@@ -1362,6 +1362,7 @@ function readTranscript(p, maxLines = 200) {
 function send(res, code, body, type = 'application/json') {
   res.writeHead(code, { 'Content-Type': type, 'Access-Control-Allow-Origin': '*', 'Connection': 'close' });
   res.end(type === 'application/json' ? JSON.stringify(body) : body);
+  return true;
 }
 function readBody(req) { return new Promise((r) => { const chunks = []; let n = 0; req.on('data', (c) => { n += c.length; if (n > 1048576) { req.destroy(); return r({}); } chunks.push(c); }); req.on('end', () => { try { const b = Buffer.concat(chunks).toString('utf8'); r(b ? JSON.parse(b) : {}); } catch { r({}); } }); }); }
 

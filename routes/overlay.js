@@ -55,6 +55,31 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (cur === 'canceled' && b.status !== 'canceled' && !b.force && !b.reopen) {
       send(res, 409, { ok: false, error: 'task is canceled (terminal): pass force/reopen to override', current: cur, attempted: b.status }); return true;
     }
+    if (b.status === 'in_progress' && b.force) {
+      // Force-claim cap: max 3 per task key. Counter persisted in overlay so daemon restarts don't reset it.
+      const FORCE_CAP = 3;
+      if (!T.ov.forceClaims) T.ov.forceClaims = {};
+      const fcCount = T.ov.forceClaims[b.key] || 0;
+      if (fcCount >= FORCE_CAP) {
+        // Check for existing pending guidance item for this (session, task) — don't file duplicates.
+        const already = Array.isArray(T.ov.guidance) && T.ov.guidance.some(
+          (g) => !g.resolved && g.trigger === 'force_claim_cap' && g.action && g.action.taskKey === b.key
+        );
+        if (!already) {
+          overlayStore.addGuidance(T.ov, {
+            question: `Force-claim cap reached on task ${b.key} — agent "${b.agent_id || '(unknown)'}" has exhausted 3 force-claims. Approve on dashboard to reset.`,
+            context: `task_key: ${b.key}\nagent_id: ${b.agent_id || '(unknown)'}`,
+            trigger: 'force_claim_cap',
+            severity: 'blocking',
+            action: { kind: 'force_claim_cap', taskKey: b.key },
+          });
+          T.save(); ctx.notifyChange();
+        }
+        const dashUrl = `http://${(req.headers && req.headers.host) || '127.0.0.1:8787'}/graph`;
+        send(res, 409, { ok: false, error: `force-claim cap reached — tell the user to approve the reset on the dashboard at ${dashUrl} (guidance gate), then retry`, approval_required: true, dashboard: dashUrl }); return true;
+      }
+      T.ov.forceClaims[b.key] = fcCount + 1;
+    }
     if (b.status === 'in_progress' && b.agent_id && cur === 'in_progress' && !b.force) {
       const owner = T.ov.assignee[b.key];
       if (owner && owner !== b.agent_id) {
@@ -119,6 +144,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (verdictResults) statusResp.verdicts = verdictResults;
     if (staleHolds) statusResp.stale_holds = staleHolds;
     if (lintWarning) statusResp.warning = lintWarning;
+    if (b.status === 'in_progress' && b.force) {
+      const FORCE_CAP = 3;
+      statusResp.force_claims_remaining = Math.max(0, FORCE_CAP - ((T.ov.forceClaims && T.ov.forceClaims[b.key]) || 0));
+    }
     sendOp(res, b, 200, statusResp); return true;
   }
 
@@ -186,7 +215,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           if (node && !node.vec) {
             node.vec = v;
             const gs = (T.ws === state.workspace) ? state.graphStore : null;
-            if (gs) graphStore.appendEvent(gs, id, { evt: 'note_vec_set', id, vec: v, actor: 'retry', ts: Date.now() });
+            if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'note_vec_set', id, vec: v, actor: 'retry', ts: Date.now() });
           }
         } catch { /* best effort */ }
       }, 45000);
@@ -197,7 +226,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         state.overlay.knowledge[id] = b.knowledge;
       }
     }
-    const autowired = 0;
     overlayStore.bumpEpoch(T.ov);
     let superseded = null;
     if (b.supersedes) {
@@ -225,7 +253,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     }
     T.save(); notifyChange();
-    sendOp(res, b, 200, { ok: true, id, key: 'note:' + id, superseded, autowired, hint }); return true;
+    sendOp(res, b, 200, { ok: true, id, key: 'note:' + id, superseded, autowired: 0, hint }); return true;
   }
 
   if (p === '/overlay/note/rewire' && m === 'POST') {

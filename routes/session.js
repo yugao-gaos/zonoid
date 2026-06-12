@@ -140,6 +140,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const sr = verdicts.resolveStaleHold(T.ov, action, b.decision, b.answer);
       if (sr) Object.assign(result, sr);
       overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
+    } else if (action && action.kind === 'force_claim_cap') {
+      // Dashboard-only approval: reset the force-claim counter for this task so the agent can retry.
+      if (T.ov.forceClaims && action.taskKey) delete T.ov.forceClaims[action.taskKey];
+      overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : (b.decision || 'approved'));
+      result.reset_task_key = action.taskKey;
     } else {
       overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
     }

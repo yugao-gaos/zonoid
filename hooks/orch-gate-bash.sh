@@ -71,52 +71,75 @@ fi
 # For tee/python/ruby: these write arbitrary paths; we cannot cheaply extract targets,
 # so we let them fall through to the claim check (correct behavior).
 
-# Extract redirect target (last token after > or >>)
-REDIR_TARGET=$(printf '%s' "$CMD" | grep -oE '(>>?)\s*\S+' | tail -1 | sed 's/^>*[[:space:]]*//')
-
-# Extract cp/mv/rsync/install destination (last whitespace-separated token)
-LAST_TOKEN=$(printf '%s' "$CMD" | tr -s ' \t' '\n' | grep -v '^-' | tail -1)
-
-# Extract dd of= value
-DD_DEST=$(printf '%s' "$CMD" | grep -oE '\bof=\S+' | sed 's/^of=//')
+# Helper: normalize path — collapse ../ segments
+normalize_path() {
+  local p="$1"
+  while printf '%s' "$p" | grep -qE '/[^/]+/\.\./'; do
+    p=$(printf '%s' "$p" | sed 's|/[^/]*/\.\./|/|g')
+  done
+  p=$(printf '%s' "$p" | sed 's|/[^/]*/\.\.$||')
+  printf '%s' "$p"
+}
 
 # Helper: is a given path under an exempt location?
 is_exempt() {
-  local p="$1"
+  local p
+  p=$(normalize_path "$1")
   [ -z "$p" ] && return 1
   case "$p" in
-    /tmp/*|/private/tmp/*)         return 0 ;;
-    /dev/null|/dev/stderr|/dev/stdout) return 0 ;;
-    */.claude/projects/*/memory/*) return 0 ;;
+    /tmp/*|/private/tmp/*)                             return 0 ;;
+    /dev/null|/dev/stderr|/dev/stdout)                 return 0 ;;
+    */.claude/projects/*/memory/*)                     return 0 ;;
     */.claude/settings.json|*/.claude/settings.local.json) return 0 ;;
-    */.claude/keybindings.json|*/.claude/launch.json) return 0 ;;
-    */.mcp.json)                   return 0 ;;
-    */CLAUDE.md)                   return 0 ;;
-    *.log)                         return 0 ;;
-    */logs/*)                      return 0 ;;
-    */scratch/*)                   return 0 ;;
+    */.claude/keybindings.json|*/.claude/launch.json)  return 0 ;;
+    */.mcp.json)                                       return 0 ;;
+    */CLAUDE.md)                                       return 0 ;;
+    /tmp/*.log|/private/tmp/*.log)                     return 0 ;;
+    */logs/*.log)                                      return 0 ;;
+    */scratch/*)                                       return 0 ;;
   esac
   return 1
 }
 
-# For redirect commands, check the redirect target
-if printf '%s' "$CMD" | grep -qE '>>?\s*\S'; then
-  if is_exempt "$REDIR_TARGET"; then
-    exit 0
-  fi
-# For cp/mv/rsync/install, check the destination (last token)
-elif printf '%s' "$CMD" | grep -qE '\b(cp|mv|rsync|install)\b'; then
-  if is_exempt "$LAST_TOKEN"; then
-    exit 0
-  fi
-# For dd of=, check the of= target
-elif printf '%s' "$CMD" | grep -qE '\bdd\b.*\bof='; then
-  if is_exempt "$DD_DEST"; then
-    exit 0
-  fi
+# Strip bash comments to avoid comment tokens being treated as targets
+CMD_NOCOMMENT=$(printf '%s' "$CMD" | sed 's/ #.*//' | sed 's/	#.*//')
+
+# Collect ALL write targets
+TARGETS=""
+
+# All redirect targets
+while IFS= read -r t; do
+  [ -n "$t" ] && TARGETS="${TARGETS}${t}
+"
+done < <(printf '%s' "$CMD_NOCOMMENT" | grep -oE '(>>?)\s*\S+' | sed 's/^>*[[:space:]]*//')
+
+# cp/mv/rsync/install: last non-flag token (comment-stripped)
+if printf '%s' "$CMD_NOCOMMENT" | grep -qE '\b(cp|mv|rsync|install)\b'; then
+  LAST_TOKEN=$(printf '%s' "$CMD_NOCOMMENT" | tr -s ' \t' '\n' | grep -v '^-' | tail -1)
+  [ -n "$LAST_TOKEN" ] && TARGETS="${TARGETS}${LAST_TOKEN}
+"
 fi
-# tee, python writes, sed -i: fall through to claim check — we can't cheaply
-# extract targets, and blocking is the safer side.
+
+# dd of= target
+DD_DEST=$(printf '%s' "$CMD_NOCOMMENT" | grep -oE '\bof=\S+' | sed 's/^of=//')
+[ -n "$DD_DEST" ] && TARGETS="${TARGETS}${DD_DEST}
+"
+
+# Only exit 0 if targets found AND every one is exempt
+if [ -n "$TARGETS" ]; then
+  all_exempt=1
+  while IFS= read -r t; do
+    [ -z "$t" ] && continue
+    if ! is_exempt "$t"; then
+      all_exempt=0
+      break
+    fi
+  done <<EOF
+$TARGETS
+EOF
+  [ "$all_exempt" = "1" ] && exit 0
+fi
+# tee, python writes, sed -i, or any non-exempt target: fall through to claim check.
 
 # ── Session claim check ────────────────────────────────────────────────────
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')

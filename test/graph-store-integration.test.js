@@ -95,8 +95,8 @@ try {
   ok('4. summary_set event present', !!summaryEv);
   ok('4. summary_set.summary correct', summaryEv && summaryEv.summary === 'Finished the thing');
 
-  // Test 5: new note_node → note_created event in its own node file
-  const noteFile   = path.join(nodesDir, `${noteId}.jsonl`);
+  // Test 5: new note_node → note_created event in its own node file (key = 'note:' + noteId)
+  const noteFile   = path.join(nodesDir, `note:${noteId}.jsonl`);
   ok('5. note_node file exists', fs.existsSync(noteFile));
   const noteEvents = parseEvents(noteFile);
   const noteEv     = noteEvents.find((e) => e.evt === 'note_created');

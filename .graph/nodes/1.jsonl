@@ -23,3 +23,10 @@
 {"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T09:51:52.545Z"}
 {"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"cron-next-writer","actor":"overlay-sync","ts":"2026-06-12T09:51:52.545Z"}
 {"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-12T11:00:17.097Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T14:40:04.856Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"main","actor":"overlay-sync","ts":"2026-06-12T14:40:04.856Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"fix-note-split","actor":"overlay-sync","ts":"2026-06-12T14:40:43.395Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"fix-note-split-writes","actor":"overlay-sync","ts":"2026-06-12T15:18:32.618Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"fix-note-split-final","actor":"overlay-sync","ts":"2026-06-12T15:45:58.670Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-12T15:50:18.476Z"}
+{"evt":"summary_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","summary":"Fixed routes/overlay.js retry vec_set to use 'note:' + id as file key. Also fixed two cascading test failures caused by pre-existing lib/overlay.js changes: (1) updated graph-store-integration.test.js to look for note:${noteId}.jsonl, (2) fixed overlay.load() to strip 'note:' prefix when keying note_nodes so rehydrated notes are accessible by bare noteId. Full suite: 64/64 passing.","actor":"overlay-sync","ts":"2026-06-12T15:50:18.476Z"}

@@ -4343,7 +4343,7 @@ function updateDock(s, sc){
   setDockVal('sdv-done', sc.done||0, '#3fb950');
   setDockVal('sdv-failed', sc.failed||0, '#ff7b72');
   setDockVal('sdv-canceled', sc.canceled||0, null);
-  const notes=(sc.note||0);
+  const notes=(s.notes||0);
   setDockVal('sdv-notes', notes, '#d29922');
   const wipEl=document.getElementById('sd-wip');
   if(wipEl) wipEl.classList.toggle('wip-active', (sc.in_progress||0)>0);
@@ -4623,6 +4623,10 @@ async function renderGuidance(force){
         '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'consolidate\')">Consolidate</button>'+
         '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'distinct\')">Distinct</button>'+
         copyBtn(it)+'<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
+    }
+    if(it.action&&it.action.kind==='force_claim_cap'){
+      return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'approved\')">Approve &amp; reset counter</button>'+
+        '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
     }
     return '<div class="gact"><input class="gans" id="ans-'+esc(it.id)+'" placeholder="your answer…" value="'+esc(guidAns[it.id]||'')+'"'+
       ' oninput="guidAns[\''+esc(it.id)+'\']=this.value">'+
@@ -5463,7 +5467,7 @@ setView(currentView);              // apply persisted view + toggle state on loa
         if (_bootedAt && data.bootedAt && data.bootedAt !== _bootedAt){
           _bootedAt = data.bootedAt;
           _phase = 'unknown';          // reset so enterPhase sees a real transition
-          enterPhase('ready', data);
+          enterPhase(data.phase || 'loading', data);
           scheduleHealthCheck(2000);
           return;
         }
@@ -5527,7 +5531,6 @@ setView(currentView);              // apply persisted view + toggle state on loa
       // Successful response — reset backoff, ensure we're in ready state
       _backoff = 500;
       if (_phase !== 'ready') enterPhase('ready', {});
-      const d = await res.json();
       // Replay the original tick logic using the already-read body.
       // We can't call _origTick (it re-fetches), so inline minimal re-invoke:
       // fall through to _origTick but accept the duplicate fetch — at most one

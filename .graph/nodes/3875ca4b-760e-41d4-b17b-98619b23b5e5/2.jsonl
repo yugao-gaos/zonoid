@@ -1,3 +1,0 @@
-{"evt":"timestamps_set","id":"3875ca4b-760e-41d4-b17b-98619b23b5e5/2","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T13:59:44.478Z","lastChanged":"2026-06-12T13:59:44.478Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-12T13:59:44.581Z"}
-{"evt":"status_changed","id":"3875ca4b-760e-41d4-b17b-98619b23b5e5/2","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T14:00:49.169Z"}
-{"evt":"assignee_set","id":"3875ca4b-760e-41d4-b17b-98619b23b5e5/2","workspace":"/Users/imyu/Desktop/zonoid","assignee":"force-cap-worker","actor":"overlay-sync","ts":"2026-06-12T14:00:49.169Z"}

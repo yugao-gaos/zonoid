@@ -171,6 +171,64 @@ function runFailOpen(cmd, extra) {
   ok('tee to non-exempt path → write detected → exit 2 for unclaimed subagent', r.status === 2);
 }
 
+// ── Bypass regression tests (all should be blocked: exit 2) ─────────────────
+
+// 16. Redirect token shadows cp dest
+{
+  const r = runBlocked('cp /tmp/a.js /proj/lib/main.js >/tmp/out.log');
+  ok('cp with redirect: cp dest non-exempt even though redir is /tmp → exit 2', r.status === 2);
+}
+
+// 17. .log suffix in non-log dir must NOT be exempt
+{
+  const r = runBlocked('cp /tmp/x.js /proj/lib/main.log');
+  ok('cp to .log file outside /tmp or logs/ → exit 2', r.status === 2);
+}
+
+// 18. Path traversal via logs/
+{
+  const r = runBlocked('cp /tmp/x.js /proj/logs/../lib/main.js');
+  ok('cp with logs/../ traversal → normalized non-exempt path → exit 2', r.status === 2);
+}
+
+// 19. Trailing comment becomes LAST_TOKEN in old logic
+{
+  const r = runBlocked('cp src.js /proj/lib/evil.js # /tmp/log');
+  ok('cp with trailing comment # /tmp/log → comment stripped → exit 2', r.status === 2);
+}
+
+// 20. mv + redirect to /tmp should not exempt non-tmp mv dest
+{
+  const r = runBlocked('mv /tmp/x /proj/lib/main.js >/tmp/ok');
+  ok('mv with /tmp redirect but non-exempt mv dest → exit 2', r.status === 2);
+}
+
+// 21. stderr redir to /dev/null should not exempt non-exempt cp dest
+{
+  const r = runBlocked('cp /tmp/x /proj/lib/main.js 2>/dev/null');
+  ok('cp with 2>/dev/null stderr redir → cp dest non-exempt → exit 2', r.status === 2);
+}
+
+// ── Bypass regression tests (all should be allowed: exit 0) ─────────────────
+
+// 22. Both source and dest in /tmp
+{
+  const r = runBlocked('cp /tmp/x.js /tmp/out.js');
+  ok('cp /tmp → /tmp: both exempt → exit 0', r.status === 0);
+}
+
+// 23. Dest in /private/tmp
+{
+  const r = runBlocked('cp /tmp/x.js /private/tmp/out.js');
+  ok('cp /tmp → /private/tmp: exempt → exit 0', r.status === 0);
+}
+
+// 24. .log file under logs/
+{
+  const r = runBlocked('cp report.txt /proj/logs/report.log');
+  ok('cp to logs/*.log: exempt → exit 0', r.status === 0);
+}
+
 // ── Cleanup ─────────────────────────────────────────────────────────────────
 fs.rmSync(TMP, { recursive: true, force: true });
 

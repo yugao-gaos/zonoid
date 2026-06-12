@@ -158,6 +158,11 @@ function countRows(pred) { return readJournal(JOURNAL).filter(pred).length; }
     ok('abstain row: near45 is a number <= kbCands', typeof row.near45 === 'number' && row.near45 >= 0 && row.near45 <= row.kbCands);
     ok('abstain row: qTokens is a positive number', typeof row.qTokens === 'number' && row.qTokens > 0);
     ok('abstain row: empTop10 is between 0 and 1', typeof row.empTop10 === 'number' && row.empTop10 >= 0 && row.empTop10 <= 1);
+    // ── new task-side features ────────────────────────────────────────────────────────────────────
+    ok('abstain row: qWords is a positive number', typeof row.qWords === 'number' && row.qWords > 0);
+    ok('abstain row: taskWords is a non-negative number', typeof row.taskWords === 'number' && row.taskWords >= 0);
+    ok('abstain row: hasSpec is boolean', typeof row.hasSpec === 'boolean');
+    ok('abstain row: complexity is between 0 and 1', typeof row.complexity === 'number' && row.complexity >= 0 && row.complexity <= 1);
 
     // ── 2. ABSTAIN with explicit task_key — journals task_key correctly ─────────────────────────
     const gatedWithKey = `/search?gated=1&workspace=${encodeURIComponent(WS)}&q=${encodeURIComponent('another abstain query')}&task_key=test-task-123`;
@@ -172,6 +177,12 @@ function countRows(pred) { return readJournal(JOURNAL).filter(pred).length; }
     ok('abstain+task_key: embedModel correct', row2.embedModel === 'Xenova/all-MiniLM-L6-v2');
     ok('abstain+task_key: gated is true', row2.gated === true);
     ok('abstain+task_key: round is a number', typeof row2.round === 'number');
+    // complexity=0.99 passed via URL — should override the inline heuristic
+    const gatedWithComplexity = `/search?gated=1&workspace=${encodeURIComponent(WS)}&q=${encodeURIComponent('complexity passthrough test')}&complexity=0.99`;
+    const abCx = await get(gatedWithComplexity);
+    ok('complexity passthrough: HTTP 200', abCx.status === 200);
+    const rowCx = readJournal(JOURNAL).pop();
+    ok('complexity passthrough: complexity stored as passed value', rowCx.complexity === 0.99);
 
     // ── 3. INJECT path — requires MiniLM model weights ──────────────────────────────────────────
     if (!HAS_MODEL) {

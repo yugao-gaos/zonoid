@@ -83880,7 +83880,7 @@
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
-      "summary": "Graded all frozen artifacts for bench-metric (4 runs) and locale-sum (28 runs) that existed in bench/heldout/frozen/ but were not yet recorded in results-heldout.jsonl. Appended 32 new graded rows. Updated bench-report.js to: (1) normalize candidate→problem on input, (2) include unreadable rows in solveTally for solve-rate tracking, (3) add a \"Solve rates (all candidates)\" table to report.md/json. Regenerated bench/report.md and bench/report.json. Key results — locale-sum: ON=0.722 OFF=0.500 (+22pp); overlay-save: ON=0.818 OFF=0.636 (+18pp); bench-metric: ON=OFF=1.0 (parity); task-transcript: ON=0.273 OFF=0.000 (low absolute rate).",
+      "summary": "Added return true; as last statement in send() in daemon.js (line 1365). This fixes the dispatcher's if(await route(...)) return; short-circuit for all 21 call sites that used return send(...) across routes/exec.js and routes/graph.js — previously those returned undefined (falsy), causing the dispatcher to fall through to the 404 handler and double-send headers → ERR_HTTP_HEADERS_SENT. All 59/59 tests pass.",
       "knowledge": [],
       "note": null,
       "snapshot": {
@@ -83890,9 +83890,9 @@
         "blockedBy": [],
         "owner": null,
         "metadata": null,
-        "snapshotted_at": "2026-06-12T00:27:25.442Z"
+        "snapshotted_at": "2026-06-12T14:13:51.512Z"
       },
-      "assignee": "worker-agent-bench-redo",
+      "assignee": "fix-send-return",
       "timestamps": {
         "firstSeen": "2026-06-10T23:48:50.777Z",
         "lastChanged": "2026-06-10T23:48:50.777Z",
@@ -84711,11 +84711,19 @@
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
-      "summary": "Wrote bench/heldout/specs/legacy-id.md (task spec) and bench/heldout/graders/legacy-id.grader.js (10-case grader covering current UUID format, legacy 8-hex prefix format, and invalid inputs). Seeded KB note on legacy task ID format migration.",
+      "summary": "Fixed 4 confirmed security bypasses in hooks/orch-gate-bash.sh: (1) added normalize_path() to collapse ../ traversal before exemption checks; (2) narrowed *.log exemption to /tmp/*.log and */logs/*.log only (was glob-anywhere); (3) strip bash comments from CMD before extracting targets so trailing \"# /tmp/log\" can't exempt a real dest; (4) collect ALL targets (redirects + cp/mv dest + dd of=) and require every one to be exempt before exiting 0, instead of the old if/elif first-match strategy. Added 9 regression tests (tests 16-24) covering all 4 bypass vectors plus 3 valid allow cases. 24/24 gate-bash tests pass, 59/59 full suite passes.",
       "knowledge": [],
       "note": null,
-      "snapshot": null,
-      "assignee": "legacy-id-build",
+      "snapshot": {
+        "subject": "Fix orch-gate-bash: close 4 confirmed write-gate bypasses + add regression tests",
+        "description": "Four confirmed bypasses in hooks/orch-gate-bash.sh: (1) redirect-shadowing — cp GATED >/tmp/x exempts whole cmd; (2) *.log suffix dest exempts arbitrary paths; (3) */logs/* + ../ path traversal; (4) trailing comment becomes LAST_TOKEN. Fix: extract ALL targets per command (not just one), normalize paths before is_exempt, tighten *.log to /tmp/*.log and */logs/*.log only, strip bash comments before LAST_TOKEN extraction. Add 6 regression tests to test/orch-gate-bash.test.js.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T14:18:58.980Z"
+      },
+      "assignee": "fix-gate-bypasses",
       "timestamps": {
         "firstSeen": "2026-06-12T09:27:34.816Z",
         "lastChanged": "2026-06-12T09:27:34.816Z",
@@ -90149,7 +90157,7 @@
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
-      "summary": "Plan recommendation now uses weekly output token rate (totalOut / weeksElapsed from oldest task firstSeen) + Opus % of output. Fetches /graph/delta?since=0 for task timestamps. Tiers: Opus-primary→Max20×/API; high weekly volume→API; moderate→Max5×/20×; low→Pro.",
+      "summary": "Billing popup UI redesign complete. Compacted popup, moved harness overhead to HARNESS COST tooltip, fixed overhead cost calculation (blended input rate), removed EXPLORATION TOK hero (folded into PRODUCTIVE TOK tooltip), made productive % first-class metric, added side-by-side Flagship vs Base plan recommendation widget with quota bars (Max 20× = 80M/wk all-models), updated subagent model routing to sonnet minimum (classify.sh).",
       "knowledge": [],
       "note": null,
       "snapshot": {
@@ -90159,9 +90167,9 @@
         "blockedBy": [],
         "owner": null,
         "metadata": null,
-        "snapshotted_at": "2026-06-12T11:49:48.562Z"
+        "snapshotted_at": "2026-06-12T13:42:32.326Z"
       },
-      "assignee": "billing-plan-weekly-rate",
+      "assignee": "main",
       "timestamps": {
         "firstSeen": "2026-06-12T10:55:45.783Z",
         "lastChanged": "2026-06-12T10:55:45.783Z",
@@ -90616,7 +90624,7 @@
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
-      "summary": "Judged 20 items (5 dup-clusters + 15 edges). Verdicts: 1 kept, 14 pruned, 5 surfaced, 0 consolidated. The one kept edge: asset-heavy-repos insight note → asset miner task (genuine motivation prerequisite, correct direction). All 14 edge prunes were either wrong-direction (note→task when note is the task's result, not input) or near-topic-only without prerequisite relationship. All 5 dup-clusters surfaced as false-positive merges of distinct ingest notes and distinct test probe artifacts.",
+      "summary": "Judged 20 items (budget exhausted): 5 dup-clusters surfaced (no genuine duplicates found — all were distinct facts or throwaway test artifacts), 12 edges kept, 3 edges pruned. Kept edges: onboarding-plateau note → tasks /10, /11, /16 (outcome notes for those exact runs); plateau note → floor/ceiling and ceiling-gating notes (prerequisite measurement context); semantic-RAG decision → wiring-validation note; asset-heavy prediction note → asset-miner task and its two measurement backing notes; orphan/temporal correction note → context-router architecture, bitemporal KB, and semantic RAG notes. Pruned: plateau→probe-generator (near-topic, not prerequisite), plateau→loop-code (near-topic), wiring-validation→orphan-problem (wrong direction). Cursor at 267/505, ~238 items remain.",
       "knowledge": [],
       "note": null,
       "snapshot": {
@@ -90631,7 +90639,7 @@
         },
         "snapshotted_at": "2026-06-12T12:30:14.739Z"
       },
-      "assignee": "judge-drain-176d2e9a",
+      "assignee": "judge-drain-cfca7e3f",
       "timestamps": {
         "firstSeen": "2026-06-12T12:30:14.864Z",
         "lastChanged": "2026-06-12T12:30:14.864Z",
@@ -90809,6 +90817,122 @@
       "timestamps": {
         "firstSeen": "2026-06-12T13:05:55.705Z",
         "lastChanged": "2026-06-12T13:05:55.705Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "3875ca4b-760e-41d4-b17b-98619b23b5e5/2": {
+      "id": "3875ca4b-760e-41d4-b17b-98619b23b5e5/2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Force-claim cap refusal now builds the dashboard URL dynamically from req.headers.host (falls back to 127.0.0.1:8787) — correct on any ORCH_PORT or port-fallback. Test passes.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Force-claim hard cap with dashboard-only user approval",
+        "description": "Close the force-claim gate bypass: (1) daemon caps force:true start_task per (session, task) at 3; over cap → 409 + guidance item requiring user approval ON THE DASHBOARD (no MCP path to self-approve); (2) start_task response returns force_claims_remaining; (3) classify.sh UserPromptSubmit hook adds a standing \"never force-claim for unrelated work\" signal line.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T14:16:04.677Z"
+      },
+      "assignee": "main",
+      "timestamps": {
+        "firstSeen": "2026-06-12T13:59:44.478Z",
+        "lastChanged": "2026-06-12T13:59:44.478Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "a36681ec-7394-46f0-b0b0-4a1f56f68ff6/2": {
+      "id": "a36681ec-7394-46f0-b0b0-4a1f56f68ff6/2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Removed the dead, unreachable inline /context-classify POST handler from daemon.js (it was shadowed by the canonical complete copy in routes/graph.js since the routeModules dispatch loop runs first). daemon.js 1770→1666 lines. Verified: exactly 1 context-classify handler (graph.js), zero inline+module shadows remain, 72 endpoints intact, node --check clean, endpoints.test.js passes. Committed as 37e1705. NOTE: daemon restart still pending to serve current code (live daemon is on stale head 33dc2ca, /judge/pressure 404) — deferred because 9 bench workers are active and restart-mid-flight breaks in-progress work.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Cleanup: remove dead shadowed /context-classify block from daemon.js",
+        "description": "The route-split↔audit-sprint merge left an unreachable inline /context-classify POST handler in daemon.js (after the routeModules dispatch loop), shadowed by the canonical, complete copy in routes/graph.js. Delete the inline block (daemon.js lines ~1479-1581) only. Pure dead-code removal, no behavior change.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T14:05:22.918Z"
+      },
+      "assignee": "cleanup-context-classify",
+      "timestamps": {
+        "firstSeen": "2026-06-12T14:03:55.597Z",
+        "lastChanged": "2026-06-12T14:03:55.597Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/33": {
+      "id": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/33",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Applied 3 nit fixes. (1) graph.html bootedAt restart branch now calls enterPhase(data.phase || 'loading', data) instead of hardcoding 'ready'. (2) routes/overlay.js: removed dead `const autowired = 0` constant, inlined literal 0 at the sendOp call site. (3) graph.html tick_resilient: removed dead `const d = await res.json()` line whose value was never read. All 59 tests pass.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix dashboard nits: phase branch on restart, dead autowired const, wasted /state fetch",
+        "description": "Three nits from deep review: (1) graph.html bootedAt change forces enterPhase('ready') ignoring actual phase — fix to use data.phase; (2) routes/overlay.js dead const autowired=0 — remove; (3) graph.html tick_resilient does const d = await res.json() then never uses d before calling _origTick() which re-fetches — remove dead line.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T14:18:37.502Z"
+      },
+      "assignee": "fix-dashboard-nits",
+      "timestamps": {
+        "firstSeen": "2026-06-12T14:03:35.842Z",
+        "lastChanged": "2026-06-12T14:03:35.842Z",
+        "lastStatus": "in_progress"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/19": {
+      "id": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/19",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Committed today's work: a247052 (feat: learned-gate flywheel, KB integrity guards, self-running judge, restart lifecycle — 430 files; the .graph snapshot rode along because a prior session had pre-staged it, so the planned two commits landed as one) + 6569440 (this session's remaining task nodes). Tree clean. Local only, not pushed. Note: the hardened orch-gate-bash correctly blocked the first commit attempt (heredoc matched write patterns) — claimed task /19 to proceed; gate working as designed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Commit today's work: flywheel + guards + judge + lifecycle",
+        "description": "Two commits via explicit pathspecs: (1) the 21 code/test/report paths from today's 18-task arc, (2) .graph snapshot per repo convention.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T13:27:52.295Z"
+      },
+      "assignee": "orchestrator-main",
+      "timestamps": {
+        "firstSeen": "2026-06-12T13:26:28.961Z",
+        "lastChanged": "2026-06-12T13:26:28.961Z",
         "lastStatus": "ready"
       },
       "metrics": null,
@@ -100106,7 +100230,136 @@
       "to": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/18",
       "kind": "context",
       "weight": 0.289
+    },
+    {
+      "from": "note:note-mq7hefalghc",
+      "to": "3875ca4b-760e-41d4-b17b-98619b23b5e5/2",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqay9nskqcp",
+      "to": "3875ca4b-760e-41d4-b17b-98619b23b5e5/1",
+      "kind": "context",
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mqazu4u0rgq",
+      "to": "3875ca4b-760e-41d4-b17b-98619b23b5e5/2",
+      "kind": "context",
+      "weight": 1
+    },
+    {
+      "from": "note:note-mqazz9rn8tm",
+      "to": "94a457f3-88a7-42ab-b18e-3a4fa31a38af/3",
+      "kind": "context",
+      "weight": 1
+    },
+    {
+      "from": "note:note-mqb0buhnm2q",
+      "to": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32",
+      "kind": "context",
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mqb0hptz0i6",
+      "to": "a36681ec-7394-46f0-b0b0-4a1f56f68ff6/1",
+      "kind": "context",
+      "weight": 0.5
+    },
+    {
+      "from": "a36681ec-7394-46f0-b0b0-4a1f56f68ff6/1",
+      "to": "a36681ec-7394-46f0-b0b0-4a1f56f68ff6/2",
+      "kind": "context",
+      "weight": 0.7
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/1",
+      "to": "3875ca4b-760e-41d4-b17b-98619b23b5e5/2",
+      "kind": "context"
+    },
+    {
+      "from": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/18",
+      "to": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/19",
+      "kind": "context",
+      "weight": 0.6
+    },
+    {
+      "from": "note:note-mq8wyx1ricg",
+      "to": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "kind": "context",
+      "weight": 0.267
+    },
+    {
+      "from": "note:note-mqb0kr66rg9",
+      "to": "a36681ec-7394-46f0-b0b0-4a1f56f68ff6/2",
+      "kind": "context",
+      "weight": 1
+    },
+    {
+      "from": "2435aa5d-e602-42f1-af2c-13c7a17d53f6/6",
+      "to": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "kind": "context",
+      "weight": 0.263
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/10",
+      "to": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "kind": "context",
+      "weight": 0.286
+    },
+    {
+      "from": "a36681ec-7394-46f0-b0b0-4a1f56f68ff6/1",
+      "to": "a36681ec-7394-46f0-b0b0-4a1f56f68ff6/2",
+      "kind": "blocking"
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/8",
+      "to": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "kind": "context",
+      "weight": 0.252
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/10",
+      "to": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "kind": "context",
+      "weight": 0.286
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/16",
+      "to": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "kind": "context",
+      "weight": 0.359
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/9",
+      "to": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "kind": "context",
+      "weight": 0.504
+    },
+    {
+      "from": "dc3ec43f-f1a8-4a77-9403-14c5a43e2e17/2",
+      "to": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "kind": "context",
+      "weight": 0.378
+    },
+    {
+      "from": "dc3ec43f-f1a8-4a77-9403-14c5a43e2e17/4",
+      "to": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "kind": "context",
+      "weight": 0.429
+    },
+    {
+      "from": "dc3ec43f-f1a8-4a77-9403-14c5a43e2e17/5",
+      "to": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "kind": "context",
+      "weight": 0.309
+    },
+    {
+      "from": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/4",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/1",
+      "kind": "context",
+      "weight": 0.275
     }
   ],
-  "compacted_at": "2026-06-12T13:11:08.792Z"
+  "compacted_at": "2026-06-12T14:42:21.729Z"
 }

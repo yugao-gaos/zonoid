@@ -209,6 +209,21 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         return Math.round((empCount / top10.length) * 1000) / 1000;
       })(),
     };
+    // Task-side features — extend journal schema before volume accumulates (retroactively impossible).
+    // complexity: caller-supplied routing score preferred (model-routing hook computes it on the full
+    // prompt at UserPromptSubmit time); fall back to inline heuristic on the search query itself.
+    const _passedComplexity = parseFloat(u.searchParams.get('complexity') || '');
+    const _qWords = q.split(/\s+/).filter(Boolean).length;
+    const _taskNode = task_key ? g.tasks.find((t) => t.id === task_key) : null;
+    const _taskLabel = _taskNode ? (_taskNode.label || '') : '';
+    const taskMeta = {
+      qWords: _qWords,
+      taskWords: _taskLabel.split(/\s+/).filter(Boolean).length,
+      hasSpec: /\b(implement|add|build|fix|refactor|create|write|migrate|update|extend)\b/i.test(_taskLabel || q),
+      complexity: Number.isFinite(_passedComplexity) ? _passedComplexity
+        : Math.min(1.0, (_qWords < 15 ? 0.2 : _qWords <= 40 ? 0.5 : 0.8)
+            + (/\b(audit|migrate|refactor|all\s+files|entire|sweep)\b/i.test(q) ? 0.2 : 0)),
+    };
     // Anchor set for RAG path BFS: DAG-tier keys + the query task_key itself.
     const pathAnchors = new Set(dagKeys);
     if (task_key) pathAnchors.add(task_key);
@@ -315,7 +330,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
               top1: rs.top1, margin: rs.margin, gap: rs.gap, locality: rs.locality,
               topType: rs.topType, topKey: rs.topKey || null, via: rs.via,
               embedModel: EMBED_MODEL, gated: false, round: typeof round === 'number' ? round : Number(round) || 1,
-              ...kbMeta,
+              ...kbMeta, ...taskMeta,
             });
             fs.appendFileSync(path.join(ws, '.graph', 'gate-journal.jsonl'), journalRow + '\n');
           } catch { /* journal failure must not break the search response */ }
@@ -340,7 +355,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality,
         topType: r.topType, topKey: r.topKey || null, via: r.via,
         embedModel: EMBED_MODEL, gated: true, round: typeof round === 'number' ? round : Number(round) || 1,
-        ...kbMeta,
+        ...kbMeta, ...taskMeta,
       });
       fs.appendFileSync(path.join(ws, '.graph', 'gate-journal.jsonl'), journalRow + '\n');
     } catch { /* journal failure must not break the search response */ }

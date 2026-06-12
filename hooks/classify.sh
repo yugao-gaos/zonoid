@@ -228,6 +228,10 @@ Never claim tasks directly — loop_control handles dispatch to subagents."
   fi
 fi
 
+# Standing gate reminder (always emitted)
+CTX="${CTX:+$CTX
+}[Orch gate] Claim only the task matching the work at hand — NEVER force-claim a task to unlock edits for unrelated work; create a new task instead. Force-claims are capped at 3 per task; over cap requires user approval on the dashboard."
+
 # Always append ScheduleWakeup heartbeat instruction
 CTX="${CTX:+$CTX
 }[Orchestrator heartbeat] Call ScheduleWakeup(delaySeconds=7200, reason=\"idle heartbeat\", prompt=\"<<autonomous-loop-dynamic>>\") to keep this session alive for background work. On wakeup: check ready tasks + active loop via next_action. If BOTH are empty (nothing ready, no active loop) — do NOT reschedule. Let the loop end."
