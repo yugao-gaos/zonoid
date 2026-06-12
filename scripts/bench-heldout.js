@@ -284,6 +284,15 @@ function main() {
   }
   const tokenUsage = extractTokens(transcriptPath);
 
+  // (e3) archive journal alongside results so it survives ~/.claude cache rotation
+  const journalDir = path.join(REPO, 'bench', 'heldout', 'journals');
+  fs.mkdirSync(journalDir, { recursive: true });
+  let journalPath = null;
+  if (fs.existsSync(transcriptPath)) {
+    journalPath = path.join(journalDir, `${sessionId}.jsonl`);
+    fs.copyFileSync(transcriptPath, journalPath);
+  }
+
   // (f) FREEZE the produced artifact OUT of the worktree, then GRADE with the external held-out suite.
   const producedPath = path.join(wt, cfg.artifact);
   const frozenDir = path.join(HT, 'frozen', `${candidate}-${armLabel}-${trial}`);
@@ -312,6 +321,7 @@ function main() {
 
   const row = JSON.stringify({
     candidate, arm, consult: arm === 'on' ? cm : null, armLabel, trial, sessionId, transcriptPath,
+    journalPath,
     worktree: wt, frozenArtifact: artifactPresent ? frozenArtifact : null, model: MODEL,
     exitCode, wallMs, artifactPresent, diffChars, diffTokens: Math.round(diffChars / 4),
     inputTokens: tokenUsage.inputTokens, outputTokens: tokenUsage.outputTokens,

@@ -1402,6 +1402,7 @@ const taskRoute = require('./routes/task');
 const overlayRoute = require('./routes/overlay');
 const gitRoute = require('./routes/git');
 const judgeRoute = require('./routes/judge');
+const labelRoute = require('./routes/label');
 const analyticsRoute = require('./routes/analytics');
 const onboardRoute = require('./routes/onboard');
 const sessionRoute = require('./routes/session');
@@ -1448,7 +1449,7 @@ const ctx = {
 };
 const routeModules = [
   metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
-  gitRoute(ctx), judgeRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
+  gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
   sessionRoute(ctx), execRoute(ctx), uiRoute(ctx),
 ];
 

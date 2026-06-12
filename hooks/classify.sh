@@ -256,6 +256,25 @@ if [ "${ORCH_GATE_OFF:-0}" != "1" ]; then
   fi
 fi
 
+# Grader queue pressure nudge. Skipped entirely when ORCH_GATE_OFF=1 (bench sandbox must not be
+# nudged into label work — it would contaminate bench measurements). Fail-silent on curl error.
+if [ "${ORCH_GATE_OFF:-0}" != "1" ]; then
+  LABEL_PRESSURE=$(curl -s --max-time 0.6 "localhost:${PORT}/label/pressure" 2>/dev/null)
+  if [ -n "$LABEL_PRESSURE" ]; then
+    LABEL_NUDGE=$(printf '%s' "$LABEL_PRESSURE" | jq -r '.nudge // false' 2>/dev/null)
+    if [ "$LABEL_NUDGE" = "true" ]; then
+      LDEPTH=$(printf '%s' "$LABEL_PRESSURE" | jq -r '.depth // 0' 2>/dev/null)
+      LKEY=$(printf '%s' "$LABEL_PRESSURE" | jq -r '.harness_task_key // "followup/harness-label-drain"' 2>/dev/null)
+      # Generate a short random suffix for the per-pass agent_id (ensures each hourly pass gets a
+      # unique agent identity; complete_task after each pass resets the task to 'done' so the next
+      # start_task sees no in_progress conflict regardless of suffix).
+      JSUFFIX=$(head -c 4 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' | head -c 8 || echo "$(date +%s | tail -c 8)")
+      CTX="${CTX:+$CTX
+}[Grader] backlog: ${LDEPTH} gradable journal rows — dispatch ONE background subagent (cheap/default model; this is a deterministic script run, no LLM reasoning needed) this turn; do not block the user's request on it. The subagent MUST: (1) call mcp__orchestrator-graph__start_task with task_key=\"${LKEY}\" and agent_id=\"label-drain-${JSUFFIX}\" BEFORE running; (2) run \`node scripts/gate-label.js\` and read the coverage summary from its stdout; (3) call mcp__orchestrator-graph__complete_task with the same task_key and agent_id, and a summary including the newly-labeled count from the script's coverage output, AFTER finishing."
+    fi
+  fi
+fi
+
 [ -z "$CTX" ] && exit 0
 printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":%s}}' "$(printf '%s' "$CTX" | jq -Rs .)"
 exit 0

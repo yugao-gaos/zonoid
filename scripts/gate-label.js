@@ -33,6 +33,11 @@ const WORKSPACE = getArg('--workspace', process.cwd());
 const JOURNAL_PATH = path.join(WORKSPACE, '.graph', 'gate-journal.jsonl');
 const LABELED_PATH = path.join(WORKSPACE, '.graph', 'gate-labeled.jsonl');
 
+// ── Exports (for routes/label.js and tests) ───────────────────────────────────
+// Guarded by require.main check so requiring this module does NOT execute the CLI.
+function journalPath(workspace) { return path.join(workspace, '.graph', 'gate-journal.jsonl'); }
+function labeledPath(workspace) { return path.join(workspace, '.graph', 'gate-labeled.jsonl'); }
+
 // ── HTTP helper ───────────────────────────────────────────────────────────────
 function httpGet(url) {
   return new Promise((resolve, reject) => {
@@ -298,7 +303,11 @@ async function main() {
   return { total, alreadyLabeled, newlyLabeled, stillPending, unlabelable, quadCounts };
 }
 
-main().catch((e) => {
-  console.error('gate-label ERROR:', e && (e.stack || e.message));
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((e) => {
+    console.error('gate-label ERROR:', e && (e.stack || e.message));
+    process.exit(1);
+  });
+}
+
+module.exports = { rowKey, readJsonl, journalPath, labeledPath };
