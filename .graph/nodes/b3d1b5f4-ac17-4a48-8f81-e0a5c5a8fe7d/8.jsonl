@@ -18,3 +18,4 @@
 {"evt":"status_changed","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/8","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-11T23:09:00.656Z"}
 {"evt":"assignee_set","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/8","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-stale-agent-sweep","actor":"overlay-sync","ts":"2026-06-11T23:09:00.656Z"}
 {"evt":"status_changed","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/8","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-11T23:30:48.676Z"}
+{"evt":"status_changed","id":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/8","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-11T23:36:43.219Z"}

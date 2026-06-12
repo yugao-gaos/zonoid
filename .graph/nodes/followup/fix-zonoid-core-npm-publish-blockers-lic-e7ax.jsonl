@@ -4,3 +4,6 @@
 {"evt":"assignee_set","id":"followup/fix-zonoid-core-npm-publish-blockers-lic-e7ax","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-zonoid-core-publish","actor":"overlay-sync","ts":"2026-06-11T16:09:09.107Z"}
 {"evt":"assignee_set","id":"followup/fix-zonoid-core-npm-publish-blockers-lic-e7ax","workspace":"/Users/imyu/Desktop/zonoid","assignee":"b417e1c6-de16-4411-ac1c-b88202b5187f","actor":"overlay-sync","ts":"2026-06-11T16:12:26.686Z"}
 {"evt":"status_changed","id":"followup/fix-zonoid-core-npm-publish-blockers-lic-e7ax","workspace":"/Users/imyu/Desktop/zonoid","status":"failed","actor":"overlay-sync","ts":"2026-06-11T16:14:18.113Z"}
+{"evt":"status_changed","id":"followup/fix-zonoid-core-npm-publish-blockers-lic-e7ax","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-11T23:36:43.231Z"}
+{"evt":"status_changed","id":"followup/fix-zonoid-core-npm-publish-blockers-lic-e7ax","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T00:19:48.006Z"}
+{"evt":"assignee_set","id":"followup/fix-zonoid-core-npm-publish-blockers-lic-e7ax","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-agent-fix-npm-publish","actor":"overlay-sync","ts":"2026-06-12T00:19:48.006Z"}
