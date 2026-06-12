@@ -25,7 +25,8 @@ models/
 /.claude/settings.json
 /.claude/launch.json
 /.claude/scheduled_tasks.lock
-README.md.bak
+_README.bak
+.graph/daemon.port
 # Invalidated v1-v7 bench results (oracle contamination — not shipped)
 bench/results.jsonl
 bench/results-v2.jsonl
