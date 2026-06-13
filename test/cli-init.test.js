@@ -2,7 +2,15 @@
 'use strict';
 const { spawnSync } = require('child_process');
 const path = require('path');
-const { parseInitArgs, mergeCursorHooks, VALID_HARNESSES } = require('../packages/cli/bin/zonoid.js');
+const {
+  parseInitArgs,
+  mergeCursorHooks,
+  VALID_HARNESSES,
+  scheduleWakeupScriptPath,
+  opencodePluginHasScheduleWakeup,
+  INSTALL_DIR,
+} = require('../packages/cli/bin/zonoid.js');
+const fs = require('fs');
 
 const zonoid = path.join(__dirname, '..', 'packages', 'cli', 'bin', 'zonoid.js');
 let failed = 0;
@@ -38,5 +46,12 @@ ok('usage lists cursor', usage.includes('cursor'));
 ok('usage lists opencode', usage.includes('opencode'));
 ok('usage lists codex', usage.includes('codex'));
 ok('usage lists --service', usage.includes('--service'));
+
+const swScript = scheduleWakeupScriptPath();
+ok('scheduleWakeupScriptPath under adapters/common', swScript.endsWith('adapters/common/schedule-wakeup.sh'));
+ok('scheduleWakeupScriptPath uses INSTALL_DIR', swScript.startsWith(INSTALL_DIR));
+
+const pluginTs = path.join(__dirname, '..', 'packages', 'opencode-plugin', 'zonoid.ts');
+ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(fs.readFileSync(pluginTs, 'utf8')));
 
 process.exit(failed ? 1 : 0);

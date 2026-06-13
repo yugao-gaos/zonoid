@@ -450,6 +450,39 @@ function cursorTodoMintEntry() {
   }];
 }
 
+function scheduleWakeupScriptPath() {
+  return path.join(INSTALL_DIR, 'adapters', 'common', 'schedule-wakeup.sh');
+}
+
+function opencodePluginHasScheduleWakeup(content) {
+  return typeof content === 'string' && content.includes('schedule_wakeup');
+}
+
+function checkScheduleWakeupShim(harness) {
+  if (harness === 'claude') return;
+  const script = scheduleWakeupScriptPath();
+  if (!fs.existsSync(script)) {
+    warn(`ScheduleWakeup script missing at ${script}`);
+    return;
+  }
+  try { fs.chmodSync(script, 0o755); } catch (e) { warn(`Could not chmod schedule-wakeup.sh: ${e.message}`); }
+  ok(`ScheduleWakeup shim: ${script}`);
+}
+
+function verifyOpencodeScheduleWakeup() {
+  const pluginTs = path.join(INSTALL_DIR, 'packages', 'opencode-plugin', 'zonoid.ts');
+  const swLib = path.join(INSTALL_DIR, 'packages', 'opencode-plugin', 'lib', 'schedule-wakeup.js');
+  try {
+    const content = fs.readFileSync(pluginTs, 'utf8');
+    if (opencodePluginHasScheduleWakeup(content)) ok('OpenCode plugin exposes schedule_wakeup tool');
+    else warn('OpenCode plugin missing schedule_wakeup — update install dir');
+    if (fs.existsSync(swLib)) ok(`OpenCode schedule-wakeup lib: ${swLib}`);
+    else warn(`OpenCode schedule-wakeup lib missing at ${swLib}`);
+  } catch (e) {
+    warn(`Cannot verify OpenCode schedule_wakeup: ${e.message}`);
+  }
+}
+
 function chmodScripts(dir) {
   if (!fs.existsSync(dir)) return;
   for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.sh'))) {
@@ -520,6 +553,7 @@ function checkOpencodePlugin(cwd) {
     fs.symlinkSync(target, dest);
     ok(`Linked .opencode/plugins/${name} → install dir`);
   }
+  verifyOpencodeScheduleWakeup();
   const pkgPath = path.join(opencodeDir, 'package.json');
   const defaultPkg = JSON.stringify({ dependencies: { '@opencode-ai/plugin': 'latest' } }, null, 2) + '\n';
   if (fs.existsSync(pkgPath)) {
@@ -617,6 +651,13 @@ async function init(opts = {}) {
     warn('OpenCode init skips Claude hooks — wire orchestrator MCP in opencode.json for start_task / complete_task');
   }
 
+
+  if (harness !== 'claude') {
+    section('2b. ScheduleWakeup');
+    checkScheduleWakeupShim(harness);
+    if (harness === 'opencode') verifyOpencodeScheduleWakeup();
+  }
+
   section('3. Git identity');
   await checkGitIdentity();
 
@@ -644,16 +685,23 @@ async function init(opts = {}) {
     console.log('    2. Restart Codex in this directory');
     console.log('    3. Open the dashboard: http://localhost:8787/graph');
     console.log('    4. Mint tasks with MCP create_task, then start_task before editing');
+    console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — run the returned');
+    console.log('       tail command on the session .fire file; on ORCH_SCHEDULED_TASK, re-inject the prompt');
+    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else if (harness === 'cursor') {
     console.log('    1. Trust the workspace in Cursor so project hooks run');
     console.log('    2. Restart Cursor in this directory');
     console.log('    3. Open the dashboard: http://localhost:8787/graph');
     console.log('    4. Mint tasks via todo adoption or MCP, then start_task before editing');
+    console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — monitor stdout with');
+    console.log('       the returned tail command (notify_pattern ORCH_SCHEDULED_TASK) and re-inject the prompt');
+    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else if (harness === 'opencode') {
     console.log('    1. Wire orchestrator MCP in opencode.json (stdio transport)');
     console.log('    2. Restart OpenCode in this directory');
     console.log('    3. Open the dashboard: http://localhost:8787/graph');
     console.log('    4. Use task_create to mint, then start_task before editing');
+    console.log('    5. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
   } else {
     console.log('    1. Restart Claude Code in this directory');
     console.log('    2. Open the dashboard: http://localhost:8787/graph');
@@ -678,5 +726,12 @@ if (require.main === module) {
     process.exit(cmd ? 1 : 0);
   }
 } else {
-  module.exports = { parseInitArgs, mergeCursorHooks, VALID_HARNESSES };
+  module.exports = {
+    parseInitArgs,
+    mergeCursorHooks,
+    VALID_HARNESSES,
+    scheduleWakeupScriptPath,
+    opencodePluginHasScheduleWakeup,
+    INSTALL_DIR,
+  };
 }
