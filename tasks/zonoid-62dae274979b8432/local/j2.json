@@ -1,0 +1,11 @@
+{
+  "id": "j2",
+  "subject": "Wire Bash shell-write gate into Claude plugin hooks/hooks.json",
+  "description": "The shared enforcement script hooks/orch-gate-bash.sh exists and Codex/Cursor adapter samples wire it, but the canonical Claude plugin hooks/hooks.json only gates Write|Edit — not Bash. Fresh zonoid init / plugin-only installs therefore allow shell write bypass (python -c, cp, redirects, etc.) unless users manually merge Bash into ~/.claude/settings.json.\n\nScope:\n- Add PreToolUse matcher Bash → ${CLAUDE_PLUGIN_ROOT}/hooks/orch-gate-bash.sh in hooks/hooks.json\n- Verify parity with adapters/codex/hooks.json.sample and adapters/cursor/hooks.json.sample (each adapter wires its shell tool name; shared logic stays in hooks/)\n- Update docs if adapter-contract or CLAUDE.md implies bash gate is default-on for Claude plugin\n- Smoke: unclaimed subagent + cp to repo path should exit 2 when hooks loaded",
+  "status": "pending",
+  "blockedBy": [],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "cursor-orchestrator"
+  }
+}

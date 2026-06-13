@@ -1,0 +1,2 @@
+{"evt":"timestamps_set","id":"local/arch-srv","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T11:10:10.795Z","lastChanged":"2026-06-13T11:10:10.795Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-13T11:10:10.807Z"}
+{"evt":"edge_added","from":"local/arch-srv","to":"local/arch-cloud","kind":"context","actor":"overlay-sync","ts":"2026-06-13T11:10:50.800Z"}

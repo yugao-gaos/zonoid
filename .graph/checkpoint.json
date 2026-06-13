@@ -91554,6 +91554,466 @@
       "measurements": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/11": {
+      "id": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/11",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Snapshot-daemon bench harness complete: scripts/bench-snapshot-daemon.js + test/bench-snapshot-daemon.test.js (13/13 pass). Isolated daemon on private port with frozen bench/snapshot/.graph; bench-heldout.js wired. Native task marked completed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Implement snapshot-daemon bench harness (isolated daemon + frozen .graph snapshot)",
+        "description": "Make the held-out bench gated/search arms run against an ISOLATED daemon booted from a frozen .graph snapshot instead of live :8787, for reproducibility + isolation. Add a bootstrap that: (1) copies .graph to a pinned bench-snapshot dir, (2) boots a daemon on a private port with isolated CLAUDE_PLUGIN_DATA + workspace=snapshot (mirror test/smoke.sh boot pattern), (3) bench-heldout.js spawn env gets ORCH_PORT=<private> so the spawned claude's mcp-graph.js hits the isolated daemon. Opt-in via flag/env (preserve existing live behavior). Keep RAG on the gated arm (do NOT add a DAG edge — that would bypass the gate). Validate: a bench cell run against the isolated snapshot daemon journals to the snapshot workspace, not live; reproducible across runs.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": "main-ops",
+        "metadata": null,
+        "snapshotted_at": "2026-06-13T01:29:36.033Z"
+      },
+      "assignee": "snapshot-harness",
+      "timestamps": {
+        "firstSeen": "2026-06-12T19:43:57.402Z",
+        "lastChanged": "2026-06-12T19:43:57.402Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/12": {
+      "id": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/12",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "MERGE PENDING — orch/attempt/tags-e2e @ 9ee3f53: implemented and ff-merged to main. Task 12: lib/node-tags.js, category/tags on notes, tag-overlap gate signal, embed title+category+tags. Task 13: docs/bench-e2e-plan.md, scripts/bench-e2e.js --dry-run, dag-chain scenario. 65/65 tests pass.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Add category + tags to tasks/notes + tag-overlap gate feature (embed title+category+tag)",
+        "description": "User thesis: enrich RAG with structured, churn-resistant targeting. Add category + tags fields to task and note nodes; embed title+category+tag (not just label/summary); add a tag/category-overlap feature to the gate (task.tags ∩ note.tags) as a stable signal robust to prose churn. NEEDS DESIGN PASS before build: where tags originate (author-set? auto-derived?), how the embedding combines fields, schema/overlay changes, and how the gate feature integrates. Strategic value: makes the learned gate churn-resistant (Layer 2 of note-mqbbndrgd1k).",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-13T01:36:11.685Z"
+      },
+      "assignee": "tags-gate-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-12T19:44:51.092Z",
+        "lastChanged": "2026-06-12T19:44:51.092Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/13": {
+      "id": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/13",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "MERGE PENDING — orch/attempt/tags-e2e @ 9ee3f53: implemented and ff-merged to main. Task 12: lib/node-tags.js, category/tags on notes, tag-overlap gate signal, embed title+category+tags. Task 13: docs/bench-e2e-plan.md, scripts/bench-e2e.js --dry-run, dag-chain scenario. 65/65 tests pass.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Design + build product e2e bench (DAG+RAG whole process, ON vs OFF, public-bench source)",
+        "description": "The held-out bench is a gate unit test (RAG only). Build a SECOND, product-level bench: ON (full orchestrator graph+DAG+RAG+gate+workers) vs OFF (plain agent), on context-REQUIRED interdependent tasks. Needs the DAG-dependency analog of a KB-dependent candidate: task B fails without task A's context-edge summary, succeeds with it. Public bench (SWE-bench-style) = realistic/objective-outcome source but single-issue (RAG-heavy, light on DAG) — multi-task scenarios needed for DAG. NEEDS DESIGN before build (what a minimal DAG-required candidate looks like; whether to source from a public bench or hand-author multi-task scenarios). This is how the product's ON-vs-OFF value finally gets measured (vs the parity seen so far).",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-13T01:36:11.907Z"
+      },
+      "assignee": "e2e-bench-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-12T19:44:56.239Z",
+        "lastChanged": "2026-06-12T19:44:56.239Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "a44324b6-bd10-4fac-a6c0-945ec4ffc000/1": {
+      "id": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Added exploration token row (amber, hidden when 0) to Token Economy section in billing popup. Removed the Human Input section (Messages / Input tokens / Autonomy ratio). Both changes in public/graph.html toggleBillingPopup().",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix billing popup: add exploration tokens, remove Human Input section",
+        "description": "1. Add exploration token row to Token Economy section in billing popup (backend sends t.exploration but frontend never renders it). 2. Remove the Human Input section (Messages / Input tokens / Autonomy ratio) from the billing popup.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-12T19:57:04.515Z"
+      },
+      "assignee": "main",
+      "timestamps": {
+        "firstSeen": "2026-06-12T19:55:16.849Z",
+        "lastChanged": "2026-06-12T19:55:16.849Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/a1": {
+      "id": "local/a1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Designated-folder task source implemented. lib/filedrop-tasks.js, daemon.js wired, 67/67 tests green. Landed on main b0bf6d8.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.327Z",
+        "lastChanged": "2026-06-13T01:42:06.327Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/a2": {
+      "id": "local/a2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "POST /sync implemented. Returns adopted keys + link suggestions. Landed on main af9ead1.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.328Z",
+        "lastChanged": "2026-06-13T01:42:06.328Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1": {
+      "id": "da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Added canonicalEventNodeId in graph-store appendEvent; overlay backfill/reembed use note: prefix; test verifies single canonical JSONL file.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix note node filename split in graph-store",
+        "description": "note_created events go to note-&lt;id&gt;.jsonl while edge_added events go to note:note-&lt;id&gt;.jsonl, creating two separate graph nodes per note. Fix: canonicalize on read in loadGraph + align 4 write sites to use note:note-&lt;id&gt; consistently.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-13T02:25:07.527Z"
+      },
+      "assignee": "note-split-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-12T14:40:04.832Z",
+        "lastChanged": "2026-06-12T14:40:04.832Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/a3": {
+      "id": "local/a3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "P2-A3 landed: adoptNativeTask on first buildGraph sighting; aggregateWorkspace precedence flip (snapshot authoritative for structure, native live echo for status/title); terminal snapshotNative no-op for adopted keys + status refresh. Tests: adopt-native-daemon.test.js + native-tasks-adopt.test.js. Commit 1b15477, 70/70 green.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "harness-a3-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.328Z",
+        "lastChanged": "2026-06-13T01:42:06.328Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/b1": {
+      "id": "local/b1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "P3-B1: touchAgent centralizes agent registry; readBody stamps lastSeen on any mutating POST with agent_id; start_task auto-registers unknown agents (state running). Tests in test/touch-agent.test.js; 69/69 suite green. Commit 9cb025e.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "harness-b1-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.328Z",
+        "lastChanged": "2026-06-13T01:42:06.328Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/b2": {
+      "id": "local/b2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Terminal /overlay/status returns newly_ready on done/tested/failed/canceled; lib/newly-ready.js + test/newly-ready.test.js (14/14 pass). Commit 4ea9ece.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "harness-b2-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.328Z",
+        "lastChanged": "2026-06-13T01:42:06.328Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/b3": {
+      "id": "local/b3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Enforced metric-branch invariant in /overlay/status: metric-spec tasks return 409 unless claim workspace is on orch/attempt/* branch (git.currentBranch). Added test/metric-branch-claim.test.js. 68/69 tests green (bench-e2e flaky). Commit 6bb552a.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "harness-b3-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.328Z",
+        "lastChanged": "2026-06-13T01:42:06.328Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/b4": {
+      "id": "local/b4",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "P3-B4: MCP tools/call responses now attach should_stop:true + reason when agent_id has stop_requested (via /should-stop or /agent/stop-requested). Advisory only — does not block. stopAdvisory + wrapToolResult in lib/mcp-core.js; test/should-stop-advisory.test.js (12/12). Commit 6a8a817 on attempt/local-b4.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "harness-b4-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.328Z",
+        "lastChanged": "2026-06-13T01:42:06.328Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/a4": {
+      "id": "local/a4",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Added test/phase2-integration.test.js (31 assertions): namespace safety for local/cursor/session keys, writeStatus routing, stub durability across restart, adopt-on-first-sight GC resilience, /sync idempotency. Suite 75/75 green. Commit 0e0a050.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-a4",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.328Z",
+        "lastChanged": "2026-06-13T01:42:06.328Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/c1": {
+      "id": "local/c1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": null,
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-c1",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.328Z",
+        "lastChanged": "2026-06-13T01:42:06.328Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/c2": {
+      "id": "local/c2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Added docs/adapter-contract.md: daemon endpoint contract table, canonical event→endpoint mapping (blocking vs advisory), per-harness rows for Claude/Cursor/Codex/OpenCode, file-drop minting pattern. Commit 1772d6d merged to main.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-c2",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.328Z",
+        "lastChanged": "2026-06-13T01:42:06.328Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/e1": {
+      "id": "local/e1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Cursor compat spike doc at docs/cursor-compat-spike.md: third-party hook mapping, session_id/conversation_id gap, TodoWrite unconfirmed, IDE/CLI/cloud gaps, H1/H2 recommendations. Commit 3393386 merged.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-e1",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/f1": {
+      "id": "local/f1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "init --service opt-in: launchd plist (ORCH_PORT, CLAUDE_PLUGIN_DATA) on macOS; systemd user unit on Linux. Default init unchanged. Commit 0b359db merged.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-f1",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/g1": {
+      "id": "local/g1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Harness-scoped MCP tool list: mcp-graph.js reads ZONOID_HARNESS; codex adds create_task (file-drop stub + POST /sync) via ctx.extraTools without changing default TOOLS. test/mcp-harness-tools.test.js 16 assertions; full suite 75/75 green. Commit e0ba35f merged as 4bf4b78.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-g1",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/gate-prereq": {
+      "id": "local/gate-prereq",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Closed /tmp loophole in orch-gate-bash.sh; added opts.base to git.createWorktree + branch_task MCP tool + /git/worktree route; fixed classify.sh counter reset to handle camelCase sessionId field from Cursor.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-13T02:38:20.165Z",
+        "lastChanged": "2026-06-13T02:38:20.165Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/i2": {
+      "id": "local/i2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": null,
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-i2",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -101607,7 +102067,189 @@
       "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/10",
       "kind": "context",
       "weight": 0.316
+    },
+    {
+      "from": "note:note-mq75a826",
+      "to": "local/g1",
+      "kind": "context",
+      "weight": 0.298
+    },
+    {
+      "from": "note:note-mq75a829",
+      "to": "local/a3",
+      "kind": "context",
+      "weight": 0.316
+    },
+    {
+      "from": "note:note-mq75a82e",
+      "to": "local/g1",
+      "kind": "context",
+      "weight": 0.408
+    },
+    {
+      "from": "note:note-mqbbndrgd1k",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/11",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqbbndrgd1k",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/12",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqbbyhr20w2",
+      "to": "1",
+      "kind": "context",
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mqbc3urlxyq",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/9",
+      "kind": "context",
+      "weight": 1
+    },
+    {
+      "from": "note:note-mqbc3urlxyq",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/13",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqbc3zun3l4",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/9",
+      "kind": "context",
+      "weight": 1
+    },
+    {
+      "from": "note:note-mqbc3zun3l4",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/11",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mqbmniwcau4",
+      "to": "local/g1",
+      "kind": "context",
+      "weight": 0.299
+    },
+    {
+      "from": "note:note-mqbnqckziq0",
+      "to": "local/a2",
+      "kind": "context",
+      "weight": 0.255
+    },
+    {
+      "from": "014da635-9813-4932-a6b1-2e96da0b8f12/1",
+      "to": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/3",
+      "kind": "context",
+      "weight": 0.309
+    },
+    {
+      "from": "200e8c1e-f491-462e-aa2b-7174b4468475/2",
+      "to": "local/f1",
+      "kind": "context",
+      "weight": 0.286
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/14",
+      "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/14",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/3",
+      "to": "local/j1",
+      "kind": "context",
+      "weight": 0.316
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/35",
+      "to": "local/f1",
+      "kind": "context",
+      "weight": 0.286
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/1",
+      "to": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/3",
+      "kind": "context",
+      "weight": 0.408
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/2",
+      "to": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/1",
+      "kind": "context",
+      "weight": 0.252
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/2",
+      "to": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/4",
+      "kind": "context",
+      "weight": 0.338
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/5",
+      "to": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/4",
+      "kind": "context",
+      "weight": 0.298
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/7",
+      "to": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/4",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/8",
+      "to": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/4",
+      "kind": "context",
+      "weight": 0.4
+    },
+    {
+      "from": "688a3742-0944-4215-8815-733d85936f12/18",
+      "to": "local/a4",
+      "kind": "context",
+      "weight": 0.252
+    },
+    {
+      "from": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "to": "local/h3",
+      "kind": "context",
+      "weight": 0.309
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/1",
+      "to": "local/h1",
+      "kind": "context",
+      "weight": 0.309
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/12",
+      "to": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/4",
+      "kind": "context",
+      "weight": 0.365
+    },
+    {
+      "from": "f9e0d871-9503-4d04-ab63-dbd2e66b4fe1/1",
+      "to": "local/j1",
+      "kind": "context",
+      "weight": 0.365
+    },
+    {
+      "from": "note:note-mqbp7nlq0cs",
+      "to": "1",
+      "kind": "context",
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mqbp7nlrgki",
+      "to": "inline",
+      "kind": "context",
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mqbp7nlsaxa",
+      "to": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/2",
+      "kind": "context",
+      "weight": 0.5
     }
   ],
-  "compacted_at": "2026-06-12T19:34:23.845Z"
+  "compacted_at": "2026-06-13T02:43:01.526Z"
 }

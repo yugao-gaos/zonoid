@@ -1,0 +1,11 @@
+{
+  "id": "c1",
+  "subject": "P4-C1: /classify endpoint absorbs classify.sh script-resident heuristics",
+  "description": "New POST /classify endpoint absorbs classify.sh heuristics: solo/workflow/team/loop signal matching, model selection (complexity thresholds), ready-flag logic. Returns finished injection text. Claude classify.sh slims to dumb relay with byte-identical observable behavior. Prerequisite for thin per-harness bridge scripts.",
+  "status": "completed",
+  "blockedBy": [],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "plan-bootstrap"
+  }
+}

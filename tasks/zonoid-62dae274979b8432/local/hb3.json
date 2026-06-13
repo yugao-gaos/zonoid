@@ -2,7 +2,12 @@
   "id": "hb3",
   "subject": "P9-HB3: OpenCode plugin ScheduleWakeup tool",
   "description": "Add ScheduleWakeup tool to packages/opencode-plugin that arms/cancels session wakes via lib/schedule-wakeup.js. Match Claude semantics: cancel prior wake, sleep delaySeconds, re-prompt same session.",
-  "status": "pending",
-  "blockedBy": ["local/hb1"],
-  "created_by": { "harness": "local", "agent_id": "plan-bootstrap" }
+  "status": "completed",
+  "blockedBy": [
+    "local/hb1"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "plan-bootstrap"
+  }
 }

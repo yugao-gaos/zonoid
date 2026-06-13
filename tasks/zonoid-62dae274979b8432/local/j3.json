@@ -1,0 +1,11 @@
+{
+  "id": "j3",
+  "subject": "Tighten orch-gate-bash write-pattern detection (write_text, write_bytes)",
+  "description": "hooks/orch-gate-bash.sh catches redirects, cp/mv, tee, sed -i, open(...,'w'), and .write( — but Path.write_text() / write_bytes() bypass the detector (confirmed: python3 -c 'Path(p).write_text(...)' does not match). This gap applies to ALL harnesses once shell gate is wired.\n\nScope:\n- Extend WRITE_PATTERN in hooks/orch-gate-bash.sh for .write_text(, .write_bytes(, and any other common pathlib/stdlib helpers worth one regex\n- Add regression cases to test/orch-gate-bash.test.js (blocked for unclaimed subagent → exit 2)\n- No per-adapter logic duplication — adapters only relay; fix lives in shared hooks/",
+  "status": "pending",
+  "blockedBy": [],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "cursor-orchestrator"
+  }
+}

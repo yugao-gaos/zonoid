@@ -1,0 +1,15 @@
+{
+  "id": "a4",
+  "subject": "P2-A4: Phase 2 integration tests (durability, GC resilience, namespace safety)",
+  "description": "Integration test suite covering: stub + native task nodes survive daemon restart; Claude native file GC leaves graph node intact (adopt-on-first-sight); local/ and cursor/ namespace keys never collide with session-uuid keys; writeStatus routes correctly per namespace across all call sites; /sync idempotency. Full suite green after A1+A2+A3 land.",
+  "status": "completed",
+  "blockedBy": [
+    "local/a1",
+    "local/a2",
+    "local/a3"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "plan-bootstrap"
+  }
+}

@@ -4290,7 +4290,7 @@ async function openDetail(key){
     `<span class="st s-${esc(t.status)}" style="font-size:12px;font-weight:600">${statusLabel(t.status)}</span>`+
     (t.agent_id?`<span class="badge">${esc(t.agent_id)}</span>`:'')+
     `</div>`+
-    (u&&!u.error?`<div class="kv"><div class="k">Token usage</div><div class="v usage"><div>total <b>${fmtK(u.total||0)}</b></div><div>out <b>${fmtK(u.output_tokens||0)}</b></div><div>in ${fmtK(u.input_tokens||0)}</div><div>cache ${fmtK(u.cache_read_input_tokens||0)}</div></div></div>`:'')+
+    (u&&!u.error&&t.kind!=='note'?`<div class="kv"><div class="k">Token usage</div><div class="v usage"><div>total <b>${fmtK(u.total||0)}</b></div><div>out <b>${fmtK(u.output_tokens||0)}</b></div><div>in ${fmtK(u.input_tokens||0)}</div><div>cache ${fmtK(u.cache_read_input_tokens||0)}</div></div></div>`:'')+
     `<div style="margin-bottom:12px"><button id="focusToggleBtn" style="width:100%;background:none;border:1px solid #30363d;color:#8b949e;border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;text-align:center;letter-spacing:.02em" onclick="toggleFocus('${esc(key)}')">${currentView==='focus'&&focusedId===key?'✕ Exit Focus':'⌖ Focus view'}</button></div>`+
     (d.summary?`<div style="font-size:12px;line-height:1.5;color:#c9d1d9;margin-bottom:12px">${esc(d.summary)}</div>`:
     `<div class="muted" style="font-size:12px;margin-bottom:12px">No summary yet.</div>`)+

@@ -1,0 +1,16 @@
+{
+  "id": "i1",
+  "subject": "P7-I1: Codex bridge (hooks + scoped create_task)",
+  "description": "Codex adapter: hooks.json/config.toml hooks for PreToolUse gate, PostToolUse lifecycle, UserPromptSubmit classify relay, Stop. Harness-scoped create_task MCP tool via G1. Mind: unsupported PreToolUse fields fail closed; manual trust on hash change; not every shell path intercepted.",
+  "status": "completed",
+  "blockedBy": [
+    "local/g1",
+    "local/b1",
+    "local/b2",
+    "local/b3"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "plan-bootstrap"
+  }
+}

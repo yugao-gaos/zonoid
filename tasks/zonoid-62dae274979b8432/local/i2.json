@@ -1,0 +1,16 @@
+{
+  "id": "i2",
+  "subject": "P7-I2: OpenCode plugin bridge (throw-to-block, custom task_create, event lifecycle)",
+  "description": "OpenCode plugin (.opencode/plugins/zonoid.ts): tool.execute.before throws to block (never rely on arg rewriting — frozen args bug); event subscription for agent lifecycle; custom task_create tool registration (writes stub + calls /sync — native-feeling, cleanest path). Delivered as a plugin package.",
+  "status": "completed",
+  "blockedBy": [
+    "local/a2",
+    "local/b1",
+    "local/b2",
+    "local/b3"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "plan-bootstrap"
+  }
+}

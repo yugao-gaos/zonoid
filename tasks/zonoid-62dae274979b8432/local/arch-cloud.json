@@ -1,0 +1,8 @@
+{
+  "id": "arch-cloud",
+  "subject": "Repurpose Force Cloud archive bundle for real server archive",
+  "description": "In public/graph.html renderCloud: replace orphan-degree-0 bundle with server archive. Bundle shows summary.archived count; click expand renders archived_tasks from /state (dim bg tier, collapsed by default). Remove cloudArchiveOpen orphan-hiding logic. Update cloudSig to include archived set. Tooltip on bundle: stale done/canceled + superseded notes (> archive_after_days). Depends on arch-srv for archived_tasks data.",
+  "status": "pending",
+  "blockedBy": ["local/arch-srv"],
+  "created_by": { "harness": "cursor", "agent_id": "dispatcher" }
+}

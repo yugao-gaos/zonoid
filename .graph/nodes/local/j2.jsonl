@@ -1,0 +1,2 @@
+{"evt":"timestamps_set","id":"local/j2","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T11:14:53.234Z","lastChanged":"2026-06-13T11:14:53.234Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-13T11:14:53.244Z"}
+{"evt":"edge_added","from":"local/j2","to":"local/j3","kind":"context","actor":"overlay-sync","ts":"2026-06-13T11:15:34.146Z","weight":0.5}

@@ -1,0 +1,14 @@
+{
+  "id": "h1",
+  "subject": "P6-H1: Cursor gate bridge (write-gate + lifecycle hooks)",
+  "description": "Implement the Cursor adapter bridge: write-gate hook (preToolUse exit-2 against /active-claim), session registration (sessionStart → /workspace), agent lifecycle (subagentStart/Stop → /agent/start|done), stop advisory (preToolUse → /should-stop). Try Claude compat layer first (.claude/settings.json); fall back to native .cursor/hooks.json if payload mapping requires it. Document IDE-vs-CLI gaps.",
+  "status": "completed",
+  "blockedBy": [
+    "local/e1",
+    "local/b1"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "plan-bootstrap"
+  }
+}

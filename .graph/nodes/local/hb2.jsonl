@@ -1,0 +1,5 @@
+{"evt":"timestamps_set","id":"local/hb2","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T10:55:02.741Z","lastChanged":"2026-06-13T10:55:02.741Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-13T10:55:02.805Z"}
+{"evt":"status_changed","id":"local/hb2","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T10:55:35.636Z"}
+{"evt":"assignee_set","id":"local/hb2","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-hb2","actor":"overlay-sync","ts":"2026-06-13T10:55:35.636Z"}
+{"evt":"status_changed","id":"local/hb2","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-13T11:01:04.424Z"}
+{"evt":"summary_set","id":"local/hb2","workspace":"/Users/imyu/Desktop/zonoid","summary":"ScheduleWakeup MCP tool for cursor+codex: mcp-harness-tools ScheduleWakeup (cancelWakeup+armWakeup, .fire tail command, notify_pattern), ORCH_SESSION in mcp-graph, fireFile in lib/schedule-wakeup.js, tests in mcp-schedule-wakeup.test.js + harness tools test updates. 87/87 green.","actor":"overlay-sync","ts":"2026-06-13T11:01:04.424Z"}

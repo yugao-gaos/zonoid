@@ -2,7 +2,12 @@
   "id": "hb2",
   "subject": "P9-HB2: Harness-scoped MCP ScheduleWakeup (cursor+codex)",
   "description": "Expose ScheduleWakeup as an MCP tool in cursor and codex harness configs. Tool calls adapters/common/schedule-wakeup.sh arm|cancel with session from hook context. Wire into harness MCP allowlists and hook relays.",
-  "status": "pending",
-  "blockedBy": ["local/hb1"],
-  "created_by": { "harness": "local", "agent_id": "plan-bootstrap" }
+  "status": "completed",
+  "blockedBy": [
+    "local/hb1"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "plan-bootstrap"
+  }
 }

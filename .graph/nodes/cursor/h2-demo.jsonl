@@ -1,0 +1,5 @@
+{"evt":"timestamps_set","id":"cursor/h2-demo","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T02:47:42.747Z","lastChanged":"2026-06-13T02:47:42.747Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-13T02:47:42.768Z"}
+{"evt":"status_changed","id":"cursor/h2-demo","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T11:10:43.634Z"}
+{"evt":"assignee_set","id":"cursor/h2-demo","workspace":"/Users/imyu/Desktop/zonoid","assignee":"mint-arch-tasks","actor":"overlay-sync","ts":"2026-06-13T11:10:43.634Z"}
+{"evt":"status_changed","id":"cursor/h2-demo","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-13T11:10:52.960Z"}
+{"evt":"summary_set","id":"cursor/h2-demo","workspace":"/Users/imyu/Desktop/zonoid","summary":"Minted local/arch-cloud and local/arch-orphan; wired archive task DAG + decision note","actor":"overlay-sync","ts":"2026-06-13T11:10:52.960Z"}

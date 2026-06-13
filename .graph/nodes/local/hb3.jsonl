@@ -1,0 +1,5 @@
+{"evt":"timestamps_set","id":"local/hb3","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T10:55:02.741Z","lastChanged":"2026-06-13T10:55:02.741Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-13T10:55:02.805Z"}
+{"evt":"status_changed","id":"local/hb3","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T10:55:35.621Z"}
+{"evt":"assignee_set","id":"local/hb3","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-hb3","actor":"overlay-sync","ts":"2026-06-13T10:55:35.621Z"}
+{"evt":"status_changed","id":"local/hb3","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-13T10:57:21.831Z"}
+{"evt":"summary_set","id":"local/hb3","workspace":"/Users/imyu/Desktop/zonoid","summary":"OpenCode schedule_wakeup tool: arms via lib/schedule-wakeup.js (delaySeconds/reason/prompt), returns command+notify_pattern ORCH_SCHEDULED_TASK. README updated, test/opencode-schedule-wakeup.test.js, 88/88 green.","actor":"overlay-sync","ts":"2026-06-13T10:57:21.831Z"}

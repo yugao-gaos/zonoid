@@ -1,0 +1,11 @@
+{
+  "id": "c2",
+  "subject": "P4-C2: adapter contract documentation (endpoint-to-harness mapping table)",
+  "description": "Document the adapter contract: daemon endpoints (/workspace, /active-claim, /should-stop, /agent/start|done, /classify, /ready, /sync) ARE the contract. Canonical event table mapping each endpoint to Claude/Cursor/Codex/OpenCode hook/plugin mechanisms. Lives in docs/ on the branch.",
+  "status": "completed",
+  "blockedBy": [],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "plan-bootstrap"
+  }
+}

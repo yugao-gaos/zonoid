@@ -1,0 +1,8 @@
+{
+  "id": "arch-orphan",
+  "subject": "Show unwired orphans inline in Force Cloud with hygiene hint",
+  "description": "After archive bundle repurposing (arch-cloud): orphans (degree 0) render as normal sim nodes at bg tier, not hidden in a bundle. Add flowstats line when orphans.length > 0, e.g. 'N unwired — suggest_links on create'. Orphans are live hygiene signal, not archive. Touch public/graph.html renderCloud + flowstats only.",
+  "status": "pending",
+  "blockedBy": ["local/arch-cloud"],
+  "created_by": { "harness": "cursor", "agent_id": "dispatcher" }
+}

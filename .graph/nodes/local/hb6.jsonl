@@ -1,0 +1,5 @@
+{"evt":"timestamps_set","id":"local/hb6","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T10:55:02.741Z","lastChanged":"2026-06-13T10:55:02.741Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-13T10:55:02.805Z"}
+{"evt":"status_changed","id":"local/hb6","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T11:03:44.099Z"}
+{"evt":"assignee_set","id":"local/hb6","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-hb6","actor":"overlay-sync","ts":"2026-06-13T11:03:44.099Z"}
+{"evt":"status_changed","id":"local/hb6","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-13T11:06:14.024Z"}
+{"evt":"summary_set","id":"local/hb6","workspace":"/Users/imyu/Desktop/zonoid","summary":"ScheduleWakeup contract docs in adapter-contract.md + schedule-wakeup.md; judge-hook HEARTBEAT pinned to classify-assemble; schedule-wakeup-contract.test.js cross-harness smoke. 90/90 green. Commit cc4a7a5.","actor":"overlay-sync","ts":"2026-06-13T11:06:14.024Z"}

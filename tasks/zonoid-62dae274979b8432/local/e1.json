@@ -1,0 +1,11 @@
+{
+  "id": "e1",
+  "subject": "P6-E1: Cursor compat spike — validate Claude hook compat + payload mapping",
+  "description": "Investigation task: run Zonoid Claude hooks via Cursors third-party .claude/settings.json compatibility layer. Document exact payload field differences (session_id naming etc). Verify whether the todo tool fires in preToolUse/postToolUse payloads and what fields it carries. Document IDE-vs-CLI hook coverage gaps. Output feeds H1 and H2 design.",
+  "status": "completed",
+  "blockedBy": [],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "plan-bootstrap"
+  }
+}

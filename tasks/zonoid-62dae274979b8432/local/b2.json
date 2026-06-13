@@ -1,0 +1,11 @@
+{
+  "id": "b2",
+  "subject": "P3-B2: complete_task carries newly_ready in response",
+  "description": "complete_task and terminal set_status responses include newly_ready: [task_key...] — tasks unblocked by this completion. Replicates the post-agent.sh nudge in-band for hookless harnesses.",
+  "status": "completed",
+  "blockedBy": [],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "plan-bootstrap"
+  }
+}

@@ -1,3 +1,5 @@
 {"evt":"edge_added","from":"af585417-07f3-4b6f-8c96-d9b784271d32/10","to":"af585417-07f3-4b6f-8c96-d9b784271d32/9","kind":"context","actor":"overlay-sync","ts":"2026-06-11T03:59:29.611Z","weight":0.447}
 {"evt":"timestamps_set","id":"af585417-07f3-4b6f-8c96-d9b784271d32/10","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T03:59:29.540Z","lastChanged":"2026-06-11T03:59:29.540Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-11T03:59:29.611Z"}
 {"evt":"edge_added","from":"af585417-07f3-4b6f-8c96-d9b784271d32/10","to":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","kind":"context","actor":"overlay-sync","ts":"2026-06-12T13:01:24.987Z","weight":0.548}
+{"evt":"edge_added","from":"af585417-07f3-4b6f-8c96-d9b784271d32/10","to":"local/arch-cloud","kind":"context","actor":"overlay-sync","ts":"2026-06-13T11:10:48.373Z","weight":0.338}
+{"evt":"edge_added","from":"af585417-07f3-4b6f-8c96-d9b784271d32/10","to":"local/arch-orphan","kind":"context","actor":"overlay-sync","ts":"2026-06-13T11:10:48.373Z","weight":0.316}

@@ -1,0 +1,17 @@
+{
+  "id": "j1",
+  "subject": "P8-J1: zonoid init --harness wiring all bridges",
+  "description": "packages/cli installer gains --harness claude|cursor|codex|opencode flag (default claude, unchanged). Each option installs the correct hook/plugin adapter files and wires the hooks.json or equivalent. --service flag installs launchd/systemd. Existing claude init flow byte-identical.",
+  "status": "completed",
+  "blockedBy": [
+    "local/c2",
+    "local/f1",
+    "local/h3",
+    "local/i1",
+    "local/i2"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "plan-bootstrap"
+  }
+}

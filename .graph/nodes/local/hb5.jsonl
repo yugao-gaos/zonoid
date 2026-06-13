@@ -1,0 +1,5 @@
+{"evt":"timestamps_set","id":"local/hb5","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T10:55:02.741Z","lastChanged":"2026-06-13T10:55:02.741Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-13T10:55:02.805Z"}
+{"evt":"status_changed","id":"local/hb5","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T11:01:31.572Z"}
+{"evt":"assignee_set","id":"local/hb5","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-hb5","actor":"overlay-sync","ts":"2026-06-13T11:01:31.572Z"}
+{"evt":"status_changed","id":"local/hb5","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-13T11:03:21.818Z"}
+{"evt":"summary_set","id":"local/hb5","workspace":"/Users/imyu/Desktop/zonoid","summary":"init --harness installs ScheduleWakeup shims: chmod adapters/common/schedule-wakeup.sh for cursor/codex/opencode, verify OpenCode schedule_wakeup symlink, next-steps docs for MCP ScheduleWakeup + ORCH_SCHEDULED_TASK monitor, README + cli-init tests. 89/89 green.","actor":"overlay-sync","ts":"2026-06-13T11:03:21.818Z"}
