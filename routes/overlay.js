@@ -4,6 +4,7 @@ const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
 const path = require('path');
 const { noteEmbedText } = require('../lib/node-tags');
+const newlyReady = require('../lib/newly-ready');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, sendOp, readBody, notifyChange, buildGraph, state, targetOverlay,
@@ -96,6 +97,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         send(res, 409, { ok: false, error: 'self-learning mode: task has a metric spec — call branch_task first before editing' }); return true;
       }
     }
+    const readyBefore = newlyReady.isTerminalStatus(b.status)
+      ? newlyReady.readyKeys(buildGraph(T.ws))
+      : null;
     if (b.status === 'canceled') T.ov.cancel_requested[b.key] = now();
     else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
     overlayStore.setStatus(T.ov, b.key, b.status, b.note);
@@ -180,6 +184,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.status === 'in_progress' && b.force) {
       const FORCE_CAP = 3;
       statusResp.force_claims_remaining = Math.max(0, FORCE_CAP - ((T.ov.forceClaims && T.ov.forceClaims[b.key]) || 0));
+    }
+    if (readyBefore) {
+      statusResp.newly_ready = newlyReady.diffNewlyReady(readyBefore, newlyReady.readyKeys(buildGraph(T.ws)));
     }
     sendOp(res, b, 200, statusResp); return true;
   }
