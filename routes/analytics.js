@@ -24,14 +24,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       window: { start: t.firstSeen, end: t.lastChanged },
       work_sessions: (T.ov.work_sessions && T.ov.work_sessions[t.id]) || null,
     }));
-    const usageOutputOnly = (tp) => { const u2 = usageCached(tp); return { total: (u2 && u2.output_tokens) || 0 }; };
+    const tr = harness.transcripts;
+    const taskUsageFromAgent = tr.taskUsageFromAgent || (() => null);
+    const usageOutputOnly = (tp, claim) => {
+      if (tp) { const u2 = usageCached(tp); return { total: (u2 && u2.output_tokens) || 0 }; }
+      const aid = claim && claim.id && stWs.overlay.assignee[claim.id];
+      const agent = aid && stWs.agents && stWs.agents[aid];
+      const ru = agent && taskUsageFromAgent(agent);
+      return { total: (ru && ru.output_tokens) || 0 };
+    };
     const ownTok = costflow.splitSessionTokens(claims, usageOutputOnly);
     let rawInput=0, rawOutput=0, rawCacheRead=0;
     const rawByModel={};
     const mergeModel=(bm)=>{ if(!bm) return; for(const [m2,v] of Object.entries(bm)){ if(!rawByModel[m2]) rawByModel[m2]={input_tokens:0,output_tokens:0,cache_read_input_tokens:0}; rawByModel[m2].input_tokens+=v.input_tokens||0; rawByModel[m2].output_tokens+=v.output_tokens||0; rawByModel[m2].cache_read_input_tokens+=v.cache_read_input_tokens||0; } };
+    const mergeUsage=(u2)=>{ if(!u2) return; rawInput+=u2.input_tokens||0; rawOutput+=u2.output_tokens||0; rawCacheRead+=u2.cache_read_input_tokens||0; mergeModel(u2.by_model); };
     const seenTp=new Set();
-    for (const c of claims) if(c.transcript&&!seenTp.has(c.transcript)){ seenTp.add(c.transcript); const u2=usageCached(c.transcript); rawInput+=u2.input_tokens||0; rawOutput+=u2.output_tokens||0; rawCacheRead+=u2.cache_read_input_tokens||0; mergeModel(u2.by_model); }
-    const projDirRaw = harness.transcripts.projectDir(T.ws);
+    for (const c of claims) if(c.transcript&&!seenTp.has(c.transcript)){ seenTp.add(c.transcript); mergeUsage(usageCached(c.transcript)); }
+    const projDirRaw = tr.projectDir(T.ws);
     try { for(const e of fs.readdirSync(projDirRaw,{withFileTypes:true})) { if(!e.isFile()||!e.name.endsWith('.jsonl')) continue; const tp=path.join(projDirRaw,e.name); if(seenTp.has(tp)) continue; const u2=usageCached(tp); rawInput+=u2.input_tokens||0; rawOutput+=u2.output_tokens||0; rawCacheRead+=u2.cache_read_input_tokens||0; mergeModel(u2.by_model); } } catch {}
     const supersededIds = new Set((T.ov.edges || []).filter(e => e.kind === 'supersede').map(e => e.from));
     const isExplorationTask = (t) => t.kind === 'note' || supersededIds.has(t.id) || t.status === 'canceled' || t.status === 'failed' || !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
@@ -61,7 +70,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       for (const d of t.deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: 1 });
       for (const d of t.context_deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: (t.context_weights && t.context_weights[d]) ?? overlayStore.DEFAULT_CONTEXT_WEIGHT });
     }
-    const projDir = harness.transcripts.projectDir(T.ws);
+    const projDir = tr.projectDir(T.ws);
     const claimedByTp = new Map();
     for (const c of claims) if (c.transcript) claimedByTp.set(c.transcript, (claimedByTp.get(c.transcript) || 0) + (ownTok.get(c.id) || 0));
     let sessFiles = [];

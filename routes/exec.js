@@ -57,7 +57,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     if (!b.agent_id) return send(res, 400, { ok: false, error: 'agent_id required' });
     // Capture task/session/workspace so a colliding worker is visible across sessions (GET /agents).
-    touchAgent(b.agent_id, { state: 'running', agent_type: b.agent_type, transcript_path: b.transcript_path, task: b.task, session: b.session, subagent_session: b.subagent_session, workspace: b.workspace || state.workspace });
+    touchAgent(b.agent_id, { state: 'running', agent_type: b.agent_type, transcript_path: b.transcript_path, task: b.task, session: b.session, subagent_session: b.subagent_session, workspace: b.workspace || state.workspace, reported_usage: b.reported_usage });
     notifyChange();
     return send(res, 200, { ok: true });
   }
@@ -65,7 +65,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const a = state.agents[b.agent_id];
     if (!a) return send(res, 404, { ok: false, error: 'unknown agent' });
-    touchAgent(b.agent_id, { state: 'done' });
+    touchAgent(b.agent_id, { state: 'done', reported_usage: b.reported_usage });
     // Cascade: release any in_progress task this agent still holds (it stopped without completing),
     // so the claim doesn't linger as a phantom in_progress. Fixes the stale-status bug directly.
     // Target the AGENT'S workspace (recorded at /agent/start), not the daemon-global overlay —

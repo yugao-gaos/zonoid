@@ -331,6 +331,7 @@ function touchAgent(agentId, patch = {}) {
     startedAt: prev.startedAt || ts,
     lastSeen: ts,
     endedAt,
+    reported_usage: patch.reported_usage !== undefined ? patch.reported_usage : (prev.reported_usage ?? null),
   };
   saveAgents();
 }
