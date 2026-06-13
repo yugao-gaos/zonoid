@@ -10,8 +10,9 @@
 //   (B) status overlay + unwired quarantine apply to stub tasks identically to native ones
 //   (C) /overlay/status write-through routes to the STUB file for harness-prefixed keys
 //       and still to the Claude native store for '<session>/<id>' keys
-//   (D) snapshotNative safety: a terminal status on a stub key adds NO overlay snapshot
-//       and no duplicate node
+//   (D) adopt-on-first-sight: overlay snapshot minted at first peek; terminal status
+//       updates existing snapshot without duplicating nodes
+//   (F) stub deletion: nodes + deps survive via snapshot fallback after /sync
 //   (E) durability: nodes + statuses survive a daemon restart
 //
 // Sandboxed-daemon convention: private port + tmp CLAUDE_PLUGIN_DATA (see app-restart.test.js).
@@ -108,6 +109,9 @@ function spawnDaemon() {
     ok('(A) blocker derives ready', aaa && aaa.status === 'ready');
     ok('(A) blocked task derives not_ready', bbb && bbb.status === 'not_ready');
     ok('(A) summary counts stub tasks', g.summary && g.summary.tasks_total === 2);
+    let ovFirst = overlayStore.load(WS);
+    ok('(D) adoption snapshot minted at first sight for cursor/aaa', ovFirst.snapshots && ovFirst.snapshots['cursor/aaa']);
+    ok('(D) adopted blockedBy normalized on cursor/bbb', (ovFirst.snapshots['cursor/bbb'].blockedBy || []).includes('cursor/aaa'));
 
     // ------------------------------------------------------------------
     // (B) overlay machinery parity: unwired quarantine + claims
@@ -141,10 +145,10 @@ function spawnDaemon() {
     // ------------------------------------------------------------------
     const doneAaa = await req('POST', '/overlay/status', { workspace: WS, key: 'cursor/aaa', status: 'done', summary: 'blocker done.' });
     ok('(D) done on a stub key accepted', doneAaa.status === 200 && doneAaa.body.ok === true);
-    const stubAaa = filedrop.readStub(WS, 'cursor/aaa');
-    ok('(D) stub file written through to completed', stubAaa && stubAaa.status === 'completed');
+    ok('(D) terminal status GC removes stub file', !filedrop.readStub(WS, 'cursor/aaa'));
     const ovAfter = overlayStore.load(WS);
-    ok('(D) no overlay snapshot minted for the stub key', !(ovAfter.snapshots || {})['cursor/aaa']);
+    ok('(D) adoption snapshot preserved after terminal status', ovAfter.snapshots && ovAfter.snapshots['cursor/aaa']);
+    ok('(D) terminal status folded into snapshot', ovAfter.snapshots['cursor/aaa'].status === 'completed');
     g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
     ok('(D) no duplicate node after terminal status', g.tasks.filter((t) => t.id === 'cursor/aaa').length === 1);
     ok('(D) stub node shows done', g.tasks.find((t) => t.id === 'cursor/aaa').status === 'done');
@@ -164,6 +168,22 @@ function spawnDaemon() {
     ok('(E) terminal status survives restart', aaa2 && aaa2.status === 'done');
     ok('(E) claim survives restart', bbb2 && bbb2.status === 'in_progress');
     ok('(E) dependency edge survives restart', bbb2 && bbb2.deps.includes('cursor/aaa'));
+
+    // ------------------------------------------------------------------
+    // (F) stub deletion — snapshot fallback keeps nodes + deps
+    // ------------------------------------------------------------------
+    // cursor/aaa stub already removed by terminal GC; delete in_progress bbb manually.
+    fs.rmSync(path.join(filedrop.stubFile(WS, 'cursor/bbb')), { force: true });
+    ok('(F) stub files deleted', !filedrop.readStub(WS, 'cursor/aaa') && !filedrop.readStub(WS, 'cursor/bbb'));
+    await req('POST', '/sync', { workspace: WS });
+    g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
+    const aaaF = g.tasks.find((t) => t.id === 'cursor/aaa');
+    const bbbF = g.tasks.find((t) => t.id === 'cursor/bbb');
+    ok('(F) cursor/aaa survives stub deletion via snapshot', !!aaaF);
+    ok('(F) cursor/bbb survives stub deletion via snapshot', !!bbbF);
+    ok('(F) terminal status survives stub deletion', aaaF && aaaF.status === 'done');
+    ok('(F) overlay status survives stub deletion', bbbF && bbbF.status === 'in_progress');
+    ok('(F) dependency edge survives stub deletion', bbbF && bbbF.deps.includes('cursor/aaa'));
   } finally {
     child.kill();
     try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch { /* */ }

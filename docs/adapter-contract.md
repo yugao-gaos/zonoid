@@ -158,6 +158,19 @@ Second `/sync` with no new files returns `"adopted": []` (idempotent).
 Minting runs **outside** the agent write gate — hooks/plugins perform file I/O without needing
 an active claim.
 
+### Stub lifecycle / GC
+
+Stubs are **mint artifacts**, not durable state. The overlay snapshot (adopted on first sight or at
+terminal status) is the retention fallback — same model as Claude native `cleanupPeriodDays`.
+
+- **Adapters mint only** — write stub JSON, then `POST /sync`. Adapters **MUST NOT** delete stubs
+  before adoption (snapshot must exist first).
+- **Daemon removes stub after terminal complete** — when overlay status becomes
+  `done`/`tested`/`failed`/`canceled`, the daemon write-through stamps the stub
+  `completed`, then removes the stub file once a snapshot exists.
+- **Periodic sweep** — every 5 minutes the daemon runs `sweepFiledropStubs` to catch missed removals.
+- **Manual backfill** — `node scripts/gc-filedrop-stubs.js --workspace $PWD --confirm`
+
 ---
 
 ## Claude reference wiring (today)

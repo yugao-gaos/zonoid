@@ -49,5 +49,8 @@ bench/*.log
 embed.pid
 logs/
 
+# File-drop task mint stubs (adopted into .graph on first sight; not source)
+tasks/
+
 # Frozen .graph snapshot for the isolated bench daemon (generated, large, reproducible from .graph)
 bench/snapshot/

@@ -1,5 +1,6 @@
 'use strict';
 const overlayStore = require('../lib/overlay');
+const filedropGc = require('../lib/filedrop-gc');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
 const path = require('path');
@@ -177,6 +178,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // Write-through routed by namespace: file-drop stub keys update the stub file's status
     // field; Claude '<session>/<id>' keys keep the native todo-panel write-through.
     if (ns && b.key) ctx.writeTaskStatus(T.ws, String(b.key), ns);
+    if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && b.key) {
+      if (filedropGc.removeStubIfSnapshotted(T.ws, String(b.key), T.ov)) {
+        const { cache } = ctx;
+        cache.agg.delete(T.ws); cache.aggAt.delete(T.ws);
+      }
+    }
     notifyChange();
     const statusResp = { ok: true };
     if (followUpResults) statusResp.follow_ups = followUpResults;

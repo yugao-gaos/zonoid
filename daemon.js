@@ -13,6 +13,7 @@ const { URL } = require('url');
 const harnessRegistry = require('./lib/harness');
 const claudeHarness = harnessRegistry.get('claude');
 const filedrop = require('./lib/filedrop-tasks');
+const filedropGc = require('./lib/filedrop-gc');
 const overlayStore = require('./lib/overlay');
 const mcpCore = require('./lib/mcp-core');
 const git = require('./lib/git');
@@ -119,14 +120,25 @@ function writeTaskStatus(ws, key, status) {
   return harnessRegistry.route(key).tasks.writeStatus(String(key), status);
 }
 
-// Adopt a Claude native task stub at first sight: copy id/title/blockedBy into the overlay so
-// the graph node is authoritative from that moment. File-drop and followup keys no-op (readTask
-// returns null or the snapshot was minted elsewhere). Idempotent when already adopted.
+// Adopt a native or file-drop task stub at first sight: copy id/title/blockedBy into the overlay
+// so the graph node is authoritative from that moment. Idempotent when already adopted.
 function adoptNativeTask(ov, key) {
   if (ov.snapshots && ov.snapshots[key]) return false;
-  // File-drop stubs are durable — adoption is /sync + aggregation, not native readTask.
-  if (filedrop.readStub(state.workspace, String(key))) return false;
-  const t = harnessRegistry.route(key).tasks.readTask(String(key));
+  const k = String(key);
+  const fd = filedrop.readTask(state.workspace, k);
+  if (fd) {
+    const parts = filedrop.splitKey(k);
+    overlayStore.setSnapshot(ov, k, {
+      subject: fd.subject || String(fd.id),
+      description: fd.description || '',
+      status: fd.status || 'pending',
+      blockedBy: filedrop.normalizeDeps(parts ? parts.harness : '', fd.blockedBy),
+      owner: fd.owner ?? null,
+      metadata: fd.metadata ?? null,
+    });
+    return true;
+  }
+  const t = harnessRegistry.route(key).tasks.readTask(k);
   if (!t) return false;
   overlayStore.setSnapshot(ov, key, {
     subject: t.subject || t.activeForm || String(t.id),
@@ -140,20 +152,26 @@ function adoptNativeTask(ov, key) {
 }
 
 // Terminal-status snapshot — back-compat ONLY for tasks seen before adopt-on-first-sight (no
-// adoption snapshot yet). Adopted tasks are already durable; re-snapshotting would fight the live
-// echo. File-drop stub keys no-op naturally (readTask returns null).
+// adoption snapshot yet). Adopted tasks update status on the existing snapshot only.
 // `nativeStatus` (optional): the status the write-through is about to stamp on the native file.
 function snapshotNative(ov, key, nativeStatus) {
-  // Terminal snapshots are Claude-native back-compat only; stub files stay authoritative.
-  if (filedrop.readStub(state.workspace, String(key))) return;
-  const t = harnessRegistry.route(key).tasks.readTask(String(key));
+  const k = String(key);
+  const t = readNativeTask(state.workspace, k);
   if (!t) return;
-  const existing = ov.snapshots && ov.snapshots[key];
+  const existing = ov.snapshots && ov.snapshots[k];
   if (existing) {
-    overlayStore.setSnapshot(ov, key, { ...existing, status: nativeStatus || t.status });
+    overlayStore.setSnapshot(ov, k, { ...existing, status: nativeStatus || t.status });
     return;
   }
-  overlayStore.setSnapshot(ov, key, { subject: t.subject, description: t.description, status: nativeStatus || t.status, blockedBy: t.blockedBy || [], owner: t.owner ?? null, metadata: t.metadata ?? null });
+  const parts = filedrop.splitKey(k);
+  overlayStore.setSnapshot(ov, k, {
+    subject: t.subject,
+    description: t.description,
+    status: nativeStatus || t.status,
+    blockedBy: parts ? filedrop.normalizeDeps(parts.harness, t.blockedBy) : (t.blockedBy || []),
+    owner: t.owner ?? null,
+    metadata: t.metadata ?? null,
+  });
 }
 function usageCached(p) {
   const now = Date.now();
@@ -313,6 +331,17 @@ async function loadState() {
 
   // Fully operational
   advanceBoot('ready');
+  if (state.workspace && state.overlay) {
+    try {
+      const followups = require('./lib/followups');
+      const ack = followups.acknowledgeDaemonRestartOnBoot(state.overlay, { bootedAt: BOOTED_AT });
+      if (ack) {
+        overlayStore.save(state.workspace, state.overlay);
+        notifyChange();
+        process.stdout.write(`orchestrator: acknowledged restart bucket ${ack.key}\n`);
+      }
+    } catch (e) { process.stderr.write(`restart-bucket boot ack failed: ${e.message}\n`); }
+  }
   process.stdout.write(`orchestrator boot complete (phase:ready)\n`);
 }
 function saveLoops() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(LOOPS_FILE, JSON.stringify(Object.fromEntries(loops))); } catch { /* best effort */ } }
@@ -333,6 +362,9 @@ function touchAgent(agentId, patch = {}) {
   else if (st === 'in_progress') { stateVal = 'running'; endedAt = null; }
   else if (st && ['done', 'tested', 'failed', 'canceled'].includes(st)) { stateVal = 'done'; endedAt = ts; }
   else if (!prev.agent_id) { stateVal = 'running'; endedAt = null; }
+  let subagentSession = patch.subagent_session !== undefined ? patch.subagent_session : (prev.subagent_session ?? null);
+  const sessionVal = patch.session !== undefined ? patch.session : (prev.session ?? null);
+  if (subagentSession && sessionVal && subagentSession === sessionVal) subagentSession = null;
   state.agents[agentId] = {
     agent_id: agentId,
     agent_type: patch.agent_type || prev.agent_type || 'agent',
@@ -340,7 +372,7 @@ function touchAgent(agentId, patch = {}) {
     transcript_path: patch.transcript_path !== undefined ? patch.transcript_path : (prev.transcript_path ?? null),
     task: patch.task !== undefined ? patch.task : (patch.task_key !== undefined ? patch.task_key : (prev.task ?? null)),
     session: patch.session !== undefined ? patch.session : (prev.session ?? null),
-    subagent_session: patch.subagent_session !== undefined ? patch.subagent_session : (prev.subagent_session ?? null),
+    subagent_session: subagentSession,
     workspace: patch.workspace !== undefined ? patch.workspace : (prev.workspace ?? state.workspace ?? null),
     startedAt: prev.startedAt || ts,
     lastSeen: ts,
@@ -1185,6 +1217,17 @@ function noteRagCandidates(overlay, g, noteKey, title, summary, targetVec = null
 // callee and any external caller doesn't 404; it returns 0 and never mutates the overlay.
 function sweepOrphanNotes() { return 0; }
 
+// Periodic file-drop stub GC: adopt missing snapshots, remove terminal stubs with snapshots.
+function sweepFiledropStubs(ws = state.workspace) {
+  const ov = overlayStore.load(ws);
+  const result = filedropGc.sweepWorkspaceStubs(ws, ov, { dryRun: false });
+  if (result.adopted.length || result.removed.length) {
+    overlayStore.save(ws, ov);
+    cache.agg.delete(ws); cache.aggAt.delete(ws);
+  }
+  return result;
+}
+
 // ---- workspace-aware graph engine -----------------------------------------
 // A "ref" is { ws, key } where key = "{session}/{id}". Resolution may cross workspaces
 // (ghost edges); caches keep it to one read per workspace per request.
@@ -1809,6 +1852,7 @@ if (require.main === module) {
   // (a zero-match note at creation can gain a real neighbor later). Re-check is side-effect-free —
   // no match ⇒ no edge, no write. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepOrphanNotes(); } catch { /* best effort */ } }, 300000).unref();
+  setInterval(() => { try { sweepFiledropStubs(); } catch { /* best effort */ } }, 300000).unref();
 
   // Heartbeat to MiniLM sidecar every 60s so the sidecar knows the daemon is alive.
   // The sidecar exits if it misses 2 consecutive pings (2 min), keeping its lifecycle
