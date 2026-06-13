@@ -110,16 +110,37 @@ function writeTaskStatus(ws, key, status) {
   return harness.tasks.writeStatus(String(key), status);
 }
 
-// Freeze a task's native fields into the overlay when it reaches a terminal status, so the graph
-// node survives the cleanupPeriodDays retention sweep of ~/.claude/tasks/ (native files are no
-// longer indefinitely durable). Read-only on native; best-effort no-op if the file is already gone.
+// Adopt a Claude native task stub at first sight: copy id/title/blockedBy into the overlay so
+// the graph node is authoritative from that moment. File-drop and followup keys no-op (readTask
+// returns null or the snapshot was minted elsewhere). Idempotent when already adopted.
+function adoptNativeTask(ov, key) {
+  if (ov.snapshots && ov.snapshots[key]) return false;
+  const t = harness.tasks.readTask(key);
+  if (!t) return false;
+  overlayStore.setSnapshot(ov, key, {
+    subject: t.subject || t.activeForm || String(t.id),
+    description: t.description || '',
+    status: t.status || 'pending',
+    blockedBy: t.blockedBy || [],
+    owner: t.owner ?? null,
+    metadata: t.metadata ?? null,
+  });
+  return true;
+}
+
+// Terminal-status snapshot — back-compat ONLY for tasks seen before adopt-on-first-sight (no
+// adoption snapshot yet). Adopted tasks are already durable; re-snapshotting would fight the live
+// echo. File-drop stub keys no-op naturally (readTask returns null).
 // `nativeStatus` (optional): the status the write-through is about to stamp on the native file.
-// File-drop stub keys ('<harness>/<id>') need NO snapshot — their files are durable (we control
-// retention) and a stub snapshot would double-serve the node via the snapshot fallback. They
-// no-op here naturally: the Claude adapter's readTask returns null for non-session namespaces.
 function snapshotNative(ov, key, nativeStatus) {
   const t = harness.tasks.readTask(key);
-  if (t) overlayStore.setSnapshot(ov, key, { subject: t.subject, description: t.description, status: nativeStatus || t.status, blockedBy: t.blockedBy || [], owner: t.owner ?? null, metadata: t.metadata ?? null });
+  if (!t) return;
+  const existing = ov.snapshots && ov.snapshots[key];
+  if (existing) {
+    overlayStore.setSnapshot(ov, key, { ...existing, status: nativeStatus || t.status });
+    return;
+  }
+  overlayStore.setSnapshot(ov, key, { subject: t.subject, description: t.description, status: nativeStatus || t.status, blockedBy: t.blockedBy || [], owner: t.owner ?? null, metadata: t.metadata ?? null });
 }
 function usageCached(p) {
   const now = Date.now();
@@ -1243,7 +1264,7 @@ function buildGraph(ws) {
   // Stamp lifecycle timestamps in OUR own overlay (current workspace only — the writable store).
   // firstSeen: set once, never overwritten. lastChanged: set on first sight + whenever the
   // effective status changes. lastStatus tracks the value used to detect changes. Not backfilled.
-  let tsDirty = false;
+  let tsDirty = false, adoptDirty = false;
   const newlySeen = []; // task keys first seen THIS build — candidates for one-shot auto-wiring
 
   const tasks = native.map((t) => {
@@ -1266,6 +1287,7 @@ function buildGraph(ws) {
     if (own) {
       if (!ts) {
         ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; state.overlay.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key);
+        if (adoptNativeTask(state.overlay, t.key)) adoptDirty = true;
         // Unwired quarantine: a task FIRST SEEN with no edges in either direction is stamped
         // unwired — /overlay/status refuses an in_progress claim until the creator wires it
         // (add_dependency clears the flag) or declares it a root (POST /mark-root). Tasks that
@@ -1310,7 +1332,7 @@ function buildGraph(ws) {
     // per build that saw new nodes — cheap, monotonic, persisted with the overlay below.
     overlayStore.bumpEpoch(state.overlay); edgesDirty = true;
   }
-  if (tsDirty || edgesDirty) { overlayStore.save(state.workspace, state.overlay, { deferred: true }); notifyChange(); }
+  if (tsDirty || edgesDirty || adoptDirty) { overlayStore.save(state.workspace, state.overlay, { deferred: true }); notifyChange(); }
   const ghosts = Object.values(ghostMap);
   return { tasks, ghosts, summary: summaryFor(tasks, ghosts, ovWs) };
 }
