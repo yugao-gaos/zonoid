@@ -1,0 +1,10 @@
+{
+  "name": "@zonoid/opencode-plugin",
+  "version": "0.1.0",
+  "description": "OpenCode plugin bridge for the Zonoid orchestrator (write gate, lifecycle, task_create)",
+  "license": "Apache-2.0",
+  "main": "zonoid.ts",
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=0.1.0"
+  }
+}
