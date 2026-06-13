@@ -29,7 +29,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (m === 'GET') { res.writeHead(200, { ...cors, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' }); res.write(': connected\n\n'); return true; }
     if (m === 'POST') {
       const msg = await readBody(req);
-      const resp = await mcpCore.handleRpc(msg, { call: MCP_CALL, uiHtml: mcpCore.uiHtml });
+      const session = req.headers['mcp-session-id'] || null;
+      const resp = await mcpCore.handleRpc(msg, { call: MCP_CALL, uiHtml: mcpCore.uiHtml, session });
       if (resp === undefined) { res.writeHead(202, cors); res.end(); return true; }
       res.writeHead(200, { ...cors, 'Content-Type': 'application/json', 'Mcp-Session-Id': 'orchestrator', 'Connection': 'close' });
       res.end(JSON.stringify(resp));
