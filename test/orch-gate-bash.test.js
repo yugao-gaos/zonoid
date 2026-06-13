@@ -70,8 +70,28 @@ function runFailOpen(cmd, extra) {
   return runHook(mkInput(cmd), { ORCH_PORT: '1', ...extra });
 }
 
+// Stub curl: main session with no claim
+const stubDirMain = path.join(TMP, 'stub-main');
+fs.mkdirSync(stubDirMain, { recursive: true });
+fs.writeFileSync(
+  path.join(stubDirMain, 'curl'),
+  '#!/bin/bash\nU="${@: -1}"\nif [[ "$U" == *"/active-claim"* ]]; then\n  echo \'{"claimed":false}\'\nelif [[ "$U" == *"/session-info"* ]]; then\n  echo \'{"is_subagent":false}\'\nfi\nexit 0\n',
+  { mode: 0o755 },
+);
+
+function runMainBlocked(cmd, extra) {
+  return runHook(mkInput(cmd), { PATH: stubDirMain + ':' + process.env.PATH, ...extra });
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Test cases
+
+// Main session: cp write with no claim → exit 2 (zero-tolerance)
+{
+  const r = runMainBlocked('cp /tmp/x.js /Users/x/proj/lib.js');
+  ok('cp write → exit 2 for unclaimed main session', r.status === 2);
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 
 // 1. No write pattern — pure read

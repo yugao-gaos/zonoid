@@ -134,6 +134,32 @@ test('untested daemon endpoints', async () => {
     r = await get(`/active-claim?session=${SID_A}`);
     assert.equal(r.body.claimed, false, 'released claim -> locked again');
 
+
+    // ════ 1b. GET /session-info — subagent vs parent session classification ═
+    const SID_PARENT = crypto.randomUUID();
+    r = await get(`/session-info?session=${SID_PARENT}`);
+    assert.equal(r.body.is_subagent, false, 'empty registry -> not subagent');
+
+    await post('/agent/start', {
+      agent_id: 'misclass-agent',
+      session: SID_PARENT,
+      subagent_session: SID_PARENT,
+    });
+    r = await get(`/session-info?session=${SID_PARENT}`);
+    assert.equal(r.body.is_subagent, false, 'subagent_session===session must not mark parent as subagent');
+
+    await post('/agent/start', {
+      agent_id: 'real-sub-agent',
+      session: SID_PARENT,
+      subagent_session: SID_C,
+    });
+    r = await get(`/session-info?session=${SID_C}`);
+    assert.equal(r.body.is_subagent, true, 'distinct running subagent_session marks worker session');
+
+    await post('/agent/done', { agent_id: 'real-sub-agent' });
+    r = await get(`/session-info?session=${SID_C}`);
+    assert.equal(r.body.is_subagent, false, 'done agent no longer classifies session as subagent');
+
     // ════ 2. POST /analytics/tool-call — usage beacon ══════════════════════
     const TOOL = `endpoint_test_tool_${Date.now()}`;
     r = await post('/analytics/tool-call', { tool: TOOL });

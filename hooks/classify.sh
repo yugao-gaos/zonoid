@@ -10,10 +10,6 @@ PROMPT=$(printf '%s' "$INPUT" | jq -r '.prompt // empty')
 DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
 MARK="$DIR/$SID.off"
 
-# Reset per-turn edit counter for main session scope gate
-SID_EARLY=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // .sessionId // empty' 2>/dev/null)
-[ -n "$SID_EARLY" ] && echo "0" > "/tmp/orch-edit-count-$SID_EARLY" 2>/dev/null
-
 # --- toggle directives (match "orch on/off", optionally @-prefixed, as the whole intent) ---
 low=$(printf '%s' "$PROMPT" | tr '[:upper:]' '[:lower:]')
 if printf '%s' "$low" | grep -Eq '(^|[[:space:]])@?orch[[:space:]]+on([[:space:]]|$|[[:punct:]])'; then

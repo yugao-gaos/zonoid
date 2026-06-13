@@ -49,6 +49,13 @@ try {
   fs.rmSync(path.join(TASKS_DIR, '1.json'));
   agg = nt.aggregateWorkspace(WS, snapshots);
   ok('native gone: snapshot fallback serves node', agg.some((t) => t.key === KEY('1') && t.label === 'adopted title'));
+  const crossNs = {
+    [KEY('x')]: { subject: 'cross ns dep', description: '', status: 'pending', blockedBy: ['local/h4'] },
+  };
+  agg = nt.aggregateWorkspace(WS, crossNs);
+  const cross = agg.find((t) => t.key === KEY('x'));
+  ok('namespaced blockedBy resolves without double prefix', cross && cross.deps.includes('local/h4') && !cross.deps.includes('local/local/h4'));
+
 } finally {
   try { fs.rmSync(TASKS_DIR, { recursive: true, force: true }); } catch { /* */ }
   try { fs.rmSync(PROJ_DIR, { recursive: true, force: true }); } catch { /* */ }

@@ -191,6 +191,35 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   }
 }
 
+
+// --- acknowledgeDaemonRestartOnBoot: auto-complete approved restart bucket on daemon boot -------
+{
+  const bootAt = '2027-06-13T12:00:00.000Z';
+  const o = ov.EMPTY();
+  const res = fu.apply(o, 's/1', [{ title: 'Restart prod daemon', prompt: 'Kill + relaunch.', disruptive: true }]);
+  const key = res[0].key;
+  const g = o.guidance.find((x) => x.id === res[0].guidance_id);
+  ok('precondition: disruptive bucket gated', o.status[key] === 'not_ready');
+  const ap = fu.resolveGate(o, g.action, 'approve');
+  ok('approve releases bucket (ready to run)', ap && o.status[key] === undefined);
+  const ack = fu.acknowledgeDaemonRestartOnBoot(o, { bootedAt: bootAt });
+  ok('acknowledgeDaemonRestartOnBoot completes bucket', ack && ack.key === key && ack.bootedAt === bootAt && o.status[key] === 'done');
+  ok('ack sets boot summary', o.summaries[key] === `Daemon restart acknowledged on boot at ${bootAt}.`);
+  ok('ack resolves open guidance', g.resolved === true && g.answer === 'auto-complete on daemon boot');
+  ok('ack runs bucket cleanup hook', ack.bucket_cleanup && ack.bucket_cleanup.bucket === 'daemon-restart');
+  const o2 = ov.EMPTY();
+  const r2 = fu.apply(o2, 's/2', [{ title: 'Restart orchestrator daemon', prompt: 'Again.', disruptive: true }]);
+  const k2 = r2[0].key;
+  ok('not_ready bucket skipped', fu.acknowledgeDaemonRestartOnBoot(o2, { bootedAt: bootAt }) === null && o2.status[k2] === 'not_ready');
+  const o3 = ov.EMPTY();
+  fu.apply(o3, 's/3', [{ title: 'Restart daemon now', prompt: 'Go.', disruptive: true }]);
+  const k3 = 'followup/harness-daemon-restart';
+  const g3 = o3.guidance.find((x) => x.action && x.action.task_key === k3);
+  fu.resolveGate(o3, g3.action, 'approve');
+  fu.acknowledgeDaemonRestartOnBoot(o3, { bootedAt: bootAt });
+  ok('idempotent when already done', fu.acknowledgeDaemonRestartOnBoot(o3, { bootedAt: bootAt }) === null && o3.status[k3] === 'done');
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

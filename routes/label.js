@@ -2,18 +2,13 @@
 const overlayStore = require('../lib/overlay');
 const { rowKey, readJsonl, journalPath, labeledPath } = require('../scripts/gate-label');
 
-// Pressure nudge rate-limit: one nudge per NUDGE_INTERVAL_MS, in-memory (a missed hour after
-// restart is harmless). First caller within the window that sees depth>=NUDGE_LABEL_DEPTH wins
-// the nudge token; concurrent callers in that same tick get nudge:false.
-const NUDGE_LABEL_DEPTH = 10;
-const NUDGE_INTERVAL_MS = 3600000; // 1 hour
-let _lastNudgeAt = 0;
+const { LABEL_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 
 // Stable key for the standing "harness: label drain" task. Fixed slug so it is findable by label
 // prefix across daemon restarts; the snapshot substrate keeps it in the graph indefinitely.
-// Workers call start_task with this key before labeling, complete_task after — per-pass
-// complete_task (status → done) is the claim-conflict guarantee: the next pass's start_task sees
-// 'done' (not 'in_progress'), so no CAS conflict.
+// Workers call start_task with this key before labeling, complete_task after. Standing harness
+// tasks auto-requeue to ready on complete_task so the next pass is immediately claimable; claim
+// conflict is preserved because complete clears in_progress before requeue.
 const HARNESS_LABEL_DRAIN_KEY = 'followup/harness-label-drain';
 
 // Ensure the standing harness task exists idempotently in the overlay (pure mutation; caller saves).
@@ -66,23 +61,25 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       depth++;
     }
 
-    let nudge = false;
-    if (depth >= NUDGE_LABEL_DEPTH) {
-      const now = Date.now();
-      if (now - _lastNudgeAt >= NUDGE_INTERVAL_MS) {
-        _lastNudgeAt = now;  // stamp atomically — first caller wins the hour
-        nudge = true;
-      }
-    }
-    send(res, 200, { depth, nudge, harness_task_key: HARNESS_LABEL_DRAIN_KEY }); return true;
+    const gate = computePressureNudge({
+      depth,
+      depthThreshold: LABEL_DEPTH,
+      buildGraph,
+      ws,
+      overlay: state.overlay,
+      harnessKey: HARNESS_LABEL_DRAIN_KEY,
+    });
+    send(res, 200, {
+      depth, nudge: gate.nudge, harness_task_key: HARNESS_LABEL_DRAIN_KEY,
+      running: gate.running, capacity_ok: gate.capacity_ok, drain_in_progress: gate.drain_in_progress,
+    }); return true;
   }
 
   return false;
 };
 
-// Test seams: allows unit tests to control the nudge stamp without sleeping, and to inspect the
-// standing harness task key and ensure function.
-makeRoute._setLastNudgeAt = (ts) => { _lastNudgeAt = ts; };
+// Deprecated test seam (hourly debounce removed — capacity gate is stateless).
+makeRoute._setLastNudgeAt = () => {};
 makeRoute.HARNESS_LABEL_DRAIN_KEY = HARNESS_LABEL_DRAIN_KEY;
 makeRoute.ensureHarnessLabelDrainTask = ensureHarnessLabelDrainTask;
 

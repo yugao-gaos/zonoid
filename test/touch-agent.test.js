@@ -39,6 +39,15 @@ const ok = (label, cond) => {
   ok('endedAt set on done', done && typeof done.endedAt === 'string');
 }
 
+
+// ── Unit: subagent_session must not equal parent session ─────────────────────
+{
+  __setAgentsForTest({});
+  touchAgent('eq-sess-worker', { state: 'running', session: 'parent-sid', subagent_session: 'parent-sid' });
+  const a = __getAgentsForTest()['eq-sess-worker'];
+  ok('subagent_session equals session stored as null', a && a.subagent_session === null);
+}
+
 // ── Unit: idempotent with hook path (/agent/start semantics) ─────────────────
 {
   __setAgentsForTest({});

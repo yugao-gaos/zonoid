@@ -2,19 +2,14 @@
 const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
 
-// Pressure nudge rate-limit: one nudge per NUDGE_INTERVAL_MS, in-memory (a missed hour after
-// restart is harmless). First caller within the window that sees depth>=NUDGE_DEPTH wins the
-// nudge token; concurrent callers in that same tick get nudge:false.
-const NUDGE_DEPTH = 30;
-const NUDGE_INTERVAL_MS = 3600000; // 1 hour
-let _lastNudgeAt = 0;
+const { JUDGE_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 
 // Stable key for the standing "harness: judge drain" task. Fixed slug so it is findable by label
 // prefix across daemon restarts; the snapshot substrate keeps it in the graph indefinitely.
-// Workers call start_task with this key before judging, complete_task after — per-pass
-// complete_task (status → done) is the claim-conflict guarantee: the next pass's start_task sees
-// 'done' (not 'in_progress'), so no CAS conflict. The 10-min stale-claim sweep is a secondary
-// safety net for crashed workers, but is never needed when passes complete normally.
+// Workers call start_task with this key before judging, complete_task after. Standing harness
+// tasks auto-requeue to ready on complete_task so the next pass is immediately claimable; claim
+// conflict is preserved because complete clears in_progress before requeue. The 10-min stale-claim
+// sweep is a secondary safety net for crashed workers.
 const HARNESS_JUDGE_DRAIN_KEY = 'followup/harness-judge-drain';
 
 // Ensure the standing harness task exists idempotently in the overlay (pure mutation; caller saves).
@@ -128,6 +123,13 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       }
       if (v && v.surfaceCluster && Array.isArray(v.surfaceCluster.keys) && v.surfaceCluster.keys.length) {
         const keys = v.surfaceCluster.keys.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
+        const settled = judge.clusterConsolidationState(T.ov, keys);
+        if (settled) {
+          judge.stampCluster(T.ov.judgedClusters, keys, epoch);
+          applied.skippedSettled = (applied.skippedSettled || 0) + 1;
+          applied.clustersJudged++;
+          continue;
+        }
         const notesMeta = keys.map((k) => {
           const n = T.ov.note_nodes[String(k).replace(/^note:/, '')];
           return { key: k, title: (n && n.title) || k, created_at: (n && n.created_at) || null };
@@ -161,23 +163,25 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     const queue = judge.buildQueue(state.overlay);
     const depth = queue.length;
     const dupClusters = queue.filter((i) => i.kind === 'dup-cluster').length;
-    let nudge = false;
-    if (depth >= NUDGE_DEPTH) {
-      const now = Date.now();
-      if (now - _lastNudgeAt >= NUDGE_INTERVAL_MS) {
-        _lastNudgeAt = now;  // stamp atomically — first caller wins the hour
-        nudge = true;
-      }
-    }
-    send(res, 200, { depth, dupClusters, nudge, harness_task_key: HARNESS_JUDGE_DRAIN_KEY }); return true;
+    const gate = computePressureNudge({
+      depth,
+      depthThreshold: JUDGE_DEPTH,
+      buildGraph,
+      ws: state.workspace,
+      overlay: state.overlay,
+      harnessKey: HARNESS_JUDGE_DRAIN_KEY,
+    });
+    send(res, 200, {
+      depth, dupClusters, nudge: gate.nudge, harness_task_key: HARNESS_JUDGE_DRAIN_KEY,
+      running: gate.running, capacity_ok: gate.capacity_ok, drain_in_progress: gate.drain_in_progress,
+    }); return true;
   }
 
   return false;
 };
 
-// Test seams: allows unit tests to control the nudge stamp without sleeping, and to inspect the
-// standing harness task key and ensure function.
-makeRoute._setLastNudgeAt = (ts) => { _lastNudgeAt = ts; };
+// Deprecated test seam (hourly debounce removed — capacity gate is stateless).
+makeRoute._setLastNudgeAt = () => {};
 makeRoute.HARNESS_JUDGE_DRAIN_KEY = HARNESS_JUDGE_DRAIN_KEY;
 makeRoute.ensureHarnessJudgeDrainTask = ensureHarnessJudgeDrainTask;
 

@@ -1,10 +1,10 @@
 #!/bin/bash
 # PreToolUse(Write|Edit) GATE: enforce task-claim discipline for substantive inline edits.
 #
-# Subagents (spawned via the Agent tool): must have a valid active claim — same as before.
-# Main/driving sessions: allowed up to 2 single-file edits per turn (reset by classify.sh);
-#   blocked on 3rd+ edit OR if the new_string/content exceeds 100 lines (large inline work).
-#   Both cases print a message guiding the user to dispatch a subagent.
+# Zero-tolerance: main/driving sessions and subagents alike require a valid active claim before
+# any non-exempt Write/Edit. No per-turn edit allowance for unclaimed main sessions.
+# Main sessions: create a graph task + start_task, or dispatch a subagent (Agent tool).
+# Subagents: TaskCreate + start_task before editing.
 #
 # Default-on: like the other orchestrator hooks, the gate is active by default. A conversation
 #   opts out with 'orch off' (drops sessions/<id>.off). If that marker is present, exit 0.
@@ -75,20 +75,6 @@ if [ "$IS_SUB" = "true" ]; then
   exit 2
 fi
 
-# Main/driving session (or daemon lacks session-info endpoint — fail open toward main-session path).
-# Allow up to 2 edits per turn; block large content (>100 lines).
-COUNTER_FILE="/tmp/orch-edit-count-$SID"
-COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo "0")
-
-# Extract content size: new_string (Edit) or content (Write)
-CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // .tool_input.content // empty' 2>/dev/null)
-LINE_COUNT=$(printf '%s' "$CONTENT" | wc -l | tr -d ' ')
-
-if [ "$COUNT" -ge 2 ] || [ "${LINE_COUNT:-0}" -gt 100 ]; then
-  echo "orch-gate: multi-file or large edit — use TaskCreate + Agent tool to dispatch a subagent." >&2
-  exit 2
-fi
-
-# Allow and increment counter
-echo $((COUNT + 1)) > "$COUNTER_FILE"
-exit 0
+# Main/driving session (or unknown session-info): no claim → block.
+printf 'orch-gate: no task claimed. Create a graph task then start_task, or dispatch a subagent (Agent tool).\n' >&2
+exit 2

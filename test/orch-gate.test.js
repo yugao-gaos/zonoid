@@ -51,6 +51,19 @@ function runBlocked(filePath, extra) {
   return runHook(mkInput(filePath), { PATH: stubDir + ':' + process.env.PATH, ...extra });
 }
 
+// Stub curl: main session with no claim → blocks non-exempt paths
+const stubDirMain = path.join(TMP, 'stub-main');
+fs.mkdirSync(stubDirMain, { recursive: true });
+fs.writeFileSync(
+  path.join(stubDirMain, 'curl'),
+  '#!/bin/bash\nU="${@: -1}"\nif [[ "$U" == *"/active-claim"* ]]; then\n  echo \'{"claimed":false}\'\nelif [[ "$U" == *"/session-info"* ]]; then\n  echo \'{"is_subagent":false}\'\nfi\nexit 0\n',
+  { mode: 0o755 },
+);
+
+function runMainBlocked(filePath, extra) {
+  return runHook(mkInput(filePath), { PATH: stubDirMain + ':' + process.env.PATH, ...extra });
+}
+
 // ── Test cases ──────────────────────────────────────────────────────────────
 
 // 1. Native Claude TaskCreate path → exempt → exit 0
@@ -71,6 +84,13 @@ function runBlocked(filePath, extra) {
 {
   const r = runBlocked('/Users/x/proj/src.js');
   ok('regular source /Users/x/proj/src.js → exit 2 for unclaimed subagent', r.status === 2);
+}
+
+
+// 4. Regular source file → main session, no claim → exit 2 (zero-tolerance)
+{
+  const r = runMainBlocked('/Users/x/proj/src.js');
+  ok('regular source /Users/x/proj/src.js → exit 2 for unclaimed main session', r.status === 2);
 }
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────

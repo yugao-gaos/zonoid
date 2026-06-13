@@ -4,7 +4,8 @@
 # to close the bypass path (e.g. `python3 -c "open('file','w').write(...)"`, tee, cp, redirects).
 # Exit 2 = deny; exit 0 = allow.
 #
-# Main/driving sessions: allowed up to 2 file-write commands per turn; blocked on 3rd+.
+# Zero-tolerance: main/driving sessions and subagents alike require a valid active claim
+# before any non-exempt Bash file-write. No per-turn write allowance for unclaimed main sessions.
 # Fail-open: if the daemon is unreachable we allow (exit 0).
 PORT="${ORCH_PORT:-8787}"
 
@@ -180,20 +181,10 @@ IS_SUB=$(printf '%s' "$SINFO" | jq -r '.is_subagent // "unknown"' 2>/dev/null)
 
 if [ "$IS_SUB" = "true" ]; then
   # Registered subagent with no claim — must file a task first.
-  printf 'orch-gate: no task claimed. Call TaskCreate then start_task before writing files.\n' >&2
+  printf 'orch-gate: no task claimed. Call TaskCreate then start_task before editing.\n' >&2
   exit 2
 fi
 
-# Main/driving session (or daemon lacks session-info endpoint — fail open toward main-session path).
-# Allow up to 2 file-write commands per turn; block on 3rd+.
-COUNTER_FILE="/tmp/orch-edit-count-$SID"
-COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo "0")
-
-if [ "$COUNT" -ge 2 ]; then
-  echo "orch-gate: multi-file or large edit — use TaskCreate + Agent tool to dispatch a subagent." >&2
-  exit 2
-fi
-
-# Allow and increment counter
-echo $((COUNT + 1)) > "$COUNTER_FILE"
-exit 0
+# Main/driving session (or unknown session-info): no claim → block.
+printf 'orch-gate: no task claimed. Create a graph task then start_task, or dispatch a subagent (Agent tool).\n' >&2
+exit 2

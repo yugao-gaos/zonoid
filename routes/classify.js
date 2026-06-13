@@ -7,36 +7,31 @@ const { classifyHeuristic } = require('../lib/prompt-heuristic');
 const { refreshReadyFlag } = require('../lib/ready-flag-cache');
 const { assembleClassifyResponse } = require('../lib/classify-assemble');
 const { rowKey, readJsonl, journalPath, labeledPath } = require('../scripts/gate-label');
+const { JUDGE_DEPTH, LABEL_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 
-const NUDGE_DEPTH = 30;
-const NUDGE_LABEL_DEPTH = 10;
-const NUDGE_INTERVAL_MS = 3600000;
-let _lastJudgeNudgeAt = 0;
-let _lastLabelNudgeAt = 0;
-
-function judgePressure(overlay) {
+function judgePressure(overlay, buildGraph, ws) {
   const queue = judge.buildQueue(overlay);
   const depth = queue.length;
   const dupClusters = queue.filter((i) => i.kind === 'dup-cluster').length;
-  let nudge = false;
-  if (depth >= NUDGE_DEPTH) {
-    const now = Date.now();
-    if (now - _lastJudgeNudgeAt >= NUDGE_INTERVAL_MS) {
-      _lastJudgeNudgeAt = now;
-      nudge = true;
-    }
-  }
-  return { depth, dupClusters, nudge, harness_task_key: judgeRoute.HARNESS_JUDGE_DRAIN_KEY };
+  const gate = computePressureNudge({
+    depth,
+    depthThreshold: JUDGE_DEPTH,
+    buildGraph,
+    ws,
+    overlay,
+    harnessKey: judgeRoute.HARNESS_JUDGE_DRAIN_KEY,
+  });
+  return { depth, dupClusters, nudge: gate.nudge, harness_task_key: judgeRoute.HARNESS_JUDGE_DRAIN_KEY };
 }
 
-function labelPressure(state) {
+function labelPressure(state, buildGraph) {
   const ws = state.workspace;
   if (!ws) return { depth: 0, nudge: false, harness_task_key: labelRoute.HARNESS_LABEL_DRAIN_KEY };
   const journalRows = readJsonl(journalPath(ws));
   const labeledRows = readJsonl(labeledPath(ws));
   const labeledKeys = new Set(labeledRows.map((r) => r._key).filter(Boolean));
   const TERMINAL = new Set(['done', 'tested', 'failed', 'canceled']);
-  const g = state._buildGraph ? state._buildGraph(ws) : null;
+  const g = buildGraph ? buildGraph(ws) : null;
   const statusById = g ? new Map(g.tasks.map((t) => [t.id, t.status])) : new Map();
   let depth = 0;
   for (const row of journalRows) {
@@ -47,15 +42,15 @@ function labelPressure(state) {
     if (!status || !TERMINAL.has(status)) continue;
     depth++;
   }
-  let nudge = false;
-  if (depth >= NUDGE_LABEL_DEPTH) {
-    const now = Date.now();
-    if (now - _lastLabelNudgeAt >= NUDGE_INTERVAL_MS) {
-      _lastLabelNudgeAt = now;
-      nudge = true;
-    }
-  }
-  return { depth, nudge, harness_task_key: labelRoute.HARNESS_LABEL_DRAIN_KEY };
+  const gate = computePressureNudge({
+    depth,
+    depthThreshold: LABEL_DEPTH,
+    buildGraph,
+    ws,
+    overlay: state.overlay,
+    harnessKey: labelRoute.HARNESS_LABEL_DRAIN_KEY,
+  });
+  return { depth, nudge: gate.nudge, harness_task_key: labelRoute.HARNESS_LABEL_DRAIN_KEY };
 }
 
 function sessionHasMetricSpec(sessionId, ctx) {
@@ -122,8 +117,8 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
   judgeRoute.ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(); });
   labelRoute.ensureHarnessLabelDrainTask(T.ov, () => { T.save(); notifyChange(); });
 
-  const jp = orchGateOff ? null : judgePressure(state.overlay);
-  const lp = orchGateOff ? null : labelPressure({ ...state, _buildGraph: buildGraph });
+  const jp = orchGateOff ? null : judgePressure(state.overlay, buildGraph, state.workspace);
+  const lp = orchGateOff ? null : labelPressure(state, buildGraph);
 
   const result = assembleClassifyResponse({
     prompt,
@@ -141,7 +136,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
   return true;
 };
 
-module.exports._setLastJudgeNudgeAt = (ts) => { _lastJudgeNudgeAt = ts; };
-module.exports._setLastLabelNudgeAt = (ts) => { _lastLabelNudgeAt = ts; };
+module.exports._setLastJudgeNudgeAt = () => {};
+module.exports._setLastLabelNudgeAt = () => {};
 module.exports._judgePressure = judgePressure;
 module.exports._labelPressure = labelPressure;

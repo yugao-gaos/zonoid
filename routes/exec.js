@@ -128,8 +128,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         usageBaseline = baselineSlice && baselineSlice.usage ? baselineSlice.usage : null;
       } catch { /* optional baseline */ }
     }
+    const parentSession = b.session || b.session_id || null;
+    let subagentSession = b.subagent_session || null;
+    if (subagentSession && parentSession && subagentSession === parentSession) subagentSession = null;
     // Capture task/session/workspace so a colliding worker is visible across sessions (GET /agents).
-    touchAgent(b.agent_id, { state: 'running', agent_type: b.agent_type, transcript_path: b.transcript_path, task: b.task, session: b.session, subagent_session: b.subagent_session, workspace: b.workspace || state.workspace, reported_usage: b.reported_usage, usage_baseline: usageBaseline });
+    touchAgent(b.agent_id, { state: 'running', agent_type: b.agent_type, transcript_path: b.transcript_path, task: b.task, session: b.session, subagent_session: subagentSession, workspace: b.workspace || state.workspace, reported_usage: b.reported_usage, usage_baseline: usageBaseline });
     const sessionId = b.session || b.session_id || b.conversation_id;
     if (sessionId && b.transcript_path) {
       bindSession(sessionId, { transcript: b.transcript_path, workspace: b.workspace || state.workspace, harness: b.harness });

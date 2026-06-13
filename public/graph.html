@@ -4431,7 +4431,8 @@ async function tick(){
   document.getElementById('ws').textContent=d.workspace?d.workspace.split('/').pop():'';
   const autoScore=cf&&cf.autonomy_score!=null?cf.autonomy_score+'×':'—';
   const prodTok=cf?fmtK(cf.totals.productive):'—';
-  const totalTok=cf?fmtK(cf.totals.total):'—';
+  const totalRaw=cf?(cf.totals.output_tokens||cf.totals.total):null;
+  const totalTok=cf?fmtK(totalRaw):'—';
   // Per-model pricing ($/M tokens): [input, output, cache_read]
   const MODEL_RATES={'claude-opus-4-8':[15,75,1.5],'claude-opus-4-7':[15,75,1.5],'claude-sonnet-4-6':[3,15,0.3],'claude-sonnet-4-5':[3,15,0.3],'claude-haiku-4-5':[0.8,4,0.08],'claude-fable-5':[3,15,0.3]};
   const rateFor=m=>{ for(const k of Object.keys(MODEL_RATES)) if(m&&m.startsWith(k.slice(0,-2))) return MODEL_RATES[k]; return [3,15,0.3]; };
@@ -4454,7 +4455,8 @@ async function tick(){
   const autoColor=autoRaw==null?'#484f58':autoRaw>=autoMedian?'#3fb950':'#e3b341';
   const autoVs=autoRaw==null?'':(autoRaw>=autoMedian?`<b style="color:#3fb950">+${(autoRaw-autoMedian).toFixed(1)}× above median</b>`:`<b style="color:#e3b341">${(autoMedian-autoRaw).toFixed(1)}× below median</b>`);
   const prodRaw=cf?cf.totals.productive:null;
-  const totalRaw=cf?cf.totals.total:null;
+  const unattributedRaw=cf?Math.max(0,(cf.totals.output_tokens||cf.totals.total||0)-(cf.totals.productive||0)-(cf.totals.exploration||0)-(cf.totals.trapped||0)):null;
+  const unattTok=cf?fmtK(unattributedRaw):'—';
   const prodPct=totalRaw>0?Math.round(prodRaw/totalRaw*100):null;
   const prodMedianPct=50;
   const prodBarColor=prodPct==null?'#484f58':prodPct>=prodMedianPct?'#3fb950':'#e3b341';
@@ -4504,6 +4506,7 @@ async function tick(){
     `<span><b style="color:#3fb950">✓ Productive</b> — reached a merged branch</span><b style="color:#3fb950">${prodTok}</b>` +
     `<span><b style="color:#e3b341">~ Exploration</b> — canceled / superseded / attempt branches</span><b style="color:#e3b341">${cf?fmtK(cf.totals.exploration??0):'—'}</b>` +
     `<span><b style="color:#6e7681">✕ Trapped</b> — terminal dead-ends with no captured output</span><b style="color:#6e7681">${cf?fmtK(cf.totals.trapped):'—'}</b>` +
+    `<span><b style="color:#6e7681">○ Unattributed</b> — output not in cost-flow buckets</span><b style="color:#6e7681">${unattTok}</b>` +
     `<span>Total</span><b style="color:#e6edf3">${totalTok}</b>` +
     `</div>` +
     `<div class="tip-bench-label" style="margin-top:6px">productive % vs median (${prodMedianPct}%)</div>` +
@@ -5339,6 +5342,21 @@ async function toggleBillingPopup(){
     }).join('');
 
   el.innerHTML=
+    `<div class="bpsec"><h3>Token Economy</h3>`+
+    `<div class="bprow"><span class="bpdot" style="background:#3fb950"></span><span class="bplabel">Productive</span><span class="bpnum">${fmtK(productive)}</span><span class="bpcost" style="color:#3fb950">${prodPct}%</span></div>`+
+    `<div class="bpbar"><div class="bpbar-fill" style="width:${prodPct}%;background:#3fb950"></div></div>`+
+    (exploration>0?
+      `<div class="bprow"><span class="bpdot" style="background:#e3b341"></span><span class="bplabel">Exploration</span><span class="bpnum">${fmtK(exploration)}</span><span class="bpcost" style="color:#e3b341">${explPct}%</span></div>`+
+      `<div class="bpbar"><div class="bpbar-fill" style="width:${explPct}%;background:#e3b341"></div></div>`:'')+
+    `<div class="bprow"><span class="bpdot" style="background:#484f58"></span><span class="bplabel">Trapped / wasted</span><span class="bpnum">${fmtK(trapped)}</span><span class="bpcost" style="color:#6e7681">${trapPct}%</span></div>`+
+    `<div class="bpbar"><div class="bpbar-fill" style="width:${trapPct}%;background:#484f58"></div></div>`+
+    `<div class="bprow"><span class="bpdot" style="background:#6e7681"></span><span class="bplabel">Unattributed</span><span class="bpnum">${fmtK(unattributed)}</span><span class="bpcost" style="color:#6e7681">${unattPct}%</span></div>`+
+    `<div class="bpbar"><div class="bpbar-fill" style="width:${unattPct}%;background:#6e7681"></div></div>`+
+    `<div style="font-size:10px;color:#6e7681;margin-top:4px">Based on ${fmtK(totalTok)} raw output tokens</div>`+
+    `</div>`+
+
+    `<div class="bpdiv"></div>`+
+
     `<div class="bpsec"><h3>By Model</h3>${modelRows}</div>`+
 
     `<div class="bpdiv"></div>`+

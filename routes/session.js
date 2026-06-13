@@ -3,6 +3,7 @@ const path = require('path');
 const overlayStore = require('../lib/overlay');
 const followups = require('../lib/followups');
 const verdicts = require('../lib/verdicts');
+const judge = require('../lib/judge');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, buildGraph, state, targetOverlay,
@@ -41,7 +42,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const sid = u.searchParams.get('session');
     if (!sid) { send(res, 400, { error: 'session required' }); return true; }
     const agents = agentsArr();
-    const isSubagent = agents.some((a) => a.subagent_session === sid);
+    const isSubagent = agents.some((a) =>
+      a.state === 'running' &&
+      a.subagent_session &&
+      a.subagent_session === sid &&
+      a.subagent_session !== a.session
+    );
     send(res, 200, { session: sid, is_subagent: isSubagent }); return true;
   }
 
@@ -92,7 +98,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/guidance' && m === 'GET') {
-    const all = overlayStore.pendingGuidance(targetOverlay(null, u).ov);
+    const T = targetOverlay(null, u);
+    const settled = judge.resolveSettledClusterGuidance(T.ov);
+    if (settled.length) { T.save(); notifyChange(); }
+    const all = overlayStore.pendingGuidance(T.ov);
     send(res, 200, { pending: all.filter((g) => g.severity !== 'review'), review: all.filter((g) => g.severity === 'review') }); return true;
   }
 

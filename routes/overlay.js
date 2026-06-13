@@ -6,6 +6,7 @@ const graphStore = require('../lib/graph-store');
 const path = require('path');
 const { noteEmbedText } = require('../lib/node-tags');
 const newlyReady = require('../lib/newly-ready');
+const { requeueStandingHarness } = require('../lib/harness-task');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, sendOp, readBody, notifyChange, buildGraph, state, targetOverlay,
@@ -167,11 +168,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       for (const r of verdictResults) if (r.action === 'cancel') snapshotNative(T.ov, r.task_key);
     }
     let staleHolds = null;
+    let harnessRequeued = false;
     if (b.status === 'done') {
       bucketCleanup = followups.onBucketComplete(T.ov, b.key);
       T.save();
       const sh = verdicts.sweepStaleHolds(T.ov, b.key, buildGraph(T.ws));
       if (sh.released.length || sh.flagged.length) staleHolds = sh;
+      harnessRequeued = requeueStandingHarness(T.ov, b.key, b.note);
     }
     const lintWarning = b.status === 'done' ? verdicts.lintProse(b.summary, b.verdicts, b.key) : null;
     T.save();
@@ -190,6 +193,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (verdictResults) statusResp.verdicts = verdictResults;
     if (staleHolds) statusResp.stale_holds = staleHolds;
     if (bucketCleanup) statusResp.bucket_cleanup = bucketCleanup;
+    if (harnessRequeued) statusResp.harness_requeued = true;
     if (lintWarning) statusResp.warning = lintWarning;
     if (b.status === 'in_progress' && b.force) {
       const FORCE_CAP = 3;

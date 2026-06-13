@@ -1,5 +1,6 @@
 'use strict';
 const ov = require('../lib/overlay');
+const judge = require('../lib/judge');
 let n = 0, f = 0;
 function ok(msg, cond) { n++; if (!cond) { f++; console.error('FAIL:', msg); } else console.log('PASS:', msg); }
 
@@ -17,3 +18,16 @@ ok('one pending row per cluster signature remains', o.guidance.filter((g) => !g.
 
 console.log('-----\n' + (n - f) + ' passed, ' + f + ' failed');
 process.exit(f ? 1 : 0);
+
+{
+  const o = ov.EMPTY();
+  o.note_nodes['note-old'] = { id: 'note-old', title: 'checklist', validTo: '2026-06-10T16:00:00Z', supersededBy: 'note-new' };
+  o.note_nodes['note-new'] = { id: 'note-new', title: 'merged', validTo: null, supersedes: 'note-old', created_at: '2026-06-10T16:01:00Z' };
+  o.guidance.push({
+    id: 'g-settled', resolved: false,
+    action: { kind: 'dup-cluster', keys: ['note:note-old', 'note:note-new'], signature: 'note:note-new|note:note-old' },
+  });
+  ok('clusterConsolidationState sees supersede chain', judge.clusterConsolidationState(o, ['note:note-old', 'note:note-new'])?.keeper === 'note:note-new');
+  const settled = judge.resolveSettledClusterGuidance(o);
+  ok('resolveSettledClusterGuidance auto-closes stale dup-cluster row', settled.length === 1 && o.guidance[0].resolved === true);
+}
