@@ -350,7 +350,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const v = await embed(n.title || '');
       if (v) {
         n.vec = v; notesEmbedded++;
-        graphStore.appendEvent(gs, n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
+        graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
       } else failed++;
     }
     for (const items of Object.values(state.overlay.knowledge || {})) {
@@ -374,7 +374,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     for (const n of Object.values(state.overlay.note_nodes || {})) {
       if (!force2 && Array.isArray(n.vec) && n.vec.length === DIMS) { skipped++; continue; }
       const v = await embed(n.title || '');
-      if (v) { n.vec = v; embedded++; graphStore.appendEvent(gs2, n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'reembed', ts: ts2 }); } else failed++;
+      if (v) { n.vec = v; embedded++; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'reembed', ts: ts2 }); } else failed++;
     }
     overlayStore.save(state.workspace, state.overlay);
     notifyChange();

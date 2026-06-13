@@ -111,6 +111,34 @@ function tmpDir() {
 
   fs.rmSync(dir, { recursive: true });
 }
+// ── appendEvent — note id canonicalization ───────────────────────────────────
+{
+  const dir   = tmpDir();
+  const store = gs.open(dir);
+  const noteId = 'note-mqtest01';
+
+  gs.appendEvent(store, noteId, { evt: 'note_created', actor: 'a',
+    title: 'Bare id note', summary: 'from bare id', workspace: '/w', created_by: 'alice' });
+  gs.appendEvent(store, 'note:' + noteId, { evt: 'note_vec_set', actor: 'b', id: noteId, vec: [0.1, 0.2] });
+
+  ok('bare note id writes canonical file', !fs.existsSync(path.join(store.nodesDir, `${noteId}.jsonl`)));
+  ok('prefixed note id uses same file', fs.existsSync(path.join(store.nodesDir, `note:${noteId}.jsonl`)));
+
+  const canonicalFile = path.join(store.nodesDir, `note:${noteId}.jsonl`);
+  const lines = fs.readFileSync(canonicalFile, 'utf8').trim().split('\n');
+  ok('canonical file has both events', lines.length === 2);
+  ok('first event is note_created', JSON.parse(lines[0]).evt === 'note_created');
+  ok('second event is note_vec_set', JSON.parse(lines[1]).evt === 'note_vec_set');
+
+  const { nodes } = gs.loadGraph(store);
+  const n = nodes['note:' + noteId];
+  ok('loadGraph merges bare+prefixed into one node', !!n);
+  ok('loadGraph has note title', n.note.title === 'Bare id note');
+  ok('loadGraph has vec from prefixed append', Array.isArray(n.vec) && n.vec.length === 2);
+
+  fs.rmSync(dir, { recursive: true });
+}
+
 
 // ── loadGraph — status_changed ────────────────────────────────────────────
 {
