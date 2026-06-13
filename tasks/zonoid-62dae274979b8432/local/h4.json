@@ -1,0 +1,15 @@
+{
+  "id": "h4",
+  "subject": "P6-H4: Cursor classify relay (beforeSubmitPrompt → POST /classify)",
+  "description": "Thin adapters/cursor/classify.sh: normalize Cursor payload (conversation_id→session_id, workspace_roots, prompt field), handle orch on/off toggle, relay to shared hooks/classify.sh (or POST /classify directly). Belt-and-suspenders: update hooks/classify.sh session extraction to include .conversation_id. Return Cursor-compatible beforeSubmitPrompt injection (hookSpecificOutput additionalContext). No daemon logic — relay only.",
+  "status": "completed",
+  "blockedBy": [
+    "local/h1",
+    "local/c1",
+    "local/e1"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "cursor-classify-plan"
+  }
+}

@@ -1,0 +1,5 @@
+{"evt":"timestamps_set","id":"local/h6","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T12:40:14.248Z","lastChanged":"2026-06-13T12:40:14.248Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-13T12:40:14.282Z"}
+{"evt":"status_changed","id":"local/h6","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T12:48:10.466Z"}
+{"evt":"assignee_set","id":"local/h6","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-h6-e2e","actor":"overlay-sync","ts":"2026-06-13T12:48:10.466Z"}
+{"evt":"status_changed","id":"local/h6","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-13T12:49:10.571Z"}
+{"evt":"summary_set","id":"local/h6","workspace":"/Users/imyu/Desktop/zonoid","summary":"Extended cursor-e2e-integration.test.js with beforeSubmitPrompt→classify.sh wiring assertion and sandbox-daemon classify integration (34 pass). Updated docs/cursor-e2e.md and adapters/cursor/README.md with H4 classify + standing ready-queue coverage. cursor-classify-relay.test.js: 9 pass.","actor":"overlay-sync","ts":"2026-06-13T12:49:10.571Z"}

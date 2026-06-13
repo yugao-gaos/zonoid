@@ -10,6 +10,7 @@ layer to what the test asserts.
 |---|---|---|
 | H1 | `adapters/cursor/*.sh` + `hooks.json.sample` | Relay Cursor hook events to the daemon (gate, workspace bind, subagent lifecycle) |
 | H2 | `adapters/cursor/post-todo-adopt.sh` + `.cursor/hooks.json` | Mint `cursor/<id>.json` file-drop stubs from `TodoWrite` / `todo_write` |
+| H4 | `adapters/cursor/classify.sh` + `hooks/classify.sh` | `beforeSubmitPrompt` → `POST /classify`; inject routing, gate reminder, heartbeat, and standing ready-queue nudge |
 | D2 | `lib/cursor-transcripts.js` + `lib/adapters/cursor.js` | Discover and parse Cursor transcript JSONLs for cost attribution |
 
 ## Flow (what happens in a real session)
@@ -21,6 +22,9 @@ sequenceDiagram
   participant D as Daemon :8787
   participant FD as tasks/.../cursor/*.json
 
+  C->>H1: beforeSubmitPrompt
+  H1->>D: POST /classify
+  H1-->>C: additionalContext (routing, ready queue, gate)
   C->>H1: sessionStart
   H1->>D: GET /ping, POST /workspace
   C->>H1: preToolUse Write (no claim)
@@ -41,6 +45,8 @@ sequenceDiagram
 | Gate denies unclaimed write | `orch-gate.sh` with `conversation_id`, stub `curl` returning `claimed:false` + `is_subagent:true` → exit 2 |
 | H2 todo mint | Fixture `TodoWrite` stdin → `post-todo-adopt.sh` writes stubs under `tasks/<ws-key>/cursor/` |
 | D2 + costflow | Fixture transcript under `~/.cursor/projects/<encoded>/agent-transcripts/`; daemon with `ZONOID_HARNESS=cursor` → `/costflow` reports `human` tokens and session catchalls |
+| Standing ready queue | When `/classify` finds ready tasks, `additionalContext` includes `[Orchestrator] N tasks ready:` standing-queue nudge (same as Claude `UserPromptSubmit`) |
+| H4 classify relay | Cursor-shaped `conversation_id` + `prompt` → `classify.sh` against sandbox daemon; `hookSpecificOutput.additionalContext` includes `[Model routing]` and heartbeat; `conversation_id` normalization in `test/cursor-classify-relay.test.js` |
 
 ## Running locally
 

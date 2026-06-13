@@ -1,0 +1,21 @@
+{"evt":"timestamps_set","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T12:38:51.735Z","lastChanged":"2026-06-13T12:38:51.735Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-13T12:38:51.748Z"}
+{"evt":"status_changed","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T12:38:58.312Z"}
+{"evt":"assignee_set","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","assignee":"main-cursor-classify","actor":"overlay-sync","ts":"2026-06-13T12:38:58.312Z"}
+{"evt":"assignee_set","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-h5h6-create","actor":"overlay-sync","ts":"2026-06-13T12:39:29.901Z"}
+{"evt":"edge_added","from":"local/h4","to":"local/h5","kind":"blocking","actor":"overlay-sync","ts":"2026-06-13T12:40:18.338Z"}
+{"evt":"edge_added","from":"local/h4","to":"local/h6","kind":"blocking","actor":"overlay-sync","ts":"2026-06-13T12:40:18.424Z"}
+{"evt":"status_changed","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-13T12:40:31.105Z"}
+{"evt":"summary_set","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","summary":"Created h5+h6 stubs, synced graph, wired blocking+context edges for Cursor classify adapter tasks.","actor":"overlay-sync","ts":"2026-06-13T12:40:31.105Z"}
+{"evt":"status_changed","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","status":"canceled","actor":"overlay-sync","ts":"2026-06-13T12:40:35.625Z"}
+{"evt":"summary_set","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","summary":"Reset: was claimed for task-creation meta-work only; implementation not started.","actor":"overlay-sync","ts":"2026-06-13T12:40:35.625Z"}
+{"evt":"assignee_set","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","assignee":"cursor-classify-plan","actor":"overlay-sync","ts":"2026-06-13T12:40:35.625Z"}
+{"evt":"status_changed","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","status":"not_ready","actor":"overlay-sync","ts":"2026-06-13T12:40:41.249Z"}
+{"evt":"status_changed","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-13T12:40:50.710Z"}
+{"evt":"status_changed","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-13T12:41:07.303Z"}
+{"evt":"summary_set","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","summary":"","actor":"overlay-sync","ts":"2026-06-13T12:41:07.303Z"}
+{"evt":"status_changed","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T12:41:39.526Z"}
+{"evt":"assignee_set","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","assignee":"cursor-main","actor":"overlay-sync","ts":"2026-06-13T12:41:39.526Z"}
+{"evt":"assignee_set","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","assignee":"gate-fix-worker","actor":"overlay-sync","ts":"2026-06-13T12:41:57.130Z"}
+{"evt":"assignee_set","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-h4-classify","actor":"overlay-sync","ts":"2026-06-13T12:45:45.709Z"}
+{"evt":"status_changed","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-13T12:46:28.829Z"}
+{"evt":"summary_set","id":"local/h4","workspace":"/Users/imyu/Desktop/zonoid","summary":"Created adapters/cursor/classify.sh (Cursor beforeSubmitPrompt relay → hooks/classify.sh with conversation_id/prompt normalization and beforeSubmitPrompt event remap). Updated hooks/classify.sh session extraction for conversation_id. Added test/cursor-classify-relay.test.js — 9 passed, 0 failed.","actor":"overlay-sync","ts":"2026-06-13T12:46:28.829Z"}

@@ -1,0 +1,13 @@
+{
+  "id": "h5",
+  "subject": "P6-H5: Wire classify into Cursor hooks sample + init CLI",
+  "description": "Add beforeSubmitPrompt → adapters/cursor/classify.sh to hooks.json.sample. Update packages/cli/bin/zonoid.js checkCursorHooks() merge/idempotency markers (classifyMarker alongside gateMarker and todoMarker) so init --harness cursor installs classify on fresh and partial installs. Update adapters/cursor/README.md hook mapping table. Preserve mergeCursorHooks behavior for existing .cursor/hooks.json.",
+  "status": "completed",
+  "blockedBy": [
+    "local/h4"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "cursor-classify-plan"
+  }
+}

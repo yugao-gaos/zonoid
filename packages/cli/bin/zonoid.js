@@ -149,11 +149,11 @@ function checkSettings(cwd) {
   ok('settings.json merged (your existing config preserved)');
 }
 
-function checkMcp(cwd) {
+function checkMcp(cwd, orchClient = null) {
   const dest = path.join(cwd, '.mcp.json');
   if (!fs.existsSync(dest)) {
     fix('.mcp.json missing — writing from sample...');
-    writeMcp(cwd);
+    writeMcp(cwd, false, orchClient);
     return;
   }
   let content;
@@ -163,13 +163,29 @@ function checkMcp(cwd) {
   const hasWrongPath = content.includes('mcp-graph.js') && !content.includes(INSTALL_DIR);
   if (hasTemplate || hasWrongPath) {
     warn(`.mcp.json has ${hasTemplate ? 'unresolved template tokens' : 'wrong path'} — rewriting...`);
-    writeMcp(cwd, true);
+    writeMcp(cwd, true, orchClient);
     return;
   }
   ok('.mcp.json looks correct');
 }
 
-function writeMcp(cwd, overwrite = false) {
+function injectOrchClient(content, orchClient) {
+  if (!orchClient) return content;
+  try {
+    const j = JSON.parse(content);
+    const srv = j.mcpServers && j.mcpServers['orchestrator-graph'];
+    if (srv) {
+      srv.env = srv.env || {};
+      srv.env.ORCH_CLIENT = orchClient;
+      delete srv.env.ZONOID_HARNESS;
+    }
+    return JSON.stringify(j, null, 2) + '\n';
+  } catch {
+    return content;
+  }
+}
+
+function writeMcp(cwd, overwrite = false, orchClient = null) {
   const dest = path.join(cwd, '.mcp.json');
   const src  = path.join(INSTALL_DIR, 'mcp.sample.json');
   let content;
@@ -182,7 +198,7 @@ function writeMcp(cwd, overwrite = false) {
     fs.copyFileSync(dest, dest + '.bak');
     log(`Backed up existing .mcp.json to ${dest}.bak`);
   }
-  fs.writeFileSync(dest, content);
+  fs.writeFileSync(dest, injectOrchClient(content, orchClient));
   ok(`Written: ${dest}`);
 }
 
@@ -498,6 +514,7 @@ function checkCursorHooks(cwd) {
   const sample = JSON.parse(
     fs.readFileSync(samplePath, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR)
   );
+  const classifyMarker = `${INSTALL_DIR}/adapters/cursor/classify.sh`;
   const gateMarker = `${INSTALL_DIR}/adapters/cursor/orch-gate.sh`;
   const todoMarker = `${INSTALL_DIR}/adapters/cursor/post-todo-adopt.sh`;
   const extras = [{ event: 'postToolUse', entries: cursorTodoMintEntry() }];
@@ -507,7 +524,7 @@ function checkCursorHooks(cwd) {
     try { existing = JSON.parse(fs.readFileSync(dest, 'utf8')); }
     catch (e) { warn('Cannot parse .cursor/hooks.json — leaving as-is'); return; }
     const content = JSON.stringify(existing);
-    if (content.includes(gateMarker) && content.includes(todoMarker)) {
+    if (content.includes(classifyMarker) && content.includes(gateMarker) && content.includes(todoMarker)) {
       ok('.cursor/hooks.json already references this install');
       return;
     }
@@ -613,7 +630,7 @@ function writeCodexMcp(cwd, overwrite = false) {
     log(`Backed up existing .mcp.json to ${dest}.bak`);
   }
   fs.writeFileSync(dest, content);
-  ok(`Written Codex MCP config: ${dest} (ZONOID_HARNESS=codex)`);
+  ok(`Written Codex MCP config: ${dest} (ORCH_CLIENT=codex)`);
 }
 
 async function init(opts = {}) {
@@ -639,7 +656,7 @@ async function init(opts = {}) {
     checkClaude(cwd);
   } else if (harness === 'cursor') {
     checkCursorHooks(cwd);
-    checkMcp(cwd);
+    checkMcp(cwd, 'cursor');
     warn('Cursor init uses native .cursor/hooks.json — do not also wire adapters/cursor/settings.sample.json (double execution)');
   } else if (harness === 'codex') {
     checkCodexHooks();

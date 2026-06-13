@@ -35,6 +35,7 @@ Native hooks cover **all** H1 events including `subagentStart` (not available vi
 | Cursor event | Script | Daemon endpoint | Blocking |
 |---|---|---|---|
 | `sessionStart` | `session-start.sh` | `GET /ping`, `POST /workspace` | No |
+| `beforeSubmitPrompt` | `classify.sh` | `POST /classify` | No |
 | `preToolUse` `*` | `orch-stop.sh` | `GET /should-stop` | Yes (exit 2) |
 | `preToolUse` `Write` | `orch-gate.sh` | `GET /active-claim` | Yes (exit 2) |
 | `preToolUse` `Shell` | `shell-gate.sh` | `GET /active-claim` (bash writes) | Yes (exit 2) |
@@ -49,6 +50,26 @@ SID=$(jq -r '.session_id // .conversation_id // .sessionId // empty')
 ```
 
 After `start_task`, register the claim with `conversation_id` via MCP or `POST /overlay/claim-session`.
+
+
+## Classify relay (`beforeSubmitPrompt`)
+
+`classify.sh` is a thin adapter over shared `hooks/classify.sh`:
+
+1. Normalizes Cursor stdin (`conversation_id` → `session_id`, `user_message` → `prompt`).
+2. Relays to `POST /classify` on the daemon (model routing, graph context, gate reminder, heartbeat).
+3. Remaps `hookEventName` from `UserPromptSubmit` to **`beforeSubmitPrompt`** for Cursor injection.
+
+**Standing ready queue:** when the daemon has tasks in `ready` status, `/classify` appends a
+`[Orchestrator] N tasks ready: [...]` nudge to `additionalContext`. The hook surfaces this as
+`hookSpecificOutput.additionalContext` so the driving session can start an autonomous loop without
+blocking the user's prompt.
+
+**Opt out:** `orch off` / `orch on` in the prompt toggles per-`conversation_id` classify (same
+marker file as Claude: `sessions/<conversation_id>.off`).
+
+CI coverage: `test/cursor-classify-relay.test.js` (stub curl) and
+`test/cursor-e2e-integration.test.js` (sandbox daemon).
 
 ## IDE vs CLI gaps (Jun 2026)
 

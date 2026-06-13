@@ -5,13 +5,13 @@
 # Always exits 0 fast; daemon POST is best-effort.
 PORT="${ORCH_PORT:-8787}"
 INPUT=$(cat)
-SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
+SID=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // .sessionId // empty')
 PROMPT=$(printf '%s' "$INPUT" | jq -r '.prompt // empty')
 DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
 MARK="$DIR/$SID.off"
 
 # Reset per-turn edit counter for main session scope gate
-SID_EARLY=$(printf '%s' "$INPUT" | jq -r '.session_id // .sessionId // empty' 2>/dev/null)
+SID_EARLY=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // .sessionId // empty' 2>/dev/null)
 [ -n "$SID_EARLY" ] && echo "0" > "/tmp/orch-edit-count-$SID_EARLY" 2>/dev/null
 
 # --- toggle directives (match "orch on/off", optionally @-prefixed, as the whole intent) ---
@@ -31,7 +31,7 @@ fi
 [ -f "$MARK" ] && exit 0
 
 # --- relay to daemon POST /classify ---
-SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // .sessionId // empty' 2>/dev/null)
+SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // .sessionId // empty' 2>/dev/null)
 BODY=$(python3 -c "
 import json, sys, os
 prompt = sys.argv[1]

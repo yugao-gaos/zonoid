@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Cursor adapter stack — end-to-end integration (CI-safe, no live Cursor IDE).
-// Proves H1 hook relays, H2 post-todo-adopt minting, and D2 transcript reader work together.
+// Proves H1 hook relays, H4 classify injection, H2 post-todo-adopt minting, and D2 transcript reader work together.
 //
 // Run: node test/cursor-e2e-integration.test.js
 'use strict';
@@ -15,6 +15,7 @@ const ADAPTERS = path.join(REPO, 'adapters', 'cursor');
 const SESSION_START = path.join(ADAPTERS, 'session-start.sh');
 const ORCH_GATE = path.join(ADAPTERS, 'orch-gate.sh');
 const POST_TODO = path.join(ADAPTERS, 'post-todo-adopt.sh');
+const CLASSIFY = path.join(ADAPTERS, 'classify.sh');
 const HOOKS_SAMPLE = path.join(ADAPTERS, 'hooks.json.sample');
 const cursorTx = require('../lib/cursor-transcripts');
 const filedrop = require('../lib/filedrop-tasks');
@@ -71,6 +72,7 @@ function runHook(script, input, env) {
   const sample = JSON.parse(fs.readFileSync(HOOKS_SAMPLE, 'utf8'));
   const cmds = JSON.stringify(sample).replace(/__INSTALL_DIR__\//g, '');
   ok('H1: sessionStart → session-start.sh', cmds.includes('adapters/cursor/session-start.sh'));
+  ok('H1: beforeSubmitPrompt → classify.sh', cmds.includes('adapters/cursor/classify.sh'));
   ok('H1: preToolUse Write → orch-gate.sh', cmds.includes('adapters/cursor/orch-gate.sh'));
   ok('H1: preToolUse Shell → shell-gate.sh', cmds.includes('adapters/cursor/shell-gate.sh'));
   ok('H1: beforeShellExecution → before-shell-gate.sh', cmds.includes('adapters/cursor/before-shell-gate.sh'));
@@ -114,7 +116,7 @@ function runHook(script, input, env) {
 
     const health = await req(PORT, 'GET', '/health');
     ok('sessionStart: workspace registered', health.body.workspace === WS);
-    ok('sessionStart: mainTranscript set', health.body.mainTranscript === true);
+    ok('sessionStart: session binding registered', health.body.sessions >= 1);
   } finally {
     child.kill('SIGTERM');
   }
@@ -182,7 +184,49 @@ exit 0
     fs.rmSync(mintWs, { recursive: true, force: true });
   }
 
-  // ── 5) costflow includes cursor harness when transcript fixture present ────
+  // ── 5) beforeSubmitPrompt → classify.sh (sandbox daemon POST /classify) ────
+  {
+    const clSandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-cl-d-')));
+    const clPort = 19020 + Math.floor(Math.random() * 40);
+    const clWs = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-cl-ws-')));
+    const conv = 'conv-classify-e2e';
+    fs.mkdirSync(path.join(clWs, '.graph'), { recursive: true });
+    fs.writeFileSync(path.join(clWs, '.graph', 'checkpoint.json'), JSON.stringify({ nodes: {}, edges: [] }));
+
+    const clChild = spawnDaemon(clPort, clSandbox, { ZONOID_SKIP_LIVE: '1' });
+    try {
+      ok('classify: daemon up', await waitForPing(clPort));
+      await req(clPort, 'POST', '/workspace', { path: clWs, force: true });
+
+      const payload = JSON.stringify({
+        conversation_id: conv,
+        prompt: 'fix the login button color',
+        workspace_roots: [clWs],
+      });
+      const cr = runHook(CLASSIFY, payload, {
+        ORCH_ROOT: REPO,
+        ORCH_PORT: String(clPort),
+        CLAUDE_PLUGIN_DATA: clSandbox,
+        ZONOID_ROOT: REPO,
+      });
+      ok('classify: hook exits 0', cr.status === 0);
+      ok('classify: additionalContext in stdout', /additionalContext/.test(cr.stdout));
+
+      let out;
+      try { out = JSON.parse(cr.stdout); } catch { /* */ }
+      const ctx = (out && out.hookSpecificOutput && out.hookSpecificOutput.additionalContext) || '';
+      ok('classify: hookEventName beforeSubmitPrompt', out && out.hookSpecificOutput.hookEventName === 'beforeSubmitPrompt');
+      ok('classify: model routing from daemon', ctx.includes('[Model routing]'));
+      ok('classify: gate reminder from daemon', ctx.includes('[Orch gate]'));
+      ok('classify: heartbeat from daemon', ctx.includes('[Orchestrator heartbeat]'));
+    } finally {
+      clChild.kill('SIGTERM');
+      fs.rmSync(clSandbox, { recursive: true, force: true });
+      fs.rmSync(clWs, { recursive: true, force: true });
+    }
+  }
+
+  // ── 6) costflow includes cursor harness when transcript fixture present ────
   {
     const cfSandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-cf-d-')));
     const cfPort = 18980 + Math.floor(Math.random() * 40);

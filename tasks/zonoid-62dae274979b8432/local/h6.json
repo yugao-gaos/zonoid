@@ -1,0 +1,14 @@
+{
+  "id": "h6",
+  "subject": "P6-H6: Cursor classify e2e tests + docs",
+  "description": "Extend test/cursor-e2e-integration.test.js: assert beforeSubmitPrompt → classify.sh in hooks.json.sample; pipe Cursor-shaped stdin through adapters/cursor/classify.sh against a sandbox daemon and verify additional_context injection. Unit test for conversation_id normalization. Update docs/cursor-e2e.md and adapters/cursor/README.md.",
+  "status": "completed",
+  "blockedBy": [
+    "local/h4",
+    "local/h5"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "cursor-classify-plan"
+  }
+}

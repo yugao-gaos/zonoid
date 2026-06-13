@@ -7,6 +7,12 @@
         "timeout": 8
       }
     ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "__INSTALL_DIR__/adapters/cursor/classify.sh",
+        "timeout": 10
+      }
+    ],
     "preToolUse": [
       {
         "command": "__INSTALL_DIR__/adapters/cursor/orch-stop.sh",

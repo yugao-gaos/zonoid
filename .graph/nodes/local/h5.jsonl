@@ -1,0 +1,15 @@
+{"evt":"timestamps_set","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T12:39:22.261Z","lastChanged":"2026-06-13T12:39:22.261Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-13T12:39:22.295Z"}
+{"evt":"status_changed","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T12:40:12.306Z"}
+{"evt":"assignee_set","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-h6-finish","actor":"overlay-sync","ts":"2026-06-13T12:40:12.306Z"}
+{"evt":"edge_added","from":"local/h5","to":"local/h6","kind":"blocking","actor":"overlay-sync","ts":"2026-06-13T12:40:18.492Z"}
+{"evt":"status_changed","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-13T12:40:27.349Z"}
+{"evt":"summary_set","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","summary":"Created h6 stub, synced, wired edges for Cursor classify tasks.","actor":"overlay-sync","ts":"2026-06-13T12:40:27.349Z"}
+{"evt":"status_changed","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","status":"canceled","actor":"overlay-sync","ts":"2026-06-13T12:40:35.815Z"}
+{"evt":"summary_set","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","summary":"Reset: was claimed for task-creation meta-work only.","actor":"overlay-sync","ts":"2026-06-13T12:40:35.815Z"}
+{"evt":"assignee_set","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","assignee":"cursor-classify-plan","actor":"overlay-sync","ts":"2026-06-13T12:40:35.815Z"}
+{"evt":"status_changed","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","status":"not_ready","actor":"overlay-sync","ts":"2026-06-13T12:40:41.856Z"}
+{"evt":"summary_set","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","summary":"","actor":"overlay-sync","ts":"2026-06-13T12:41:07.380Z"}
+{"evt":"status_changed","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T12:45:53.855Z"}
+{"evt":"assignee_set","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-h5-hooks","actor":"overlay-sync","ts":"2026-06-13T12:45:53.855Z"}
+{"evt":"status_changed","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-13T12:47:45.007Z"}
+{"evt":"summary_set","id":"local/h5","workspace":"/Users/imyu/Desktop/zonoid","summary":"Wired beforeSubmitPrompt → classify.sh in hooks.json.sample; checkCursorHooks idempotency now requires classify+gate+todo markers; README table updated; cursor-e2e test asserts sample wiring. All tests pass.","actor":"overlay-sync","ts":"2026-06-13T12:47:45.007Z"}
