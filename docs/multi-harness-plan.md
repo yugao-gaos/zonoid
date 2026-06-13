@@ -10,7 +10,7 @@ MCP surface. Per-harness **adapters** with two halves:
 - **Bridge** — how the harness's *guaranteed* mechanisms (hooks / plugins) call the daemon
   and relay its verdicts (context injection, deny-with-reason) in the harness's dialect.
 - **Data sync** — only where it earns its keep. Today: Claude task adoption + transcripts.
-  No syncing of other harnesses' internal todo stores.
+  Other harnesses' todo stores: deferred, revisit per-harness (see non-goals).
 
 Enforcement lives in exactly two places:
 
@@ -109,7 +109,9 @@ everything real (claims, summaries, knowledge, metrics, provenance, edges).
   on-disk graph formats: unchanged.
 - No MCP access restriction (daemon-side invariants instead). No auth until the daemon is
   exposed beyond localhost (then: one bearer token across ALL routes, HTTP + MCP alike).
-- No syncing other harnesses' internal todo stores.
+- Syncing other harnesses' internal todo stores: deferred, not ruled out — revisit
+  per-harness when we get there (worth it only if a store proves stable, accessible,
+  and expressive enough to beat plain adoption).
 - No UX assumptions about any harness: in-band tool responses + browser dashboard only.
 
 ## Mechanics
