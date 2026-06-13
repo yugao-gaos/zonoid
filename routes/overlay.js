@@ -3,6 +3,7 @@ const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
 const path = require('path');
+const { noteEmbedText } = require('../lib/node-tags');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, sendOp, readBody, notifyChange, buildGraph, state, targetOverlay,
@@ -207,7 +208,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (ctx.opReplay(res, b)) return true;
     const T = targetOverlay(b, u);
     if (!b.title || !b.summary) { send(res, 400, { ok: false, error: 'title and summary required' }); return true; }
-    b.vec = await embed(b.title);
+    b.vec = await embed(noteEmbedText({ title: b.title, category: b.category, tags: b.tags, summary: b.summary }));
 
     // Near-duplicate guard: reject if a current note has cosine(title-vec) >= DUP_THRESHOLD,
     // unless the caller already resolved the conflict with `supersedes` or `force:true`.

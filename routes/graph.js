@@ -193,7 +193,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if ((n.kind || 'task') !== 'note' || n.validTo || dagKeys.has(n.id) || excludeKeys.has(n.id)) continue;
       let rawScore = 0;
       if (qvec && Array.isArray(n.vec)) { rawScore = cosine(qvec, n.vec); gateVia = 'semantic'; }
-      gateCands.push({ key: n.id, title: n.label, summary: n.summary, score: rawScore });
+      gateCands.push({ key: n.id, title: n.label, summary: n.summary, score: rawScore, category: n.category || null, tags: n.tags || [] });
     }
     // KB-state / query metadata — computed once here; spread into both journal row variants below.
     const _kbTop1 = gateCands.length ? Math.max(...gateCands.map((c) => c.score)) : 0;
@@ -215,6 +215,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const _passedComplexity = parseFloat(u.searchParams.get('complexity') || '');
     const _qWords = q.split(/\s+/).filter(Boolean).length;
     const _taskNode = task_key ? g.tasks.find((t) => t.id === task_key) : null;
+    const gateTaskInput = { label: q, tags: (_taskNode && _taskNode.tags) ? _taskNode.tags : [] };
     const _taskLabel = _taskNode ? (_taskNode.label || '') : '';
     const taskMeta = {
       qWords: _qWords,
@@ -320,14 +321,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const shadowRateLimited = rlEntry && (Date.now() - rlEntry.windowStart < 60_000) && rlEntry.count > 20;
       if (!shadowRateLimited) {
         try {
-          const rs = await gateTask({ label: q }, gateCands, { preScored: true, via: gateVia });
+          const rs = await gateTask(gateTaskInput, gateCands, { preScored: true, via: gateVia });
           // Append verdict to gate journal — training-data flywheel for the learned gate; ungated
           // rows (gated:false) capture the production retrieval path the enforced gate never sees.
           try {
             const journalRow = JSON.stringify({
               ts: new Date().toISOString(), workspace: ws, query: q,
               task_key: task_key || null, decision: rs.decision, reason: rs.reason,
-              top1: rs.top1, margin: rs.margin, gap: rs.gap, locality: rs.locality,
+              top1: rs.top1, margin: rs.margin, gap: rs.gap, locality: rs.locality, tagOverlap: rs.tagOverlap, sharedTags: rs.sharedTags,
               topType: rs.topType, topKey: rs.topKey || null, via: rs.via,
               embedModel: EMBED_MODEL, gated: false, round: typeof round === 'number' ? round : Number(round) || 1,
               ...kbMeta, ...taskMeta,
@@ -345,14 +346,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       return send(res, 200, { ...payload, gated: true, decision: 'abstain', reason: 'rate-limited' });
     }
     // Four-guard decision over the pre-scored note-only pool (calibration-identical to the old path).
-    const r = await gateTask({ label: q }, gateCands, { preScored: true, via: gateVia });
+    const r = await gateTask(gateTaskInput, gateCands, { preScored: true, via: gateVia });
     // Append every verdict (inject AND abstain) to the gate journal — training-data flywheel for
     // the learned gate; abstain rows are essential for false-negative mining.
     try {
       const journalRow = JSON.stringify({
         ts: new Date().toISOString(), workspace: ws, query: q,
         task_key: task_key || null, decision: r.decision, reason: r.reason,
-        top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality,
+        top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality, tagOverlap: r.tagOverlap, sharedTags: r.sharedTags,
         topType: r.topType, topKey: r.topKey || null, via: r.via,
         embedModel: EMBED_MODEL, gated: true, round: typeof round === 'number' ? round : Number(round) || 1,
         ...kbMeta, ...taskMeta,
