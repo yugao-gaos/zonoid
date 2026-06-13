@@ -17,6 +17,7 @@ ok('sessionSlug', sw.sessionSlug('sess/a')==='sess_a');
 const arm=sw.armWakeup({session:'test-sess',delaySeconds:1,reason:'idle',prompt:'wake'});
 ok('arm ok', arm.ok&&typeof arm.pid==='number');
 ok('pidfile', fs.existsSync(sw.pidFile('test-sess')));
+ok('fireFile path', sw.fireFile('test-sess')===path.join(SANDBOX,'wake','test-sess.fire'));
 const rearm=sw.armWakeup({session:'test-sess',delaySeconds:2,reason:'re',prompt:'again'});
 ok('re-arm ok', rearm.ok&&rearm.pid!==arm.pid);
 const cancel=sw.cancelWakeup('test-sess');

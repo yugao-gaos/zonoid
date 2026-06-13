@@ -56,12 +56,12 @@ async function waitForPing(ms = 8000) {
   ok('default surface has no create_task', !defaultList.result.tools.some((t) => t.name === 'create_task'));
 
   const codexExtra = extraToolsForHarness('codex', WS);
-  ok('codex extraTools is exactly one tool', codexExtra.length === 1 && codexExtra[0].name === 'create_task');
+  ok('codex extraTools has create_task + ScheduleWakeup', codexExtra.length === 2 && codexExtra[0].name === 'create_task' && codexExtra[1].name === 'ScheduleWakeup');
   ok('claude extraTools empty', extraToolsForHarness('claude', WS).length === 0);
-  ok('cursor extraTools empty', extraToolsForHarness('cursor', WS).length === 0);
+  ok('cursor extraTools is ScheduleWakeup', extraToolsForHarness('cursor', WS, { session: 'test' }).length === 1 && extraToolsForHarness('cursor', WS, { session: 'test' })[0].name === 'ScheduleWakeup');
 
   const codexList = await handleRpc({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, { call: () => ({}), extraTools: codexExtra });
-  ok('codex tools/list adds create_task', codexList.result.tools.length === TOOLS.length + 1);
+  ok('codex tools/list adds create_task + ScheduleWakeup', codexList.result.tools.length === TOOLS.length + 2);
   ok('codex list still includes get_full_graph', codexList.result.tools.some((t) => t.name === 'get_full_graph'));
   ok('codex default core names unchanged', JSON.stringify(codexList.result.tools.slice(0, TOOLS.length)) === baselinePayload);
 
