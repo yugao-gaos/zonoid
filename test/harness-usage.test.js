@@ -69,6 +69,14 @@ const ok = (label, cond) => {
 }
 
 {
+  const cursor = require('../lib/adapters/cursor');
+  ok('cursor source transcripts', cursor.transcripts.source === 'transcripts');
+  ok('cursor projectDir non-null', typeof cursor.transcripts.projectDir('/tmp/ws') === 'string');
+  ok('cursor listSessionTranscripts fn', typeof cursor.transcripts.listSessionTranscripts === 'function');
+  ok('cursor missing files empty human', cursor.transcripts.humanInputTokens('/no/such', {}).tokens === 0);
+}
+
+{
   const claims = [
     { id: 'local/t1', transcript: '/t/a.jsonl', window: { start: '2026-06-12T10:00:00Z', end: '2026-06-12T10:10:00Z' } },
     { id: 'local/t2', transcript: null, window: { start: '2026-06-12T10:00:00Z', end: '2026-06-12T10:05:00Z' } },

@@ -41,7 +41,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const seenTp=new Set();
     for (const c of claims) if(c.transcript&&!seenTp.has(c.transcript)){ seenTp.add(c.transcript); mergeUsage(usageCached(c.transcript)); }
     const projDirRaw = tr.projectDir(T.ws);
-    try { for(const e of fs.readdirSync(projDirRaw,{withFileTypes:true})) { if(!e.isFile()||!e.name.endsWith('.jsonl')) continue; const tp=path.join(projDirRaw,e.name); if(seenTp.has(tp)) continue; const u2=usageCached(tp); rawInput+=u2.input_tokens||0; rawOutput+=u2.output_tokens||0; rawCacheRead+=u2.cache_read_input_tokens||0; mergeModel(u2.by_model); } } catch {}
+    if (projDirRaw && tr.listSessionTranscripts) {
+      for (const { path: tp } of tr.listSessionTranscripts(projDirRaw)) {
+        if (seenTp.has(tp)) continue;
+        mergeUsage(usageCached(tp));
+      }
+    }
     const supersededIds = new Set((T.ov.edges || []).filter(e => e.kind === 'supersede').map(e => e.from));
     const isExplorationTask = (t) => t.kind === 'note' || supersededIds.has(t.id) || t.status === 'canceled' || t.status === 'failed' || !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
     let mergedBranches = null;
@@ -73,12 +78,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const projDir = tr.projectDir(T.ws);
     const claimedByTp = new Map();
     for (const c of claims) if (c.transcript) claimedByTp.set(c.transcript, (claimedByTp.get(c.transcript) || 0) + (ownTok.get(c.id) || 0));
-    let sessFiles = [];
-    try { sessFiles = fs.readdirSync(projDir, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith('.jsonl')); } catch { /* no transcripts yet */ }
-    const sessions = sessFiles.map((e) => {
-      const tp = path.join(projDir, e.name);
+    const sessList = (projDir && tr.listSessionTranscripts) ? tr.listSessionTranscripts(projDir) : [];
+    const sessions = sessList.map(({ id, path: tp }) => {
       let total = 0; try { total = ((usageCached(tp) || {}).output_tokens) || 0; } catch { total = 0; }
-      return { id: e.name.slice(0, -'.jsonl'.length), total, claimed: claimedByTp.get(tp) || 0 };
+      return { id, total, claimed: claimedByTp.get(tp) || 0 };
     });
     const catchalls = costflow.sessionCatchalls(sessions, g.tasks, overlayStore.DEFAULT_CONTEXT_WEIGHT);
     for (const cn of catchalls.nodes) if (!seen.has(cn.id)) { nodes.push(cn); seen.add(cn.id); }
@@ -135,10 +138,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const overhead = harness.transcripts.harnessOverheadTokens(projDir, { since });
     const human = harness.transcripts.humanInputTokens(projDir, { since });
     let totalSessionInput = 0;
-    try {
-      for (const e of fs.readdirSync(projDir, { withFileTypes: true })) {
-        if (!e.isFile() || !e.name.endsWith('.jsonl')) continue;
-        const tp = path.join(projDir, e.name);
+    const trOh = harness.transcripts;
+    const ohProj = trOh.projectDir(T.ws);
+    if (ohProj && trOh.listSessionTranscripts) {
+      for (const { path: tp } of trOh.listSessionTranscripts(ohProj)) {
         let raw; try { raw = fs.readFileSync(tp, 'utf8'); } catch { continue; }
         for (const line of raw.split('\n')) {
           const t = line.trim(); if (!t) continue;
@@ -149,7 +152,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           } catch { /* skip */ }
         }
       }
-    } catch { /* best effort */ }
+    }
     const system_reminder_est = Math.max(0, totalSessionInput - overhead.tokens - human.tokens);
 
     // self_maintenance: aggregate output_tokens attributed to tasks whose label starts with
