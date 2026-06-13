@@ -1,0 +1,8 @@
+{
+  "id": "hb4",
+  "subject": "P9-HB4: Adapter scheduler armWakeup implementations",
+  "description": "Implement scheduler.armWakeup/cancelWakeup on cursor, codex, stub adapters using lib/schedule-wakeup.js and adapters/common/schedule-wakeup.sh. Claude keeps native delegation from hb1.",
+  "status": "pending",
+  "blockedBy": ["local/hb1"],
+  "created_by": { "harness": "local", "agent_id": "plan-bootstrap" }
+}
