@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "command": "adapters/cursor/post-todo-adopt.sh",
+        "matcher": "TodoWrite|todo_write",
+        "timeout": 10
+      }
+    ]
+  }
+}
