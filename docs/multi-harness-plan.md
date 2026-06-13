@@ -29,39 +29,57 @@ native idiom; the daemon **adopts the stub at birth** (id, title, blockedBy — 
 native fields with real value) and is authoritative from that moment. The overlay carries
 everything real (claims, summaries, knowledge, metrics, provenance, edges).
 
-- **Substrate:** one daemon route `POST /task/create` shared by every minting path.
-  Response: `task_key` + inline link suggestions (the suggest-links nudge, in-band)
-  + provenance stamp `created_by: { harness, agent_id }`.
-- **No public `create_task` MCP tool in the default surface.** Tool exposure is an
-  adapter decision (see per-harness minting below).
+- **Substrate — file-drop minting (decided 2026-06-12, supersedes the earlier
+  `POST /task/create` route idea):** every adapter mimics the Claude pattern. The
+  adapter writes a task JSON file into its **designated folder**; the daemon **pulls**
+  (aggregation + fs.watch), exactly as it does for Claude's native files today. Writing
+  a file survives daemon downtime (a failed HTTP call loses the task; a file cannot be
+  lost) and decouples minting from deployment timing.
+- **Documented stub format (ours, versioned — unlike Claude's internal one):**
+  `{ id, subject, description, status, blockedBy, created_by: { harness, agent_id } }`.
+  Atomic write convention (write `.tmp`, rename); reader skips partial/unparsable files.
+- **Designated folders** live per-workspace under the daemon data dir; durable (we
+  control retention), so adopt-on-first-sight remains a Claude-only need.
+- **`POST /sync`:** explicit pull trigger so a creator gets immediate adoption instead of
+  waiting for the watcher. Response carries adopted keys + inline link suggestions per
+  new task (the suggest-links wiring nudge, in-band).
+- **No public `create_task` MCP tool in the default surface.** Minting is an adapter
+  concern in each harness's idiom; adapter hooks/plugins run outside the agent tool gate,
+  so file minting needs no gate exemptions.
 - **Claude:** native `TaskCreate` stays the entry point forever. Adoption at first sight
   replaces snapshot-at-terminal-status; aggregation precedence flips (adopted node
   authoritative; native file = live echo while it exists — status/title changes fold in,
   todo-panel write-through preserved, retention-sweep GC harmless).
-- **Local namespace:** non-native tasks live under `local/<id>`; never collides with
-  Claude's `<session>/<id>`; `writeStatus` write-through cleanly no-ops for `local/` keys.
+- **Namespaces:** harness-prefixed keys — `cursor/<id>`, `codex/<id>`, `opencode/<id>`,
+  `local/<id>` (generic) — never collide with Claude's `<session-uuid>/<id>`. The
+  adapter seam's `writeStatus` generalizes per-folder (each adapter updates its own
+  files; the Claude adapter keeps the todo-panel write-through).
 
 ### Per-harness task minting
 
 | Harness  | Minting path | Notes |
 |---|---|---|
-| Claude   | native `TaskCreate` → hook → adoption | unchanged, reference pattern |
-| Cursor   | native todo tool → `postToolUse` hook → adoption | mirrors Claude; verify todo tool matchability in hook payloads; no `blockedBy` → wire deps via existing `add_dependency` |
-| OpenCode | plugin-registered custom `task_create` tool → `POST /task/create` | native-feeling, cleanest |
-| Codex    | harness-scoped MCP tool list: stdio server advertises `create_task` only in Codex wiring | fallback; test whether plan-tool fires hooks (speculative) |
+| Claude   | native `TaskCreate` → file in `~/.claude/tasks` → pull | unchanged, the reference pattern |
+| Cursor   | native todo tool → `postToolUse` hook writes stub file → `/sync` | verify todo tool matchability in hook payloads; no `blockedBy` → wire deps via existing `add_dependency` |
+| OpenCode | plugin custom `task_create` tool writes stub file → `/sync` | native-feeling, cleanest |
+| Codex    | hook or instructed shell write of stub file → `/sync` | no plugin tools; harness-scoped MCP tool remains the fallback if file path proves awkward |
 
 ## Phases
 
 **Phase 1 — Seam extraction. DONE** (`a5e2166`, 64/64 green).
 `lib/harness.js` registry + `lib/adapters/claude.js` thin delegation; Claude modules untouched.
 
-**Phase 2 — Task identity & storage unification.**
-- Adopt-on-first-sight for native tasks; precedence flip; snapshot-at-terminal machinery
-  dissolves into adoption.
-- `POST /task/create` route (no MCP tool): key minting, provenance, inline suggestions.
-- Durability: nodes survive daemon restart and native-file GC. No key-format change;
-  existing graphs keep working.
-- Acceptance: suite green; Claude flow byte-identical when no `local/` tasks exist.
+**Phase 2 — Task identity & storage unification (file-drop substrate).**
+- Generalize the pull: aggregation scans designated per-harness folders (documented stub
+  format, harness-prefixed namespaces) alongside Claude's native files; per-folder watch.
+- `POST /sync` endpoint: immediate pull; response = adopted keys + link suggestions.
+- Adopt-on-first-sight for Claude native tasks; precedence flip; snapshot-at-terminal
+  machinery dissolves into adoption.
+- `writeStatus`/`snapshotNative` safe for non-session namespaces (per-folder status
+  writes via the adapter seam).
+- Durability: nodes survive daemon restart; native-file GC harmless. No key-format
+  change; existing graphs keep working.
+- Acceptance: suite green; Claude flow byte-identical when no foreign-folder tasks exist.
 
 **Phase 3 — MCP self-sufficiency (hookless lifecycle).**
 - `start_task` auto-registers unknown agents; every `agent_id`-carrying call stamps
@@ -76,7 +94,7 @@ everything real (claims, summaries, knowledge, metrics, provenance, edges).
   team/loop signals, model selection, ready-flag caching); returns finished injection text.
 - Claude scripts slim to dumb relays; observable behavior byte-identical.
 - Adapter contract doc: daemon endpoints (`/workspace`, `/active-claim`, `/should-stop`,
-  `/agent/start|done`, `/classify`, `/ready`, `/task/create`) ARE the contract; canonical
+  `/agent/start|done`, `/classify`, `/ready`, `/sync`) ARE the contract; canonical
   event table mapping each to Claude/Cursor/Codex/OpenCode mechanisms.
 
 **Phase 5 — Usage sources.**
