@@ -1270,9 +1270,14 @@ function taskTranscript(key, session, anySession, st = state) {
 // Per-task token total for the graph node. null = unknown.
 function taskTokens(key, session, dedicated, st = state) {
   const tp = taskTranscript(key, session, dedicated, st);
-  if (!tp) return null;
-  const u = usageCached(tp);
-  return u && typeof u.total === 'number' ? u.total : null;
+  if (tp) {
+    const u = usageCached(tp);
+    if (u && typeof u.total === 'number') return u.total;
+  }
+  const assignee = st.overlay.assignee[key];
+  const agent = assignee ? st.agents[assignee] : null;
+  const ru = agent && harness.transcripts.taskUsageFromAgent && harness.transcripts.taskUsageFromAgent(agent);
+  return ru && typeof ru.total === 'number' ? ru.total : null;
 }
 
 // Build the graph for one workspace: its task nodes + any ghost stubs they reference.
