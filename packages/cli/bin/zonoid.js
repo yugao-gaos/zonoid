@@ -413,6 +413,8 @@ function installService() {
   else warn(`User service install not supported on ${process.platform}`);
 }
 
+const VALID_HARNESSES = new Set(['claude', 'cursor', 'codex', 'opencode']);
+
 function parseInitArgs(argv) {
   const rest = argv.slice(3);
   const harnessIdx = rest.indexOf('--harness');
@@ -420,17 +422,135 @@ function parseInitArgs(argv) {
   return { service: rest.includes('--service'), harness };
 }
 
+function mergeCursorHooks(existing, sample, extras = []) {
+  const out = JSON.parse(JSON.stringify(existing));
+  if (!out.version) out.version = sample.version || 1;
+  if (!out.hooks) out.hooks = {};
+  const append = (event, entries) => {
+    if (!entries || entries.length === 0) return;
+    if (!out.hooks[event]) { out.hooks[event] = entries; return; }
+    const existCmds = new Set(out.hooks[event].map((e) => e.command));
+    for (const entry of entries) {
+      if (!existCmds.has(entry.command)) {
+        out.hooks[event].push(entry);
+        existCmds.add(entry.command);
+      }
+    }
+  };
+  for (const [event, entries] of Object.entries(sample.hooks || {})) append(event, entries);
+  for (const { event, entries } of extras) append(event, entries);
+  return out;
+}
+
+function cursorTodoMintEntry() {
+  return [{
+    command: `${INSTALL_DIR}/adapters/cursor/post-todo-adopt.sh`,
+    matcher: 'TodoWrite|todo_write',
+    timeout: 10,
+  }];
+}
+
+function chmodScripts(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.sh'))) {
+    try { fs.chmodSync(path.join(dir, f), 0o755); } catch (_) { /* ignore */ }
+  }
+}
+
+function checkCursorHooks(cwd) {
+  const samplePath = path.join(INSTALL_DIR, 'adapters', 'cursor', 'hooks.json.sample');
+  const dest = path.join(cwd, '.cursor', 'hooks.json');
+  if (!fs.existsSync(samplePath)) { warn(`Cursor hook sample missing at ${samplePath}`); return; }
+  chmodScripts(path.join(INSTALL_DIR, 'adapters', 'cursor'));
+  const sample = JSON.parse(
+    fs.readFileSync(samplePath, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR)
+  );
+  const gateMarker = `${INSTALL_DIR}/adapters/cursor/orch-gate.sh`;
+  const todoMarker = `${INSTALL_DIR}/adapters/cursor/post-todo-adopt.sh`;
+  const extras = [{ event: 'postToolUse', entries: cursorTodoMintEntry() }];
+
+  if (fs.existsSync(dest)) {
+    let existing;
+    try { existing = JSON.parse(fs.readFileSync(dest, 'utf8')); }
+    catch (e) { warn('Cannot parse .cursor/hooks.json — leaving as-is'); return; }
+    const content = JSON.stringify(existing);
+    if (content.includes(gateMarker) && content.includes(todoMarker)) {
+      ok('.cursor/hooks.json already references this install');
+      return;
+    }
+    fix('Merging Cursor hooks into .cursor/hooks.json...');
+    fs.copyFileSync(dest, dest + '.bak');
+    log('Backed up existing hooks.json to hooks.json.bak');
+    const merged = mergeCursorHooks(existing, sample, extras);
+    fs.writeFileSync(dest, JSON.stringify(merged, null, 2));
+    ok('hooks.json merged (your existing config preserved)');
+  } else {
+    fix('Writing .cursor/hooks.json from sample...');
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    const merged = mergeCursorHooks({ version: 1, hooks: {} }, sample, extras);
+    fs.writeFileSync(dest, JSON.stringify(merged, null, 2));
+    ok(`Written: ${dest}`);
+  }
+  log('Trust the workspace in Cursor so project hooks run.');
+}
+
+function checkOpencodePlugin(cwd) {
+  const srcDir = path.join(INSTALL_DIR, 'packages', 'opencode-plugin');
+  const pluginDir = path.join(cwd, '.opencode', 'plugins');
+  const opencodeDir = path.join(cwd, '.opencode');
+  if (!fs.existsSync(path.join(srcDir, 'zonoid.ts'))) {
+    warn(`OpenCode plugin missing at ${srcDir}`);
+    return;
+  }
+  fs.mkdirSync(pluginDir, { recursive: true });
+  for (const [name, target] of [
+    ['zonoid.ts', path.join(srcDir, 'zonoid.ts')],
+    ['lib', path.join(srcDir, 'lib')],
+  ]) {
+    const dest = path.join(pluginDir, name);
+    if (fs.existsSync(dest)) {
+      try {
+        if (fs.lstatSync(dest).isSymbolicLink() && fs.readlinkSync(dest) === target) {
+          ok(`.opencode/plugins/${name} already linked`);
+          continue;
+        }
+      } catch (_) { /* reinstall below */ }
+      fs.rmSync(dest, { recursive: true, force: true });
+    }
+    fs.symlinkSync(target, dest);
+    ok(`Linked .opencode/plugins/${name} → install dir`);
+  }
+  const pkgPath = path.join(opencodeDir, 'package.json');
+  const defaultPkg = JSON.stringify({ dependencies: { '@opencode-ai/plugin': 'latest' } }, null, 2) + '\n';
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      if (existing.dependencies && existing.dependencies['@opencode-ai/plugin']) {
+        ok('.opencode/package.json already has @opencode-ai/plugin');
+      } else {
+        fix('Merging @opencode-ai/plugin into .opencode/package.json...');
+        existing.dependencies = { ...(existing.dependencies || {}), '@opencode-ai/plugin': 'latest' };
+        fs.writeFileSync(pkgPath, JSON.stringify(existing, null, 2) + '\n');
+        ok('Updated .opencode/package.json');
+      }
+    } catch (_) {
+      fs.writeFileSync(pkgPath, defaultPkg);
+      ok('Written .opencode/package.json');
+    }
+  } else {
+    fix('Writing .opencode/package.json...');
+    fs.writeFileSync(pkgPath, defaultPkg);
+    ok('Written .opencode/package.json');
+  }
+  log('OpenCode runs bun install in .opencode/ at startup.');
+}
+
 function checkCodexHooks() {
   const sample = path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks.json.sample');
   const dest = path.join(os.homedir(), '.codex', 'hooks.json');
   if (!fs.existsSync(sample)) { warn(`Codex hook sample missing at ${sample}`); return; }
   let content = fs.readFileSync(sample, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR);
-  const hookDir = path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks');
-  if (fs.existsSync(hookDir)) {
-    for (const f of fs.readdirSync(hookDir).filter((n) => n.endsWith('.sh'))) {
-      try { fs.chmodSync(path.join(hookDir, f), 0o755); } catch (_) { /* ignore */ }
-    }
-  }
+  chmodScripts(path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks'));
   if (fs.existsSync(dest)) {
     const existing = fs.readFileSync(dest, 'utf8');
     if (existing.includes(INSTALL_DIR) && existing.includes('adapters/codex/hooks/')) {
@@ -465,6 +585,10 @@ function writeCodexMcp(cwd, overwrite = false) {
 async function init(opts = {}) {
   const cwd = process.cwd();
   const harness = opts.harness || 'claude';
+  if (!VALID_HARNESSES.has(harness)) {
+    console.error(`Unknown --harness "${harness}" — use claude|cursor|codex|opencode`);
+    process.exit(1);
+  }
   console.log(`\nZonoid init — workspace: ${cwd}`);
   console.log(`Install dir:  ${INSTALL_DIR}`);
   console.log(`Harness:      ${harness}\n`);
@@ -475,14 +599,22 @@ async function init(opts = {}) {
   checkHooks();
 
   section('2. Workspace config');
-  if (harness === 'codex') {
-    checkCodexHooks();
-    writeCodexMcp(cwd, fs.existsSync(path.join(cwd, '.mcp.json')));
-    warn('Codex init skips Claude settings.json / CLAUDE.md — wire hooks via ~/.codex/hooks.json');
-  } else {
+  if (harness === 'claude') {
     checkSettings(cwd);
     checkMcp(cwd);
     checkClaude(cwd);
+  } else if (harness === 'cursor') {
+    checkCursorHooks(cwd);
+    checkMcp(cwd);
+    warn('Cursor init uses native .cursor/hooks.json — do not also wire adapters/cursor/settings.sample.json (double execution)');
+  } else if (harness === 'codex') {
+    checkCodexHooks();
+    writeCodexMcp(cwd, fs.existsSync(path.join(cwd, '.mcp.json')));
+    warn('Codex init skips Claude settings.json / CLAUDE.md — wire hooks via ~/.codex/hooks.json');
+  } else if (harness === 'opencode') {
+    checkOpencodePlugin(cwd);
+    checkMcp(cwd);
+    warn('OpenCode init skips Claude hooks — wire orchestrator MCP in opencode.json for start_task / complete_task');
   }
 
   section('3. Git identity');
@@ -512,6 +644,16 @@ async function init(opts = {}) {
     console.log('    2. Restart Codex in this directory');
     console.log('    3. Open the dashboard: http://localhost:8787/graph');
     console.log('    4. Mint tasks with MCP create_task, then start_task before editing');
+  } else if (harness === 'cursor') {
+    console.log('    1. Trust the workspace in Cursor so project hooks run');
+    console.log('    2. Restart Cursor in this directory');
+    console.log('    3. Open the dashboard: http://localhost:8787/graph');
+    console.log('    4. Mint tasks via todo adoption or MCP, then start_task before editing');
+  } else if (harness === 'opencode') {
+    console.log('    1. Wire orchestrator MCP in opencode.json (stdio transport)');
+    console.log('    2. Restart OpenCode in this directory');
+    console.log('    3. Open the dashboard: http://localhost:8787/graph');
+    console.log('    4. Use task_create to mint, then start_task before editing');
   } else {
     console.log('    1. Restart Claude Code in this directory');
     console.log('    2. Open the dashboard: http://localhost:8787/graph');
@@ -524,13 +666,17 @@ async function init(opts = {}) {
 }
 
 const cmd = process.argv[2];
-if (cmd === 'init') {
-  init(parseInitArgs(process.argv)).catch((err) => { console.error(err); process.exit(1); });
+if (require.main === module) {
+  if (cmd === 'init') {
+    init(parseInitArgs(process.argv)).catch((err) => { console.error(err); process.exit(1); });
+  } else {
+    console.log('Usage: npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service]');
+    console.log('');
+    console.log('  --harness  claude (default) | cursor | codex | opencode — adapter wiring');
+    console.log('  --service  Install user-level launchd (macOS) or systemd (Linux) service');
+    console.log('             so the daemon starts on login and survives IDE restarts.');
+    process.exit(cmd ? 1 : 0);
+  }
 } else {
-  console.log('Usage: npx @zonoid/cli init [--harness claude|codex] [--service]');
-  console.log('');
-  console.log('  --harness  claude (default) or codex — selects adapter wiring');
-  console.log('  --service  Install user-level launchd (macOS) or systemd (Linux) service');
-  console.log('             so the daemon starts on login and survives IDE restarts.');
-  process.exit(cmd ? 1 : 0);
+  module.exports = { parseInitArgs, mergeCursorHooks, VALID_HARNESSES };
 }
