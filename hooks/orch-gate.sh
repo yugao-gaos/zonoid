@@ -29,7 +29,7 @@ case "$FP" in
   */.claude/keybindings.json|*/.claude/launch.json)      exit 0 ;;  # harness config
   */.mcp.json)                           exit 0 ;;  # MCP server config
   */CLAUDE.md)                           exit 0 ;;  # instruction file
-  /tmp/*|/private/tmp/*)                 exit 0 ;;  # scratch / task output
+  /tmp/*|/private/tmp/*)                 ;;         # /tmp is NOT exempt: workers must use proper claimed worktrees
   */.claude/orchestrator/*)              ;;         # orchestrator source: never exempt, fall through to claim check
   */scratch/*)                           exit 0 ;;  # workspace scratch dir
   *.log|*/logs/*)                        exit 0 ;;  # log writes are not substantive work
