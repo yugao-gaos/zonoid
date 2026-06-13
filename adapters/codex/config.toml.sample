@@ -1,0 +1,83 @@
+# Zonoid Codex hooks — inline equivalent of adapters/codex/hooks.json.sample
+# Replace __INSTALL_DIR__ with your Zonoid install path (~/.claude/orchestrator).
+# Prefer hooks.json OR inline [hooks] per layer, not both (Codex warns on merge).
+
+[features]
+hooks = true
+
+[[hooks.SessionStart]]
+matcher = "startup|resume|clear|compact"
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = "__INSTALL_DIR__/adapters/codex/hooks/session-start.sh"
+statusMessage = "Starting orchestrator"
+timeout = 8
+
+[[hooks.UserPromptSubmit.hooks]]
+type = "command"
+command = "__INSTALL_DIR__/adapters/codex/hooks/classify-relay.sh"
+statusMessage = "Orchestrator classify"
+timeout = 10
+
+[[hooks.SubagentStart]]
+matcher = "*"
+
+[[hooks.SubagentStart.hooks]]
+type = "command"
+command = "__INSTALL_DIR__/adapters/codex/hooks/subagent-start.sh"
+statusMessage = "Registering subagent"
+
+[[hooks.SubagentStop]]
+matcher = "*"
+
+[[hooks.SubagentStop.hooks]]
+type = "command"
+command = "__INSTALL_DIR__/adapters/codex/hooks/subagent-stop.sh"
+statusMessage = "Subagent done"
+
+[[hooks.PreToolUse]]
+matcher = "*"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "__INSTALL_DIR__/adapters/codex/hooks/orch-stop.sh"
+statusMessage = "Cooperative stop check"
+
+[[hooks.PreToolUse]]
+matcher = "apply_patch|Write|Edit"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "__INSTALL_DIR__/adapters/codex/hooks/orch-gate.sh"
+statusMessage = "Task claim gate"
+
+[[hooks.PreToolUse]]
+matcher = "Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "__INSTALL_DIR__/adapters/codex/hooks/orch-gate-bash.sh"
+statusMessage = "Shell write gate"
+
+[[hooks.PostToolUse]]
+matcher = "mcp__orchestrator-graph__start_task"
+
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = "__INSTALL_DIR__/adapters/codex/hooks/post-start-task.sh"
+statusMessage = "Register claim session"
+
+[[hooks.PostToolUse]]
+matcher = "spawn_agents.*|mcp__orchestrator-graph__complete_task"
+
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = "__INSTALL_DIR__/adapters/codex/hooks/post-lifecycle.sh"
+statusMessage = "Ready-task nudge"
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = "__INSTALL_DIR__/adapters/codex/hooks/agent-done.sh"
+statusMessage = "Agent lifecycle"
+timeout = 5

@@ -414,13 +414,60 @@ function installService() {
 }
 
 function parseInitArgs(argv) {
-  return { service: argv.slice(3).includes('--service') };
+  const rest = argv.slice(3);
+  const harnessIdx = rest.indexOf('--harness');
+  const harness = harnessIdx >= 0 && rest[harnessIdx + 1] ? rest[harnessIdx + 1] : 'claude';
+  return { service: rest.includes('--service'), harness };
+}
+
+function checkCodexHooks() {
+  const sample = path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks.json.sample');
+  const dest = path.join(os.homedir(), '.codex', 'hooks.json');
+  if (!fs.existsSync(sample)) { warn(`Codex hook sample missing at ${sample}`); return; }
+  let content = fs.readFileSync(sample, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR);
+  const hookDir = path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks');
+  if (fs.existsSync(hookDir)) {
+    for (const f of fs.readdirSync(hookDir).filter((n) => n.endsWith('.sh'))) {
+      try { fs.chmodSync(path.join(hookDir, f), 0o755); } catch (_) { /* ignore */ }
+    }
+  }
+  if (fs.existsSync(dest)) {
+    const existing = fs.readFileSync(dest, 'utf8');
+    if (existing.includes(INSTALL_DIR) && existing.includes('adapters/codex/hooks/')) {
+      ok('~/.codex/hooks.json already references this install');
+      return;
+    }
+    fix('Merging Codex hooks into ~/.codex/hooks.json...');
+    fs.copyFileSync(dest, dest + '.bak');
+    log('Backed up existing hooks.json to hooks.json.bak');
+  } else {
+    fix('Writing ~/.codex/hooks.json from sample...');
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+  }
+  fs.writeFileSync(dest, content);
+  ok(`Written: ${dest}`);
+  log('Open /hooks in Codex CLI to review and trust hook definitions.');
+}
+
+function writeCodexMcp(cwd, overwrite = false) {
+  const dest = path.join(cwd, '.mcp.json');
+  const src = path.join(INSTALL_DIR, 'adapters', 'codex', 'mcp.sample.json');
+  if (!fs.existsSync(src)) { warn(`Codex MCP sample missing at ${src}`); return; }
+  const content = fs.readFileSync(src, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR);
+  if (overwrite && fs.existsSync(dest)) {
+    fs.copyFileSync(dest, dest + '.bak');
+    log(`Backed up existing .mcp.json to ${dest}.bak`);
+  }
+  fs.writeFileSync(dest, content);
+  ok(`Written Codex MCP config: ${dest} (ZONOID_HARNESS=codex)`);
 }
 
 async function init(opts = {}) {
   const cwd = process.cwd();
+  const harness = opts.harness || 'claude';
   console.log(`\nZonoid init — workspace: ${cwd}`);
-  console.log(`Install dir:  ${INSTALL_DIR}\n`);
+  console.log(`Install dir:  ${INSTALL_DIR}`);
+  console.log(`Harness:      ${harness}\n`);
 
   section('1. Core install');
   checkInstallDir();
@@ -428,9 +475,15 @@ async function init(opts = {}) {
   checkHooks();
 
   section('2. Workspace config');
-  checkSettings(cwd);
-  checkMcp(cwd);
-  checkClaude(cwd);
+  if (harness === 'codex') {
+    checkCodexHooks();
+    writeCodexMcp(cwd, fs.existsSync(path.join(cwd, '.mcp.json')));
+    warn('Codex init skips Claude settings.json / CLAUDE.md — wire hooks via ~/.codex/hooks.json');
+  } else {
+    checkSettings(cwd);
+    checkMcp(cwd);
+    checkClaude(cwd);
+  }
 
   section('3. Git identity');
   await checkGitIdentity();
@@ -454,20 +507,29 @@ async function init(opts = {}) {
 
   console.log('\n✓ Done.\n');
   console.log('  Next steps:');
-  console.log('    1. Restart Claude Code in this directory');
-  console.log('    2. Open the dashboard: http://localhost:8787/graph');
-  console.log('    3. Ask Claude to start working — it will create tasks automatically');
+  if (harness === 'codex') {
+    console.log('    1. Open /hooks in Codex CLI and trust the Zonoid hook definitions');
+    console.log('    2. Restart Codex in this directory');
+    console.log('    3. Open the dashboard: http://localhost:8787/graph');
+    console.log('    4. Mint tasks with MCP create_task, then start_task before editing');
+  } else {
+    console.log('    1. Restart Claude Code in this directory');
+    console.log('    2. Open the dashboard: http://localhost:8787/graph');
+    console.log('    3. Ask Claude to start working — it will create tasks automatically');
+    console.log('');
+    console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
+    console.log('  Claude will create a task automatically before editing.');
+  }
   console.log('');
-  console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
-  console.log('  Claude will create a task automatically before editing.\n');
 }
 
 const cmd = process.argv[2];
 if (cmd === 'init') {
   init(parseInitArgs(process.argv)).catch((err) => { console.error(err); process.exit(1); });
 } else {
-  console.log('Usage: npx @zonoid/cli init [--service]');
+  console.log('Usage: npx @zonoid/cli init [--harness claude|codex] [--service]');
   console.log('');
+  console.log('  --harness  claude (default) or codex — selects adapter wiring');
   console.log('  --service  Install user-level launchd (macOS) or systemd (Linux) service');
   console.log('             so the daemon starts on login and survives IDE restarts.');
   process.exit(cmd ? 1 : 0);
