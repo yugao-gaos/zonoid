@@ -37,7 +37,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
     const repo = resolveRepo(b.key, b.repo_path, T.ov);
     if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
-    const info = git.createWorktree(repo, b.key);
+    const info = git.createWorktree(repo, b.key, { base: b.base });
     overlayStore.setGit(T.ov, b.key, info);
     T.save(); notifyChange();
     send(res, 200, { ...info, repo }); return true;
