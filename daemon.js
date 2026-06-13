@@ -1552,6 +1552,7 @@ const analyticsRoute = require('./routes/analytics');
 const onboardRoute = require('./routes/onboard');
 const sessionRoute = require('./routes/session');
 const execRoute = require('./routes/exec');
+const classifyRoute = require('./routes/classify');
 const uiRoute = require('./routes/ui');
 
 // ctx: live access to daemon state + helpers. State fields use getters so reassignment
@@ -1595,7 +1596,7 @@ const ctx = {
 const routeModules = [
   metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
   gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
-  sessionRoute(ctx), execRoute(ctx), uiRoute(ctx),
+  sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), uiRoute(ctx),
 ];
 
 // Paths served even while the daemon is still in the loading phase.
