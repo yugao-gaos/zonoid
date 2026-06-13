@@ -39,8 +39,8 @@ if printf '%s' "$CMD" | grep -qE '\btee\b' 2>/dev/null; then
   WRITE_PATTERN=1
 fi
 
-# Python/ruby open(..., 'w'/'a'/'wb'/'ab') or f.write(
-if printf '%s' "$CMD" | grep -qE "open\s*\(.*['\"]([wWaA]|[wWaA]b)['\"]|\.write\s*\(" 2>/dev/null; then
+# Python/ruby open(..., 'w'/'a'/'wb'/'ab'), f.write(, or pathlib Path.write_text/write_bytes
+if printf '%s' "$CMD" | grep -qE "open\s*\(.*['\"]([wWaA]|[wWaA]b)['\"]|\.write(_text|_bytes)?\s*\(|\.touch\s*\(" 2>/dev/null; then
   WRITE_PATTERN=1
 fi
 

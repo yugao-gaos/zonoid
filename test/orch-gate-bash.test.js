@@ -209,21 +209,53 @@ function runFailOpen(cmd, extra) {
   ok('cp with 2>/dev/null stderr redir → cp dest non-exempt → exit 2', r.status === 2);
 }
 
+// 22. pathlib Path.write_text bypass regression
+{
+  const r = runBlocked(
+    'python3 -c "from pathlib import Path; Path(\'/Users/x/proj/main.js\').write_text(\'x\')"',
+  );
+  ok('pathlib write_text → write detected → exit 2 for unclaimed subagent', r.status === 2);
+}
+
+// 23. pathlib Path.write_bytes bypass regression
+{
+  const r = runBlocked(
+    'python3 -c "from pathlib import Path; Path(\'/Users/x/out.bin\').write_bytes(b\'x\')"',
+  );
+  ok('pathlib write_bytes → write detected → exit 2 for unclaimed subagent', r.status === 2);
+}
+
+// 24. open().write() still detected (existing .write( coverage)
+{
+  const r = runBlocked(
+    'python3 -c "open(\'/Users/x/proj/main.js\',\'w\').write(\'x\')"',
+  );
+  ok('open().write() → write detected → exit 2 for unclaimed subagent', r.status === 2);
+}
+
+// 25. pathlib Path.touch creates a file
+{
+  const r = runBlocked(
+    'python3 -c "from pathlib import Path; Path(\'/Users/x/proj/touch.js\').touch()"',
+  );
+  ok('pathlib touch → write detected → exit 2 for unclaimed subagent', r.status === 2);
+}
+
 // ── Bypass regression tests (all should be allowed: exit 0) ─────────────────
 
-// 22. Both source and dest in /tmp
+// 26. Both source and dest in /tmp
 {
   const r = runBlocked('cp /tmp/x.js /tmp/out.js');
   ok('cp /tmp → /tmp: both exempt → exit 0', r.status === 0);
 }
 
-// 23. Dest in /private/tmp
+// 27. Dest in /private/tmp
 {
   const r = runBlocked('cp /tmp/x.js /private/tmp/out.js');
   ok('cp /tmp → /private/tmp: exempt → exit 0', r.status === 0);
 }
 
-// 24. .log file under logs/
+// 28. .log file under logs/
 {
   const r = runBlocked('cp report.txt /proj/logs/report.log');
   ok('cp to logs/*.log: exempt → exit 0', r.status === 0);

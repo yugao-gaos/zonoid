@@ -14,7 +14,8 @@
     ],
     "PreToolUse": [
       { "matcher": "*", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/orch-stop.sh" }] },
-      { "matcher": "Write|Edit", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/orch-gate.sh" }] }
+      { "matcher": "Write|Edit", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/orch-gate.sh" }] },
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/orch-gate-bash.sh" }] }
     ],
     "PostToolUse": [
       { "matcher": "Agent|Task", "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-agent.sh" }] },
