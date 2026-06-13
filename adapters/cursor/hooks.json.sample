@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "__INSTALL_DIR__/adapters/cursor/session-start.sh",
+        "timeout": 8
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "__INSTALL_DIR__/adapters/cursor/orch-stop.sh",
+        "matcher": "*"
+      },
+      {
+        "command": "__INSTALL_DIR__/adapters/cursor/orch-gate.sh",
+        "matcher": "Write"
+      },
+      {
+        "command": "__INSTALL_DIR__/adapters/cursor/shell-gate.sh",
+        "matcher": "Shell"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "__INSTALL_DIR__/adapters/cursor/before-shell-gate.sh"
+      }
+    ],
+    "subagentStart": [
+      {
+        "command": "__INSTALL_DIR__/adapters/cursor/subagent-start.sh"
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "__INSTALL_DIR__/adapters/cursor/subagent-stop.sh"
+      }
+    ]
+  }
+}
