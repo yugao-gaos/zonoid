@@ -4,8 +4,12 @@
  */
 import type { Plugin } from '@opencode-ai/plugin';
 import { tool } from '@opencode-ai/plugin';
+import { createRequire } from 'node:module';
 import { writeTaskStub } from './lib/stub-writer.js';
 import { gateWriteTool, orchPost } from './lib/gate.js';
+
+const require = createRequire(import.meta.url);
+const scheduleWakeup = require('./lib/schedule-wakeup.js');
 
 const sessionAgents = new Map();
 
@@ -75,6 +79,38 @@ export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
           } catch { /* stub durable on disk */ }
 
           return JSON.stringify({ ok: true, task_key: key, file, warning: 'daemon unreachable' }, null, 2);
+        },
+      }),
+
+      schedule_wakeup: tool({
+        description:
+          'ScheduleWakeup: cancel any prior wake for this session, then arm a delayed re-prompt (Claude-compatible).',
+        args: {
+          delaySeconds: tool.schema.number().describe('Seconds until the wake fires'),
+          reason: tool.schema.string().optional().describe('Why this wake was scheduled'),
+          prompt: tool.schema.string().describe('Prompt injected when the wake fires'),
+        },
+        async execute(args, ctx) {
+          const session = ctx.sessionID;
+          if (!session) {
+            return JSON.stringify({ ok: false, error: 'session required' }, null, 2);
+          }
+          const delaySeconds = Math.max(0, Math.floor(Number(args.delaySeconds) || 0));
+          const reason = args.reason != null ? String(args.reason) : '';
+          const prompt = String(args.prompt ?? '');
+          const result = scheduleWakeup.armWakeup({ session, delaySeconds, reason, prompt });
+          if (!result.ok) {
+            return JSON.stringify(result, null, 2);
+          }
+          const payload = { delaySeconds, reason, prompt };
+          return JSON.stringify({
+            ok: true,
+            pid: result.pid,
+            delaySeconds: result.delaySeconds,
+            session: result.session,
+            command: `ORCH_SCHEDULED_TASK ${JSON.stringify(payload)}`,
+            notify_pattern: 'ORCH_SCHEDULED_TASK',
+          }, null, 2);
         },
       }),
     },

@@ -9,6 +9,7 @@ OpenCode bridge for the [Zonoid](https://github.com/yugao-gaos/zonoid) orchestra
 | `tool.execute.before` | Blocks `write` / `edit` / patch tools when the session has no active claim (`GET /active-claim`). Throws `Error` — **never** mutates `output.args` (OpenCode ≥ 1.14 freezes args). |
 | `event` | `session.created` → `POST /agent/start`; `session.idle` / `session.deleted` → `POST /agent/done`. |
 | `task_create` | Writes a v1 stub JSON under the daemon file-drop folder (`opencode/<id>.json`), then `POST /sync` for immediate adoption. |
+| `schedule_wakeup` | Claude-compatible `ScheduleWakeup`: cancels any prior wake for the session, arms `delaySeconds` via `lib/schedule-wakeup.js`, returns `{ command, notify_pattern }` for monitored wake (`ORCH_SCHEDULED_TASK …`). |
 
 ## Install (project)
 
@@ -66,5 +67,6 @@ Copy the same files to `~/.config/opencode/plugins/` for all projects.
 2. Orchestrator MCP `start_task(task_key, agent_id)` — claim before edits.
 3. Edit files — gate allows writes while claimed.
 4. Orchestrator MCP `complete_task` — finish and release claim.
+5. `schedule_wakeup(delaySeconds, reason, prompt)` — heartbeat / idle polling (same contract as Claude native `ScheduleWakeup`). Re-arming replaces any prior wake for the session. Response includes `notify_pattern: "ORCH_SCHEDULED_TASK"` when a harness monitors stdout for the fire line.
 
 Dashboard: http://localhost:8787/graph
