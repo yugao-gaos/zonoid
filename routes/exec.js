@@ -2,9 +2,9 @@
 const crypto = require('crypto');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, notifyChange, targetOverlay, now, loops, saveLoops, saveAgents,
+  const { send, readBody, notifyChange, targetOverlay, now, loops, saveLoops,
     agentsArr, releaseClaim, newLoop, decideAll, LOOP_CONFIG_KEYS, usageCached,
-    MAX_ROUTES, state } = ctx;
+    touchAgent, MAX_ROUTES, state } = ctx;
 
   if (p === '/loop/start' && m === 'POST') {
     const b = await readBody(req);
@@ -56,10 +56,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/agent/start' && m === 'POST') {
     const b = await readBody(req);
     if (!b.agent_id) return send(res, 400, { ok: false, error: 'agent_id required' });
-    const prev = state.agents[b.agent_id] || {};
     // Capture task/session/workspace so a colliding worker is visible across sessions (GET /agents).
-    state.agents[b.agent_id] = { agent_id: b.agent_id, agent_type: b.agent_type || prev.agent_type || 'agent', state: 'running', transcript_path: b.transcript_path || prev.transcript_path || null, task: b.task || prev.task || null, session: b.session || prev.session || null, subagent_session: b.subagent_session || prev.subagent_session || null, workspace: b.workspace || prev.workspace || state.workspace || null, startedAt: prev.startedAt || now(), lastSeen: now(), endedAt: null };
-    saveAgents();
+    touchAgent(b.agent_id, { state: 'running', agent_type: b.agent_type, transcript_path: b.transcript_path, task: b.task, session: b.session, subagent_session: b.subagent_session, workspace: b.workspace || state.workspace });
     notifyChange();
     return send(res, 200, { ok: true });
   }
@@ -67,7 +65,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const a = state.agents[b.agent_id];
     if (!a) return send(res, 404, { ok: false, error: 'unknown agent' });
-    a.state = 'done'; a.endedAt = now(); a.lastSeen = now();
+    touchAgent(b.agent_id, { state: 'done' });
     // Cascade: release any in_progress task this agent still holds (it stopped without completing),
     // so the claim doesn't linger as a phantom in_progress. Fixes the stale-status bug directly.
     // Target the AGENT'S workspace (recorded at /agent/start), not the daemon-global overlay —
@@ -78,7 +76,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (st === 'in_progress' && T.ov.assignee[key] === b.agent_id
           && releaseClaim(key, `auto-released: agent '${b.agent_id}' stopped without completing`, T.ov, null, T.ws)) released++;
     if (released) T.save();
-    saveAgents();
     notifyChange();
     return send(res, 200, { ok: true, released });
   }
