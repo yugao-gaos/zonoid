@@ -72,8 +72,7 @@ const ok = (label, cond) => {
   ok('adapter selfReported fallback', cursor.transcripts.selfReportedUsage({ w: { reported_usage: { output_tokens: 42 } } }).output_tokens === 42);
   ok('harness registers cursor', (() => {
     const h = require('../lib/harness');
-    h.select('cursor');
-    return h.active().name === 'cursor';
+    return h.get('cursor').name === 'cursor';
   })());
 }
 

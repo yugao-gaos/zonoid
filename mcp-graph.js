@@ -6,9 +6,9 @@ const http = require('http');
 const path = require('path');
 const { spawn } = require('child_process');
 const core = require('./lib/mcp-core');
-const { extraToolsForHarness } = require('./lib/mcp-harness-tools');
+const { extraToolsForClient } = require('./lib/mcp-harness-tools');
 
-const HARNESS = process.env.ZONOID_HARNESS || 'claude';
+const CLIENT = String(process.env.ORCH_CLIENT || 'claude').trim() || 'claude';
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const DAEMON = path.join(__dirname, 'daemon.js');
@@ -19,7 +19,14 @@ const DAEMON = path.join(__dirname, 'daemon.js');
 const WS = process.env.ORCH_WORKSPACE || (() => { try { return require('fs').readFileSync(require('path').join(process.env.CLAUDE_PLUGIN_DATA || require('path').join(require('os').homedir(),'.claude','orchestrator'), 'workspace'), 'utf8').trim() || null; } catch {} return null; })() || process.cwd();
 const CALL = core.makeCall(PORT, WS);
 const SESSION = process.env.ORCH_SESSION || process.env.ZONOID_SESSION || null;
-const HARNESS_EXTRA = extraToolsForHarness(HARNESS, WS, { session: SESSION });
+const CLIENT_EXTRA = extraToolsForClient(CLIENT, WS, { session: SESSION });
+
+function daemonEnv() {
+  const env = { ...process.env };
+  delete env.ZONOID_HARNESS;
+  delete env.ORCH_CLIENT;
+  return env;
+}
 
 // ---- boot the daemon if it isn't up (hookless environments) ----
 function ping() {
@@ -33,7 +40,7 @@ let ensuring = null;
 async function ensureDaemon() {
   if (await ping()) return;
   if (!ensuring) ensuring = (async () => {
-    try { spawn(process.execPath, [DAEMON], { detached: true, stdio: 'ignore', env: process.env }).unref(); } catch { /* ignore */ }
+    try { spawn(process.execPath, [DAEMON], { detached: true, stdio: 'ignore', env: daemonEnv() }).unref(); } catch { /* ignore */ }
     for (let i = 0; i < 40; i++) { if (await ping()) break; await new Promise((r) => setTimeout(r, 100)); }
   })().finally(() => { ensuring = null; });
   return ensuring;
@@ -43,7 +50,7 @@ async function ensureDaemon() {
 function write(msg) { process.stdout.write(JSON.stringify(msg) + '\n'); }
 async function handle(msg) {
   if (msg.method === 'tools/call') await ensureDaemon();   // self-heal before any tool runs
-  const resp = await core.handleRpc(msg, { call: CALL, uiHtml: core.uiHtml, extraTools: HARNESS_EXTRA, session: SESSION });
+  const resp = await core.handleRpc(msg, { call: CALL, uiHtml: core.uiHtml, extraTools: CLIENT_EXTRA, session: SESSION });
   if (resp !== undefined) write(resp);
 }
 

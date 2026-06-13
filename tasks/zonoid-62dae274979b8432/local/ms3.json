@@ -1,0 +1,14 @@
+{
+  "id": "ms3",
+  "subject": "P5-MS3: event-only usage + adapter-triggered reconcile",
+  "description": "Hot path: event-only (agent/done). Cold path: per-harness reconcile — never on /costflow. Two adapter-owned triggers (no daemon global cron).\n\nUniform UsageSlice:\n  { harness, agent_id, session_id, transcript_path, task_key?, startedAt, endedAt, usage, human, overhead }\n\nAdapter contract:\n  - usage.sample(transcript_path, { baseline?, window }) → UsageSlice  (single file, agent/done)\n  - usage.normalizeReported(raw) → UsageSlice\n  - usage.reconcile(workspace, { since }) → UsageReport  (adapter sweeps its own dirs, normalizes to our shape)\n  - usage.onSessionStart({ session, workspace }) → optional: arm adapter scheduler for long-running IDE sessions (see below)\n\nHot path (/agent/done): sample one file → overlay.usage_records[agent_id]; link task_key; complete_task sums only.\n\nCold path — TWO triggers per harness (standing timestamp in overlay.usage_reconcile[harness].at):\n  1. sessionStart (IDE opens): POST /workspace or POST /usage/reconcile { harness, workspace, session }. Daemon checks overlay.usage_reconcile[harness].at — if missing or >24h (configurable), run that adapter.reconcile() once, update at + merge usage_reconcile_snapshot. IDE-not-open ⇒ no sweep for that harness (correct).\n  2. Adapter scheduler (IDE left on overnight): on sessionStart each adapter arms its own daily re-check via existing scheduler substrate — Cursor/Codex: schedule-wakeup.sh / MCP ScheduleWakeup; Claude: native ScheduleWakeup; OpenCode: schedule_wakeup plugin. Fire target is mechanical: hook script or minimal prompt curls POST /usage/reconcile { harness } (same stale-at gate — skip if already fresh). Cancel/reschedule on next sessionStart (cancel prior wake, arm new 24h). No daemon setInterval.\n\n/costflow: sum usage_records + last reconcile snapshot. Never readdir on GET.\n\nMove daemon.readUsage to Claude adapter. Delete per-request sweeps from routes/analytics.js.\n\nAcceptance: agent/done updates totals; sessionStart stale-harness reconciles once; long session daily re-check via adapter scheduler; grep /costflow handler has no listSessionTranscripts.",
+  "status": "completed",
+  "blockedBy": [
+    "local/ms1",
+    "local/ms2"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "cursor-dispatcher"
+  }
+}

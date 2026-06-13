@@ -28,7 +28,7 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
    sed "s|__INSTALL_DIR__|$INSTALL|g" "$INSTALL/adapters/codex/mcp.sample.json" >> ~/.codex/config.toml
    ```
 
-   Or add the `orchestrator-graph` server from `mcp.sample.json` to your Codex MCP config. **Required env:** `ZONOID_HARNESS=codex`.
+   Or add the `orchestrator-graph` server from `mcp.sample.json` to your Codex MCP config. **Required env:** `ORCH_CLIENT=codex`.
 
 4. **Trust hooks** — Codex requires manual review when hook definitions change:
 

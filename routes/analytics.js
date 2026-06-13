@@ -4,6 +4,20 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const overlayStore = require('../lib/overlay');
 const costflow = require('../lib/costflow');
+const usageAccounting = require('../lib/usage-accounting');
+
+function sessionsFromOverlay(ov) {
+  const snap = ov && ov.usage_reconcile_snapshot;
+  if (snap && Array.isArray(snap.sessions) && snap.sessions.length) return snap.sessions;
+  const bySession = new Map();
+  for (const slice of Object.values((ov && ov.usage_records) || {})) {
+    if (!slice || !slice.session_id) continue;
+    const prev = bySession.get(slice.session_id) || { id: slice.session_id, total: 0, claimed: 0 };
+    prev.total += (slice.usage && slice.usage.output_tokens) || 0;
+    bySession.set(slice.session_id, prev);
+  }
+  return [...bySession.values()];
+}
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, buildGraph, state, targetOverlay, taskTranscript, usageCached,
@@ -27,6 +41,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const tr = harness.transcripts;
     const taskUsageFromAgent = tr.taskUsageFromAgent || (() => null);
     const usageOutputOnly = (tp, claim) => {
+      if (claim && claim.id) {
+        const fromRec = usageAccounting.taskOutputFromRecords(T.ov, claim.id);
+        if (fromRec > 0) return { total: fromRec };
+      }
       if (tp) { const u2 = usageCached(tp); return { total: (u2 && u2.output_tokens) || 0 }; }
       const aid = claim && claim.id && stWs.overlay.assignee[claim.id];
       const agent = aid && stWs.agents && stWs.agents[aid];
@@ -34,19 +52,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       return { total: (ru && ru.output_tokens) || 0 };
     };
     const ownTok = costflow.splitSessionTokens(claims, usageOutputOnly);
-    let rawInput=0, rawOutput=0, rawCacheRead=0;
-    const rawByModel={};
-    const mergeModel=(bm)=>{ if(!bm) return; for(const [m2,v] of Object.entries(bm)){ if(!rawByModel[m2]) rawByModel[m2]={input_tokens:0,output_tokens:0,cache_read_input_tokens:0}; rawByModel[m2].input_tokens+=v.input_tokens||0; rawByModel[m2].output_tokens+=v.output_tokens||0; rawByModel[m2].cache_read_input_tokens+=v.cache_read_input_tokens||0; } };
-    const mergeUsage=(u2)=>{ if(!u2) return; rawInput+=u2.input_tokens||0; rawOutput+=u2.output_tokens||0; rawCacheRead+=u2.cache_read_input_tokens||0; mergeModel(u2.by_model); };
-    const seenTp=new Set();
-    for (const c of claims) if(c.transcript&&!seenTp.has(c.transcript)){ seenTp.add(c.transcript); mergeUsage(usageCached(c.transcript)); }
-    const projDirRaw = tr.projectDir(T.ws);
-    if (projDirRaw && tr.listSessionTranscripts) {
-      for (const { path: tp } of tr.listSessionTranscripts(projDirRaw)) {
-        if (seenTp.has(tp)) continue;
-        mergeUsage(usageCached(tp));
-      }
-    }
+    const merged = usageAccounting.sumUsageRecords(T.ov);
+    let rawInput = merged.totals.input_tokens || 0;
+    let rawOutput = merged.totals.output_tokens || 0;
+    let rawCacheRead = merged.totals.cache_read_input_tokens || 0;
+    const rawByModel = merged.totals.by_model || {};
     const supersededIds = new Set((T.ov.edges || []).filter(e => e.kind === 'supersede').map(e => e.from));
     const isExplorationTask = (t) => t.kind === 'note' || supersededIds.has(t.id) || t.status === 'canceled' || t.status === 'failed' || !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
     let mergedBranches = null;
@@ -75,13 +85,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       for (const d of t.deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: 1 });
       for (const d of t.context_deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: (t.context_weights && t.context_weights[d]) ?? overlayStore.DEFAULT_CONTEXT_WEIGHT });
     }
-    const projDir = tr.projectDir(T.ws);
     const claimedByTp = new Map();
     for (const c of claims) if (c.transcript) claimedByTp.set(c.transcript, (claimedByTp.get(c.transcript) || 0) + (ownTok.get(c.id) || 0));
-    const sessList = (projDir && tr.listSessionTranscripts) ? tr.listSessionTranscripts(projDir) : [];
-    const sessions = sessList.map(({ id, path: tp }) => {
-      let total = 0; try { total = ((usageCached(tp) || {}).output_tokens) || 0; } catch { total = 0; }
-      return { id, total, claimed: claimedByTp.get(tp) || 0 };
+    const sessList = sessionsFromOverlay(T.ov);
+    const sessions = sessList.map(({ id, total: sessTotal }) => {
+      let total = sessTotal || 0;
+      if (!total) {
+        const recTotal = [...Object.values(T.ov.usage_records || {})]
+          .filter((s) => s && s.session_id === id)
+          .reduce((sum, s) => sum + ((s.usage && s.usage.output_tokens) || 0), 0);
+        total = recTotal;
+      }
+      return { id, total, claimed: claimedByTp.get(id) || 0 };
     });
     const catchalls = costflow.sessionCatchalls(sessions, g.tasks, overlayStore.DEFAULT_CONTEXT_WEIGHT);
     for (const cn of catchalls.nodes) if (!seen.has(cn.id)) { nodes.push(cn); seen.add(cn.id); }
@@ -104,7 +119,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (escDirty) { T.save(); ctx.notifyChange(); }
     const flow = costflow.computeFlow(nodes, edges);
-    const human = harness.transcripts.humanInputTokens(projDir, { since: u.searchParams.get('since') || null });
+    const human = merged.human || { tokens: 0, files: 0 };
     const rnd = (x) => Math.round(x);
     const explorationIds = new Set(g.tasks.filter(isExplorationTask).map((t) => t.id));
     const kindOf = (id) => (id.startsWith('session:') ? 'session' : undefined);
@@ -133,26 +148,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/harness/overhead' && m === 'GET') {
     const T = targetOverlay(null, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace set' }); return true; }
-    const projDir = harness.transcripts.projectDir(T.ws);
-    const since = u.searchParams.get('since') || null;
-    const overhead = harness.transcripts.harnessOverheadTokens(projDir, { since });
-    const human = harness.transcripts.humanInputTokens(projDir, { since });
-    let totalSessionInput = 0;
-    const trOh = harness.transcripts;
-    const ohProj = trOh.projectDir(T.ws);
-    if (ohProj && trOh.listSessionTranscripts) {
-      for (const { path: tp } of trOh.listSessionTranscripts(ohProj)) {
-        let raw; try { raw = fs.readFileSync(tp, 'utf8'); } catch { continue; }
-        for (const line of raw.split('\n')) {
-          const t = line.trim(); if (!t) continue;
-          try {
-            const d = JSON.parse(t);
-            const u2 = d.usage || (d.message && d.message.usage);
-            if (u2) totalSessionInput += (u2.input_tokens || 0);
-          } catch { /* skip */ }
-        }
-      }
-    }
+    const merged = usageAccounting.sumUsageRecords(T.ov);
+    const overhead = usageAccounting.sumOverhead(T.ov);
+    const human = merged.human || { tokens: 0, chars: 0, messages: 0, dropped: 0 };
+    const totalSessionInput = (merged.totals.input_tokens || 0) + (merged.totals.cache_read_input_tokens || 0);
     const system_reminder_est = Math.max(0, totalSessionInput - overhead.tokens - human.tokens);
 
     // self_maintenance: aggregate output_tokens attributed to tasks whose label starts with
@@ -162,7 +161,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     let selfMaintenanceTokens = 0;
     try {
       const g = buildGraph(T.ws);
-      const usageOutputOnly = (tp) => { const u2 = usageCached(tp); return { total: (u2 && u2.output_tokens) || 0 }; };
+      const usageOutputOnly = (tp, claim) => {
+        if (claim && claim.id) {
+          const fromRec = usageAccounting.taskOutputFromRecords(T.ov, claim.id);
+          if (fromRec > 0) return { total: fromRec };
+        }
+        const u2 = usageCached(tp);
+        return { total: (u2 && u2.output_tokens) || 0 };
+      };
       const harnessTaskIds = g.tasks
         .filter((t) => t.kind !== 'note' && typeof t.label === 'string' && t.label.startsWith('harness:'))
         .map((t) => t.id);

@@ -178,6 +178,23 @@ const T = (id, status, extra = {}) => ({ id, label: id, status, deps: [], contex
   ok('slim omits empty weight/summary/assignee', !('context_weights' in n) && !('summary' in n) && !('assignee' in n));
 }
 
+// --- archivedSlimNode + archivedTaskList: lean /state archived_tasks projection ---
+{
+  const tasks = [
+    T('old-done', 'done', { lastChanged: iso(30) }),
+    T('new-done', 'done', { lastChanged: iso(2) }),
+    { id: 'note:sup', kind: 'note', status: 'note', label: 'n', deps: [], context_deps: [], supersededBy: 'note:x', validTo: iso(30) },
+  ];
+  const arch = F.archivedIds(tasks, { now: NOW, windowMs: 14 * DAY });
+  const list = F.archivedTaskList(tasks, arch);
+  const ids = new Set(list.map((t) => t.id));
+  ok('archivedTaskList returns stale terminal ids', ids.has('old-done') && ids.has('note:sup') && !ids.has('new-done'));
+  ok('archived slim shape is lean', list.every((t) => t.id && t.label && t.status && !('deps' in t) && !('summary' in t)));
+  ok('archived slim includes lastChanged when present', list.find((t) => t.id === 'old-done').lastChanged === iso(30));
+  ok('archived slim includes kind for notes', list.find((t) => t.id === 'note:sup').kind === 'note');
+  ok('archivedTaskList empty for empty arch set', F.archivedTaskList(tasks, new Set()).length === 0);
+}
+
 // --- projectFrontier: payload filtering (tasks/edges/ghosts) + archived count ---
 {
   const tasks = [

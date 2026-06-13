@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { handleRpc } = require('../lib/mcp-core');
-const { extraToolsForHarness, NOTIFY_PATTERN } = require('../lib/mcp-harness-tools');
+const { extraToolsForClient, NOTIFY_PATTERN } = require('../lib/mcp-harness-tools');
 const sw = require('../lib/schedule-wakeup');
 
 const SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-mcp-wake-'));
@@ -18,10 +18,10 @@ const ok = (l, c) => { if (c) { console.log('PASS  ' + l); pass++; } else { cons
 
 (async () => {
   try {
-    const cursorExtra = extraToolsForHarness('cursor', '/tmp/ws', ctx);
+    const cursorExtra = extraToolsForClient('cursor', '/tmp/ws', ctx);
     ok('cursor adds ScheduleWakeup only', cursorExtra.length === 1 && cursorExtra[0].name === 'ScheduleWakeup');
-    ok('claude extraTools empty', extraToolsForHarness('claude', '/tmp/ws', ctx).length === 0);
-    const codexExtra = extraToolsForHarness('codex', '/tmp/ws', ctx);
+    ok('claude extraTools empty', extraToolsForClient('claude', '/tmp/ws', ctx).length === 0);
+    const codexExtra = extraToolsForClient('codex', '/tmp/ws', ctx);
     ok('codex adds create_task + ScheduleWakeup', codexExtra.length === 2);
     ok('codex ScheduleWakeup schema', codexExtra[1].inputSchema.required.join(',') === 'delaySeconds,reason,prompt');
 
@@ -32,7 +32,7 @@ const ok = (l, c) => { if (c) { console.log('PASS  ' + l); pass++; } else { cons
     ok('command tails fire file', out.command === `tail -n0 -F ${JSON.stringify(sw.fireFile(SESSION))}`);
     ok('pidfile armed', fs.existsSync(sw.pidFile(SESSION)));
 
-    const noSession = extraToolsForHarness('cursor', '/tmp/ws', {})[0];
+    const noSession = extraToolsForClient('cursor', '/tmp/ws', {})[0];
     const err = await noSession.run({ delaySeconds: 1, reason: 'x', prompt: 'y' });
     ok('missing session errors', err.ok === false && /session required/.test(err.error));
 

@@ -32,6 +32,7 @@ them (plus such relay-only helpers as `GET /session-info` and `POST /route` used
 | `/overlay/status` | `POST` | Authoritative task status / claim / complete (`{ key, status, agent_id?, summary?, … }`). MCP `start_task` / `complete_task` map here. |
 | `/git/worktree` | `POST` | Create attempt worktree (`{ key, repo_path? }` → `{ branch, worktree, … }`). |
 | `/git/merge` | `POST` | Merge attempt branch back (`{ key, repo_path?, message? }` → `{ merged }` or `{ conflict, files }`). |
+| `/usage/reconcile` | `POST` | **Planned (P5-MS3).** Cold-path usage reconcile for one harness (`{ harness, workspace?, session? }`). Daemon checks `overlay.usage_reconcile[harness].at`; if stale (default 24h), calls that adapter's `usage.reconcile()`, updates `at` + snapshot. From `sessionStart` and adapter daily scheduler — never from `GET /costflow`. |
 
 Port defaults to `8787` (`ORCH_PORT`). All adapters treat daemon unreachable on gate paths as
 **fail-open** (allow) except where the harness itself requires a deny — document per harness.
@@ -51,7 +52,8 @@ Each row is one **harness lifecycle moment** and the daemon endpoint the adapter
 | **Pre-tool write gate** | `GET /active-claim?session=` (+ `GET /session-info`, `GET /task/detail` for metric-branch) | Deny substantive edits without a claim; enforce self-learning worktree branch. | **Blocking** |
 | **Pre-tool cooperative stop** | `GET /should-stop?session=&agent=` | Halt worker when cancel/stop flag raised. | **Blocking** |
 | **Agent start** | `POST /agent/start` | Observability, subagent session alias for claim lookup, workspace pin per worker. | Advisory |
-| **Agent stop** | `POST /agent/done` | Release phantom claims when worker exits without `complete_task`. | Advisory |
+| **Agent stop** | `POST /agent/done` | Mark worker done; **primary usage accounting** (`usage.sample` → `usage_records`); release phantom claims when worker exits without `complete_task`. | Advisory |
+| **Usage reconcile (cold)** | `sessionStart` + adapter daily scheduler → `/usage/reconcile` | Per-harness sweep when `usage_reconcile[harness].at` is stale; adapter normalizes to `UsageReport`. Not on `/costflow` reads. | Advisory |
 | **Task claim / progress** | `POST /overlay/status` (`in_progress`) | Claim task (CAS); daemon enforces metric-branch worktree invariant. | Daemon-side refusal (MCP path) + hook defense-in-depth |
 | **Task complete** | `POST /overlay/status` (`done` / `tested` / `failed` / `canceled`) | Terminal status, summary, follow-ups, verdicts; returns `newly_ready` when applicable. | Daemon-side (MCP); hooks may nudge via `GET /ready` |
 | **Task mint (file-drop)** | write stub JSON → `POST /sync` | Adopt new task keys; return link suggestions. | Advisory (runs outside agent tool gate) |
@@ -78,7 +80,7 @@ harness guarantees interception.
 | **Agent stop** | `SubagentStop` → `subagent-stop.sh` → `/agent/done` | `subagentStop` → relay | `Stop` / lifecycle hook → relay | `event` subscription → relay |
 | **Ready nudge after dispatch** | `PostToolUse` `Agent\|Task` → `post-agent.sh` → `/ready` | `postToolUse` → relay | `PostToolUse` → relay | optional plugin `event` → `/ready` |
 | **Task mint** | Native `TaskCreate` → Claude task file → daemon pull (no `/sync` required) | `postToolUse` on todo tool → stub under `cursor/` → `/sync` | Shell/hook stub under `codex/` → `/sync`; fallback harness-scoped MCP `create_task` | Custom `task_create` tool → stub under `opencode/` → `/sync` |
-| **Task claim / complete** | MCP `start_task` / `complete_task` → `/overlay/status` | Same MCP surface | Same MCP surface (filtered tool list when `ZONOID_HARNESS=codex`) | Same MCP + plugin-registered tools |
+| **Task claim / complete** | MCP `start_task` / `complete_task` → `/overlay/status` | Same MCP surface | Same MCP surface (filtered tool list when MCP spawn sets `ORCH_CLIENT=codex`) | Same MCP + plugin-registered tools |
 | **Claim session alias** | `PostToolUse` after `start_task` → `/overlay/claim-session` | Same when MCP used | Same when MCP used | Same when MCP used |
 | **Branch / merge** | MCP `branch_task` / `merge_attempt` | Same | Same | Same |
 | **Blocking vs advisory** | Exit 2 blocking on gates; MCP + injection advisory | Same pattern; **IDE hook coverage ⊃ CLI** | Partial shell interception; manual trust on hook hash change | Throw-to-block; frozen-args bug makes throw mandatory |
@@ -178,6 +180,59 @@ Phase 4 follow-ups: **P4-C1** adds `POST /classify`; **P4-C3** slims `classify.s
 relay. Until then, adapters should treat `/classify` as the contract target and
 `/context-classify` + script heuristics as the Claude reference implementation.
 
+
+---
+
+## Usage accounting contract (P5-MS3)
+
+Adapters **translate** IDE-specific transcript layouts into the daemon's uniform shape. The
+daemon **stores and sums** — it never walks harness transcript dirs on `GET /costflow` and never
+parses IDE JSONL field names.
+
+### Uniform `UsageSlice`
+
+```json
+{
+  "harness": "claude",
+  "agent_id": "…",
+  "session_id": "…",
+  "transcript_path": "/abs/path.jsonl",
+  "task_key": "local/ms3",
+  "startedAt": "…",
+  "endedAt": "…",
+  "usage": { "input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "by_model": {} },
+  "human": { "tokens": 0, "chars": 0, "messages": 0, "dropped": 0 },
+  "overhead": { "tokens": 0, "by_category": {} }
+}
+```
+
+### Adapter `usage` API (each harness implements)
+
+| Method | When | Behavior |
+|---|---|---|
+| `sample(transcript_path, { baseline?, window })` | `/agent/done` (hot path) | Read **one** file; return one `UsageSlice`. |
+| `normalizeReported(raw)` | `/agent/done` body | Codex/hookless counts → `UsageSlice`. |
+| `reconcile(workspace, { since })` | Cold path only | Adapter sweeps **its own** dirs; return `UsageReport`. |
+| `onSessionStart({ session, workspace })` | `sessionStart` | Stale-at check + arm adapter daily scheduler. |
+
+### Hot path (every subagent run)
+
+1. `subagentStart` → `/agent/start` (register `transcript_path`; optional baseline `sample`).
+2. `subagentStop` → `/agent/done` → `usage.sample` for `[startedAt, endedAt]` →
+   `overlay.usage_records[agent_id]`; set `task_key` when agent held the claim.
+3. `complete_task` → status/summary only; **no new sample**. Task total = sum of agent slices.
+
+### Cold path reconcile (two adapter-owned triggers)
+
+Per-harness watermark: `overlay.usage_reconcile[harness].at` (ISO). **No daemon global cron.**
+
+| Trigger | Initiator | Behavior |
+|---|---|---|
+| **IDE opens** | `sessionStart` → `/workspace` or `/usage/reconcile` | If `at` missing or older than 24h (configurable), run **that harness's** `reconcile()` once; update `at`. Harness not opened ⇒ no sweep. |
+| **Long session** | Adapter scheduler on `sessionStart` | Cancel prior wake; arm 24h `ScheduleWakeup` (Claude native; Cursor/Codex MCP/substrate; OpenCode plugin). On fire: curl `/usage/reconcile { harness }` with same stale-at gate. |
+
+`/costflow` and dashboard ticks read `usage_records` + `usage_reconcile_snapshot` only.
+
 ---
 
 ## Scheduler contract (`ScheduleWakeup`)
@@ -222,7 +277,7 @@ Hookless MCP and plugin tools return `{ command, notify_pattern }` so the harnes
 | **Cursor** | MCP `ScheduleWakeup` (harness-scoped extra tool) | `ORCH_SESSION` from hook context | `lib/schedule-wakeup.js` via `lib/mcp-harness-tools.js` |
 | **Codex** | MCP `ScheduleWakeup` (+ harness-scoped `create_task`) | `ORCH_SESSION` from hook context | Same substrate as Cursor |
 | **OpenCode** | Plugin tool `schedule_wakeup` | Plugin session id | Same substrate via `packages/opencode-plugin/lib/schedule-wakeup.js` |
-| **Default MCP** (`mcp-graph.js`, no `ZONOID_HARNESS`) | **Not exposed** | — | Agents use harness-specific MCP config or Claude native |
+| **Default MCP** (`mcp-graph.js`, default `ORCH_CLIENT=claude` or unset) | **Not exposed** | — | Agents use harness-specific MCP config or Claude native |
 
 Classify injection (`POST /classify` → `additional_context`) always includes the heartbeat nudge
 referencing `ScheduleWakeup(delaySeconds=7200, …)` regardless of harness; only the **invocation

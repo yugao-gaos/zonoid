@@ -1,5 +1,5 @@
 {
-  "_comment": "Codex MCP wiring — set ZONOID_HARNESS=codex so stdio MCP exposes create_task (file-drop mint + POST /sync).",
+  "_comment": "Codex MCP wiring — set ORCH_CLIENT=codex so stdio MCP exposes create_task (file-drop mint + POST /sync).",
   "mcpServers": {
     "orchestrator-graph": {
       "type": "stdio",
@@ -7,7 +7,7 @@
       "args": ["__INSTALL_DIR__/mcp-graph.js"],
       "env": {
         "ORCH_PORT": "8787",
-        "ZONOID_HARNESS": "codex"
+        "ORCH_CLIENT": "codex"
       }
     }
   }

@@ -135,10 +135,21 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         result.decision = 'consolidate'; result.keep = keepKey; result.superseded = supersededNow;
       }
       overlayStore.resolveGuidance(T.ov, b.id, b.decision);
-    } else if (action && action.kind === 'follow-up' && (b.decision === 'approve' || b.decision === 'reject')) {
-      const fr = followups.resolveGate(T.ov, action, b.decision);
+    } else if (action && action.kind === 'follow-up') {
+      let decision = (b.decision === 'approve' || b.decision === 'reject') ? b.decision : null;
+      if (!decision && b.answer != null) {
+        const ans = String(b.answer).trim().toLowerCase();
+        if (/^(approve|approved|yes|ok|okay|y)$/.test(ans)) decision = 'approve';
+        else if (/^(reject|rejected|no|n)$/.test(ans)) decision = 'reject';
+      }
+      if (!decision) {
+        send(res, 400, { ok: false, error: 'follow-up requires Approve or Reject (typed answers: approve/yes or reject/no)' });
+        return true;
+      }
+      const fr = followups.resolveGate(T.ov, action, decision);
       if (fr) Object.assign(result, fr);
-      overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
+      result.decision = decision;
+      overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : decision);
     } else if (action && action.kind === 'stale-hold' && (b.decision === 'release' || b.decision === 'keep')) {
       const sr = verdicts.resolveStaleHold(T.ov, action, b.decision, b.answer);
       if (sr) Object.assign(result, sr);
@@ -160,6 +171,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     } else {
       overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
     }
+    const healed = followups.healOrphanHolds(T.ov);
+    if (healed.length) result.healed_orphan_holds = healed;
     T.save(); notifyChange();
     result.pending = overlayStore.pendingGuidance(T.ov).length;
     send(res, 200, result); return true;

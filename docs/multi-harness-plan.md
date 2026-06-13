@@ -97,9 +97,24 @@ everything real (claims, summaries, knowledge, metrics, provenance, edges).
   `/agent/start|done`, `/classify`, `/ready`, `/sync`) ARE the contract; canonical
   event table mapping each to Claude/Cursor/Codex/OpenCode mechanisms.
 
-**Phase 5 — Usage sources.**
-- Adapter-provided transcript readers (Claude unchanged; Cursor JSONL transcripts get a
-  reader); self-reported fallback elsewhere. Cost attribution degrades gracefully.
+**Phase 5 — Usage accounting (multi-source, event-driven).** Graph: `local/ms1`–`local/ms4`.
+- **No daemon harness mode** (`local/ms1`): `lib/harness.js` is a registry (`all()`, namespace
+  routing), not `ZONOID_HARNESS` / `active()`. Daemon unions all adapters concurrently; MCP
+  client identity (`ORCH_CLIENT`) lives on stdio spawn only (`local/ms4`).
+- **Per-session binding** (`local/ms2`): replace `mainTranscript` singleton with
+  `state.sessions[sessionId]` so concurrent IDEs each retain transcript paths.
+- **Usage contract** (`local/ms3`) — adapters translate, daemon accounts:
+  - **Hot path:** `subagentStop` → `POST /agent/done` → adapter `usage.sample(one file)`
+    → store `overlay.usage_records[agent_id]`. Subagent complete ≠ task complete; one task
+    may sum many agent slices. `complete_task` does not sample.
+  - **Uniform shape:** `UsageSlice` `{ harness, agent_id, session_id, transcript_path,
+    task_key?, startedAt, endedAt, usage, human, overhead }` — daemon never parses IDE JSONL.
+  - **Cold path reconcile** (adapter-owned triggers, not `/costflow`, no daemon global cron):
+    standing per-harness timestamp `overlay.usage_reconcile[harness].at`.
+    1. **sessionStart:** if `at` missing or >24h → that adapter's `usage.reconcile(ws)` once.
+    2. **Adapter scheduler:** on sessionStart arm daily re-check (Claude native
+       `ScheduleWakeup`; Cursor/Codex substrate; OpenCode plugin) for long-running sessions;
+       fire curls `POST /usage/reconcile { harness }` with same stale-at gate.
 
 **Phase 6 — First bridge: Cursor.**
 - Try the zero-cost path first: Cursor reads `.claude/settings.json` hooks natively
@@ -117,7 +132,8 @@ everything real (claims, summaries, knowledge, metrics, provenance, edges).
   `task_create` tool registration.
 
 **Phase 8 — Installer & lifecycle.**
-- `zonoid init --harness claude|cursor|codex|opencode` (default `claude`, unchanged).
+- `zonoid init --harness claude|cursor|codex|opencode` wires **that IDE's** hooks + MCP spawn
+  env (`ORCH_CLIENT`) — installer-only, not a daemon mode switch.
 - IDE setups default to stdio MCP transport (self-boots the daemon per tool call already).
 - launchd/systemd service option for always-on daemon where HTTP connectors are used.
 

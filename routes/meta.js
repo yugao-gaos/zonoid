@@ -8,9 +8,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     GIT_HEAD, BOOTED_AT, FEATURES, sseClients, overlayStore, harness, analytics,
     analyticsState, analyticsFlush, PUBLIC, loops, taskTranscript, usageCached,
     staleClaimKeys, releaseClaim, cache, targetOverlay, MCP_CALL,
-    embedStatus, respCacheGet, respCachePut, isTruthy, frontier, agentsArr } = ctx;
+    embedStatus, respCacheGet, respCachePut, isTruthy, frontier, agentsArr, sessionCount } = ctx;
 
-  if (p === '/ping') { send(res, 200, { ok: true, workspace: state.workspace }); return true; }
+  if (p === '/ping') { send(res, 200, { ok: true, workspace: state.workspace, sessions: sessionCount() }); return true; }
 
   if (p === '/version') { send(res, 200, { head: GIT_HEAD, bootedAt: BOOTED_AT, features: FEATURES }); return true; }
 
@@ -40,7 +40,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/reset' && m === 'POST') {
-    setState({ workspace: state.workspace, overlay: state.workspace ? overlayStore.load(state.workspace) : overlayStore.EMPTY(), routes: [], agents: {}, mainTranscript: state.mainTranscript });
+    setState({ workspace: state.workspace, overlay: state.workspace ? overlayStore.load(state.workspace) : overlayStore.EMPTY(), routes: [], agents: {}, sessions: state.sessions || {} });
     send(res, 200, { ok: true }); return true;
   }
 
@@ -83,7 +83,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!b.force && state.workspace && state.workspace !== b.path) {
       send(res, 200, { ok: true, workspace: state.workspace, skipped: true }); return true;
     }
-    setWorkspace(b.path, b.transcript || null);
+    setWorkspace(b.path, b);
     send(res, 200, { ok: true, workspace: state.workspace }); return true;
   }
 
@@ -106,7 +106,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const boot = ctx.bootState || { phase: 'ready', step: 'ready', progress: 1 };
     const allLoops = [...loops.values()];
     const loopHealth = { count: allLoops.length, active: allLoops.filter((L) => L.active).length, iterations: allLoops.reduce((s, L) => s + L.iterations, 0), spent: allLoops.reduce((s, L) => s + L.spent, 0) };
-    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: state.workspace, mainTranscript: !!state.mainTranscript, loops: loopHealth, embedding: embedStatus(), native_format: state.workspace ? harness.tasks.formatHealth(state.workspace) : null }); return true;
+    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: state.workspace, sessions: sessionCount(), loops: loopHealth, embedding: embedStatus(), native_format: state.workspace ? harness.tasks.formatHealth(state.workspace) : null }); return true;
   }
 
   if (p === '/ready') {
@@ -130,7 +130,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/state') {
     const stWs = u.searchParams.get('workspace') || state.workspace;
-    const stKey = `state|${stWs}|${u.searchParams.get('scope') || ''}|${u.searchParams.get('compact') || ''}|${u.searchParams.get('include_archived') || ''}`;
+    const stKey = `state|${stWs}|${u.searchParams.get('scope') || ''}|${u.searchParams.get('compact') || ''}|${u.searchParams.get('include_archived') || ''}|arch1`;
     const stHit = respCacheGet(stWs, stKey);
     if (stHit !== undefined) { send(res, 200, stHit); return true; }
     const T = targetOverlay(null, u);
@@ -140,17 +140,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const includeArchived = isTruthy(u.searchParams.get('include_archived'));
     const cfgDays = Number((T.ov.config || {}).archive_after_days);
     const windowMs = includeArchived ? Infinity : (cfgDays > 0 ? cfgDays : frontier.DEFAULT_ARCHIVE_DAYS) * 864e5;
+    const keep = frontier.frontierKeep(g.tasks);
+    const arch = isFinite(windowMs) ? frontier.archivedIds(g.tasks, { windowMs, keep }) : new Set();
+    const archivedTasks = arch.size ? frontier.archivedTaskList(g.tasks, arch) : null;
     if (u.searchParams.get('scope') === 'frontier') {
       const f = frontier.projectFrontier(g.tasks, g.ghosts, edgesOut, { windowMs });
-      send(res, 200, respCachePut(stWs, stKey, { workspace: ws, scope: 'frontier', tasks: f.tasks, ghosts: f.ghosts, edges: f.edges, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } })); return true;
+      const body = { workspace: ws, scope: 'frontier', tasks: f.tasks, ghosts: f.ghosts, edges: f.edges, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } };
+      if (archivedTasks) body.archived_tasks = archivedTasks;
+      send(res, 200, respCachePut(stWs, stKey, body)); return true;
     }
-    let tasks = g.tasks, archived = 0;
-    if (isFinite(windowMs)) {
-      const arch = frontier.archivedIds(g.tasks, { windowMs, keep: frontier.frontierKeep(g.tasks) });
-      archived = arch.size;
-      if (archived) tasks = tasks.filter((t) => !arch.has(t.id));
-    }
+    let tasks = g.tasks;
+    const archived = arch.size;
+    if (archived) tasks = tasks.filter((t) => !arch.has(t.id));
     const summary = { ...g.summary, archived };
+    const archField = archivedTasks ? { archived_tasks: archivedTasks } : {};
     if (u.searchParams.get('compact')) {
       const slim = tasks.map((t) => {
         const o = { id: t.id, label: t.label, status: t.status, deps: t.deps };
@@ -159,9 +162,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (t.git && t.git.merged) o.merged = true;
         return o;
       });
-      send(res, 200, respCachePut(stWs, stKey, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary })); return true;
+      send(res, 200, respCachePut(stWs, stKey, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary, ...archField })); return true;
     }
-    send(res, 200, respCachePut(stWs, stKey, { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr(), summary })); return true;
+    send(res, 200, respCachePut(stWs, stKey, { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr(), summary, ...archField })); return true;
   }
 
   return false;

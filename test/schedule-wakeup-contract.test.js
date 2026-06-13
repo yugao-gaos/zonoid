@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { HEARTBEAT } = require('../lib/classify-assemble');
-const { extraToolsForHarness, NOTIFY_PATTERN } = require('../lib/mcp-harness-tools');
+const { extraToolsForClient, NOTIFY_PATTERN } = require('../lib/mcp-harness-tools');
 const sw = require('../lib/schedule-wakeup');
 const ocSw = require('../packages/opencode-plugin/lib/schedule-wakeup');
 const cursor = require('../lib/adapters/cursor');
@@ -39,10 +39,10 @@ const ok = (label, cond) => {
     const cancel = sw.cancelWakeup(SESSION);
     ok('cancel ok', cancel.ok && cancel.canceled);
 
-    ok('claude MCP has no ScheduleWakeup', extraToolsForHarness('claude', '/tmp/ws', ctx).length === 0);
-    const cursorTool = extraToolsForHarness('cursor', '/tmp/ws', ctx)[0];
+    ok('claude MCP has no ScheduleWakeup', extraToolsForClient('claude', '/tmp/ws', ctx).length === 0);
+    const cursorTool = extraToolsForClient('cursor', '/tmp/ws', ctx)[0];
     ok('cursor exposes ScheduleWakeup', cursorTool && cursorTool.name === 'ScheduleWakeup');
-    ok('codex exposes ScheduleWakeup', extraToolsForHarness('codex', '/tmp/ws', ctx).some((t) => t.name === 'ScheduleWakeup'));
+    ok('codex exposes ScheduleWakeup', extraToolsForClient('codex', '/tmp/ws', ctx).some((t) => t.name === 'ScheduleWakeup'));
     const mcpOut = await cursorTool.run({ delaySeconds: 1, reason: 'idle', prompt: 'tick' });
     ok('MCP run ok', mcpOut.ok && mcpOut.armed === true);
     ok('MCP notify_pattern', mcpOut.notify_pattern === NOTIFY_PATTERN);

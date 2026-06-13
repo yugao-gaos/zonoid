@@ -1,10 +1,62 @@
 'use strict';
 const crypto = require('crypto');
+const { resolveHarnessName } = require('../lib/usage-reconcile');
+
+function resolveHarnessForAgent(ctx, agent, body) {
+  if (body.harness) return resolveHarnessName(ctx.harnessRegistry, body.harness);
+  if (agent && agent.session && ctx.state.sessions && ctx.state.sessions[agent.session]) {
+    return resolveHarnessName(ctx.harnessRegistry, ctx.state.sessions[agent.session].harness);
+  }
+  return 'claude';
+}
+
+function linkTaskKeyForAgent(ov, agentId) {
+  for (const [key, st] of Object.entries(ov.status || {})) {
+    if (st === 'in_progress' && ov.assignee[key] === agentId) return key;
+  }
+  for (const [key, aid] of Object.entries(ov.assignee || {})) {
+    if (aid === agentId) return key;
+  }
+  return null;
+}
+
+function recordUsageOnDone(ctx, T, agent, body) {
+  const harnessName = resolveHarnessForAgent(ctx, agent, body);
+  const adapter = ctx.harnessRegistry.get(harnessName);
+  const usageApi = adapter.usage;
+  if (!usageApi) return null;
+  const endedAt = ctx.now();
+  const startedAt = agent.startedAt || null;
+  const window = { start: startedAt, end: endedAt };
+  const baseCtx = {
+    agent_id: body.agent_id,
+    session_id: agent.session || body.session || null,
+    transcript_path: agent.transcript_path || body.transcript_path || null,
+    task_key: linkTaskKeyForAgent(T.ov, body.agent_id),
+    startedAt,
+    endedAt,
+    window,
+    reported_usage: body.reported_usage,
+    baseline: agent.usage_baseline || null,
+  };
+  let slice = null;
+  const tp = baseCtx.transcript_path;
+  if (tp && typeof usageApi.sample === 'function') {
+    slice = usageApi.sample(tp, baseCtx);
+  } else if (body.reported_usage && typeof usageApi.normalizeReported === 'function') {
+    slice = usageApi.normalizeReported(body.reported_usage, baseCtx);
+  }
+  if (!slice) return null;
+  if (!slice.task_key) slice.task_key = baseCtx.task_key;
+  if (!T.ov.usage_records) T.ov.usage_records = {};
+  T.ov.usage_records[body.agent_id] = slice;
+  return slice;
+}
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, targetOverlay, now, loops, saveLoops,
     agentsArr, releaseClaim, newLoop, decideAll, LOOP_CONFIG_KEYS, usageCached,
-    touchAgent, MAX_ROUTES, state } = ctx;
+    touchAgent, bindSession, mainTranscriptForSession, MAX_ROUTES, state, harnessRegistry } = ctx;
 
   if (p === '/loop/start' && m === 'POST') {
     const b = await readBody(req);
@@ -19,8 +71,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // state.workspace. mcp-core injects the calling session's pin into every POST body; a bare
     // caller pins to the global workspace as of NOW. null (legacy entries) ⇒ dynamic global fallback.
     L.workspace = b.workspace || state.workspace || null;
-    L.real = !!state.mainTranscript;
-    L.baseline = state.mainTranscript ? (usageCached(state.mainTranscript).total || 0) : 0;
+    const loopSession = b.session || null;
+    let mainTx = loopSession ? mainTranscriptForSession(loopSession) : null;
+    if (!mainTx && state.sessions) {
+      const ids = Object.keys(state.sessions);
+      if (ids.length === 1) mainTx = mainTranscriptForSession(ids[0]);
+    }
+    L.real = !!mainTx;
+    L.baseline = mainTx ? (usageCached(mainTx).total || 0) : 0;
     for (const k of LOOP_CONFIG_KEYS) if (b[k] != null) L.config[k] = b[k];
     loops.set(loopId, L);
     saveLoops();
@@ -56,8 +114,26 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/agent/start' && m === 'POST') {
     const b = await readBody(req);
     if (!b.agent_id) return send(res, 400, { ok: false, error: 'agent_id required' });
+    const harnessName = resolveHarnessForAgent(ctx, null, b);
+    const adapter = harnessRegistry.get(harnessName);
+    let usageBaseline = null;
+    if (b.transcript_path && adapter.usage && adapter.usage.sample) {
+      try {
+        const baselineSlice = adapter.usage.sample(b.transcript_path, {
+          agent_id: b.agent_id,
+          session_id: b.session || b.session_id,
+          transcript_path: b.transcript_path,
+          window: { end: now() },
+        });
+        usageBaseline = baselineSlice && baselineSlice.usage ? baselineSlice.usage : null;
+      } catch { /* optional baseline */ }
+    }
     // Capture task/session/workspace so a colliding worker is visible across sessions (GET /agents).
-    touchAgent(b.agent_id, { state: 'running', agent_type: b.agent_type, transcript_path: b.transcript_path, task: b.task, session: b.session, subagent_session: b.subagent_session, workspace: b.workspace || state.workspace, reported_usage: b.reported_usage });
+    touchAgent(b.agent_id, { state: 'running', agent_type: b.agent_type, transcript_path: b.transcript_path, task: b.task, session: b.session, subagent_session: b.subagent_session, workspace: b.workspace || state.workspace, reported_usage: b.reported_usage, usage_baseline: usageBaseline });
+    const sessionId = b.session || b.session_id || b.conversation_id;
+    if (sessionId && b.transcript_path) {
+      bindSession(sessionId, { transcript: b.transcript_path, workspace: b.workspace || state.workspace, harness: b.harness });
+    }
     notifyChange();
     return send(res, 200, { ok: true });
   }
@@ -65,19 +141,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const a = state.agents[b.agent_id];
     if (!a) return send(res, 404, { ok: false, error: 'unknown agent' });
+    const T = targetOverlay({ workspace: b.workspace || a.workspace }, u);
+    const usageSlice = recordUsageOnDone(ctx, T, a, b);
     touchAgent(b.agent_id, { state: 'done', reported_usage: b.reported_usage });
     // Cascade: release any in_progress task this agent still holds (it stopped without completing),
     // so the claim doesn't linger as a phantom in_progress. Fixes the stale-status bug directly.
     // Target the AGENT'S workspace (recorded at /agent/start), not the daemon-global overlay —
     // the claim lives where the agent's session was pinned (read-side gremlin fix).
-    const T = targetOverlay({ workspace: b.workspace || a.workspace }, u);
     let released = 0;
     for (const [key, st] of Object.entries(T.ov.status))
       if (st === 'in_progress' && T.ov.assignee[key] === b.agent_id
           && releaseClaim(key, `auto-released: agent '${b.agent_id}' stopped without completing`, T.ov, null, T.ws)) released++;
-    if (released) T.save();
+    if (usageSlice || released) T.save();
     notifyChange();
-    return send(res, 200, { ok: true, released });
+    return send(res, 200, { ok: true, released, usage: usageSlice ? { agent_id: b.agent_id, task_key: usageSlice.task_key || null } : null });
   }
 
   // Cross-session visibility: list every known agent with task/session/workspace/startedAt and

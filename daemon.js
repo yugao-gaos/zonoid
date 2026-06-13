@@ -10,7 +10,8 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { URL } = require('url');
-const harness = require('./lib/harness').active();
+const harnessRegistry = require('./lib/harness');
+const claudeHarness = harnessRegistry.get('claude');
 const filedrop = require('./lib/filedrop-tasks');
 const overlayStore = require('./lib/overlay');
 const mcpCore = require('./lib/mcp-core');
@@ -24,10 +25,12 @@ const delta = require('./lib/delta');
 const followups = require('./lib/followups');
 const verdicts = require('./lib/verdicts');
 const { gateTask, contentTokens, classifyNoteType, noteText } = require('./lib/context-gate');
-const costflow = require('./lib/costflow');
+const usageAccounting = require('./lib/usage-accounting');
+const { runUsageReconcile } = require('./lib/usage-reconcile');
 const frontier = require('./lib/frontier');
 const analytics = require('./lib/analytics');
 const graphStore = require('./lib/graph-store');
+const sessionBindings = require('./lib/session-bindings');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -84,7 +87,7 @@ function aggregateCached(ws) {
   // Pass the overlay's terminal-status snapshots so tasks whose native files were garbage-
   // collected by the cleanupPeriodDays retention sweep still appear in the aggregate.
   const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
-  let v = harness.tasks.aggregateWorkspace(ws, ov.snapshots);
+  let v = claudeHarness.tasks.aggregateWorkspace(ws, ov.snapshots);
   // Union in file-drop stub tasks (designated-folder minting, '<harness>/<id>' keys — see
   // lib/filedrop-tasks.js). Same union point native tasks enter through, so stub tasks flow
   // through overlay status, claims, dependencies, frontier and dashboard identically. A live
@@ -105,9 +108,15 @@ function aggregateCached(ws) {
 // write-through, which itself no-ops gracefully on unknown/missing keys). Best-effort like both
 // delegates. Every daemon write-through goes via this so '<harness>/<id>' namespaces never leak
 // into ~/.claude/tasks and Claude '<session>/<id>' keys never touch the stub folders.
+function readNativeTask(ws, key) {
+  const stub = filedrop.readTask(ws, String(key));
+  if (stub) return stub;
+  return harnessRegistry.route(key).tasks.readTask(String(key));
+}
+
 function writeTaskStatus(ws, key, status) {
   if (filedrop.writeStatus(ws, String(key), status)) return true;
-  return harness.tasks.writeStatus(String(key), status);
+  return harnessRegistry.route(key).tasks.writeStatus(String(key), status);
 }
 
 // Adopt a Claude native task stub at first sight: copy id/title/blockedBy into the overlay so
@@ -115,7 +124,9 @@ function writeTaskStatus(ws, key, status) {
 // returns null or the snapshot was minted elsewhere). Idempotent when already adopted.
 function adoptNativeTask(ov, key) {
   if (ov.snapshots && ov.snapshots[key]) return false;
-  const t = harness.tasks.readTask(key);
+  // File-drop stubs are durable — adoption is /sync + aggregation, not native readTask.
+  if (filedrop.readStub(state.workspace, String(key))) return false;
+  const t = harnessRegistry.route(key).tasks.readTask(String(key));
   if (!t) return false;
   overlayStore.setSnapshot(ov, key, {
     subject: t.subject || t.activeForm || String(t.id),
@@ -133,7 +144,9 @@ function adoptNativeTask(ov, key) {
 // echo. File-drop stub keys no-op naturally (readTask returns null).
 // `nativeStatus` (optional): the status the write-through is about to stamp on the native file.
 function snapshotNative(ov, key, nativeStatus) {
-  const t = harness.tasks.readTask(key);
+  // Terminal snapshots are Claude-native back-compat only; stub files stay authoritative.
+  if (filedrop.readStub(state.workspace, String(key))) return;
+  const t = harnessRegistry.route(key).tasks.readTask(String(key));
   if (!t) return;
   const existing = ov.snapshots && ov.snapshots[key];
   if (existing) {
@@ -145,11 +158,12 @@ function snapshotNative(ov, key, nativeStatus) {
 function usageCached(p) {
   const now = Date.now();
   if (cache.usage.has(p) && now - (cache.usageAt.get(p) || 0) < USAGE_TTL) return cache.usage.get(p);
-  const v = readUsage(p);
+  const v = usageAccounting.parseTranscriptUsage(p);
   cache.usage.set(p, v); cache.usageAt.set(p, now);
   return v;
 }
-harness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); }); // TTL is the fallback when watching is unavailable
+claudeHarness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); }); // Claude native task dir
+// filedrop.watch below covers designated-folder stubs
 filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); });      // designated-folder stub drops surface without /sync
 
 const ACTION_STATUSES = ['in_progress', 'tested', 'done', 'failed', 'canceled'];
@@ -167,7 +181,7 @@ const CATCHALL_ESCALATE_TOKENS = 1e6;
 // existing tokenBudget — no separate knob.) Defaults live in lib/optimize.js.
 const OPTIMIZE_DEFAULTS = () => ({ ...optimize.DEFAULTS });
 
-let state = { workspace: null, overlay: overlayStore.EMPTY(), routes: [], agents: {}, mainTranscript: null, graphStore: null };
+let state = { workspace: null, overlay: overlayStore.EMPTY(), routes: [], agents: {}, sessions: {}, graphStore: null };
 // Persist + restore the workspace, so a daemon respawn (e.g. after a crash/kill) keeps serving
 // the same project instead of coming back with no workspace.
 const WS_FILE = path.join(BASE, 'workspace');
@@ -332,6 +346,7 @@ function touchAgent(agentId, patch = {}) {
     lastSeen: ts,
     endedAt,
     reported_usage: patch.reported_usage !== undefined ? patch.reported_usage : (prev.reported_usage ?? null),
+    usage_baseline: patch.usage_baseline !== undefined ? patch.usage_baseline : (prev.usage_baseline ?? null),
   };
   saveAgents();
 }
@@ -801,8 +816,9 @@ function decideOne(L, ctx) {
   }
   if (!L.active) return { action: 'stop', reason: 'loop not active' };
   L.iterations++;
-  if (L.real && state.mainTranscript) {                       // real token accounting from the main transcript
-    const u = usageCached(state.mainTranscript);
+  const loopMainTx = L.session ? sessionBindings.mainTranscriptForSession(state, L.session) : null;
+  if (L.real && loopMainTx) {                                  // real token accounting from this loop's session transcript
+    const u = usageCached(loopMainTx);
     L.spent = Math.max(0, (u.total || 0) - L.baseline);
   } else {
     L.spent += L.config.estPerTick;                           // estimate fallback (predictable ceiling)
@@ -1256,12 +1272,12 @@ function taskTranscript(key, session, anySession, st = state) {
   const assignee = st.overlay.assignee[key];
   const agent = assignee ? st.agents[assignee] : null;
   let tp = agent && agent.transcript_path;
-  if (!tp && agent && agent.session && st.mainTranscript) {              // worker registered its own session transcript
-    tp = harness.transcripts.sessionTranscriptPath(st.mainTranscript, agent.session);
+  if (!tp && agent && agent.session) {                                   // derive from per-session binding
+    tp = sessionBindings.resolveSessionTranscriptPath(st, agent.session, agent.subagent_session || agent.session);
   }
   if (!tp) tp = harnessTranscriptForTask(st, key, session);             // time-window correlation fallback
-  if (!tp && anySession && session && st.mainTranscript) {               // task's shared session transcript
-    tp = harness.transcripts.sessionTranscriptPath(st.mainTranscript, session);
+  if (!tp && anySession && session) {                                    // task's shared session transcript
+    tp = sessionBindings.resolveSessionTranscriptPath(st, session, session);
   }
   if (!tp) return null;
   try { return fs.existsSync(tp) ? tp : null; } catch { return null; }
@@ -1269,14 +1285,17 @@ function taskTranscript(key, session, anySession, st = state) {
 
 // Per-task token total for the graph node. null = unknown.
 function taskTokens(key, session, dedicated, st = state) {
+  const ov = st.overlay || overlayStore.EMPTY();
+  const fromRecords = usageAccounting.taskOutputFromRecords(ov, key);
+  if (fromRecords > 0) return fromRecords;
   const tp = taskTranscript(key, session, dedicated, st);
   if (tp) {
     const u = usageCached(tp);
     if (u && typeof u.total === 'number') return u.total;
   }
-  const assignee = st.overlay.assignee[key];
+  const assignee = ov.assignee[key];
   const agent = assignee ? st.agents[assignee] : null;
-  const ru = agent && harness.transcripts.taskUsageFromAgent && harness.transcripts.taskUsageFromAgent(agent);
+  const ru = agent && claudeHarness.transcripts.taskUsageFromAgent && claudeHarness.transcripts.taskUsageFromAgent(agent);
   return ru && typeof ru.total === 'number' ? ru.total : null;
 }
 
@@ -1442,32 +1461,9 @@ function digestRejected(verdicts, failures, labelFor) {
   return rejected;
 }
 
-// Sum per-message token usage from a transcript JSONL (the only place per-agent tokens live;
-// undocumented format — isolated here). Used for the detail panel's token figure.
+// Sum per-message token usage from a transcript JSONL — delegated to usage-accounting (MS3).
 function readUsage(p) {
-  try {
-    let input = 0, output = 0, cacheRead = 0, cacheCreate = 0, messages = 0;
-    const byModel = {};
-    for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
-      if (!line.trim()) continue;
-      let o; try { o = JSON.parse(line); } catch { continue; }
-      const u = (o.message && o.message.usage) || o.usage;
-      if (u) {
-        messages++;
-        input += u.input_tokens || 0; output += u.output_tokens || 0;
-        cacheRead += u.cache_read_input_tokens || 0; cacheCreate += u.cache_creation_input_tokens || 0;
-        const m = (o.message && o.message.model) || o.model;
-        if (m) {
-          if (!byModel[m]) byModel[m] = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
-          byModel[m].input_tokens += u.input_tokens || 0;
-          byModel[m].output_tokens += u.output_tokens || 0;
-          byModel[m].cache_read_input_tokens += u.cache_read_input_tokens || 0;
-          byModel[m].cache_creation_input_tokens += u.cache_creation_input_tokens || 0;
-        }
-      }
-    }
-    return { input_tokens: input, output_tokens: output, cache_read_input_tokens: cacheRead, cache_creation_input_tokens: cacheCreate, total: input + output, messages, by_model: byModel };
-  } catch (e) { return { error: e.code || e.message }; }
+  return usageAccounting.parseTranscriptUsage(p);
 }
 
 function readTranscript(p, maxLines = 200) {
@@ -1560,30 +1556,54 @@ const sessionRoute = require('./routes/session');
 const execRoute = require('./routes/exec');
 const classifyRoute = require('./routes/classify');
 const uiRoute = require('./routes/ui');
+const usageRoute = require('./routes/usage');
 
 // ctx: live access to daemon state + helpers. State fields use getters so reassignment
 // (state = {...} at /reset; state.workspace = ... at /workspace) is always visible.
 const ctx = {
   get state() { return state; },
   setState(s) { state = s; },
-  setWorkspace(p, transcript) {
+  setWorkspace(p, bind = {}) {
+    const opts = typeof bind === 'string' ? { transcript: bind } : (bind || {});
     state.workspace = p;
     state.overlay = overlayStore.load(p);
     migrateBlindEdges(p, state.overlay);
     state.graphStore = graphStore.open(require('path').join(p, '.graph'));
     graphStore.initGitAttributes(p);
-    if (transcript) state.mainTranscript = transcript;
+    const transcript = opts.transcript || null;
+    const sessionId = sessionBindings.resolveSessionId(opts, transcript);
+    if (sessionId) {
+      state.sessions = sessionBindings.bindSession(state.sessions, sessionId, {
+        transcript, workspace: p, harness: opts.harness,
+      });
+    }
     try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(WS_FILE, p); } catch { /* best effort */ }
+    const harnessName = opts.harness || (sessionId && state.sessions[sessionId] && state.sessions[sessionId].harness) || 'claude';
+    try {
+      runUsageReconcile(ctx, { harness: harnessName, workspace: p, session: sessionId || opts.session_id || null });
+    } catch { /* advisory cold-path reconcile */ }
+    try {
+      const adapter = harnessRegistry.get(harnessName);
+      if (adapter.usage && adapter.usage.onSessionStart && sessionId) {
+        adapter.usage.onSessionStart({ session: sessionId, workspace: p, port: PORT, scheduler: adapter.scheduler });
+      }
+    } catch { /* advisory scheduler arm */ }
+  },
+  bindSession(sessionId, patch) {
+    if (!sessionId) return;
+    state.sessions = sessionBindings.bindSession(state.sessions, sessionId, patch);
   },
   send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, resolveRepo,
   validateMetricSpec, validateBenchmark,
-  overlayStore, harness, filedrop, writeTaskStatus, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
+  overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
   GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL,
   sseClients, agentsArr,
   taskTranscript, usageCached, harnessTranscriptForTask,
   touchAgent, staleClaimKeys, releaseClaim, sweepStaleClaims, sweepStaleLoops,
+  mainTranscriptForSession: (sid) => sessionBindings.mainTranscriptForSession(state, sid),
+  sessionCount: () => sessionBindings.sessionCount(state),
   snapshotNative, now, isTruthy,
   embed, cosine, embedStatus, DIMS, EMBED_MODEL,
   gateTask, haikusGate,
@@ -1598,11 +1618,12 @@ const ctx = {
   ALL_STATUSES, ESCALATION_DEFAULTS, OPTIMIZE_DEFAULTS, LOOP_CONFIG_KEYS, CATCHALL_ESCALATE_TOKENS,
   newLoop, decideAll,
   MAX_ROUTES,
+  PORT,
 };
 const routeModules = [
   metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
   gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
-  sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), uiRoute(ctx),
+  sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), uiRoute(ctx),
 ];
 
 // Paths served even while the daemon is still in the loading phase.
@@ -1623,7 +1644,7 @@ const handler = async (req, res) => {
     // Default-deny for writes, workspace-targeting, and agent/file-read endpoints (review H1).
     // Public reads of the CURRENT workspace + the dashboard stay open; any ?workspace= read is gated too.
     const protectedPath = p === '/mcp' || p === '/reset' || p.startsWith('/overlay/') || p === '/loop/start' || p === '/loop/stop'
-      || p === '/workspace' || p === '/peek' || p === '/config' || p === '/route' || p.startsWith('/agent/') || p.startsWith('/git/')
+      || p === '/workspace' || p === '/usage/reconcile' || p === '/peek' || p === '/config' || p === '/route' || p.startsWith('/agent/') || p.startsWith('/git/')
       || p.startsWith('/guidance') || p === '/supersede' || p === '/judge/verdict' || p === '/analytics/tool-call' || p === '/sync';
     if ((protectedPath || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 
@@ -1648,7 +1669,7 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, migrateBlindEdges,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, __setOverlayForTest: (o) => { state.overlay = o; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };

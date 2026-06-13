@@ -55,10 +55,16 @@
   :root { --dock-h: 52px; --hdr-h: 64px; }
   body { margin: 0; padding-bottom: var(--dock-h); font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: #0d1117; color: #e6edf3; }
   .wrap { display: flex; height: calc(100vh - var(--hdr-h) - var(--dock-h)); overflow: hidden; }
-  .left { flex: 1; min-width: 0; overflow: auto; }
+  .left { flex: 1; min-width: 0; overflow: auto; display: flex; flex-direction: column; }
+  #cloud.show, #flow.show { flex: 1; min-height: 0; }
+  #flowstats { flex-shrink: 0; }
   /* (legacy DAG-column view removed — Flow is the structure view) */
   .badge { display: inline-block; font-size: 10px; background: #1f6feb33; color: #79c0ff; border: 1px solid #1f6feb55; border-radius: 9px; padding: 0 6px; margin-left: 6px; }
   .s-not_ready  { border-left-color: #6e7681; opacity: .55; } .s-not_ready .st { color: #6e7681; }
+  .s-needs_guidance,.s-needs_approval { border-left-color: #d29922; } .s-needs_guidance .st,.s-needs_approval .st { color: #e3b341; }
+  .s-waiting_deps { border-left-color: #6e7681; opacity: .55; } .s-waiting_deps .st { color: #6e7681; }
+  .s-waiting_ghost { border-left-color: #8957e5; opacity: .75; } .s-waiting_ghost .st { color: #d2a8ff; }
+  .s-blocked { border-left-color: #f85149; } .s-blocked .st { color: #ff7b72; }
   .s-ready      { border-left-color: #d29922; } .s-ready .st { color: #e3b341; }
   .s-in_progress{ border-left-color: #1f6feb; animation: pulse 1.4s ease-in-out infinite; } .s-in_progress .st { color: #58a6ff; }
   .s-tested     { border-left-color: #2dd4bf; } .s-tested .st { color: #2dd4bf; }
@@ -401,7 +407,8 @@
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
     <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><svg id="cloudsvg"></svg></div>
-    <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div><div id="flowstats"></div></div>
+    <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
+    <div id="flowstats"></div>
   </div>
   <div id="panel"><div class="pad" id="pad"></div></div>
 </div>
@@ -4268,7 +4275,7 @@ let currentView=(v=>v==='cloud'?'cloud':'frontier')(localStorage.getItem('orchVi
 let focusedId=null;            // Focus view target; survives view switches, NOT persisted
 let cloudSim=null;             // live d3 force simulation
 const cloudPos={};             // id -> {x,y} preserved across ticks so it doesn't re-jiggle
-let cloudArchiveOpen=false;    // whether the orphan "archive" bundle is expanded
+let cloudArchiveOpen=false;    // whether the server-archive bundle is expanded
 let cloudSig='';               // signature of node/link set; only reheat sim when it changes
 let cloudSearchText='';        // current force-cloud search query
 let flowZoom=null;             // shared d3.zoom on the dagre svg (Frontier + Focus)
@@ -4281,16 +4288,20 @@ async function openDetail(key){
   let d; try{ d=await(await fetch(BASE+'/task/detail?key='+encodeURIComponent(key))).json(); }catch{ pad.innerHTML='error'; return; }
   if(d.error||!d.task){ pad.innerHTML='<span class="pclose" onclick="closeDetail()">✕</span>not found'; return; }
   const t=d.task, u=d.tokenUsage||{};
+  const byId=lastState?Object.fromEntries((lastState.tasks||[]).map(x=>[x.id,x])):{};
+  const ds=taskDisplayStatus(t,byId);
   const know=(d.knowledge||[]).map(k=>`<div class="row">${esc(k.type||'item')}: ${esc(k.value||JSON.stringify(k))}${k.note?'<div class="muted">'+esc(k.note)+'</div>':''}</div>`).join('')||'<div class="empty">none</div>';
   const depList=t.deps.length?t.deps.map(x=>esc(x.replace('ghost:','(ghost) '))).join('<br>'):'none';
   pad.innerHTML =
     `<button class="pclose" onclick="closeDetail()" aria-label="Close">✕</button>`+
     `<div class="ptitle">${esc(t.label)}</div>`+
     `<div style="margin:4px 0 10px;display:flex;align-items:center;gap:8px">`+
-    `<span class="st s-${esc(t.status)}" style="font-size:12px;font-weight:600">${statusLabel(t.status)}</span>`+
+    `<span class="st s-${esc(ds.key)}" style="font-size:12px;font-weight:600;color:${esc(ds.color)}">${esc(ds.label)}</span>`+
+    (t.status!==ds.key?`<span class="muted" style="font-size:10px"> (engine: ${esc(t.status)})</span>`:'')+
     (t.agent_id?`<span class="badge">${esc(t.agent_id)}</span>`:'')+
     `</div>`+
     (u&&!u.error&&t.kind!=='note'?`<div class="kv"><div class="k">Token usage</div><div class="v usage"><div>total <b>${fmtK(u.total||0)}</b></div><div>out <b>${fmtK(u.output_tokens||0)}</b></div><div>in ${fmtK(u.input_tokens||0)}</div><div>cache ${fmtK(u.cache_read_input_tokens||0)}</div></div></div>`:'')+
+    (t.note&&(ds.key==='needs_guidance'||ds.key==='needs_approval'||ds.key==='blocked')?`<div class="kv"><div class="k">Hold reason</div><div class="v" style="font-size:12px;color:#e3b341">${esc(t.note)}</div></div>`:'')+
     `<div style="margin-bottom:12px"><button id="focusToggleBtn" style="width:100%;background:none;border:1px solid #30363d;color:#8b949e;border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;text-align:center;letter-spacing:.02em" onclick="toggleFocus('${esc(key)}')">${currentView==='focus'&&focusedId===key?'✕ Exit Focus':'⌖ Focus view'}</button></div>`+
     (d.summary?`<div style="font-size:12px;line-height:1.5;color:#c9d1d9;margin-bottom:12px">${esc(d.summary)}</div>`:
     `<div class="muted" style="font-size:12px;margin-bottom:12px">No summary yet.</div>`)+
@@ -4327,7 +4338,60 @@ function stateFingerprint(d){
   const guidFp=(d.guidance||[]).map(g=>g.id+':'+g.resolved).join('|');
   return JSON.stringify({sc, taskFp, guidFp, agents: s.agents, archived: s.archived});
 }
-function statusLabel(s){ const m={'not_ready':'Not ready','in_progress':'In progress','canceled':'Canceled','not ready':'Not ready','in progress':'In progress'}; return m[s]||(s.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())); }
+function statusLabel(s){ const m={'not_ready':'Not ready','in_progress':'In progress','canceled':'Canceled','not ready':'Not ready','in progress':'In progress','needs_guidance':'Needs guidance','needs_approval':'Needs approval','waiting_deps':'Waiting on deps','waiting_ghost':'Waiting on ghost','blocked':'Blocked'}; return m[s]||(s.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())); }
+const DISPLAY_STATUS_COLOR={needs_guidance:'#e3b341',needs_approval:'#e3b341',waiting_deps:'#6e7681',waiting_ghost:'#a371f7',blocked:'#ff7b72'};
+const GUIDANCE_HOLD_RE=/disruptive follow-up|gated on guidance|held by user|user_hold|scheduled for|cost_gate|awaiting user|awaiting approval|review required|force-claim|explicit.*hold/i;
+function pendingFollowUpForTask(taskId){
+  for(const g of Object.values(guidanceItems||{})){
+    if(g.resolved) continue;
+    const a=g.action;
+    if(a&&a.kind==='follow-up'&&a.task_key===taskId) return g;
+  }
+  return null;
+}
+function isGuidanceHold(t){
+  if(t.blocked) return true;
+  const note=String(t.note||'');
+  if(GUIDANCE_HOLD_RE.test(note)){
+    // Stale hold note after guidance was answered via text box — no pending item ⇒ not a live hold.
+    if(/disruptive follow-up|gated on guidance|awaiting dashboard approval/i.test(note)&&!pendingFollowUpForTask(t.id)) return false;
+    return true;
+  }
+  if(String(t.blocked||'').toLowerCase().includes('cost_gate')) return true;
+  return false;
+}
+function openBlockingDeps(t,byId){
+  return (t.deps||[]).filter(d=>{
+    if(String(d).startsWith('ghost:')) return false;
+    const p=byId&&byId[d]; return p&&p.status!=='done'&&p.status!=='canceled';
+  });
+}
+function taskDisplayStatus(t,byId){
+  if(!t) return {key:'not_ready',label:'Not ready',color:'#6e7681'};
+  if(t.kind==='note'){
+    const key=t.validTo?'superseded':(t.supersedes?'current':'note');
+    return {key,label:key==='current'?'current ✓':key,color:STATUS_COLOR.note||'#d29922'};
+  }
+  const st=t.status;
+  if(st!=='not_ready') return {key:st,label:statusLabel(st),color:STATUS_COLOR[st]||'#6e7681'};
+  if(t.blocked) return {key:'blocked',label:'Blocked',color:DISPLAY_STATUS_COLOR.blocked};
+  if(isGuidanceHold(t)){
+    const approval=/held by user|user_hold|disruptive follow-up|gated on guidance|awaiting approval/i.test(String(t.note||''));
+    const key=approval?'needs_approval':'needs_guidance';
+    return {key,label:statusLabel(key),color:DISPLAY_STATUS_COLOR[key]};
+  }
+  const open=openBlockingDeps(t,byId);
+  if(open.length) return {key:'waiting_deps',label:'Waiting on deps',color:DISPLAY_STATUS_COLOR.waiting_deps};
+  if((t.deps||[]).some(d=>String(d).startsWith('ghost:')))
+    return {key:'waiting_ghost',label:'Waiting on ghost',color:DISPLAY_STATUS_COLOR.waiting_ghost};
+  if(t.note) return {key:'needs_guidance',label:'Needs guidance',color:DISPLAY_STATUS_COLOR.needs_guidance};
+  return {key:'not_ready',label:'Not ready',color:STATUS_COLOR.not_ready};
+}
+function taskStatusLine(t,byId){
+  if(t.kind==='note') return t.validTo?'superseded':(t.supersedes?'current ✓':'note');
+  return taskDisplayStatus(t,byId).label+(t.agent_id?' ▶'+(t.agent_id.length>14?t.agent_id.slice(0,14)+'…':t.agent_id):'');
+}
+
 function fmtK(n){ if(n==null)return'—'; return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n)); }
 function setDockVal(id, val, nonZeroColor){
   const el=document.getElementById(id); if(!el) return;
@@ -4496,6 +4560,18 @@ const guidKeep={};      // per-item keeper radio pick
 const guidErr={};       // per-item inline error text (cleared on success)
 const guidNote={};      // note-detail cache: key -> {label,summary} | 'loading'
 const isCluster=it=>!!(it&&it.action&&it.action.kind==='dup-cluster'&&Array.isArray(it.action.keys)&&it.action.keys.length);
+function clusterGuidanceSig(it){
+  if(!it||!it.action||!it.action.keys) return '';
+  return it.action.signature||it.action.keys.slice().sort().join('|');
+}
+function dedupeClustersBySig(items){
+  const seen=new Set(), out=[];
+  for(const it of items){
+    const sig=clusterGuidanceSig(it); if(!sig||seen.has(sig)) continue;
+    seen.add(sig); out.push(it);
+  }
+  return out;
+}
 // Default keeper = newest by created_at (matches the daemon's default when `keep` is omitted).
 function defKeeper(a){
   if(Array.isArray(a.notes)&&a.notes.length){
@@ -4604,7 +4680,9 @@ async function renderGuidance(force){
   const sig=JSON.stringify(pending.concat(review).map(it=>it.id));
   if(!force&&sig===guidSig) return;   // queue unchanged — don't clobber in-progress typing/expansion
   guidSig=sig;
-  if(!pending.length){ box.classList.remove('show','has-pending'); box.innerHTML=''; const btn=document.getElementById('notifBtn'); if(btn) btn.classList.remove('show','has-pending'); return; }
+  const reviewFollowUps=review.filter(it=>it.action&&it.action.kind==='follow-up');
+  const reviewClusters=dedupeClustersBySig(review.filter(isCluster));
+  if(!pending.length&&!reviewFollowUps.length&&!reviewClusters.length){ box.classList.remove('show','has-pending'); box.innerHTML=''; const btn=document.getElementById('notifBtn'); if(btn) btn.classList.remove('show','has-pending'); return; }
   // One expandable member row per cluster note: radio keeper pick + label + lazy summary.
   const memberRow=(it,k,i)=>{
     const meta=(Array.isArray(it.action.notes)?it.action.notes:[]).find(n=>n.key===k)||{};
@@ -4630,6 +4708,11 @@ async function renderGuidance(force){
         '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'distinct\')">Distinct</button>'+
         copyBtn(it)+'<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
     }
+    if(it.action&&it.action.kind==='follow-up'){
+      return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'approve\')">Approve</button>'+
+        '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'reject\')">Reject</button>'+
+        copyBtn(it)+'<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
+    }
     if(it.action&&it.action.kind==='force_claim_cap'){
       return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'approved\')">Approve &amp; reset counter</button>'+
         '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
@@ -4648,6 +4731,8 @@ async function renderGuidance(force){
     '</div>';
   let html='<button class="appclose" style="float:right;margin:-2px -2px 6px 8px" onclick="closeGuidancePopup()">✕</button>';
   if(pending.length) html+='<span class="gtitle">⏸ Loop paused — waiting on you ('+pending.length+')</span>'+pending.map(gitem).join('');
+  if(reviewFollowUps.length) html+='<span class="gtitle" style="margin-top:10px">Follow-up review ('+reviewFollowUps.length+')</span>'+reviewFollowUps.map(gitem).join('');
+  if(reviewClusters.length) html+='<span class="gtitle" style="margin-top:10px">Dup clusters ('+reviewClusters.length+')</span>'+reviewClusters.map(gitem).join('');
   box.innerHTML=html;
   box.classList.add('has-pending');
   const btn=document.getElementById('notifBtn');
@@ -4656,7 +4741,7 @@ async function renderGuidance(force){
     btn.classList.add('has-pending','show');
   }
   // Auto-open only for blocking items (loop paused); review-only stays collapsed until clicked.
-  if(pending.length) box.classList.add('show');
+  if(pending.length||reviewFollowUps.length||reviewClusters.length) box.classList.add('show');
 }
 // POST a resolution. decision: 'consolidate'|'distinct' for dup-clusters (consolidate sends the
 // picked keeper, daemon defaults to newest if omitted); absent → send the answer box as { answer }.
@@ -4670,6 +4755,7 @@ async function resolveGuidance(id,decision){
     if(sel) body.keep=sel.value;
   }
   else if(decision==='distinct'){ body.decision='distinct'; }
+  else if(decision==='approve'||decision==='reject'){ body.decision=decision; }
   else { const inp=document.getElementById('ans-'+id); body.answer=(inp?inp.value:guidAns[id])||''; }
   delete guidErr[id];
   try{
@@ -4781,7 +4867,10 @@ function renderCloud(d){
   const W=svgEl.clientWidth||800, H=svgEl.clientHeight||600, cx=W/2, cy=H/2;
   const svg=d3.select(svgEl);
   const tasks=d.tasks||[];
+  const archivedList=d.archived_tasks||[];
+  const archivedCount=d.summary?.archived??archivedList.length;
   const byId=Object.fromEntries(tasks.map(t=>[t.id,t]));
+  for(const t of archivedList) byId[t.id]=t;
   const q=cloudSearchText.trim().toLowerCase();
   const matchSearch=n=>!q||n.archive||(n.t&&((n.t.label||'').toLowerCase().includes(q)||(n.t.description||'').toLowerCase().includes(q)));
 
@@ -4797,10 +4886,7 @@ function renderCloud(d){
   // degree + adjacency
   const deg={}, adj={}; tasks.forEach(t=>{ deg[t.id]=0; adj[t.id]=[]; });
   for(const l of linkSet){ deg[l.source]++; deg[l.target]++; adj[l.source].push(l.target); adj[l.target].push(l.source); }
-
-  // orphans = degree 0
   const orphans=tasks.filter(t=>deg[t.id]===0);
-  const orphanIds=new Set(orphans.map(t=>t.id));
 
   // relevance tiers: foreground = active + 1-hop; midground = rest of reachable component
   const active=new Set(tasks.filter(t=>t.status==='ready'||t.status==='in_progress').map(t=>t.id));
@@ -4814,14 +4900,15 @@ function renderCloud(d){
   const now=Date.now();
   const ageDays=t=>{ const ts=t.lastChanged||t.firstSeen; if(!ts) return null; const ms=now-Date.parse(ts); return isNaN(ms)?null:Math.max(0,ms/86400000); };
 
-  // assemble sim nodes (orphans hidden unless archive expanded)
+  // assemble sim nodes (server-archived collapsed into bundle; orphans stay inline at bg tier)
   const simNodes=[];
-  for(const t of tasks){
-    if(orphanIds.has(t.id) && !cloudArchiveOpen) continue;
+  for(const t of tasks)
     simNodes.push({ id:t.id, t, tier:tierOf(t.id), deg:deg[t.id], age:ageDays(t) });
-  }
-  if(orphans.length && !cloudArchiveOpen)
-    simNodes.push({ id:'__archive__', archive:true, count:orphans.length, tier:'bg', deg:0, age:null });
+  if(cloudArchiveOpen){
+    for(const t of archivedList)
+      simNodes.push({ id:t.id, t, tier:'bg', archived:true, deg:linkSet.filter(l=>l.source===t.id||l.target===t.id).length, age:ageDays(t) });
+  } else if(archivedCount>0)
+    simNodes.push({ id:'__archive__', archive:true, count:archivedCount, tier:'bg', deg:0, age:null });
   const present=new Set(simNodes.map(n=>n.id));
   const byNode=Object.fromEntries(simNodes.map(n=>[n.id,n]));
   const simLinks=linkSet.filter(l=>present.has(l.source)&&present.has(l.target));
@@ -4830,7 +4917,7 @@ function renderCloud(d){
   const radiusOf=n=>{ if(n.archive) return 16; let r=6+Math.min(12,n.deg*2); if(n.tier==='mid') r*=0.8; if(n.tier==='bg') r*=0.55; if(n.age!=null) r*=(1-0.5*(n.age/maxAge)); return Math.max(3,r); };
   const isInactive=n=>n.t&&(n.t.status==='done'||n.t.status==='canceled');
   const opacityOf=n=>{ if(q&&!matchSearch(n)) return 0.04; let o=n.tier==='fg'?1:n.tier==='mid'?0.55:0.25; if(n.age!=null) o*=(1-0.45*(n.age/maxAge)); if(isInactive(n)) o*=0.25; return Math.max(0.06,o); };
-  const colorOf=n=> n.archive?'#8b949e':(STATUS_COLOR[n.t.status]||'#6e7681');
+  const colorOf=n=>{ if(n.archive) return '#8b949e'; if(!n.t) return '#6e7681'; if(n.t.kind==='note') return STATUS_COLOR.note||'#d29922'; return taskDisplayStatus(n.t,byId).color; };
   const targetRadius=n=>{ let b=n.tier==='fg'?0.12:n.tier==='mid'?0.30:0.46; if(n.age!=null) b+=0.18*(n.age/maxAge); return Math.min(W,H)*Math.min(0.49,b); };
   const tierOfId=id=> byNode[id]?byNode[id].tier:'bg';
   const endId=e=> typeof e==='object'?e.id:e;
@@ -4859,6 +4946,7 @@ function renderCloud(d){
   nodeSel.exit().remove();
   const ndEnter=nodeSel.enter().append('g').attr('class','cn');
   ndEnter.append('circle');
+  ndEnter.append('title');
   ndEnter.append('text').attr('text-anchor','middle').attr('dy',n=>n.archive?'0.35em':'-0.9em');
   const nodeAll=ndEnter.merge(nodeSel);
   nodeAll.attr('transform', n=>`translate(${n.x},${n.y})`);
@@ -4868,6 +4956,8 @@ function renderCloud(d){
   const matchCount=q?simNodes.filter(n=>!n.archive&&matchSearch(n)).length:0;
   const countEl=document.getElementById('cloudMatchCount');
   if(countEl) countEl.textContent=q?(matchCount+' match'+(matchCount===1?'':'es')):'';
+  nodeAll.select('title')
+    .text(n=> n.archive?'Archived — stale done/canceled and superseded notes':'');
   nodeAll.select('text')
     .text(n=> n.archive?('🗄 '+n.count):((n.tier==='fg'||(q&&matchSearch(n)))?((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22)):''))
     .attr('fill-opacity', n=>(n.tier==='fg'||n.archive||(q&&matchSearch(n)))?0.9:0);
@@ -4880,7 +4970,7 @@ function renderCloud(d){
       .on('end',  (ev,n)=>{ if(!ev.active) cloudSim.alphaTarget(0); n.fx=null; n.fy=null; }));
 
   // only reheat the simulation when the node/link set actually changes
-  const sig=simNodes.map(n=>n.id).sort().join(',')+'|'+simLinks.map(l=>endId(l.source)+'>'+endId(l.target)).sort().join(',');
+  const sig=simNodes.map(n=>n.id).sort().join(',')+'|'+simLinks.map(l=>endId(l.source)+'>'+endId(l.target)).sort().join(',')+'|archOpen:'+cloudArchiveOpen+'|archIds:'+archivedList.map(t=>t.id).sort().join(',');
   if(cloudSim) cloudSim.stop();
   cloudSim=d3.forceSimulation(simNodes)
     .force('link', d3.forceLink(simLinks).id(n=>n.id).distance(70).strength(0.35))
@@ -4895,7 +4985,15 @@ function renderCloud(d){
   cloudSim.alpha(sig!==cloudSig?0.6:0).restart();   // fresh layout only on change; otherwise static
   cloudSig=sig;
   const statsElC = document.getElementById('flowstats');
-  if (statsElC) { statsElC.style.display = 'none'; statsElC.innerHTML = ''; }
+  if (statsElC) {
+    if (currentView === 'cloud' && orphans.length > 0) {
+      statsElC.style.display = 'flex';
+      statsElC.innerHTML = `<span class="hstat"><b>${orphans.length}</b> unwired — wire with suggest_links on create</span>`;
+    } else {
+      statsElC.style.display = 'none';
+      statsElC.innerHTML = '';
+    }
+  }
 }
 
 // ---- shared link model ------------------------------------------------------
@@ -5029,11 +5127,11 @@ function renderDagSubset(view, nodes, links, byId){
   const isFocus=t=>view==='focus'&&t.id===focusedId;   // focused node: halo + slightly larger
   na.attr('transform',t=>{ const n=g.node(t.id); return `translate(${n.x},${n.y})`+(isFocus(t)?' scale(1.12)':''); });
   na.select('.fbg').attr('fill','#161b22').attr('stroke',t=>isFocus(t)?'#e3b341':t.id===selected?'#58a6ff':'#30363d').attr('stroke-width',t=>isFocus(t)?2.5:t.id===selected?2:1);
-  na.select('.flbar').attr('fill',t=>STATUS_COLOR[t.status]||'#6e7681');
+  na.select('.flbar').attr('fill',t=>taskDisplayStatus(t,byId).color);
   na.select('.ftxt').attr('y',t=>nodeLines(t).length>1?-nodeH(t)/2+18:6).each(function(t){ const ls=nodeLines(t); d3.select(this).selectAll('tspan').data(ls).join('tspan').attr('x',-NW/2+12).attr('dy',(d,i)=>i===0?0:NH_EXTRA+'px').text(d=>d); });
   // Superseded notes (validTo set) read as dimmed history; current/active notes stay full-opacity.
   na.attr('opacity', t=>(t.kind==='note'&&t.validTo)?0.5:1);
-  na.select('.fst').attr('fill',t=>STATUS_COLOR[t.status]||'#8b949e').attr('y',t=>nodeLines(t).length>1?nodeH(t)/2-10:16).text(t=>(t.kind==='note'?(t.validTo?'superseded':(t.supersedes?'current ✓':'note')):t.status.replace('_',' '))+(t.agent_id?' ▶'+(t.agent_id.length>14?t.agent_id.slice(0,14)+'…':t.agent_id):''));
+  na.select('.fst').attr('fill',t=>taskDisplayStatus(t,byId).color).attr('y',t=>nodeLines(t).length>1?nodeH(t)/2-10:16).text(t=>taskStatusLine(t,byId));
   na.on('click',(ev,t)=>openDetail(t.id));
   na.classed('wip', t=>t.status==='in_progress');   // pulsing WIP halo
   na.classed('focused', isFocus);                   // steady amber halo on the focused node
@@ -5088,18 +5186,18 @@ function renderHistoryPopup(){
   const filtered=_historyFilter==='all'?_historyItems:_historyItems.filter(t=>t.status===_historyFilter);
   const total=filtered.length, pages=Math.ceil(total/HP);
   const page=_historyItems.filter(t=>_historyFilter==='all'||t.status===_historyFilter).slice(_historyPage*HP,(_historyPage+1)*HP);
+  const histById=lastState?Object.fromEntries((lastState.tasks||[]).map(x=>[x.id,x])):{};
   // filters
   const statuses=[...new Set(_historyItems.map(t=>t.status))];
   document.getElementById('hpfilters').innerHTML=
     `<button class="hpfilter${_historyFilter==='all'?' on':''}" onclick="setHpFilter('all')">All (${_historyItems.length})</button>`+
     statuses.map(s=>`<button class="hpfilter${_historyFilter===s?' on':''}" onclick="setHpFilter('${s}')">${statusLabel(s)} (${_historyItems.filter(t=>t.status===s).length})</button>`).join('');
   // rows
-  document.getElementById('hpscroll').innerHTML=page.map(t=>
-    `<div class="hprow" onclick="openDetail('${esc(t.id)}');closeHistory()">`+
-    `<span class="hdot" style="background:${STATUS_COLOR[t.status]||'#6e7681'}"></span>`+
+  document.getElementById('hpscroll').innerHTML=page.map(t=>{ const hds=taskDisplayStatus(t,histById); return `<div class="hprow" onclick="openDetail('${esc(t.id)}');closeHistory()">`+
+    `<span class="hdot" style="background:${hds.color}"></span>`+
     `<span class="hlbl">${esc(t.label)}</span>`+
-    `<span class="hst">${statusLabel(t.status)}</span>`+
-    `</div>`).join('');
+    `<span class="hst">${esc(hds.label)}</span>`+
+    `</div>`; }).join('');
   // footer
   document.getElementById('hpfoot').innerHTML=
     `<span>${total} items</span>`+

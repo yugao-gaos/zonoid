@@ -1,0 +1,14 @@
+{
+  "id": "ms4",
+  "subject": "P5-MS4: MCP client identity — drop ZONOID_HARNESS from daemon spawn",
+  "description": "ZONOID_HARNESS must not exist on the daemon process. MCP stdio (mcp-graph.js) is per-IDE: read ORCH_CLIENT or infer from spawn env set in each IDE MCP config (codex/cursor/claude). extraToolsForHarness becomes extraToolsForClient(client) — create_task, ScheduleWakeup only on clients that need them. Optionally expose universal create_task(harness, id, subject) so one tool serves all clients. Update adapters/codex/mcp.sample.json, packages/cli zonoid init --harness (installer-only, not daemon env), docs. Remove ZONOID_HARNESS references from daemon.js startup path. Acceptance: daemon boots with no harness env; Codex MCP still gets create_task via its own spawn config; default Claude MCP unchanged.",
+  "status": "completed",
+  "blockedBy": [
+    "local/ms1",
+    "local/g1"
+  ],
+  "created_by": {
+    "harness": "local",
+    "agent_id": "cursor-dispatcher"
+  }
+}

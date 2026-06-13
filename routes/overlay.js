@@ -147,6 +147,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const ns = NATIVE_STATUS[b.status];
     if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) snapshotNative(T.ov, b.key, ns);
     let followUpResults = null;
+    let bucketCleanup = null;
     if (b.status === 'done' && Array.isArray(b.follow_ups) && b.follow_ups.length) {
       followUpResults = followups.apply(T.ov, b.key, b.follow_ups);
       for (const r of followUpResults) {
@@ -166,6 +167,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     let staleHolds = null;
     if (b.status === 'done') {
+      bucketCleanup = followups.onBucketComplete(T.ov, b.key);
       T.save();
       const sh = verdicts.sweepStaleHolds(T.ov, b.key, buildGraph(T.ws));
       if (sh.released.length || sh.flagged.length) staleHolds = sh;
@@ -180,6 +182,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (followUpResults) statusResp.follow_ups = followUpResults;
     if (verdictResults) statusResp.verdicts = verdictResults;
     if (staleHolds) statusResp.stale_holds = staleHolds;
+    if (bucketCleanup) statusResp.bucket_cleanup = bucketCleanup;
     if (lintWarning) statusResp.warning = lintWarning;
     if (b.status === 'in_progress' && b.force) {
       const FORCE_CAP = 3;

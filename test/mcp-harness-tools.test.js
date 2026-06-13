@@ -8,7 +8,7 @@ const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
 const { TOOLS, handleRpc, makeCall, formatToolsList } = require('../lib/mcp-core');
-const { extraToolsForHarness } = require('../lib/mcp-harness-tools');
+const { extraToolsForClient } = require('../lib/mcp-harness-tools');
 const filedrop = require('../lib/filedrop-tasks');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-mcp-harness-')));
@@ -55,10 +55,10 @@ async function waitForPing(ms = 8000) {
   ok('default tools/list byte-identical to formatToolsList(TOOLS)', JSON.stringify(defaultList.result.tools) === baselinePayload);
   ok('default surface has no create_task', !defaultList.result.tools.some((t) => t.name === 'create_task'));
 
-  const codexExtra = extraToolsForHarness('codex', WS);
+  const codexExtra = extraToolsForClient('codex', WS);
   ok('codex extraTools has create_task + ScheduleWakeup', codexExtra.length === 2 && codexExtra[0].name === 'create_task' && codexExtra[1].name === 'ScheduleWakeup');
-  ok('claude extraTools empty', extraToolsForHarness('claude', WS).length === 0);
-  ok('cursor extraTools is ScheduleWakeup', extraToolsForHarness('cursor', WS, { session: 'test' }).length === 1 && extraToolsForHarness('cursor', WS, { session: 'test' })[0].name === 'ScheduleWakeup');
+  ok('claude extraTools empty', extraToolsForClient('claude', WS).length === 0);
+  ok('cursor extraTools is ScheduleWakeup', extraToolsForClient('cursor', WS, { session: 'test' }).length === 1 && extraToolsForClient('cursor', WS, { session: 'test' })[0].name === 'ScheduleWakeup');
 
   const codexList = await handleRpc({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, { call: () => ({}), extraTools: codexExtra });
   ok('codex tools/list adds create_task + ScheduleWakeup', codexList.result.tools.length === TOOLS.length + 2);
