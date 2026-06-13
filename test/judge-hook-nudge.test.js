@@ -11,6 +11,7 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { HEARTBEAT } = require('../lib/classify-assemble');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'classify.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'judge-hook-nudge-test-'));
@@ -35,7 +36,9 @@ function runHook(input, extraEnv) {
 
 const BASE_CTX = `[Model routing] Recommended: main=claude-sonnet-4-6, subagent=claude-opus-4-8 (fast) (complexity=0.2, gate=abstain)
 [Orch gate] Claim only the task matching the work at hand — NEVER force-claim a task to unlock edits for unrelated work; create a new task instead. Force-claims are capped at 3 per task; over cap requires user approval on the dashboard.
-[Orchestrator heartbeat] Call ScheduleWakeup(delaySeconds=7200, reason="idle heartbeat", prompt="<<autonomous-loop-dynamic>>") to keep this session alive for background work. On wakeup: check ready tasks + active loop via next_action. If BOTH are empty (nothing ready, no active loop) — do NOT reschedule. Let the loop end.`;
+${HEARTBEAT}`;
+
+ok('BASE_CTX heartbeat matches classify HEARTBEAT constant', BASE_CTX.includes(HEARTBEAT));
 
 const JUDGE_NUDGE = `[Judge] backlog: 35 items (3 dup-clusters) — dispatch ONE background self-learn-edge-judge subagent (model: sonnet — NOT haiku, verdict discrimination degrades; budget 20) this turn; do not block the user's request on it. The subagent MUST: (1) call mcp__orchestrator-graph__start_task with task_key="followup/harness-judge-drain" and agent_id="judge-drain-deadbeef" BEFORE judging; (2) call mcp__orchestrator-graph__complete_task with the same task_key and agent_id, and a summary including the count of items judged, AFTER finishing.`;
 

@@ -180,9 +180,71 @@ relay. Until then, adapters should treat `/classify` as the contract target and
 
 ---
 
+## Scheduler contract (`ScheduleWakeup`)
+
+Heartbeat and idle polling use a **single session-scoped wake** with cancel-then-arm semantics.
+All hookless harnesses share `lib/schedule-wakeup.js` and `adapters/common/schedule-wakeup.sh`;
+Claude Code uses the harness-native tool instead (no pidfile substrate, no duplicate MCP entry).
+
+See also [schedule-wakeup.md](./schedule-wakeup.md) for monitor workflow and fire-line format.
+
+### Parameters
+
+| Param | Type | Required | Meaning |
+|---|---|---|---|
+| `delaySeconds` | number | yes | Non-negative seconds until the wake fires. Floored to integer ≥ 0. |
+| `reason` | string | yes | Short audit label (e.g. `"idle heartbeat"`, `"watching active loop"`). |
+| `prompt` | string | yes | Text injected on wake — typically `"<<autonomous-loop-dynamic>>"` for heartbeat ticks. |
+
+### Cancel + arm semantics
+
+1. **Cancel first:** any call cancels the prior wake for the same session (SIGTERM on pid in
+   `$ORCH_DATA/wake/<session-slug>.pid`; pidfile removed).
+2. **Arm next:** a detached sleeper waits `delaySeconds`, then appends one line to
+   `$ORCH_DATA/wake/<session-slug>.fire`:
+   ```
+   ORCH_SCHEDULED_TASK {"delaySeconds":N,"reason":"...","prompt":"..."}
+   ```
+3. **Re-arm replaces:** a second call with the same session never stacks timers — the old pid
+   is killed before the new one is written.
+4. **No session, no arm:** adapter `writeScheduledTask` without a live session writes a deferred
+   `NOTE.md` under `$ORCH_DATA/scheduled-tasks/<id>/`; arm later via `ScheduleWakeup` when the
+   session is bound.
+
+Hookless MCP and plugin tools return `{ command, notify_pattern }` so the harness can monitor the
+`.fire` file (`notify_pattern`: `^ORCH_SCHEDULED_TASK`; `command`: `tail -n0 -F <fire path>`).
+
+### Per-harness exposure
+
+| Harness | Tool surface | Session source | Substrate |
+|---|---|---|---|
+| **Claude Code** | Native `ScheduleWakeup` (built-in) | Harness session | Native — `lib/adapters/claude.js` returns `{ method: 'native' }`; **not** on default orchestrator MCP |
+| **Cursor** | MCP `ScheduleWakeup` (harness-scoped extra tool) | `ORCH_SESSION` from hook context | `lib/schedule-wakeup.js` via `lib/mcp-harness-tools.js` |
+| **Codex** | MCP `ScheduleWakeup` (+ harness-scoped `create_task`) | `ORCH_SESSION` from hook context | Same substrate as Cursor |
+| **OpenCode** | Plugin tool `schedule_wakeup` | Plugin session id | Same substrate via `packages/opencode-plugin/lib/schedule-wakeup.js` |
+| **Default MCP** (`mcp-graph.js`, no `ZONOID_HARNESS`) | **Not exposed** | — | Agents use harness-specific MCP config or Claude native |
+
+Classify injection (`POST /classify` → `additional_context`) always includes the heartbeat nudge
+referencing `ScheduleWakeup(delaySeconds=7200, …)` regardless of harness; only the **invocation
+path** differs per row above.
+
+### Adapter scheduler API (hookless)
+
+`lib/adapters/scheduler-substrate.js` (wired into cursor, codex, stub):
+
+| Method | Behavior |
+|---|---|
+| `armWakeup({ session, delaySeconds, reason, prompt })` | Cancel prior wake → arm sleeper → return `{ ok, pid, delaySeconds }`. |
+| `cancelWakeup({ session })` | Kill pid, remove pidfile → `{ ok, canceled }`. |
+| `writeScheduledTask({ id, title, prompt, taskKey, when, fireAt, cwd, session?, orchDir? })` | Write deferred note; if `session` + `fireAt` present, also `armWakeup` with computed delay. |
+
+---
+
 ## Related docs
 
 - [multi-harness-plan.md](./multi-harness-plan.md) — phases, namespaces, enforcement model
+- [schedule-wakeup.md](./schedule-wakeup.md) — wake monitor workflow, fire line, init shims
 - Graph note `note-mqbk7fr1oih` — harness hook capability matrix (Cursor / Codex / OpenCode)
 - `lib/filedrop-tasks.js` — stub reader, folder layout, watch behavior
+- `lib/schedule-wakeup.js` — shared cancel/arm substrate
 - `hooks/` — Claude reference adapter scripts
