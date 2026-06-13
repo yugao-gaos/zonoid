@@ -31,7 +31,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/overlay/status' && m === 'POST') {
-    const { ALL_STATUSES, followups, verdicts, agentsArr, saveAgents } = ctx;
+    const { ALL_STATUSES, followups, verdicts, agentsArr, saveAgents, git } = ctx;
     const b = await readBody(req);
     if (ctx.opReplay(res, b)) return true;
     const T = targetOverlay(b, u);
@@ -89,6 +89,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (b.status === 'in_progress' && T.ov.unwired && T.ov.unwired[b.key]) {
       send(res, 409, { ok: false, error: 'task is unwired — if you are a worker agent, call request_guidance to escalate to your dispatcher (do NOT mark_root just to unblock yourself); if you created this task, wire it with add_dependency (blocking/context), or mark_root only if it is genuinely a standalone root' }); return true;
+    }
+    if (b.status === 'in_progress' && T.ov.metrics && T.ov.metrics[b.key]) {
+      const branch = git.currentBranch(T.ws);
+      if (!branch || !branch.startsWith('orch/attempt/')) {
+        send(res, 409, { ok: false, error: 'self-learning mode: task has a metric spec — call branch_task first before editing' }); return true;
+      }
     }
     if (b.status === 'canceled') T.ov.cancel_requested[b.key] = now();
     else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
