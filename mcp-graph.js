@@ -18,7 +18,8 @@ const DAEMON = path.join(__dirname, 'daemon.js');
 // global state.workspace (the workspace-gremlin fix).
 const WS = process.env.ORCH_WORKSPACE || (() => { try { return require('fs').readFileSync(require('path').join(process.env.CLAUDE_PLUGIN_DATA || require('path').join(require('os').homedir(),'.claude','orchestrator'), 'workspace'), 'utf8').trim() || null; } catch {} return null; })() || process.cwd();
 const CALL = core.makeCall(PORT, WS);
-const HARNESS_EXTRA = extraToolsForHarness(HARNESS, WS);
+const SESSION = process.env.ORCH_SESSION || process.env.ZONOID_SESSION || null;
+const HARNESS_EXTRA = extraToolsForHarness(HARNESS, WS, { session: SESSION });
 
 // ---- boot the daemon if it isn't up (hookless environments) ----
 function ping() {
@@ -42,7 +43,7 @@ async function ensureDaemon() {
 function write(msg) { process.stdout.write(JSON.stringify(msg) + '\n'); }
 async function handle(msg) {
   if (msg.method === 'tools/call') await ensureDaemon();   // self-heal before any tool runs
-  const resp = await core.handleRpc(msg, { call: CALL, uiHtml: core.uiHtml, extraTools: HARNESS_EXTRA });
+  const resp = await core.handleRpc(msg, { call: CALL, uiHtml: core.uiHtml, extraTools: HARNESS_EXTRA, session: SESSION });
   if (resp !== undefined) write(resp);
 }
 
