@@ -9,3 +9,4 @@
 {"evt":"edge_added","from":"note:note-mq8wyx1ricg","to":"c06c364d-9617-4ea9-9660-3d1545b238e3/1","kind":"context","actor":"overlay-sync","ts":"2026-06-12T17:55:04.781Z","weight":0.267}
 {"evt":"note_superseded","id":"note-mq8wyx1ricg","supersededBy":"note-mqb10bq78bw","validTo":"2026-06-12T14:32:53.599Z","ts":"2026-06-12T14:32:53.599Z","actor":"supersede"}
 {"evt":"edge_added","from":"note:note-mq8wyx1ricg","to":"cursor/h2-demo","kind":"context","actor":"overlay-sync","ts":"2026-06-13T02:47:42.768Z","weight":0.316}
+{"evt":"edge_added","from":"note:note-mq8wyx1ricg","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-13T13:32:16.967Z","weight":0.289}

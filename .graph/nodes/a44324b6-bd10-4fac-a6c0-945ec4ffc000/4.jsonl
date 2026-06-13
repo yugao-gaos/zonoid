@@ -1,1 +1,2 @@
 {"evt":"timestamps_set","id":"a44324b6-bd10-4fac-a6c0-945ec4ffc000/4","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T20:20:34.891Z","lastChanged":"2026-06-12T20:20:34.891Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-12T20:20:35.820Z"}
+{"evt":"edge_added","from":"a44324b6-bd10-4fac-a6c0-945ec4ffc000/4","to":"local/ms3","kind":"context","actor":"overlay-sync","ts":"2026-06-13T11:35:39.834Z"}

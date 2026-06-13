@@ -3,3 +3,4 @@
 {"evt":"edge_added","from":"688a3742-0944-4215-8815-733d85936f12/18","to":"followup/restart-daemon-to-activate-harness-overh-fmvh","kind":"context","actor":"overlay-sync","ts":"2026-06-12T03:30:26.387Z","weight":0.272}
 {"evt":"edge_added","from":"688a3742-0944-4215-8815-733d85936f12/18","to":"followup/restart-daemon-to-activate-claim-session-bh6z","kind":"context","actor":"overlay-sync","ts":"2026-06-12T18:34:19.056Z","weight":0.272}
 {"evt":"edge_added","from":"688a3742-0944-4215-8815-733d85936f12/18","to":"local/a4","kind":"context","actor":"overlay-sync","ts":"2026-06-13T01:42:06.535Z","weight":0.252}
+{"evt":"edge_added","from":"688a3742-0944-4215-8815-733d85936f12/18","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-13T13:32:16.967Z","weight":0.272}

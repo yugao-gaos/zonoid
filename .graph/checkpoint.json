@@ -92014,6 +92014,722 @@
       "measurements": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "ctx-weight-a": {
+      "id": "ctx-weight-a",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "/task/context exposes context dep weight (default 0.5), sorts context deps weight-desc after blocking; mcp get_dependency_summaries doc updated; task-context.test.js fixed — 10/10 pass.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "ctx-weight-a",
+      "timestamps": {
+        "firstSeen": "2026-06-13T11:18:36.360Z",
+        "lastChanged": "2026-06-13T11:18:36.360Z",
+        "lastStatus": "in_progress"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "inline": {
+      "id": "inline",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Option A: /task/context adds weight to context deps from t.context_weights (default DEFAULT_CONTEXT_WEIGHT), sorts context deps weight-desc with blocking deps first (no weight). Updated get_dependency_summaries MCP description. Fixed test/task-context.test.js spawn import. test/task-context.test.js 10/10 pass. Daemon restart needed for live :8787.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "ctx-weight-impl",
+      "timestamps": {
+        "firstSeen": "2026-06-12T19:55:10.529Z",
+        "lastChanged": "2026-06-12T19:55:10.529Z",
+        "lastStatus": "in_progress"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "cursor/h2-demo": {
+      "id": "cursor/h2-demo",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Minted local/arch-cloud and local/arch-orphan; wired archive task DAG + decision note",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "mint-arch-tasks",
+      "timestamps": {
+        "firstSeen": "2026-06-13T02:47:42.747Z",
+        "lastChanged": "2026-06-13T02:47:42.747Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/arch-cloud": {
+      "id": "local/arch-cloud",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Force Cloud renderCloud now uses summary.archived + archived_tasks for the archive bundle (not degree-0 orphans). Orphans render inline at bg tier. cloudArchiveOpen expands real archived tasks; collapsed shows __archive__ with count + tooltip. cloudSig includes archOpen and archIds.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-arch-cloud",
+      "timestamps": {
+        "firstSeen": "2026-06-13T11:10:48.332Z",
+        "lastChanged": "2026-06-13T11:10:48.332Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/arch-orphan": {
+      "id": "local/arch-orphan",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "renderCloud detects degree-0 orphans and shows flowstats hint in Force Cloud (N unwired — wire with suggest_links on create). Moved #flowstats to .left sibling so bar is visible in cloud view. JS parses.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-arch-orphan",
+      "timestamps": {
+        "firstSeen": "2026-06-13T11:10:48.332Z",
+        "lastChanged": "2026-06-13T11:10:48.332Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/arch-srv": {
+      "id": "local/arch-srv",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Added archived_tasks slim list to GET /state (default + scope=frontier) via frontier.archivedTaskList; cache key bumped |arch1. Tests: node test/frontier.test.js — 45 passed, 0 failed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-arch-srv",
+      "timestamps": {
+        "firstSeen": "2026-06-13T11:10:10.795Z",
+        "lastChanged": "2026-06-13T11:10:10.795Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/c3": {
+      "id": "local/c3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": null,
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-c3",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/d1": {
+      "id": "local/d1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "P5-D1: usage/transcripts adapter contract + self-reported fallback; 24 focused tests; suite green.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-d1",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/d2": {
+      "id": "local/d2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "P5-D2: Cursor transcript reader — ~/.cursor/projects/<encoded>/agent-transcripts/<id>/<id>.jsonl; lib/cursor-transcripts.js + lib/adapters/cursor.js; ZONOID_HARNESS=cursor; analytics via listSessionTranscripts; 19 tests; commit 7134d08 merged.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-d2",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/h1": {
+      "id": "local/h1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Cursor gate bridge: adapters/cursor/ thin relays (write/shell gate, cooperative stop, sessionStart, subagent lifecycle), hooks.json.sample, settings.sample.json, README, normalizer tests. Commit 35c9652 merged fa5d358.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-h1",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/h2": {
+      "id": "local/h2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Cursor postToolUse todo minting: adapters/cursor/post-todo-adopt.sh writes cursor/<id>.json stubs (blockedBy []), POST /sync, quarantine nudge; .cursor/hooks.json wires TodoWrite|todo_write; scratch/cursor-hook-capture.sh documents live payload capture. Commit 7270d5e merged to main (854c1ba).",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-h2",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/h3": {
+      "id": "local/h3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "P6-H3: Cursor e2e integration — test/cursor-e2e-integration.test.js (26 tests) + docs/cursor-e2e.md; sessionStart→/workspace, gate deny, post-todo-adopt mint, costflow+cursor harness; fixed lib/adapters/cursor.js aggregateWorkspace; commit acb048b merged.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-h3",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/hb1": {
+      "id": "local/hb1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "ScheduleWakeup substrate: adapters/common/schedule-wakeup.sh (cancel|arm + pidfiles), lib/schedule-wakeup.js helpers, harness scheduler contract extended, Claude native delegation, test/schedule-wakeup.test.js (14 cases). Bootstrapped hb2-hb6 stubs.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-hb1",
+      "timestamps": {
+        "firstSeen": "2026-06-13T10:51:37.500Z",
+        "lastChanged": "2026-06-13T10:51:37.500Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/hb2": {
+      "id": "local/hb2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "ScheduleWakeup MCP tool for cursor+codex: mcp-harness-tools ScheduleWakeup (cancelWakeup+armWakeup, .fire tail command, notify_pattern), ORCH_SESSION in mcp-graph, fireFile in lib/schedule-wakeup.js, tests in mcp-schedule-wakeup.test.js + harness tools test updates. 87/87 green.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-hb2",
+      "timestamps": {
+        "firstSeen": "2026-06-13T10:55:02.741Z",
+        "lastChanged": "2026-06-13T10:55:02.741Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/hb3": {
+      "id": "local/hb3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "OpenCode schedule_wakeup tool: arms via lib/schedule-wakeup.js (delaySeconds/reason/prompt), returns command+notify_pattern ORCH_SCHEDULED_TASK. README updated, test/opencode-schedule-wakeup.test.js, 88/88 green.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-hb3",
+      "timestamps": {
+        "firstSeen": "2026-06-13T10:55:02.741Z",
+        "lastChanged": "2026-06-13T10:55:02.741Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/hb4": {
+      "id": "local/hb4",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Hookless scheduler substrate: lib/adapters/scheduler-substrate.js delegates armWakeup/cancelWakeup to lib/schedule-wakeup.js; writeScheduledTask writes ORCH_DATA/scheduled-tasks NOTE.md (deferred) or arms when session provided. Wired into cursor/stub; added codex adapter + harness registration. Claude native delegation unchanged. test/cursor-adapter-scheduler.test.js (15 cases); full suite 88/88 green. Commit 65910ff.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-hb4",
+      "timestamps": {
+        "firstSeen": "2026-06-13T10:55:02.741Z",
+        "lastChanged": "2026-06-13T10:55:02.741Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/hb5": {
+      "id": "local/hb5",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "init --harness installs ScheduleWakeup shims: chmod adapters/common/schedule-wakeup.sh for cursor/codex/opencode, verify OpenCode schedule_wakeup symlink, next-steps docs for MCP ScheduleWakeup + ORCH_SCHEDULED_TASK monitor, README + cli-init tests. 89/89 green.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-hb5",
+      "timestamps": {
+        "firstSeen": "2026-06-13T10:55:02.741Z",
+        "lastChanged": "2026-06-13T10:55:02.741Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/hb6": {
+      "id": "local/hb6",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "ScheduleWakeup contract docs in adapter-contract.md + schedule-wakeup.md; judge-hook HEARTBEAT pinned to classify-assemble; schedule-wakeup-contract.test.js cross-harness smoke. 90/90 green. Commit cc4a7a5.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-hb6",
+      "timestamps": {
+        "firstSeen": "2026-06-13T10:55:02.741Z",
+        "lastChanged": "2026-06-13T10:55:02.741Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/i1": {
+      "id": "local/i1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Codex adapter bundle: adapters/codex hooks (PreToolUse permissionDecision deny relays), hooks.json.sample, config.toml.sample, README, init --harness codex. 79/79 tests green. Commit 13e39c7.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-i1",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/j1": {
+      "id": "local/j1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "init --harness claude|cursor|codex|opencode: cursor merges .cursor/hooks.json (H1+H2 post-todo-adopt); opencode symlinks packages/opencode-plugin + .opencode/package.json; codex/claude unchanged. README + test/cli-init.test.js with parseInitArgs/mergeCursorHooks. 85/85 green. Commit 3b95b44 merged 90d9063.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-j1",
+      "timestamps": {
+        "firstSeen": "2026-06-13T01:42:06.329Z",
+        "lastChanged": "2026-06-13T01:42:06.329Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/j2": {
+      "id": "local/j2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Added PreToolUse Bash matcher to hooks/hooks.json pointing at shared hooks/orch-gate-bash.sh (parity with codex adapter sample). No adapter duplication. Docs unchanged: CLAUDE.md already documents bash gate; adapter-contract table is stale but optional one-line add deferred.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-j2-bash-plugin",
+      "timestamps": {
+        "firstSeen": "2026-06-13T11:14:53.234Z",
+        "lastChanged": "2026-06-13T11:14:53.234Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/j3": {
+      "id": "local/j3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": null,
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-j3-bash-patterns",
+      "timestamps": {
+        "firstSeen": "2026-06-13T11:14:54.326Z",
+        "lastChanged": "2026-06-13T11:14:54.326Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/ms1": {
+      "id": "local/ms1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "lib/harness.js is a registry (all/get/route); daemon unions claudeHarness + filedrop, routes read/write by key prefix, dual watch; analytics costflow scans all adapters; suite 92/92 green.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-ms1-registry-2",
+      "timestamps": {
+        "firstSeen": "2026-06-13T11:35:14.366Z",
+        "lastChanged": "2026-06-13T11:35:14.366Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/ms2": {
+      "id": "local/ms2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Replaced state.mainTranscript singleton with state.sessions[sessionId] map. POST /workspace and POST /agent/start bind transcript per session; taskTranscript resolves via agent.transcript_path then sessions map. /health and /ping expose sessions count. Added lib/session-bindings.js + test/session-bindings.test.js; updated start-daemon.sh to send session_id. All 92/93 suites pass (filedrop flake).",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-ms2-sessions",
+      "timestamps": {
+        "firstSeen": "2026-06-13T11:35:24.701Z",
+        "lastChanged": "2026-06-13T11:35:24.701Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/ms3": {
+      "id": "local/ms3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "MS3: event-only usage on /agent/done; adapter usage API (sample/normalizeReported/reconcile/onSessionStart); POST /usage/reconcile stale-at gate; /costflow reads usage_records + reconcile snapshot only; readUsage moved to usage-accounting; sessionStart reconcile + daily scheduler arm.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-ms3-usage",
+      "timestamps": {
+        "firstSeen": "2026-06-13T11:35:24.701Z",
+        "lastChanged": "2026-06-13T11:35:24.701Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/ms4": {
+      "id": "local/ms4",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "MS4: MCP client identity via ORCH_CLIENT on stdio spawn only. extraToolsForHarness→extraToolsForClient; mcp-graph.js reads ORCH_CLIENT (default claude), strips ORCH_CLIENT/ZONOID_HARNESS from daemon spawn env; codex sample + zonoid init set ORCH_CLIENT on MCP config; default Claude MCP surface unchanged. Tests: mcp-schedule-wakeup + schedule-wakeup-contract + cli-init green; mcp-harness-tools daemon integration blocked by pre-existing daemon bindSession ReferenceError (MS2).",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-ms4-orch-client",
+      "timestamps": {
+        "firstSeen": "2026-06-13T11:35:24.701Z",
+        "lastChanged": "2026-06-13T11:35:24.701Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "followup/restart-daemon-to-activate-claim-session-bh6z": {
+      "id": "followup/restart-daemon-to-activate-claim-session-bh6z",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Restart daemon to activate claim-session endpoint",
+        "description": "The orchestrator daemon at /Users/imyu/Desktop/zonoid needs a restart to pick up changes to routes/overlay.js (new /overlay/claim-session endpoint) and routes/session.js (cross-session claim lookup). Run: cd /Users/imyu/Desktop/zonoid && npm start or whatever the daemon start command is (check package.json). The daemon process may be running on port 8787.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "follow_up_of": "1",
+          "created_by": "daemon"
+        },
+        "snapshotted_at": "2026-06-12T18:34:19.005Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-12T18:34:19.046Z",
+        "lastChanged": "2026-06-12T18:34:19.046Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "followup/restart-daemon-to-activate-judge-drain-c-nvbb": {
+      "id": "followup/restart-daemon-to-activate-judge-drain-c-nvbb",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Restart daemon to activate judge drain changes",
+        "description": "The daemon at http://localhost:8787 needs a restart to pick up: (1) dup-cluster-first queue ordering in lib/judge.js, (2) budgetPerRun default 20 in routes/judge.js, (3) the new GET /judge/pressure endpoint. The hook change (hooks/classify.sh) is already live. Restart the daemon process (kill + re-run node daemon.js with the same env), verify GET http://localhost:8787/judge/pressure returns {depth,dupClusters,nudge}.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "follow_up_of": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/11",
+          "created_by": "daemon"
+        },
+        "snapshotted_at": "2026-06-12T12:21:27.051Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-12T12:21:27.084Z",
+        "lastChanged": "2026-06-12T12:21:27.084Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "followup/restart-daemon-to-activate-note-dup-guar-i3j2": {
+      "id": "followup/restart-daemon-to-activate-note-dup-guar-i3j2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Restart daemon to activate note dup guard",
+        "description": "The note dup guard (DUP_THRESHOLD=0.55 cosine on title vecs) was merged into routes/overlay.js. Restart the daemon at /Users/imyu/Desktop/zonoid to activate it. Run: cd /Users/imyu/Desktop/zonoid && node daemon.js (or use the existing restart script/hook). Verify with: curl -X POST http://localhost:8787/overlay/note -H 'Content-Type: application/json' -d '{\"title\":\"test dup\",\"summary\":\"test\"}' then POST the same title again — second call should return {ok:false,duplicate:true}.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "follow_up_of": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/9",
+          "created_by": "daemon"
+        },
+        "snapshotted_at": "2026-06-12T11:45:21.764Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-12T11:45:21.798Z",
+        "lastChanged": "2026-06-12T11:45:21.798Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "followup/restart-daemon-to-activate-t-assignee-fi-vcs3": {
+      "id": "followup/restart-daemon-to-activate-t-assignee-fi-vcs3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Restart daemon to activate t.assignee fix in active-claim",
+        "description": "Restart the orchestrator daemon at ~/.claude/orchestrator to pick up the fix in orch/attempt/fix-active-claim-35 (routes/session.js: t.agent_id → t.assignee in /active-claim handler). Merge the branch first: cd ~/.claude/orchestrator && git merge orch/attempt/fix-active-claim-35 && npm run restart (or however the daemon is restarted). Verify: GET http://localhost:8787/active-claim?session=<some-session> returns non-empty claims for an in-progress subagent session.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "follow_up_of": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/35",
+          "created_by": "daemon"
+        },
+        "snapshotted_at": "2026-06-12T17:41:50.776Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-12T17:41:50.815Z",
+        "lastChanged": "2026-06-12T17:41:50.815Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/h4": {
+      "id": "local/h4",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Created adapters/cursor/classify.sh (Cursor beforeSubmitPrompt relay → hooks/classify.sh with conversation_id/prompt normalization and beforeSubmitPrompt event remap). Updated hooks/classify.sh session extraction for conversation_id. Added test/cursor-classify-relay.test.js — 9 passed, 0 failed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-h4-classify",
+      "timestamps": {
+        "firstSeen": "2026-06-13T12:38:51.735Z",
+        "lastChanged": "2026-06-13T12:38:51.735Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "local/h6": {
+      "id": "local/h6",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Extended cursor-e2e-integration.test.js with beforeSubmitPrompt→classify.sh wiring assertion and sandbox-daemon classify integration (34 pass). Updated docs/cursor-e2e.md and adapters/cursor/README.md with H4 classify + standing ready-queue coverage. cursor-classify-relay.test.js: 9 pass.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": null,
+      "assignee": "worker-h6-e2e",
+      "timestamps": {
+        "firstSeen": "2026-06-13T12:40:14.248Z",
+        "lastChanged": "2026-06-13T12:40:14.248Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -102249,7 +102965,523 @@
       "to": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/2",
       "kind": "context",
       "weight": 0.5
+    },
+    {
+      "from": "note:note-mq75a823",
+      "to": "local/ms2",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mq82gup00pk",
+      "to": "cursor/h2-demo",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "note:note-mq82gupsmsq",
+      "to": "cursor/h2-demo",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "note:note-mq8wyx1ricg",
+      "to": "cursor/h2-demo",
+      "kind": "context",
+      "weight": 0.316
+    },
+    {
+      "from": "note:note-mqc98caoak1",
+      "to": "local/arch-srv",
+      "kind": "context",
+      "weight": 1
+    },
+    {
+      "from": "0b0c92cd-a0b8-474d-ab56-93fda4e99a2a/1",
+      "to": "local/ms2",
+      "kind": "context"
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/19",
+      "to": "local/ms4",
+      "kind": "context",
+      "weight": 0.272
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/22",
+      "to": "local/hb1",
+      "kind": "context",
+      "weight": 0.316
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/32",
+      "to": "local/j3",
+      "kind": "context",
+      "weight": 0.333
+    },
+    {
+      "from": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/4",
+      "to": "local/ms3",
+      "kind": "context"
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/1",
+      "to": "local/j2",
+      "kind": "context",
+      "weight": 0.378
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/1",
+      "to": "local/j3",
+      "kind": "context",
+      "weight": 0.504
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/10",
+      "to": "local/arch-cloud",
+      "kind": "context",
+      "weight": 0.338
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/10",
+      "to": "local/arch-orphan",
+      "kind": "context",
+      "weight": 0.316
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32",
+      "to": "local/j3",
+      "kind": "context",
+      "weight": 0.8
+    },
+    {
+      "from": "e0c18996-aabe-40bb-ab1c-24e7daaa6ccb/2",
+      "to": "local/arch-srv",
+      "kind": "context"
+    },
+    {
+      "from": "e0c18996-aabe-40bb-ab1c-24e7daaa6ccb/2",
+      "to": "local/arch-cloud",
+      "kind": "context"
+    },
+    {
+      "from": "ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1",
+      "to": "local/arch-cloud",
+      "kind": "context",
+      "weight": 0.309
+    },
+    {
+      "from": "ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1",
+      "to": "local/arch-orphan",
+      "kind": "context",
+      "weight": 0.289
+    },
+    {
+      "from": "f474658d-8984-41b9-87b7-fa5ddad0d50a/1",
+      "to": "local/j3",
+      "kind": "context",
+      "weight": 0.272
+    },
+    {
+      "from": "local/a1",
+      "to": "local/ms1",
+      "kind": "context"
+    },
+    {
+      "from": "local/arch-srv",
+      "to": "local/arch-cloud",
+      "kind": "context"
+    },
+    {
+      "from": "local/c2",
+      "to": "local/ms1",
+      "kind": "context"
+    },
+    {
+      "from": "local/c2",
+      "to": "local/ms4",
+      "kind": "context"
+    },
+    {
+      "from": "local/d1",
+      "to": "local/hb6",
+      "kind": "context",
+      "weight": 0.327
+    },
+    {
+      "from": "local/d1",
+      "to": "local/ms3",
+      "kind": "context"
+    },
+    {
+      "from": "local/d2",
+      "to": "local/ms1",
+      "kind": "context"
+    },
+    {
+      "from": "local/d2",
+      "to": "local/ms3",
+      "kind": "context"
+    },
+    {
+      "from": "local/g1",
+      "to": "local/hb2",
+      "kind": "context",
+      "weight": 0.263
+    },
+    {
+      "from": "local/g1",
+      "to": "local/ms4",
+      "kind": "context"
+    },
+    {
+      "from": "local/h1",
+      "to": "local/j2",
+      "kind": "context",
+      "weight": 0.34
+    },
+    {
+      "from": "local/i1",
+      "to": "local/j2",
+      "kind": "context",
+      "weight": 0.6
+    },
+    {
+      "from": "local/i2",
+      "to": "local/hb3",
+      "kind": "context",
+      "weight": 0.298
+    },
+    {
+      "from": "local/j2",
+      "to": "local/j3",
+      "kind": "context",
+      "weight": 0.5
+    },
+    {
+      "from": "1",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "19",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "note:note-mq7xn8nrx8q",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.7
+    },
+    {
+      "from": "note:note-mq82epte8jb",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.365
+    },
+    {
+      "from": "note:note-mq82epu64dp",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.365
+    },
+    {
+      "from": "note:note-mq85codzzzj",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.277
+    },
+    {
+      "from": "note:note-mq8cw5z5eto",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.9
+    },
+    {
+      "from": "note:note-mq8wyx1ricg",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.289
+    },
+    {
+      "from": "note:note-mqa6xmc54yw",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.297
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.316
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/3",
+      "to": "local/h5",
+      "kind": "context",
+      "weight": 0.267
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/33",
+      "to": "local/h5",
+      "kind": "context",
+      "weight": 0.338
+    },
+    {
+      "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/35",
+      "to": "local/h5",
+      "kind": "context",
+      "weight": 0.286
+    },
+    {
+      "from": "33ee4ea5-817e-4fed-a02d-a53a4a8a3dfd/1",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "3d162358-6b12-4ef0-a3aa-d25387103e92/1",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "3d162358-6b12-4ef0-a3aa-d25387103e92/2",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/1",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.314
+    },
+    {
+      "from": "688a3742-0944-4215-8815-733d85936f12/18",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.272
+    },
+    {
+      "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/10",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.408
+    },
+    {
+      "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/6",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.408
+    },
+    {
+      "from": "76f15d22-0773-4e49-8b80-31c7b106ff67/2",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.275
+    },
+    {
+      "from": "76f15d22-0773-4e49-8b80-31c7b106ff67/3",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "85bf8942-2334-4e28-9954-6d3c7726bb4c/1",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "90b13b65-412a-47ca-8973-82f04d911840/1",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.289
+    },
+    {
+      "from": "94a457f3-88a7-42ab-b18e-3a4fa31a38af/4",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.255
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/11",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/16",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.283
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/30",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/35",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/6",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "b91aecfd-10c5-4538-9daf-212b4d7ab1c8/4",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "c0bd3682-e50c-41f2-b061-4a6d9fbf243a/13",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/11",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/13",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.283
+    },
+    {
+      "from": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/3",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/9",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "df63dcd1-69b2-48ae-926b-1f360ad2fc0c/6",
+      "to": "local/h4",
+      "kind": "context"
+    },
+    {
+      "from": "df63dcd1-69b2-48ae-926b-1f360ad2fc0c/8",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.331
+    },
+    {
+      "from": "df63dcd1-69b2-48ae-926b-1f360ad2fc0c/9",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.265
+    },
+    {
+      "from": "eb25339f-1c71-4fc9-a316-ea83fb6a25d3/5",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "f9e0d871-9503-4d04-ab63-dbd2e66b4fe1/1",
+      "to": "local/h5",
+      "kind": "context",
+      "weight": 0.309
+    },
+    {
+      "from": "followup/apply-gated-dag-patch-to-daemon-js-searc-dav2",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context"
+    },
+    {
+      "from": "followup/restart-daemon-to-activate-session-info--xzib",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.833
+    },
+    {
+      "from": "followup/restart-daemon-to-apply-tasktranscript-f-cpod",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.365
+    },
+    {
+      "from": "followup/restart-daemon-to-load-wires-to-changes-1b05",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.365
+    },
+    {
+      "from": "followup/restart-orchestrator-daemon-to-pick-up-v-6x5p",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0.3
+    },
+    {
+      "from": "local/c1",
+      "to": "local/h4",
+      "kind": "context"
+    },
+    {
+      "from": "local/c3",
+      "to": "local/h4",
+      "kind": "context",
+      "weight": 0.338
+    },
+    {
+      "from": "local/e1",
+      "to": "local/h4",
+      "kind": "context"
+    },
+    {
+      "from": "local/h1",
+      "to": "local/h4",
+      "kind": "context"
+    },
+    {
+      "from": "local/h3",
+      "to": "local/h6",
+      "kind": "context",
+      "weight": 0.344
+    },
+    {
+      "from": "local/h3",
+      "to": "local/h4",
+      "kind": "context"
+    },
+    {
+      "from": "local/h4",
+      "to": "local/h5",
+      "kind": "blocking"
+    },
+    {
+      "from": "local/h4",
+      "to": "local/h6",
+      "kind": "blocking"
+    },
+    {
+      "from": "local/h5",
+      "to": "local/h6",
+      "kind": "blocking"
+    },
+    {
+      "from": "local/hb5",
+      "to": "local/h6",
+      "kind": "context",
+      "weight": 0.258
+    },
+    {
+      "from": "local/hb6",
+      "to": "local/h6",
+      "kind": "context",
+      "weight": 0.293
+    },
+    {
+      "from": "local/j1",
+      "to": "local/h5",
+      "kind": "context",
+      "weight": 0.276
     }
   ],
-  "compacted_at": "2026-06-13T02:43:01.526Z"
+  "compacted_at": "2026-06-13T13:37:24.857Z"
 }

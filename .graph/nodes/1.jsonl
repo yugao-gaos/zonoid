@@ -13,3 +13,4 @@
 {"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-12T19:39:23.874Z"}
 {"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T19:55:18.517Z"}
 {"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-13T01:50:26.368Z"}
+{"evt":"edge_added","from":"1","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-13T13:32:16.967Z"}

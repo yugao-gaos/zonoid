@@ -1,0 +1,3 @@
+{"evt":"status_changed","id":"local/subagent-misclass-1781361311","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T14:35:11.593Z"}
+{"evt":"assignee_set","id":"local/subagent-misclass-1781361311","workspace":"/Users/imyu/Desktop/zonoid","assignee":"subagent-fix-worker","actor":"overlay-sync","ts":"2026-06-13T14:35:11.593Z"}
+{"evt":"timestamps_set","id":"local/subagent-misclass-1781361311","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T14:35:11.578Z","lastChanged":"2026-06-13T14:35:11.578Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-13T14:35:11.593Z"}

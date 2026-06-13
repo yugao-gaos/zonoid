@@ -1,2 +1,3 @@
 {"evt":"edge_added","from":"note:note-mqa6xmc54yw","to":"followup/restart-daemon-to-activate-claim-session-bh6z","kind":"context","actor":"overlay-sync","ts":"2026-06-12T18:34:19.056Z","weight":0.297}
 {"evt":"edge_added","from":"note:note-mqa6xmc54yw","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/10","kind":"context","actor":"overlay-sync","ts":"2026-06-12T19:28:56.953Z","weight":0.257}
+{"evt":"edge_added","from":"note:note-mqa6xmc54yw","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-13T13:32:16.967Z","weight":0.297}

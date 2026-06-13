@@ -1,0 +1,5 @@
+{"evt":"status_changed","id":"followup/harness-judge-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T14:50:33.639Z"}
+{"evt":"assignee_set","id":"followup/harness-judge-drain","workspace":"/Users/imyu/Desktop/zonoid","assignee":"test-requeue","actor":"overlay-sync","ts":"2026-06-13T14:50:33.639Z"}
+{"evt":"status_changed","id":"followup/harness-judge-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-13T14:50:33.753Z"}
+{"evt":"summary_set","id":"followup/harness-judge-drain","workspace":"/Users/imyu/Desktop/zonoid","summary":"drain pass","actor":"overlay-sync","ts":"2026-06-13T14:50:33.753Z"}
+{"evt":"status_changed","id":"followup/harness-judge-drain","workspace":".","status":"ready","actor":"overlay-sync","ts":"2026-06-13T14:50:49.058Z"}
