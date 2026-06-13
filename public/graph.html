@@ -114,12 +114,11 @@
   #flowsvg:active { cursor: grabbing; }
   #flowsvg text { font: 11px ui-monospace, Menlo, monospace; pointer-events: none; user-select: none; }
   #flowsvg g.fn { cursor: pointer; }
-  /* work-in-progress animation: pulsing halo ring + marching incoming edges */
+  /* work-in-progress: static blue ring + left-to-right shine sweep on node body */
   #flowsvg g.fn .fhalo { opacity: 0; pointer-events: none; }
-  #flowsvg g.fn.wip .fhalo { opacity: 1; animation: wippulse 1.5s ease-in-out infinite; }
-  @keyframes wippulse { 0%,100% { stroke-opacity: .12; stroke-width: 1.5; } 50% { stroke-opacity: .95; stroke-width: 4; } }
-  #flowsvg path.wipedge { stroke: #58a6ff !important; stroke-dasharray: 6 4 !important; animation: wipmarch .5s linear infinite; }
-  @keyframes wipmarch { to { stroke-dashoffset: -10; } }
+  #flowsvg g.fn.wip .fhalo { opacity: .5; stroke: #58a6ff; stroke-width: 1.5; }
+  #flowsvg g.fn .fshine-wrap { opacity: 0; pointer-events: none; }
+  #flowsvg g.fn.wip .fshine-wrap { opacity: 1; }
   /* Focus view: steady amber halo on the focused node */
   #flowsvg g.fn.focused .fhalo { opacity: 1; stroke: #e3b341; }
   /* ── Status Dock ── */
@@ -132,8 +131,11 @@
   .sdlbl { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; color: #6e7681; }
   .sdnum { font-size: 15px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; color: #e6edf3; }
   .sdnum.zero { color: #484f58; font-weight: 400; }
-  .sditem.wip-active .sdicon { animation: sdpulse 1.2s ease-in-out infinite; }
-  @keyframes sdpulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+  .sditem.wip-active { position: relative; overflow: hidden; }
+  .sditem.wip-active::after { content: ''; position: absolute; inset: 0; border-radius: 8px; pointer-events: none;
+    background: linear-gradient(105deg, transparent 38%, rgba(121,192,255,.45) 50%, transparent 62%);
+    animation: dockshine 2.2s linear infinite; }
+  @keyframes dockshine { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
   @keyframes sdflash { 0%{color:#79c0ff;transform:scale(1.2)} 100%{color:inherit;transform:scale(1)} }
   .sdnum.flash { animation: sdflash .35s ease-out; }
   .sddiv { width: 1px; height: 24px; background: #21262d; margin: 0 4px; flex-shrink: 0; }
@@ -5066,6 +5068,25 @@ function focusSelect(links, id, depth=2){
   return keep;
 }
 
+// WIP shine: CSS transform on SVG rects is unreliable — drive translate via rAF.
+let _wipShineRaf=null;
+const WIP_SHINE_MS=2200, WIP_SHINE_NW=250, WIP_SHINE_BAR=100;
+function wipShineOffset(){
+  const p=(Date.now()%WIP_SHINE_MS)/WIP_SHINE_MS;
+  return p*(WIP_SHINE_NW+WIP_SHINE_BAR);
+}
+function runWipShineFrame(){
+  const wraps=document.querySelectorAll('#flowsvg g.fn.wip .fshine-wrap');
+  if(!wraps.length){ _wipShineRaf=null; return; }
+  const tx=wipShineOffset();
+  wraps.forEach(el=>el.setAttribute('transform','translate('+tx+',0)'));
+  _wipShineRaf=requestAnimationFrame(runWipShineFrame);
+}
+function syncWipShineLoop(hasWip){
+  if(hasWip&&!_wipShineRaf) _wipShineRaf=requestAnimationFrame(runWipShineFrame);
+  if(!hasWip&&_wipShineRaf){ cancelAnimationFrame(_wipShineRaf); _wipShineRaf=null; }
+}
+
 // ---- dagre pipeline (shared by Frontier and Focus) ---------------------------
 // Sugiyama layered layout (left->right, crossing-minimized, curved routed edges)
 // over an explicit node subset; links are filtered to the subset. Context edges
@@ -5096,9 +5117,25 @@ function renderDagSubset(view, nodes, links, byId){
         .attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto-start-reverse')
         .append('path').attr('d','M0,0 L10,5 L0,10 z').attr('fill',c);
     });
+    const shineGrad=defs.append('linearGradient').attr('id','wip-shine-grad').attr('gradientUnits','objectBoundingBox').attr('x1','0').attr('y1','0').attr('x2','1').attr('y2','0');
+    shineGrad.append('stop').attr('offset','0%').attr('stop-color','#ffffff').attr('stop-opacity',0);
+    shineGrad.append('stop').attr('offset','35%').attr('stop-color','#ffffff').attr('stop-opacity',0);
+    shineGrad.append('stop').attr('offset','50%').attr('stop-color','#79c0ff').attr('stop-opacity',0.85);
+    shineGrad.append('stop').attr('offset','65%').attr('stop-color','#ffffff').attr('stop-opacity',0);
+    shineGrad.append('stop').attr('offset','100%').attr('stop-color','#ffffff').attr('stop-opacity',0);
     root.append('g').attr('class','fedges'); root.append('g').attr('class','fnodes');
     flowZoom=d3.zoom().scaleExtent([0.2,2.5]).on('zoom',ev=>{ root.attr('transform',ev.transform); if(currentView!=='cloud') dagState[currentView==='focus'?'focus':'frontier'].tf=ev.transform; });
     svg.call(flowZoom);
+  }
+  let defsEnsure=svg.select('defs');
+  if(defsEnsure.empty()) defsEnsure=svg.insert('defs', ':first-child');
+  if(defsEnsure.select('#wip-shine-grad').empty()){
+    const shineGrad=defsEnsure.append('linearGradient').attr('id','wip-shine-grad').attr('gradientUnits','objectBoundingBox').attr('x1','0').attr('y1','0').attr('x2','1').attr('y2','0');
+    shineGrad.append('stop').attr('offset','0%').attr('stop-color','#ffffff').attr('stop-opacity',0);
+    shineGrad.append('stop').attr('offset','35%').attr('stop-color','#ffffff').attr('stop-opacity',0);
+    shineGrad.append('stop').attr('offset','50%').attr('stop-color','#79c0ff').attr('stop-opacity',0.85);
+    shineGrad.append('stop').attr('offset','65%').attr('stop-color','#ffffff').attr('stop-opacity',0);
+    shineGrad.append('stop').attr('offset','100%').attr('stop-color','#ffffff').attr('stop-opacity',0);
   }
   const lineGen=d3.line().x(p=>p.x).y(p=>p.y).curve(d3.curveBasis);
   const ctxW=x=>x.w!=null?x.w:0.5;
@@ -5112,32 +5149,50 @@ function renderDagSubset(view, nodes, links, byId){
     .attr('stroke-opacity', x=>x.kind==='context'?0.3+0.6*ctxW(x):1)
     .attr('stroke-dasharray', x=>x.kind==='context'?'4 4':x.kind==='supersede'?'3 5':null)
     .attr('marker-end', x=>'url(#arr-'+(x.kind==='context'?'fc':x.kind==='supersede'?'fs':'fb')+')')
-    .classed('supersede', x=>x.kind==='supersede')
-    .classed('wipedge', x=>{ const tg=byId[x.e.w]; return x.kind!=='supersede' && !!(tg && tg.status==='in_progress'); });
+    .classed('supersede', x=>x.kind==='supersede');
+
+  const clipKey=t=>'fc-'+String(t.id).replace(/[^a-zA-Z0-9_-]/g,'_');
+  const clipSel=svg.select('defs').selectAll('clipPath.fn-clip').data(nodes, t=>t.id);
+  clipSel.exit().remove();
+  const clipEnter=clipSel.enter().append('clipPath').attr('class','fn-clip').attr('id', t=>clipKey(t));
+  clipEnter.append('rect');
+  clipSel.merge(clipEnter).select('rect')
+    .attr('x',-NW/2).attr('width',NW).attr('rx',8)
+    .attr('y',t=>-nodeH(t)/2).attr('height',t=>nodeH(t));
 
   const np=root.select('g.fnodes').selectAll('g.fn').data(nodes, t=>t.id);
   np.exit().remove();
   const en=np.enter().append('g').attr('class','fn');
   en.append('rect').attr('class','fhalo').attr('rx',11).attr('fill','none').attr('stroke','#58a6ff');
   en.append('rect').attr('class','fbg').attr('rx',8).attr('x',-NW/2);
+  en.append('g').attr('class','fshine-wrap').append('rect').attr('class','fshine-bar');
   en.append('rect').attr('class','flbar').attr('width',4).attr('x',-NW/2);
   en.append('text').attr('class','ftxt').attr('fill','#e6edf3').attr('font-weight',600).attr('font-size',13);
   en.append('text').attr('class','fst').attr('x',-NW/2+12);
   const na=en.merge(np);
   na.select('.fhalo').attr('x',-NW/2-4).attr('y',t=>-nodeH(t)/2-4).attr('width',NW+8).attr('height',t=>nodeH(t)+8);
   na.select('.fbg').attr('width',NW).attr('height',t=>nodeH(t)).attr('y',t=>-nodeH(t)/2);
+  na.each(function(t){
+    let wrap=d3.select(this).select('.fshine-wrap');
+    if(wrap.empty()) wrap=d3.select(this).insert('g','.flbar').attr('class','fshine-wrap').append('rect').attr('class','fshine-bar').select(function(){ return this.parentNode; });
+  });
+  na.select('.fshine-wrap').attr('clip-path',t=>'url(#'+clipKey(t)+')');
+  na.select('.fshine-bar')
+    .attr('y',t=>-nodeH(t)/2).attr('height',t=>nodeH(t))
+    .attr('width',100).attr('x',-NW/2-100).attr('fill','url(#wip-shine-grad)');
   na.select('.flbar').attr('height',t=>nodeH(t)).attr('y',t=>-nodeH(t)/2);
   const isFocus=t=>view==='focus'&&t.id===focusedId;   // focused node: halo + slightly larger
   na.attr('transform',t=>{ const n=g.node(t.id); return `translate(${n.x},${n.y})`+(isFocus(t)?' scale(1.12)':''); });
-  na.select('.fbg').attr('fill','#161b22').attr('stroke',t=>isFocus(t)?'#e3b341':t.id===selected?'#58a6ff':'#30363d').attr('stroke-width',t=>isFocus(t)?2.5:t.id===selected?2:1);
+  na.select('.fbg').attr('fill','#161b22').attr('stroke',t=>isFocus(t)?'#e3b341':t.status==='in_progress'?'#58a6ff':t.id===selected?'#58a6ff':'#30363d').attr('stroke-width',t=>isFocus(t)?2.5:(t.status==='in_progress'||t.id===selected)?2:1);
   na.select('.flbar').attr('fill',t=>taskDisplayStatus(t,byId).color);
   na.select('.ftxt').attr('y',t=>nodeLines(t).length>1?-nodeH(t)/2+18:6).each(function(t){ const ls=nodeLines(t); d3.select(this).selectAll('tspan').data(ls).join('tspan').attr('x',-NW/2+12).attr('dy',(d,i)=>i===0?0:NH_EXTRA+'px').text(d=>d); });
   // Superseded notes (validTo set) read as dimmed history; current/active notes stay full-opacity.
   na.attr('opacity', t=>(t.kind==='note'&&t.validTo)?0.5:1);
   na.select('.fst').attr('fill',t=>taskDisplayStatus(t,byId).color).attr('y',t=>nodeLines(t).length>1?nodeH(t)/2-10:16).text(t=>taskStatusLine(t,byId));
   na.on('click',(ev,t)=>openDetail(t.id));
-  na.classed('wip', t=>t.status==='in_progress');   // pulsing WIP halo
+  na.classed('wip', t=>t.status==='in_progress');   // left-to-right shine sweep
   na.classed('focused', isFocus);                   // steady amber halo on the focused node
+  syncWipShineLoop(nodes.some(t=>t.status==='in_progress'));
 
   const vw=svgEl.clientWidth||800;
   const H=nodes.length?Math.min(gh+40, Math.max(320, window.innerHeight-260)):0;
@@ -5158,7 +5213,7 @@ function renderFrontier(d){
   const deg={}; tasks.forEach(t=>deg[t.id]=0); for(const l of links){ deg[l.from]++; deg[l.to]++; }
   const orphans=tasks.filter(t=>deg[t.id]===0);
   const keep=frontierSelect(tasks,links,byId);
-  const shown=tasks.filter(t=>deg[t.id]>0 && keep.has(t.id));
+  const shown=tasks.filter(t=>(deg[t.id]>0 && keep.has(t.id))||t.status==='in_progress');
   const excluded=[...tasks.filter(t=>deg[t.id]>0 && !keep.has(t.id)), ...orphans];
   renderDagSubset('frontier', shown, links, byId);
   renderHistoryStats(excluded);
