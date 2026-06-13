@@ -6,6 +6,9 @@ const http = require('http');
 const path = require('path');
 const { spawn } = require('child_process');
 const core = require('./lib/mcp-core');
+const { extraToolsForHarness } = require('./lib/mcp-harness-tools');
+
+const HARNESS = process.env.ZONOID_HARNESS || 'claude';
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const DAEMON = path.join(__dirname, 'daemon.js');
@@ -15,6 +18,7 @@ const DAEMON = path.join(__dirname, 'daemon.js');
 // global state.workspace (the workspace-gremlin fix).
 const WS = process.env.ORCH_WORKSPACE || (() => { try { return require('fs').readFileSync(require('path').join(process.env.CLAUDE_PLUGIN_DATA || require('path').join(require('os').homedir(),'.claude','orchestrator'), 'workspace'), 'utf8').trim() || null; } catch {} return null; })() || process.cwd();
 const CALL = core.makeCall(PORT, WS);
+const HARNESS_EXTRA = extraToolsForHarness(HARNESS, WS);
 
 // ---- boot the daemon if it isn't up (hookless environments) ----
 function ping() {
@@ -38,7 +42,7 @@ async function ensureDaemon() {
 function write(msg) { process.stdout.write(JSON.stringify(msg) + '\n'); }
 async function handle(msg) {
   if (msg.method === 'tools/call') await ensureDaemon();   // self-heal before any tool runs
-  const resp = await core.handleRpc(msg, { call: CALL, uiHtml: core.uiHtml });
+  const resp = await core.handleRpc(msg, { call: CALL, uiHtml: core.uiHtml, extraTools: HARNESS_EXTRA });
   if (resp !== undefined) write(resp);
 }
 
