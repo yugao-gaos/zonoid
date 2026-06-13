@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Tests for the judge nudge injected by hooks/classify.sh's UserPromptSubmit handler.
+// Tests for the judge nudge relayed by hooks/classify.sh via POST /classify.
 // Strategy: pipe a synthetic prompt JSON into classify.sh with a stub curl on PATH that
-// returns a controlled /judge/pressure response. Verify the nudge line appears when
-// nudge:true, is absent when nudge:false, and is absent when ORCH_GATE_OFF=1.
+// returns a controlled /classify response. Verify the nudge line appears when present in
+// additional_context, is absent when omitted, and is absent when ORCH_GATE_OFF=1.
 //
 // Pattern mirrors test/orch-gate-bash.test.js: spawnSync the hook, inject stub curl.
 // Run: node test/judge-hook-nudge.test.js — exits non-zero on any failed assertion.
@@ -33,50 +33,53 @@ function runHook(input, extraEnv) {
   return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 
-// ── Stub curl dir: /judge/pressure returns nudge:true with depth=35, dupClusters=3 ──────────────
-const stubNudgeDir = path.join(TMP, 'stub-nudge-true');
-fs.mkdirSync(stubNudgeDir, { recursive: true });
-fs.writeFileSync(
-  path.join(stubNudgeDir, 'curl'),
-  `#!/bin/bash
-U="\${@: -1}"
-if [[ "\$U" == *"/judge/pressure"* ]]; then
-  echo '{"depth":35,"dupClusters":3,"nudge":true,"harness_task_key":"followup/harness-judge-drain"}'
+const BASE_CTX = `[Model routing] Recommended: main=claude-sonnet-4-6, subagent=claude-opus-4-8 (fast) (complexity=0.2, gate=abstain)
+[Orch gate] Claim only the task matching the work at hand — NEVER force-claim a task to unlock edits for unrelated work; create a new task instead. Force-claims are capped at 3 per task; over cap requires user approval on the dashboard.
+[Orchestrator heartbeat] Call ScheduleWakeup(delaySeconds=7200, reason="idle heartbeat", prompt="<<autonomous-loop-dynamic>>") to keep this session alive for background work. On wakeup: check ready tasks + active loop via next_action. If BOTH are empty (nothing ready, no active loop) — do NOT reschedule. Let the loop end.`;
+
+const JUDGE_NUDGE = `[Judge] backlog: 35 items (3 dup-clusters) — dispatch ONE background self-learn-edge-judge subagent (model: sonnet — NOT haiku, verdict discrimination degrades; budget 20) this turn; do not block the user's request on it. The subagent MUST: (1) call mcp__orchestrator-graph__start_task with task_key="followup/harness-judge-drain" and agent_id="judge-drain-deadbeef" BEFORE judging; (2) call mcp__orchestrator-graph__complete_task with the same task_key and agent_id, and a summary including the count of items judged, AFTER finishing.`;
+
+function mkClassifyStub(mode) {
+  const dir = path.join(TMP, `stub-${mode}`);
+  fs.mkdirSync(dir, { recursive: true });
+  const ctxWithJudge = `${BASE_CTX}\n${JUDGE_NUDGE}`;
+  const ctxNoJudge = BASE_CTX;
+  fs.writeFileSync(path.join(dir, 'with-judge.json'), JSON.stringify({ additional_context: ctxWithJudge }));
+  fs.writeFileSync(path.join(dir, 'no-judge.json'), JSON.stringify({ additional_context: ctxNoJudge }));
+  fs.writeFileSync(
+    path.join(dir, 'curl'),
+    `#!/bin/bash
+DIR="$(cd "$(dirname "$0")" && pwd)"
+ARGS="$*"
+if printf "%s" "$ARGS" | grep -q "/classify"; then
+  if [ "\${ORCH_GATE_OFF:-0}" = "1" ]; then
+    cat "$DIR/no-judge.json"
+  elif [ "${mode}" = "nudge-true" ]; then
+    cat "$DIR/with-judge.json"
+  else
+    cat "$DIR/no-judge.json"
+  fi
 else
-  # Stub out other daemon calls silently (route, context-classify, active-claim, ready)
   echo '{}'
 fi
 exit 0
 `,
-  { mode: 0o755 },
-);
+    { mode: 0o755 },
+  );
+  return dir;
+}
 
-// ── Stub curl dir: /judge/pressure returns nudge:false ────────────────────────────────────────
-const stubNudgeFalseDir = path.join(TMP, 'stub-nudge-false');
-fs.mkdirSync(stubNudgeFalseDir, { recursive: true });
-fs.writeFileSync(
-  path.join(stubNudgeFalseDir, 'curl'),
-  `#!/bin/bash
-U="\${@: -1}"
-if [[ "\$U" == *"/judge/pressure"* ]]; then
-  echo '{"depth":35,"dupClusters":3,"nudge":false}'
-else
-  echo '{}'
-fi
-exit 0
-`,
-  { mode: 0o755 },
-);
+const stubNudgeDir = mkClassifyStub('nudge-true');
+const stubNudgeFalseDir = mkClassifyStub('nudge-false');
 
-// ── Stub curl that times out / returns nothing for pressure (fail-silent test) ────────────────
+// ── Stub curl that times out / returns nothing for classify (fail-silent test) ────────────────
 const stubNoResponseDir = path.join(TMP, 'stub-no-response');
 fs.mkdirSync(stubNoResponseDir, { recursive: true });
 fs.writeFileSync(
   path.join(stubNoResponseDir, 'curl'),
   `#!/bin/bash
-# Return empty string (simulate curl timeout / error)
-U="\${@: -1}"
-if [[ "\$U" == *"/judge/pressure"* ]]; then
+ARGS="$*"
+if printf "%s" "$ARGS" | grep -q "/classify"; then
   exit 1
 else
   echo '{}'
@@ -149,6 +152,7 @@ function extractCtx(stdout) {
   const ctx = extractCtx(r.stdout);
   ok('curl error → fail-silent: [Judge] line absent', !ctx.includes('[Judge]'));
   ok('curl error → hook still exits 0', r.status === 0);
+  ok('curl error → no hook output', ctx === '');
 }
 
 // ── Cleanup ───────────────────────────────────────────────────────────────────────────────────
