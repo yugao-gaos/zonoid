@@ -24,13 +24,13 @@ CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
 
 WRITE_PATTERN=0
 
-# Redirect to non-/tmp path: "> file" or ">> file" but not "> /tmp/..." or "> /dev/null"
+# Redirect (excluding /dev/null):
 # Exclude fd redirects like 2>&1 (digit or & after >) and closing angle brackets in
 # strings like "<email@host.com>" where > is immediately preceded by a word/email char.
 if printf '%s' "$CMD" | grep -qE '(^|[^[:alnum:]._@-])(>>?)\s*[^/\s&0-9]' 2>/dev/null; then
   WRITE_PATTERN=1
 fi
-if printf '%s' "$CMD" | grep -qE '(>>?)\s*/(?!(tmp|private/tmp|dev/null))' 2>/dev/null; then
+if printf '%s' "$CMD" | grep -qE '(>>?)\s*/(?!(dev/null))' 2>/dev/null; then
   WRITE_PATTERN=1
 fi
 
