@@ -179,10 +179,10 @@ function spawnDaemon() {
     ok('(C) native done status survives restart', native2 && native2.status === 'done');
     ok('(C) no namespace collision after restart', g.tasks.filter((t) => t.id.endsWith(`/${SHARED_ID}`)).length === 3);
 
-    // Overlay snapshot minted for native adoption, not for harness stubs.
+    // Overlay snapshots minted for native adoption and harness stubs at first sight.
     const ov = overlayStore.load(WS);
     ok('(C) adoption snapshot for native key', ov.snapshots && ov.snapshots[K(SHARED_ID)]);
-    ok('(C) no snapshot for harness keys', !(ov.snapshots || {})[`local/${SHARED_ID}`] && !(ov.snapshots || {})[`cursor/${SHARED_ID}`]);
+    ok('(C) adoption snapshot for harness keys at first sight', ov.snapshots && ov.snapshots[`local/${SHARED_ID}`] && ov.snapshots[`cursor/${SHARED_ID}`]);
   } finally {
     child.kill();
     try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch { /* */ }
