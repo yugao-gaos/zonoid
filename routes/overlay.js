@@ -166,7 +166,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const lintWarning = b.status === 'done' ? verdicts.lintProse(b.summary, b.verdicts, b.key) : null;
     T.save();
-    if (ns && b.key) ctx.harness.tasks.writeStatus(String(b.key), ns);
+    // Write-through routed by namespace: file-drop stub keys update the stub file's status
+    // field; Claude '<session>/<id>' keys keep the native todo-panel write-through.
+    if (ns && b.key) ctx.writeTaskStatus(T.ws, String(b.key), ns);
     notifyChange();
     const statusResp = { ok: true };
     if (followUpResults) statusResp.follow_ups = followUpResults;

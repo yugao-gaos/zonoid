@@ -76,7 +76,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     let released = 0;
     for (const [key, st] of Object.entries(T.ov.status))
       if (st === 'in_progress' && T.ov.assignee[key] === b.agent_id
-          && releaseClaim(key, `auto-released: agent '${b.agent_id}' stopped without completing`, T.ov)) released++;
+          && releaseClaim(key, `auto-released: agent '${b.agent_id}' stopped without completing`, T.ov, null, T.ws)) released++;
     if (released) T.save();
     saveAgents();
     notifyChange();

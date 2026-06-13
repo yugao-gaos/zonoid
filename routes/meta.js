@@ -61,7 +61,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (ts && Date.parse(ts.lastChanged) > cutoff) continue;
         const tp = taskTranscript(key, null, true, stWsSweep);
         const tokenUsage = tp ? usageCached(tp) : null;
-        if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${staleMins}m (force=true)`, ovWs, { agentId, mins: staleMins, tokenUsage })) released++;
+        if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${staleMins}m (force=true)`, ovWs, { agentId, mins: staleMins, tokenUsage }, ws)) released++;
       }
     } else {
       const sweepOv = staleMins !== (ovWs.config.stale_minutes ?? 10)
@@ -69,7 +69,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       for (const { key, agentId, mins } of staleClaimKeys(sweepOv, state.agents, nowMs)) {
         const tp = taskTranscript(key, null, true, stWsSweep);
         const tokenUsage = tp ? usageCached(tp) : null;
-        if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${mins}m`, ovWs, { agentId, mins, tokenUsage })) released++;
+        if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${mins}m`, ovWs, { agentId, mins, tokenUsage }, ws)) released++;
       }
     }
     if (released) { overlayStore.save(ws, ovWs); notifyChange(); cache.agg.delete(ws); cache.aggAt.delete(ws); }

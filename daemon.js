@@ -11,6 +11,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { URL } = require('url');
 const harness = require('./lib/harness').active();
+const filedrop = require('./lib/filedrop-tasks');
 const overlayStore = require('./lib/overlay');
 const mcpCore = require('./lib/mcp-core');
 const git = require('./lib/git');
@@ -83,15 +84,39 @@ function aggregateCached(ws) {
   // Pass the overlay's terminal-status snapshots so tasks whose native files were garbage-
   // collected by the cleanupPeriodDays retention sweep still appear in the aggregate.
   const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
-  const v = harness.tasks.aggregateWorkspace(ws, ov.snapshots);
+  let v = harness.tasks.aggregateWorkspace(ws, ov.snapshots);
+  // Union in file-drop stub tasks (designated-folder minting, '<harness>/<id>' keys — see
+  // lib/filedrop-tasks.js). Same union point native tasks enter through, so stub tasks flow
+  // through overlay status, claims, dependencies, frontier and dashboard identically. A live
+  // stub REPLACES any same-key entry the snapshot fallback may have served (stub files are
+  // durable and authoritative for their namespace). No stubs ⇒ `v` passes through untouched.
+  const fd = filedrop.aggregateWorkspace(ws);
+  if (fd.length) {
+    const fdKeys = new Set(fd.map((t) => t.key));
+    v = v.filter((t) => !fdKeys.has(t.key)).concat(fd);
+  }
   cache.agg.set(ws, v); cache.aggAt.set(ws, now);
   return v;
+}
+
+// Status write-through router: file-drop stub keys update the stub file's own `status` field
+// (atomic rewrite — filedrop.writeStatus returns false when no stub exists for the key, which
+// is the ownership test); everything else goes to the active harness adapter (Claude native
+// write-through, which itself no-ops gracefully on unknown/missing keys). Best-effort like both
+// delegates. Every daemon write-through goes via this so '<harness>/<id>' namespaces never leak
+// into ~/.claude/tasks and Claude '<session>/<id>' keys never touch the stub folders.
+function writeTaskStatus(ws, key, status) {
+  if (filedrop.writeStatus(ws, String(key), status)) return true;
+  return harness.tasks.writeStatus(String(key), status);
 }
 
 // Freeze a task's native fields into the overlay when it reaches a terminal status, so the graph
 // node survives the cleanupPeriodDays retention sweep of ~/.claude/tasks/ (native files are no
 // longer indefinitely durable). Read-only on native; best-effort no-op if the file is already gone.
 // `nativeStatus` (optional): the status the write-through is about to stamp on the native file.
+// File-drop stub keys ('<harness>/<id>') need NO snapshot — their files are durable (we control
+// retention) and a stub snapshot would double-serve the node via the snapshot fallback. They
+// no-op here naturally: the Claude adapter's readTask returns null for non-session namespaces.
 function snapshotNative(ov, key, nativeStatus) {
   const t = harness.tasks.readTask(key);
   if (t) overlayStore.setSnapshot(ov, key, { subject: t.subject, description: t.description, status: nativeStatus || t.status, blockedBy: t.blockedBy || [], owner: t.owner ?? null, metadata: t.metadata ?? null });
@@ -104,6 +129,7 @@ function usageCached(p) {
   return v;
 }
 harness.tasks.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); }); // TTL is the fallback when watching is unavailable
+filedrop.watch(() => { cache.agg.clear(); cache.aggAt.clear(); respCache.clear(); });      // designated-folder stub drops surface without /sync
 
 const ACTION_STATUSES = ['in_progress', 'tested', 'done', 'failed', 'canceled'];
 const ALL_STATUSES = ['not_ready', 'ready', ...ACTION_STATUSES];
@@ -321,13 +347,15 @@ function validateBenchmark(b) {
 // Optional `ctx` = { agentId, mins, tokenUsage } — when provided, a continuity note node is written
 // onto the overlay and wired as a context edge to the task, so the next agent that claims it sees
 // what happened. If tokenUsage has token counts they are also appended to the cost log.
-function releaseClaim(key, reason, ov = state.overlay, ctx = null) {
+// `ws` = the workspace `ov` belongs to — needed to route the status write-through for file-drop
+// stub keys (the stub folders are per-workspace); callers passing a non-current `ov` pass its ws.
+function releaseClaim(key, reason, ov = state.overlay, ctx = null, ws = state.workspace) {
   if (ov.status[key] !== 'in_progress') return false;
   delete ov.status[key];
   ov.notes[key] = String(reason).slice(0, 280);
   // Also revert the native status (start_task wrote it to in_progress via write-through); otherwise
-  // the task would still derive as in_progress from its native file. 'pending' = available to retry.
-  try { harness.tasks.writeStatus(key, 'pending'); } catch { /* best effort */ }
+  // the task would still derive as in_progress from its native/stub file. 'pending' = available to retry.
+  try { writeTaskStatus(ws, key, 'pending'); } catch { /* best effort */ }
   // Continuity note: record what happened so the next agent that picks up this task has context.
   if (ctx) {
     const { agentId, mins, tokenUsage } = ctx;
@@ -429,7 +457,7 @@ function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
     // and include it in the continuity note for the next agent.
     const tp = taskTranscript(key, null, true, stWs);
     const tokenUsage = tp ? usageCached(tp) : null;
-    if (releaseClaim(key, `auto-released: worker '${agentId || '?'}' not running (stale >${mins}m)`, ov, { agentId, mins, tokenUsage })) dirty = true;
+    if (releaseClaim(key, `auto-released: worker '${agentId || '?'}' not running (stale >${mins}m)`, ov, { agentId, mins, tokenUsage }, ws)) dirty = true;
   }
   if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
   return dirty;
@@ -449,7 +477,7 @@ function sweepFailedTasks(ws = state.workspace, ov = state.overlay) {
     ov.notes[t.id] = `auto-requeued after failure (attempt ${retryCount})${prevAgent ? ` — prior agent: '${prevAgent}'` : ''}. Review previous summary before re-attempting.`.slice(0, 280);
     // Flip status back to pending so the task re-enters the ready pipeline
     delete ov.status[t.id];
-    try { harness.tasks.writeStatus(t.id, 'pending'); } catch { /* best effort */ }
+    try { writeTaskStatus(ws, t.id, 'pending'); } catch { /* best effort */ }
     console.log(`[retry] task ${t.id} attempt ${retryCount} (prev agent: ${prevAgent || '?'})`);
     dirty = true;
   }
@@ -487,7 +515,7 @@ function sweepStaleVerdicts() {
     delete state.overlay.status[key];
     delete state.overlay.assignee[key];
     state.overlay.notes[key] = `auto-requeued: '${status}' owner '${agentId || '?'}' not running — reset to pending for re-dispatch`;
-    try { harness.tasks.writeStatus(key, 'pending'); } catch { /* best effort */ }
+    try { writeTaskStatus(state.workspace, key, 'pending'); } catch { /* best effort */ }
     console.log(`[self-heal] task ${key} (was ${status}) reset to pending — owner gone`);
     dirty = true;
   }
@@ -1453,7 +1481,7 @@ const ctx = {
   },
   send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, resolveRepo,
   validateMetricSpec, validateBenchmark,
-  overlayStore, harness, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
+  overlayStore, harness, filedrop, writeTaskStatus, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
   GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL,
