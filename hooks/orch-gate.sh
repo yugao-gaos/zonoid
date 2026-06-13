@@ -1,9 +1,9 @@
 #!/bin/bash
 # PreToolUse(Write|Edit) GATE: enforce task-claim discipline for substantive inline edits.
 #
-# Zero-tolerance: main/driving sessions and subagents alike require a valid active claim before
-# any non-exempt Write/Edit. No per-turn edit allowance for unclaimed main sessions.
-# Main sessions: create a graph task + start_task, or dispatch a subagent (Agent tool).
+# Subagents: zero-tolerance — require a valid active claim before any non-exempt Write/Edit.
+# Main/dispatcher sessions: claim, dispatch a subagent, or use 1 trivial patch/turn (<=20 lines,
+# <=800 chars) while /dispatcher/children reports at least one running worker.
 # Subagents: TaskCreate + start_task before editing.
 #
 # Default-on: like the other orchestrator hooks, the gate is active by default. A conversation
@@ -11,6 +11,9 @@
 # Fail-open: if the daemon is unreachable we allow (exit 0) rather than bricking edits when the
 #   daemon is down. We deny only on a definitive "no claim for this session".
 PORT="${ORCH_PORT:-8787}"
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=orch-gate-trivial.sh
+. "$HOOK_DIR/orch-gate-trivial.sh"
 
 # ── Env off-switch ─────────────────────────────────────────────────────────
 # Harnesses that spawn claude processes (e.g. bench runner) can set ORCH_GATE_OFF=1
@@ -75,6 +78,12 @@ if [ "$IS_SUB" = "true" ]; then
   exit 2
 fi
 
-# Main/driving session (or unknown session-info): no claim → block.
-printf 'orch-gate: no task claimed. Create a graph task then start_task, or dispatch a subagent (Agent tool).\n' >&2
+# Main/driving session (or unknown session-info): try 1 trivial patch/turn if workers in flight.
+PATCH=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // .tool_input.content // empty')
+if try_trivial_main_allow "$SID" "$PATCH"; then
+  chars=$(printf '%s' "$PATCH" | wc -c | tr -d ' ')
+  report_dispatcher_edit "$SID" "$chars" "$FP"
+  exit 0
+fi
+main_session_deny_message >&2
 exit 2

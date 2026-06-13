@@ -99,13 +99,20 @@ test('untested daemon endpoints', async () => {
     assert.equal(r.body.claimed, false, 'no claim yet -> locked');
     assert.equal(r.body.claims.length, 0, 'no claim yet -> empty claims');
 
+    // Subagent worker must be registered before claiming (dispatcher sessions are blocked).
+    assert.equal((await post('/agent/start', {
+      agent_id: 'gate-agent',
+      session: SID_A,
+      subagent_session: SID_C,
+    })).body.ok, true, 'gate-agent registered as subagent worker');
+
     // Unwired quarantine: a freshly-seen edge-less task refuses the in_progress claim until
     // it is wired or declared a root (the same contract worker agents hit via start_task).
-    r = await post('/overlay/status', { key: KEY_A, status: 'in_progress', agent_id: 'gate-agent' });
+    r = await post('/overlay/status', { key: KEY_A, status: 'in_progress', agent_id: 'gate-agent', session_id: SID_C });
     assert.equal(r.status, 409, 'unwired task: claim refused with 409');
     assert.equal((await post('/mark-root', { task_key: KEY_A, reason: 'endpoint test root' })).body.ok, true, 'mark-root clears quarantine');
-    r = await post('/overlay/status', { key: KEY_A, status: 'in_progress', agent_id: 'gate-agent' });
-    assert.equal(r.body.ok, true, 'claim lands after mark-root');
+    r = await post('/overlay/status', { key: KEY_A, status: 'in_progress', agent_id: 'gate-agent', session_id: SID_C });
+    assert.equal(r.body.ok, true, 'subagent claim lands after mark-root');
 
     // Valid in_progress claim -> unlocked for ITS session only.
     r = await get(`/active-claim?session=${SID_A}`);
@@ -125,7 +132,6 @@ test('untested daemon endpoints', async () => {
     assert.ok(r.body.claims.some((c) => c.key === KEY_A), 'unfiltered claims include the task');
 
     // Secondary lookup: agent's subagent_session maps the claim to the worker's own session id.
-    assert.equal((await post('/agent/start', { agent_id: 'gate-agent', subagent_session: SID_C })).body.ok, true, 'agent registered with subagent_session');
     r = await get(`/active-claim?session=${SID_C}`);
     assert.equal(r.body.claimed, true, 'subagent session unlocks via agent_id mapping');
 
@@ -134,6 +140,30 @@ test('untested daemon endpoints', async () => {
     r = await get(`/active-claim?session=${SID_A}`);
     assert.equal(r.body.claimed, false, 'released claim -> locked again');
 
+    // ════ 1c. POST /overlay/status — dispatcher claim gate ═════════════════
+    const SID_DISPATCHER = crypto.randomUUID();
+    await post('/agent/start', { agent_id: 'dispatcher-agent', session: SID_DISPATCHER });
+    assert.equal((await post('/mark-root', { task_key: KEY_B, reason: 'dispatcher gate test root' })).body.ok, true, 'KEY_B marked root');
+
+    r = await post('/overlay/status', { key: KEY_B, status: 'in_progress', agent_id: 'dispatcher-agent', session_id: SID_DISPATCHER });
+    assert.equal(r.status, 409, 'dispatcher session cannot claim');
+    assert.match(r.body.error, /dispatcher sessions cannot claim/);
+
+    r = await post('/overlay/status', { key: KEY_B, status: 'in_progress', agent_id: 'dispatcher-agent', session_id: SID_DISPATCHER, force: true });
+    assert.equal(r.status, 409, 'dispatcher force-claim rejected');
+    assert.match(r.body.error, /dispatcher sessions cannot claim/);
+
+    r = await post('/overlay/status', { key: KEY_B, status: 'in_progress', agent_id: 'unknown-agent', session_id: SID_C });
+    assert.equal(r.status, 409, 'unregistered session_id treated as dispatcher');
+
+    r = await post('/overlay/status', { key: KEY_B, status: 'in_progress', agent_id: 'no-registry-agent' });
+    assert.equal(r.status, 400, 'missing session_id when agent not in registry');
+    assert.match(r.body.error, /session_id required/);
+
+    await post('/agent/start', { agent_id: 'gate-agent-b', session: SID_A, subagent_session: SID_C });
+    r = await post('/overlay/status', { key: KEY_B, status: 'in_progress', agent_id: 'gate-agent-b', session_id: SID_C });
+    assert.equal(r.body.ok, true, 'subagent can claim a rooted task');
+    assert.equal((await post('/overlay/status', { key: KEY_B, status: 'done', agent_id: 'gate-agent-b', summary: 'dg gate ok' })).body.ok, true, 'subagent claim released');
 
     // ════ 1b. GET /session-info — subagent vs parent session classification ═
     const SID_PARENT = crypto.randomUUID();
@@ -159,6 +189,105 @@ test('untested daemon endpoints', async () => {
     await post('/agent/done', { agent_id: 'real-sub-agent' });
     r = await get(`/session-info?session=${SID_C}`);
     assert.equal(r.body.is_subagent, false, 'done agent no longer classifies session as subagent');
+
+    // ════ 1d. GET /dispatcher/children — in-flight worker visibility ═══════
+    const SID_DISPATCHER_CHILD = crypto.randomUUID();
+    const SID_WORKER_CHILD = crypto.randomUUID();
+    r = await get(`/dispatcher/children?session=${SID_DISPATCHER_CHILD}`);
+    assert.equal(r.status, 200, 'dispatcher/children: 200');
+    assert.deepEqual(r.body.children, [], 'no workers -> empty children');
+
+    r = await get('/dispatcher/children');
+    assert.equal(r.status, 400, 'dispatcher/children requires session');
+
+    await post('/agent/start', {
+      agent_id: 'child-worker',
+      session: SID_DISPATCHER_CHILD,
+      subagent_session: SID_WORKER_CHILD,
+    });
+    assert.equal((await post('/mark-root', { task_key: KEY_A, reason: 'children test root' })).body.ok, true, 'KEY_A rooted for child claim');
+    assert.equal((await post('/overlay/status', {
+      key: KEY_A,
+      status: 'in_progress',
+      agent_id: 'child-worker',
+      session_id: SID_WORKER_CHILD,
+    })).body.ok, true, 'child worker claims KEY_A');
+
+    r = await get(`/dispatcher/children?session=${SID_DISPATCHER_CHILD}`);
+    assert.equal(r.body.children.length, 1, 'parent sees one in-flight child');
+    assert.equal(r.body.children[0].agent_id, 'child-worker');
+    assert.equal(r.body.children[0].worker_session, SID_WORKER_CHILD);
+    assert.equal(r.body.children[0].task_key, KEY_A);
+    assert.match(r.body.children[0].label, /gate probe task/);
+
+    assert.equal((await post('/overlay/status', { key: KEY_A, status: 'done', agent_id: 'child-worker', summary: 'children test done' })).body.ok, true);
+    await post('/agent/done', { agent_id: 'child-worker' });
+    r = await get(`/dispatcher/children?session=${SID_DISPATCHER_CHILD}`);
+    assert.deepEqual(r.body.children, [], 'done worker no longer listed');
+
+
+    // ════ 1e. POST /usage/dispatcher-edit — trivial edit attribution ═══════
+    const SID_DISPATCHER_EDIT = crypto.randomUUID();
+    const SID_WORKER_EDIT = crypto.randomUUID();
+    const KEY_EDIT = 'local/dg5-edit';
+
+    await post('/agent/start', {
+      agent_id: 'edit-worker',
+      session: SID_DISPATCHER_EDIT,
+      subagent_session: SID_WORKER_EDIT,
+    });
+    assert.equal((await post('/mark-root', { task_key: KEY_EDIT, reason: 'dispatcher-edit test' })).body.ok, true);
+    assert.equal((await post('/overlay/status', {
+      key: KEY_EDIT,
+      status: 'in_progress',
+      agent_id: 'edit-worker',
+      session_id: SID_WORKER_EDIT,
+    })).body.ok, true);
+
+    r = await post('/usage/dispatcher-edit', {
+      parent_session: SID_DISPATCHER_EDIT,
+      chars: 42,
+      file: '/tmp/trivial.js',
+    });
+    assert.equal(r.status, 200, 'dispatcher-edit sole child: 200');
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.task_key, KEY_EDIT);
+    assert.equal(r.body.agent_id, 'edit-worker');
+    assert.equal(r.body.slice.attributed_from, 'dispatcher');
+    assert.equal(r.body.slice.dispatcher_edits.length, 1);
+    assert.equal(r.body.slice.dispatcher_edits[0].chars, 42);
+    assert.equal(r.body.slice.human.chars, 42);
+
+    r = await post('/usage/dispatcher-edit', { parent_session: SID_DISPATCHER_EDIT, chars: 8, file: 'z.js' });
+    assert.equal(r.body.slice.dispatcher_edits.length, 2, 'second edit merges into same slice');
+    assert.equal(r.body.slice.human.chars, 50);
+
+    const SID_W2 = crypto.randomUUID();
+    await post('/agent/start', {
+      agent_id: 'edit-worker-2',
+      session: SID_DISPATCHER_EDIT,
+      subagent_session: SID_W2,
+    });
+    const KEY_EDIT_B = 'local/dg5-edit-b';
+    assert.equal((await post('/mark-root', { task_key: KEY_EDIT_B, reason: 'second worker' })).body.ok, true);
+    assert.equal((await post('/overlay/status', {
+      key: KEY_EDIT_B,
+      status: 'in_progress',
+      agent_id: 'edit-worker-2',
+      session_id: SID_W2,
+    })).body.ok, true);
+
+    r = await post('/usage/dispatcher-edit', { parent_session: SID_DISPATCHER_EDIT, chars: 10, file: 'x.js' });
+    assert.equal(r.status, 409, 'ambiguous multi-child without focus: 409');
+    assert.equal(r.body.needs_focus, true);
+
+    assert.equal((await post('/overlay/dispatcher-focus', {
+      session_id: SID_DISPATCHER_EDIT,
+      task_key: KEY_EDIT,
+    })).body.ok, true);
+    r = await post('/usage/dispatcher-edit', { parent_session: SID_DISPATCHER_EDIT, chars: 7, file: 'y.js' });
+    assert.equal(r.status, 200, 'dispatcher-edit with focus: 200');
+    assert.equal(r.body.task_key, KEY_EDIT);
 
     // ════ 2. POST /analytics/tool-call — usage beacon ══════════════════════
     const TOOL = `endpoint_test_tool_${Date.now()}`;

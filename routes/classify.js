@@ -6,6 +6,7 @@ const { contextClassify } = require('../lib/context-classify-core');
 const { classifyHeuristic } = require('../lib/prompt-heuristic');
 const { refreshReadyFlag } = require('../lib/ready-flag-cache');
 const { assembleClassifyResponse } = require('../lib/classify-assemble');
+const { inflightWorkersContext } = require('../lib/dispatcher-children');
 const { rowKey, readJsonl, journalPath, labeledPath } = require('../scripts/gate-label');
 const { JUDGE_DEPTH, LABEL_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 
@@ -130,6 +131,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     judgePressure: jp,
     labelPressure: lp,
     orchGateOff,
+    inflightWorkers: inflightWorkersContext(sessionId, ctx),
   });
 
   send(res, 200, result);

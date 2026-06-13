@@ -4,6 +4,8 @@ const overlayStore = require('../lib/overlay');
 const followups = require('../lib/followups');
 const verdicts = require('../lib/verdicts');
 const judge = require('../lib/judge');
+const { listDispatcherChildren } = require('../lib/dispatcher-children');
+const { attributionMeta } = require('../lib/dispatcher-attribution');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, buildGraph, state, targetOverlay,
@@ -36,6 +38,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const claims = sid ? all.filter((t) => t.session === sid) : all;
     send(res, 200, { claimed: claims.length > 0, claims }); return true;
+  }
+
+  if (p === '/dispatcher/children') {
+    const sid = u.searchParams.get('session');
+    if (!sid) { send(res, 400, { error: 'session required' }); return true; }
+    const meta = attributionMeta(sid, ctx);
+    send(res, 200, { children: listDispatcherChildren(sid, ctx), ...meta }); return true;
   }
 
   if (p === '/session-info') {

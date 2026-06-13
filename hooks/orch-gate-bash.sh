@@ -4,10 +4,14 @@
 # to close the bypass path (e.g. `python3 -c "open('file','w').write(...)"`, tee, cp, redirects).
 # Exit 2 = deny; exit 0 = allow.
 #
-# Zero-tolerance: main/driving sessions and subagents alike require a valid active claim
-# before any non-exempt Bash file-write. No per-turn write allowance for unclaimed main sessions.
+# Subagents: zero-tolerance — require a valid active claim before any non-exempt Bash file-write.
+# Main/dispatcher sessions: claim, dispatch a subagent, or use 1 trivial write/turn (command
+# <=20 lines, <=800 chars) while /dispatcher/children reports at least one running worker.
 # Fail-open: if the daemon is unreachable we allow (exit 0).
 PORT="${ORCH_PORT:-8787}"
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=orch-gate-trivial.sh
+. "$HOOK_DIR/orch-gate-trivial.sh"
 
 # ── Env off-switch ─────────────────────────────────────────────────────────
 # Harnesses that spawn claude processes (e.g. bench runner) can set ORCH_GATE_OFF=1
@@ -185,6 +189,13 @@ if [ "$IS_SUB" = "true" ]; then
   exit 2
 fi
 
-# Main/driving session (or unknown session-info): no claim → block.
-printf 'orch-gate: no task claimed. Create a graph task then start_task, or dispatch a subagent (Agent tool).\n' >&2
+# Main/driving session (or unknown session-info): try 1 trivial write/turn if workers in flight.
+if try_trivial_main_allow "$SID" "$CMD"; then
+  bash_chars=$(printf '%s' "$CMD" | wc -c | tr -d ' ')
+  bash_file=$(printf '%s' "$TARGETS" | sed '/^$/d' | head -1)
+  [ -z "$bash_file" ] && bash_file="(bash)"
+  report_dispatcher_edit "$SID" "$bash_chars" "$bash_file"
+  exit 0
+fi
+main_session_deny_message >&2
 exit 2

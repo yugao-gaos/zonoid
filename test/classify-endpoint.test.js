@@ -86,7 +86,21 @@ async function waitForPing(ms = 12000) {
     ok('context_classify nested', typeof r.body.context_classify === 'object');
     ok('additional_context has model routing', String(r.body.additional_context).includes('[Model routing]'));
     ok('additional_context has gate reminder', String(r.body.additional_context).includes('[Orch gate]'));
+    ok('gate reminder blocks dispatcher start_task', String(r.body.additional_context).includes('must NOT call start_task'));
     ok('additional_context has heartbeat', String(r.body.additional_context).includes('[Orchestrator heartbeat]'));
+
+    const DISPATCHER_SID = 'classify-dispatcher-parent';
+    const WORKER_SID = 'classify-dispatcher-worker';
+    await post('/agent/start', { agent_id: 'classify-child', session: DISPATCHER_SID, subagent_session: WORKER_SID });
+    await post('/mark-root', { task_key: 'local/classify-child-task', reason: 'classify in-flight test' });
+    await post('/overlay/status', { key: 'local/classify-child-task', status: 'in_progress', agent_id: 'classify-child', session_id: WORKER_SID });
+    r = await post('/classify', { prompt: 'hello dispatcher', session_id: DISPATCHER_SID });
+    ok('dispatcher classify includes in-flight block', String(r.body.additional_context).includes('[In-flight workers]'));
+    ok('in-flight lists worker agent', String(r.body.additional_context).includes('classify-child'));
+    r = await post('/classify', { prompt: 'hello worker', session_id: WORKER_SID });
+    ok('subagent classify omits in-flight block', !String(r.body.additional_context).includes('[In-flight workers]'));
+    await post('/overlay/status', { key: 'local/classify-child-task', status: 'done', agent_id: 'classify-child', summary: 'classify test' });
+    await post('/agent/done', { agent_id: 'classify-child' });
 
     r = await post('/classify', { prompt: 'keep running until all tests pass' });
     ok('loop decision', r.body.decision === 'loop');

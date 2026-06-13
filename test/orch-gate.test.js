@@ -87,12 +87,101 @@ function runMainBlocked(filePath, extra) {
 }
 
 
-// 4. Regular source file → main session, no claim → exit 2 (zero-tolerance)
+// 4. Main session, no workers → exit 2 with no-workers message
 {
   const r = runMainBlocked('/Users/x/proj/src.js');
-  ok('regular source /Users/x/proj/src.js → exit 2 for unclaimed main session', r.status === 2);
+  ok('main session no workers → exit 2', r.status === 2);
+  ok('main session no workers → message', r.stderr.includes('no in-flight workers'));
 }
 
+// 5. Main session with in-flight worker + small patch → exit 0 (trivial allowance)
+{
+  const stubDirTrivial = path.join(TMP, 'stub-main-trivial');
+  fs.mkdirSync(stubDirTrivial, { recursive: true });
+  fs.writeFileSync(path.join(stubDirTrivial, 'curl'), "#!/bin/bash\nU=\"${@: -1}\"\nif [[ \"$U\" == *\"/active-claim\"* ]]; then\n  echo '{\"claimed\":false}'\nelif [[ \"$U\" == *\"/session-info\"* ]]; then\n  echo '{\"is_subagent\":false}'\nelif [[ \"$U\" == *\"/dispatcher/children\"* ]]; then\n  echo '{\"children\":[{\"task_key\":\"local/w1\",\"label\":\"worker\",\"agent_id\":\"w1\",\"worker_session\":\"ws1\"}],\"attribution\":\"local/w1\",\"needs_focus\":false}'\nfi\nexit 0\n", { mode: 0o755 });
+  const r = runHook(
+    JSON.stringify({ tool_input: { file_path: '/Users/x/proj/src.js', new_string: 'x=1\n' }, session_id: 'main-disp' }),
+    { PATH: stubDirTrivial + ':' + process.env.PATH, CLAUDE_PLUGIN_DATA: TMP },
+  );
+  ok('main session trivial patch with workers → exit 0', r.status === 0);
+}
+
+// 6. Main session trivial budget exhausted → exit 2
+{
+  const stubDirTrivial = path.join(TMP, 'stub-main-budget');
+  fs.mkdirSync(stubDirTrivial, { recursive: true });
+  fs.writeFileSync(path.join(stubDirTrivial, 'curl'), "#!/bin/bash\nU=\"${@: -1}\"\nif [[ \"$U\" == *\"/active-claim\"* ]]; then\n  echo '{\"claimed\":false}'\nelif [[ \"$U\" == *\"/session-info\"* ]]; then\n  echo '{\"is_subagent\":false}'\nelif [[ \"$U\" == *\"/dispatcher/children\"* ]]; then\n  echo '{\"children\":[{\"task_key\":\"local/w1\",\"label\":\"worker\",\"agent_id\":\"w1\",\"worker_session\":\"ws1\"}],\"attribution\":\"local/w1\",\"needs_focus\":false}'\nfi\nexit 0\n", { mode: 0o755 });
+  const env = { PATH: stubDirTrivial + ':' + process.env.PATH, CLAUDE_PLUGIN_DATA: TMP };
+  const sid = 'main-budget';
+  const input = JSON.stringify({ tool_input: { file_path: '/Users/x/proj/a.js', new_string: 'a\n' }, session_id: sid });
+  const first = runHook(input, env);
+  const second = runHook(input, env);
+  ok('first trivial patch allowed', first.status === 0);
+  ok('second trivial patch blocked', second.status === 2);
+  ok('budget exhausted message', second.stderr.includes('trivial patch budget exhausted'));
+}
+
+// 7. Main session patch too large → exit 2 with dispatch message
+{
+  const stubDirTrivial = path.join(TMP, 'stub-main-big');
+  fs.mkdirSync(stubDirTrivial, { recursive: true });
+  fs.writeFileSync(path.join(stubDirTrivial, 'curl'), "#!/bin/bash\nU=\"${@: -1}\"\nif [[ \"$U\" == *\"/active-claim\"* ]]; then\n  echo '{\"claimed\":false}'\nelif [[ \"$U\" == *\"/session-info\"* ]]; then\n  echo '{\"is_subagent\":false}'\nelif [[ \"$U\" == *\"/dispatcher/children\"* ]]; then\n  echo '{\"children\":[{\"task_key\":\"local/w1\",\"label\":\"worker\",\"agent_id\":\"w1\",\"worker_session\":\"ws1\"}],\"attribution\":\"local/w1\",\"needs_focus\":false}'\nfi\nexit 0\n", { mode: 0o755 });
+  const big = 'line\n'.repeat(25);
+  const r = runHook(
+    JSON.stringify({ tool_input: { file_path: '/Users/x/proj/big.js', new_string: big }, session_id: 'main-big' }),
+    { PATH: stubDirTrivial + ':' + process.env.PATH, CLAUDE_PLUGIN_DATA: TMP },
+  );
+  ok('oversized patch blocked', r.status === 2);
+  ok('oversized patch dispatch message', r.stderr.includes('dispatch a subagent'));
+}
+
+
+// 8. Multiple workers without focus → exit 2
+{
+  const stubDirMulti = path.join(TMP, 'stub-main-multi');
+  fs.mkdirSync(stubDirMulti, { recursive: true });
+  fs.writeFileSync(path.join(stubDirMulti, 'curl'), [
+    '#!/bin/bash',
+    'U="${@: -1}"',
+    'if [[ "$U" == *"/active-claim"* ]]; then echo \'{"claimed":false}\'',
+    'elif [[ "$U" == *"/session-info"* ]]; then echo \'{"is_subagent":false}\'',
+    'elif [[ "$U" == *"/dispatcher/children"* ]]; then echo \'{"children":[{"task_key":"local/w1"},{"task_key":"local/w2"}],"needs_focus":true,"attribution":null}\'',
+    'fi',
+    'exit 0',
+    '',
+  ].join('\n'), { mode: 0o755 });
+  const r = runHook(
+    JSON.stringify({ tool_input: { file_path: '/Users/x/proj/src.js', new_string: 'x=1\n' }, session_id: 'main-multi' }),
+    { PATH: stubDirMulti + ':' + process.env.PATH, CLAUDE_PLUGIN_DATA: TMP },
+  );
+  ok('multi-worker without focus blocked', r.status === 2);
+  ok('focus message', r.stderr.includes('dispatcher focus'));
+}
+
+// 9. Trivial allow posts dispatcher-edit
+{
+  const stubDirReport = path.join(TMP, 'stub-main-report');
+  const marker = path.join(TMP, 'dispatcher-edit-called');
+  try { fs.unlinkSync(marker); } catch { /* */ }
+  fs.mkdirSync(stubDirReport, { recursive: true });
+  const curlStub = [
+    '#!/bin/bash',
+    'if [[ "$*" == *"/active-claim"* ]]; then echo \'{"claimed":false}\'',
+    'elif [[ "$*" == *"/session-info"* ]]; then echo \'{"is_subagent":false}\'',
+    'elif [[ "$*" == *"/dispatcher/children"* ]]; then echo \'{"children":[{"task_key":"local/w1","label":"worker","agent_id":"w1","worker_session":"ws1"}],"attribution":"local/w1","needs_focus":false}\'',
+    'elif [[ "$*" == *"/usage/dispatcher-edit"* ]]; then touch DISPATCHER_EDIT_MARKER; echo \'{"ok":true}\'',
+    'fi',
+    'exit 0',
+    '',
+  ].join('\n').replace('DISPATCHER_EDIT_MARKER', marker);
+  fs.writeFileSync(path.join(stubDirReport, 'curl'), curlStub, { mode: 0o755 });
+  const r = runHook(
+    JSON.stringify({ tool_input: { file_path: '/Users/x/proj/src.js', new_string: 'x=1\n' }, session_id: 'main-report' }),
+    { PATH: stubDirReport + ':' + process.env.PATH, CLAUDE_PLUGIN_DATA: TMP },
+  );
+  ok('trivial patch with attribution exits 0', r.status === 0);
+  ok('dispatcher-edit POST fired', fs.existsSync(marker));
+}
 // ── Cleanup ─────────────────────────────────────────────────────────────────
 fs.rmSync(TMP, { recursive: true, force: true });
 

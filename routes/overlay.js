@@ -59,6 +59,26 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (cur === 'canceled' && b.status !== 'canceled' && !b.force && !b.reopen) {
       send(res, 409, { ok: false, error: 'task is canceled (terminal): pass force/reopen to override', current: cur, attempted: b.status }); return true;
     }
+    if (b.status === 'in_progress') {
+      let claimSid = b.session_id ? String(b.session_id) : null;
+      if (!claimSid && b.agent_id && ctx.state.agents[b.agent_id]) {
+        const ag = ctx.state.agents[b.agent_id];
+        if (ag.subagent_session && ag.subagent_session !== ag.session) claimSid = ag.subagent_session;
+        else if (ag.session) claimSid = ag.session;
+      }
+      if (!claimSid) {
+        send(res, 400, { ok: false, error: 'session_id required on in_progress claim when not inferable from agent registry' }); return true;
+      }
+      const isSubagent = agentsArr().some((a) =>
+        a.state === 'running' &&
+        a.subagent_session &&
+        a.subagent_session === claimSid &&
+        a.subagent_session !== a.session
+      );
+      if (!isSubagent) {
+        send(res, 409, { ok: false, error: 'dispatcher sessions cannot claim tasks' }); return true;
+      }
+    }
     if (b.status === 'in_progress' && b.force) {
       // Force-claim cap: max 3 per task key. Counter persisted in overlay so daemon restarts don't reset it.
       const FORCE_CAP = 3;
@@ -205,7 +225,22 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     sendOp(res, b, 200, statusResp); return true;
   }
 
-  if (p === '/overlay/claim-session' && m === 'POST') {
+  if (p === '/overlay/dispatcher-focus' && m === 'POST') {
+    const b = await readBody(req);
+    if (!b.session_id || !b.task_key) {
+      send(res, 400, { ok: false, error: 'session_id and task_key required' });
+      return true;
+    }
+    const T = targetOverlay(b, u);
+    if (!T.ov.dispatcher_focus) T.ov.dispatcher_focus = {};
+    T.ov.dispatcher_focus[b.session_id] = b.task_key;
+    T.save();
+    notifyChange();
+    send(res, 200, { ok: true, session_id: b.session_id, focus: b.task_key });
+    return true;
+  }
+
+    if (p === '/overlay/claim-session' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.task_key || !b.session_id) { send(res, 400, { ok: false, error: 'task_key and session_id required' }); return true; }

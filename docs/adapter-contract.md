@@ -29,7 +29,10 @@ them (plus such relay-only helpers as `GET /session-info` and `POST /route` used
 | `/classify` | `POST` | **Planned (P4-C1).** Absorb prompt-submit heuristics; return finished injection text (`{ prompt }` → `{ additionalContext, … }`). Today Claude uses `hooks/classify.sh` locally plus `POST /context-classify`. |
 | `/ready` | `GET` | Ready frontier: `{ ready: [{ key, label }] }`. Optional `?session=` / `?roots=` filters. |
 | `/sync` | `POST` | Immediate file-drop pull (`{ workspace? }` → `{ adopted[], suggestions{} }`). |
-| `/overlay/status` | `POST` | Authoritative task status / claim / complete (`{ key, status, agent_id?, summary?, … }`). MCP `start_task` / `complete_task` map here. |
+| `/overlay/status` | `POST` | Authoritative task status / claim / complete (`{ key, status, agent_id?, summary?, … }`). MCP `start_task` / `complete_task` map here. **Dispatcher sessions are refused** on `in_progress` (409). |
+| `/overlay/dispatcher-focus` | `POST` | Pin trivial-edit attribution when multiple workers are in flight (`{ session_id, task_key }`). |
+| `/dispatcher/children` | `GET` | In-flight workers for a parent session (`?session=`): `{ children[], attribution?, needs_focus?, focus? }`. |
+| `/usage/dispatcher-edit` | `POST` | Record a main-thread trivial patch against a worker task (`{ parent_session, chars, file?, task_key? }`). |
 | `/git/worktree` | `POST` | Create attempt worktree (`{ key, repo_path? }` → `{ branch, worktree, … }`). |
 | `/git/merge` | `POST` | Merge attempt branch back (`{ key, repo_path?, message? }` → `{ merged }` or `{ conflict, files }`). |
 | `/usage/reconcile` | `POST` | **Planned (P5-MS3).** Cold-path usage reconcile for one harness (`{ harness, workspace?, session? }`). Daemon checks `overlay.usage_reconcile[harness].at`; if stale (default 24h), calls that adapter's `usage.reconcile()`, updates `at` + snapshot. From `sessionStart` and adapter daily scheduler — never from `GET /costflow`. |
@@ -193,6 +196,60 @@ Phase 4 follow-ups: **P4-C1** adds `POST /classify`; **P4-C3** slims `classify.s
 relay. Until then, adapters should treat `/classify` as the contract target and
 `/context-classify` + script heuristics as the Claude reference implementation.
 
+---
+
+## Dispatcher vs worker roles
+
+The orchestrator distinguishes two agent roles in a conversation:
+
+| Role | Session | May `start_task`? | May edit substantively? |
+|---|---|---|---|
+| **Dispatcher** (main thread) | Parent `session` from `/agent/start` | **No** — daemon returns 409 | Only via trivial patch gate (below) or by dispatching workers |
+| **Worker** (subagent) | Distinct `subagent_session` registered via `/agent/start` | **Yes** — after wiring/`mark_root` | Yes, once claimed (`GET /active-claim` unlocks hooks) |
+
+**Dispatcher duties:** decompose work into graph tasks, wire dependencies (`suggest_links` +
+`add_dependency`), dispatch background subagents, orchestrate — keep the main thread free.
+Workers carry exactly two graph duties: `start_task` before any write, `complete_task` with a
+summary at the end.
+
+### Claim gate contract
+
+`POST /overlay/status` with `status: in_progress` (MCP `start_task`) checks whether
+`session_id` belongs to a **running subagent** — an agent record where
+`subagent_session === session_id` and `subagent_session !== session`. Parent/dispatcher sessions
+and unregistered `session_id` values are **refused with 409** (`dispatcher sessions cannot claim
+tasks`). `force: true` does not bypass this gate.
+
+Subagent workers must register first (`POST /agent/start` with `subagent_session`), then claim.
+The write gate (`PreToolUse` → `orch-gate.sh`) trusts `GET /active-claim?session=` for workers
+(zero-tolerance: no claim → exit 2).
+
+### Trivial patch gate (Option A)
+
+Main/dispatcher sessions without a claim may apply **one trivial patch per classify turn** when
+at least one worker is in flight:
+
+- Patch limits: **≤ 20 lines** and **≤ 800 characters** (`hooks/orch-gate-trivial.sh`).
+- Requires `GET /dispatcher/children?session=` to report `children.length > 0`.
+- Counter resets each turn in `hooks/classify.sh` (`reset_trivial_counter`).
+- Subagents remain zero-tolerance — no trivial allowance.
+
+Block messages distinguish: no in-flight workers, trivial budget exhausted, multiple workers
+without focus, and dispatch-required (oversized patch).
+
+### `dispatcher_focus` + usage attribution
+
+When exactly one in-flight worker has a `task_key`, trivial edits auto-attribute to that task.
+With **multiple workers**, `GET /dispatcher/children` returns `needs_focus: true` and
+`attribution: null` until the dispatcher sets focus via `POST /overlay/dispatcher-focus`.
+
+Each allowed trivial patch POSTs `POST /usage/dispatcher-edit`, which resolves attribution
+(`lib/dispatcher-attribution.js`) and appends to `overlay.usage_records[agent_id]` with
+`attributed_from: "dispatcher"`. Task totals on the dashboard include these dispatcher-edit
+slices alongside worker `/agent/done` samples.
+
+Classify injection includes an `[In-flight workers]` block (`lib/classify-compose.js`) so the
+dispatcher sees running workers without claiming.
 
 ---
 

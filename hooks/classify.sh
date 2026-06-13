@@ -9,6 +9,10 @@ SID=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // .sessionI
 PROMPT=$(printf '%s' "$INPUT" | jq -r '.prompt // empty')
 DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
 MARK="$DIR/$SID.off"
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=orch-gate-trivial.sh
+. "$HOOK_DIR/orch-gate-trivial.sh"
+[ -n "$SID" ] && reset_trivial_counter "$SID"
 
 # --- toggle directives (match "orch on/off", optionally @-prefixed, as the whole intent) ---
 low=$(printf '%s' "$PROMPT" | tr '[:upper:]' '[:lower:]')

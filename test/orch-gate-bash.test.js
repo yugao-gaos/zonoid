@@ -86,10 +86,37 @@ function runMainBlocked(cmd, extra) {
 // ────────────────────────────────────────────────────────────────────────────
 // Test cases
 
-// Main session: cp write with no claim → exit 2 (zero-tolerance)
+// Main session: cp write with no in-flight workers → exit 2
 {
   const r = runMainBlocked('cp /tmp/x.js /Users/x/proj/lib.js');
-  ok('cp write → exit 2 for unclaimed main session', r.status === 2);
+  ok('cp write main no workers → exit 2', r.status === 2);
+  ok('cp write main no workers message', r.stderr.includes('no in-flight workers'));
+}
+
+// Main session trivial bash write with workers → exit 0
+{
+  const stubDirTrivial = path.join(TMP, 'stub-main-trivial');
+  fs.mkdirSync(stubDirTrivial, { recursive: true });
+  fs.writeFileSync(path.join(stubDirTrivial, 'curl'), "#!/bin/bash\nU=\"${@: -1}\"\nif [[ \"$U\" == *\"/active-claim\"* ]]; then\n  echo '{\"claimed\":false}'\nelif [[ \"$U\" == *\"/session-info\"* ]]; then\n  echo '{\"is_subagent\":false}'\nelif [[ \"$U\" == *\"/dispatcher/children\"* ]]; then\n  echo '{\"children\":[{\"task_key\":\"local/w1\",\"label\":\"worker\",\"agent_id\":\"w1\",\"worker_session\":\"ws1\"}],\"attribution\":\"local/w1\",\"needs_focus\":false}'\nfi\nexit 0\n", { mode: 0o755 });
+  const r = runHook(
+    mkInput('cp /tmp/x.js /Users/x/proj/lib.js', 'main-disp'),
+    { PATH: stubDirTrivial + ':' + process.env.PATH, CLAUDE_PLUGIN_DATA: TMP },
+  );
+  ok('main trivial cp with workers → exit 0', r.status === 0);
+}
+
+// Main session trivial budget exhausted for bash
+{
+  const stubDirTrivial = path.join(TMP, 'stub-main-budget');
+  fs.mkdirSync(stubDirTrivial, { recursive: true });
+  fs.writeFileSync(path.join(stubDirTrivial, 'curl'), "#!/bin/bash\nU=\"${@: -1}\"\nif [[ \"$U\" == *\"/active-claim\"* ]]; then\n  echo '{\"claimed\":false}'\nelif [[ \"$U\" == *\"/session-info\"* ]]; then\n  echo '{\"is_subagent\":false}'\nelif [[ \"$U\" == *\"/dispatcher/children\"* ]]; then\n  echo '{\"children\":[{\"task_key\":\"local/w1\",\"label\":\"worker\",\"agent_id\":\"w1\",\"worker_session\":\"ws1\"}],\"attribution\":\"local/w1\",\"needs_focus\":false}'\nfi\nexit 0\n", { mode: 0o755 });
+  const env = { PATH: stubDirTrivial + ':' + process.env.PATH, CLAUDE_PLUGIN_DATA: TMP };
+  const cmd = 'cp /tmp/x.js /Users/x/proj/lib.js';
+  const first = runHook(mkInput(cmd, 'main-bash-budget'), env);
+  const second = runHook(mkInput(cmd, 'main-bash-budget'), env);
+  ok('bash first trivial write allowed', first.status === 0);
+  ok('bash second trivial write blocked', second.status === 2);
+  ok('bash budget exhausted message', second.stderr.includes('trivial patch budget exhausted'));
 }
 
 // ────────────────────────────────────────────────────────────────────────────

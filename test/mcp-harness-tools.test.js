@@ -55,6 +55,23 @@ async function waitForPing(ms = 8000) {
   ok('default tools/list byte-identical to formatToolsList(TOOLS)', JSON.stringify(defaultList.result.tools) === baselinePayload);
   ok('default surface has no create_task', !defaultList.result.tools.some((t) => t.name === 'create_task'));
 
+  const startTaskTool = TOOLS.find((t) => t.name === 'start_task');
+  ok('start_task schema has session_id', startTaskTool && startTaskTool.inputSchema.properties.session_id && startTaskTool.inputSchema.properties.session_id.type === 'string');
+  ok('start_task description warns dispatchers', startTaskTool && startTaskTool.description.includes('must NOT call start_task'));
+  let capturedClaim = null;
+  await startTaskTool.run({ task_key: 'local/x', agent_id: 'w', session_id: 'sess-abc' }, (method, path, body) => {
+    capturedClaim = { method, path, body };
+    return { ok: true };
+  });
+  ok('start_task run passes session_id to overlay/status', capturedClaim && capturedClaim.method === 'POST' && capturedClaim.path === '/overlay/status' && capturedClaim.body.session_id === 'sess-abc');
+
+  let harnessCaptured = null;
+  await handleRpc(
+    { jsonrpc: '2.0', id: 99, method: 'tools/call', params: { name: 'start_task', arguments: { task_key: 'local/y', agent_id: 'w2' } } },
+    { call: (method, path, body) => { if (path === '/overlay/status') harnessCaptured = body; return { ok: true }; }, session: 'harness-sess' },
+  );
+  ok('handleRpc injects ctx.session into start_task', harnessCaptured && harnessCaptured.session_id === 'harness-sess');
+
   const codexExtra = extraToolsForClient('codex', WS);
   ok('codex extraTools has create_task + ScheduleWakeup', codexExtra.length === 2 && codexExtra[0].name === 'create_task' && codexExtra[1].name === 'ScheduleWakeup');
   ok('claude extraTools empty', extraToolsForClient('claude', WS).length === 0);
