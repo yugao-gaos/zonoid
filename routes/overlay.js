@@ -111,7 +111,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     { const ts = T.ov.timestamps[b.key] = T.ov.timestamps[b.key] || {}; const n = now(); if (!ts.firstSeen) ts.firstSeen = n; if (ts.lastStatus !== b.status || b.status === 'in_progress') { ts.lastChanged = n; ts.lastStatus = b.status; } }
     if (b.agent_id) {
       T.ov.assignee[b.key] = b.agent_id;
-      ctx.touchAgent(b.agent_id, { status: b.status, task_key: b.key, workspace: T.ws });
+      ctx.touchAgent(b.agent_id, { status: b.status, task_key: b.key, workspace: T.ws, reported_usage: b.reported_usage });
     }
     if (b.status === 'in_progress') {
       try {
