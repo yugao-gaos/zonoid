@@ -98,6 +98,8 @@ is_exempt() {
     /tmp/*.log|/private/tmp/*.log)                     return 0 ;;
     */logs/*.log)                                      return 0 ;;
     */scratch/*)                                       return 0 ;;
+    */.claude/orchestrator/tasks/*)                  return 0 ;;
+    */.claude/tasks/*)                                 return 0 ;;
   esac
   return 1
 }

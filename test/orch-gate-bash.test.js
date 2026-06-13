@@ -261,6 +261,20 @@ function runFailOpen(cmd, extra) {
   ok('cp to logs/*.log: exempt → exit 0', r.status === 0);
 }
 
+// 29. cp to filedrop task mint path → exempt → exit 0
+{
+  const home = process.env.HOME || '/Users/x';
+  const r = runBlocked(`cp /tmp/t.json ${home}/.claude/orchestrator/tasks/ws-abc/cursor/t1.json`);
+  ok('cp to filedrop task path → exempt → exit 0', r.status === 0);
+}
+
+// 30. cp to native Claude task path → exempt → exit 0
+{
+  const home = process.env.HOME || '/Users/x';
+  const r = runBlocked(`cp /tmp/t.json ${home}/.claude/tasks/abc-uuid-123/1.json`);
+  ok('cp to native task path → exempt → exit 0', r.status === 0);
+}
+
 // ── Cleanup ─────────────────────────────────────────────────────────────────
 fs.rmSync(TMP, { recursive: true, force: true });
 

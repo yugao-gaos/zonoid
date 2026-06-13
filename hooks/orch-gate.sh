@@ -30,6 +30,8 @@ case "$FP" in
   */.mcp.json)                           exit 0 ;;  # MCP server config
   */CLAUDE.md)                           exit 0 ;;  # instruction file
   /tmp/*|/private/tmp/*)                 ;;         # /tmp is NOT exempt: workers must use proper claimed worktrees
+  */.claude/orchestrator/tasks/*)       exit 0 ;;  # file-drop task mint (task_create / create_task / post-todo-adopt)
+  */.claude/tasks/*)                     exit 0 ;;  # Claude native TaskCreate / TaskUpdate files
   */.claude/orchestrator/*)              ;;         # orchestrator source: never exempt, fall through to claim check
   */scratch/*)                           exit 0 ;;  # workspace scratch dir
   *.log|*/logs/*)                        exit 0 ;;  # log writes are not substantive work

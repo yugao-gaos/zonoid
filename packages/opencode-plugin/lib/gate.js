@@ -37,6 +37,8 @@ function isGateExemptPath(filePath) {
   if (/\/CLAUDE\.md$/.test(fp)) return true;
   if (/\/scratch\//.test(fp)) return true;
   if (/\.log$/.test(fp) || /\/logs\//.test(fp)) return true;
+  if (/\/\.claude\/orchestrator\/tasks\//.test(fp)) return true;
+  if (/\/\.claude\/tasks\//.test(fp)) return true;
   return false;
 }
 
