@@ -31,7 +31,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/overlay/status' && m === 'POST') {
-    const { ALL_STATUSES, followups, verdicts, agentsArr, saveAgents } = ctx;
+    const { ALL_STATUSES, followups, verdicts, agentsArr } = ctx;
     const b = await readBody(req);
     if (ctx.opReplay(res, b)) return true;
     const T = targetOverlay(b, u);
@@ -101,11 +101,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     { const ts = T.ov.timestamps[b.key] = T.ov.timestamps[b.key] || {}; const n = now(); if (!ts.firstSeen) ts.firstSeen = n; if (ts.lastStatus !== b.status || b.status === 'in_progress') { ts.lastChanged = n; ts.lastStatus = b.status; } }
     if (b.agent_id) {
       T.ov.assignee[b.key] = b.agent_id;
-      const a = state.agents[b.agent_id] || { agent_id: b.agent_id, agent_type: b.agent_id, transcript_path: null, startedAt: now(), endedAt: null };
-      a.lastSeen = now();
-      if (b.status === 'in_progress') { a.state = 'running'; a.endedAt = null; }
-      else if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) { a.state = 'done'; a.endedAt = now(); }
-      state.agents[b.agent_id] = a; saveAgents();
+      ctx.touchAgent(b.agent_id, { status: b.status, task_key: b.key, workspace: T.ws });
     }
     if (b.status === 'in_progress') {
       try {

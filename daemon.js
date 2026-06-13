@@ -283,6 +283,37 @@ async function loadState() {
 function saveLoops() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(LOOPS_FILE, JSON.stringify(Object.fromEntries(loops))); } catch { /* best effort */ } }
 function saveAgents() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(AGENTS_FILE, JSON.stringify(state.agents)); } catch { /* best effort */ } }
 
+// touchAgent: register or heartbeat-stamp an agent in the global registry. Idempotent with
+// /agent/start (SubagentStart hook) — safe to call from both paths. Unknown agents get
+// state:'running', startedAt/lastSeen now (start_task auto-register for hookless harnesses).
+// When patch.status is set (/overlay/status), apply the same running/done transitions as before.
+function touchAgent(agentId, patch = {}) {
+  if (!agentId || typeof agentId !== 'string') return;
+  const prev = state.agents[agentId] || {};
+  const ts = now();
+  const st = patch.status;
+  let stateVal = prev.state || 'running';
+  let endedAt = prev.endedAt ?? null;
+  if (patch.state) { stateVal = patch.state; endedAt = patch.state === 'running' ? null : (patch.endedAt ?? endedAt ?? ts); }
+  else if (st === 'in_progress') { stateVal = 'running'; endedAt = null; }
+  else if (st && ['done', 'tested', 'failed', 'canceled'].includes(st)) { stateVal = 'done'; endedAt = ts; }
+  else if (!prev.agent_id) { stateVal = 'running'; endedAt = null; }
+  state.agents[agentId] = {
+    agent_id: agentId,
+    agent_type: patch.agent_type || prev.agent_type || 'agent',
+    state: stateVal,
+    transcript_path: patch.transcript_path !== undefined ? patch.transcript_path : (prev.transcript_path ?? null),
+    task: patch.task !== undefined ? patch.task : (patch.task_key !== undefined ? patch.task_key : (prev.task ?? null)),
+    session: patch.session !== undefined ? patch.session : (prev.session ?? null),
+    subagent_session: patch.subagent_session !== undefined ? patch.subagent_session : (prev.subagent_session ?? null),
+    workspace: patch.workspace !== undefined ? patch.workspace : (prev.workspace ?? state.workspace ?? null),
+    startedAt: prev.startedAt || ts,
+    lastSeen: ts,
+    endedAt,
+  };
+  saveAgents();
+}
+
 // Resolve the TARGET git repo for a task's git op. Precedence (back-compat default = workspace):
 //   explicit (request body repo_path) > task's overlay repo field > daemon workspace.
 // Lets the loop branch/merge/measure on a repo distinct from the daemon's own workspace.
@@ -1431,7 +1462,32 @@ function send(res, code, body, type = 'application/json') {
   res.end(type === 'application/json' ? JSON.stringify(body) : body);
   return true;
 }
-function readBody(req) { return new Promise((r) => { const chunks = []; let n = 0; req.on('data', (c) => { n += c.length; if (n > 1048576) { req.destroy(); return r({}); } chunks.push(c); }); req.on('end', () => { try { const b = Buffer.concat(chunks).toString('utf8'); r(b ? JSON.parse(b) : {}); } catch { r({}); } }); }); }
+function readBody(req) {
+  if (req.__orchBody !== undefined) return Promise.resolve(req.__orchBody);
+  return new Promise((r) => {
+    const chunks = []; let n = 0;
+    req.on('data', (c) => { n += c.length; if (n > 1048576) { req.destroy(); return r({}); } chunks.push(c); });
+    req.on('end', () => {
+      try {
+        const b = Buffer.concat(chunks).toString('utf8');
+        const parsed = b ? JSON.parse(b) : {};
+        if (parsed && parsed.agent_id) {
+          touchAgent(String(parsed.agent_id), {
+            workspace: parsed.workspace,
+            task_key: parsed.key || parsed.task_key,
+            session: parsed.session,
+            agent_type: parsed.agent_type,
+            transcript_path: parsed.transcript_path,
+            subagent_session: parsed.subagent_session,
+            status: parsed.status,
+          });
+        }
+        req.__orchBody = parsed;
+        r(parsed);
+      } catch { req.__orchBody = {}; r({}); }
+    });
+  });
+}
 
 // --- idempotent replay for non-idempotent mutating POSTs (restart-retry safety) ---------------
 // mcp-core's makeCall retries connection-level failures; a retry can DUPLICATE a write that
@@ -1498,7 +1554,7 @@ const ctx = {
   GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL,
   sseClients, agentsArr,
   taskTranscript, usageCached, harnessTranscriptForTask,
-  staleClaimKeys, releaseClaim, sweepStaleClaims, sweepStaleLoops,
+  touchAgent, staleClaimKeys, releaseClaim, sweepStaleClaims, sweepStaleLoops,
   snapshotNative, now, isTruthy,
   embed, cosine, embedStatus, DIMS, EMBED_MODEL,
   gateTask, haikusGate,
@@ -1563,10 +1619,10 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, staleClaimKeys, staleVerdictKeys, migrateBlindEdges,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, migrateBlindEdges,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, __setOverlayForTest: (o) => { state.overlay = o; } };
+  decideOne, __setOverlayForTest: (o) => { state.overlay = o; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
