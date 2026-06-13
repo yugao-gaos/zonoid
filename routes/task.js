@@ -57,10 +57,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const t = g.tasks.find((x) => x.id === u.searchParams.get('key'));
     if (!t) { send(res, 404, { ok: false, error: 'unknown task' }); return true; }
     const mk = (d, kind) => { const dep = g.tasks.find((x) => x.id === d); return { key: d, label: dep ? dep.label : d, status: dep ? dep.status : '?', summary: (dep && dep.summary) || T.ov.summaries[d] || '', via: kind }; };
-    const summaries = [
-      ...t.deps.filter((d) => !d.startsWith('ghost:')).map((d) => mk(d, 'blocking')),
-      ...t.context_deps.filter((d) => !d.startsWith('ghost:')).map((d) => mk(d, 'context')),
-    ];
+    const cw = t.context_weights || {};
+    const blockingSummaries = t.deps.filter((d) => !d.startsWith('ghost:')).map((d) => mk(d, 'blocking'));
+    const contextSummaries = t.context_deps.filter((d) => !d.startsWith('ghost:')).map((d) => {
+      const weight = cw[d] != null ? cw[d] : overlayStore.DEFAULT_CONTEXT_WEIGHT;
+      return { ...mk(d, 'context'), weight };
+    });
+    contextSummaries.sort((a, b) => b.weight - a.weight);
+    const summaries = [...blockingSummaries, ...contextSummaries];
     const allGhostRefs = [...t.deps, ...t.context_deps];
     const ghost = g.ghosts.filter((gh) => allGhostRefs.includes(`ghost:${gh.workspace}|${gh.key}`)).map((gh) => ({ workspace: gh.workspace, key: gh.key, label: gh.label, status: gh.status }));
     send(res, 200, { task: { id: t.id, label: t.label, status: t.status }, dependencySummaries: summaries, ghostDependencies: ghost }); return true;
