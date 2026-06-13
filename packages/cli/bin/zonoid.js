@@ -316,12 +316,13 @@ async function checkGitIdentity() {
   if (email) { execSync(`git config --global user.email "${email.replace(/"/g, '\\"')}"`); ok(`set user.email = ${email}`); }
 }
 
+const ORCH_PORT = process.env.ORCH_PORT || '8787';
 const PLIST_LABEL = 'com.zonoid.daemon';
 const PLIST_PATH  = path.join(os.homedir(), 'Library', 'LaunchAgents', `${PLIST_LABEL}.plist`);
+const SYSTEMD_UNIT = 'zonoid-daemon.service';
+const SYSTEMD_PATH = path.join(os.homedir(), '.config', 'systemd', 'user', SYSTEMD_UNIT);
 
-function checkLaunchd() {
-  if (process.platform !== 'darwin') { log('Launchd auto-start: macOS only, skipping'); return; }
-
+function installLaunchdService() {
   const nodeBin = process.execPath;
   const daemonJs = path.join(INSTALL_DIR, 'daemon.js');
 
@@ -336,6 +337,13 @@ function checkLaunchd() {
     <string>${nodeBin}</string>
     <string>${daemonJs}</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>ORCH_PORT</key>
+    <string>${ORCH_PORT}</string>
+    <key>CLAUDE_PLUGIN_DATA</key>
+    <string>${INSTALL_DIR}</string>
+  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -347,20 +355,69 @@ function checkLaunchd() {
 </dict>
 </plist>`;
 
-  // Write plist (always refresh so node path stays current after node upgrades)
   try {
     fs.mkdirSync(path.dirname(PLIST_PATH), { recursive: true });
     fs.writeFileSync(PLIST_PATH, plist);
   } catch (e) { warn(`Could not write plist: ${e.message}`); return; }
 
-  // Unload stale registration, load fresh
   spawnSync('launchctl', ['unload', PLIST_PATH], { stdio: 'ignore' });
   const load = spawnSync('launchctl', ['load', '-w', PLIST_PATH], { encoding: 'utf8' });
-  if (load.status === 0) ok(`Daemon registered as launchd service — starts on login, restarts on crash`);
+  if (load.status === 0) ok(`launchd service installed (${PLIST_PATH}) — starts on login, restarts on crash`);
   else warn(`launchctl load failed: ${(load.stderr || '').trim()}`);
 }
 
-async function init() {
+function installSystemdService() {
+  const nodeBin = process.execPath;
+  const daemonJs = path.join(INSTALL_DIR, 'daemon.js');
+
+  const unit = `[Unit]
+Description=Zonoid orchestrator daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${nodeBin} ${daemonJs}
+Environment=ORCH_PORT=${ORCH_PORT}
+Environment=CLAUDE_PLUGIN_DATA=${INSTALL_DIR}
+Restart=always
+RestartSec=5
+StandardOutput=append:/tmp/zonoid-daemon.log
+StandardError=append:/tmp/zonoid-daemon.log
+
+[Install]
+WantedBy=default.target
+`;
+
+  try {
+    fs.mkdirSync(path.dirname(SYSTEMD_PATH), { recursive: true });
+    fs.writeFileSync(SYSTEMD_PATH, unit);
+  } catch (e) { warn(`Could not write systemd unit: ${e.message}`); return; }
+
+  const reload = spawnSync('systemctl', ['--user', 'daemon-reload'], { encoding: 'utf8' });
+  if (reload.status !== 0) {
+    warn(`systemctl daemon-reload failed: ${(reload.stderr || reload.stdout || '').trim()}`);
+    log(`Unit written to ${SYSTEMD_PATH} — run: systemctl --user enable --now ${SYSTEMD_UNIT}`);
+    return;
+  }
+  const enable = spawnSync('systemctl', ['--user', 'enable', '--now', SYSTEMD_UNIT], { encoding: 'utf8' });
+  if (enable.status === 0) ok(`systemd user service installed (${SYSTEMD_PATH}) — enabled and started`);
+  else {
+    warn(`systemctl enable failed: ${(enable.stderr || enable.stdout || '').trim()}`);
+    log(`Unit written to ${SYSTEMD_PATH} — run: systemctl --user enable --now ${SYSTEMD_UNIT}`);
+  }
+}
+
+function installService() {
+  if (process.platform === 'darwin') installLaunchdService();
+  else if (process.platform === 'linux') installSystemdService();
+  else warn(`User service install not supported on ${process.platform}`);
+}
+
+function parseInitArgs(argv) {
+  return { service: argv.slice(3).includes('--service') };
+}
+
+async function init(opts = {}) {
   const cwd = process.cwd();
   console.log(`\nZonoid init — workspace: ${cwd}`);
   console.log(`Install dir:  ${INSTALL_DIR}\n`);
@@ -382,7 +439,7 @@ async function init() {
   checkSkills();
 
   section('5. Daemon');
-  checkLaunchd();
+  if (opts.service) installService();
   await checkDaemon();
   await registerWorkspace(cwd);
 
@@ -407,8 +464,11 @@ async function init() {
 
 const cmd = process.argv[2];
 if (cmd === 'init') {
-  init().catch((err) => { console.error(err); process.exit(1); });
+  init(parseInitArgs(process.argv)).catch((err) => { console.error(err); process.exit(1); });
 } else {
-  console.log('Usage: npx @zonoid/cli init');
+  console.log('Usage: npx @zonoid/cli init [--service]');
+  console.log('');
+  console.log('  --service  Install user-level launchd (macOS) or systemd (Linux) service');
+  console.log('             so the daemon starts on login and survives IDE restarts.');
   process.exit(cmd ? 1 : 0);
 }
