@@ -998,6 +998,17 @@ function scoreMatches(g, target) {
     .sort((a, b) => b.score - a.score);
 }
 
+// Link-suggestion package for one task: top-5 scored matches + duplicate warning + wiring hint.
+// The ONE source of suggestion semantics, shared by GET /task/suggest and POST /sync (the
+// adoption nudge carries the same suggestions in-band) — keep route responses in lockstep.
+function suggestForTask(g, target) {
+  const suggestions = scoreMatches(g, target).slice(0, 5);
+  const duplicates = suggestions.filter((c) => c.duplicate).map((c) => c.key);
+  let hint = 'Link DONE matches as kind:context (their summary becomes Tier-1 context); link a true prerequisite as kind:blocking. Skip unrelated ones.';
+  if (duplicates.length) hint = `WARNING: this looks like a near-duplicate of OPEN task(s) ${duplicates.join(', ')}. If it is the same work re-planned, do NOT keep both — call supersede_task(old_task_key=<existing>, new_task_key=${target.id}) so the graph reconciles old→new instead of leaving orphaned duplicates. ` + hint;
+  return { suggestions, duplicates, hint };
+}
+
 // SEMANTIC variant of scoreMatches: identical return shape, but each candidate is scored by
 // cosine(targetVec, candidate.vec) when BOTH carry a 384-dim embedding, falling back PER-CANDIDATE
 // to the lexical token-overlap score when either vec is genuinely missing. This is what lets note
@@ -1491,7 +1502,7 @@ const ctx = {
   snapshotNative, now, isTruthy,
   embed, cosine, embedStatus, DIMS, EMBED_MODEL,
   gateTask, haikusGate,
-  scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks,
+  scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks, suggestForTask,
   SUGGEST_DUP_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,
   autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD,
   noteCurrentAsOf, gatedSearchCounts, checkGatedRateLimit,
@@ -1528,7 +1539,7 @@ const handler = async (req, res) => {
     // Public reads of the CURRENT workspace + the dashboard stay open; any ?workspace= read is gated too.
     const protectedPath = p === '/mcp' || p === '/reset' || p.startsWith('/overlay/') || p === '/loop/start' || p === '/loop/stop'
       || p === '/workspace' || p === '/peek' || p === '/config' || p === '/route' || p.startsWith('/agent/') || p.startsWith('/git/')
-      || p.startsWith('/guidance') || p === '/supersede' || p === '/judge/verdict' || p === '/analytics/tool-call';
+      || p.startsWith('/guidance') || p === '/supersede' || p === '/judge/verdict' || p === '/analytics/tool-call' || p === '/sync';
     if ((protectedPath || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 
     // Route modules handle all extracted endpoint groups.

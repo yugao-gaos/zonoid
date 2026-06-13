@@ -5,7 +5,7 @@ const git = require('../lib/git');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, buildGraph, state, targetOverlay,
-    validateMetricSpec, validateBenchmark, resolveRepo, scoreMatches, taskTranscript, usageCached } = ctx;
+    validateMetricSpec, validateBenchmark, resolveRepo, taskTranscript, usageCached } = ctx;
 
   if (p === '/task/metric' && m === 'POST') {
     const b = await readBody(req);
@@ -72,11 +72,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const key = u.searchParams.get('key');
     const target = g.tasks.find((x) => x.id === key);
     if (!target) { send(res, 404, { ok: false, error: 'unknown task' }); return true; }
-    const out = scoreMatches(g, target).slice(0, 5);
-    const duplicates = out.filter((c) => c.duplicate).map((c) => c.key);
-    let hint = 'Link DONE matches as kind:context (their summary becomes Tier-1 context); link a true prerequisite as kind:blocking. Skip unrelated ones.';
-    if (duplicates.length) hint = `WARNING: this looks like a near-duplicate of OPEN task(s) ${duplicates.join(', ')}. If it is the same work re-planned, do NOT keep both — call supersede_task(old_task_key=<existing>, new_task_key=${target.id}) so the graph reconciles old→new instead of leaving orphaned duplicates. ` + hint;
-    send(res, 200, { task: { id: target.id, label: target.label }, suggestions: out, duplicates, hint }); return true;
+    const { suggestions, duplicates, hint } = ctx.suggestForTask(g, target);
+    send(res, 200, { task: { id: target.id, label: target.label }, suggestions, duplicates, hint }); return true;
   }
 
   if (p === '/task/tree') {

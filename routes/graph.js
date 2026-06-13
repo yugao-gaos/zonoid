@@ -19,6 +19,47 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, delta.computeDelta(g.tasks, ov, parsed.ms)); return true;
   }
 
+  // Explicit pull trigger for the file-drop minting substrate (multi-harness plan Phase 2): an
+  // adapter that just dropped a stub file calls POST /sync { workspace? } for immediate adoption
+  // instead of waiting for the watcher/TTL. Forces a re-aggregation of the target workspace and
+  // reports { adopted: [task_key...], suggestions: { <task_key>: [...] } }.
+  //   adopted     = task keys newly seen in THIS sync — derived from overlay.timestamps, the
+  //                 existing first-sighting record (a key with no timestamps entry before this
+  //                 build has never been adopted). No new persistence: buildGraph already stamps
+  //                 firstSeen for the daemon's own workspace; for a non-current workspace this
+  //                 route stamps the same record itself, so a second /sync returns adopted: [].
+  //   suggestions = per adopted task, the same top-5 link suggestions GET /task/suggest serves
+  //                 (shared suggestForTask helper) — the wiring nudge, in-band.
+  if (p === '/sync' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace: POST /workspace first or pass { workspace }' }); return true; }
+    const prevKnown = new Set(Object.keys(T.ov.timestamps || {}));
+    ctx.cache.agg.delete(T.ws); ctx.cache.aggAt.delete(T.ws);   // force the pull past the TTL cache
+    const g = buildGraph(T.ws);
+    const adopted = g.tasks.filter((t) => t.kind !== 'note' && !prevKnown.has(t.id)).map((t) => t.id);
+    // Idempotency for non-current workspaces: buildGraph only stamps timestamps when ws is the
+    // daemon's own workspace. Stamp any unstamped adoptee here (no-op for the own-ws case, where
+    // T.ov IS state.overlay and buildGraph already stamped it).
+    let dirty = false;
+    const nowIso = new Date().toISOString();
+    for (const key of adopted) {
+      if (!T.ov.timestamps[key]) {
+        const t = g.tasks.find((x) => x.id === key);
+        T.ov.timestamps[key] = { firstSeen: nowIso, lastChanged: nowIso, lastStatus: t ? t.status : 'pending' };
+        dirty = true;
+      }
+    }
+    if (dirty) T.save();
+    const suggestions = {};
+    for (const key of adopted) {
+      const target = g.tasks.find((x) => x.id === key);
+      if (target) suggestions[key] = ctx.suggestForTask(g, target).suggestions;
+    }
+    ctx.notifyChange();
+    send(res, 200, { ok: true, workspace: T.ws, adopted, suggestions }); return true;
+  }
+
   if (p === '/graph/init' && m === 'POST') {
     const b = await readBody(req);
     const { ws } = targetOverlay(b, u);
