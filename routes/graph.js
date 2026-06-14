@@ -3,6 +3,7 @@ const delta = require('../lib/delta');
 const overlayStore = require('../lib/overlay');
 const graphStore = require('../lib/graph-store');
 const { contentTokens, classifyNoteType, noteText } = require('../lib/context-gate');
+const { maxCosine, nodeVecs } = require('../lib/embed');
 const path = require('path');
 const fs = require('fs');
 
@@ -218,9 +219,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       return true;
     };
     // Score one item HYBRID: semantic cosine when both the query AND the item have a vector,
-    // else the lexical token overlap. Returns { score, via }.
-    const scoreHybrid = (vec, lexNode) => {
-      if (qvec && Array.isArray(vec)) return { score: cosine(qvec, vec), via: 'semantic' };
+    // else the lexical token overlap. Returns { score, via }. MULTI-VEC: vecNode carries EITHER a
+    // single `.vec` (notes, knowledge items) OR a `.vecs` array (tasks); maxCosine takes the max
+    // cosine over whichever it finds — identical to single-vec cosine when there is exactly one.
+    const scoreHybrid = (vecNode, lexNode) => {
+      if (qvec && nodeVecs(vecNode).length > 0) return { score: maxCosine(qvec, vecNode), via: 'semantic' };
       return { score: scoreNodeAgainstTokens(lexNode, qt).score, via: 'lexical' };
     };
     // Gate candidate pool: the SAME note subset the old gated branch scored —
@@ -233,7 +236,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     for (const n of g.tasks) {
       if ((n.kind || 'task') !== 'note' || n.validTo || dagKeys.has(n.id) || excludeKeys.has(n.id)) continue;
       let rawScore = 0;
-      if (qvec && Array.isArray(n.vec)) { rawScore = cosine(qvec, n.vec); gateVia = 'semantic'; }
+      if (qvec && nodeVecs(n).length > 0) { rawScore = maxCosine(qvec, n); gateVia = 'semantic'; }
       gateCands.push({ key: n.id, title: n.label, summary: n.summary, score: rawScore, category: n.category || null, tags: n.tags || [] });
     }
     // KB-state / query metadata — computed once here; spread into both journal row variants below.
@@ -276,7 +279,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (dagKeys.has(node.id)) continue;  // skip DAG-injected notes
       if (excludeKeys.has(node.id)) continue;  // already injected in a prior round
       if (!temporalOk(node)) continue;
-      const { score, via } = scoreHybrid(node.vec, node);
+      const { score, via } = scoreHybrid(node, node);
       if (!(score > 0)) continue;
       const foundPath = bfsPath(node.id, pathAnchors);
       const r = { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task', tier: 'rag', via, path: foundPath || [] };
@@ -299,7 +302,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (dagKeys.has(key)) return;  // skip DAG-injected items
         if (excludeKeys.has(key)) return;  // already injected in a prior round
         const lexNode = { label: text, summary: '' };
-        const { score, via } = scoreHybrid(it && it._vec, lexNode);
+        const { score, via } = scoreHybrid({ vec: it && it._vec }, lexNode);
         if (!(score > 0)) return;
         // Knowledge items are children of tkey; path via the parent task node.
         let kPath;

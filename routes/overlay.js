@@ -4,7 +4,7 @@ const filedropGc = require('../lib/filedrop-gc');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
 const path = require('path');
-const { noteEmbedText } = require('../lib/node-tags');
+const { noteEmbedText, taskEmbedText } = require('../lib/node-tags');
 const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
 
@@ -168,6 +168,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     }
     if (b.summary != null) T.ov.summaries[b.key] = String(b.summary).slice(0, 2000);
+    // TASK embedding (multi-vec schema): (re)embed title+summary whenever a summary is set so the
+    // task carries a dense vector for retrieval/suggest_links — mirrors the note embed path. Title
+    // resolved from the adoption snapshot (subject), falling back to the native task. Category/tags
+    // are deliberately OUT of the embedded string (separate signals, fused in later steps). embed()
+    // is null-safe (sidecar loading/disabled ⇒ no vec ⇒ lexical fallback, exactly like notes).
+    // Embed when the summary changed (interface text updated) OR when the task has no vector yet
+    // (first write — e.g. the in_progress claim — gives a title-only vec so every task is covered).
+    const _hasVec = T.ov.taskVecs && Array.isArray(T.ov.taskVecs[b.key]) && T.ov.taskVecs[b.key].length;
+    if (b.key && (b.summary != null || !_hasVec)) {
+      try {
+        const snap = T.ov.snapshots && T.ov.snapshots[b.key];
+        let title = snap && snap.subject;
+        if (!title) { const nt = ctx.readNativeTask(T.ws, String(b.key)); title = nt && (nt.subject || nt.activeForm); }
+        const tvec = await embed(taskEmbedText({ title, summary: T.ov.summaries[b.key] }));
+        if (tvec) overlayStore.setTaskVec(T.ov, b.key, tvec);
+      } catch { /* best effort — never block the status write on embedding */ }
+    }
     const NATIVE_STATUS = { in_progress: 'in_progress', done: 'completed', tested: 'completed' };
     const ns = NATIVE_STATUS[b.status];
     if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) snapshotNative(T.ov, b.key, ns);
@@ -421,9 +438,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (v && it && typeof it === 'object') { it._vec = v; knEmbedded++; } else failed++;
       }
     }
+    // TASK backfill (multi-vec schema): every real (non-note) task node that lacks a vec gets one
+    // from its title+summary. buildGraph yields the authoritative label+summary per node.
+    let tasksEmbedded = 0, tasksSkipped = 0;
+    const g = buildGraph(state.workspace);
+    for (const node of g.tasks) {
+      if ((node.kind || 'task') === 'note') continue;
+      const existing = state.overlay.taskVecs && state.overlay.taskVecs[node.id];
+      if (Array.isArray(existing) && existing.length) { tasksSkipped++; continue; }
+      const v = await embed(taskEmbedText({ title: node.label, summary: node.summary }));
+      if (v) { overlayStore.setTaskVec(state.overlay, node.id, v); tasksEmbedded++; } else failed++;
+    }
     overlayStore.save(state.workspace, state.overlay);
     notifyChange();
-    send(res, 200, { ok: true, notes: { embedded: notesEmbedded, skipped: notesSkipped }, knowledge: { embedded: knEmbedded, skipped: knSkipped }, failed }); return true;
+    send(res, 200, { ok: true, notes: { embedded: notesEmbedded, skipped: notesSkipped }, knowledge: { embedded: knEmbedded, skipped: knSkipped }, tasks: { embedded: tasksEmbedded, skipped: tasksSkipped }, failed }); return true;
   }
 
   if (p === '/overlay/reembed' && m === 'POST') {
