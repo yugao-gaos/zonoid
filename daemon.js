@@ -1138,8 +1138,13 @@ function scoreMatchesSemantic(g, target, targetVec) {
 }
 
 // Default auto-wire relevance threshold (conservative — err toward FEWER false edges). A newly
-// seen task auto-gets a weighted context edge to each context-eligible match scoring >= this.
-const DEFAULT_AUTOWIRE_THRESHOLD = 0.25;
+// seen task auto-gets a weighted context edge to each context-eligible (lexical task->task) match
+// scoring >= this. Raised 0.25 -> 0.40 at the judge-verdict knee: in the live overlay 189/282
+// (67%) of autowire-created task->task edges scored in [0.25-0.40), the dense low-overlap tail the
+// judge only manufactures backlog over (weight-0 seeding already makes them retrieval-invisible, so
+// this gates JUDGE-BACKLOG VOLUME, not retrieval quality). Structural note-provider edges use the
+// SEPARATE semantic bar below and are unaffected. Env-overridable via overlay.config.autowire_threshold.
+const DEFAULT_AUTOWIRE_THRESHOLD = 0.40;
 // Semantic auto-wire threshold. Cosine similarity over MiniLM embeddings sits on a DIFFERENT scale
 // than lexical token-overlap (related prose lands ~0.4–0.7 cosine, where it scored ~0 lexically), so
 // the lexical 0.25 bar is wrong here — it would wire nearly everything into a clique. Tuned on the
@@ -1159,7 +1164,12 @@ function autowireNewTask(overlay, g, target, threshold = DEFAULT_AUTOWIRE_THRESH
     // m.key is the provider's graph-node id (note nodes are 'note:<id>'), which is exactly what
     // depRefs matches edge.from against — store it verbatim as the context edge's source.
     const before = overlay.edges.length;
-    overlayStore.addEdge(overlay, m.key, target.id, null, 'context', m.score);
+    // Seed weight 0 (retrieval-invisible) + {by:'autowire', judged:false}; preserve the cosine in
+    // `score` so a judge keep-verdict can promote the weight from it. The judge KEEP path is now a
+    // PROMOTION queue: an unjudged autowire edge contributes ZERO relevance until confirmed.
+    // origin:'autowire-lexical' — this task->task path is gated by DEFAULT_AUTOWIRE_THRESHOLD (0.40),
+    // so it is the ONLY population keepRateByBand should measure for threshold tuning.
+    overlayStore.addEdge(overlay, m.key, target.id, null, 'context', 0, { by: 'autowire', judged: false, score: m.score, origin: 'autowire-lexical' });
     if (overlay.edges.length > before) added++; // count only genuinely-new edges (addEdge dedupes)
   }
   return added;
@@ -1185,7 +1195,12 @@ function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = n
     .slice(0, 5);                                                 // cap fan-out — a noisy note can't spam the graph
   for (const m of kept) {
     const before = overlay.edges.length;
-    overlayStore.addEdge(overlay, noteKey, m.key, null, 'context', m.score); // note is PROVIDER (from)
+    // note is PROVIDER (from). Seed weight 0 (retrieval-invisible) + {by:'autowire', judged:false};
+    // preserve cosine in `score` for judge promotion. See autowireNewTask for the rationale.
+    // origin:'autowire-semantic' — note->task/note->note gated by the SEPARATE SEMANTIC bar (0.55),
+    // a different cosine scale than the lexical path; keepRateByBand must NOT fold it into the
+    // autowire-lexical curve.
+    overlayStore.addEdge(overlay, noteKey, m.key, null, 'context', 0, { by: 'autowire', judged: false, score: m.score, origin: 'autowire-semantic' });
     if (overlay.edges.length > before) added++; // count only genuinely-new edges (addEdge dedupes)
   }
   return added;
@@ -1251,6 +1266,12 @@ function makeResolver() {
     const local = t ? t.deps.map((k) => ({ ws, key: k, kind: 'blocking' })) : [];
     const edges = overlay.edges
       .filter((e) => e.to === key && !e.toWorkspace)
+      // Weight is a relevance MULTIPLIER for context edges: a weight-0 edge contributes ZERO and is
+      // EXCLUDED from the context_deps payload (DAG-tier injection + structural rerank), not merely
+      // deprioritized. This is how unjudged autowire edges (seeded at weight 0) stay retrieval-
+      // invisible until the judge promotes them. The edge remains in overlay.edges so the judge still
+      // sees it. Blocking edges carry no weight and are never filtered.
+      .filter((e) => !(e.kind === 'context' && overlayStore.edgeWeight(e) === 0))
       .map((e) => ({ ws: e.fromWorkspace || ws, key: e.from, ghost: !!e.fromWorkspace, kind: e.kind === 'context' ? 'context' : 'blocking', weight: overlayStore.edgeWeight(e) }));
     return [...local, ...edges];
   }

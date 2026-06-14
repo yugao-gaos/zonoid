@@ -9,12 +9,14 @@
 // Scoring is now SEMANTIC (scoreMatchesSemantic) but falls back PER-CANDIDATE to lexical token
 // overlap when a vec is missing. These fixtures carry NO vecs, so every score here is the lexical
 // fallback — which is exactly what lets us assert the wiring mechanics on the lexical scale. We
-// thread the lexical-scale DEFAULT_AUTOWIRE_THRESHOLD (0.25) explicitly, since the function's own
-// default is now the higher semantic bar (SEMANTIC_AUTOWIRE_THRESHOLD) tuned for cosine scores.
+// thread an explicit lexical-scale bar (0.25), since the function's own default is now the higher
+// semantic bar (SEMANTIC_AUTOWIRE_THRESHOLD) tuned for cosine scores. NB: the literal 0.25 is pinned
+// here (no longer == DEFAULT_AUTOWIRE_THRESHOLD, which was raised to a 0.40 semantic knee) so these
+// vec-less lexical fixtures keep exercising the selection mechanics at the scale they were authored for.
 'use strict';
 const ov = require('../lib/overlay');
-const { scoreMatchesSemantic, autowireNoteProvider, DEFAULT_AUTOWIRE_THRESHOLD } = require('../daemon');
-const TH = DEFAULT_AUTOWIRE_THRESHOLD; // 0.25 lexical-scale bar for these vec-less fixtures
+const { scoreMatchesSemantic, autowireNoteProvider } = require('../daemon');
+const TH = 0.25; // lexical-scale bar for these vec-less fixtures
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -55,10 +57,15 @@ const SUMMARY = 'use idempotent stripe refund keys so retries never double-refun
   ok('unrelated task NOT wired (below threshold)', !tos.has('s/4'));
   ok('other NOTE wired as consumer (note->note now allowed)', tos.has('note:other'));
 
-  // weight stored on each edge equals that match's relevance score
+  // Autowire SEEDS weight 0 (retrieval-invisible) + {by:'autowire', judged:false}; the recall cosine
+  // is preserved in `score` for the judge to promote from on a keep-verdict.
   const scoreOf = (key) => matches.find((m) => m.key === key).score;
-  ok('edge weight == relevance score', overlay.edges.every((e) => e.weight === scoreOf(e.to)));
-  ok('every auto edge weight >= threshold', overlay.edges.every((e) => e.weight >= TH));
+  ok('every auto edge seeded at weight 0', overlay.edges.every((e) => e.weight === 0));
+  ok('every auto edge carries {by:autowire, judged:false}', overlay.edges.every((e) => e.by === 'autowire' && e.judged === false));
+  // note->neighbor semantic autowire stamps origin:'autowire-semantic' (separate cosine-scale population)
+  ok('every note->neighbor auto edge carries origin:autowire-semantic', overlay.edges.every((e) => e.origin === 'autowire-semantic'));
+  ok('edge score == relevance score', overlay.edges.every((e) => e.score === scoreOf(e.to)));
+  ok('every auto edge score >= threshold', overlay.edges.every((e) => e.score >= TH));
 
   // --- idempotent: re-wiring adds no new edges ---
   const before = overlay.edges.length;

@@ -26,7 +26,11 @@ const g = { tasks: [doneProvider, openTask, noteNode, unrelated, newTask] };
 {
   const overlay = ov.EMPTY();
   const matches = scoreMatches(g, newTask);
-  const added = autowireNewTask(overlay, g, newTask);
+  // Exercise the wiring mechanics at an explicit lexical-scale bar (0.25): the note:abc fixture
+  // scores 0.309, below the production DEFAULT_AUTOWIRE_THRESHOLD (0.40), and this block asserts
+  // that wiring HAPPENS for eligible providers, not what the default bar is (covered separately).
+  const TH = 0.25;
+  const added = autowireNewTask(overlay, g, newTask, TH);
   ok('autowire added at least one edge for overlapping task', added >= 1);
 
   const ctx = overlay.edges.filter((e) => e.kind === 'context' && e.to === newTask.id);
@@ -39,13 +43,19 @@ const g = { tasks: [doneProvider, openTask, noteNode, unrelated, newTask] };
   ok('open task NOT auto-wired (blocking-eligible)', !froms.has('s/2'));
   ok('unrelated task NOT auto-wired (below threshold / no overlap)', !froms.has('s/3'));
 
-  // weight stored on each edge equals that match's relevance score
+  // Autowire now SEEDS weight 0 (retrieval-invisible) + {by:'autowire', judged:false}; the recall
+  // cosine is preserved in `score` for the judge to promote from on a keep-verdict.
   const scoreOf = (key) => matches.find((m) => m.key === key).score;
-  ok('done-edge weight == relevance score', ctx.find((e) => e.from === 's/1').weight === scoreOf('s/1'));
-  ok('note-edge weight == relevance score', ctx.find((e) => e.from === 'note:abc').weight === scoreOf('note:abc'));
+  ok('done-edge seeded at weight 0', ctx.find((e) => e.from === 's/1').weight === 0);
+  ok('note-edge seeded at weight 0', ctx.find((e) => e.from === 'note:abc').weight === 0);
+  ok('every auto edge carries {by:autowire, judged:false}', ctx.every((e) => e.by === 'autowire' && e.judged === false));
+  // task->task lexical autowire stamps origin:'autowire-lexical' (the threshold-gated population)
+  ok('every task->task auto edge carries origin:autowire-lexical', ctx.every((e) => e.origin === 'autowire-lexical'));
+  ok('done-edge score == relevance score', ctx.find((e) => e.from === 's/1').score === scoreOf('s/1'));
+  ok('note-edge score == relevance score', ctx.find((e) => e.from === 'note:abc').score === scoreOf('note:abc'));
 
-  // every stored weight clears the threshold
-  ok('every auto edge weight >= threshold', ctx.every((e) => e.weight >= DEFAULT_AUTOWIRE_THRESHOLD));
+  // the preserved recall score clears the bar this block wired at
+  ok('every auto edge score >= threshold', ctx.every((e) => e.score >= TH));
 
   // never a blocking edge
   ok('no blocking edges auto-created', !overlay.edges.some((e) => e.kind !== 'context'));
@@ -66,8 +76,8 @@ const g = { tasks: [doneProvider, openTask, noteNode, unrelated, newTask] };
   ok('novel task auto-wires nothing', added === 0 && overlay.edges.length === 0);
 }
 
-// --- conservative default threshold is 0.25 ---
-ok('default autowire threshold is 0.25', DEFAULT_AUTOWIRE_THRESHOLD === 0.25);
+// --- conservative default threshold is 0.40 (raised from 0.25 at the judge-verdict knee) ---
+ok('default autowire threshold is 0.40', DEFAULT_AUTOWIRE_THRESHOLD === 0.40);
 
 // --- threshold knob: a high threshold suppresses weaker matches ---
 {

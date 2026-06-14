@@ -36,6 +36,10 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, buildGraph, state, targetOverlay,
     noteRagCandidates } = ctx;
 
+  // PROMOTION QUEUE: autowire context edges are seeded at weight 0 (retrieval-invisible). An `edge`
+  // item here is an unjudged autowire edge awaiting confirmation; a keepEdge verdict PROMOTES it
+  // (judged:true + a real weight off the preserved recall `score`) so it re-enters ranked retrieval,
+  // while pruneEdge deletes it. Until judged, the edge contributes ZERO relevance.
   if (p === '/judge/next') {
     const cfg = state.overlay.config.judge || {};
     const defBudget = Number(cfg.budgetPerRun) || 20;
@@ -81,6 +85,21 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ov.judgedAtEpoch) T.ov.judgedAtEpoch = {};
     if (!T.ov.judgedClusters) T.ov.judgedClusters = {};
     const applied = { created: 0, kept: 0, pruned: 0, surfaced: 0, judged: 0, consolidated: 0, superseded: 0, repointed: 0, clustersJudged: 0 };
+    // The edge's creation cosine lives in `score` (autowire seeds it there with weight 0); fall back to
+    // `weight` for hand-asserted edges. Read it BEFORE a prune deletes the edge, else it's gone.
+    const edgeCosine = (e) => (e && typeof e.score === 'number') ? e.score : (e && typeof e.weight === 'number' ? e.weight : null);
+    // Origin of the edge being judged — what lets keepRateByBand isolate the threshold-gated
+    // (autowire-lexical) population from hand-asserted note->task edges. Prefer the stamped tag; for
+    // tag-less PRE-EXISTING edges (created before origin stamping) INFER from by + endpoints as a
+    // LEGACY FALLBACK: by:'autowire' + note source ⇒ semantic; by:'autowire' + both endpoints tasks ⇒
+    // lexical; otherwise asserted. A node id starting 'note:' marks a note endpoint.
+    const isNote = (id) => typeof id === 'string' && id.startsWith('note:');
+    const edgeOrigin = (e) => {
+      if (e && typeof e.origin === 'string') return e.origin;
+      if (e && e.by === 'autowire') return isNote(e.from) ? 'autowire-semantic' : 'autowire-lexical';
+      return 'asserted';
+    };
+    const findEdge = (from, to, kind) => T.ov.edges.find((x) => x.from === from && x.to === to && (kind == null || x.kind === kind));
     for (const v of verdicts) {
       if (v && v.createEdge && v.createEdge.from && v.createEdge.to) {
         const before = T.ov.edges.length;
@@ -90,12 +109,25 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         if (T.ov.edges.length > before || e) applied.created++;
       }
       if (v && v.keepEdge && v.keepEdge.from && v.keepEdge.to) {
-        if (judge.keepEdge(T.ov, v.keepEdge.from, v.keepEdge.to)) applied.kept++;
+        const kept = findEdge(v.keepEdge.from, v.keepEdge.to, 'context');
+        const cos = edgeCosine(kept);
+        const origin = edgeOrigin(kept);
+        if (judge.keepEdge(T.ov, v.keepEdge.from, v.keepEdge.to)) {
+          applied.kept++;
+          judge.appendVerdict(T.ws, { epoch, verdict: 'keep', from: v.keepEdge.from, to: v.keepEdge.to, edgeKind: 'context', cosine: cos, origin, by: 'judge' });
+        }
       }
       if (v && v.pruneEdge && v.pruneEdge.from && v.pruneEdge.to) {
+        // Read the cosine BEFORE removeEdge — once the edge is deleted its creation score is gone.
+        const doomed = findEdge(v.pruneEdge.from, v.pruneEdge.to, v.pruneEdge.kind || 'context');
+        const cos = edgeCosine(doomed);
+        const origin = edgeOrigin(doomed);
         const before = T.ov.edges.length;
         overlayStore.removeEdge(T.ov, v.pruneEdge.from, v.pruneEdge.to, null, v.pruneEdge.kind);
-        if (T.ov.edges.length < before) applied.pruned++;
+        if (T.ov.edges.length < before) {
+          applied.pruned++;
+          judge.appendVerdict(T.ws, { epoch, verdict: 'prune', from: v.pruneEdge.from, to: v.pruneEdge.to, edgeKind: v.pruneEdge.kind || 'context', cosine: cos, origin, by: 'judge' });
+        }
       }
       if (v && v.consolidate && v.consolidate.keep && Array.isArray(v.consolidate.supersede)) {
         const keep = String(v.consolidate.keep).replace(/^note:/, '');
@@ -120,6 +152,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         });
         judge.stampCluster(T.ov.judgedClusters, [keepKey, ...v.consolidate.supersede.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k)], epoch);
         applied.consolidated++; applied.clustersJudged++;
+        judge.appendVerdict(T.ws, { epoch, verdict: 'consolidate', from: keepKey, to: supersededNow.join(',') || null, edgeKind: 'note', cosine: null, by: 'judge' });
       }
       if (v && v.surfaceCluster && Array.isArray(v.surfaceCluster.keys) && v.surfaceCluster.keys.length) {
         const keys = v.surfaceCluster.keys.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
@@ -142,6 +175,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         });
         judge.stampCluster(T.ov.judgedClusters, keys, epoch);
         applied.surfaced++; applied.clustersJudged++;
+        judge.appendVerdict(T.ws, { epoch, verdict: 'surface', from: keys[0] || null, to: keys.slice(1).join(',') || null, edgeKind: 'note', cosine: null, by: 'judge' });
       }
       if (v && v.markDistinct && Array.isArray(v.markDistinct.keys) && v.markDistinct.keys.length) {
         const keys = v.markDistinct.keys.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
@@ -150,7 +184,10 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         applied.stamped = (applied.stamped || 0) + 1; applied.clustersJudged++;
       }
       const noteKey = v && (v.markJudged || (v.item && v.item.kind === 'orphan' ? v.item.id : null));
-      if (noteKey) { judge.stampJudged(T.ov.judgedAtEpoch, noteKey, epoch); applied.judged++; }
+      if (noteKey) {
+        judge.stampJudged(T.ov.judgedAtEpoch, noteKey, epoch); applied.judged++;
+        judge.appendVerdict(T.ws, { epoch, verdict: 'markJudged', from: noteKey, to: null, edgeKind: 'note', cosine: null, by: 'judge' });
+      }
     }
     T.save(); notifyChange();
     send(res, 200, { ok: true, epoch, applied, edges: T.ov.edges.length }); return true;

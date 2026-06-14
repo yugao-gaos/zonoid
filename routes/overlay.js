@@ -17,7 +17,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.from || !b.to) { send(res, 400, { ok: false, error: 'from and to required' }); return true; }
-    overlayStore.addEdge(T.ov, b.from, b.to, b.fromWorkspace, b.kind, b.weight);
+    // add_dependency / wires_to / suggest_links all land here — these are hand-ASSERTED edges (no
+    // autowire origin), so default origin:'asserted'. This is the population keepRateByBand must EXCLUDE
+    // when tuning the autowire-lexical threshold (asserted note->task edges contaminated the sub-0.40 band).
+    overlayStore.addEdge(T.ov, b.from, b.to, b.fromWorkspace, b.kind, b.weight, { origin: 'asserted' });
     T.save(); notifyChange();
     send(res, 200, { ok: true, edges: T.ov.edges.length, ghost: !!b.fromWorkspace, kind: b.kind === 'context' ? 'context' : 'blocking' }); return true;
   }
@@ -405,7 +408,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const ts = new Date().toISOString();
     for (const n of Object.values(state.overlay.note_nodes || {})) {
       if (Array.isArray(n.vec)) { notesSkipped++; continue; }
-      const v = await embed(n.title || '');
+      const v = await embed(noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
       if (v) {
         n.vec = v; notesEmbedded++;
         graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
@@ -431,7 +434,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const ts2 = new Date().toISOString();
     for (const n of Object.values(state.overlay.note_nodes || {})) {
       if (!force2 && Array.isArray(n.vec) && n.vec.length === DIMS) { skipped++; continue; }
-      const v = await embed(n.title || '');
+      const v = await embed(noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
       if (v) { n.vec = v; embedded++; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'reembed', ts: ts2 }); } else failed++;
     }
     overlayStore.save(state.workspace, state.overlay);

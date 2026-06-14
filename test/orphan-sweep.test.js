@@ -11,8 +11,9 @@
 // a truly-independent orphan gains none and triggers no write.
 'use strict';
 const ov = require('../lib/overlay');
-const { autowireNoteProvider, DEFAULT_AUTOWIRE_THRESHOLD } = require('../daemon');
-const TH = DEFAULT_AUTOWIRE_THRESHOLD; // these fixtures carry no vecs ⇒ lexical fallback ⇒ lexical bar
+const { autowireNoteProvider } = require('../daemon');
+const TH = 0.25; // these fixtures carry no vecs ⇒ lexical fallback ⇒ pinned lexical bar (no longer
+                 // == DEFAULT_AUTOWIRE_THRESHOLD, which was raised to a 0.40 semantic knee)
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -22,7 +23,7 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
 // null) with zero edges (neither from nor to) are replayed through autowireNoteProvider; total
 // edges added is returned; the caller persists IFF total > 0. Live sweepOrphanNotes passes node.vec
 // and the semantic default threshold; here the fixtures have no vecs (lexical fallback), so we pass
-// the lexical-scale DEFAULT_AUTOWIRE_THRESHOLD to exercise the selection mechanics on that scale.
+// an explicit lexical-scale bar (0.25) to exercise the selection mechanics on that scale.
 function sweepCore(overlay, g) {
   const touched = new Set();
   for (const e of overlay.edges) { touched.add(e.from); touched.add(e.to); }
