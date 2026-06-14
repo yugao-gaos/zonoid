@@ -1,7 +1,7 @@
 # Held-out retrieval scorecard — search_knowledge
 
-Generated: 2026-06-14T03:38:35.085Z  
-Daemon: `http://127.0.0.1:8811` (isolated snapshot)  
+Generated: 2026-06-14T04:34:36.305Z  
+Daemon: `http://127.0.0.1:8857` (isolated snapshot)  
 Eval set: `bench/retrieval/heldout-eval-set.json` (v1)  
 Status: **PASS**
 
@@ -11,7 +11,7 @@ Status: **PASS**
 |-----------|----------|----------|-------|---------|
 | task-transcript | no | 1 | 1 | 4 |
 | locale-sum | no | 1 | 1 | 5 |
-| bench-metric | no | 0.6 | 0.4667 | 5 |
+| bench-metric | no | 0.4 | 0.4 | 5 |
 | interval-merge | yes | 1 | 1 | 5 |
 
 ### task-transcript
@@ -39,7 +39,7 @@ Status: **PASS**
 |-------|--------|-----|--------------|
 | computeRatio token usage transcript mcp_tool gross net ratio | 1 | 1 | — |
 | computeRatio benchmark token ratio transcript mcp_tool net gross | 1 | 1 | — |
-| computeRatio ON OFF token ratios transcript JSONL benchmark | 1 | 0.3333 | — |
+| computeRatio ON OFF token ratios transcript JSONL benchmark | 0 | 0 | — |
 | token ratio computation ON OFF transcript benchmark metrics | 0 | 0 | — |
 | token ratio benchmark ON OFF transcript JSONL compute metrics | 0 | 0 | — |
 
