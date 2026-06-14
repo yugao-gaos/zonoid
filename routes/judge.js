@@ -131,6 +131,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ov.judgedAtEpoch) T.ov.judgedAtEpoch = {};
     if (!T.ov.judgedClusters) T.ov.judgedClusters = {};
     const applied = { created: 0, kept: 0, pruned: 0, surfaced: 0, judged: 0, consolidated: 0, superseded: 0, repointed: 0, clustersJudged: 0 };
+    const byId = new Map(buildGraph(T.ws).tasks.map(function(t){return [t.id,t];}));
     // The edge's creation cosine lives in `score` (autowire seeds it there with weight 0); fall back to
     // `weight` for hand-asserted edges. Read it BEFORE a prune deletes the edge, else it's gone.
     const edgeCosine = (e) => (e && typeof e.score === 'number') ? e.score : (e && typeof e.weight === 'number' ? e.weight : null);
