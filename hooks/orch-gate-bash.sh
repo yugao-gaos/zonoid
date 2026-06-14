@@ -22,6 +22,18 @@ INPUT=$(cat)
 CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
 [ -z "$CMD" ] && exit 0                # no command -> nothing to check
 
+# ── Git VCS exemption ──────────────────────────────────────────────────────
+# Git plumbing (commit/merge/add/push/...) operates on already-claimed, already-edited work —
+# it is NOT "substantive source editing", which is what this gate exists to route. Exempt it so
+# workers can commit in their worktrees and the dispatcher can merge, AND so the write-pattern
+# detector below doesn't false-positive on '>' chars in commit messages or `git apply` heredocs
+# (->, =>, >=). NOT exempt: checkout/restore/reset/clean/rm/stash — those overwrite working-tree
+# source, which the gate should still guard.
+if printf '%s' "$CMD" | grep -qE '(^|[;&|]|&&|\|\|)[[:space:]]*git[[:space:]]+(-C[[:space:]]+\S+[[:space:]]+)?(commit|merge|add|push|pull|fetch|branch|tag|worktree|rebase|cherry-pick|log|status|diff|show|rev-parse|describe|remote)\b' 2>/dev/null \
+   && ! printf '%s' "$CMD" | grep -qE '\bgit[[:space:]]+(-C[[:space:]]+\S+[[:space:]]+)?(checkout|restore|reset|clean|rm|stash)\b' 2>/dev/null; then
+  exit 0
+fi
+
 # ── Write-pattern detection ────────────────────────────────────────────────
 # We look for common file-write idioms. We match on the raw command string;
 # false-positives are fine (just triggers the claim check), false-negatives
