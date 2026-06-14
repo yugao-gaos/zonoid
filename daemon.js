@@ -1176,6 +1176,42 @@ function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = n
   return added;
 }
 
+// Per-kind fan-out cap for the creation-time whole-graph recall: at most this many note candidates
+// AND this many task candidates seeded for a new anchor, so a generic task can't spam the graph.
+const TASK_CREATE_FANOUT = 5;
+// CREATION-TIME whole-graph recall for a NEW anchor task. Symmetric to autowireNoteProvider, but run
+// when a TASK is born (its vec just set) so it gets weight-0, judged:false candidate edges to BOTH:
+//   - relevant NOTES  → mirror the note->task direction (note is PROVIDER ⇒ edge note -> anchor), so
+//                       the note's knowledge flows INTO the new task once the judge promotes it.
+//   - relevant TASKS  → the anchor is the PROVIDER ⇒ edge anchor -> task, so the judge's edge item
+//                       (it.from=anchor, it.to=task) classifies taskTask=true and runs the kind/dup
+//                       path. DONE tasks are eligible providers — a new task's best context is the
+//                       completed work it builds on (scoreMatchesSemantic does not filter done here).
+// Closes the gap left by removing lexical task->task autowire (task /5) and by note->task wiring only
+// firing on NOTE creation (autowireNoteProvider), never on task creation. SEMANTIC only (Step 1 proved
+// lexical fusion regresses): scoreMatchesSemantic over the whole graph, gated at SEMANTIC_AUTOWIRE_THRESHOLD.
+// All seeded edges are weight 0 (retrieval-invisible) + {by:'autowire', judged:false, origin:'autowire-semantic'}
+// so they surface on /judge/next and stay invisible to retrieval until the neighborhood-aware judge
+// promotes them. Pure on (overlay, g, anchorKey, ...) ⇒ unit-testable; idempotent (addEdge dedupes).
+function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD) {
+  const target = { id: anchorKey, label: title, summary: summary || '', deps: [], context_deps: [] };
+  const scored = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= threshold);
+  const isNote = (k) => typeof k === 'string' && k.startsWith('note:');
+  const notes = scored.filter((m) => isNote(m.key)).slice(0, TASK_CREATE_FANOUT);
+  const taskCands = scored.filter((m) => !isNote(m.key)).slice(0, TASK_CREATE_FANOUT);
+  let added = 0;
+  const seed = (from, to, score) => {
+    const before = overlay.edges.length;
+    overlayStore.addEdge(overlay, from, to, null, 'context', 0, { by: 'autowire', judged: false, score, origin: 'autowire-semantic' });
+    if (overlay.edges.length > before) added++; // count only genuinely-new edges (addEdge dedupes)
+  };
+  // NOTE candidates: note is provider ⇒ note -> anchor (mirrors autowireNoteProvider's direction).
+  for (const m of notes) seed(m.key, anchorKey, m.score);
+  // TASK candidates: anchor is provider ⇒ anchor -> task (taskTask path fires in the judge).
+  for (const m of taskCands) seed(anchorKey, m.key, m.score);
+  return added;
+}
+
 // RECALL half of the RAG-candidate → agent-adjudicator pipeline. For an orphan/under-connected note,
 // return up to `top` semantic candidates (cosine >= RAG_RECALL_THRESHOLD) the AGENT will adjudicate —
 // it does NOT write any edge (that's the judge's verdict, never a cosine score). Looser than the old
@@ -1636,7 +1672,7 @@ const ctx = {
   gateTask, haikusGate,
   scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks, suggestForTask,
   SUGGEST_DUP_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,
-  autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD,
+  autowireNoteProvider, autowireNewTaskWholeGraph, noteRagCandidates, RAG_RECALL_THRESHOLD,
   noteCurrentAsOf, gatedSearchCounts, checkGatedRateLimit,
   knowledgeText, digestRejected, leanLearnings,
   respCacheGet, respCachePut, frontier,
@@ -1696,7 +1732,7 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, migrateBlindEdges, sessionBindings,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNoteProvider, autowireNewTaskWholeGraph, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, __setOverlayForTest: (o) => { state.overlay = o; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };

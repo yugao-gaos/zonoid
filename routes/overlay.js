@@ -192,7 +192,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (!title) { const nt = ctx.readNativeTask(T.ws, String(b.key)); title = nt && (nt.subject || nt.activeForm); }
         const tvec = await embed(taskEmbedText({ title, summary: T.ov.summaries[b.key] }));
         if (tvec) overlayStore.setTaskVec(T.ov, b.key, tvec);
-      } catch { /* best effort — never block the status write on embedding */ }
+        // CREATION-TIME whole-graph recall: only on the FIRST vec (task born) — seed weight-0,
+        // judged:false candidate edges from/to this new anchor to BOTH relevant NOTES and TASKS so
+        // the neighborhood-aware judge (task A) can promote them. Retrieval-invisible until judged;
+        // semantic only (no lexical). Re-runs are gated by !_hasVec so a later summary update does
+        // not re-seed. Best-effort: never block the status write on recall.
+        if (tvec && !_hasVec) {
+          const g = buildGraph(T.ws);
+          ctx.autowireNewTaskWholeGraph(T.ov, g, b.key, title, T.ov.summaries[b.key], tvec);
+        }
+      } catch { /* best effort — never block the status write on embedding/recall */ }
     }
     const NATIVE_STATUS = { in_progress: 'in_progress', done: 'completed', tested: 'completed' };
     const ns = NATIVE_STATUS[b.status];
