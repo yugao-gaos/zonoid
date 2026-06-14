@@ -40,12 +40,12 @@ PreToolUse exit-2 gate (`hooks/orch-gate.sh` + `hooks/orch-gate-bash.sh`) hard-b
 `Edit`/`Write` tools and `Bash` file-write commands — agents must claim a task before editing.
 Users opt out per-conversation with `orch off`.
 
-**Gate contract for subagents:** call `mcp__orchestrator-graph__start_task(task_key, agent_id)`
-**before** any file write. The gate checks `/active-claim?session=<session_id>` on the daemon —
-a valid claim unlocks all writes for that session. `ORCH_GATE_OFF=1` as an inline env prefix
-(e.g. `ORCH_GATE_OFF=1 python3 ...`) **does not work** from subagents — the hook runs as a
-separate process inheriting the Claude Code process env, not the shell command env. Never
-attempt to bypass the gate via workarounds (rsync, fabricated claims, etc.); claim properly.
+**Gate contract for subagents:** call `mcp__orchestrator-graph__branch_task(task_key)` **first**
+to create an isolated worktree (`orch/attempt/<key>`), then `mcp__orchestrator-graph__start_task(task_key, agent_id)`.
+The daemon rejects `start_task` if no worktree is registered — order is enforced. All file writes
+must happen inside the worktree; the gate hard-blocks subagent writes on any other branch.
+`ORCH_GATE_OFF=1` as an inline env prefix does **not** work from subagents — the hook runs as a
+separate process. Never bypass via workarounds (rsync, fabricated claims, etc.); claim properly.
 
 ## Capture durable decisions as note nodes
 

@@ -160,21 +160,20 @@ RESP=$(curl -s --max-time 0.6 "localhost:$PORT/active-claim?session=$SID" 2>/dev
 [ -z "$RESP" ] && exit 0               # daemon unreachable -> fail open
 
 if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
-  # Check if the claimed task has a metric spec (self-learning mode)
-  TASK_KEY=$(printf '%s' "$RESP" | jq -r '.claims[0].key // empty')
-  if [ -n "$TASK_KEY" ]; then
-    DETAIL=$(curl -s --max-time 0.6 "localhost:$PORT/task/detail?key=$TASK_KEY" 2>/dev/null)
-    HAS_METRIC=$(printf '%s' "$DETAIL" | jq -e '.task.metric != null' >/dev/null 2>&1 && echo "yes" || echo "no")
-    if [ "$HAS_METRIC" = "yes" ]; then
-      BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
-      case "$BRANCH" in
-        orch/attempt/*) ;;  # correct branch -> allow
-        *)
-          echo "self-learning mode: task has a metric spec — call branch_task first before editing" >&2
-          exit 2
-          ;;
-      esac
-    fi
+  # Write-time defence: all subagents must be on an orch/attempt/* branch.
+  # Primary enforcement is at claim time (daemon rejects start_task without a worktree);
+  # this catches any edge case where a subagent ended up on main anyway.
+  SINFO=$(curl -s --max-time 0.6 "localhost:$PORT/session-info?session=$SID" 2>/dev/null)
+  IS_SUB=$(printf '%s' "$SINFO" | jq -r '.is_subagent // "unknown"' 2>/dev/null)
+  if [ "$IS_SUB" = "true" ]; then
+    BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    case "$BRANCH" in
+      orch/attempt/*) ;;  # correct worktree branch -> allow
+      *)
+        echo "orch-gate: subagent writes require an isolated worktree — call branch_task before start_task" >&2
+        exit 2
+        ;;
+    esac
   fi
   exit 0                               # claimed in_progress -> allow
 fi
