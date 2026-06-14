@@ -1137,48 +1137,14 @@ function scoreMatchesSemantic(g, target, targetVec) {
     .sort((a, b) => b.score - a.score);
 }
 
-// Default auto-wire relevance threshold (conservative — err toward FEWER false edges). A newly
-// seen task auto-gets a weighted context edge to each context-eligible (lexical task->task) match
-// scoring >= this. Raised 0.25 -> 0.40 at the judge-verdict knee: in the live overlay 189/282
-// (67%) of autowire-created task->task edges scored in [0.25-0.40), the dense low-overlap tail the
-// judge only manufactures backlog over (weight-0 seeding already makes them retrieval-invisible, so
-// this gates JUDGE-BACKLOG VOLUME, not retrieval quality). Structural note-provider edges use the
-// SEPARATE semantic bar below and are unaffected. Env-overridable via overlay.config.autowire_threshold.
-const DEFAULT_AUTOWIRE_THRESHOLD = 0.40;
 // Semantic auto-wire threshold. Cosine similarity over MiniLM embeddings sits on a DIFFERENT scale
 // than lexical token-overlap (related prose lands ~0.4–0.7 cosine, where it scored ~0 lexically), so
 // the lexical 0.25 bar is wrong here — it would wire nearly everything into a clique. Tuned on the
 // post-backfill cloude corpus (128 notes); see STEP 2. Used only by the semantic note-wiring path.
 const SEMANTIC_AUTOWIRE_THRESHOLD = 0.55;
-// Auto-wire a genuinely-new task (`target`) into the graph `g` by writing weighted CONTEXT edges
-// into `overlay`: an edge (weight = relevance score) to each context-eligible match (done/note
-// provider) scoring >= threshold. CONTEXT only — never blocking. Idempotent via addEdge's dedupe
-// plus the caller's firstSeen guard (only ever invoked on a task's first sighting). Returns the
-// count of edges added. No match clears the bar ⇒ 0 edges, correctly marking a genuinely novel
-// task. Pure on (overlay, g, target) so it unit-tests without daemon state.
-function autowireNewTask(overlay, g, target, threshold = DEFAULT_AUTOWIRE_THRESHOLD) {
-  let added = 0;
-  for (const m of scoreMatches(g, target)) {
-    if (m.suggest_kind !== 'context') continue; // CONTEXT edges only — never auto-blocking
-    if (m.score < threshold) continue;
-    // m.key is the provider's graph-node id (note nodes are 'note:<id>'), which is exactly what
-    // depRefs matches edge.from against — store it verbatim as the context edge's source.
-    const before = overlay.edges.length;
-    // Seed weight 0 (retrieval-invisible) + {by:'autowire', judged:false}; preserve the cosine in
-    // `score` so a judge keep-verdict can promote the weight from it. The judge KEEP path is now a
-    // PROMOTION queue: an unjudged autowire edge contributes ZERO relevance until confirmed.
-    // origin:'autowire-lexical' — this task->task path is gated by DEFAULT_AUTOWIRE_THRESHOLD (0.40),
-    // so it is the ONLY population keepRateByBand should measure for threshold tuning.
-    overlayStore.addEdge(overlay, m.key, target.id, null, 'context', 0, { by: 'autowire', judged: false, score: m.score, origin: 'autowire-lexical' });
-    if (overlay.edges.length > before) added++; // count only genuinely-new edges (addEdge dedupes)
-  }
-  return added;
-}
-
 // Auto-wire a NOTE as a context PROVIDER: write weighted context edges (note -> neighbor) so the
 // note's summary flows INTO each relevant open task instead of the note sitting as an orphan root.
-// This is the mirror of autowireNewTask: there a new task CONSUMES existing providers; here a new
-// note FEEDS existing consumers. `g` is the rebuilt graph; the note need not be in `g` yet (we build
+// The note FEEDS existing consumers (the inverse of a consumer pulling in providers). `g` is the rebuilt graph; the note need not be in `g` yet (we build
 // a synthetic target). Edges are ALWAYS note -> neighbor (the note is `from`) — the note is the
 // PROVIDER, never the consumer of THIS edge. Scoring is SEMANTIC: cosine(targetVec, candidate.vec)
 // when both carry an embedding, lexical fallback per-candidate otherwise. We skip `done` targets
@@ -1196,7 +1162,7 @@ function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = n
   for (const m of kept) {
     const before = overlay.edges.length;
     // note is PROVIDER (from). Seed weight 0 (retrieval-invisible) + {by:'autowire', judged:false};
-    // preserve cosine in `score` for judge promotion. See autowireNewTask for the rationale.
+    // preserve cosine in `score` for judge promotion (the judge KEEP path is a promotion queue).
     // origin:'autowire-semantic' — note->task/note->note gated by the SEPARATE SEMANTIC bar (0.55),
     // a different cosine scale than the lexical path; keepRateByBand must NOT fold it into the
     // autowire-lexical curve.
@@ -1435,21 +1401,14 @@ function buildGraph(ws) {
       supersededBy: n.supersededBy ? 'note:' + n.supersededBy : null,
       category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [] });
   }
-  // Auto-wire genuinely-new tasks (those first seen THIS build) into the graph with weighted
-  // context edges to relevant done/note providers. Runs after notes are appended so they're
-  // scoreable. Scoped to `newlySeen` (only the !ts branch) ⇒ pre-existing backlog tasks already
-  // carry a firstSeen and are NEVER swept, so a daemon restart can't spam edges across the graph.
+  // A node was first seen THIS build ⇒ bump the graph-change epoch so the edge-judge re-pulls notes
+  // whose neighborhood may now have a new candidate (judgedAtEpoch < epoch becomes true again). One
+  // bump per build that saw new nodes — cheap, monotonic, persisted with the overlay below. (Lexical
+  // task->task autowire was removed: it had no agent in its lifecycle, was never judged, and seeded
+  // weight-0 edges that stayed permanently invisible — suggest_links + the adoption nudge cover
+  // task->task wiring with agent judgment.)
   let edgesDirty = false;
   if (own && newlySeen.length) {
-    const threshold = state.overlay.config.autowire_threshold ?? DEFAULT_AUTOWIRE_THRESHOLD;
-    const byId = new Map(tasks.map((t) => [t.id, t]));
-    for (const key of newlySeen) {
-      const target = byId.get(key);
-      if (target && autowireNewTask(state.overlay, { tasks }, target, threshold)) edgesDirty = true;
-    }
-    // A node was ADDED ⇒ bump the graph-change epoch so the edge-judge re-pulls notes whose
-    // neighborhood may now have a new candidate (judgedAtEpoch < epoch becomes true again). One bump
-    // per build that saw new nodes — cheap, monotonic, persisted with the overlay below.
     overlayStore.bumpEpoch(state.overlay); edgesDirty = true;
   }
   if (tsDirty || edgesDirty || adoptDirty) { overlayStore.save(state.workspace, state.overlay, { deferred: true }); notifyChange(); }
@@ -1672,8 +1631,8 @@ const ctx = {
   embed, cosine, embedStatus, DIMS, EMBED_MODEL,
   gateTask, haikusGate,
   scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks, suggestForTask,
-  SUGGEST_DUP_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,
-  autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD,
+  SUGGEST_DUP_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,
+  autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD,
   noteCurrentAsOf, gatedSearchCounts, checkGatedRateLimit,
   knowledgeText, digestRejected, leanLearnings,
   respCacheGet, respCachePut, frontier,
@@ -1733,7 +1692,7 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNewTask, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD, DEFAULT_AUTOWIRE_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, migrateBlindEdges, sessionBindings,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNoteProvider, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, __setOverlayForTest: (o) => { state.overlay = o; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
