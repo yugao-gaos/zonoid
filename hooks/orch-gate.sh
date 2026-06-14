@@ -49,20 +49,22 @@ RESP=$(curl -s --max-time 0.6 "localhost:$PORT/active-claim?session=$SID" 2>/dev
 [ -z "$RESP" ] && exit 0               # daemon unreachable -> fail open
 
 if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
-  # All subagents must work in an isolated worktree — branch_task before start_task is now
-  # enforced at claim time too (daemon rejects start_task without a worktree). This is the
-  # write-time defence-in-depth: if somehow a subagent is on main, block the write.
-  SINFO=$(curl -s --max-time 0.6 "localhost:$PORT/session-info?session=$SID" 2>/dev/null)
-  IS_SUB=$(printf '%s' "$SINFO" | jq -r '.is_subagent // "unknown"' 2>/dev/null)
-  if [ "$IS_SUB" = "true" ]; then
-    BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
-    case "$BRANCH" in
-      orch/attempt/*) ;;  # correct worktree branch -> allow
-      *)
-        echo "orch-gate: subagent writes require an isolated worktree — call branch_task before start_task" >&2
-        exit 2
-        ;;
-    esac
+  # Check if the claimed task has a registered worktree (branch_task was called).
+  # Enforce branch isolation for ALL tasks with a worktree — not just metric ones.
+  TASK_KEY=$(printf '%s' "$RESP" | jq -r '.claims[0].key // empty')
+  if [ -n "$TASK_KEY" ]; then
+    DETAIL=$(curl -s --max-time 0.6 "localhost:$PORT/task/detail?key=$TASK_KEY" 2>/dev/null)
+    TASK_BRANCH=$(printf '%s' "$DETAIL" | jq -r '.task.git.branch // empty' 2>/dev/null)
+    if [ -n "$TASK_BRANCH" ]; then
+      BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+      case "$BRANCH" in
+        orch/attempt/*) ;;  # correct branch -> allow
+        *)
+          printf 'orch-gate: task has a registered worktree (%s) — writes must happen inside the worktree branch, not on %s. Run branch_task and work in the returned worktree path.\n' "$TASK_BRANCH" "$BRANCH" >&2
+          exit 2
+          ;;
+      esac
+    fi
   fi
   exit 0                               # an in_progress task is claimed for this session -> allow
 fi

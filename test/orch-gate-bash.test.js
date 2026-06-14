@@ -322,6 +322,45 @@ function runMainBlocked(cmd, extra) {
   ok('cp to native task path → exempt → exit 0', r.status === 0);
 }
 
+// 31. Claimed non-metric task WITH registered worktree branch → must be on orch/attempt/* branch
+//     Simulates: branch_task was called, task has git.branch set, but session is writing on main.
+{
+  const stubWorktreeEnforce = path.join(TMP, 'stub-worktree-enforce');
+  fs.mkdirSync(stubWorktreeEnforce, { recursive: true });
+  // Return a task with git.branch set (worktree registered), no metric
+  fs.writeFileSync(
+    path.join(stubWorktreeEnforce, 'curl'),
+    '#!/bin/bash\nU="${@: -1}"\nif [[ "$U" == *"/active-claim"* ]]; then\n  echo \'{"claimed":true,"claims":[{"key":"local/test-task"}]}\'\nelif [[ "$U" == *"/task/detail"* ]]; then\n  echo \'{"task":{"metric":null,"git":{"branch":"orch/attempt/local-test-task","worktree":"/some/path"}}}\'\nfi\nexit 0\n',
+    { mode: 0o755 },
+  );
+  // git stub that returns a non-worktree branch (main)
+  const stubGit = path.join(stubWorktreeEnforce, 'git');
+  fs.writeFileSync(stubGit, '#!/bin/bash\necho "main"\n', { mode: 0o755 });
+  const r = runHook(
+    mkInput('cp /tmp/x.js /Users/x/proj/main.js'),
+    { PATH: stubWorktreeEnforce + ':' + process.env.PATH },
+  );
+  ok('claimed non-metric task with worktree branch on main → exit 2', r.status === 2);
+  ok('worktree branch error message mentions task branch', r.stderr.includes('orch/attempt/local-test-task'));
+}
+
+// 32. Claimed non-metric task WITHOUT registered worktree branch → exit 0 (no isolation required)
+//     Simulates: branch_task was NOT called, task.git is null.
+{
+  const stubNoWorktree = path.join(TMP, 'stub-no-worktree');
+  fs.mkdirSync(stubNoWorktree, { recursive: true });
+  fs.writeFileSync(
+    path.join(stubNoWorktree, 'curl'),
+    '#!/bin/bash\nU="${@: -1}"\nif [[ "$U" == *"/active-claim"* ]]; then\n  echo \'{"claimed":true,"claims":[{"key":"local/test-task"}]}\'\nelif [[ "$U" == *"/task/detail"* ]]; then\n  echo \'{"task":{"metric":null,"git":null}}\'\nfi\nexit 0\n',
+    { mode: 0o755 },
+  );
+  const r = runHook(
+    mkInput('cp /tmp/x.js /Users/x/proj/main.js'),
+    { PATH: stubNoWorktree + ':' + process.env.PATH },
+  );
+  ok('claimed task without worktree branch → exit 0 (no isolation enforced)', r.status === 0);
+}
+
 // ── Cleanup ─────────────────────────────────────────────────────────────────
 fs.rmSync(TMP, { recursive: true, force: true });
 
