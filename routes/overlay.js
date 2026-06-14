@@ -145,7 +145,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const readyBefore = newlyReady.isTerminalStatus(b.status)
       ? newlyReady.readyKeys(buildGraph(T.ws))
       : null;
-    if (b.status === 'canceled') T.ov.cancel_requested[b.key] = now();
+    if (b.status === 'canceled') { T.ov.cancel_requested[b.key] = now(); overlayStore.markForRejudge(T.ov, b.key); }
     else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
     overlayStore.setStatus(T.ov, b.key, b.status, b.note);
     if (b.max_retries != null) {
@@ -433,6 +433,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const newId = String(b.new_key).replace(/^note:/, '');
     const r = overlayStore.supersedeNote(T.ov, oldId, newId, b.at, T.ws);
     if (!r.ok) { send(res, 400, { ok: false, error: r.error }); return true; }
+    overlayStore.markForRejudge(T.ov, 'note:' + oldId);
     T.save(); notifyChange();
     send(res, 200, { ok: true, old_key: 'note:' + oldId, new_key: 'note:' + newId, at: r.at }); return true;
   }
@@ -513,6 +514,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!b.old_key || !b.new_key) { send(res, 400, { ok: false, error: 'old_key and new_key required' }); return true; }
     const note = `superseded by ${b.new_key}${b.reason ? ': ' + b.reason : ''}`;
     overlayStore.setStatus(T.ov, b.old_key, 'canceled', note);
+    overlayStore.markForRejudge(T.ov, b.old_key);
     snapshotNative(T.ov, b.old_key);
     overlayStore.addEdge(T.ov, b.old_key, b.new_key, null, 'supersede');
     T.save(); notifyChange();
