@@ -21,13 +21,16 @@
   .s-waiting_ghost{border-left-color:#8957e5;opacity:.75}.s-waiting_ghost .st{color:#d2a8ff}
   .s-blocked{border-left-color:#f85149}.s-blocked .st{color:#ff7b72}
   .s-ready{border-left-color:#d29922}.s-ready .st{color:#e3b341}
-  .s-in_progress{border-left-color:#1f6feb;animation:pulse 1.4s ease-in-out infinite}.s-in_progress .st{color:#58a6ff}
+  .s-in_progress{border-left-color:#1f6feb;position:relative;overflow:hidden}.s-in_progress .st{color:#58a6ff}
+  .s-in_progress::after{content:'';position:absolute;inset:0;border-radius:7px;pointer-events:none;
+    background:linear-gradient(105deg,transparent 38%,rgba(121,192,255,.45) 50%,transparent 62%);
+    animation:dockshine 2.2s linear infinite}
   .s-tested{border-left-color:#2dd4bf}.s-tested .st{color:#2dd4bf}
   .s-done{border-left-color:#2ea043}.s-done .st{color:#3fb950}
   .s-failed{border-left-color:#f85149}.s-failed .st{color:#ff7b72}
   .s-canceled{border-left-color:#484f58;opacity:.5}.s-canceled .lbl{text-decoration:line-through}
   .s-ghost{border-left-color:#8957e5;border-style:dashed;opacity:.7}.s-ghost .st{color:#d2a8ff}
-  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 #1f6feb66}50%{box-shadow:0 0 0 4px #1f6feb00}}
+  @keyframes dockshine{from{transform:translateX(-120%)}to{transform:translateX(120%)}}
   .empty{color:#6e7681;padding:10px 12px} .src{color:#6e7681;font-size:10px}
 </style>
 </head>
