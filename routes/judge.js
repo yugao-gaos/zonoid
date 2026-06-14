@@ -159,6 +159,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         const cos = edgeCosine(kept);
         const origin = edgeOrigin(kept);
         if (judge.keepEdge(T.ov, v.keepEdge.from, v.keepEdge.to)) {
+          overlayStore.clearEdgeRejudge(T.ov, v.keepEdge.from, v.keepEdge.to);
           applied.kept++;
           // task→task KIND classification: the agent decided "anchor REQUIRES N" → reclassify the
           // kept context edge as a true blocking prerequisite (the dual of context = non-blocking).
@@ -178,6 +179,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         const before = T.ov.edges.length;
         overlayStore.removeEdge(T.ov, v.pruneEdge.from, v.pruneEdge.to, null, v.pruneEdge.kind);
         if (T.ov.edges.length < before) {
+          overlayStore.clearEdgeRejudge(T.ov, v.pruneEdge.from, v.pruneEdge.to);
           applied.pruned++;
           judge.appendVerdict(T.ws, { epoch, verdict: 'prune', from: v.pruneEdge.from, to: v.pruneEdge.to, edgeKind: v.pruneEdge.kind || 'context', cosine: cos, origin, by: 'judge' });
         }
