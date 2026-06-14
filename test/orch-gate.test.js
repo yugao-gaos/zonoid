@@ -182,6 +182,80 @@ function runMainBlocked(filePath, extra) {
   ok('trivial patch with attribution exits 0', r.status === 0);
   ok('dispatcher-edit POST fired', fs.existsSync(marker));
 }
+// ── Multi-claim gate tests ───────────────────────────────────────────────────
+// Two synthetic worktree paths under TMP. These directories do NOT need to be
+// real git repos — the new gate logic does a string prefix check (is FP inside
+// worktree path?), not a `git rev-parse` call.
+const WT_A = path.join(TMP, 'wt-a');
+const WT_B = path.join(TMP, 'wt-b');
+fs.mkdirSync(WT_A, { recursive: true });
+fs.mkdirSync(WT_B, { recursive: true });
+
+// Builds a curl stub that:
+//  - /active-claim → claimed with two keys
+//  - /task/detail?key=task-a → worktree WT_A
+//  - /task/detail?key=task-b → worktree WT_B (or no worktree if noWtB=true)
+function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
+  fs.mkdirSync(dir, { recursive: true });
+  const detailA = noWtA
+    ? '{"task":{"metric":null,"git":null}}'
+    : `{"task":{"metric":null,"git":{"branch":"orch/attempt/task-a","worktree":"${WT_A}"}}}`;
+  const detailB = noWtB
+    ? '{"task":{"metric":null,"git":null}}'
+    : `{"task":{"metric":null,"git":{"branch":"orch/attempt/task-b","worktree":"${WT_B}"}}}`;
+  const script = [
+    '#!/bin/bash',
+    'U="${@: -1}"',
+    'if [[ "$U" == *"/active-claim"* ]]; then',
+    '  echo \'{"claimed":true,"claims":[{"key":"task-a"},{"key":"task-b"}]}\'',
+    'elif [[ "$U" == *"key=task-a"* ]]; then',
+    `  echo '${detailA}'`,
+    'elif [[ "$U" == *"key=task-b"* ]]; then',
+    `  echo '${detailB}'`,
+    'fi',
+    'exit 0',
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(dir, 'curl'), script, { mode: 0o755 });
+}
+
+// 10. Multi-claim: write to FIRST claim's worktree → allowed
+{
+  const stubMultiA = path.join(TMP, 'stub-multi-claim-a');
+  makeMultiClaimStub(stubMultiA);
+  const targetInA = path.join(WT_A, 'src.js');
+  const r = runHook(mkInput(targetInA), { PATH: stubMultiA + ':' + process.env.PATH });
+  ok('multi-claim: write to first claim worktree → exit 0', r.status === 0);
+}
+
+// 11. Multi-claim: write to SECOND claim's worktree → allowed (this was the fixed bug)
+{
+  const stubMultiB = path.join(TMP, 'stub-multi-claim-b');
+  makeMultiClaimStub(stubMultiB);
+  const targetInB = path.join(WT_B, 'lib.js');
+  const r = runHook(mkInput(targetInB), { PATH: stubMultiB + ':' + process.env.PATH });
+  ok('multi-claim: write to second claim worktree → exit 0 (fixed bug)', r.status === 0);
+}
+
+// 12. Multi-claim: write outside BOTH worktrees → denied
+{
+  const stubMultiOut = path.join(TMP, 'stub-multi-claim-out');
+  makeMultiClaimStub(stubMultiOut);
+  const targetOutside = '/Users/x/other-project/main.js';
+  const r = runHook(mkInput(targetOutside), { PATH: stubMultiOut + ':' + process.env.PATH });
+  ok('multi-claim: write outside both worktrees → exit 2', r.status === 2);
+  ok('multi-claim: write outside both worktrees → worktree path message', r.stderr.includes('worktree path'));
+}
+
+// 13. Multi-claim: first claim has NO worktree, second does → write to second's worktree → allowed
+{
+  const stubMultiFirstNoWt = path.join(TMP, 'stub-multi-first-no-wt');
+  makeMultiClaimStub(stubMultiFirstNoWt, { noWtA: true });
+  const targetInB = path.join(WT_B, 'index.js');
+  const r = runHook(mkInput(targetInB), { PATH: stubMultiFirstNoWt + ':' + process.env.PATH });
+  ok('multi-claim: first claim no worktree, second has worktree, write to second → exit 0', r.status === 0);
+}
+
 // ── Cleanup ─────────────────────────────────────────────────────────────────
 fs.rmSync(TMP, { recursive: true, force: true });
 

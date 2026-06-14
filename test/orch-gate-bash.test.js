@@ -361,6 +361,87 @@ function runMainBlocked(cmd, extra) {
   ok('claimed task without worktree branch → exit 0 (no isolation enforced)', r.status === 0);
 }
 
+// ── Multi-claim gate tests ───────────────────────────────────────────────────
+// Two synthetic worktree paths under TMP. The bash gate does a string prefix
+// check on the extracted write target — these directories need not be real git repos.
+const WT_A = path.join(TMP, 'wt-a');
+const WT_B = path.join(TMP, 'wt-b');
+fs.mkdirSync(WT_A, { recursive: true });
+fs.mkdirSync(WT_B, { recursive: true });
+
+// Builds a curl stub that returns two claims with configurable worktrees.
+function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
+  fs.mkdirSync(dir, { recursive: true });
+  const detailA = noWtA
+    ? '{"task":{"metric":null,"git":null}}'
+    : `{"task":{"metric":null,"git":{"branch":"orch/attempt/task-a","worktree":"${WT_A}"}}}`;
+  const detailB = noWtB
+    ? '{"task":{"metric":null,"git":null}}'
+    : `{"task":{"metric":null,"git":{"branch":"orch/attempt/task-b","worktree":"${WT_B}"}}}`;
+  const script = [
+    '#!/bin/bash',
+    'U="${@: -1}"',
+    'if [[ "$U" == *"/active-claim"* ]]; then',
+    '  echo \'{"claimed":true,"claims":[{"key":"task-a"},{"key":"task-b"}]}\'',
+    'elif [[ "$U" == *"key=task-a"* ]]; then',
+    `  echo '${detailA}'`,
+    'elif [[ "$U" == *"key=task-b"* ]]; then',
+    `  echo '${detailB}'`,
+    'fi',
+    'exit 0',
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(dir, 'curl'), script, { mode: 0o755 });
+}
+
+// 33. Multi-claim: cp dest inside FIRST claim's worktree → allowed
+{
+  const stubMultiA = path.join(TMP, 'stub-multi-claim-a');
+  makeMultiClaimStub(stubMultiA);
+  const destInA = path.join(WT_A, 'src.js');
+  const r = runHook(
+    mkInput(`cp /tmp/src.js ${destInA}`),
+    { PATH: stubMultiA + ':' + process.env.PATH },
+  );
+  ok('multi-claim: cp dest in first claim worktree → exit 0', r.status === 0);
+}
+
+// 34. Multi-claim: cp dest inside SECOND claim's worktree → allowed (fixed bug)
+{
+  const stubMultiB = path.join(TMP, 'stub-multi-claim-b');
+  makeMultiClaimStub(stubMultiB);
+  const destInB = path.join(WT_B, 'lib.js');
+  const r = runHook(
+    mkInput(`cp /tmp/lib.js ${destInB}`),
+    { PATH: stubMultiB + ':' + process.env.PATH },
+  );
+  ok('multi-claim: cp dest in second claim worktree → exit 0 (fixed bug)', r.status === 0);
+}
+
+// 35. Multi-claim: cp dest outside BOTH worktrees → denied
+{
+  const stubMultiOut = path.join(TMP, 'stub-multi-claim-out');
+  makeMultiClaimStub(stubMultiOut);
+  const r = runHook(
+    mkInput('cp /tmp/x.js /Users/x/other-project/main.js'),
+    { PATH: stubMultiOut + ':' + process.env.PATH },
+  );
+  ok('multi-claim: cp dest outside both worktrees → exit 2', r.status === 2);
+  ok('multi-claim: cp dest outside both worktrees → worktree path message', r.stderr.includes('worktree path'));
+}
+
+// 36. Multi-claim: first claim has NO worktree, second does → cp to second's worktree → allowed
+{
+  const stubFirstNoWt = path.join(TMP, 'stub-multi-first-no-wt');
+  makeMultiClaimStub(stubFirstNoWt, { noWtA: true });
+  const destInB = path.join(WT_B, 'index.js');
+  const r = runHook(
+    mkInput(`cp /tmp/index.js ${destInB}`),
+    { PATH: stubFirstNoWt + ':' + process.env.PATH },
+  );
+  ok('multi-claim: first claim no worktree, second has worktree, cp to second → exit 0', r.status === 0);
+}
+
 // ── Cleanup ─────────────────────────────────────────────────────────────────
 fs.rmSync(TMP, { recursive: true, force: true });
 
