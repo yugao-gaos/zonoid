@@ -100,13 +100,21 @@ function spawnDaemon() {
     dropStub('cursor', 'bbb', { blockedBy: ['aaa'] });
 
     let g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
-    const aaa = g.tasks.find((t) => t.id === 'cursor/aaa');
+    let aaa = g.tasks.find((t) => t.id === 'cursor/aaa');
     const bbb = g.tasks.find((t) => t.id === 'cursor/bbb');
     ok('(A) stub aaa is a graph node', !!aaa);
     ok('(A) stub bbb is a graph node', !!bbb);
     ok('(A) labels come from subject', aaa && aaa.label === 'stub aaa');
     ok('(A) blockedBy became a dependency edge', bbb && bbb.deps.includes('cursor/aaa'));
-    ok('(A) blocker derives ready', aaa && aaa.status === 'ready');
+    // ADOPT-HOLD: on first sight, aaa may be not_ready (judging:true) while the async ingest funnel
+    // (embed→autowire→markEagerJudge) runs. Poll until the hold clears (ingest done) or 3s elapses.
+    // Without embed sidecar (test env) the hold clears as soon as ingestNode returns seeded:0.
+    for (let i = 0; i < 15 && aaa && aaa.status !== 'ready'; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      const gg = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
+      aaa = gg.tasks.find((t) => t.id === 'cursor/aaa');
+    }
+    ok('(A) blocker derives ready (after adopt-hold clears)', aaa && aaa.status === 'ready');
     ok('(A) blocked task derives not_ready', bbb && bbb.status === 'not_ready');
     ok('(A) summary counts stub tasks', g.summary && g.summary.tasks_total === 2);
     let ovFirst = overlayStore.load(WS);
