@@ -95,7 +95,7 @@ main_session_deny_message() {
       if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
         printf 'orch-gate: no task claimed. Use native TaskCreate tool to register the task, then dispatch a subagent (Agent tool) — the subagent must call POST /agent/start with parent_session_id + task_key, then start_task, before editing.\n'
       else
-        printf 'orch-gate: no task claimed. Create a graph task then start_task, or dispatch a subagent (Agent tool).\n'
+        printf 'orch-gate: no task claimed. Use native TaskCreate tool to register the task, then dispatch a background subagent (Agent tool) — the subagent must call start_task before editing.\n'
       fi
       ;;
   esac
