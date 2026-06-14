@@ -282,10 +282,13 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       ws: state.workspace,
       overlay: state.overlay,
       harnessKey: HARNESS_JUDGE_DRAIN_KEY,
+      // Demote periodic catch-up to fallback: suppress while eager dispatch (task C) is keeping up.
+      eagerActive: judge.eagerJudgePending(state.overlay),
     });
     send(res, 200, {
       depth, dupClusters, nudge: gate.nudge, harness_task_key: HARNESS_JUDGE_DRAIN_KEY,
       running: gate.running, capacity_ok: gate.capacity_ok, drain_in_progress: gate.drain_in_progress,
+      eager_active: gate.eager_active,
     }); return true;
   }
 

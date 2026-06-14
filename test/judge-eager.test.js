@@ -63,6 +63,21 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ok('eagerJudgeNodes prunes the drained mark in place', !('s/drained' in o.eagerJudge));
 }
 
+// --- PURE: eagerJudgePending = is eager dispatch actively covering work (no mutation) -----------
+{
+  const o = ov.EMPTY();
+  ok('eagerJudgePending: no marks → false', judge.eagerJudgePending(o) === false);
+  o.epoch = 1; ov.markEagerJudge(o, 's/live');
+  o.edges = [{ from: 's/live', to: 'note:b', kind: 'context', judged: false }];
+  ok('eagerJudgePending: marked node with unverified edge → true', judge.eagerJudgePending(o) === true);
+  // PURE: must NOT prune even a fully-drained mark (unlike eagerJudgeNodes).
+  const o2 = ov.EMPTY();
+  o2.epoch = 1; ov.markEagerJudge(o2, 's/drained');
+  o2.edges = [{ from: 's/drained', to: 'note:a', kind: 'context', judged: true }];
+  ok('eagerJudgePending: only-judged edges → false', judge.eagerJudgePending(o2) === false);
+  ok('eagerJudgePending: does NOT mutate marks (pure)', 's/drained' in o2.eagerJudge);
+}
+
 // --- PURE: buildQueueForNode = node's whole unverified edge-set (incident either endpoint) -------
 {
   const o = ov.EMPTY();

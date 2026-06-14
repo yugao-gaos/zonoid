@@ -100,6 +100,36 @@ function makeBuildGraph(running, harnessStatus, harnessKey) {
   ok('drain in flight: drain_in_progress true', r.drain_in_progress === true);
 }
 
+// ── eager dispatch active → judge nudge demoted to fallback (nudge:false) ─────
+{
+  const r = computePressureNudge({
+    depth: JUDGE_DEPTH,
+    depthThreshold: JUDGE_DEPTH,
+    buildGraph: makeBuildGraph(0),
+    ws: '/tmp/ws',
+    overlay: {},
+    harnessKey: 'followup/harness-judge-drain',
+    eagerActive: true,
+  });
+  ok('eager active: nudge false (demoted to fallback)', r.nudge === false);
+  ok('eager active: eager_active true', r.eager_active === true);
+}
+
+// ── eager idle (default) → catch-up nudge re-arms ─────────────────────────────
+{
+  const r = computePressureNudge({
+    depth: JUDGE_DEPTH,
+    depthThreshold: JUDGE_DEPTH,
+    buildGraph: makeBuildGraph(0),
+    ws: '/tmp/ws',
+    overlay: {},
+    harnessKey: 'followup/harness-judge-drain',
+    eagerActive: false,
+  });
+  ok('eager idle: nudge true (fallback fires)', r.nudge === true);
+  ok('eager idle: eager_active false', r.eager_active === false);
+}
+
 // ── harnessInProgress via buildGraph ──────────────────────────────────────────
 {
   const harnessKey = 'followup/harness-label-drain';
