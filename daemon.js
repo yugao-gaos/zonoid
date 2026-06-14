@@ -1272,13 +1272,28 @@ async function ingestNode(overlay, g, key, { title, summary } = {}) {
   const out = { vec: null, seeded: 0, marked: false };
   if (!overlay || !key) return out;
   try {
-    const vec = await embed(taskEmbedText({ title, summary }));
-    if (!vec) return out;                                   // no embedding ⇒ lexical fallback, nothing to seed
-    overlayStore.setTaskVec(overlay, key, vec);
-    out.vec = vec;
-    const seeded = autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec);
-    out.seeded = seeded;
-    if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
+    const isNote = typeof key === 'string' && key.startsWith('note:');
+    if (isNote) {
+      // Note born-path: vec was already embedded + stored in note_nodes[bareId].vec by addNoteNode.
+      // Pull it from there — no re-embed, no setTaskVec (notes use .vec on the node, not taskVecs).
+      const bareId = key.slice('note:'.length);
+      const noteNode = overlay.note_nodes && overlay.note_nodes[bareId];
+      const vec = noteNode && Array.isArray(noteNode.vec) ? noteNode.vec : null;
+      if (!vec) return out;
+      out.vec = vec;
+      // Notes are PROVIDERS: seed note -> neighbor candidate edges (mirrors autowireNoteProvider direction).
+      const seeded = autowireNoteProvider(overlay, g, key, title, summary, vec);
+      out.seeded = seeded;
+      if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
+    } else {
+      const vec = await embed(taskEmbedText({ title, summary }));
+      if (!vec) return out;                                 // no embedding ⇒ lexical fallback, nothing to seed
+      overlayStore.setTaskVec(overlay, key, vec);
+      out.vec = vec;
+      const seeded = autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec);
+      out.seeded = seeded;
+      if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
+    }
   } catch { /* best-effort — never let ingestion throw into a caller's hot path */ }
   return out;
 }
