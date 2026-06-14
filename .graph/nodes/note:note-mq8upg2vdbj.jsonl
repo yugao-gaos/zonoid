@@ -11,3 +11,5 @@
 {"evt":"note_superseded","id":"note-mq8upg2vdbj","supersededBy":"note-mq8uqyb8kun","validTo":"2026-06-11T02:02:06.260Z","ts":"2026-06-11T02:02:06.260Z","actor":"supersede"}
 {"evt":"note_superseded","id":"note-mq8upg2vdbj","supersededBy":"note-mq8uqyb8kun","validTo":"2026-06-11T02:02:06.260Z","ts":"2026-06-11T02:02:06.260Z","actor":"supersede"}
 {"evt":"note_superseded","id":"note-mq8upg2vdbj","supersededBy":"note-mq8uqyb8kun","validTo":"2026-06-11T02:02:06.260Z","ts":"2026-06-11T02:02:06.260Z","actor":"supersede"}
+{"evt":"note_superseded","id":"note-mq8upg2vdbj","supersededBy":"note-mq8uqyb8kun","validTo":"2026-06-11T02:02:06.260Z","ts":"2026-06-11T02:02:06.260Z","actor":"supersede"}
+{"evt":"note_supersedes","id":"note-mq8upg2vdbj","supersedes":"note-mq8uqyb8kun","ts":"2026-06-11T02:00:55.975Z","actor":"supersede"}

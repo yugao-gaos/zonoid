@@ -1,3 +1,4 @@
 {"evt":"note_superseded","id":"note-mq9l5e4kvld","supersededBy":"note-mq9l5eqdgt4","validTo":"2026-06-11T14:21:10.741Z","ts":"2026-06-11T14:21:10.741Z","actor":"supersede"}
 {"evt":"note_superseded","id":"note-mq9l5e4kvld","supersededBy":"note-mq9l5eqdgt4","validTo":"2026-06-11T14:21:10.741Z","ts":"2026-06-11T14:21:10.741Z","actor":"supersede"}
 {"evt":"edge_added","from":"note:note-mq9l5e4kvld","to":"note:note-mq9l5eqdgt4","kind":"context","actor":"overlay-sync","ts":"2026-06-14T18:52:35.629Z","weight":0.7,"by":"judge","judged":true}
+{"evt":"note_superseded","id":"note-mq9l5e4kvld","supersededBy":"note-mq9l5eqdgt4","validTo":"2026-06-11T14:21:10.741Z","ts":"2026-06-11T14:21:10.741Z","actor":"supersede"}
