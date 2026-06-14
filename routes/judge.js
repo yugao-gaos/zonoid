@@ -270,6 +270,42 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, { ok: true, epoch, applied, edges: T.ov.edges.length }); return true;
   }
 
+  // POST /judge/rejudge-edges
+  // Body: { sigs: string[] }  — array of "from>>to" edge signatures.
+  // Marks each listed edge for re-judgment so /judge/next resurfaces it with needs_rejudge:true.
+  // Additive: only touches edges that are LEGACY KEPT (judged===true, weight>0, not asserted) and
+  // exist in the overlay. Unrecognized or non-context sigs are silently skipped.
+  // This endpoint is the apply mechanism for a future greenlit full re-adjudication run — do NOT
+  // call it with all 1680 legacy edges until the calibration pilot (task #30) gives a GO verdict.
+  if (p === '/judge/rejudge-edges' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    const sigs = Array.isArray(b.sigs) ? b.sigs : [];
+    if (!sigs.length) { send(res, 400, { ok: false, error: 'sigs must be a non-empty array' }); return true; }
+    // Build a lookup of context edges by "from>>to" signature for O(1) access.
+    const edgeMap = new Map();
+    for (const e of T.ov.edges) {
+      if (e.kind !== 'context') continue;
+      edgeMap.set(e.from + '>>' + e.to, e);
+    }
+    let marked = 0, skipped = 0;
+    for (const sig of sigs) {
+      if (typeof sig !== 'string') { skipped++; continue; }
+      const e = edgeMap.get(sig);
+      // Only mark LEGACY KEPT edges: judged===true, weight>0, not asserted.
+      if (!e || e.judged !== true || typeof e.weight !== 'number' || e.weight <= 0 || e.origin === 'asserted') {
+        skipped++;
+        continue;
+      }
+      if (!T.ov.edgeRejudge) T.ov.edgeRejudge = {};
+      if (!T.ov.edgeRejudge[sig]) { T.ov.edgeRejudge[sig] = true; marked++; }
+      // Already-marked edges count as success (idempotent).
+      else marked++;
+    }
+    if (marked > 0) { T.save(); notifyChange(); }
+    send(res, 200, { ok: true, marked, skipped, total: sigs.length }); return true;
+  }
+
   if (p === '/judge/pressure' && m === 'GET') {
     // Ensure the standing harness task exists before we might nudge (idempotent, cheap).
     const T = targetOverlay(null, u);
