@@ -257,6 +257,13 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         judge.appendVerdict(T.ws, { epoch, verdict: 'markJudged', from: noteKey, to: null, edgeKind: 'note', cosine: null, by: 'judge' });
       }
     }
+    // JUDGING→READY gate (task D): prune the wall-clock judging anchor for any node whose candidate
+    // edge-set fully drained as a result of these verdicts — it has left the 'judging' phase and is
+    // now ready-eligible. Stale anchors are harmless (judgingState ignores them once no unjudged edges
+    // remain) but we clear them so the overlay stays tidy and the timeout never re-fires spuriously.
+    for (const k of Object.keys(T.ov.judgingSince || {})) {
+      if (judge.unverifiedEdgesForNode(T.ov, k).length === 0) overlayStore.clearJudgingSince(T.ov, k);
+    }
     T.save(); notifyChange();
     send(res, 200, { ok: true, epoch, applied, edges: T.ov.edges.length }); return true;
   }

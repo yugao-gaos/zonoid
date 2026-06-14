@@ -1339,7 +1339,16 @@ function makeResolver() {
     seen.add(id);
     const ready = depRefs(ws, key).filter((d) => d.kind !== 'context').every((d) => effective(d.ws, d.key, seen) === 'done'); // context edges never block
     seen.delete(id);
-    return (memo[id] = ready ? 'ready' : 'not_ready');
+    if (!ready) return (memo[id] = 'not_ready');
+    // JUDGING→READY gate (task D): blocking deps are satisfied, but if this task still carries
+    // outstanding unjudged autowire candidate edges its inherited context is provisional — hold it in
+    // 'not_ready' (the 'judging' phase) so it is NOT spawned/claimable yet. TIMEOUT FALLBACK: once the
+    // edges have sat unjudged past judgingTimeoutMs the task FALLS BACK to 'ready' (a judge hiccup can
+    // never permanently deadlock it); the surviving unjudged edges are surfaced as a provisional flag
+    // in the task projection (buildGraph), not silently trusted.
+    const js = judge.judgingState(overlay, key, Date.now(), judge.judgingTimeoutMs(overlay));
+    if (js.judging && !js.timedOut) return (memo[id] = 'not_ready');
+    return (memo[id] = 'ready');
   }
 
   function label(ws, key) { const { tasks } = loadWs(ws); return tasks[key] ? tasks[key].label : key; }
@@ -1469,7 +1478,12 @@ function buildGraph(ws) {
       else if (ts.lastStatus !== status) { ts.lastChanged = now(); ts.lastStatus = status; tsDirty = true; }
     }
     const _rc = ovWs.retryConfig && ovWs.retryConfig[t.key];
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: (ovWs.taskVecs && Array.isArray(ovWs.taskVecs[t.key])) ? ovWs.taskVecs[t.key] : null, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
+    // JUDGING→READY gate (task D): expose the judging phase so the dashboard / next_action can show
+    // it. `judging` = task still has unjudged autowire edges within the timeout (held not_ready above);
+    // `provisional` = the timeout fired so the task fell back to ready but its surviving unjudged edges
+    // are NOT yet adjudicated (a consuming agent should treat inherited context as not-yet-verified).
+    const _js = judge.judgingState(ovWs, t.key, now(), judge.judgingTimeoutMs(ovWs));
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status, judging: _js.judging && !_js.timedOut, provisional: _js.judging && _js.timedOut, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: (ovWs.taskVecs && Array.isArray(ovWs.taskVecs[t.key])) ? ovWs.taskVecs[t.key] : null, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
