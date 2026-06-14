@@ -223,6 +223,21 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     let bucketCleanup = null;
     if (b.status === 'done' && Array.isArray(b.follow_ups) && b.follow_ups.length) {
       followUpResults = followups.apply(T.ov, b.key, b.follow_ups);
+      // INGEST-AT-BIRTH (BUILD3): follow-up nodes are born here on the snapshot substrate (apply set
+      // the snapshot + parent->child context edge) but, like the native/file-drop lanes pre-BUILD1,
+      // they carried no vec / no candidate edges / no eager mark — so a ready follow-up reached
+      // dispatch with judging:false and the D-gate was a no-op. Route each minted node through the
+      // shared ingestNode funnel (embed title+prompt → setTaskVec → autowireNewTaskWholeGraph →
+      // markEagerJudge) so it carries a vec + weight-0 candidate edges + an eager mark BEFORE it can
+      // reach `ready`/dispatch — identical to the native lane, one funnel. Best-effort, null-safe;
+      // the recall graph is rebuilt per node so each sees prior siblings ingested this batch. Status
+      // routing (ready / scheduled-not_ready / gated-not_ready) is orthogonal: ingest is birth, not
+      // readiness — a held follow-up is still embedded+wired+judged, exactly like the native lane.
+      for (const r of followUpResults) {
+        try {
+          await ctx.ingestNode(T.ov, buildGraph(T.ws), r.key, { title: r.title, summary: r.prompt });
+        } catch { /* best-effort birth ingest — never block the completion write */ }
+      }
       for (const r of followUpResults) {
         if (r.routing === 'scheduled') {
           const w = ctx.harness.scheduler.writeScheduledTask({ id: r.key.slice('followup/'.length), title: r.title, prompt: r.prompt, taskKey: r.key, when: r.when, fireAt: r.fireAt, cwd: T.ws });
