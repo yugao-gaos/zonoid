@@ -48,6 +48,12 @@ function recordUsageOnDone(ctx, T, agent, body) {
   }
   if (!slice) return null;
   if (!slice.task_key) slice.task_key = baseCtx.task_key;
+  // Node-scoped eager judge attribution: when the completing agent was dispatched for a specific
+  // node (judged_node set at /agent/start), stamp the node key on the slice so the per-node
+  // judging-cost rollup can sum it. Non-node-scoped drains have no judged_node and stay pooled
+  // on the harness-judge-drain task_key. The existing task_key attribution is unchanged.
+  const judgedNode = agent.judged_node || null;
+  if (judgedNode) slice.judged_node = judgedNode;
   if (!T.ov.usage_records) T.ov.usage_records = {};
   T.ov.usage_records[body.agent_id] = slice;
   return slice;
@@ -136,7 +142,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // CLAUDE_CODE_SESSION_ID is issued). Flag it so the claim gate can accept it as a worker.
     const agentToolSpawn = !!(b.parent_session_id && b.parent_session_id === parentSession);
     // Capture task/session/workspace so a colliding worker is visible across sessions (GET /agents).
-    touchAgent(b.agent_id, { state: 'running', agent_type: b.agent_type, transcript_path: b.transcript_path, task: b.task, task_key: b.task_key, session: b.session, subagent_session: subagentSession, agent_tool_spawn: agentToolSpawn, workspace: b.workspace || state.workspace, reported_usage: b.reported_usage, usage_baseline: usageBaseline });
+    // judged_node: set when this is a node-scoped eager judge dispatch (GET /judge/next?node=<key>)
+    // so the completing agent's usage slice can be attributed to the triggering node.
+    touchAgent(b.agent_id, { state: 'running', agent_type: b.agent_type, transcript_path: b.transcript_path, task: b.task, task_key: b.task_key, session: b.session, subagent_session: subagentSession, agent_tool_spawn: agentToolSpawn, workspace: b.workspace || state.workspace, reported_usage: b.reported_usage, usage_baseline: usageBaseline, judged_node: b.judged_node || null });
     const sessionId = b.session || b.session_id || b.conversation_id;
     if (sessionId && b.transcript_path) {
       bindSession(sessionId, { transcript: b.transcript_path, workspace: b.workspace || state.workspace, harness: b.harness });

@@ -186,6 +186,30 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, { overhead, human, total_input_est: overhead.tokens + human.tokens, total_session_input: totalSessionInput, system_reminder_est, harness_fraction: totalSessionInput > 0 ? Math.round(((overhead.tokens + system_reminder_est) / totalSessionInput) * 1000) / 1000 : 0, self_maintenance: { tokens: Math.round(selfMaintenanceTokens), description: 'output_tokens attributed to harness-prefixed self-maintenance tasks (e.g. judge drain)' } }); return true;
   }
 
+  // Per-node judging-cost rollup: sums output_tokens from usage slices whose judged_node equals
+  // the requested node key. Only node-scoped eager dispatches carry judged_node; non-node-scoped
+  // harness drain slices lack it and stay pooled on the harness bucket (unchanged). The existing
+  // per-task_key rollup (/costflow) is also unaffected.
+  // ?node=<key>        — cost for a specific node
+  // (no ?node)         — cost for ALL nodes that have at least one attributed slice
+  if (p === '/judge/node-cost' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    const nodeKey = u.searchParams.get('node') || null;
+    const records = Object.values((T.ov && T.ov.usage_records) || {});
+    if (nodeKey) {
+      const output_tokens = usageAccounting.judgeNodeOutputFromRecords(T.ov, nodeKey);
+      send(res, 200, { node: nodeKey, output_tokens }); return true;
+    }
+    // Aggregate all nodes that appear as judged_node on any slice.
+    const byNode = {};
+    for (const slice of records) {
+      if (!slice || !slice.judged_node) continue;
+      const k = slice.judged_node;
+      byNode[k] = (byNode[k] || 0) + ((slice.usage && slice.usage.output_tokens) || 0);
+    }
+    send(res, 200, { by_node: byNode }); return true;
+  }
+
   if (p === '/cron/usage' && m === 'GET') {
     const usageFile = path.join(__dirname, '..', 'logs', 'cron-token-usage.jsonl');
     const entries = [];

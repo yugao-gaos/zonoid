@@ -380,6 +380,7 @@ function touchAgent(agentId, patch = {}) {
     reported_usage: patch.reported_usage !== undefined ? patch.reported_usage : (prev.reported_usage ?? null),
     usage_baseline: patch.usage_baseline !== undefined ? patch.usage_baseline : (prev.usage_baseline ?? null),
     agent_tool_spawn: patch.agent_tool_spawn !== undefined ? patch.agent_tool_spawn : (prev.agent_tool_spawn ?? null),
+    judged_node: patch.judged_node !== undefined ? patch.judged_node : (prev.judged_node ?? null),
   };
   saveAgents();
 }
