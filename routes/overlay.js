@@ -402,13 +402,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, actor: b.actor || 'record-decision', ts: Date.now() });
       }
     }
-    // EAGER JUDGE (task C): mark the new note so the heartbeat dispatches a judge for any unjudged
-    // candidate edges incident to it IMMEDIATELY (e.g. a note->anchor edge a concurrent task birth
-    // seeded). eagerJudgeNodes self-prunes the mark if the note carries no unverified edges, so a
-    // note with only hand-asserted wires_to edges falls back to the periodic orphan queue — no churn.
-    overlayStore.markEagerJudge(T.ov, 'note:' + id);
+    // INGEST: route the note through the unified ingestNode funnel (autowireNoteProvider + markEagerJudge).
+    // ingestNode detects the note: prefix, skips re-embed (vec already in note_nodes[id].vec via addNoteNode),
+    // calls autowireNoteProvider to seed weight-0 candidate edges to relevant tasks/notes, then stamps
+    // markEagerJudge so the heartbeat dispatches a judge immediately when edges were seeded.
+    const ingestResult = await ctx.ingestNode(T.ov, buildGraph(T.ws), 'note:' + id, { title: b.title, summary: b.summary });
     T.save(); notifyChange();
-    sendOp(res, b, 200, { ok: true, id, key: 'note:' + id, superseded, autowired: 0, hint }); return true;
+    sendOp(res, b, 200, { ok: true, id, key: 'note:' + id, superseded, autowired: ingestResult.seeded, hint }); return true;
   }
 
   if (p === '/overlay/note/rewire' && m === 'POST') {

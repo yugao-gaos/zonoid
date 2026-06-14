@@ -119,6 +119,48 @@ const SUMMARY = 'refund pipeline idempotent retry';
     ok('empty key ⇒ benign zero result', r2 && r2.vec === null && r2.seeded === 0);
   }
 
+  // --- note born-path: note key uses vec from note_nodes, calls autowireNoteProvider direction ----
+  // A new note about refund-pipeline idempotency should wire note -> related open task (not into taskVecs).
+  {
+    const NOTE_KEY = 'note:new-idem-decision';
+    const NOTE_BARE = 'new-idem-decision';
+    const NOTE_TITLE = 'refund pipeline idempotent decision';
+    const NOTE_SUMMARY = 'refund pipeline idempotent retry policy';
+    const relatedTask = { id: 's/task-refund', label: 'refund pipeline retry handler', summary: 'refund retry idempotent', status: 'ready', context_deps: [], deps: [], vec: stubEmbed('refund pipeline idempotent retry') };
+    const gNote = { tasks: [relatedTask, unrelated] };
+
+    const overlay = ov.EMPTY();
+    // Simulate addNoteNode: store note with its vec pre-set (as the route handler does before calling ingestNode)
+    if (!overlay.note_nodes) overlay.note_nodes = {};
+    overlay.note_nodes[NOTE_BARE] = { id: NOTE_BARE, title: NOTE_TITLE, summary: NOTE_SUMMARY, vec: stubEmbed(`${NOTE_TITLE} ${NOTE_SUMMARY}`) };
+
+    const r = await ingestNode(overlay, gNote, NOTE_KEY, { title: NOTE_TITLE, summary: NOTE_SUMMARY });
+
+    ok('note ingest returns a vec (from note_nodes)', Array.isArray(r.vec) && r.vec.length === DIMS);
+    ok('note ingest does NOT write taskVecs (notes use .vec on node)', !(overlay.taskVecs && overlay.taskVecs[NOTE_KEY]));
+    ok('note ingest seeds >= 1 candidate edge (note -> task direction)', r.seeded >= 1);
+
+    // autowireNoteProvider direction: note is PROVIDER (from=note:..., to=task)
+    const noteEdge = overlay.edges.find((e) => e.from === NOTE_KEY && e.to === 's/task-refund');
+    ok('note -> related task edge seeded (provider direction)', !!noteEdge);
+    ok('note candidate edge weight-0 / judged:false / autowire-semantic',
+      noteEdge && noteEdge.weight === 0 && noteEdge.judged === false && noteEdge.origin === 'autowire-semantic');
+    ok('unrelated task NOT wired from note', !overlay.edges.some((e) => e.to === 's/9' || e.from === 's/9'));
+    ok('note ingest stamps markEagerJudge', r.marked === true && !!(overlay.eagerJudge && NOTE_KEY in overlay.eagerJudge));
+  }
+
+  // --- note ingest: no vec in note_nodes (embed failed) → benign zero result ----------------------
+  {
+    const NOTE_KEY = 'note:novec-note';
+    const NOTE_BARE = 'novec-note';
+    const overlay = ov.EMPTY();
+    if (!overlay.note_nodes) overlay.note_nodes = {};
+    overlay.note_nodes[NOTE_BARE] = { id: NOTE_BARE, title: '', summary: '', vec: null }; // no vec
+    const r = await ingestNode(overlay, g, NOTE_KEY, { title: '', summary: '' });
+    ok('note with no vec returns zero result', r.vec === null && r.seeded === 0 && r.marked === false);
+    ok('no edges seeded for vec-less note', overlay.edges.length === 0);
+  }
+
   console.log('-----');
   console.log(`${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
