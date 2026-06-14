@@ -83,8 +83,20 @@ try_trivial_main_allow() {
 main_session_deny_message() {
   case "${TRIVIAL_DENY_REASON:-}" in
     budget) printf 'orch-gate: trivial patch budget exhausted for this turn (1 allowed). Dispatch a subagent for further edits.\n' ;;
-    no_workers) printf 'orch-gate: no in-flight workers. Dispatch a subagent (Agent tool) before editing.\n' ;;
+    no_workers)
+      if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
+        printf 'orch-gate: no in-flight workers. Use native TaskCreate tool to register the task, then dispatch a subagent (Agent tool) — the subagent must call POST /agent/start with parent_session_id + task_key, then start_task, before editing.\n'
+      else
+        printf 'orch-gate: no in-flight workers. Dispatch a subagent (Agent tool) before editing.\n'
+      fi
+      ;;
     focus) printf 'orch-gate: multiple in-flight workers — set dispatcher focus (POST /overlay/dispatcher-focus) before trivial edits.\n' ;;
-    *) printf 'orch-gate: no task claimed. Create a graph task then start_task, or dispatch a subagent (Agent tool).\n' ;;
+    *)
+      if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
+        printf 'orch-gate: no task claimed. Use native TaskCreate tool to register the task, then dispatch a subagent (Agent tool) — the subagent must call POST /agent/start with parent_session_id + task_key, then start_task, before editing.\n'
+      else
+        printf 'orch-gate: no task claimed. Create a graph task then start_task, or dispatch a subagent (Agent tool).\n'
+      fi
+      ;;
   esac
 }
