@@ -56,7 +56,10 @@ if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
     DETAIL=$(curl -s --max-time 0.6 "localhost:$PORT/task/detail?key=$TASK_KEY" 2>/dev/null)
     TASK_BRANCH=$(printf '%s' "$DETAIL" | jq -r '.task.git.branch // empty' 2>/dev/null)
     if [ -n "$TASK_BRANCH" ]; then
-      BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+      # Resolve the branch from the EDIT TARGET's worktree, not the hook's ambient cwd
+      # (which is the session root = main). A claimed worker editing inside its
+      # orch/attempt/* worktree must be allowed even though HEAD at the session root is main.
+      BRANCH=$(git -C "$(dirname "${FP:-.}")" rev-parse --abbrev-ref HEAD 2>/dev/null)
       case "$BRANCH" in
         orch/attempt/*) ;;  # correct branch -> allow
         *)
