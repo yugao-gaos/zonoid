@@ -16,7 +16,7 @@ PAYLOAD=$(jq -n \
   --arg transcript_path "$TRANSCRIPT" \
   --arg session "$SID" \
   '{agent_id:$agent_id,agent_type:$agent_type,transcript_path:$transcript_path,
-    session:$session,agent_tool_spawn:true}')
+    session:$session,parent_session_id:$session,agent_tool_spawn:true}')
 curl -s --max-time 0.5 -XPOST "localhost:$PORT/agent/start" -H 'content-type: application/json' \
   -d "$PAYLOAD" >/dev/null 2>&1
 exit 0

@@ -137,10 +137,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const parentSession = b.session || b.session_id || null;
     let subagentSession = b.subagent_session || null;
     if (subagentSession && parentSession && subagentSession === parentSession) subagentSession = null;
-    // Agent-tool spawn detection: when parent_session_id is provided and equals session_id, the
-    // subagent inherits the dispatcher's session (Claude Code Agent tool behaviour — no distinct
-    // CLAUDE_CODE_SESSION_ID is issued). Flag it so the claim gate can accept it as a worker.
-    const agentToolSpawn = !!(b.parent_session_id && b.parent_session_id === parentSession);
+    // Agent-tool spawn detection — unified at this single /agent/start chokepoint. Two registration
+    // signals collapse into ONE normalized field: (a) the SubagentStart hook POSTs an explicit
+    // agent_tool_spawn:true (background spawns reuse .output paths, so session extraction is
+    // unreliable and the hook flags the spawn mode directly); (b) a parent_session_id-bearing caller
+    // whose parent equals its session. Honoring both makes the explicit hook flag authoritative.
+    const agentToolSpawn = b.agent_tool_spawn === true || !!(b.parent_session_id && b.parent_session_id === parentSession);
     // Capture task/session/workspace so a colliding worker is visible across sessions (GET /agents).
     // judged_node: set when this is a node-scoped eager judge dispatch (GET /judge/next?node=<key>)
     // so the completing agent's usage slice can be attributed to the triggering node.
