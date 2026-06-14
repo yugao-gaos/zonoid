@@ -49,9 +49,32 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     const detail = (key) => { const t = byId.get(key); return t ? { key, title: t.label, summary: String(t.summary || '').slice(0, 200), kind: t.kind || 'task', status: t.status } : { key, title: key, summary: '', missing: true }; };
     const queue = judge.buildQueue(state.overlay);
     const slice = judge.nextSlice(queue, state.overlay.judgeCursor || 0, budget);
+    // Unified node resolver for the structural neighborhood walk: a key may be a note ('note:<id>')
+    // or a task (graph id). The DAEMON only assembles + serves this context; the agent reasons.
+    const nodeOf = (key) => {
+      if (typeof key === 'string' && key.startsWith('note:')) {
+        const n = state.overlay.note_nodes[key.replace(/^note:/, '')];
+        return n ? { title: n.title, summary: String(n.summary || '').slice(0, 200) } : { title: key, summary: '' };
+      }
+      const t = byId.get(key);
+      return t ? { title: t.label, summary: String(t.summary || '').slice(0, 200) } : { title: key, summary: '' };
+    };
+    const isNoteKey = (k) => typeof k === 'string' && k.startsWith('note:');
+    // Reuse ONE adjacency build across all edge items in this slice (positive-weight context edges).
+    const nbAdjacency = judge.buildContextAdjacency(state.overlay);
     const items = slice.items.map((it) => {
       if (it.kind === 'edge') {
-        return { kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to) };
+        // The candidate edge is anchor(from) → N(to). Adjudicate N WITH structure: expand N's
+        // weighted neighborhood + its supersede chain so the agent reasons over context, not the
+        // endpoint alone. task→task candidates additionally carry kind/dup classification flags.
+        const neighborhood = judge.expandNeighborhood(state.overlay, it.to, nodeOf, { adjacency: nbAdjacency });
+        const supersedeChain = judge.supersedeChain(state.overlay, it.to);
+        const taskTask = !isNoteKey(it.from) && !isNoteKey(it.to);
+        return {
+          kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to),
+          neighborhood: neighborhood.nodes, neighborhoodTruncated: neighborhood.truncated,
+          supersedeChain, taskTask,
+        };
       }
       if (it.kind === 'dup-cluster') {
         const notes = it.keys.map((k) => {
@@ -114,7 +137,14 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         const origin = edgeOrigin(kept);
         if (judge.keepEdge(T.ov, v.keepEdge.from, v.keepEdge.to)) {
           applied.kept++;
-          judge.appendVerdict(T.ws, { epoch, verdict: 'keep', from: v.keepEdge.from, to: v.keepEdge.to, edgeKind: 'context', cosine: cos, origin, by: 'judge' });
+          // task→task KIND classification: the agent decided "anchor REQUIRES N" → reclassify the
+          // kept context edge as a true blocking prerequisite (the dual of context = non-blocking).
+          if (v.keepEdge.kind === 'blocking' && kept) {
+            kept.kind = 'blocking';
+            delete kept.weight;            // blocking edges carry no relevance weight
+            applied.reclassified = (applied.reclassified || 0) + 1;
+          }
+          judge.appendVerdict(T.ws, { epoch, verdict: 'keep', from: v.keepEdge.from, to: v.keepEdge.to, edgeKind: v.keepEdge.kind === 'blocking' ? 'blocking' : 'context', cosine: cos, origin, by: 'judge' });
         }
       }
       if (v && v.pruneEdge && v.pruneEdge.from && v.pruneEdge.to) {
@@ -127,6 +157,21 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         if (T.ov.edges.length < before) {
           applied.pruned++;
           judge.appendVerdict(T.ws, { epoch, verdict: 'prune', from: v.pruneEdge.from, to: v.pruneEdge.to, edgeKind: v.pruneEdge.kind || 'context', cosine: cos, origin, by: 'judge' });
+        }
+      }
+      // task→task DUPLICATE: the agent decided the anchor RE-PLANS N (anchor supersedes the older N).
+      // Retire N (cancel + supersede edge) so a replan reconciles instead of leaving an orphan dup —
+      // same semantics as supersede_task / the /supersede route, applied atomically with the verdict.
+      if (v && v.supersedeTask && v.supersedeTask.old && v.supersedeTask.new) {
+        const oldKey = v.supersedeTask.old, newKey = v.supersedeTask.new;
+        if (byId.has(oldKey) && byId.has(newKey) && oldKey !== newKey) {
+          const note = `superseded by ${newKey}${v.supersedeTask.reason ? ' — ' + v.supersedeTask.reason : ''}`;
+          overlayStore.setStatus(T.ov, oldKey, 'canceled', note);
+          const before = T.ov.edges.length;
+          overlayStore.addEdge(T.ov, oldKey, newKey, null, 'supersede');
+          if (T.ov.edges.length > before) applied.repointed++;   // count the supersede link
+          applied.superseded++;
+          judge.appendVerdict(T.ws, { epoch, verdict: 'supersede', from: oldKey, to: newKey, edgeKind: 'task', cosine: null, by: 'judge' });
         }
       }
       if (v && v.consolidate && v.consolidate.keep && Array.isArray(v.consolidate.supersede)) {

@@ -25,8 +25,16 @@ function applyVerdict(overlay, v) {
     const e = overlay.edges.find((x) => x.from === v.createEdge.from && x.to === v.createEdge.to && x.kind === 'context');
     if (e) { e.judged = true; e.by = 'judge'; }
   }
-  if (v.keepEdge && v.keepEdge.from && v.keepEdge.to) judge.keepEdge(overlay, v.keepEdge.from, v.keepEdge.to);
+  if (v.keepEdge && v.keepEdge.from && v.keepEdge.to) {
+    const kept = overlay.edges.find((x) => x.from === v.keepEdge.from && x.to === v.keepEdge.to && x.kind === 'context');
+    judge.keepEdge(overlay, v.keepEdge.from, v.keepEdge.to);
+    if (v.keepEdge.kind === 'blocking' && kept) { kept.kind = 'blocking'; delete kept.weight; }
+  }
   if (v.pruneEdge && v.pruneEdge.from && v.pruneEdge.to) ov.removeEdge(overlay, v.pruneEdge.from, v.pruneEdge.to, null, v.pruneEdge.kind);
+  if (v.supersedeTask && v.supersedeTask.old && v.supersedeTask.new && v.supersedeTask.old !== v.supersedeTask.new) {
+    ov.setStatus(overlay, v.supersedeTask.old, 'canceled', `superseded by ${v.supersedeTask.new}`);
+    ov.addEdge(overlay, v.supersedeTask.old, v.supersedeTask.new, null, 'supersede');
+  }
   if (!overlay.judgedClusters) overlay.judgedClusters = {};
   if (v.consolidate && v.consolidate.keep && Array.isArray(v.consolidate.supersede)) {
     const keep = String(v.consolidate.keep).replace(/^note:/, '');
@@ -157,6 +165,29 @@ function applyVerdict(overlay, v) {
   applyVerdict(o, { createEdge: { from: 'note:a', to: 's/1' } });
   applyVerdict(o, { createEdge: { from: 'note:a', to: 's/1' } });
   ok('createEdge is idempotent (no duplicate edge)', o.edges.filter((e) => e.from === 'note:a' && e.to === 's/1').length === 1);
+}
+
+// --- task→task KIND: keepEdge kind:'blocking' reclassifies the kept context edge ------------------
+{
+  const o = ov.EMPTY();
+  o.edges = [{ from: 't/anchor', to: 't/N', kind: 'context', judged: false, score: 0.4 }];
+  applyVerdict(o, { keepEdge: { from: 't/anchor', to: 't/N', kind: 'blocking' } });
+  const e = o.edges[0];
+  ok('task→task keep+blocking reclassifies edge to blocking', e.kind === 'blocking');
+  ok('reclassified blocking edge drops its weight', !('weight' in e));
+  ok('keep still flips judged:true', e.judged === true && e.by === 'judge');
+}
+
+// --- task→task DUPLICATE: supersedeTask retires N (cancel + supersede edge) ------------------------
+{
+  const o = ov.EMPTY();
+  applyVerdict(o, { supersedeTask: { old: 't/N', new: 't/anchor', reason: 'anchor re-plans N' } });
+  ok('supersedeTask cancels the retired task N', o.status['t/N'] === 'canceled');
+  ok('supersedeTask writes a supersede edge old→new', o.edges.some((e) => e.from === 't/N' && e.to === 't/anchor' && e.kind === 'supersede'));
+  // self-supersede is a no-op
+  const o2 = ov.EMPTY();
+  applyVerdict(o2, { supersedeTask: { old: 't/x', new: 't/x' } });
+  ok('supersedeTask self-link is a no-op', o2.edges.length === 0 && !o2.status['t/x']);
 }
 
 console.log('-----');

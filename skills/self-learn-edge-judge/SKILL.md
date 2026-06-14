@@ -38,8 +38,20 @@ through incrementally, a handful per tick, across many ticks.
 
 `/judge/next` returns three kinds:
 
-- **`edge`** — an UNVERIFIED blind similarity edge (`{judged:false, by:'autowire'}`), with both
-  endpoints' `{title, summary, key, kind}`. Decide **keep** or **prune**.
+- **`edge`** — an UNVERIFIED blind similarity edge (`{judged:false, by:'autowire'}`) anchor(`from`)
+  → candidate `N`(`to`), with both endpoints' `{title, summary, key, kind}`. Decide **keep** or
+  **prune** — but judge it WITH STRUCTURE, not the endpoint pair alone (see "Neighborhood" below):
+  - **`neighborhood[]`** — N's surrounding context, assembled by the daemon as a relevance-decayed
+    best-first walk over JUDGED context-edge weights: `relevance = product(edge weights) × decay^depth`,
+    visited highest-first, stopped at a relevance floor or a size budget (so strong chains reach
+    deeper, diffuse ones stop ~1 hop). Each entry `{key, title, summary, depth, relevance, via}`.
+    `neighborhoodTruncated:true` means the budget capped it. **Use it:** an edge whose endpoint pair
+    looks thin can still be a sound `keep` if N sits in a strong chain that makes anchor genuinely
+    need it; conversely a topically-near pair with an empty/weak neighborhood is the usual prune.
+  - **`supersedeChain[]`** — the notes N replaced (bitemporal: `{key, title, summary, validFrom,
+    validTo, current}`, oldest→newest, N excluded). If N supersedes an older fact, judge against the
+    CURRENT fact, not the retired one.
+  - **`taskTask:true`** — both endpoints are tasks. Additionally classify KIND and DUPLICATE (below).
 - **`orphan`** — an under-connected note with `candidates[]`: its top semantic neighbors (looser
   RECALL threshold — recall, not precision), each `{key, title, summary, score, status}`. Decide,
   for each candidate, whether to **create** an edge — and in almost all cases, do NOT.
@@ -62,6 +74,20 @@ act correctly?** Topical nearness is not enough.
 - **UNVERIFIED edge:** keep ONLY if it clears the `context` bar above; otherwise prune. A dangling
   edge (an endpoint whose note no longer exists — `kind` comes back undefined / title falls back to
   the key) is always a prune.
+
+### task→task edges (`taskTask:true`): classify KIND and DUPLICATE
+
+When both endpoints are tasks, a `keep` is not the whole verdict — also decide:
+
+- **KIND — does anchor REQUIRE N?** If anchor genuinely cannot proceed until N is done (a true
+  prerequisite, not just useful background), keep it as **blocking** (`keepEdge` with
+  `kind:"blocking"`). If N is merely relevant context anchor benefits from, keep it as plain
+  `context`. Default to `context`; reserve `blocking` for real prerequisites.
+- **DUPLICATE — does anchor RE-PLAN N?** If anchor is a newer plan that subsumes/replaces the older
+  task N (same work, re-scoped), that is a dup: emit **`supersedeTask`** `{old:N, new:anchor}` so N is
+  retired (canceled + supersede edge) and a replan reconciles cleanly instead of leaving an orphan
+  duplicate. Use the `neighborhood`/`supersedeChain` to confirm they're the SAME work, not two real
+  steps. Conservative: when unsure it's a dup, keep the edge as `context` and do NOT supersede.
 
 ### Dedup criteria (dup-cluster items)
 
@@ -96,6 +122,10 @@ measurements from different runs/regimes, are DISTINCT — do NOT consolidate th
 { "verdicts": [
   // keep an unverified edge that meets the bar:
   { "keepEdge":  { "from": "note:…", "to": "…" } },
+  // task→task keep where anchor REQUIRES N — reclassify the kept edge as a blocking prerequisite:
+  { "keepEdge":  { "from": "<anchor task>", "to": "<N task>", "kind": "blocking" } },
+  // task→task DUPLICATE — anchor re-plans N: retire N (cancel + supersede edge):
+  { "supersedeTask": { "old": "<N task>", "new": "<anchor task>", "reason": "anchor re-scopes the same work" } },
   // prune an edge that doesn't (near-topic-only, or dangling):
   { "pruneEdge": { "from": "note:…", "to": "…" } },
   // create a REASONED edge from an orphan's candidate (note is the PROVIDER = from):
