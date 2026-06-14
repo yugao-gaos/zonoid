@@ -82,12 +82,24 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           (a.agent_tool_spawn && a.agent_id === b.agent_id)
         )
       );
+      const hasWorktree = !!(T.ov.git && T.ov.git[b.key] && T.ov.git[b.key].worktree);
       if (!isSubagent) {
-        send(res, 409, { ok: false, error: 'dispatcher sessions cannot claim tasks — dispatch a background subagent (Agent tool) and have it call start_task' }); return true;
+        // Self-register-on-claim fallback: the SubagentStart hook does NOT fire for run_in_background
+        // Agent-tool spawns (note-mqed9vz7vr9), so they never carry agent_tool_spawn:true and isSubagent
+        // is false for them. The proof of delegation we CAN rely on is that branch_task was already
+        // called for this task_key (a worktree is registered) — the dispatcher never calls branch_task.
+        // So a claim bearing an agent_id AND backed by a registered worktree is a legitimate hook-less
+        // worker: register it (one normalized field) and allow. A claim with NO worktree is still
+        // refused — the worktree stays the security boundary that keeps the dispatcher from claiming.
+        if (b.agent_id && hasWorktree) {
+          ctx.touchAgent(b.agent_id, { state: 'running', agent_tool_spawn: true, session: claimSid, task_key: b.key, agent_type: b.agent_type });
+        } else {
+          send(res, 409, { ok: false, error: 'dispatcher sessions cannot claim tasks — if you are a delegated worker, call branch_task(task_key) then start_task' }); return true;
+        }
       }
       // Worktree required: subagents must call branch_task before start_task so concurrent
       // agents cannot write to the same branch and overwrite each other's work.
-      if (!(T.ov.git && T.ov.git[b.key] && T.ov.git[b.key].worktree)) {
+      if (!hasWorktree) {
         send(res, 409, { ok: false, error: 'call branch_task(task_key) before start_task — subagents must work in an isolated worktree' }); return true;
       }
     }
