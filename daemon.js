@@ -1473,6 +1473,7 @@ function buildGraph(ws) {
   let tsDirty = false, adoptDirty = false;
   const newlySeen = []; // task keys first seen THIS build — candidates for one-shot auto-wiring
   const newlyAdopted = []; // {key,title,summary} of native tasks adopted THIS build — ingested at BIRTH below
+  const newlyAdoptedSet = new Set(); // keys adopted THIS build — used below to hold status at not_ready
 
   const tasks = native.map((t) => {
     const refs = R.depRefs(ws, t.key);
@@ -1494,7 +1495,15 @@ function buildGraph(ws) {
     if (own) {
       if (!ts) {
         ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; state.overlay.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key);
-        if (adoptNativeTask(state.overlay, t.key)) { adoptDirty = true; newlyAdopted.push({ key: t.key, title: t.label, summary: ovWs.summaries[t.key] || '' }); }
+        if (adoptNativeTask(state.overlay, t.key)) {
+          adoptDirty = true; newlyAdopted.push({ key: t.key, title: t.label, summary: ovWs.summaries[t.key] || '' });
+          // ADOPT-HOLD: stamp judgingSince synchronously so the judging→ready gate fires on THIS build's
+          // projection (status already computed by R.effective before we knew the node was newly adopted,
+          // so we override status/judging below for keys in newlyAdoptedSet). Without this, the async
+          // ingestNode path stamped the mark too late — the node reached ready/dispatch unjudged.
+          overlayStore.markEagerJudge(state.overlay, t.key);
+          newlyAdoptedSet.add(t.key);
+        }
         // Unwired quarantine: a task FIRST SEEN with no edges in either direction is stamped
         // unwired — /overlay/status refuses an in_progress claim until the creator wires it
         // (add_dependency clears the flag) or declares it a root (POST /mark-root). Tasks that
@@ -1512,7 +1521,15 @@ function buildGraph(ws) {
     // `provisional` = the timeout fired so the task fell back to ready but its surviving unjudged edges
     // are NOT yet adjudicated (a consuming agent should treat inherited context as not-yet-verified).
     const _js = judge.judgingState(ovWs, t.key, now(), judge.judgingTimeoutMs(ovWs));
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status, judging: _js.judging && !_js.timedOut, provisional: _js.judging && _js.timedOut, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: (ovWs.taskVecs && Array.isArray(ovWs.taskVecs[t.key])) ? ovWs.taskVecs[t.key] : null, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
+    // ADOPT-HOLD projection fix: R.effective() memoized status BEFORE we stamped markEagerJudge at
+    // adoption. For newly adopted nodes that would otherwise be 'ready', hold them at 'not_ready' and
+    // show judging:true so this build's projection is consistent with the persist (which carries the
+    // judgingSince stamp). The hold expires when the async ingest either seeds edges (which the normal
+    // judgingState gate will then manage) or finds nothing to seed (which clears judgingSince).
+    const _adoptHold = newlyAdoptedSet.has(t.key) && status === 'ready';
+    const _status = (_adoptHold || (_js.judging && !_js.timedOut && status === 'ready')) ? 'not_ready' : status;
+    const _judging = _adoptHold || (_js.judging && !_js.timedOut);
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: _js.judging && _js.timedOut, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: (ovWs.taskVecs && Array.isArray(ovWs.taskVecs[t.key])) ? ovWs.taskVecs[t.key] : null, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
@@ -1549,7 +1566,11 @@ function buildGraph(ws) {
       for (const n of newlyAdopted) {
         try {
           const r = await ingestNode(state.overlay, buildGraph(ws), n.key, { title: n.title, summary: n.summary });
-          if (r.vec) { overlayStore.save(state.workspace, state.overlay, { deferred: true }); notifyChange(); }
+          // If ingest found no edges to seed (embed disabled, isolated node, etc.), the ADOPT-HOLD
+          // judgingSince stamp we set synchronously above would keep the node in not_ready forever.
+          // Clear it so the node can progress to ready without waiting for a judge that will never come.
+          if (r.seeded === 0) { overlayStore.clearJudgingSince(state.overlay, n.key); }
+          if (r.vec || r.seeded === 0) { overlayStore.save(state.workspace, state.overlay, { deferred: true }); notifyChange(); }
         } catch { /* best-effort birth ingest */ }
       }
     })();
