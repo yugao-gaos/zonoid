@@ -1,1 +1,2 @@
 {"evt":"edge_added","from":"note:note-mqa3zbfhvtf","to":"17","kind":"context","actor":"overlay-sync","ts":"2026-06-11T23:08:19.232Z","weight":0.5}
+{"evt":"note_superseded","id":"note-mqa3zbfhvtf","supersededBy":"note-mqbp7nlsaxa","validTo":"2026-06-13T01:50:26.368Z","ts":"2026-06-13T01:50:26.368Z","actor":"supersede"}

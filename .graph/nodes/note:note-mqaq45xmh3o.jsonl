@@ -1,0 +1,2 @@
+{"evt":"note_superseded","id":"note-mqaq45xmh3o","supersededBy":"note-mqasq4m5c0v","validTo":"2026-06-12T10:41:00.893Z","ts":"2026-06-12T10:41:00.893Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mqaq45xmh3o","to":"note:note-mqasq4m5c0v","kind":"context","actor":"overlay-sync","ts":"2026-06-14T04:07:26.132Z","weight":0.6}

@@ -10,3 +10,6 @@
 {"evt":"edge_added","from":"note:note-mq82epu64dp","to":"ddccf8ca-a541-49a7-8912-43ff5c7ccc63/9","kind":"context","actor":"overlay-sync","ts":"2026-06-12T11:37:15.285Z","weight":0.258}
 {"evt":"edge_added","from":"note:note-mq82epu64dp","to":"followup/restart-daemon-to-activate-note-dup-guar-i3j2","kind":"context","actor":"overlay-sync","ts":"2026-06-12T11:45:21.807Z","weight":0.365}
 {"evt":"edge_added","from":"note:note-mq82epu64dp","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-13T13:32:16.967Z","weight":0.365}
+{"evt":"note_supersedes","id":"note-mq82epu64dp","supersedes":"note-mq82epte8jb","ts":"2026-06-10T12:48:46.158Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mq82epu64dp","to":"s/throwaway-consumer","kind":"context","actor":"overlay-sync","ts":"2026-06-14T00:46:07.053Z","weight":0.6}
+{"evt":"note_superseded","id":"note-mq82epu64dp","supersededBy":"note-mqd5mq8r5m8","validTo":"2026-06-14T02:17:49.659Z","ts":"2026-06-14T02:17:49.659Z","actor":"supersede"}
