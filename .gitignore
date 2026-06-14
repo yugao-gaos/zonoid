@@ -47,7 +47,19 @@ bench/*.log
 
 # runtime artifacts (never commit)
 embed.pid
+embed.sock
 logs/
+
+# Schedule-wakeup pidfiles (ORCH_DATA → ~/.claude/orchestrator, which symlinks to this repo in dev)
+wake/
+
+# Agent scratch debris (gate-exempt sandbox; keep tracked spike tools)
+scratch/*
+!scratch/cursor-hook-capture.sh
+!scratch/competitive/
+
+# Editor backups
+.cursor/*.bak
 
 # File-drop task mint stubs (adopted into .graph on first sight; not source)
 tasks/
