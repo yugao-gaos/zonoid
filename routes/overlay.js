@@ -73,13 +73,22 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         send(res, 400, { ok: false, error: 'session_id required on in_progress claim when not inferable from agent registry' }); return true;
       }
       const isSubagent = agentsArr().some((a) =>
-        a.state === 'running' &&
-        a.subagent_session &&
-        a.subagent_session === claimSid &&
-        a.subagent_session !== a.session
+        a.state === 'running' && (
+          // Standard subagent: distinct session from its dispatcher
+          (a.subagent_session && a.subagent_session === claimSid && a.subagent_session !== a.session) ||
+          // Agent-tool spawn: registered via SubagentStart hook with agent_tool_spawn:true.
+          // Hook runs in dispatcher context so a.session is the dispatcher's session, NOT the
+          // subagent's — match on agent_id only (unique per spawn).
+          (a.agent_tool_spawn && a.agent_id === b.agent_id)
+        )
       );
       if (!isSubagent) {
-        send(res, 409, { ok: false, error: 'dispatcher sessions cannot claim tasks' }); return true;
+        send(res, 409, { ok: false, error: 'dispatcher sessions cannot claim tasks — dispatch a background subagent (Agent tool) and have it call start_task' }); return true;
+      }
+      // Worktree required: subagents must call branch_task before start_task so concurrent
+      // agents cannot write to the same branch and overwrite each other's work.
+      if (!(T.ov.git && T.ov.git[b.key] && T.ov.git[b.key].worktree)) {
+        send(res, 409, { ok: false, error: 'call branch_task(task_key) before start_task — subagents must work in an isolated worktree' }); return true;
       }
     }
     if (b.status === 'in_progress' && b.force) {

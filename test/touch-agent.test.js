@@ -10,6 +10,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
+const git = require('../lib/git');
 const { touchAgent, __setAgentsForTest, __getAgentsForTest } = require('../daemon.js');
 
 let pass = 0, fail = 0;
@@ -48,6 +49,28 @@ const ok = (label, cond) => {
   ok('subagent_session equals session stored as null', a && a.subagent_session === null);
 }
 
+// ── Unit: agent_tool_spawn persists through touchAgent (gate arm (b) input) ───
+// Regression: touchAgent rebuilt the record and silently dropped agent_tool_spawn,
+// so the overlay claim gate arm (b) (a.agent_tool_spawn && a.agent_id === b.agent_id)
+// could never match a legit Agent-tool spawn inheriting the dispatcher session.
+{
+  __setAgentsForTest({});
+  touchAgent('spawn-worker', { state: 'running', agent_tool_spawn: true, session: 'dispatcher-sid' });
+  const a = __getAgentsForTest()['spawn-worker'];
+  ok('agent_tool_spawn:true persisted', a && a.agent_tool_spawn === true);
+
+  // Preserved across a later touch that does not re-supply the field.
+  touchAgent('spawn-worker', { status: 'in_progress' });
+  const a2 = __getAgentsForTest()['spawn-worker'];
+  ok('agent_tool_spawn preserved across touch', a2 && a2.agent_tool_spawn === true);
+
+  // Absent => null, never undefined (a non-spawn worker stays falsy for the gate).
+  __setAgentsForTest({});
+  touchAgent('plain-worker', { state: 'running', session: 'sess-x' });
+  const p = __getAgentsForTest()['plain-worker'];
+  ok('agent_tool_spawn null when absent', p && p.agent_tool_spawn === null);
+}
+
 // ── Unit: idempotent with hook path (/agent/start semantics) ─────────────────
 {
   __setAgentsForTest({});
@@ -65,6 +88,9 @@ const ok = (label, cond) => {
 (async () => {
   const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-touch-agent-')));
   const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-touch-ws-')));
+  // WS must be a git repo: the start_task claim gate requires a registered worktree
+  // (subagents branch_task before claiming), so probe tasks claim from an attempt worktree.
+  git.initRepo(WS);
   const PORT = 19850 + Math.floor(Math.random() * 100);
   const readAgentsFile = () => JSON.parse(fs.readFileSync(path.join(SANDBOX, 'agents.json'), 'utf8'));
 
@@ -109,7 +135,13 @@ const ok = (label, cond) => {
     // Wire a task so start_task claim succeeds (unwired quarantine would 409 otherwise).
     await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/touch-probe', kind: 'blocking' });
     await req('POST', '/overlay/status', { workspace: WS, key: 'local/touch-probe', status: 'ready' });
-
+    // Register as a standard subagent (distinct subagent_session) + attempt worktree, so the
+    // claim gate (arm a + worktree precondition) accepts it.
+    await req('POST', '/git/worktree', { workspace: WS, key: 'local/touch-probe', repo_path: WS });
+    await req('POST', '/agent/start', {
+      workspace: WS, agent_id: 'silent-foreign', task: 'local/touch-probe',
+      session: 'disp-sf', subagent_session: 'sub-sf',
+    });
     const claim = await req('POST', '/overlay/status', {
       workspace: WS, key: 'local/touch-probe', status: 'in_progress', agent_id: 'silent-foreign',
     });
@@ -142,6 +174,33 @@ const ok = (label, cond) => {
     const hookReg2 = readAgentsFile()['hook-plus-mcp'];
     ok('hook then start_task: single agent record', Object.keys(readAgentsFile()).filter((k) => k === 'hook-plus-mcp').length === 1);
     ok('hook then start_task: lastSeen stamped', hookReg2 && hookReg2.lastSeen >= hookSeen);
+
+    // ── Gate: Agent-tool spawn (no distinct subagent_session) CAN claim via arm (b) ──
+    // This is the regression target: touchAgent now persists agent_tool_spawn, so the overlay
+    // claim gate arm (b) (a.agent_tool_spawn && a.agent_id === b.agent_id) can match.
+    await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/spawn-probe', kind: 'blocking' });
+    await req('POST', '/overlay/status', { workspace: WS, key: 'local/spawn-probe', status: 'ready' });
+    await req('POST', '/git/worktree', { workspace: WS, key: 'local/spawn-probe', repo_path: WS });
+    // SubagentStart hook for an Agent-tool spawn: parent_session_id === session, no subagent_session.
+    await req('POST', '/agent/start', {
+      workspace: WS, agent_id: 'tool-spawn', task: 'local/spawn-probe', session: 'disp-sid', parent_session_id: 'disp-sid',
+    });
+    const spawnReg = readAgentsFile()['tool-spawn'];
+    ok('agent_tool_spawn persisted to disk', spawnReg && spawnReg.agent_tool_spawn === true);
+    const spawnClaim = await req('POST', '/overlay/status', {
+      workspace: WS, key: 'local/spawn-probe', status: 'in_progress', agent_id: 'tool-spawn', session_id: 'disp-sid',
+    });
+    ok('Agent-tool spawn claim accepted (gate arm b)', spawnClaim.status === 200 && spawnClaim.body.ok === true);
+
+    // ── Gate: genuine dispatcher session (no spawn flag, no subagent) STILL rejected ──
+    await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/disp-probe', kind: 'blocking' });
+    await req('POST', '/overlay/status', { workspace: WS, key: 'local/disp-probe', status: 'ready' });
+    await req('POST', '/git/worktree', { workspace: WS, key: 'local/disp-probe', repo_path: WS });
+    await req('POST', '/agent/start', { workspace: WS, agent_id: 'plain-disp', task: 'local/disp-probe', session: 'disp2-sid' });
+    const dispClaim = await req('POST', '/overlay/status', {
+      workspace: WS, key: 'local/disp-probe', status: 'in_progress', agent_id: 'plain-disp', session_id: 'disp2-sid',
+    });
+    ok('dispatcher session still rejected', dispClaim.status === 409);
   } finally {
     child.kill('SIGTERM');
     try { child.kill('SIGKILL'); } catch { /* already dead */ }
