@@ -201,19 +201,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         const snap = T.ov.snapshots && T.ov.snapshots[b.key];
         let title = snap && snap.subject;
         if (!title) { const nt = ctx.readNativeTask(T.ws, String(b.key)); title = nt && (nt.subject || nt.activeForm); }
-        const tvec = await embed(taskEmbedText({ title, summary: T.ov.summaries[b.key] }));
-        if (tvec) overlayStore.setTaskVec(T.ov, b.key, tvec);
-        // CREATION-TIME whole-graph recall: only on the FIRST vec (task born) — seed weight-0,
-        // judged:false candidate edges from/to this new anchor to BOTH relevant NOTES and TASKS so
-        // the neighborhood-aware judge (task A) can promote them. Retrieval-invisible until judged;
-        // semantic only (no lexical). Re-runs are gated by !_hasVec so a later summary update does
-        // not re-seed. Best-effort: never block the status write on recall.
-        if (tvec && !_hasVec) {
-          const g = buildGraph(T.ws);
-          const seeded = ctx.autowireNewTaskWholeGraph(T.ov, g, b.key, title, T.ov.summaries[b.key], tvec);
-          // EAGER JUDGE (task C): if candidate edges were seeded, mark this task so the heartbeat
-          // dispatches a judge for its whole edge-set IMMEDIATELY, not on the next periodic drain.
-          if (seeded > 0) overlayStore.markEagerJudge(T.ov, b.key);
+        if (!_hasVec) {
+          // FIRST vec (task born on THIS lane — e.g. the in_progress claim): pass through the shared
+          // ingestNode funnel so embed → setTaskVec → autowire (seed weight-0 candidate edges to
+          // relevant NOTES+TASKS for the neighborhood-aware judge) → markEagerJudge all fire in lockstep
+          // with the birth-time native lane. Identical result, one funnel. Best-effort, null-safe.
+          await ctx.ingestNode(T.ov, buildGraph(T.ws), b.key, { title, summary: T.ov.summaries[b.key] });
+        } else if (b.summary != null) {
+          // Already ingested, but the interface text (summary) changed ⇒ re-embed ONLY so retrieval
+          // tracks the new text. No re-autowire / no re-mark — candidate seeding is a one-shot at birth
+          // (the prior !_hasVec gate enforced exactly this), the judge owns edge evolution thereafter.
+          const tvec = await embed(taskEmbedText({ title, summary: T.ov.summaries[b.key] }));
+          if (tvec) overlayStore.setTaskVec(T.ov, b.key, tvec);
         }
       } catch { /* best effort — never block the status write on embedding/recall */ }
     }

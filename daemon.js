@@ -32,6 +32,7 @@ const frontier = require('./lib/frontier');
 const analytics = require('./lib/analytics');
 const graphStore = require('./lib/graph-store');
 const sessionBindings = require('./lib/session-bindings');
+const { taskEmbedText } = require('./lib/node-tags');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -1256,6 +1257,32 @@ function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, target
   return added;
 }
 
+// UNIFIED INGEST FUNNEL — the one path every node passes through at BIRTH (BUILD1 of the lifecycle
+// unification, design note:note-mqeapqae6jf). Historically embed → setTaskVec → autowire → markEagerJudge
+// fired ONLY inside /overlay/status on the first vec, so native/file-drop/follow-up tasks reached
+// `ready`/dispatch with no vec, no candidate edges, and no eager mark → the judging→ready D-gate was a
+// no-op for those lanes. ingestNode collapses the four steps into one funnel callable at creation time:
+//   embed(title+summary) → setTaskVec → autowireNewTaskWholeGraph (seed weight-0 candidate edges) →
+//   markEagerJudge (stamps judgingSince) when edges were seeded.
+// Null-safe + best-effort: a null vec (sidecar loading/disabled) yields no autowire and no mark, exactly
+// like the lazy path. Mutates `overlay` in place; the CALLER is responsible for saving. `g` is a built
+// graph for the recall pass (pass a fresh buildGraph(ws)). Idempotent at the edge layer (addEdge dedupes)
+// and at the vec layer (re-embed just rewrites the vec). Returns { vec, seeded, marked } for callers/tests.
+async function ingestNode(overlay, g, key, { title, summary } = {}) {
+  const out = { vec: null, seeded: 0, marked: false };
+  if (!overlay || !key) return out;
+  try {
+    const vec = await embed(taskEmbedText({ title, summary }));
+    if (!vec) return out;                                   // no embedding ⇒ lexical fallback, nothing to seed
+    overlayStore.setTaskVec(overlay, key, vec);
+    out.vec = vec;
+    const seeded = autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec);
+    out.seeded = seeded;
+    if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
+  } catch { /* best-effort — never let ingestion throw into a caller's hot path */ }
+  return out;
+}
+
 // RECALL half of the RAG-candidate → agent-adjudicator pipeline. For an orphan/under-connected note,
 // return up to `top` semantic candidates (cosine >= RAG_RECALL_THRESHOLD) the AGENT will adjudicate —
 // it does NOT write any edge (that's the judge's verdict, never a cosine score). Looser than the old
@@ -1445,6 +1472,7 @@ function buildGraph(ws) {
   // effective status changes. lastStatus tracks the value used to detect changes. Not backfilled.
   let tsDirty = false, adoptDirty = false;
   const newlySeen = []; // task keys first seen THIS build — candidates for one-shot auto-wiring
+  const newlyAdopted = []; // {key,title,summary} of native tasks adopted THIS build — ingested at BIRTH below
 
   const tasks = native.map((t) => {
     const refs = R.depRefs(ws, t.key);
@@ -1466,7 +1494,7 @@ function buildGraph(ws) {
     if (own) {
       if (!ts) {
         ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; state.overlay.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key);
-        if (adoptNativeTask(state.overlay, t.key)) adoptDirty = true;
+        if (adoptNativeTask(state.overlay, t.key)) { adoptDirty = true; newlyAdopted.push({ key: t.key, title: t.label, summary: ovWs.summaries[t.key] || '' }); }
         // Unwired quarantine: a task FIRST SEEN with no edges in either direction is stamped
         // unwired — /overlay/status refuses an in_progress claim until the creator wires it
         // (add_dependency clears the flag) or declares it a root (POST /mark-root). Tasks that
@@ -1510,6 +1538,22 @@ function buildGraph(ws) {
     overlayStore.bumpEpoch(state.overlay); edgesDirty = true;
   }
   if (tsDirty || edgesDirty || adoptDirty) { overlayStore.save(state.workspace, state.overlay, { deferred: true }); notifyChange(); }
+  // INGEST-AT-BIRTH (BUILD1): native tasks adopted THIS build pass through the unified ingestNode funnel
+  // (embed → setTaskVec → autowire → markEagerJudge) so they carry a vec + candidate edges + an eager mark
+  // BEFORE they can reach `ready`/dispatch — closing the bypass where the native lane was only ingested at
+  // its in_progress claim. Fire-and-forget so buildGraph stays synchronous: each ingest mutates the live
+  // overlay and saves on its own. `own` only (state.overlay is the writable store). The recall graph is
+  // rebuilt per node so each sees prior siblings ingested this batch.
+  if (own && newlyAdopted.length) {
+    (async () => {
+      for (const n of newlyAdopted) {
+        try {
+          const r = await ingestNode(state.overlay, buildGraph(ws), n.key, { title: n.title, summary: n.summary });
+          if (r.vec) { overlayStore.save(state.workspace, state.overlay, { deferred: true }); notifyChange(); }
+        } catch { /* best-effort birth ingest */ }
+      }
+    })();
+  }
   const ghosts = Object.values(ghostMap);
   return { tasks, ghosts, summary: summaryFor(tasks, ghosts, ovWs) };
 }
@@ -1730,7 +1774,7 @@ const ctx = {
   gateTask, haikusGate,
   scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks, suggestForTask,
   SUGGEST_DUP_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,
-  autowireNoteProvider, autowireNewTaskWholeGraph, noteRagCandidates, RAG_RECALL_THRESHOLD,
+  autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD,
   noteCurrentAsOf, gatedSearchCounts, checkGatedRateLimit,
   knowledgeText, digestRejected, leanLearnings,
   respCacheGet, respCachePut, frontier,
@@ -1790,7 +1834,7 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNoteProvider, autowireNewTaskWholeGraph, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, migrateBlindEdges, sessionBindings,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, __setOverlayForTest: (o) => { state.overlay = o; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
