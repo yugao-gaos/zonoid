@@ -138,9 +138,21 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // abstain('low-confidence') — conservative, never a hard failure.
     // DAG tier: collect context_deps of the requested task — always inject, no gate.
     const dagNotes = [];
+    // DAG-ONLY claim context (Judge E): when a worker consults this with a task_key, the
+    // auto-injected claim context is the JUDGED DAG neighborhood ONLY — the RAG-fill tier is
+    // dropped from the returned bundle. This is SAFE only under Judge D's ready-gate guarantee:
+    // a task is not 'ready'/claimable until its wirings have been judged, so by claim time its
+    // context_deps are the complete-and-judged set (weight-0/unjudged edges are already excluded
+    // from the projection — daemon.js buildGraph filters them — so they never appear here).
+    // INVARIANT GUARD: if D's timeout fired and the task fell back to 'ready' with surviving
+    // unjudged edges (taskNode.provisional), its DAG is NOT guaranteed complete — do NOT go
+    // DAG-only-blind. For a provisional task we KEEP the RAG-fill (below), so it still gets
+    // fallback context. dagOnly stays false unless we positively confirm a fully-judged task.
+    let dagOnly = false;
     if (task_key) {
       const taskNode = g.tasks.find(t => t.id === task_key);
       if (taskNode) {
+        dagOnly = !taskNode.provisional;  // fully-judged ⇒ DAG-only; provisional ⇒ keep RAG-fill
         for (const depKey of (taskNode.context_deps || [])) {
           const noteNode = g.tasks.find(t => t.id === depKey);
           if (noteNode && noteNode.kind === 'note') {
@@ -353,8 +365,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
       ragResults.sort((a, b) => b.score - a.score);
     }
-    // DAG notes always prepend (bypass gate); RAG fills remaining slots up to k.
-    const results = [...dagNotes, ...ragResults].slice(0, k + dagNotes.length);
+    // DAG notes always prepend (bypass gate). For a fully-judged claim consult (dagOnly), the
+    // auto-injected context is the judged DAG neighborhood ONLY — drop the RAG-fill tier (Judge E,
+    // safe under D's ready-gate). Otherwise (no task_key, or a provisional/timed-out task whose DAG
+    // is not guaranteed complete) RAG fills remaining slots up to k as before — the safe fallback.
+    // search_knowledge stays a fully-functional explicit tool: an ungated/no-task_key lookup, or a
+    // provisional task, gets the full RAG bundle; only the fully-judged auto-claim context is pruned.
+    const results = dagOnly
+      ? [...dagNotes]
+      : [...dagNotes, ...ragResults].slice(0, k + dagNotes.length);
     const payload = { query: q, k, asOf: asOf || null, knownAsOf: knownAsOf || null, history, round, continue: plateauContinue(results), results };
     if (!gated) {
       // SHADOW: run gate over pre-scored candidates and journal the verdict, but never enforce it.
