@@ -55,7 +55,10 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     const eagerNode = u.searchParams.get('node');
     if (eagerNode) {
       const nodeItems = judge.buildQueueForNode(state.overlay, eagerNode);
-      if (overlayStore.clearEagerJudge(state.overlay, eagerNode)) overlayStore.save(state.workspace, state.overlay);
+      if (overlayStore.clearEagerJudge(state.overlay, eagerNode)) {
+        overlayStore.clearEagerJudgeLease(state.overlay, eagerNode); // release dispatch lease (task 27)
+        overlayStore.save(state.workspace, state.overlay);
+      }
       const nbAdj = judge.buildContextAdjacency(state.overlay);
       const isNK = (k) => typeof k === 'string' && k.startsWith('note:');
       const nodeOfE = (key) => {

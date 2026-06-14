@@ -931,7 +931,12 @@ function decideOne(L, ctx) {
     if (slots <= 0) return null;
     L.spent += slots * est;                                   // account for the K node-judges so the loop stops at budget
     const budget = (ov.config.judge?.budgetPerRun) ?? 6;
-    return { nodes: pending.slice(0, slots), budget };       // FIFO; excess stays marked for next tick
+    const dispatchNodes = pending.slice(0, slots);
+    // Lease each node atomically so concurrent loops skip it (double-dispatch guard, task 27).
+    for (const nodeKey of dispatchNodes) {
+      overlayStore.acquireEagerJudgeLease(ov, nodeKey, L.id, 60000);
+    }
+    return { nodes: dispatchNodes, budget };       // FIFO; excess stays marked for next tick
   }
 
   // EXPENSIVE-TASK GATE (Lever 2): tasks carrying a metric spec (cost:"high" proxy) are held
