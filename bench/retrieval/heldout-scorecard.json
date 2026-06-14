@@ -1,0 +1,755 @@
+{
+  "generated_at": "2026-06-14T03:38:35.085Z",
+  "daemon": "http://127.0.0.1:8811",
+  "mode": "heldout",
+  "isolated": true,
+  "eval_set": "bench/retrieval/heldout-eval-set.json",
+  "eval_set_version": 1,
+  "num_candidates": 4,
+  "num_queries": 19,
+  "ks": [
+    5,
+    10
+  ],
+  "primary_k": 5,
+  "thresholds": {
+    "perCandidateRecall": {
+      "task-transcript": 0.75,
+      "locale-sum": 0.6,
+      "bench-metric": 0.35
+    },
+    "negativeMaxContamination": 0
+  },
+  "forbidden_titles": [
+    "override: resolveowner task transcript attribution — spec is incomplete, bywindow fallback required when no session no transcript_path",
+    "amount feed mixes en-us and de-de decimal formats; a plain number()/parsefloat parser silently mis-sums it",
+    "computeratio bench-metric: mcp_tool lines counted in gross and subtracted for net — locality confirmed on v5/v7 data"
+  ],
+  "candidates": [
+    {
+      "id": "task-transcript",
+      "negative": false,
+      "relevant_titles": [
+        "OVERRIDE: resolveOwner task transcript attribution — spec is incomplete, byWindow fallback required when no session no transcript_path"
+      ],
+      "aggregate": {
+        "5": {
+          "recall": 1,
+          "mrr": 1,
+          "num_queries": 4
+        },
+        "10": {
+          "recall": 1,
+          "mrr": 1,
+          "num_queries": 4
+        }
+      },
+      "queries": [
+        {
+          "query": "task transcript owner resolution exact-session drops tasks window overlap correlation resolveOwner assignee",
+          "relevant": [
+            "OVERRIDE: resolveOwner task transcript attribution — spec is incomplete, byWindow fallback required when no session no transcript_path"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "override: resolveowner task transcript attribution — spec is incomplete, bywindow fallback required when no session no transcript_path",
+            "native task ids are session-local; cross-session refs must be namespaced session-uuid/id",
+            "inline main-agent work traps as catch-all waste — fix is a tasktranscript main-session fallback",
+            "orch-gate.sh false-positives background subagents' inline edits (session_id mismatch)",
+            "suggest_links duplicate threshold is 0.6 label/summary overlap",
+            "wincase-c (variant c) null — rigging guard failed; single-task memory-win premise falsified (0 wins in 8)",
+            "token-problem root cause: aggregate get_full_graph is stale + huge vs. live task detail",
+            "note claude_code_task_list_id env var makes multiple claude code sessions on one",
+            "note claude_code_task_list_id env var makes multiple claude code sessions on one",
+            "note {\"winner\":\"token-a\",\"why\":\"both passed (5/5 token-attr + full existing suit"
+          ]
+        },
+        {
+          "query": "resolveOwner taskKey registry assignee transcript_path sessionTranscript byWindow fallback",
+          "relevant": [
+            "OVERRIDE: resolveOwner task transcript attribution — spec is incomplete, byWindow fallback required when no session no transcript_path"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "override: resolveowner task transcript attribution — spec is incomplete, bywindow fallback required when no session no transcript_path",
+            "inline main-agent work traps as catch-all waste — fix is a tasktranscript main-session fallback",
+            "note {\"winner\":\"token-a\",\"why\":\"both passed (5/5 token-attr + full existing suit",
+            "note {\"winner\":\"token-a\",\"why\":\"both passed (5/5 token-attr + full existing suit",
+            "note verified 2026-06-10: daemon.js:24 imports lib/context-gate; gated retrieval",
+            "note verified 2026-06-10: daemon.js:24 imports lib/context-gate; gated retrieval",
+            "orch-gate.sh false-positives background subagents' inline edits (session_id mismatch)",
+            "native task ids are session-local; cross-session refs must be namespaced session-uuid/id",
+            "gate labeler policy: inject plus note used but task failed is labeled fp not tp",
+            "catch-all session node: inline chat tokens enter cost-flow attribution"
+          ]
+        },
+        {
+          "query": "how to attribute a task token usage to the correct agent transcript file",
+          "relevant": [
+            "OVERRIDE: resolveOwner task transcript attribution — spec is incomplete, byWindow fallback required when no session no transcript_path"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "override: resolveowner task transcript attribution — spec is incomplete, bywindow fallback required when no session no transcript_path",
+            "inline main-agent work traps as catch-all waste — fix is a tasktranscript main-session fallback",
+            "note {\"winner\":\"token-a\",\"why\":\"both passed (5/5 token-attr + full existing suit",
+            "note {\"winner\":\"token-a\",\"why\":\"both passed (5/5 token-attr + full existing suit",
+            "two-tier context handoff between dependent tasks",
+            "read native task files; never write them",
+            "catch-all session node: inline chat tokens enter cost-flow attribution",
+            "gate labeler policy: inject plus note used but task failed is labeled fp not tp",
+            "route substantive multi-step work through the orchestrator, not inline",
+            "orch-gate.sh false-positives background subagents' inline edits (session_id mismatch)"
+          ]
+        },
+        {
+          "query": "task claim window overlap transcript attribution when assignee has no session",
+          "relevant": [
+            "OVERRIDE: resolveOwner task transcript attribution — spec is incomplete, byWindow fallback required when no session no transcript_path"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "override: resolveowner task transcript attribution — spec is incomplete, bywindow fallback required when no session no transcript_path",
+            "orch-gate.sh false-positives background subagents' inline edits (session_id mismatch)",
+            "catch-all session node: inline chat tokens enter cost-flow attribution",
+            "active-claim requires native claude task file not just overlay graph node",
+            "note {\"winner\":\"token-a\",\"why\":\"both passed (5/5 token-attr + full existing suit",
+            "note {\"winner\":\"token-a\",\"why\":\"both passed (5/5 token-attr + full existing suit",
+            "inline main-agent work traps as catch-all waste — fix is a tasktranscript main-session fallback",
+            "native task ids are session-local; cross-session refs must be namespaced session-uuid/id",
+            "suggest_links duplicate threshold is 0.6 label/summary overlap",
+            "token-problem root cause: aggregate get_full_graph is stale + huge vs. live task detail"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "locale-sum",
+      "negative": false,
+      "relevant_titles": [
+        "Amount feed mixes en-US and de-DE decimal formats; a plain Number()/parseFloat parser silently mis-sums it"
+      ],
+      "aggregate": {
+        "5": {
+          "recall": 1,
+          "mrr": 1,
+          "num_queries": 5
+        },
+        "10": {
+          "recall": 1,
+          "mrr": 1,
+          "num_queries": 5
+        }
+      },
+      "queries": [
+        {
+          "query": "sumAmounts amount feed decimal format parsing",
+          "relevant": [
+            "Amount feed mixes en-US and de-DE decimal formats; a plain Number()/parseFloat parser silently mis-sums it"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "amount feed mixes en-us and de-de decimal formats; a plain number()/parsefloat parser silently mis-sums it",
+            "n=2 external-gap candidate: locale-sum (de-de decimal quirk) — held-out harness, distinct flavor from task-transcript",
+            "lib/measure.js",
+            "measure work by output_tokens, not gross-minus-plumbing",
+            "update quality-gain paper with corrected overlay-save numbers + locale-sum candidate",
+            "bench cost-weighting: cache_read x0.1, output x5, cache_creation x1.25",
+            "benchmark verdict: graph cost is cache_read, not work — measure with output_tokens",
+            "computeratio bench-metric: mcp_tool lines counted in gross and subtracted for net — locality confirmed on v5/v7 data",
+            "neural gate data plan: cost aware utility label, data volumes, three stage pipeline",
+            "note reframed receipts narrative drafted (d5-bench-triage.md s4): lead with 'we"
+          ]
+        },
+        {
+          "query": "sumAmounts amount feed total rounding monetary string parsing",
+          "relevant": [
+            "Amount feed mixes en-US and de-DE decimal formats; a plain Number()/parseFloat parser silently mis-sums it"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "amount feed mixes en-us and de-de decimal formats; a plain number()/parsefloat parser silently mis-sums it",
+            "n=2 external-gap candidate: locale-sum (de-de decimal quirk) — held-out harness, distinct flavor from task-transcript",
+            "lib/measure.js",
+            "measure work by output_tokens, not gross-minus-plumbing",
+            "context cost is entirely payload size; lean payload → cost parity",
+            "bench cost-weighting: cache_read x0.1, output x5, cache_creation x1.25",
+            "benchmark verdict: graph cost is cache_read, not work — measure with output_tokens",
+            "batch.submit silently caps at 50 items per call — chunk inputs or you lose the overflow",
+            "note zonoid = convex solid that is the limit of summed line segments — 'every ru",
+            "note zonoid = convex solid that is the limit of summed line segments — 'every ru"
+          ]
+        },
+        {
+          "query": "sumAmounts amount string parsing monetary rounding",
+          "relevant": [
+            "Amount feed mixes en-US and de-DE decimal formats; a plain Number()/parseFloat parser silently mis-sums it"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "amount feed mixes en-us and de-de decimal formats; a plain number()/parsefloat parser silently mis-sums it",
+            "n=2 external-gap candidate: locale-sum (de-de decimal quirk) — held-out harness, distinct flavor from task-transcript",
+            "lib/measure.js",
+            "measure work by output_tokens, not gross-minus-plumbing",
+            "bench cost-weighting: cache_read x0.1, output x5, cache_creation x1.25",
+            "benchmark verdict: graph cost is cache_read, not work — measure with output_tokens",
+            "batch.submit silently caps at 50 items per call — chunk inputs or you lose the overflow",
+            "context cost is entirely payload size; lean payload → cost parity",
+            "computeratio bench-metric: mcp_tool lines counted in gross and subtracted for net — locality confirmed on v5/v7 data",
+            "note zonoid = convex solid that is the limit of summed line segments — 'every ru"
+          ]
+        },
+        {
+          "query": "locale decimal format en-US de-DE amount parseFloat mis-sum",
+          "relevant": [
+            "Amount feed mixes en-US and de-DE decimal formats; a plain Number()/parseFloat parser silently mis-sums it"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "amount feed mixes en-us and de-de decimal formats; a plain number()/parsefloat parser silently mis-sums it",
+            "update quality-gain paper with corrected overlay-save numbers + locale-sum candidate",
+            "n=2 external-gap candidate: locale-sum (de-de decimal quirk) — held-out harness, distinct flavor from task-transcript",
+            "locale sum clone dedup: keeper, root cause, and idempotency fix",
+            "lib/measure.js",
+            "result: autonomous loop on locale-sum — off 0% → on 58% edge solve",
+            "bench cost-weighting: cache_read x0.1, output x5, cache_creation x1.25",
+            "case study: self-learning kb loop — off 0% → on 100% on held-out bench (overlay-save + locale-sum)",
+            "n=2 verdict: win — locale-sum (de-de decimal) replicates the held-out memory-win; cold 0/8 vs warm 8/8 edge, 5/5 trials",
+            "native task format is undocumented — isolate it behind one adapter"
+          ]
+        },
+        {
+          "query": "sumAmounts amount feed billing total string parsing",
+          "relevant": [
+            "Amount feed mixes en-US and de-DE decimal formats; a plain Number()/parseFloat parser silently mis-sums it"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "amount feed mixes en-us and de-de decimal formats; a plain number()/parsefloat parser silently mis-sums it",
+            "n=2 external-gap candidate: locale-sum (de-de decimal quirk) — held-out harness, distinct flavor from task-transcript",
+            "lib/measure.js",
+            "measure work by output_tokens, not gross-minus-plumbing",
+            "neural gate data plan: cost aware utility label, data volumes, three stage pipeline",
+            "bench cost-weighting: cache_read x0.1, output x5, cache_creation x1.25",
+            "benchmark verdict: graph cost is cache_read, not work — measure with output_tokens",
+            "update quality-gain paper with corrected overlay-save numbers + locale-sum candidate",
+            "context cost is entirely payload size; lean payload → cost parity",
+            "autonomy score metric: landed output tokens per human-typed token"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bench-metric",
+      "negative": false,
+      "relevant_titles": [
+        "computeRatio bench-metric: mcp_tool lines counted in gross AND subtracted for net — locality confirmed on v5/v7 data"
+      ],
+      "aggregate": {
+        "5": {
+          "recall": 0.6,
+          "mrr": 0.4667,
+          "num_queries": 5
+        },
+        "10": {
+          "recall": 0.6,
+          "mrr": 0.4667,
+          "num_queries": 5
+        }
+      },
+      "queries": [
+        {
+          "query": "computeRatio token usage transcript mcp_tool gross net ratio",
+          "relevant": [
+            "computeRatio bench-metric: mcp_tool lines counted in gross AND subtracted for net — locality confirmed on v5/v7 data"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "computeratio bench-metric: mcp_tool lines counted in gross and subtracted for net — locality confirmed on v5/v7 data",
+            "measure work by output_tokens, not gross-minus-plumbing",
+            "autonomy score metric: landed output tokens per human-typed token",
+            "bench cost-weighting: cache_read x0.1, output x5, cache_creation x1.25",
+            "benchmark verdict: graph cost is cache_read, not work — measure with output_tokens",
+            "amount feed mixes en-us and de-de decimal formats; a plain number()/parsefloat parser silently mis-sums it",
+            "note codename collision flag: 'darwin' is now dominantly associated with sakana'",
+            "note codename collision flag: 'darwin' is now dominantly associated with sakana'",
+            "bearer-token auth gates writes; null token = auth-off for localhost dev",
+            "search_knowledge ci gate: recall@5 >= 0.85, mrr@5 >= 0.80"
+          ]
+        },
+        {
+          "query": "computeRatio benchmark token ratio transcript mcp_tool net gross",
+          "relevant": [
+            "computeRatio bench-metric: mcp_tool lines counted in gross AND subtracted for net — locality confirmed on v5/v7 data"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 1,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "computeratio bench-metric: mcp_tool lines counted in gross and subtracted for net — locality confirmed on v5/v7 data",
+            "measure work by output_tokens, not gross-minus-plumbing",
+            "autonomy score metric: landed output tokens per human-typed token",
+            "benchmark verdict: graph cost is cache_read, not work — measure with output_tokens",
+            "bench cost-weighting: cache_read x0.1, output x5, cache_creation x1.25",
+            "n=2 verdict: win — locale-sum (de-de decimal) replicates the held-out memory-win; cold 0/8 vs warm 8/8 edge, 5/5 trials",
+            "note codename collision flag: 'darwin' is now dominantly associated with sakana'",
+            "note codename collision flag: 'darwin' is now dominantly associated with sakana'",
+            "n=2 external-gap candidate: locale-sum (de-de decimal quirk) — held-out harness, distinct flavor from task-transcript",
+            "note reframed receipts narrative drafted (d5-bench-triage.md s4): lead with 'we"
+          ]
+        },
+        {
+          "query": "computeRatio ON OFF token ratios transcript JSONL benchmark",
+          "relevant": [
+            "computeRatio bench-metric: mcp_tool lines counted in gross AND subtracted for net — locality confirmed on v5/v7 data"
+          ],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 0.2,
+              "mrr": 0.3333,
+              "hits": 1,
+              "of": 1
+            },
+            "10": {
+              "recall": 1,
+              "precision": 0.1,
+              "mrr": 0.3333,
+              "hits": 1,
+              "of": 1
+            }
+          },
+          "top": [
+            "benchmark verdict: graph cost is cache_read, not work — measure with output_tokens",
+            "phase 0a: external-gap base rate = 46% (this corpus), winnable 35% — but 12/18 wins are self-benchmark meta",
+            "computeratio bench-metric: mcp_tool lines counted in gross and subtracted for net — locality confirmed on v5/v7 data",
+            "autonomy score metric: landed output tokens per human-typed token",
+            "search_knowledge ci gate: recall@5 >= 0.85, mrr@5 >= 0.80",
+            "n=2 external-gap candidate: locale-sum (de-de decimal quirk) — held-out harness, distinct flavor from task-transcript",
+            "bench cost-weighting: cache_read x0.1, output x5, cache_creation x1.25",
+            "n=2 verdict: win — locale-sum (de-de decimal) replicates the held-out memory-win; cold 0/8 vs warm 8/8 edge, 5/5 trials",
+            "note the counter-position is unoccupied: claude-flow's benchmarks were caught fa",
+            "note the counter-position is unoccupied: claude-flow's benchmarks were caught fa"
+          ]
+        },
+        {
+          "query": "token ratio computation ON OFF transcript benchmark metrics",
+          "relevant": [
+            "computeRatio bench-metric: mcp_tool lines counted in gross AND subtracted for net — locality confirmed on v5/v7 data"
+          ],
+          "k": {
+            "5": {
+              "recall": 0,
+              "precision": 0,
+              "mrr": 0,
+              "hits": 0,
+              "of": 1
+            },
+            "10": {
+              "recall": 0,
+              "precision": 0,
+              "mrr": 0,
+              "hits": 0,
+              "of": 1
+            }
+          },
+          "top": [
+            "autonomy score metric: landed output tokens per human-typed token",
+            "measure work by output_tokens, not gross-minus-plumbing",
+            "gated-classifier benchmark: harness ready, blocked only on bash execution",
+            "benchmark verdict: graph cost is cache_read, not work — measure with output_tokens",
+            "note reframed receipts narrative drafted (d5-bench-triage.md s4): lead with 'we",
+            "note reframed receipts narrative drafted (d5-bench-triage.md s4): lead with 'we",
+            "note persist measure stderr, per-guardrail baseline->measured deltas, and a judg",
+            "note persist measure stderr, per-guardrail baseline->measured deltas, and a judg",
+            "n=2 external-gap candidate: locale-sum (de-de decimal quirk) — held-out harness, distinct flavor from task-transcript",
+            "bench cost-weighting: cache_read x0.1, output x5, cache_creation x1.25"
+          ]
+        },
+        {
+          "query": "token ratio benchmark ON OFF transcript JSONL compute metrics",
+          "relevant": [
+            "computeRatio bench-metric: mcp_tool lines counted in gross AND subtracted for net — locality confirmed on v5/v7 data"
+          ],
+          "k": {
+            "5": {
+              "recall": 0,
+              "precision": 0,
+              "mrr": 0,
+              "hits": 0,
+              "of": 1
+            },
+            "10": {
+              "recall": 0,
+              "precision": 0,
+              "mrr": 0,
+              "hits": 0,
+              "of": 1
+            }
+          },
+          "top": [
+            "benchmark verdict: graph cost is cache_read, not work — measure with output_tokens",
+            "autonomy score metric: landed output tokens per human-typed token",
+            "measure work by output_tokens, not gross-minus-plumbing",
+            "bench cost-weighting: cache_read x0.1, output x5, cache_creation x1.25",
+            "phase 0a: external-gap base rate = 46% (this corpus), winnable 35% — but 12/18 wins are self-benchmark meta",
+            "n=2 external-gap candidate: locale-sum (de-de decimal quirk) — held-out harness, distinct flavor from task-transcript",
+            "gated-classifier benchmark: harness ready, blocked only on bash execution",
+            "note measured-vs-built split for competitive claims: measured = token parity (1.",
+            "note measured-vs-built split for competitive claims: measured = token parity (1.",
+            "n=2 verdict: win — locale-sum (de-de decimal) replicates the held-out memory-win; cold 0/8 vs warm 8/8 edge, 5/5 trials"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interval-merge",
+      "negative": true,
+      "relevant_titles": [],
+      "aggregate": {
+        "5": {
+          "recall": 1,
+          "mrr": 1,
+          "num_queries": 5
+        },
+        "10": {
+          "recall": 1,
+          "mrr": 1,
+          "num_queries": 5
+        }
+      },
+      "queries": [
+        {
+          "query": "interval merge overlapping touching intervals JavaScript",
+          "relevant": [],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 1,
+              "mrr": 1,
+              "hits": 0,
+              "of": 0
+            },
+            "10": {
+              "recall": 1,
+              "precision": 1,
+              "mrr": 1,
+              "hits": 0,
+              "of": 0
+            }
+          },
+          "contaminated": false,
+          "top": [
+            "hold-merge mode: autonomous loop builds in isolation and never merges",
+            "lib/measure.js",
+            "escalate the user’s calls; never force an outcome",
+            "concurrency + edge-removal + agent-control are foundational (proven by a live collision)",
+            "note bi-temporal kb is real and two-axis in code: valid-time (validfrom/validto,",
+            "note bi-temporal kb is real and two-axis in code: valid-time (validfrom/validto,",
+            "note claude_code_task_list_id env var makes multiple claude code sessions on one",
+            "note claude_code_task_list_id env var makes multiple claude code sessions on one",
+            "suggest_links duplicate threshold is 0.6 label/summary overlap",
+            "merge_attempt auto-aborts on conflict, never forces"
+          ]
+        },
+        {
+          "query": "merge intervals overlapping touching sort",
+          "relevant": [],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 1,
+              "mrr": 1,
+              "hits": 0,
+              "of": 0
+            },
+            "10": {
+              "recall": 1,
+              "precision": 1,
+              "mrr": 1,
+              "hits": 0,
+              "of": 0
+            }
+          },
+          "contaminated": false,
+          "top": [
+            "merge_attempt auto-aborts on conflict, never forces",
+            "hold-merge mode: autonomous loop builds in isolation and never merges",
+            "mcp consolidation merged to main (38→29 tools); analytics live, daemon restarted",
+            "suggest_links duplicate threshold is 0.6 label/summary overlap",
+            "shared-checkout commit collisions — pathspec discipline required",
+            "escalate the user’s calls; never force an outcome",
+            "default: autonomous loop builds in isolated branches, holds all merges for human approval",
+            "dedup built into the judge (node-level) + kb consolidated; recall-loose/agent-precise confirmed",
+            "note fatal collision: pypi `verdict` = haize labs 'verdict: a library for scalin",
+            "note fatal collision: pypi `verdict` = haize labs 'verdict: a library for scalin"
+          ]
+        },
+        {
+          "query": "interval merge overlapping sorted JavaScript implementation",
+          "relevant": [],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 1,
+              "mrr": 1,
+              "hits": 0,
+              "of": 0
+            },
+            "10": {
+              "recall": 1,
+              "precision": 1,
+              "mrr": 1,
+              "hits": 0,
+              "of": 0
+            }
+          },
+          "contaminated": false,
+          "top": [
+            "hold-merge mode: autonomous loop builds in isolation and never merges",
+            "note bi-temporal kb is real and two-axis in code: valid-time (validfrom/validto,",
+            "note bi-temporal kb is real and two-axis in code: valid-time (validfrom/validto,",
+            "lib/measure.js",
+            "note claude_code_task_list_id env var makes multiple claude code sessions on one",
+            "note claude_code_task_list_id env var makes multiple claude code sessions on one",
+            "note architecture differentiators with code anchors: (a) overlays native claude",
+            "note architecture differentiators with code anchors: (a) overlays native claude",
+            "merge_attempt auto-aborts on conflict, never forces",
+            "lib/overlay.js"
+          ]
+        },
+        {
+          "query": "merge intervals algorithm benchmark sandbox",
+          "relevant": [],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 1,
+              "mrr": 1,
+              "hits": 0,
+              "of": 0
+            },
+            "10": {
+              "recall": 1,
+              "precision": 1,
+              "mrr": 1,
+              "hits": 0,
+              "of": 0
+            }
+          },
+          "contaminated": false,
+          "top": [
+            "hold-merge mode: autonomous loop builds in isolation and never merges",
+            "note darwin's 'agent teams = substrate not competitor' framing holds but needs a",
+            "note darwin's 'agent teams = substrate not competitor' framing holds but needs a",
+            "mcp consolidation merged to main (38→29 tools); analytics live, daemon restarted",
+            "n=2 verdict: win — locale-sum (de-de decimal) replicates the held-out memory-win; cold 0/8 vs warm 8/8 edge, 5/5 trials",
+            "dedup built into the judge (node-level) + kb consolidated; recall-loose/agent-precise confirmed",
+            "mcp tool surface: consolidate 38 → ~24, analytics-driven pruning for the rest",
+            "note fatal collision: pypi `verdict` = haize labs 'verdict: a library for scalin",
+            "note fatal collision: pypi `verdict` = haize labs 'verdict: a library for scalin",
+            "note architecture differentiators with code anchors: (a) overlays native claude"
+          ]
+        },
+        {
+          "query": "merge intervals JavaScript benchmark sandbox",
+          "relevant": [],
+          "k": {
+            "5": {
+              "recall": 1,
+              "precision": 1,
+              "mrr": 1,
+              "hits": 0,
+              "of": 0
+            },
+            "10": {
+              "recall": 1,
+              "precision": 1,
+              "mrr": 1,
+              "hits": 0,
+              "of": 0
+            }
+          },
+          "contaminated": false,
+          "top": [
+            "lib/optimize.js",
+            "note architecture differentiators with code anchors: (a) overlays native claude",
+            "note architecture differentiators with code anchors: (a) overlays native claude",
+            "lib/measure.js",
+            "note bi-temporal kb is real and two-axis in code: valid-time (validfrom/validto,",
+            "note bi-temporal kb is real and two-axis in code: valid-time (validfrom/validto,",
+            "note fit verdict for our loop: do not replace the per-epoch judge with elo (2-3",
+            "note fit verdict for our loop: do not replace the per-epoch judge with elo (2-3",
+            "hold-merge mode: autonomous loop builds in isolation and never merges",
+            "note claude_code_task_list_id env var makes multiple claude code sessions on one"
+          ]
+        }
+      ]
+    }
+  ],
+  "passed": true,
+  "violations": []
+}

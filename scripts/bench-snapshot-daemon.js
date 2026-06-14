@@ -175,7 +175,7 @@ function teardown() {
   _port = null;
 }
 
-module.exports = { ensureRunning, teardown, SNAPSHOT_WS, SNAPSHOT_GRAPH };
+module.exports = { ensureSnapshot, ensureRunning, teardown, SNAPSHOT_WS, SNAPSHOT_GRAPH };
 
 // ---------- CLI ----------
 if (require.main === module) {

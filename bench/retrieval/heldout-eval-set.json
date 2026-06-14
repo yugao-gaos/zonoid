@@ -1,0 +1,61 @@
+{
+  "about": "Held-out retrieval eval set for search_knowledge (/search). Each candidate mirrors a bench-heldout.js coding task that has (or lacks) a KB scar note. Queries are agent-style search_knowledge phrasing mined from .graph/gate-journal.jsonl during held-out bench runs — not the prose spec text. Relevance is keyed on note TITLE (match: title), same as eval-set.json. Positive candidates expect their winner note in top-k; interval-merge is a negative control (no scar exists — pass when no positive winner title contaminates top-k).",
+  "version": 1,
+  "match": "title",
+  "candidates": [
+    {
+      "id": "task-transcript",
+      "relevant_titles": [
+        "OVERRIDE: resolveOwner task transcript attribution — spec is incomplete, byWindow fallback required when no session no transcript_path"
+      ],
+      "queries": [
+        "task transcript owner resolution exact-session drops tasks window overlap correlation resolveOwner assignee",
+        "resolveOwner taskKey registry assignee transcript_path sessionTranscript byWindow fallback",
+        "how to attribute a task token usage to the correct agent transcript file",
+        "task claim window overlap transcript attribution when assignee has no session"
+      ],
+      "note": "Winner note-mqa3vbpct2c (gate-autopsy); queries from gate-journal + agent search patterns"
+    },
+    {
+      "id": "locale-sum",
+      "relevant_titles": [
+        "Amount feed mixes en-US and de-DE decimal formats; a plain Number()/parseFloat parser silently mis-sums it"
+      ],
+      "queries": [
+        "sumAmounts amount feed decimal format parsing",
+        "sumAmounts amount feed total rounding monetary string parsing",
+        "sumAmounts amount string parsing monetary rounding",
+        "locale decimal format en-US de-DE amount parseFloat mis-sum",
+        "sumAmounts amount feed billing total string parsing"
+      ],
+      "note": "Winner note-mq7ydrv353p; queries from gate-journal locale-sum / sumAmounts runs"
+    },
+    {
+      "id": "bench-metric",
+      "relevant_titles": [
+        "computeRatio bench-metric: mcp_tool lines counted in gross AND subtracted for net — locality confirmed on v5/v7 data"
+      ],
+      "queries": [
+        "computeRatio token usage transcript mcp_tool gross net ratio",
+        "computeRatio benchmark token ratio transcript mcp_tool net gross",
+        "computeRatio ON OFF token ratios transcript JSONL benchmark",
+        "token ratio computation ON OFF transcript benchmark metrics",
+        "token ratio benchmark ON OFF transcript JSONL compute metrics"
+      ],
+      "note": "Winner note-mq8uqyb8kun; queries from gate-journal bench-metric runs"
+    },
+    {
+      "id": "interval-merge",
+      "negative": true,
+      "relevant_titles": [],
+      "queries": [
+        "interval merge overlapping touching intervals JavaScript",
+        "merge intervals overlapping touching sort",
+        "interval merge overlapping sorted JavaScript implementation",
+        "merge intervals algorithm benchmark sandbox",
+        "merge intervals JavaScript benchmark sandbox"
+      ],
+      "note": "Expected TRUE abstain — pure algorithmic task, no project scar (gate-autopsy)"
+    }
+  ]
+}

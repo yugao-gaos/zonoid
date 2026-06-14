@@ -100,6 +100,49 @@ if (zeroRecall.length) console.log(`zero-recall queries: ${zeroRecall.map((q) =>
 ok(`recall@${PRIMARY_K} (${aggRecall.toFixed(3)}) >= ${THRESH.recallAtK}`, aggRecall >= THRESH.recallAtK);
 ok(`MRR@${PRIMARY_K} (${aggMrr.toFixed(3)}) >= ${THRESH.mrr}`, aggMrr >= THRESH.mrr);
 
+// ---- held-out scoring logic (offline, no daemon) --------------------------------------------
+{
+  const rb = require('../scripts/retrieval-bench');
+  const { scoreCase, scoreNegativeCase, aggregateCandidateRecall, checkHeldoutThresholds, collectPositiveTitles, PRIMARY_K: PK } = rb;
+
+  const posTitles = ['Winner note A', 'Winner note B'];
+  const posKeys = posTitles.map((t) => rb.titleKey(t));
+  const forbidden = collectPositiveTitles([
+    { relevant_titles: posTitles },
+    { relevant_titles: ['Other winner'] },
+  ]);
+  ok('collectPositiveTitles dedupes keys', forbidden.length === 3);
+
+  const hit = scoreCase(posKeys, posKeys, 5);
+  ok('scoreCase hits relevant in top-k', hit.recall === 1 && hit.mrr === 1);
+
+  const miss = scoreCase(['noise only'], posKeys, 5);
+  ok('scoreCase misses when absent', miss.recall === 0 && miss.mrr === 0);
+
+  const clean = scoreNegativeCase(['generic algo note'], forbidden, 5);
+  ok('scoreNegativeCase clean when no forbidden hit', clean.recall === 1 && !clean.contaminated);
+
+  const dirty = scoreNegativeCase([rb.titleKey(posTitles[0]), 'other'], forbidden, 5);
+  ok('scoreNegativeCase contaminated when forbidden in top-k', dirty.recall === 0 && dirty.contaminated);
+
+  const queryRows = [
+    { k: { [PK]: { recall: 1, mrr: 1 } } },
+    { k: { [PK]: { recall: 0.5, mrr: 0.5 } } },
+  ];
+  const agg = aggregateCandidateRecall(queryRows, PK);
+  ok('aggregateCandidateRecall mean', Math.abs(agg.recall - 0.75) < 1e-9 && agg.num_queries === 2);
+
+  const mockSc = {
+    candidates: [
+      { id: 'task-transcript', negative: false, aggregate: { [PK]: { recall: 0.8 } }, queries: [] },
+      { id: 'interval-merge', negative: true, aggregate: { [PK]: { recall: 1 } }, queries: [{ contaminated: false }] },
+    ],
+  };
+  ok('checkHeldoutThresholds pass', checkHeldoutThresholds(mockSc, PK).length === 0);
+  mockSc.candidates[0].aggregate[PK].recall = 0.5;
+  ok('checkHeldoutThresholds fails low recall', checkHeldoutThresholds(mockSc, PK).some((v) => v.includes('task-transcript')));
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
