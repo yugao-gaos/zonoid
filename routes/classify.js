@@ -6,9 +6,16 @@ const { contextClassify } = require('../lib/context-classify-core');
 const { classifyHeuristic } = require('../lib/prompt-heuristic');
 const { refreshReadyFlag } = require('../lib/ready-flag-cache');
 const { assembleClassifyResponse } = require('../lib/classify-assemble');
-const { inflightWorkersContext } = require('../lib/dispatcher-children');
+const { inflightWorkersContext, listDispatcherChildren } = require('../lib/dispatcher-children');
 const { rowKey, readJsonl, journalPath, labeledPath } = require('../scripts/gate-label');
+const { HARNESS_LEARNER_DRAIN_KEY, ensureHarnessLearnerDrainTask } = require('../lib/harness-task');
 const { JUDGE_DEPTH, LABEL_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
+
+const DRAIN_TASK_KEYS = new Set([
+  judgeRoute.HARNESS_JUDGE_DRAIN_KEY,
+  labelRoute.HARNESS_LABEL_DRAIN_KEY,
+  HARNESS_LEARNER_DRAIN_KEY,
+]);
 
 function judgePressure(overlay, buildGraph, ws) {
   const queue = judge.buildQueue(overlay);
@@ -52,6 +59,49 @@ function labelPressure(state, buildGraph) {
     harnessKey: labelRoute.HARNESS_LABEL_DRAIN_KEY,
   });
   return { depth, nudge: gate.nudge, harness_task_key: labelRoute.HARNESS_LABEL_DRAIN_KEY };
+}
+
+function learnerPressure(ws, sessionId, ctx) {
+  const onboardDir = require('path').join(__dirname, '..', 'bench', 'onboard');
+  let best = null;
+  try {
+    const subdirs = require('fs').readdirSync(onboardDir, { withFileTypes: true })
+      .filter(function(d) { return d.isDirectory(); })
+      .map(function(d) { return d.name; });
+    for (const repoName of subdirs) {
+      const outDir = require('path').join(onboardDir, repoName);
+      const qf = require('path').join(outDir, 'onboard-queue.json');
+      let q = null;
+      try { q = JSON.parse(require('fs').readFileSync(qf, 'utf8')); } catch (e) { continue; }
+      const remaining = (q.total || 0) - (q.cursor || 0);
+      if (remaining <= 0) continue;
+      let repoPath = null;
+      const reportFile = require('path').join(outDir, 'onboard-learn-report.json');
+      try { repoPath = JSON.parse(require('fs').readFileSync(reportFile, 'utf8')).repo || null; } catch (e2) { }
+      if (!repoPath || repoPath === '__INSTALL_DIR__') repoPath = repoName;
+      if (!best || best.depth < remaining) {
+        best = { depth: remaining, repoPath: repoPath, outDir: outDir, repoName: repoName, nudge: false, harness_task_key: HARNESS_LEARNER_DRAIN_KEY };
+      }
+    }
+  } catch (e3) { }
+  if (!best) return { depth: 0, nudge: false, harness_task_key: HARNESS_LEARNER_DRAIN_KEY };
+  const buildGraph = ctx.buildGraph;
+  const state = ctx.state;
+  const gate = computePressureNudge({
+    depth: best.depth,
+    depthThreshold: 1,
+    buildGraph: buildGraph,
+    ws: ws,
+    overlay: state.overlay,
+    harnessKey: HARNESS_LEARNER_DRAIN_KEY,
+  });
+  let nudge = gate.nudge;
+  if (nudge && sessionId) {
+    const children = listDispatcherChildren(sessionId, ctx);
+    const nonDrainWorkers = children.filter(function(c) { return !DRAIN_TASK_KEYS.has(c.task_key); });
+    if (nonDrainWorkers.length) nudge = false;
+  }
+  return Object.assign({}, best, { nudge: nudge });
 }
 
 function sessionHasMetricSpec(sessionId, ctx) {
@@ -117,9 +167,11 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
   const T = targetOverlay(b, u);
   judgeRoute.ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(); });
   labelRoute.ensureHarnessLabelDrainTask(T.ov, () => { T.save(); notifyChange(); });
+  ensureHarnessLearnerDrainTask(T.ov, () => { T.save(); notifyChange(); });
 
   const jp = orchGateOff ? null : judgePressure(state.overlay, buildGraph, state.workspace);
   const lp = orchGateOff ? null : labelPressure(state, buildGraph);
+  const lrp = orchGateOff ? null : learnerPressure(state.workspace, sessionId, ctx);
 
   const result = assembleClassifyResponse({
     prompt,
@@ -130,6 +182,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     readyEntry,
     judgePressure: jp,
     labelPressure: lp,
+    learnerPressure: lrp,
     orchGateOff,
     inflightWorkers: inflightWorkersContext(sessionId, ctx),
   });
@@ -142,3 +195,4 @@ module.exports._setLastJudgeNudgeAt = () => {};
 module.exports._setLastLabelNudgeAt = () => {};
 module.exports._judgePressure = judgePressure;
 module.exports._labelPressure = labelPressure;
+module.exports._learnerPressure = learnerPressure;
