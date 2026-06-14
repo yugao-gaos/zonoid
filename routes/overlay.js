@@ -199,7 +199,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         // not re-seed. Best-effort: never block the status write on recall.
         if (tvec && !_hasVec) {
           const g = buildGraph(T.ws);
-          ctx.autowireNewTaskWholeGraph(T.ov, g, b.key, title, T.ov.summaries[b.key], tvec);
+          const seeded = ctx.autowireNewTaskWholeGraph(T.ov, g, b.key, title, T.ov.summaries[b.key], tvec);
+          // EAGER JUDGE (task C): if candidate edges were seeded, mark this task so the heartbeat
+          // dispatches a judge for its whole edge-set IMMEDIATELY, not on the next periodic drain.
+          if (seeded > 0) overlayStore.markEagerJudge(T.ov, b.key);
         }
       } catch { /* best effort — never block the status write on embedding/recall */ }
     }
@@ -389,6 +392,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, actor: b.actor || 'record-decision', ts: Date.now() });
       }
     }
+    // EAGER JUDGE (task C): mark the new note so the heartbeat dispatches a judge for any unjudged
+    // candidate edges incident to it IMMEDIATELY (e.g. a note->anchor edge a concurrent task birth
+    // seeded). eagerJudgeNodes self-prunes the mark if the note carries no unverified edges, so a
+    // note with only hand-asserted wires_to edges falls back to the periodic orphan queue — no churn.
+    overlayStore.markEagerJudge(T.ov, 'note:' + id);
     T.save(); notifyChange();
     sendOp(res, b, 200, { ok: true, id, key: 'note:' + id, superseded, autowired: 0, hint }); return true;
   }

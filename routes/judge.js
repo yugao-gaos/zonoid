@@ -47,6 +47,29 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     const g = buildGraph(state.workspace);
     const byId = new Map(g.tasks.map((t) => [t.id, t]));
     const detail = (key) => { const t = byId.get(key); return t ? { key, title: t.label, summary: String(t.summary || '').slice(0, 200), kind: t.kind || 'task', status: t.status } : { key, title: key, summary: '', missing: true }; };
+    // EAGER MODE (task C): ?node=<key> serves THIS node's whole unjudged candidate edge-set in ONE
+    // slice (no cursor, no priority/orphan mixing) so an eager dispatch judges the freshly-wired node
+    // immediately. The mark is cleared here — the node has been handed to a judge; if some edges go
+    // unjudged this pass they remain on the global queue (periodic fallback) and re-mark only on a
+    // fresh node-add. Falls through to the normal cursor-walked queue when ?node is absent.
+    const eagerNode = u.searchParams.get('node');
+    if (eagerNode) {
+      const nodeItems = judge.buildQueueForNode(state.overlay, eagerNode);
+      if (overlayStore.clearEagerJudge(state.overlay, eagerNode)) overlayStore.save(state.workspace, state.overlay);
+      const nbAdj = judge.buildContextAdjacency(state.overlay);
+      const isNK = (k) => typeof k === 'string' && k.startsWith('note:');
+      const nodeOfE = (key) => {
+        if (isNK(key)) { const n = state.overlay.note_nodes[key.replace(/^note:/, '')]; return n ? { title: n.title, summary: String(n.summary || '').slice(0, 200) } : { title: key, summary: '' }; }
+        const t = byId.get(key); return t ? { title: t.label, summary: String(t.summary || '').slice(0, 200) } : { title: key, summary: '' };
+      };
+      const eagerItems = nodeItems.slice(0, budget).map((it) => {
+        const neighborhood = judge.expandNeighborhood(state.overlay, it.to, nodeOfE, { adjacency: nbAdj });
+        const supersedeChain = judge.supersedeChain(state.overlay, it.to);
+        const taskTask = !isNK(it.from) && !isNK(it.to);
+        return { kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to), neighborhood: neighborhood.nodes, neighborhoodTruncated: neighborhood.truncated, supersedeChain, taskTask };
+      });
+      send(res, 200, { epoch: state.overlay.epoch || 0, budget, node: eagerNode, eager: true, idle: eagerItems.length === 0, total: nodeItems.length, items: eagerItems }); return true;
+    }
     const queue = judge.buildQueue(state.overlay);
     const slice = judge.nextSlice(queue, state.overlay.judgeCursor || 0, budget);
     // Unified node resolver for the structural neighborhood walk: a key may be a note ('note:<id>')
