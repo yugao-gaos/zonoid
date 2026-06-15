@@ -40,8 +40,10 @@ Tier-1 `{task_key, summary}` pairs the dispatcher already fetched via `get_depen
 note summaries) as inline base context. `files_in_scope[]` is the advisory file-scope hint;
 `return_contract` is a `$ref` to `task_result` so the worker knows the exact shape to return.
 Building the envelope (including resolving `context_deps`) is the dispatcher's job — same rationale
-as wiring: workers lack the structural context. The worker still owns exactly two graph duties —
-`start_task` before any write, `complete_task` with a tight summary at the end — but now reads
+as wiring: workers lack the structural context. The worker still owns exactly three graph duties —
+`start_task` before any write, `git add -A && git commit` all changes onto the `orch/attempt/<key>`
+branch BEFORE complete_task (an uncommitted worktree leaves the attempt tip == base, making a later
+`merge_attempt` a silent no-op), `complete_task` with a tight summary at the end — but now reads
 them off the envelope's slots, not prose. (Workers still pass `wires_to=[task_key]` on any
 `record_decision` they make mid-task — note provenance is the one wiring only the worker knows.)
 
