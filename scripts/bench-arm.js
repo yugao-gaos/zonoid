@@ -93,6 +93,10 @@ function arg(name, def) {
   return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : def;
 }
 
+function hasFlag(name) {
+  return process.argv.includes('--' + name);
+}
+
 // Consult mode for the ON arm. Accepts `--consult=mandatory`, `--consult mandatory`, or env
 // BENCH_CONSULT=mandatory. Unset/anything-else => 'permissive' (the prior 'may consult' behavior).
 function consultMode() {
@@ -101,7 +105,7 @@ function consultMode() {
   return v === 'mandatory' ? 'mandatory' : v === 'lean' ? 'lean' : v === 'search' ? 'search' : v === 'dagrag' ? 'dagrag' : 'permissive';
 }
 
-function main() {
+async function main() {
   const specPath = arg('spec');
   const arm = arg('arm');
   const trial = parseInt(arg('trial', '0'), 10);
@@ -177,6 +181,28 @@ function main() {
     } catch { /* malformed — skip */ }
   }
 
+  // Flag-based injection: --with-global-summary / --with-window (used by bench-4arm-runner.js)
+  if (hasFlag('with-global-summary') && !injectionPrefix.includes('global summary')) {
+    try {
+      const { getGlobalSummary } = require('./context-inject-global-summary');
+      const { summary } = await getGlobalSummary();
+      if (summary) injectionPrefix += '## Graph context (global summary)\n' + summary + '\n\n';
+    } catch (e) { process.stderr.write('[bench-arm] global-summary inject failed: ' + e.message + '\n'); }
+  }
+  if (hasFlag('with-window') && !injectionPrefix.includes('recent completed tasks')) {
+    try {
+      const { getWindowContext } = require('./context-inject-sliding-window');
+      const items = await getWindowContext(5);
+      if (items.length) {
+        injectionPrefix += '## Graph context (recent completed tasks)\n';
+        for (const t of items) {
+          injectionPrefix += '- ' + t.task_key + ': ' + t.title + (t.summary ? ' — ' + t.summary : '') + '\n';
+        }
+        injectionPrefix += '\n';
+      }
+    } catch (e) { process.stderr.write('[bench-arm] window inject failed: ' + e.message + '\n'); }
+  }
+
   const prompt = injectionPrefix + (arm === 'on' ? onPreamble : '') + body;
   const mcpConfig = path.join(REPO, `bench/mcp-${arm}.json`);
 
@@ -246,4 +272,4 @@ function main() {
   }) + '\n');
 }
 
-main();
+main().catch((e) => { console.error(e); process.exit(1); });
