@@ -10,6 +10,7 @@
 //
 // Usage:
 //   node scripts/bench-economy.js --scenario task-transcript [--dry-run] [--model sonnet] [--trial 0]
+//   node scripts/bench-economy.js --judge   (print judge displacement only, no bench run)
 //
 // Results appended to: bench/economy/results.jsonl
 'use strict';
@@ -134,8 +135,140 @@ const MODEL = arg('model', 'sonnet');
 const SCENARIO_NAME = arg('scenario', 'task-transcript');
 const TRIAL = parseInt(arg('trial', '0'), 10);
 const DRY_RUN = hasFlag('dry-run');
+const JUDGE_ONLY = hasFlag('judge');
+
+// Sonnet judge cost estimate: ~$0.003 per verdict (500 input + 200 output tokens at Sonnet pricing)
+const SONNET_COST_PER_VERDICT = 0.003;
+// High-confidence threshold: shadow verdicts with conf >= this count toward OOD rate calculation
+const HIGH_CONF_THRESHOLD = 0.7;
+// Sliding window for agreement rate
+const AGREEMENT_WINDOW = 100;
+// Default promotion threshold (overridden by edge-clf/config.json if present)
+const DEFAULT_PROMOTION_THRESHOLD = 0.92;
+
+// Print judge displacement section by reading the judge journal and mode file directly.
+function printJudgeDisplacement() {
+  const journalPath = path.join(REPO, '.graph', 'judge-journal.jsonl');
+  const modePath = path.join(REPO, '.graph', 'edge-clf', 'mode.json');
+  const cfgPath = path.join(REPO, '.graph', 'edge-clf', 'config.json');
+
+  // --- Read current mode ---
+  let mode = 'sonnet-primary';
+  try {
+    const modeObj = JSON.parse(fs.readFileSync(modePath, 'utf8'));
+    if (modeObj.mode) mode = modeObj.mode;
+  } catch { /* file missing → default sonnet-primary */ }
+
+  // --- Read promotion threshold from config ---
+  let promotionThreshold = DEFAULT_PROMOTION_THRESHOLD;
+  try {
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    if (typeof cfg.promotion_threshold === 'number') promotionThreshold = cfg.promotion_threshold;
+  } catch { /* use default */ }
+
+  // --- Parse judge journal ---
+  let totalVerdicts = 0;
+  const shadowRows = [];
+  const byModelVersion = {};
+  try {
+    for (const line of fs.readFileSync(journalPath, 'utf8').split('\n')) {
+      const s = line.trim(); if (!s) continue;
+      let obj; try { obj = JSON.parse(s); } catch { continue; }
+      totalVerdicts++;
+      // Tally by model_version (Sonnet calls — every row is a Sonnet call)
+      const mv = obj.model_version || 'unknown';
+      byModelVersion[mv] = (byModelVersion[mv] || 0) + 1;
+      if (obj.shadow_verdict != null && obj.verdict != null) shadowRows.push(obj);
+    }
+  } catch { /* journal missing — show zeros */ }
+
+  // --- Agreement rate (last WINDOW shadow rows) ---
+  const slice = shadowRows.slice(-AGREEMENT_WINDOW);
+  const nSamples = slice.length;
+  const agree = slice.filter((r) => r.verdict === r.shadow_verdict).length;
+  const agreementRate = nSamples > 0 ? agree / nSamples : 0;
+  const promotionReady = agreementRate >= promotionThreshold && nSamples >= AGREEMENT_WINDOW;
+
+  // --- Confidence bucket breakdown ---
+  const buckets = { low: { n: 0, agree: 0 }, mid: { n: 0, agree: 0 }, high: { n: 0, agree: 0 } };
+  for (const r of slice) {
+    const c = typeof r.shadow_conf === 'number' ? r.shadow_conf : null;
+    if (c === null) continue;
+    const bk = c < 0.5 ? 'low' : c < 0.8 ? 'mid' : 'high';
+    buckets[bk].n++;
+    if (r.verdict === r.shadow_verdict) buckets[bk].agree++;
+  }
+  const pct = (d) => d.n > 0 ? Math.round((d.agree / d.n) * 100) + '%' : 'n/a';
+
+  // --- Primary shadow model label ---
+  const mvCounts = {};
+  for (const r of shadowRows) { const mv = r.model_version || 'unknown'; mvCounts[mv] = (mvCounts[mv] || 0) + 1; }
+  const primaryMv = Object.entries(mvCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'v1-provisional';
+
+  // --- Cost projection ---
+  // OOD rate estimate: rows where learned model is NOT high-confidence
+  const highConfShadow = shadowRows.filter((r) => typeof r.shadow_conf === 'number' && r.shadow_conf >= HIGH_CONF_THRESHOLD).length;
+  const totalShadow = shadowRows.length;
+  const oodRate = totalShadow > 0 ? 1 - (highConfShadow / totalShadow) : 0.10; // default 10% if no data
+  const currentCost = totalVerdicts * SONNET_COST_PER_VERDICT;
+
+  let projectedCost, projectedSavings, displacementNote;
+  if (mode === 'learned-primary') {
+    // Actual displacement: count OOD fallback calls (rows where learned model wasn't confident)
+    const oodFallbackCalls = shadowRows.filter((r) => !(typeof r.shadow_conf === 'number' && r.shadow_conf >= HIGH_CONF_THRESHOLD)).length;
+    const displacedCalls = totalVerdicts - oodFallbackCalls;
+    projectedCost = oodFallbackCalls * SONNET_COST_PER_VERDICT;
+    projectedSavings = currentCost - projectedCost;
+    displacementNote = 'Sonnet calls avoided: ' + displacedCalls.toLocaleString();
+  } else {
+    // Projected displacement based on shadow data
+    const estOodFallbackRate = oodRate;
+    projectedCost = totalVerdicts * estOodFallbackRate * SONNET_COST_PER_VERDICT;
+    projectedSavings = currentCost - projectedCost;
+    displacementNote = 'est. ' + Math.round(estOodFallbackRate * 100) + '% OOD fallback rate';
+  }
+
+  const fmt$ = (n) => '$' + n.toFixed(2);
+  const fmtN = (n) => n.toLocaleString();
+
+  const modeLabel = mode === 'learned-primary' ? '[PROMOTED]' : '[NOT PROMOTED]';
+  const readyLabel = promotionReady ? '[READY]' : (nSamples < AGREEMENT_WINDOW ? '[INSUFFICIENT DATA]' : '[NOT READY]');
+
+  console.log('\n=== Judge Displacement (shadow ' + primaryMv + ') ===');
+  console.log('Mode: ' + mode + '  ' + modeLabel);
+  console.log('Total Sonnet verdicts: ' + fmtN(totalVerdicts));
+  console.log('Shadow rows (' + primaryMv + '): ' + fmtN(totalShadow));
+
+  // Breakdown by model_version
+  if (Object.keys(byModelVersion).length > 0) {
+    const lines = Object.entries(byModelVersion).sort((a, b) => b[1] - a[1])
+      .map(([mv, n]) => mv + ': ' + fmtN(n)).join(', ');
+    console.log('  By model_version: ' + lines);
+  }
+
+  if (nSamples < AGREEMENT_WINDOW) {
+    console.log('Agreement rate (last ' + AGREEMENT_WINDOW + '): N/A — insufficient shadow data');
+  } else {
+    console.log('Agreement rate (last ' + AGREEMENT_WINDOW + '): ' + (agreementRate * 100).toFixed(1) + '%  ' + readyLabel);
+    console.log('  Conf breakdown: low=' + pct(buckets.low) + ' mid=' + pct(buckets.mid) + ' high=' + pct(buckets.high));
+  }
+  console.log('Promotion threshold: ' + (promotionThreshold * 100).toFixed(1) + '%');
+
+  console.log('\nCost projection (estimated):');
+  console.log('  Current cost (all Sonnet): ' + fmt$(currentCost) + '  (' + fmtN(totalVerdicts) + ' × $' + SONNET_COST_PER_VERDICT + ')');
+  console.log('  Projected cost if promoted: ' + fmt$(projectedCost) + '  (' + displacementNote + ')');
+  console.log('  Projected savings: ' + fmt$(projectedSavings) + '/run');
+}
 
 async function main() {
+  // --judge: print displacement section only, skip full bench run.
+  if (JUDGE_ONLY) {
+    printJudgeDisplacement();
+    return;
+  }
+
+  printJudgeDisplacement();
+
   const scenarioBase = process.env.BENCH_SCENARIO_BASE || path.join(REPO, 'bench', 'economy', 'scenarios');
   const scenarioDir = path.join(scenarioBase, SCENARIO_NAME);
   const scenarioFile = path.join(scenarioDir, 'scenario.json');
