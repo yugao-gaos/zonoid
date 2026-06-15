@@ -76,9 +76,26 @@ function spawnDaemon() {
 
     // (A) first buildGraph adopts native stub into overlay snapshot
     await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`);
+    // Wait for the deferred setImmediate emitDiff in the daemon to flush graph-store JSONL files.
+    await new Promise((r) => setTimeout(r, 200));
     let ov = overlayStore.load(WS);
     ok('(A) adoption snapshot created on first sight', ov.snapshots && ov.snapshots[K('blk')] && ov.snapshots[K('dep')]);
-    ok('(A) adopted blockedBy preserved', (ov.snapshots[K('dep')].blockedBy || []).includes('blk'));
+    ok('(A) adopted blockedBy preserved', (ov.snapshots[K('dep')].blockedBy || []).includes(K('blk')));
+
+    // (A2) native-blockedBy INVARIANT: blocking overlay edges must be wired at adoption with
+    //      origin:'native-blockedBy' and must NEVER appear in the judge queue.
+    //      Judge only processes context edges with judged===false — blocking edges are exempt.
+    //      Edge direction: dep → key (blocker → blocked task).
+    //      Note: emitDiff normalizes kind to 'blocking' explicitly when persisting to graph-store;
+    //      on reload the kind field is present as 'blocking' (not absent like in in-memory overlay).
+    const blockedByEdge = ov.edges && ov.edges.find((e) => e.from === K('blk') && e.to === K('dep') && (e.kind === 'blocking' || !e.kind));
+    ok('(A2) native-blockedBy overlay edge created', !!blockedByEdge);
+    ok('(A2) native-blockedBy edge has origin tag', blockedByEdge && blockedByEdge.origin === 'native-blockedBy');
+    ok('(A2) native-blockedBy edge has no judged field (never a judge candidate)', blockedByEdge && !('judged' in blockedByEdge));
+    const judgeQueue = (await req('GET', `/judge/next?workspace=${encodeURIComponent(WS)}`)).body;
+    const judgeItems = judgeQueue.items || (judgeQueue.item ? [judgeQueue.item] : []);
+    const inQueue = judgeItems.some((item) => item.from === K('blk') && item.to === K('dep'));
+    ok('(A2) native-blockedBy edge NOT queued for judge adjudication', !inQueue);
 
     // (B) precedence flip: native blockedBy change ignored; title/status fold in
     writeTask('dep', { subject: 'renamed beta', status: 'in_progress', blockedBy: [] });

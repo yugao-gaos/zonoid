@@ -123,32 +123,47 @@ function writeTaskStatus(ws, key, status) {
 
 // Adopt a native or file-drop task stub at first sight: copy id/title/blockedBy into the overlay
 // so the graph node is authoritative from that moment. Idempotent when already adopted.
+//
+// INVARIANT — native-blockedBy edges are structural intent, not semantic candidates:
+//   addEdge(kind:'blocking', origin:'native-blockedBy') → bypasses judge queue entirely.
+//   isUnverifiedEdge() in judge.js requires kind==='context' && judged===false — blocking edges
+//   are NEVER queued for re-adjudication regardless of any other field. addEdge dedupes so
+//   re-adoption of the same key is a no-op at the edge layer.
 function adoptNativeTask(ov, key) {
   if (ov.snapshots && ov.snapshots[key]) return false;
   const k = String(key);
   const fd = filedrop.readTask(state.workspace, k);
   if (fd) {
     const parts = filedrop.splitKey(k);
+    const deps = filedrop.normalizeDeps(parts ? parts.harness : '', fd.blockedBy);
     overlayStore.setSnapshot(ov, k, {
       subject: fd.subject || String(fd.id),
       description: fd.description || '',
       status: fd.status || 'pending',
-      blockedBy: filedrop.normalizeDeps(parts ? parts.harness : '', fd.blockedBy),
+      blockedBy: deps,
       owner: fd.owner ?? null,
       metadata: fd.metadata ?? null,
     });
+    // Wire blockedBy as overlay blocking edges: structural intent, never re-adjudicated by judge.
+    for (const dep of deps) overlayStore.addEdge(ov, dep, k, null, 'blocking', null, { origin: 'native-blockedBy' });
     return true;
   }
   const t = harnessRegistry.route(key).tasks.readTask(k);
   if (!t) return false;
+  // Normalize blockedBy: bare ids get the session prefix so overlay edges reference full keys.
+  // key is "${session}/${id}" — extract the session for normalization.
+  const session = k.includes('/') ? k.slice(0, k.indexOf('/')) : '';
+  const deps = filedrop.normalizeDeps(session, t.blockedBy);
   overlayStore.setSnapshot(ov, key, {
     subject: t.subject || t.activeForm || String(t.id),
     description: t.description || '',
     status: t.status || 'pending',
-    blockedBy: t.blockedBy || [],
+    blockedBy: deps,
     owner: t.owner ?? null,
     metadata: t.metadata ?? null,
   });
+  // Wire blockedBy as overlay blocking edges: structural intent, never re-adjudicated by judge.
+  for (const dep of deps) overlayStore.addEdge(ov, dep, k, null, 'blocking', null, { origin: 'native-blockedBy' });
   return true;
 }
 
