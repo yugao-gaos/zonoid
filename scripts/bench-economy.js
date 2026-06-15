@@ -136,7 +136,8 @@ const TRIAL = parseInt(arg('trial', '0'), 10);
 const DRY_RUN = hasFlag('dry-run');
 
 async function main() {
-  const scenarioDir = path.join(REPO, 'bench', 'economy', 'scenarios', SCENARIO_NAME);
+  const scenarioBase = process.env.BENCH_SCENARIO_BASE || path.join(REPO, 'bench', 'economy', 'scenarios');
+  const scenarioDir = path.join(scenarioBase, SCENARIO_NAME);
   const scenarioFile = path.join(scenarioDir, 'scenario.json');
   if (!fs.existsSync(scenarioFile)) {
     console.error('scenario not found: ' + scenarioFile); process.exit(2);

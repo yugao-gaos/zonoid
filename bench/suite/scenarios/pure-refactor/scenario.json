@@ -1,0 +1,10 @@
+{
+  "name": "pure-refactor",
+  "description": "Refactor a messy CSV-parser function into clean, modular code with named helpers. KB context provides no advantage — tests pure refactoring ability.",
+  "spec": "bench/suite/scenarios/pure-refactor/spec.md",
+  "artifact": "bench/sandbox/solution.js",
+  "grader": "bench/suite/scenarios/pure-refactor/grader.js",
+  "minimalSource": "bench/suite/scenarios/pure-refactor/minimal-source",
+  "kb_required": false,
+  "kb_partial": false
+}
