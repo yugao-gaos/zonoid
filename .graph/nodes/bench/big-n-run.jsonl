@@ -2,3 +2,4 @@
 {"evt":"timestamps_set","id":"bench/big-n-run","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-15T11:36:51.364Z","lastChanged":"2026-06-15T11:36:51.364Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-15T11:36:51.491Z"}
 {"evt":"status_changed","id":"bench/big-n-run","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T11:37:31.327Z"}
 {"evt":"assignee_set","id":"bench/big-n-run","workspace":"/Users/imyu/Desktop/zonoid","assignee":"bench-big-n-worker","actor":"overlay-sync","ts":"2026-06-15T11:37:31.327Z"}
+{"evt":"assignee_set","id":"bench/big-n-run","workspace":"/Users/imyu/Desktop/zonoid","assignee":"bench-big-n-worker-2","actor":"overlay-sync","ts":"2026-06-15T11:50:45.793Z"}

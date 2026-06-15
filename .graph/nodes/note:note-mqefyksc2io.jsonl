@@ -7,3 +7,4 @@
 {"evt":"edge_added","from":"note:note-mqefyksc2io","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/4","kind":"context","actor":"overlay-sync","ts":"2026-06-15T00:00:31.268Z","weight":0,"by":"autowire","judged":false,"score":0.68,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqefyksc2io","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/6","kind":"context","actor":"overlay-sync","ts":"2026-06-15T00:00:40.250Z","weight":0,"by":"autowire","judged":false,"score":0.638,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqefyksc2io","to":"followup/harness-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-15T00:00:59.968Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mqefyksc2io","to":"0b5a907e-b58e-41cd-892b-4c0ca8d27099/3","kind":"context","actor":"overlay-sync","ts":"2026-06-15T12:04:16.166Z","weight":0.8,"origin":"asserted"}

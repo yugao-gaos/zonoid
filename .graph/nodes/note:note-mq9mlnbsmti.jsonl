@@ -1,1 +1,2 @@
 {"evt":"edge_added","from":"note:note-mq9mlnbsmti","to":"followup/fix-session-js-active-claim-t-agent-id-t-aoov","kind":"context","actor":"overlay-sync","ts":"2026-06-12T16:10:57.783Z","weight":0.252}
+{"evt":"edge_added","from":"note:note-mq9mlnbsmti","to":"2","kind":"context","actor":"overlay-sync","ts":"2026-06-15T11:42:58.283Z","weight":0,"by":"autowire","judged":false,"score":0.628,"origin":"autowire-semantic"}
