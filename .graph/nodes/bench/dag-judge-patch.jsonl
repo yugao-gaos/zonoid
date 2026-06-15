@@ -1,0 +1,13 @@
+{"evt":"status_changed","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T16:55:33.157Z"}
+{"evt":"timestamps_set","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-15T16:55:33.035Z","lastChanged":"2026-06-15T16:55:33.035Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-15T16:55:33.157Z"}
+{"evt":"status_changed","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T16:56:28.841Z"}
+{"evt":"assignee_set","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","assignee":"dag-judge-patch-1","actor":"overlay-sync","ts":"2026-06-15T16:56:28.841Z"}
+{"evt":"edge_added","from":"bench/dag-judge-patch","to":"bench/bench/dag-judge-patch","kind":"context","actor":"overlay-sync","ts":"2026-06-15T17:36:32.827Z","weight":0,"by":"autowire","judged":false,"score":1,"origin":"autowire-semantic"}
+{"evt":"status_changed","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T17:36:32.827Z"}
+{"evt":"snapshot_stored","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","subject":"bench(dag): add inline Sonnet judgeEdge filter to fetchDagContext","description":"","status":"ready","blockedBy":[],"owner":null,"metadata":null,"snapshotted_at":"2026-06-15T17:38:13.953Z","actor":"overlay-sync","ts":"2026-06-15T17:38:13.995Z"}
+{"evt":"status_changed","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T17:39:42.099Z"}
+{"evt":"status_changed","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T17:44:22.270Z"}
+{"evt":"status_changed","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T17:48:15.657Z"}
+{"evt":"status_changed","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T17:51:02.711Z"}
+{"evt":"assignee_set","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","assignee":"dag-judge-patch-3","actor":"overlay-sync","ts":"2026-06-15T17:51:02.711Z"}
+{"evt":"timestamps_set","id":"bench/dag-judge-patch","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-15T16:55:33.035Z","lastChanged":"2026-06-15T17:51:02.656Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T17:54:22.521Z"}

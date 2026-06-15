@@ -10,3 +10,5 @@
 {"evt":"status_changed","id":"2","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T12:11:00.463Z"}
 {"evt":"status_changed","id":"2","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T12:15:20.001Z"}
 {"evt":"status_changed","id":"2","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T12:28:32.486Z"}
+{"evt":"status_changed","id":"2","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-15T17:29:35.347Z"}
+{"evt":"timestamps_set","id":"2","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T01:07:48.739Z","lastChanged":"2026-06-15T17:29:35.305Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-15T17:33:43.294Z"}
