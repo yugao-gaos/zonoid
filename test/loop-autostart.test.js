@@ -116,6 +116,7 @@ function assemble(opts) {
     labelPressure: null,
     learnerPressure: null,
     orchGateOff: false,
+    hasActiveLoop: opts.hasActiveLoop ?? false,
   }).additional_context;
 }
 
@@ -135,6 +136,16 @@ test('(c-composer) non-auto (no autostartLine) → unchanged soft nudge', () => 
   });
   assert.ok(ctx.includes('No active loop detected'), 'soft nudge must remain for non-auto sessions');
   assert.ok(!ctx.includes('Auto-started loop'), 'no confirmation when nothing was autostarted');
+});
+
+test('(c-composer) non-auto + hasActiveLoop=true → loop-aware nudge, not the start nudge', () => {
+  const ctx = assemble({
+    readyEntry: { count: 2, labels: ['x', 'y'] },
+    autostartLine: null,
+    hasActiveLoop: true,
+  });
+  assert.ok(ctx.includes('Loop already active'), 'loop-aware nudge must be present');
+  assert.ok(!ctx.includes('No active loop detected'), 'must not emit the start nudge when a loop is active');
 });
 
 test('autostart confirmation marks session busy so a later tick does not re-nudge', () => {

@@ -6,7 +6,7 @@ const { contextClassify } = require('../lib/context-classify-core');
 const { classifyHeuristic } = require('../lib/prompt-heuristic');
 const { refreshReadyFlag } = require('../lib/ready-flag-cache');
 const { assembleClassifyResponse } = require('../lib/classify-assemble');
-const { isAutoMode, maybeAutostartLoop } = require('../lib/loop-autostart');
+const { isAutoMode, maybeAutostartLoop, hasActiveSessionLoop } = require('../lib/loop-autostart');
 const { inflightWorkersContext, listDispatcherChildren } = require('../lib/dispatcher-children');
 const { rowKey, readJsonl, journalPath, labeledPath } = require('../scripts/gate-label');
 const { HARNESS_LEARNER_DRAIN_KEY, ensureHarnessLearnerDrainTask } = require('../lib/harness-task');
@@ -187,6 +187,8 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
   labelRoute.ensureHarnessLabelDrainTask(T.ov, () => { T.save(); notifyChange(); });
   ensureHarnessLearnerDrainTask(T.ov, () => { T.save(); notifyChange(); });
 
+  const loopActive = hasActiveSessionLoop(ctx.loops, sessionId);
+
   const jp = orchGateOff ? null : judgePressure(state.overlay, buildGraph, state.workspace);
   const lp = orchGateOff ? null : labelPressure(state, buildGraph);
   const lrp = orchGateOff ? null : learnerPressure(state.workspace, sessionId, ctx);
@@ -204,6 +206,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     learnerPressure: lrp,
     orchGateOff,
     inflightWorkers: inflightWorkersContext(sessionId, ctx),
+    hasActiveLoop: loopActive,
   });
 
   send(res, 200, result);
