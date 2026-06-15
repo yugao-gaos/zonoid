@@ -99,6 +99,40 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.question) { send(res, 400, { ok: false, error: 'question required' }); return true; }
+
+    // SEAM: gate the escalation BEFORE it reaches the user. request_guidance is meant to be a LAST
+    // RESORT — so first run the ask-vs-predict gate over the question + recalled preference notes
+    // (the same recall+gate+journal path POST /ask-gate uses). A confident, specific, project-local
+    // preference match auto-resolves the question from that note (predicted answer + provenance,
+    // journaled) WITHOUT touching the pending guidance queue or pausing the loop. Hard-override
+    // triggers (irreversible/outward/high-impact/scope/repeated-failure) can never predict — the
+    // gate forces 'ask', so they always escalate. Only plain question escalations are gated;
+    // structured action-guidance (dup-cluster, follow-up approval) is daemon-internal, not a
+    // user-preference question, so it bypasses. Pass gate:false to bypass explicitly.
+    const gateable = b.gate !== false && !b.action;
+    if (gateable) {
+      const flags = {
+        irreversible: !!b.irreversible, outward: !!(b.outward || b.outwardFacing),
+        highImpact: !!b.highImpact, scopeExpansion: !!b.scopeExpansion, repeatedFailure: !!b.repeatedFailure,
+      };
+      const decision = b.context ? `${b.question}\n${b.context}` : b.question;
+      const { runAskGate } = require('../lib/ask-gate-recall');
+      const r = await runAskGate(ctx, T.ws, { decision, flags, tags: b.tags, seam: 'guidance' });
+      if (r.decision === 'predict') {
+        // Auto-answer from the matched preference note. Record a RESOLVED guidance item carrying the
+        // predicted answer + provenance (so the dashboard shows what was decided and why) — it never
+        // enters the pending queue and never pauses the loop. The verdict is already journaled.
+        const provenance = { key: r.topKey, title: r.appliedNote && (r.appliedNote.title || r.appliedNote.label) || null, summary: r.appliedNote && r.appliedNote.summary || null };
+        const answer = provenance.summary || provenance.title || '';
+        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity });
+        overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: provenance, gateReason: r.reason });
+        overlayStore.resolveGuidance(T.ov, id, answer);
+        T.save(); notifyChange();
+        send(res, 200, { ok: true, id, predicted: true, answer, appliedNote: provenance, reason: r.reason }); return true;
+      }
+      // r.decision === 'ask' → fall through to the normal escalation below.
+    }
+
     const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity });
     const effectiveSeverity = b.severity === 'review' ? 'review' : 'blocking';
     if (effectiveSeverity !== 'review') { for (const L of loops.values()) L.active = false; saveLoops(); }

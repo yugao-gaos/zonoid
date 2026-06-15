@@ -69,6 +69,21 @@ must happen inside the worktree; the gate hard-blocks subagent writes on any oth
 `ORCH_GATE_OFF=1` as an inline env prefix does **not** work from subagents — the hook runs as a
 separate process. Never bypass via workarounds (rsync, fabricated claims, etc.); claim properly.
 
+## Predict by default — request_guidance is a last resort
+
+When you hit a decision the user might own, **predict the answer from the KB first**; only call
+`request_guidance` on a genuine gate miss. You do not have to police this by hand — the seam enforces
+it: every `request_guidance` call is run through the ask-vs-predict gate (`lib/ask-gate.js`) over
+recalled `category:"preference"` notes BEFORE it reaches the user. A confident, specific,
+project-local preference match auto-resolves the question (the tool returns `predicted:true` with the
+answer + provenance) without pausing the loop or queuing anything. Only when no confident preference
+matches does the call actually escalate. Irreversible / outward-facing / high-impact /
+scope-expansion / repeated-failure decisions ALWAYS escalate (the gate hard-overrides prediction) —
+pass the matching flag (`irreversible`, `outward`, `highImpact`, `scopeExpansion`, `repeatedFailure`)
+or rely on keyword detection. So: capture user preferences as `category:"preference"` notes (above),
+then just call `request_guidance` when unsure — the seam predicts when it safely can and asks when it
+must.
+
 ## Capture durable decisions as note nodes
 
 Most conversation is throwaway, but some solo turns produce **durable knowledge** — a decision,
@@ -84,6 +99,16 @@ When to record:
 
 Do NOT record chatter, restatements, or transient status. Keep summaries tight. On a borderline
 case, lean toward NOT recording — note-node noise is worse than a missed minor point.
+
+**Tag USER preferences with `category:"preference"`.** When the decision is a standing user
+preference — a choice about HOW the user wants things done that should hold for future similar
+decisions ("always squash orch/attempt branches", "prefer X library over Y", "never auto-deploy on
+Fridays") — pass `category:"preference"` to `record_decision`. This is the corpus the ask-gate
+recalls at the `request_guidance` seam: a confident, specific, project-local preference note lets
+the orchestrator PREDICT the answer to a pending question instead of escalating to the user. Write
+the summary empirically and project-locally (the reason + the observation it rests on), the same way
+a strong KB note reads — a vague topical note will not clear the gate. General decisions/findings
+stay un-categorized (they still join the recall pool as generic decision notes).
 
 ## KB note authoring
 
