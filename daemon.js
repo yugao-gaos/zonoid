@@ -569,14 +569,26 @@ function staleClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
 // defaults = old behavior.
 function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
   let dirty = false;
+  let agentsDirty = false;
   const stWs = ws === state.workspace ? state : { ...state, overlay: ov };
   for (const { key, agentId, mins } of staleClaimKeys(ov, state.agents, Date.now())) {
     // Snapshot token usage BEFORE clearing the claim so we can finalize it in the cost log
     // and include it in the continuity note for the next agent.
     const tp = taskTranscript(key, null, true, stWs);
     const tokenUsage = tp ? usageCached(tp) : null;
-    if (releaseClaim(key, `auto-released: worker '${agentId || '?'}' not running (stale >${mins}m)`, ov, { agentId, mins, tokenUsage }, ws)) dirty = true;
+    if (releaseClaim(key, `auto-released: worker '${agentId || '?'}' not running (stale >${mins}m)`, ov, { agentId, mins, tokenUsage }, ws)) {
+      dirty = true;
+      // Reap the owning agent's registry record in lockstep with the claim it held. The claim was
+      // released BECAUSE the worker is not vouchedLive (staleClaimKeys), so the 'running' record is
+      // a zombie — transition it to a terminal 'stale' state so /health's running count stops
+      // counting it. Coupling the reap to the release (not just the independent sweepStaleAgents
+      // pass) guarantees the count drops the instant a claim is swept. Same trust basis: we only
+      // reach here for keys staleClaimKeys returned, i.e. the agent already failed vouchedLive.
+      const a = agentId && state.agents[agentId];
+      if (a && a.state === 'running') { state.agents[agentId] = { ...a, state: 'stale', endedAt: new Date().toISOString() }; agentsDirty = true; }
+    }
   }
+  if (agentsDirty) saveAgents();
   if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
   return dirty;
 }
@@ -1895,7 +1907,7 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, migrateBlindEdges, sessionBindings,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, __setOverlayForTest: (o) => { state.overlay = o; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
