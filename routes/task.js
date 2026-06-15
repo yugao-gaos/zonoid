@@ -164,6 +164,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, { ok: true, key, was_unwired: wasUnwired }); return true;
   }
 
+  if (p === '/attempt/diff') {
+    const key = u.searchParams.get('key');
+    if (!key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
+    const T = targetOverlay(null, u);
+    const repo = resolveRepo(key, u.searchParams.get('repo_path'), T.ov, T.ws);
+    if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo' }); return true; }
+    const r = git.attemptDiff(repo, key);
+    if (!r.ok) { send(res, 404, { ok: false, error: r.reason, key }); return true; }
+    send(res, 200, { ok: true, key, branch: r.branch, base: r.base, stat: r.stat, diff: r.diff }); return true;
+  }
+
   if (p === '/peek') {
     const ws = u.searchParams.get('workspace');
     if (!ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
