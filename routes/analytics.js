@@ -210,6 +210,27 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, { by_node: byNode }); return true;
   }
 
+  // Rework-aware per-task cost rollup. Accumulates across ALL agent-run finishes that touched a
+  // task (worker re-runs after kick-back + judge runs), role-tagged implementation vs review, so
+  // cost(task) = Σimpl + Σreview and rework is visible. Source: ov.task_costs, populated on every
+  // /agent/done (decoupled from terminal complete_task). Tokens are daemon-parsed from the agent
+  // transcript by claim-window correlation (the 2b42bcb mechanism) — no trust on agent self-count.
+  // ?task=<key>  — rollup for one task: { task_key, impl_tokens, review_tokens, total, attempts }
+  // (no ?task)   — { tasks: [ ...rollups ] } for every task with at least one contribution
+  if (p === '/task/cost' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    const taskKey = u.searchParams.get('task') || null;
+    if (taskKey) {
+      const roll = usageAccounting.taskCost(T.ov, taskKey)
+        || { task_key: taskKey, impl_tokens: 0, review_tokens: 0, total: 0, attempts: 0 };
+      send(res, 200, roll); return true;
+    }
+    const tasks = Object.keys((T.ov && T.ov.task_costs) || {})
+      .map((k) => usageAccounting.taskCost(T.ov, k))
+      .filter(Boolean);
+    send(res, 200, { tasks }); return true;
+  }
+
   if (p === '/cron/usage' && m === 'GET') {
     const usageFile = path.join(__dirname, '..', 'logs', 'cron-token-usage.jsonl');
     const entries = [];
