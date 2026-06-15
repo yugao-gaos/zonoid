@@ -7,3 +7,5 @@
 {"evt":"edge_added","from":"followup/harness-daemon-restart","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/23","kind":"context","actor":"overlay-sync","ts":"2026-06-14T23:49:48.620Z","weight":0,"by":"autowire","judged":false,"score":0.721,"origin":"autowire-semantic"}
 {"evt":"timestamps_set","id":"followup/harness-daemon-restart","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T13:32:25.552Z","lastChanged":"2026-06-14T23:49:48.472Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-14T23:54:44.901Z"}
 {"evt":"status_changed","id":"followup/harness-daemon-restart","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T00:04:44.216Z"}
+{"evt":"status_changed","id":"followup/harness-daemon-restart","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-15T00:08:20.785Z"}
+{"evt":"timestamps_set","id":"followup/harness-daemon-restart","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T13:32:25.552Z","lastChanged":"2026-06-15T00:08:20.752Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-15T00:09:13.017Z"}
