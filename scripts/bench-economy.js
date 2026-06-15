@@ -392,6 +392,14 @@ async function main() {
   const offTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'econ-off-' + SCENARIO_NAME + '-'));
   buildOffRepo(minimalSourceDir, offTmp);
   fs.mkdirSync(path.join(offTmp, 'bench', 'sandbox'), { recursive: true });
+  if (fs.existsSync(minimalSourceDir)) {
+    for (const f of fs.readdirSync(minimalSourceDir)) {
+      const src = path.join(minimalSourceDir, f);
+      if (fs.statSync(src).isFile()) {
+        fs.copyFileSync(src, path.join(offTmp, 'bench', 'sandbox', f));
+      }
+    }
+  }
 
   const offPrompt = specBody.split(REPO).join(offTmp);
   const offSessionId = crypto.randomUUID();
