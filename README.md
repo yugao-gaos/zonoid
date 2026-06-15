@@ -1,6 +1,6 @@
 # Zonoid
 
-An agent that knows what it knows, what it costs, and when memory actually pays.
+An agent that knows what it knows, what it costs, and is learning when memory actually pays.
 
 Most AI coding agents start every session cold. The ones that add memory inject everything
 they've ever seen — burning tokens on context the current task doesn't need. Zonoid does neither.
@@ -8,8 +8,9 @@ they've ever seen — burning tokens on context the current task doesn't need. Z
 It is a local daemon that makes the work graph and the knowledge graph the same structure.
 When a task completes, it leaves a knowledge note on the graph. When a new task starts, it
 inherits only the notes its dependency edges point to — under a token budget, summary-tier
-first, full-knowledge on demand. The agent retrieves exactly what this task needs, sees what
-it costs, and the context gate abstains when retrieval wouldn't pay.
+first, full-knowledge on demand. The agent retrieves what this task's edges point to and sees
+what it costs — while a shadow gate measures, on every search, whether that retrieval paid off
+(the groundwork for retrieving only when it helps).
 
 ```
 without Zonoid                       with Zonoid
@@ -27,7 +28,7 @@ memory = inject everything     →     memory = traverse the dependency edges
 - **DAG = RAG:** the dependency graph routes knowledge — no separate retrieval index, no
   annotation step; completing a task IS writing memory
 - **Token-aware:** two-tier handoff (2k-token summaries first, full knowledge on demand),
-  context gate that abstains when retrieval wouldn't pay
+  with a shadow gate scoring whether each retrieval paid — toward a learned inject policy
 - **Receipts:** every knowledge note carries which task produced it, which superseded it,
   and what it cost — bi-temporal provenance, not an append-only log
 - **One-command setup:** wires MCP + pre-tool hooks into any Claude Code project in under a minute
@@ -87,7 +88,7 @@ This means every file change in the repo has a named task as its reason.
 │   written on complete   summary + notes                     │
 │                         on start_task                       │
 │                                                             │
-│   context gate: retrieves only when lift > cost             │
+│   shadow gate: scores whether each retrieval paid           │
 │   token budget: 2k summary tier → full knowledge on demand  │
 └────────────────────────────────────┬────────────────────────┘
                                      │ MCP (stdio)
