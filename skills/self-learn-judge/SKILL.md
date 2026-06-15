@@ -4,16 +4,21 @@ description: Judge rival attempt branches for one problem, merge the winner back
 effort: high
 ---
 
-> **DEFAULT — HOLD-MERGE MODE (autonomous heartbeat loop).** When this judge runs under the loop,
-> it NEVER merges and NEVER halts the loop. This OVERRIDES steps 4–7 below:
+> **DEFAULT — HOLD-MERGE MODE (autonomous heartbeat loop).** "Hold-merge" means **hold for MAIN**:
+> the judge NEVER auto-merges into `main` and NEVER halts the loop. But it is now **two-tier** — when
+> the attempt's task is **under a FEATURE**, an APPROVE verdict **auto-merges into the FEATURE branch**
+> (cheap + reversible); only the flat attempt→main flow stays a pure hold. This OVERRIDES steps 4–7 below:
 > - Pick the winner exactly as described (step 3) — metric-aware when `P` carries a metric spec
 >   (improvement vs baseline + guardrail regressions + benchmark gap), else test-outcome-then-rationale —
 >   in BOTH cases folding in the code-review read (step 2b) per the [Code-review rubric](#code-review-rubric).
 > - **Single-attempt problems** (exactly one attempt) do NOT pick a rival winner: the code review IS the
 >   verdict (APPROVE or KICK BACK) — see [Single-attempt gate](#single-attempt-tournament-of-one-gate).
->   Under the loop this still HOLDS the merge: an APPROVE records `⏸ MERGE PENDING`, never merges.
-> - **Do NOT call merge_attempt or `git merge`.** Merging into `main` is a HUMAN decision made on review.
-> - **Preserve every attempt branch + worktree** — no `remove_worktree`, no cancel — so the human can diff and merge later.
+>   On APPROVE the merge behavior splits **by tier** (see [Two-tier APPROVE](#two-tier-approve-feature-auto-merge-vs-main-hold)):
+>   under a FEATURE → auto-merge to the feature branch; flat (attempt→main) → HOLD, record `⏸ MERGE PENDING`, never merge.
+> - **Never auto-merge into `main`.** Merging into `main` is a HUMAN decision made on review; and
+>   feature→main is the dispatcher's gated `merge_feature`, NEVER the judge's call.
+> - **Preserve every flat attempt branch + worktree** — no `remove_worktree`, no cancel — so the human can diff and merge later.
+>   (Under a feature, an APPROVED attempt IS merged into the feature branch, so its worktree may be retired per the normal merge path.)
 > - Record the verdict on the problem P: `{ winner, winner_branch:"orch/attempt/<slug>", why, losers:[{key,reason}], merged:false, awaiting_merge:true, date }` — plus the metric-aware fields from step 6 (`metric_value`, `improvement`, `guardrails_ok`, `vs_benchmark`, …) when P carried a metric spec.
 > - Set P to `done` with a summary that STARTS with `"⏸ MERGE PENDING — <winner_branch>: <one-line why>"` (in metric mode, fold the metric value + improvement + benchmark gap into that one-liner).
 > - `complete_task(J, ...)` and stop. **Do NOT `request_guidance`** (it would halt the loop). No-winner (all attempts failed): record `{winner:null, awaiting_merge:false, needs_attention:true, ...}`, set P `done` with summary `"⚠ NEEDS ATTENTION — all attempts failed: <reasons>"`, complete J, continue. Everything (merges, conflicts, failures) is queued for the morning human review via the verdict + the ⏸/⚠ summary — never escalated mid-run.
@@ -211,21 +216,54 @@ is no rival to pick among — so the code review IS the verdict. This is the per
 2. Decide:
    - **APPROVE** — the diff does the task, is in scope, leaves no dead code, has real tests, matches
      style (and in metric mode, improves the metric with guardrails intact). Treat the lone attempt as
-     the winner and proceed to merge / hold-merge **per the active mode** — under the HOLD-MERGE default
-     this records the verdict and does NOT merge (summary starts `⏸ MERGE PENDING — <branch>: <why>`);
-     only with `auto_merge === true` do steps 4–5 actually merge.
+     the winner; the merge behavior then splits **by tier** — see
+     [Two-tier APPROVE](#two-tier-approve-feature-auto-merge-vs-main-hold) directly below.
    - **KICK BACK** — a correctness bug, out-of-scope churn, dead code, missing/vacuous tests, or a
-     guardrail regression. Do NOT merge. `set_status(attempt, 'failed', note="<what must change>")`
+     guardrail regression. Do NOT merge (in EITHER tier). `set_status(attempt, 'failed', note="<what must change>")`
      (or reopen it for rework), and `record_decision(title, summary, wires_to=[P_key])` capturing the
      concrete fixes required so the next attempt inherits them. Record the verdict (step 6) with
      `winner: null`, `code_review.concerns` populated, and `needs_attention: true`.
 3. Record the verdict on `P` (step 6) exactly as for the multi-attempt case — `code_review` carries the
    review; `winner` is the attempt key (APPROVE) or `null` (KICK BACK). Then `complete_task(J, ...)`.
 
+### Two-tier APPROVE: feature auto-merge vs main hold
+
+An APPROVE is NOT one fixed action. It depends on whether the attempt's task lives **under a feature**.
+
+**Detect the tier.** The attempt's task is **under a feature** when its `repo_path` points at a feature
+worktree, OR there is an `overlay.features[<feature_key>]` entry whose tasks include this attempt. Read it
+from `get_task_detail(P)` / the attempt node: a task configured with `repo_path = <feature worktree>` and
+branched with `base = orch/feature/<slug>` is under that feature; `overlay.features[feature_key] =
+{ feature_branch: "orch/feature/<slug>", feature_worktree, base }` is the registry. No feature worktree /
+no covering `overlay.features` entry ⇒ it is a **flat** attempt→main task.
+
+- **Under a FEATURE → AUTO-MERGE to the feature branch.** APPROVE means merge the attempt into the
+  FEATURE branch: `merge_attempt(winner_key, { repo_path: <feature worktree> })` — running `mergeBranch`
+  INSIDE the feature worktree lands the attempt on the FEATURE branch, not `main`. This is cheap and
+  reversible (worst case the dispatcher resets the feature branch), so the judge MAY merge here — this
+  resolves the old "hold-merge can't merge" awkwardness. Record the verdict (step 6) with `merged: true`
+  and `target: "feature"`.
+  - **On merge conflict** (`{merged:false, conflict:true, files}`) do NOT force. Record
+    `{ conflict: true, files }` in the verdict, leave the worktree intact, and KICK BACK / escalate via
+    `request_guidance(...)` — mirror the conflict guidance in [step 4](#procedure) exactly.
+- **Flat (attempt→main) → HOLD for MAIN (unchanged).** APPROVE records the verdict and does NOT merge:
+  summary starts `⏸ MERGE PENDING — <branch>: <why>`, `merged: false`, `awaiting_merge: true`. The human
+  decides the merge to `main` on review. (Only with `auto_merge === true` do steps 4–5 merge to main.)
+
+**feature→main is NEVER the judge's call.** Landing a whole feature branch onto `main` is the
+dispatcher-gated `merge_feature` op — a separate, human-/dispatcher-owned decision. The judge only ever
+merges an *attempt* into its *feature* branch; it never promotes a feature to `main`.
+
 ## Guardrails
 
 - **Never force a merge.** No passing attempt, or a conflicting winner → record the verdict
   and stop. Forcing merges defeats the point of judging.
+- **Two-tier APPROVE: feature auto-merge, main hold.** On APPROVE under a FEATURE, the judge MAY
+  auto-merge the attempt into the feature branch (`merge_attempt(repo_path=<feature worktree>)`) — cheap +
+  reversible. **NEVER auto-merge into `main`** — a flat attempt→main APPROVE only HOLDS (records the
+  verdict, human decides). And **feature→main is the dispatcher's gated `merge_feature`, NEVER the
+  judge's call** — the judge only lands an attempt onto its feature branch. A merge conflict under a
+  feature is a near-veto: record `{conflict,files}`, do not force, KICK BACK / escalate.
 - **Daemon stays dumb.** All judgement lives here. If you find yourself wanting a new endpoint,
   you're probably overreaching this skill's scope. `get_attempt_diff` only SERVES the diff — the
   read against the [Code-review rubric](#code-review-rubric) is yours.
