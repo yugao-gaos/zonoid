@@ -4433,18 +4433,23 @@ async function tick(){
   document.getElementById('ws').textContent=d.workspace?d.workspace.split('/').pop():'';
   const autoScore=cf&&cf.autonomy_score!=null?cf.autonomy_score+'×':'—';
   const prodTok=cf?fmtK(cf.totals.productive):'—';
-  const totalRaw=cf?(cf.totals.output_tokens||cf.totals.total):null;
+  // totalRaw: DELTA basis (prod+expl+trap) — denominator for productivity% and token-economy
+  const totalRaw=cf?cf.totals.total:null;
   const totalTok=cf?fmtK(totalRaw):'—';
   // Per-model pricing ($/M tokens): [input, output, cache_read]
   const MODEL_RATES={'claude-opus-4-8':[15,75,1.5],'claude-opus-4-7':[15,75,1.5],'claude-sonnet-4-6':[3,15,0.3],'claude-sonnet-4-5':[3,15,0.3],'claude-haiku-4-5':[0.8,4,0.08],'claude-fable-5':[3,15,0.3]};
   const rateFor=m=>{ for(const k of Object.keys(MODEL_RATES)) if(m&&m.startsWith(k.slice(0,-2))) return MODEL_RATES[k]; return [3,15,0.3]; };
   const modelCost=(m,v)=>{ const [ri,ro,rc]=rateFor(m); return (v.input_tokens/1e6)*ri+(v.output_tokens/1e6)*ro+(v.cache_read/1e6)*rc; };
   const bm=cf&&cf.by_model||{};
+  // billCost: GROSS basis (Σ by_model) — includes inherited/baseline context (it is billed)
   const billCost=cf?Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[m,v])=>s+modelCost(m,v),0):null;
   const fmtUSD=n=>n==null?'—':n>=1000?'$'+Math.round(n/1000)+'K':n>=1?'$'+n.toFixed(0):'$'+n.toFixed(2);
-  const billStr=fmtUSD(billCost);
-  // Plan recommendation based on weekly output token rate
-  const outTokTotal=cf?cf.totals.output_tokens:0;
+  // cronCostCached: from harnessOhCache (populated by refreshInfraHero); use 0 if not yet loaded
+  const cronCostCached=harnessOhCache?harnessOhCache.cronCost:0;
+  // Billing hero = sessions + cron so it agrees with "Total est." in the popup
+  const billStr=fmtUSD(billCost!=null?billCost+cronCostCached:null);
+  // Plan recommendation uses GROSS output (what was actually billed to the quota)
+  const outTokTotal=cf&&cf.gross_totals?cf.gross_totals.output_tokens:(cf?cf.totals.output_tokens:0);
   // estimate weekly rate: costCache refreshes periodically; use total as proxy for "lifetime"
   // show plan fit based on absolute total (lifetime context)
   const planRec=outTokTotal>50e6?'API direct (Max plan capacity far exceeded)':outTokTotal>10e6?'API direct or Max 20× ($200/mo)':outTokTotal>3e6?'Max 20× ($200/mo) or API direct':outTokTotal>1e6?'Max 5× ($100/mo) or Max 20×':'Max 5× ($100/mo) likely sufficient';
@@ -4457,8 +4462,8 @@ async function tick(){
   const autoColor=autoRaw==null?'#484f58':autoRaw>=autoMedian?'#3fb950':'#e3b341';
   const autoVs=autoRaw==null?'':(autoRaw>=autoMedian?`<b style="color:#3fb950">+${(autoRaw-autoMedian).toFixed(1)}× above median</b>`:`<b style="color:#e3b341">${(autoMedian-autoRaw).toFixed(1)}× below median</b>`);
   const prodRaw=cf?cf.totals.productive:null;
-  const unattributedRaw=cf?Math.max(0,(cf.totals.output_tokens||cf.totals.total||0)-(cf.totals.productive||0)-(cf.totals.exploration||0)-(cf.totals.trapped||0)):null;
-  const unattTok=cf?fmtK(unattributedRaw):'—';
+  // unrouted: session tokens that costflow couldn't attribute (from cf.sessions.unattributed) — informational only, NOT a 4th partition slice
+  const unroutedTok=cf&&cf.sessions?fmtK(cf.sessions.unattributed):'—';
   const prodPct=totalRaw>0?Math.round(prodRaw/totalRaw*100):null;
   const prodMedianPct=50;
   const prodBarColor=prodPct==null?'#484f58':prodPct>=prodMedianPct?'#3fb950':'#e3b341';
@@ -4508,8 +4513,8 @@ async function tick(){
     `<span><b style="color:#3fb950">✓ Productive</b> — reached a merged branch</span><b style="color:#3fb950">${prodTok}</b>` +
     `<span><b style="color:#e3b341">~ Exploration</b> — canceled / superseded / attempt branches</span><b style="color:#e3b341">${cf?fmtK(cf.totals.exploration??0):'—'}</b>` +
     `<span><b style="color:#6e7681">✕ Trapped</b> — terminal dead-ends with no captured output</span><b style="color:#6e7681">${cf?fmtK(cf.totals.trapped):'—'}</b>` +
-    `<span><b style="color:#6e7681">○ Unattributed</b> — output not in cost-flow buckets</span><b style="color:#6e7681">${unattTok}</b>` +
-    `<span>Total</span><b style="color:#e6edf3">${totalTok}</b>` +
+    `<span style="color:#484f58">Total (attributed work)</span><b style="color:#e6edf3">${totalTok}</b>` +
+    `<span style="color:#484f58;font-size:9px">○ unrouted session tokens (subset of trapped)</span><b style="color:#484f58;font-size:9px">${unroutedTok}</b>` +
     `</div>` +
     `<div class="tip-bench-label" style="margin-top:6px">productive % vs median (${prodMedianPct}%)</div>` +
     `<div class="tip-bar"><div class="tip-bar-fill" style="width:${prodPct??0}%;background:${prodBarColor}"></div></div>` +
@@ -4522,9 +4527,9 @@ async function tick(){
     `<span class="htip"><div class="tip-title">Harness cost</div>Cost from Zonoid's own machinery — not your productive work.${harnessTipDetail}</span>` +
     `</span>` +
     `<span class="hero" onclick="toggleBillingPopup()">` +
-    `<span class="hlabel">Billing</span><span class="hval" style="color:#d29922">${billStr}</span>` +
-    `<span class="hval-sub">${topModelShort?topModelShort+' '+topModelCost:'est. total'}</span>` +
-    `<span class="htip" style="width:200px"><div class="tip-title">Estimated API Cost</div>Click for full breakdown: productive vs trapped, infra overhead, per-model split.</span>` +
+    `<span class="hlabel">Billing <span style="font-size:8px;color:#484f58;font-weight:400;text-transform:none">gross</span></span><span class="hval" style="color:#d29922">${billStr}</span>` +
+    `<span class="hval-sub">${topModelShort?topModelShort+' '+topModelCost:'sessions + cron'}</span>` +
+    `<span class="htip" style="width:200px"><div class="tip-title">Estimated API Cost</div>Sessions (gross, all models) + cron/gate. Click for full breakdown: productive vs trapped, infra overhead, per-model split.</span>` +
     `</span>`;
   // Status dock update
   updateDock(s, sc);
@@ -5378,12 +5383,13 @@ async function toggleBillingPopup(){
 
   const totalCost=Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[m,v])=>s+modelCost(m,v),0);
   const productive=t.productive||0, exploration=t.exploration||0, trapped=t.trapped||0;
-  const totalTok=t.output_tokens||t.total||0;
-  const unattributed=Math.max(0,totalTok-productive-exploration-trapped);
-  const prodPct=totalTok>0?Math.round(productive/totalTok*100):0;
-  const explPct=totalTok>0?Math.round(exploration/totalTok*100):0;
-  const trapPct=totalTok>0?Math.round(trapped/totalTok*100):0;
-  const unattPct=totalTok>0?Math.round(unattributed/totalTok*100):0;
+  // econTok: DELTA basis (prod+expl+trap) — denominator for token-economy partition so buckets sum to ~100%
+  const econTok=t.total||(productive+exploration+trapped)||0;
+  const prodPct=econTok>0?Math.round(productive/econTok*100):0;
+  const explPct=econTok>0?Math.round(exploration/econTok*100):0;
+  const trapPct=econTok>0?Math.round(trapped/econTok*100):0;
+  // unrouted: session tokens costflow couldn't route — informational, NOT a 4th partition slice
+  const unroutedTokPopup=cf.sessions?fmtK(cf.sessions.unattributed):'—';
 
   const modelRows=Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&((bm[m].input_tokens||0)+(bm[m].output_tokens||0))>0)
     .sort(([,a],[,b])=>(b.output_tokens||0)-(a.output_tokens||0))
@@ -5397,7 +5403,7 @@ async function toggleBillingPopup(){
     }).join('');
 
   el.innerHTML=
-    `<div class="bpsec"><h3>Token Economy</h3>`+
+    `<div class="bpsec"><h3>Token Economy <span style="font-size:9px;color:#484f58;font-weight:400">(net of inherited context)</span></h3>`+
     `<div class="bprow"><span class="bpdot" style="background:#3fb950"></span><span class="bplabel">Productive</span><span class="bpnum">${fmtK(productive)}</span><span class="bpcost" style="color:#3fb950">${prodPct}%</span></div>`+
     `<div class="bpbar"><div class="bpbar-fill" style="width:${prodPct}%;background:#3fb950"></div></div>`+
     (exploration>0?
@@ -5405,14 +5411,12 @@ async function toggleBillingPopup(){
       `<div class="bpbar"><div class="bpbar-fill" style="width:${explPct}%;background:#e3b341"></div></div>`:'')+
     `<div class="bprow"><span class="bpdot" style="background:#484f58"></span><span class="bplabel">Trapped / wasted</span><span class="bpnum">${fmtK(trapped)}</span><span class="bpcost" style="color:#6e7681">${trapPct}%</span></div>`+
     `<div class="bpbar"><div class="bpbar-fill" style="width:${trapPct}%;background:#484f58"></div></div>`+
-    `<div class="bprow"><span class="bpdot" style="background:#6e7681"></span><span class="bplabel">Unattributed</span><span class="bpnum">${fmtK(unattributed)}</span><span class="bpcost" style="color:#6e7681">${unattPct}%</span></div>`+
-    `<div class="bpbar"><div class="bpbar-fill" style="width:${unattPct}%;background:#6e7681"></div></div>`+
-    `<div style="font-size:10px;color:#6e7681;margin-top:4px">Based on ${fmtK(totalTok)} raw output tokens</div>`+
+    `<div style="font-size:10px;color:#6e7681;margin-top:4px">Total attributed: ${fmtK(econTok)} tok · <span style="color:#484f58">unrouted session tokens (subset of trapped): ${unroutedTokPopup}</span></div>`+
     `</div>`+
 
     `<div class="bpdiv"></div>`+
 
-    `<div class="bpsec"><h3>By Model</h3>${modelRows}</div>`+
+    `<div class="bpsec"><h3>By Model <span style="font-size:9px;color:#484f58;font-weight:400">(gross billed)</span></h3>${modelRows}</div>`+
 
     `<div class="bpdiv"></div>`+
 
@@ -5424,7 +5428,8 @@ async function toggleBillingPopup(){
       const oldest=tasks.reduce((min,tk)=>{ const at=Date.parse(tk.firstSeen||''); return(at&&at<min)?at:min; },Infinity);
       const weeks=oldest<Infinity?(Date.now()-oldest)/(7*24*60*60*1000):null;
       const opusOut=Object.entries(bm).filter(([m])=>m.includes('opus')&&m!=='<synthetic>').reduce((s,[,v])=>s+(v.output_tokens||0),0);
-      const totalOut=t.output_tokens||0;
+      // totalOut: GROSS basis (gross_totals.output_tokens) — denominator for "Opus % of output" and plan quota
+      const totalOut=(cf.gross_totals&&cf.gross_totals.output_tokens)||t.output_tokens||0;
       const opusPct=totalOut>0?Math.round(opusOut/totalOut*100):0;
       const wOpus=weeks&&weeks>0?opusOut/weeks:null;
       const wTotal=weeks&&weeks>0?totalOut/weeks:null;

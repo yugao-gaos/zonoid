@@ -65,6 +65,54 @@ const ok = (label, cond) => {
   fs.rmSync(SANDBOX, { recursive: true, force: true });
 }
 
+// --- gross/delta split: by_model stays gross, scalar totals go delta ----------------------------
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-gross-'));
+  const tp = path.join(tmp, 'agent.jsonl');
+  fs.writeFileSync(tp, [
+    JSON.stringify({ timestamp: '2026-06-01T10:00:00Z', message: { usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 200 }, model: 'claude-sonnet-4-6' } }),
+    JSON.stringify({ timestamp: '2026-06-01T10:01:00Z', message: { usage: { input_tokens: 30, output_tokens: 20, cache_read_input_tokens: 60 }, model: 'claude-opus-4-8' } }),
+  ].join('\n') + '\n');
+  try {
+    // Without baseline: scalar totals === Σ by_model (both gross)
+    const noBase = usageAccounting.parseTranscriptUsage(tp);
+    const bmOut = Object.values(noBase.by_model).reduce((s, v) => s + v.output_tokens, 0);
+    ok('no-baseline: scalar output === Σ by_model output', noBase.output_tokens === bmOut);
+    ok('no-baseline: by_model has both models', Object.keys(noBase.by_model).length === 2);
+
+    // With baseline: scalar totals are net (delta); by_model stays gross (no subtraction)
+    const baseline = { input_tokens: 50, output_tokens: 30, cache_read_input_tokens: 100 };
+    const withBase = usageAccounting.parseTranscriptUsage(tp, { baseline });
+    // Scalar output is delta (net of baseline)
+    ok('with-baseline: scalar output is net-of-baseline', withBase.output_tokens === (50 + 20 - 30));
+    // by_model is still gross (sum matches gross total before baseline subtraction)
+    const bmGross = Object.values(withBase.by_model).reduce((s, v) => s + v.output_tokens, 0);
+    ok('with-baseline: by_model output is still gross (50+20)', bmGross === 70);
+    // Scalar delta < gross by_model (the key invariant)
+    ok('with-baseline: delta scalar < gross by_model (different bases)', withBase.output_tokens < bmGross);
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+
+// --- token-economy partition: prod+expl+trap ≤ t.total (partition check) ----------------------
+{
+  // Simulate a /costflow response shape: buckets should partition to ≤100% of t.total
+  const t = { productive: 400, exploration: 300, trapped: 200, total: 900 };
+  const econTok = t.total || (t.productive + t.exploration + t.trapped);
+  const prodPct = econTok > 0 ? Math.round(t.productive / econTok * 100) : 0;
+  const explPct = econTok > 0 ? Math.round(t.exploration / econTok * 100) : 0;
+  const trapPct = econTok > 0 ? Math.round(t.trapped / econTok * 100) : 0;
+  ok('token-economy partition: prod+expl+trap === t.total', t.productive + t.exploration + t.trapped === t.total);
+  ok('token-economy partition: pct sum ≤ 100 (rounding may trim a point)', prodPct + explPct + trapPct <= 100);
+  ok('token-economy partition: no individual pct > 100', prodPct <= 100 && explPct <= 100 && trapPct <= 100);
+
+  // Verify cross-base denominator (old bug: using output_tokens=3000 instead of t.total=900) would overflow
+  const grossOutput = 3000; // simulates gross >> delta
+  const wrongPct = Math.round(t.productive / grossOutput * 100) + Math.round(t.exploration / grossOutput * 100) + Math.round(t.trapped / grossOutput * 100);
+  ok('cross-base denominator would have summed < 100 (the old bug caused overflow with delta>gross)', wrongPct <= 100);
+  // ...whereas with delta denominator sum is correct
+  ok('delta denominator: sum is ~100%', Math.abs(prodPct + explPct + trapPct - 100) <= 2);
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

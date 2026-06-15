@@ -132,12 +132,24 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const productive = rnd(flow.totals.productive);
     const explorationTok = rnd(wasteExploration.reduce((s, w) => s + w.trapped, 0));
     const trappedTok = rnd(wasteTrapped.reduce((s, w) => s + w.trapped, 0));
+    // gross_totals: BILLING basis — Σ by_model (gross, pre-baseline). Reconciles exactly with by_model rows.
+    // totals.*: ATTRIBUTION basis — net-of-baseline delta. Used for token-economy, productivity%, autonomy.
+    const byModelEmit = Object.fromEntries(Object.entries(rawByModel).map(([m2,v])=>[m2,{input_tokens:rnd(v.input_tokens),output_tokens:rnd(v.output_tokens),cache_read:rnd(v.cache_read_input_tokens)}]));
+    const grossTotals = Object.values(byModelEmit).reduce((acc, v) => {
+      acc.input_tokens += v.input_tokens || 0;
+      acc.output_tokens += v.output_tokens || 0;
+      acc.cache_read += v.cache_read || 0;
+      return acc;
+    }, { input_tokens: 0, output_tokens: 0, cache_read: 0 });
     send(res, 200, respCachePut(cfWs, cfKey, {
       workspace: T.ws,
       autonomy_score: human.tokens > 0 ? Math.round((flow.totals.productive / human.tokens) * 10) / 10 : null,
       human,
+      // totals: net-of-baseline (DELTA/attribution) — token-economy, productivity%, autonomy
       totals: { total: productive + explorationTok + trappedTok, productive, exploration: explorationTok, trapped: trappedTok, input_tokens: rnd(rawInput), output_tokens: rnd(rawOutput), cache_read: rnd(rawCacheRead) },
-      by_model: Object.fromEntries(Object.entries(rawByModel).map(([m2,v])=>[m2,{input_tokens:rnd(v.input_tokens),output_tokens:rnd(v.output_tokens),cache_read:rnd(v.cache_read_input_tokens)}])),
+      // gross_totals: gross/pre-baseline (BILLING) — Σ by_model, for billing %, plan quota, "X% of output"
+      gross_totals: grossTotals,
+      by_model: byModelEmit,
       sessions: { count: catchalls.nodes.length, unattributed: rnd(catchalls.nodes.reduce((s, n) => s + n.own, 0)) },
       results: flow.results.map((r) => ({ task: r.task, kind: kindOf(r.task), label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
       waste: wasteTrapped.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
