@@ -29,10 +29,30 @@ multi-file change), the main agent should **not implement inline**. Instead:
 (`suggest_links` + `add_dependency`) **before** dispatching — do not delegate wiring to worker
 subagents: it is unenforced (unlike the write gate), so smaller worker models reliably drop it,
 and workers lack the structural context (e.g. which sibling tasks collide on the same files).
-Worker prompts carry exactly two graph duties, stated verbatim with the exact `task_key` and
-`agent_id`: `start_task` before any write, `complete_task` with a tight summary at the end.
-(Workers still pass `wires_to=[task_key]` on any `record_decision` they make mid-task — note
-provenance is the one wiring only the worker knows.)
+
+**Hand the worker a typed `handoff_envelope`, not prose duties.** Instead of restating the
+worker's duties verbatim in English, the dispatcher builds the slotted `handoff_envelope` defined
+in [`schemas/handoff.v1.schema.json`](./schemas/handoff.v1.schema.json) and embeds it in the
+Agent-tool prompt (it plugs into the Agent-tool `schema` option). The worker **copies** the slotted
+fields — `task_key`, `agent_id`, `branch` (`orch/attempt/<key>`), `target_repo` — into its graph
+calls rather than parsing them back out of a paragraph, and reads `context_deps[]` (pre-resolved
+Tier-1 `{task_key, summary}` pairs the dispatcher already fetched via `get_dependency_summaries` +
+note summaries) as inline base context. `files_in_scope[]` is the advisory file-scope hint;
+`return_contract` is a `$ref` to `task_result` so the worker knows the exact shape to return.
+Building the envelope (including resolving `context_deps`) is the dispatcher's job — same rationale
+as wiring: workers lack the structural context. The worker still owns exactly two graph duties —
+`start_task` before any write, `complete_task` with a tight summary at the end — but now reads
+them off the envelope's slots, not prose. (Workers still pass `wires_to=[task_key]` on any
+`record_decision` they make mid-task — note provenance is the one wiring only the worker knows.)
+
+**Worker registration rides the claim, not the start hook.** The `SubagentStart` hook does NOT
+fire for `run_in_background` Agent-tool spawns, so a background worker never carries
+`agent_tool_spawn:true`. No extra registration field is needed in the envelope: `start_task`
+**self-registers the worker on claim**. The `/overlay/status` in_progress handler treats a claim
+that bears an `agent_id` AND is backed by a registered worktree (proof `branch_task` ran — the
+dispatcher never calls it) as a legitimate hook-less worker, registers it, and allows the claim.
+The registered worktree is the security boundary: a claim with no worktree is still refused. So the
+`branch_task` → `start_task` order IS the registration — nothing else to carry.
 
 Do the work inline only for genuinely trivial edits (a one-liner, a doc tweak, a config change).
 This is instruction-level in the desktop app (which runs no settings.json hooks); in the CLI a
