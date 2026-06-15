@@ -7,6 +7,7 @@ const { contentTokens, classifyNoteType, noteText } = require('../lib/context-ga
 const { maxCosine, nodeVecs } = require('../lib/embed');
 const path = require('path');
 const fs = require('fs');
+const recallJournal = require('../lib/recall-outcome-journal');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, buildGraph, state, targetOverlay,
@@ -406,6 +407,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       ? [...dagNotes]
       : [...dagNotes, ...ragResults].slice(0, k + dagNotes.length);
     const payload = { query: q, k, asOf: asOf || null, knownAsOf: knownAsOf || null, history, round, continue: plateauContinue(results), results };
+    // RECALL-OUTCOME attribution: when a task_key is present, log which note keys made it into
+    // the final injected bundle. Only note-kind results carry meaningful recall signal; tasks and
+    // knowledge items are not KB notes. Append a pending row (outcome finalized at terminal status).
+    if (task_key) {
+      try {
+        const noteKeys = results
+          .filter((r) => (r.kind || 'task') === 'note' || (r.kind || 'task') === 'knowledge')
+          .map((r) => r.key);
+        // Determine predominant recall path: dag if any dag-tier note present, else rag.
+        const via = results.some((r) => r.tier === 'dag') ? 'dag' : 'rag';
+        recallJournal.appendRow(ws, { task_key, recalled_note_keys: noteKeys, outcome: 'pending', via });
+      } catch { /* attribution logging must never break the search response */ }
+    }
     if (!gated) {
       // SHADOW: run gate over pre-scored candidates and journal the verdict, but never enforce it.
       // Rate-limited gated calls skip the gate entirely — shadow does too (no journal row).
