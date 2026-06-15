@@ -8,3 +8,4 @@
 {"evt":"note_superseded","id":"note-mqen3luhq1x","supersededBy":"note-mqengn7eu2n","validTo":"2026-06-15T03:24:45.050Z","ts":"2026-06-15T03:24:45.050Z","actor":"supersede"}
 {"evt":"edge_added","from":"note:note-mqen3luhq1x","to":"bench/context-inject-arm-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-15T04:23:40.255Z","weight":0,"by":"autowire","judged":false,"score":0.704,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqen3luhq1x","to":"22","kind":"context","actor":"overlay-sync","ts":"2026-06-15T05:24:45.905Z","weight":0,"by":"autowire","judged":false,"score":0.56,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqen3luhq1x","to":"bench/context-inject-4arm-run-sonnet","kind":"context","actor":"overlay-sync","ts":"2026-06-15T15:19:43.847Z","weight":0,"by":"autowire","judged":false,"score":0.568,"origin":"autowire-semantic"}

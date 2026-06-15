@@ -12,3 +12,4 @@
 {"evt":"edge_added","from":"note:note-mq75a82g","to":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/29","kind":"context","actor":"overlay-sync","ts":"2026-06-12T08:37:50.052Z","weight":0.272}
 {"evt":"edge_added","from":"note:note-mq75a82g","to":"bench/context-inject-arm-flags","kind":"context","actor":"overlay-sync","ts":"2026-06-15T00:04:23.251Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_added","from":"note:note-mq75a82g","to":"bench/context-inject-4arm-runner","kind":"context","actor":"overlay-sync","ts":"2026-06-15T00:04:23.837Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mq75a82g","to":"bench/context-inject-4arm-run-sonnet","kind":"context","actor":"overlay-sync","ts":"2026-06-15T15:19:43.847Z","weight":0,"by":"autowire","judged":false,"score":0.56,"origin":"autowire-semantic"}
