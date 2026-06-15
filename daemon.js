@@ -281,6 +281,7 @@ function notifyChange() { respCache.clear(); for (const r of sseClients) { try {
 // loopId so /loop/start can INSERT (never clobber) and multiple driving conversations can coexist.
 const LOOP_CONFIG_KEYS = ['tokenBudget', 'maxIterations', 'minPoll', 'maxPoll', 'estPerTick', 'batch', 'maxConcurrency', 'judgeParallelCap'];
 const STALE_PROGRESS_MIN_DEFAULT = 30;   // a loop with no progress past this many minutes is swept to inactive
+const GC_LOOP_RETAIN_MS = 60 * 60 * 1000;   // prune inactive loop entries idle longer than this (registry-leak guard, task /3)
 function newLoop(over) {
   return { id: null, active: false, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: null,
     session: null, lastProgress: null, workspace: null,
@@ -723,6 +724,15 @@ function sweepStaleLoops() {
     }
     if (reason) { L.active = false; L.sweptReason = reason; dirty = true; }
   }
+  // GC (registry-leak guard, task /3): prune inactive loop entries idle past the retain window so the
+  // registry doesn't grow unbounded (153 accrued by 2026-06-15, 111 of them born-dead iters=0). Active
+  // loops are never pruned; recently-swept ones linger briefly for dashboard history.
+  const gcCutoff = Date.now() - GC_LOOP_RETAIN_MS;
+  for (const [id, L] of loops) {
+    if (L.active) continue;
+    const last = Date.parse(L.lastProgress || L.startedAt || 0) || 0;
+    if (last < gcCutoff) { loops.delete(id); dirty = true; }
+  }
   if (dirty) { saveLoops(); notifyChange(); }
   return dirty;
 }
@@ -1000,14 +1010,25 @@ function decideOne(L, ctx) {
     ready = ready.filter((t) => !nowBlocked(t));
   }
 
-  if (ready.length && headroom > 0) {
+  // Drop tasks another concurrent loop already leased this tick (double-dispatch guard, task /3).
+  // The shared batch COUNT alone lets two loops slice the same ready[] prefix; the per-task spawn
+  // lease (symmetric to the eager-judge lease below) makes them pick DISJOINT sets. decideAll runs
+  // loops sequentially against one shared `ov` per workspace, so a lease acquired by an earlier loop
+  // is visible here.
+  const spawnable = ready.filter((t) => !overlayStore.hasLiveSpawnLease(ov, t.id));
+  if (spawnable.length && headroom > 0) {
     // Spawn pool is shared ACROSS loops this tick: take up to min(this loop's batch, pool remaining,
     // this loop's spare concurrency). Don't spawn past maxConcurrency.
-    const take = Math.max(0, Math.min(L.config.batch, ctx.batch.remaining, headroom, ready.length));
+    const take = Math.max(0, Math.min(L.config.batch, ctx.batch.remaining, headroom, spawnable.length));
     if (take > 0) {
       ctx.batch.remaining -= take;
       L.lastProgress = now();                                 // progress signal for the liveness sweep (task 3)
-      const dec = withWire({ ...base, action: 'spawn', tasks: ready.slice(0, take).map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll });
+      const picked = spawnable.slice(0, take);
+      // Lease each dispatched task so a concurrent loop (this tick) and any re-poll (until the worker
+      // claims) skip it. Released on claim/terminal via setStatus→clearSpawnLease; 60s TTL frees a
+      // spawn that crashed before claiming.
+      for (const t of picked) overlayStore.acquireSpawnLease(ov, t.id, L.id, 60000);
+      const dec = withWire({ ...base, action: 'spawn', tasks: picked.map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll });
       // A SINGLE heartbeat does BOTH: tasks first, then judge into the leftover slots. EAGER (task C)
       // is the PRIMARY judge trigger — node-scoped dispatch for freshly-wired nodes. Account for the
       // eager nodes' slot use so the periodic drain only fills what eager left. The periodic depth

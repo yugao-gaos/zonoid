@@ -77,6 +77,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/loop/start' && m === 'POST') {
     const b = await readBody(req);
+    // Dedupe (registry-leak guard, task /3): if this session already drives a LIVE loop, reuse it
+    // instead of minting a fresh UUID. Without this, every heartbeat "no active loop" nudge piles up
+    // a new born-dead entry (153 accrued by 2026-06-15). An explicit caller-supplied loopId (restart)
+    // bypasses dedupe and resets that specific entry in place.
+    if (!b.loopId && b.session) {
+      for (const [id, ex] of loops) {
+        if (ex.active && ex.session === b.session) {
+          ex.lastProgress = now();
+          for (const k of LOOP_CONFIG_KEYS) if (b[k] != null) ex.config[k] = b[k];
+          saveLoops();
+          return send(res, 200, { ok: true, loopId: id, loop: ex, reused: true });
+        }
+      }
+    }
     // Accept a caller-supplied loopId (idempotent restart) or mint one. If it already exists we
     // RESET that entry in place rather than refusing — but we never overwrite a DIFFERENT loop.
     const loopId = (b.loopId && String(b.loopId)) || crypto.randomUUID();

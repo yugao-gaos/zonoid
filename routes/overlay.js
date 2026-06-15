@@ -179,6 +179,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.status === 'canceled') { T.ov.cancel_requested[b.key] = now(); overlayStore.markForRejudge(T.ov, b.key); }
     else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
     overlayStore.setStatus(T.ov, b.key, b.status, b.note);
+    overlayStore.clearSpawnLease(T.ov, b.key);   // release the spawn-dispatch lease on claim/terminal (task /3)
     if (b.max_retries != null) {
       if (!T.ov.retryConfig) T.ov.retryConfig = {};
       if (!T.ov.retryConfig[b.key]) T.ov.retryConfig[b.key] = {};
