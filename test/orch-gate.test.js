@@ -132,7 +132,7 @@ function runMainBlocked(filePath, extra) {
     { PATH: stubDirTrivial + ':' + process.env.PATH, CLAUDE_PLUGIN_DATA: TMP },
   );
   ok('oversized patch blocked', r.status === 2);
-  ok('oversized patch dispatch message', r.stderr.includes('dispatch a subagent'));
+  ok('oversized patch dispatch message', r.stderr.includes('spawn a background subagent'));
 }
 
 
