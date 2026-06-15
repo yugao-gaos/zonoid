@@ -63,7 +63,7 @@ async function main() {
       const r = spawnSync('node', [
         path.join(WORKTREE, 'scripts/bench-arm.js'),
         '--spec', scenario.spec,
-        '--arm', 'off',
+        '--arm', armCfg.armId === 0 ? 'off' : 'on',
         '--trial', String(armCfg.armId),
         '--problem', problemLabel,
         '--model', 'haiku',

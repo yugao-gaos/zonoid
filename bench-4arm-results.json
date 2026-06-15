@@ -1,14 +1,14 @@
 {
-  "runAt": "2026-06-15T02:36:19.134Z",
-  "totalMs": 169927,
+  "runAt": "2026-06-15T03:23:59.198Z",
+  "totalMs": 152970,
   "partial": false,
   "scenarios": [
     "greenfield"
   ],
   "globalSummary": {
-    "done": 17,
-    "in_progress": 3,
-    "ready": 6,
+    "done": 23,
+    "in_progress": 5,
+    "ready": 4,
     "blocked": 0,
     "recentTitles": [
       "Judge C: eager event-triggered dispatch on node-add (replace the standing drain queue)",
@@ -16,11 +16,11 @@
       "Judge E: DAG-only injected context at claim (drop RAG-fill tier; keep search_knowledge as explicit tool)",
       "Judge F: migrate — drain existing backlog to converge the graph, retire queue-as-default",
       "Persist edge metadata (by/judged/score/origin) in graph-store — gate state must survive daemon restart",
+      "Unify worker registration into one /agent/start path so start_task accepts delegated subagents",
+      "T1: Define shared handoff envelope + task_result JSON Schemas",
+      "T3: Emit typed handoff envelope at dispatch + carry worker registration",
       "Remove post-agent.sh hook (redundant — classify.sh covers ready-task injection)",
-      "Restart daemon to activate /session-info endpoint",
-      "P2-A3: adopt-on-first-sight + precedence flip (Claude native tasks)",
-      "P3-B1: start_task auto-register + heartbeat stamping",
-      "P4-C1: /classify endpoint absorbs classify.sh script-resident heuristics"
+      "Restart daemon to activate /session-info endpoint"
     ]
   },
   "windowTaskCount": 5,
@@ -62,22 +62,22 @@
       "useGlobal": false,
       "useWindow": false,
       "solved": true,
-      "wallMs": 45810,
+      "wallMs": 45067,
       "timedOut": false,
       "exitCode": 0,
       "raw": {
         "problem": "greenfield-ci0",
         "arm": "off",
         "trial": 0,
-        "sessionId": "27575111-cc61-44bb-a710-6dcb4aaebbfa",
-        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci0-off-0/27575111-cc61-44bb-a710-6dcb4aaebbfa.jsonl",
+        "sessionId": "46084b73-fd13-4582-b562-be5b1e996424",
+        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci0-off-0/46084b73-fd13-4582-b562-be5b1e996424.jsonl",
         "worktree": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-runner/worktrees/bench/greenfield-ci0-off-0",
         "model": "haiku",
         "exitCode": 0,
         "solved": true,
-        "wallMs": 45326,
-        "diffChars": 2674,
-        "diffTokens": 669
+        "wallMs": 44393,
+        "diffChars": 2864,
+        "diffTokens": 716
       }
     },
     {
@@ -87,22 +87,22 @@
       "useGlobal": true,
       "useWindow": false,
       "solved": true,
-      "wallMs": 46886,
+      "wallMs": 31202,
       "timedOut": false,
       "exitCode": 0,
       "raw": {
         "problem": "greenfield-ci1",
-        "arm": "off",
+        "arm": "on",
         "trial": 1,
-        "sessionId": "b4021b61-8366-4e59-b1c6-35e35a4a9e8d",
-        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci1-off-1/b4021b61-8366-4e59-b1c6-35e35a4a9e8d.jsonl",
-        "worktree": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-runner/worktrees/bench/greenfield-ci1-off-1",
+        "sessionId": "e58672b5-986c-4835-8d71-a457fac9a909",
+        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci1-on-1/e58672b5-986c-4835-8d71-a457fac9a909.jsonl",
+        "worktree": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-runner/worktrees/bench/greenfield-ci1-on-1",
         "model": "haiku",
         "exitCode": 0,
         "solved": true,
-        "wallMs": 46419,
-        "diffChars": 3076,
-        "diffTokens": 769
+        "wallMs": 30749,
+        "diffChars": 3206,
+        "diffTokens": 802
       }
     },
     {
@@ -112,22 +112,22 @@
       "useGlobal": false,
       "useWindow": true,
       "solved": true,
-      "wallMs": 35973,
+      "wallMs": 33827,
       "timedOut": false,
       "exitCode": 0,
       "raw": {
         "problem": "greenfield-ci2",
-        "arm": "off",
+        "arm": "on",
         "trial": 2,
-        "sessionId": "99f50a8d-6768-40c8-a817-43ba93c5d147",
-        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci2-off-2/99f50a8d-6768-40c8-a817-43ba93c5d147.jsonl",
-        "worktree": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-runner/worktrees/bench/greenfield-ci2-off-2",
+        "sessionId": "77f383d2-6dcb-41ae-91a3-63f509370943",
+        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci2-on-2/77f383d2-6dcb-41ae-91a3-63f509370943.jsonl",
+        "worktree": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-runner/worktrees/bench/greenfield-ci2-on-2",
         "model": "haiku",
         "exitCode": 0,
         "solved": true,
-        "wallMs": 35532,
-        "diffChars": 3822,
-        "diffTokens": 956
+        "wallMs": 33354,
+        "diffChars": 3278,
+        "diffTokens": 820
       }
     },
     {
@@ -137,22 +137,22 @@
       "useGlobal": true,
       "useWindow": true,
       "solved": true,
-      "wallMs": 41122,
+      "wallMs": 42743,
       "timedOut": false,
       "exitCode": 0,
       "raw": {
         "problem": "greenfield-ci3",
-        "arm": "off",
+        "arm": "on",
         "trial": 3,
-        "sessionId": "63e977b1-0b44-417a-a21c-d83aafd07e78",
-        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci3-off-3/63e977b1-0b44-417a-a21c-d83aafd07e78.jsonl",
-        "worktree": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-runner/worktrees/bench/greenfield-ci3-off-3",
+        "sessionId": "fb21d7ee-de36-4317-99b8-f5196901392b",
+        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci3-on-3/fb21d7ee-de36-4317-99b8-f5196901392b.jsonl",
+        "worktree": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-runner/worktrees/bench/greenfield-ci3-on-3",
         "model": "haiku",
         "exitCode": 0,
         "solved": true,
-        "wallMs": 40700,
-        "diffChars": 2816,
-        "diffTokens": 704
+        "wallMs": 42265,
+        "diffChars": 2855,
+        "diffTokens": 714
       }
     }
   ]
