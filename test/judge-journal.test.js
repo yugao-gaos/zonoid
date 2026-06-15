@@ -187,6 +187,69 @@ function tmpWs() {
   fs.rmSync(ws, { recursive: true, force: true });
 }
 
+// --- schema v2: shadow_verdict / shadow_conf / model_version optional fields ------------------
+// Rows with all three v2 fields present must round-trip through the journal intact.
+{
+  const ws = tmpWs();
+  judge.appendVerdict(ws, {
+    epoch: 5, verdict: 'keep', from: 'note:a', to: 's/1', edgeKind: 'context',
+    cosine: 0.45, origin: 'autowire-semantic', by: 'judge',
+    shadow_verdict: 'prune', shadow_conf: 0.72, model_version: 'sonnet-4-6',
+  });
+  const rows = journal.readVerdicts(ws);
+  ok('v2: shadow_verdict round-trips', rows[0].shadow_verdict === 'prune');
+  ok('v2: shadow_conf round-trips', rows[0].shadow_conf === 0.72);
+  ok('v2: model_version round-trips', rows[0].model_version === 'sonnet-4-6');
+  ok('v2: base fields still present', rows[0].verdict === 'keep' && rows[0].cosine === 0.45);
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+// --- schema v2: row WITHOUT shadow fields is backward-compatible (no undefined keys) ----------
+{
+  const ws = tmpWs();
+  judge.appendVerdict(ws, { epoch: 2, verdict: 'prune', from: 'note:b', to: 'note:c', edgeKind: 'context', cosine: 0.33, by: 'judge' });
+  const rows = journal.readVerdicts(ws);
+  ok('v2 back-compat: shadow_verdict absent on legacy-style row', !('shadow_verdict' in rows[0]));
+  ok('v2 back-compat: shadow_conf absent on legacy-style row',   !('shadow_conf'    in rows[0]));
+  ok('v2 back-compat: model_version absent on legacy-style row',  !('model_version'  in rows[0]));
+  ok('v2 back-compat: verdict and cosine still correct', rows[0].verdict === 'prune' && rows[0].cosine === 0.33);
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+// --- schema v2: partial shadow fields (shadow_verdict only, no conf/version) ------------------
+{
+  const ws = tmpWs();
+  judge.appendVerdict(ws, { epoch: 1, verdict: 'keep', cosine: 0.55, shadow_verdict: 'keep' });
+  const rows = journal.readVerdicts(ws);
+  ok('v2 partial: shadow_verdict present', rows[0].shadow_verdict === 'keep');
+  ok('v2 partial: shadow_conf absent when not passed', !('shadow_conf' in rows[0]));
+  ok('v2 partial: model_version absent when not passed', !('model_version' in rows[0]));
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+// --- schema v2: null shadow fields are omitted (not serialized as null) -----------------------
+{
+  const ws = tmpWs();
+  judge.appendVerdict(ws, { epoch: 1, verdict: 'keep', cosine: 0.40, shadow_verdict: null, shadow_conf: null, model_version: null });
+  const rows = journal.readVerdicts(ws);
+  ok('v2 null: shadow_verdict=null omitted from JSON', !('shadow_verdict' in rows[0]));
+  ok('v2 null: shadow_conf=null omitted from JSON',    !('shadow_conf'    in rows[0]));
+  ok('v2 null: model_version=null omitted from JSON',  !('model_version'  in rows[0]));
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+// --- schema v2: keepRateByBand is unaffected by shadow fields (backward-compat analysis) ------
+{
+  const ws = tmpWs();
+  judge.appendVerdict(ws, { verdict: 'keep', cosine: 0.42, origin: 'autowire-lexical', shadow_verdict: 'prune', shadow_conf: 0.80, model_version: 'sonnet-4-6' });
+  judge.appendVerdict(ws, { verdict: 'prune', cosine: 0.43, origin: 'autowire-lexical' });
+  const bands = journal.keepRateByBand(ws);
+  const byLabel = Object.fromEntries(bands.map((b) => [b.band, b]));
+  ok('v2: keepRateByBand counts shadow-field rows normally', byLabel['0.40-0.45'].kept === 1 && byLabel['0.40-0.45'].pruned === 1);
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
