@@ -285,7 +285,7 @@ const GC_LOOP_RETAIN_MS = 60 * 60 * 1000;   // prune inactive loop entries idle 
 function newLoop(over) {
   return { id: null, active: false, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: null,
     session: null, lastProgress: null, workspace: null,
-    config: { tokenBudget: 100000, maxIterations: 200, minPoll: 30, maxPoll: 1200, estPerTick: 800, batch: 8, maxConcurrency: 10, judgeParallelCap: 6 },
+    config: { tokenBudget: 5000000, maxIterations: 6250, minPoll: 30, maxPoll: 1200, estPerTick: 800, batch: 8, maxConcurrency: 10, judgeParallelCap: 6 },
     ...over };
 }
 const loops = new Map();   // loopId -> entry
