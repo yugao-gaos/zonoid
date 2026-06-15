@@ -344,6 +344,14 @@ async function main() {
     }
   } catch { /* specsDir may not exist */ }
   fs.mkdirSync(path.join(onWt, 'bench', 'sandbox'), { recursive: true });
+  if (fs.existsSync(minimalSourceDir)) {
+    for (const f of fs.readdirSync(minimalSourceDir)) {
+      const src = path.join(minimalSourceDir, f);
+      if (fs.statSync(src).isFile()) {
+        fs.copyFileSync(src, path.join(onWt, 'bench', 'sandbox', f));
+      }
+    }
+  }
 
   // ON prompt: mandatory search_knowledge before coding (proven best mode for task-transcript).
   const ON_PREAMBLE =
