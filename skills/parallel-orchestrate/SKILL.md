@@ -17,8 +17,15 @@ parallelizable work, with a token-efficient context handoff between dependent ta
 
 3. **Run it — always via subagents, never on the main thread.** Dispatch each task to a
    **background subagent** (`Agent` tool with `run_in_background: true`) so the main thread
-   stays free and the user can keep talking; you're notified when each finishes. Pass each
-   subagent its `TASK_ID` (the `{session}/{id}` key).
+   stays free and the user can keep talking; you're notified when each finishes. Hand each
+   subagent a typed **`handoff_envelope`** ([`schemas/handoff.v1.schema.json`](../../schemas/handoff.v1.schema.json),
+   plugs into the Agent-tool `schema` option) instead of prose duties: the dispatcher fills the
+   slots — `task_key` (the `{session}/{id}` key), `agent_id`, `branch` (`orch/attempt/<key>`),
+   `target_repo`, `files_in_scope[]`, and `context_deps[]` (pre-resolved Tier-1 `{task_key, summary}`
+   pairs the dispatcher fetches via `get_dependency_summaries` + note summaries) — and the worker
+   **copies** them into its graph calls rather than re-deriving them. `return_contract` (`$ref`
+   to `task_result`) tells the worker the exact shape to return. Resolving `context_deps` is the
+   dispatcher's job, not the worker's.
    - **Genuinely independent tasks (disjoint files/areas)** → fan out in parallel (multiple
      background agents at once, or the Workflow tool's `parallel()`/`pipeline()`).
    - **File-coupled tasks** (they edit the same files) → **serialize**: one background agent at
@@ -31,14 +38,19 @@ parallelizable work, with a token-efficient context handoff between dependent ta
    - **On start — call `mcp__orchestrator-graph__branch_task(task_key)` FIRST** to create an
      isolated worktree (branch `orch/attempt/<key>`). Then call
      **`mcp__orchestrator-graph__start_task(task_key, agent_id)`** — the daemon rejects the
-     claim if no worktree is registered, so the order is mandatory. All file writes must happen
+     claim if no worktree is registered, so the order is mandatory. `start_task` also **registers
+     the worker on claim**: the `SubagentStart` hook does NOT fire for `run_in_background` spawns,
+     so registration rides the claim instead — a claim bearing an `agent_id` and backed by the
+     worktree `branch_task` just created is accepted and registered (a claim with no worktree is
+     refused; the worktree is the security boundary). Copy `task_key`, `agent_id`, and `branch`
+     straight from the `handoff_envelope`. All file writes must happen
      inside the worktree; NEVER edit the live checkout. Both `Edit`/`Write` tools **and** `Bash`
      file-write commands are gated to `orch/attempt/*` branches for subagents. `ORCH_GATE_OFF=1`
-     as an inline env prefix does **not** work — the hook is a separate process. Then call
-     `mcp__orchestrator-graph__get_dependency_summaries(task_key)`
-     — **Tier 1**: the concise summaries of your dependencies. This is usually enough base
-     context. Only if you need depth, call `get_task_detail(dep_key)` (**Tier 2**) for a
-     specific dependency's knowledge/output. Then consult the knowledge base **gate-first**:
+     as an inline env prefix does **not** work — the hook is a separate process. Your dependency
+     summaries usually arrive pre-resolved in the envelope's `context_deps[]` (**Tier 1**); if not,
+     call `mcp__orchestrator-graph__get_dependency_summaries(task_key)` to fetch them. Only if you
+     need depth, call `get_task_detail(dep_key)` (**Tier 2**) for a specific dependency's
+     knowledge/output. Then consult the knowledge base **gate-first**:
      `search_knowledge(query: <your task in one sentence>, gated: true)` — `decision:"inject"`
      ⇒ read and apply the returned note; `"abstain"` ⇒ proceed WITHOUT retrieval (do NOT
      re-query ungated; abstain is the common, correct outcome).
