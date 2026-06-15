@@ -21,6 +21,10 @@ const PROJ_DIR = path.join(os.homedir(), '.claude', 'projects', encodeWorkspace(
 const TASKS_DIR = path.join(os.homedir(), '.claude', 'tasks', SESSION);
 const K = (id) => `${SESSION}/${id}`;
 const METRIC = { metric: 'score', direction: 'max', measure_command: 'echo 1' };
+// The DG1/DG2 claim gate (subagent + registered worktree + session_id) runs BEFORE the
+// metric-branch invariant, so the worker registers as a subagent and supplies a worktree + SID;
+// only then does the claim reach the metric-branch check this test exercises.
+const WORKER_SID = 'metric-worker-sid';
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -72,16 +76,31 @@ async function waitForPing(ms = 8000) {
     const setMetric = await req('POST', '/task/metric', { key: K(1), spec: METRIC });
     ok('metric spec set on task 1', setMetric.status === 200 && setMetric.body.ok === true);
 
-    const badClaim = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'test-agent', workspace: WS });
+    // Register the claiming worker as a subagent (DG1/DG2 gate arm a). K(2) (no metric) gets a
+    // worktree on WS so its plain claim can land. K(1)'s metric claim is exercised from its OWN
+    // attempt worktree below.
+    await req('POST', '/agent/start', { workspace: WS, agent_id: 'test-agent', session: 'disp-sid', subagent_session: WORKER_SID });
+    await req('POST', '/git/worktree', { workspace: WS, key: K(2), repo_path: WS });
+
+    // K(1) on the MAIN-branch workspace, with NO worktree registered: the claim is refused 409 and
+    // the message names branch_task (both the worktree-precondition 409 and the metric-branch 409
+    // tell the worker to call branch_task first — either satisfies this assertion).
+    const badClaim = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'test-agent', session_id: WORKER_SID, workspace: WS });
     ok('metric task claim on main branch refused 409', badClaim.status === 409);
     ok('409 names branch_task', /branch_task/.test(String(badClaim.body.error)));
 
-    const wt = git.createWorktree(WS, K(1));
-    ok('attempt worktree created', wt.branch.startsWith('orch/attempt/'));
-    const goodClaim = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'test-agent', workspace: wt.worktree });
+    // The daemon creates the attempt worktree (on orch/attempt/*) AND registers it in the WORKTREE
+    // overlay's git[K(1)]; mirror the metric spec + root there so the claim reaches (and passes) the
+    // metric-branch invariant — git.currentBranch(worktree) is the attempt branch.
+    const wt = (await req('POST', '/git/worktree', { workspace: WS, key: K(1), repo_path: WS })).body;
+    ok('attempt worktree created', String(wt.branch).startsWith('orch/attempt/'));
+    await req('POST', '/task/metric', { workspace: wt.worktree, key: K(1), spec: METRIC });
+    await req('POST', '/git/worktree', { workspace: wt.worktree, key: K(1), repo_path: WS });
+    await req('POST', '/mark-root', { workspace: wt.worktree, task_key: K(1), reason: 'metric claim worktree root' });
+    const goodClaim = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'test-agent', session_id: WORKER_SID, workspace: wt.worktree });
     ok('metric task claim from attempt worktree succeeds', goodClaim.status === 200 && goodClaim.body.ok === true);
 
-    const plainClaim = await req('POST', '/overlay/status', { key: K(2), status: 'in_progress', agent_id: 'test-agent', workspace: WS });
+    const plainClaim = await req('POST', '/overlay/status', { key: K(2), status: 'in_progress', agent_id: 'test-agent', session_id: WORKER_SID, workspace: WS });
     ok('task without metric claims on main branch', plainClaim.status === 200 && plainClaim.body.ok === true);
   } finally {
     try { child.kill(); } catch { /* already gone */ }

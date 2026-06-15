@@ -83,6 +83,9 @@ test('untested daemon endpoints', async () => {
   fs.writeFileSync(path.join(TASKS_A, '1.json'), JSON.stringify({ id: '1', subject: 'gate probe task', status: 'pending' }));
   fs.writeFileSync(path.join(TASKS_B, '1.json'), JSON.stringify({ id: '1', subject: 'bystander task', status: 'pending' }));
   execSync('git init -q', { cwd: REPO });
+  // A worktree needs a base commit (HEAD): the DG1/DG2 claim gate requires a registered worktree,
+  // and git worktree add fails on an empty repo with no HEAD.
+  execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: REPO });
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '' },
@@ -108,6 +111,8 @@ test('untested daemon endpoints', async () => {
 
     // Unwired quarantine: a freshly-seen edge-less task refuses the in_progress claim until
     // it is wired or declared a root (the same contract worker agents hit via start_task).
+    // A registered worktree is the DG1/DG2 claim precondition (branch_task before start_task).
+    assert.equal((await post('/git/worktree', { key: KEY_A, repo_path: REPO })).status, 200, 'worktree registered for KEY_A');
     r = await post('/overlay/status', { key: KEY_A, status: 'in_progress', agent_id: 'gate-agent', session_id: SID_C });
     assert.equal(r.status, 409, 'unwired task: claim refused with 409');
     assert.equal((await post('/mark-root', { task_key: KEY_A, reason: 'endpoint test root' })).body.ok, true, 'mark-root clears quarantine');
@@ -160,6 +165,9 @@ test('untested daemon endpoints', async () => {
     assert.equal(r.status, 400, 'missing session_id when agent not in registry');
     assert.match(r.body.error, /session_id required/);
 
+    // The dispatcher-rejection cases above ran with KEY_B having NO worktree (a worktree-backed
+    // claim self-registers and would be allowed). Register one now for the legit subagent claim.
+    assert.equal((await post('/git/worktree', { key: KEY_B, repo_path: REPO })).status, 200, 'worktree registered for KEY_B');
     await post('/agent/start', { agent_id: 'gate-agent-b', session: SID_A, subagent_session: SID_C });
     r = await post('/overlay/status', { key: KEY_B, status: 'in_progress', agent_id: 'gate-agent-b', session_id: SID_C });
     assert.equal(r.body.ok, true, 'subagent can claim a rooted task');
@@ -206,6 +214,7 @@ test('untested daemon endpoints', async () => {
       subagent_session: SID_WORKER_CHILD,
     });
     assert.equal((await post('/mark-root', { task_key: KEY_A, reason: 'children test root' })).body.ok, true, 'KEY_A rooted for child claim');
+    await post('/git/worktree', { key: KEY_A, repo_path: REPO }); // claim precondition (KEY_A worktree may have been pruned on done)
     assert.equal((await post('/overlay/status', {
       key: KEY_A,
       status: 'in_progress',
@@ -237,6 +246,7 @@ test('untested daemon endpoints', async () => {
       subagent_session: SID_WORKER_EDIT,
     });
     assert.equal((await post('/mark-root', { task_key: KEY_EDIT, reason: 'dispatcher-edit test' })).body.ok, true);
+    await post('/git/worktree', { key: KEY_EDIT, repo_path: REPO });
     assert.equal((await post('/overlay/status', {
       key: KEY_EDIT,
       status: 'in_progress',
@@ -270,6 +280,7 @@ test('untested daemon endpoints', async () => {
     });
     const KEY_EDIT_B = 'local/dg5-edit-b';
     assert.equal((await post('/mark-root', { task_key: KEY_EDIT_B, reason: 'second worker' })).body.ok, true);
+    await post('/git/worktree', { key: KEY_EDIT_B, repo_path: REPO });
     assert.equal((await post('/overlay/status', {
       key: KEY_EDIT_B,
       status: 'in_progress',

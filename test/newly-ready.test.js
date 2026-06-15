@@ -9,6 +9,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
+const git = require('../lib/git');
 const newlyReady = require('../lib/newly-ready');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-newly-ready-')));
@@ -72,6 +73,7 @@ function dropStub(harness, id, extra = {}) {
 }
 
 (async () => {
+  git.initRepo(WS); // claim gate needs a registered worktree, which needs a git repo
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
     stdio: 'ignore',
@@ -85,7 +87,9 @@ function dropStub(harness, id, extra = {}) {
     dropStub('h', 'bystander', { blockedBy: ['blocker'] });
 
     await req('POST', '/mark-root', { workspace: WS, task_key: 'h/blocker', reason: 'test root' });
-    const claim = await req('POST', '/overlay/status', { workspace: WS, key: 'h/blocker', status: 'in_progress', agent_id: 'w1' });
+    // DG1/DG2 claim gate: register a worktree + supply session_id on the in_progress claim.
+    await req('POST', '/git/worktree', { workspace: WS, key: 'h/blocker', repo_path: WS });
+    const claim = await req('POST', '/overlay/status', { workspace: WS, key: 'h/blocker', status: 'in_progress', agent_id: 'w1', session_id: 'nr-worker-sid' });
     ok('blocker claim accepted', claim.status === 200 && claim.body.ok === true);
     ok('in_progress has no newly_ready', claim.body.newly_ready === undefined);
 

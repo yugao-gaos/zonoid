@@ -18,6 +18,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
+const git = require('../lib/git');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-p2int-d-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
@@ -87,6 +88,7 @@ function spawnDaemon() {
 }
 
 (async () => {
+  git.initRepo(WS); // claim gate needs a registered worktree, which needs a git repo
   fs.mkdirSync(PROJ_DIR, { recursive: true });
   fs.writeFileSync(path.join(PROJ_DIR, `${SESSION}.jsonl`), '');
   fs.mkdirSync(TASKS_DIR, { recursive: true });
@@ -125,8 +127,11 @@ function spawnDaemon() {
     const rootCursor = await req('POST', '/mark-root', { task_key: `cursor/${SHARED_ID}`, reason: 'test root' });
     ok('(B) mark-root local accepted', rootLocal.status === 200);
     ok('(B) mark-root cursor accepted', rootCursor.status === 200);
-    const markLocal = await req('POST', '/overlay/status', { workspace: WS, key: `local/${SHARED_ID}`, status: 'in_progress', agent_id: 'w-local' });
-    const markCursor = await req('POST', '/overlay/status', { workspace: WS, key: `cursor/${SHARED_ID}`, status: 'in_progress', agent_id: 'w-cursor' });
+    // DG1/DG2 claim gate: register a worktree per claimed key + supply session_id.
+    await req('POST', '/git/worktree', { workspace: WS, key: `local/${SHARED_ID}`, repo_path: WS });
+    await req('POST', '/git/worktree', { workspace: WS, key: `cursor/${SHARED_ID}`, repo_path: WS });
+    const markLocal = await req('POST', '/overlay/status', { workspace: WS, key: `local/${SHARED_ID}`, status: 'in_progress', agent_id: 'w-local', session_id: 'p2-local-sid' });
+    const markCursor = await req('POST', '/overlay/status', { workspace: WS, key: `cursor/${SHARED_ID}`, status: 'in_progress', agent_id: 'w-cursor', session_id: 'p2-cursor-sid' });
     const markNative = await req('POST', '/overlay/status', { workspace: WS, key: K(SHARED_ID), status: 'done', summary: 'native done.' });
     ok('(B) local status write accepted', markLocal.status === 200);
     ok('(B) cursor status write accepted', markCursor.status === 200);

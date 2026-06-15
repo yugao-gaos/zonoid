@@ -16,10 +16,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-fc-cap-')));
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-fc-cap-ws-')));
+// DG1/DG2 claim gate: every in_progress claim needs a session_id + a registered worktree, so WS is
+// a git repo (with a base commit so `git worktree add` works) and each claimed key gets a worktree.
+const SID = crypto.randomUUID();
 
 // Port range 19700-19799 (unused by other test files)
 const PORT = 19700 + Math.floor(Math.random() * 100);
@@ -50,12 +53,12 @@ async function waitForPing(ms = 10000) {
 
 // Claim a task normally (no force), returns ok:true on success.
 async function normalClaim(key) {
-  return post('/overlay/status', { key, status: 'in_progress', agent_id: 'test-agent', workspace: WS });
+  return post('/overlay/status', { key, status: 'in_progress', agent_id: 'test-agent', session_id: SID, workspace: WS });
 }
 
 // Force-claim a task, returns the raw response.
 async function forceClaim(key, agentId = 'test-agent') {
-  return post('/overlay/status', { key, status: 'in_progress', agent_id: agentId, force: true, workspace: WS });
+  return post('/overlay/status', { key, status: 'in_progress', agent_id: agentId, session_id: SID, force: true, workspace: WS });
 }
 
 // Release a task back to ready.
@@ -64,6 +67,8 @@ async function releaseTask(key) {
 }
 
 test('force-claim cap', async () => {
+  execSync('git init -q', { cwd: WS });
+  execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: WS });
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', ORCH_GATE_OFF: '1' },
     stdio: 'ignore',
@@ -79,6 +84,12 @@ test('force-claim cap', async () => {
     // Wire both tasks as roots so the unwired quarantine doesn't block claims.
     assert.equal((await post('/mark-root', { task_key: TASK_FORCE, reason: 'force-cap test', workspace: WS })).body.ok, true, 'TASK_FORCE marked root');
     assert.equal((await post('/mark-root', { task_key: TASK_NORMAL, reason: 'normal-cap test', workspace: WS })).body.ok, true, 'TASK_NORMAL marked root');
+
+    // Register a worktree per task — the DG1/DG2 claim precondition. (A worktree-backed claim with
+    // a session_id self-registers as a hook-less worker, so force claims by agent-alpha/beta/... ride
+    // the same precondition; the force CAP is enforced AFTER this gate.)
+    assert.equal((await post('/git/worktree', { key: TASK_FORCE, repo_path: WS, workspace: WS })).status, 200, 'TASK_FORCE worktree');
+    assert.equal((await post('/git/worktree', { key: TASK_NORMAL, repo_path: WS, workspace: WS })).status, 200, 'TASK_NORMAL worktree');
 
     // ── (e) normal claim is NOT capped ──────────────────────────────────────
     let r = await normalClaim(TASK_NORMAL);

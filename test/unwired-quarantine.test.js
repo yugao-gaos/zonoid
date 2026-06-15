@@ -16,11 +16,17 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
+const git = require('../lib/git');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-unwired-base-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const PORT = 18990 + Math.floor(Math.random() * 200);
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-unwired-ws-')));
+// The DG1/DG2 claim gate requires a registered worktree + session_id on every in_progress claim.
+// WS is a git repo (branch_task precondition) and each successful claim registers a worktree via
+// /git/worktree and supplies SID; the unwired/quarantine 409s under test fire AFTER that gate, so
+// the keys under test get a worktree first to reach the unwired check rather than the worktree 409.
+const SID = 'unwired-worker-sid';
 
 // Fake session wired to WS via the real ~/.claude/projects + ~/.claude/tasks layout
 // (native-tasks.js hardcodes those paths). Hex-ish id to pass the listSessions regex; the
@@ -60,14 +66,19 @@ async function waitForPing(ms = 8000) {
 }
 
 (async () => {
+  git.initRepo(WS);
   fs.mkdirSync(PROJ_DIR, { recursive: true });
   fs.writeFileSync(path.join(PROJ_DIR, `${SESSION}.jsonl`), '');
   fs.mkdirSync(TASKS_DIR, { recursive: true });
   // Distinct labels so the lexical autowire can't link the fixtures to each other.
+  // K(4) blocks on a DEDICATED blocker K(5), NOT on K(1): a native blockedBy edge clears the
+  // unwired quarantine on BOTH endpoints (overlay.addEdge), so pointing K(4) at K(1) would wire
+  // K(1) and defeat case 1 (which needs K(1) to stay genuinely unwired).
   writeTask(1, { subject: 'zebra quarantine fixture alpha' });
   writeTask(2, { subject: 'walrus dependency fixture beta' });
   writeTask(3, { subject: 'pelican rootless fixture gamma' });
-  writeTask(4, { subject: 'ocelot prewired fixture delta', blockedBy: ['1'] });
+  writeTask(4, { subject: 'ocelot prewired fixture delta', blockedBy: ['5'] });
+  writeTask(5, { subject: 'narwhal blocker fixture epsilon' });
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
@@ -80,17 +91,22 @@ async function waitForPing(ms = 8000) {
     const st = await req('GET', '/state'); // triggers buildGraph → first-sighting quarantine stamps
     ok('graph built with fixture tasks', st.status === 200 && (st.body.tasks || []).some((t) => t.id === K(1)));
 
+    // Every in_progress claim must clear the DG1/DG2 gate first (registered worktree + session_id),
+    // so register an attempt worktree per claimed key up front. The unwired/quarantine 409 fires
+    // AFTER that gate, so K(1) needs a worktree to reach the unwired check (not the worktree 409).
+    for (const id of [1, 2, 3, 4]) await req('POST', '/git/worktree', { key: K(id), repo_path: WS });
+
     // --- 1) new task with no edges → claim 409s with the unwired error -----------------------
-    const claim1 = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'test-agent' });
+    const claim1 = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'test-agent', session_id: SID });
     ok('claim of unwired task refused with 409', claim1.status === 409);
     ok('409 error names the unwired quarantine', /unwired/.test(String(claim1.body.error)));
 
     // --- 2) add_dependency wires it → claim succeeds ------------------------------------------
     const edge = await req('POST', '/overlay/edge', { from: K(1), to: K(2), kind: 'context' });
     ok('edge add accepted', edge.status === 200 && edge.body.ok === true);
-    const claim2 = await req('POST', '/overlay/status', { key: K(2), status: 'in_progress', agent_id: 'test-agent' });
+    const claim2 = await req('POST', '/overlay/status', { key: K(2), status: 'in_progress', agent_id: 'test-agent', session_id: SID });
     ok('claim succeeds after add_dependency (to-side cleared)', claim2.status === 200 && claim2.body.ok === true);
-    const claim1b = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'test-agent' });
+    const claim1b = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'test-agent', session_id: SID });
     ok('claim succeeds for edge from-side too', claim1b.status === 200 && claim1b.body.ok === true);
 
     // --- 3) mark_root clears the quarantine → claim succeeds ----------------------------------
@@ -98,17 +114,17 @@ async function waitForPing(ms = 8000) {
     ok('mark-root without task_key 400s', mrMissing.status === 400);
     const mr = await req('POST', '/mark-root', { task_key: K(3), reason: 'genuinely standalone test root' });
     ok('mark-root accepted and reports prior quarantine', mr.status === 200 && mr.body.ok === true && mr.body.was_unwired === true);
-    const claim3 = await req('POST', '/overlay/status', { key: K(3), status: 'in_progress', agent_id: 'test-agent' });
+    const claim3 = await req('POST', '/overlay/status', { key: K(3), status: 'in_progress', agent_id: 'test-agent', session_id: SID });
     ok('claim succeeds after mark_root', claim3.status === 200 && claim3.body.ok === true);
     const st2 = await req('GET', '/state');
     const t3 = (st2.body.tasks || []).find((t) => t.id === K(3));
     ok('mark-root reason recorded in the task note', t3 && /genuinely standalone test root/.test(t3.note));
 
     // --- 4) task first seen WITH an edge (native blockedBy) is never quarantined --------------
-    // K(4) is blocked by K(1) (now in_progress) → not claimable for readiness reasons aside,
-    // the unwired guard itself must not fire. Complete K(1) first so the claim is clean.
-    await req('POST', '/overlay/status', { key: K(1), status: 'done', summary: 'done' });
-    const claim4 = await req('POST', '/overlay/status', { key: K(4), status: 'in_progress', agent_id: 'test-agent' });
+    // K(4) is blocked by K(5) → the unwired guard itself must not fire (K(4) carries an edge from
+    // first sight). Complete K(5) first so K(4) is ready and the claim is clean.
+    await req('POST', '/overlay/status', { key: K(5), status: 'done', summary: 'done' });
+    const claim4 = await req('POST', '/overlay/status', { key: K(4), status: 'in_progress', agent_id: 'test-agent', session_id: SID });
     ok('pre-wired task (native blockedBy) never quarantined', claim4.status === 200 && claim4.body.ok === true);
   } finally {
     try { child.kill(); } catch { /* already gone */ }
