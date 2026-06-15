@@ -454,5 +454,63 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, await contextClassify(prompt, ctx)); return true;
   }
 
+  // ASK-vs-PREDICT preference gate (lib/ask-gate.js, the ask-by-default classifier). The dispatcher
+  // POSTs a pending decision + (optional) hard-override flags; the daemon recalls stored preference
+  // notes via the SAME semantic path /search uses (cosine of the decision text against note vecs,
+  // grounded on notes tagged category:"preference" PLUS general decision notes), runs the four-guard
+  // gate, and returns ask/predict with the matched note. Every verdict is appended to
+  // .graph/ask-journal.jsonl — the training corpus for the learned ask-gate (T3); schema parallels
+  // .graph/gate-journal.jsonl. Like the gated /search path, the FIRST call may lazy-load MiniLM
+  // (10–90s); embed() degrading to null ⇒ all-zero scores ⇒ ask('low-confidence') — conservative.
+  if (p === '/ask-gate' && m === 'POST') {
+    const { embed, cosine, EMBED_MODEL } = ctx;
+    const { askGate } = require('../lib/ask-gate');
+    const b = await readBody(req);
+    const decision = String(b.decision || b.query || '').trim();
+    if (!decision) { send(res, 400, { ok: false, error: 'decision (or query) required' }); return true; }
+    const ws = b.workspace || state.workspace;
+    const g = buildGraph(ws);
+    const qvec = await embed(decision);   // null-safe: null ⇒ lexical fallback (all-zero ⇒ ask)
+    // Recall candidates: still-current note nodes, grounded on category:"preference" plus general
+    // decision notes (a note with no category is a generic decision note — kept). Excludes notes
+    // explicitly categorized as something else (e.g. a benchmark/principle note) to keep the pool a
+    // preference pool. Scored with the RAW cosine, exactly like the gated /search candidate pool.
+    const prefCands = [];
+    let via = 'lexical';
+    for (const n of g.tasks) {
+      if ((n.kind || 'task') !== 'note' || n.validTo) continue;
+      const cat = n.category ? String(n.category) : '';
+      if (cat && cat !== 'preference' && cat !== 'decision') continue;   // preference-pool grounding
+      let rawScore = 0;
+      if (qvec && nodeVecs(n).length > 0) { rawScore = maxCosine(qvec, n); via = 'semantic'; }
+      prefCands.push({ key: n.id, title: n.label, summary: n.summary, score: rawScore, category: n.category || null, tags: n.tags || [] });
+    }
+    const flags = {
+      irreversible: !!b.irreversible, outward: !!(b.outward || b.outwardFacing),
+      highImpact: !!b.highImpact, scopeExpansion: !!b.scopeExpansion, repeatedFailure: !!b.repeatedFailure,
+    };
+    const r = await askGate(decision, prefCands, { preScored: true, via, tags: b.tags, ...flags });
+    // Journal every verdict (ask AND predict) — training corpus for the learned ask-gate (T3).
+    try {
+      const journalRow = JSON.stringify({
+        ts: new Date().toISOString(), workspace: ws, query: decision,
+        decision: r.decision, reason: r.reason,
+        top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality, tagOverlap: r.tagOverlap, sharedTags: r.sharedTags,
+        topType: r.topType, topKey: r.topKey || null, via: r.via,
+        override: r.override, overrideCategory: r.overrideCategory,
+        embedModel: EMBED_MODEL, gated: true, prefCands: prefCands.length,
+      });
+      fs.appendFileSync(path.join(ws, '.graph', 'ask-journal.jsonl'), journalRow + '\n');
+    } catch { /* journal failure must not break the ask-gate response */ }
+    send(res, 200, {
+      decision: r.decision, reason: r.reason, override: r.override, overrideCategory: r.overrideCategory,
+      top1: r.top1, margin: r.margin, gap: r.gap, locality: r.locality, topType: r.topType, via: r.via,
+      appliedNote: r.decision === 'predict' && r.appliedNote
+        ? { key: r.topKey, title: r.appliedNote.title || r.appliedNote.label || null, summary: r.appliedNote.summary || null }
+        : null,
+    });
+    return true;
+  }
+
   return false;
 };
