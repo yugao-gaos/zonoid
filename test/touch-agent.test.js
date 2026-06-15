@@ -192,10 +192,12 @@ const ok = (label, cond) => {
     });
     ok('Agent-tool spawn claim accepted (gate arm b)', spawnClaim.status === 200 && spawnClaim.body.ok === true);
 
-    // ── Gate: genuine dispatcher session (no spawn flag, no subagent) STILL rejected ──
+    // ── Gate: genuine dispatcher session (no spawn flag, no subagent, NO worktree) STILL rejected ──
+    // No /git/worktree call here: the worktree is the claim-side security boundary, so a claim with
+    // NO registered worktree is refused even when it carries an agent_id + session_id. (Registering
+    // a worktree would trip the self-register-on-claim fallback and the claim would be ALLOWED.)
     await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/disp-probe', kind: 'blocking' });
     await req('POST', '/overlay/status', { workspace: WS, key: 'local/disp-probe', status: 'ready' });
-    await req('POST', '/git/worktree', { workspace: WS, key: 'local/disp-probe', repo_path: WS });
     await req('POST', '/agent/start', { workspace: WS, agent_id: 'plain-disp', task: 'local/disp-probe', session: 'disp2-sid' });
     const dispClaim = await req('POST', '/overlay/status', {
       workspace: WS, key: 'local/disp-probe', status: 'in_progress', agent_id: 'plain-disp', session_id: 'disp2-sid',
