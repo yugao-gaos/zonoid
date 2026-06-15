@@ -1,0 +1,130 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://zonoid.orchestrator/schemas/handoff.v1.schema.json",
+  "title": "Orchestrator dispatcher↔worker handoff (v1)",
+  "description": "Versioned structured-data handoff contract. Bundles two definitions: handoff_envelope (dispatcher→worker, outbound) and task_result (worker→daemon, inbound). T2 enforces task_result at /overlay/status terminal validation; T3 hands handoff_envelope to the Agent-tool `schema` option at dispatch. Slotted fields replace prose so a worker COPIES values instead of parsing a prompt.",
+  "definitions": {
+    "handoff_envelope": {
+      "type": "object",
+      "title": "handoff_envelope",
+      "description": "Outbound: what a dispatcher hands a worker subagent at dispatch. Plugs into the Agent-tool `schema` option (T3). The worker copies slotted fields verbatim into its graph duties instead of re-deriving them from prose.",
+      "properties": {
+        "version": { "const": 1, "description": "Schema major version. Const so consumers can reject mismatched envelopes." },
+        "task_key": {
+          "type": "string",
+          "description": "Graph task key the worker claims (start_task / branch_task)."
+        },
+        "agent_id": {
+          "type": "string",
+          "description": "Stable worker agent id used on start_task and complete_task."
+        },
+        "branch": {
+          "type": "string",
+          "pattern": "^orch/attempt/.+",
+          "description": "Isolated attempt branch (orch/attempt/<key>). All worker writes happen here."
+        },
+        "target_repo": {
+          "type": "string",
+          "description": "Absolute path of the repo the worktree lives in (configure_task repo_path or the workspace)."
+        },
+        "files_in_scope": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files the worker is expected to touch. Advisory scope hint, not a hard fence."
+        },
+        "context_deps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "task_key": { "type": "string", "description": "Source task/note key the summary came from." },
+              "summary": { "type": "string", "description": "Pre-resolved Tier-1 note/dependency summary — dispatcher resolves it so the worker need not query." }
+            },
+            "required": ["summary"],
+            "additionalProperties": false
+          },
+          "description": "Pre-resolved Tier-1 context (dependency + note summaries) the dispatcher already fetched, so the worker starts with base context inline."
+        },
+        "return_contract": {
+          "$ref": "#/definitions/task_result",
+          "description": "The shape the worker must return. Reference to task_result so envelope and result stay coupled to one version."
+        }
+      },
+      "required": ["version", "task_key", "agent_id", "branch", "target_repo", "return_contract"],
+      "additionalProperties": false
+    },
+    "task_result": {
+      "type": "object",
+      "title": "task_result",
+      "description": "Inbound: what a worker returns via complete_task → POST /overlay/status terminal write. T2 will enforce this at terminal validation. metric_measurements is required ONLY when the task carries a metric spec (see allOf conditional).",
+      "properties": {
+        "version": { "const": 1, "description": "Schema major version." },
+        "status": {
+          "type": "string",
+          "enum": ["tested", "failed"],
+          "description": "Terminal outcome the worker reports. tested = work done and verified; failed = could not complete."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Concise interface summary other tasks pull as cheap Tier-1 base context."
+        },
+        "files_changed": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files the worker actually modified/created (paths relative to target_repo)."
+        },
+        "tests_run": {
+          "type": "string",
+          "description": "What was run to verify (command(s) and outcome). Free text — the evidence behind `status`."
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string", "description": "Decision/finding title (record_decision title)." },
+              "wires_to": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Provenance edges — task keys this note wires to (always includes the current task_key)."
+              }
+            },
+            "required": ["title", "wires_to"],
+            "additionalProperties": false
+          },
+          "description": "Durable decisions/findings the worker captured mid-task, with their provenance wiring."
+        },
+        "metric_measurements": {
+          "type": "object",
+          "description": "Measured metric output. REQUIRED only when the task carries a metric spec. Mirrors overlay measurement shape: { value, guardrails }.",
+          "properties": {
+            "value": { "type": "number", "description": "The primary measured metric value." },
+            "guardrails": {
+              "type": "object",
+              "description": "Guardrail metric → measured value, keyed by guardrail metric name.",
+              "additionalProperties": { "type": "number" }
+            }
+          },
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        "has_metric_spec": {
+          "type": "boolean",
+          "description": "Validation-time discriminator T2 injects from overlay.metrics[key] before validating; drives the metric_measurements conditional below. Not persisted as part of the result."
+        }
+      },
+      "required": ["version", "status", "summary"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "$comment": "Conditional: when the task carries a metric spec, T2 sets has_metric_spec=true before validation and metric_measurements becomes required.",
+          "if": {
+            "properties": { "has_metric_spec": { "const": true } },
+            "required": ["has_metric_spec"]
+          },
+          "then": { "required": ["metric_measurements"] }
+        }
+      ]
+    }
+  }
+}
