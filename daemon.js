@@ -1277,6 +1277,11 @@ async function ingestNode(overlay, g, key, { title, summary } = {}) {
   const out = { vec: null, seeded: 0, marked: false };
   if (!overlay || !key) return out;
   try {
+    // Gate nodes are structural coordination primitives — skip embed + autowire
+    const snap = overlay.snapshots && overlay.snapshots[key];
+    if (snap && snap.metadata && snap.metadata.gate_kind) {
+      return { skipped: 'gate', key };
+    }
     const isNote = typeof key === 'string' && key.startsWith('note:');
     if (isNote) {
       // Note born-path: vec was already embedded + stored in note_nodes[bareId].vec by addNoteNode.
