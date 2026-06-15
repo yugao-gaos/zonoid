@@ -105,22 +105,20 @@ test('note near-duplicate guard', async () => {
       return;
     }
 
-    // Second note: nearly identical title → should bounce back with duplicate:true.
+    // Second note: nearly identical title → DEFER-TO-JUDGE. The note is now ADMITTED PROVISIONAL
+    // (pending_dup) instead of rejected: ok:true, pending_dup:true, note_key + match returned.
     const title2 = 'Amount feed mixes en-US and de-DE decimal formats; a plain parseFloat parser silently mis-sums it';
     const summary2 = 'The billing export serialises money in two locale conventions. Locale-normalise before parsing.';
 
     const r2 = await post('/overlay/note', { title: title2, summary: summary2 });
-    assert.equal(r2.ok, false, `dup note rejected (ok:false); got: ${JSON.stringify(r2)}`);
-    assert.equal(r2.duplicate, true, 'response carries duplicate:true');
+    assert.equal(r2.ok, true, `dup note ADMITTED provisional (ok:true); got: ${JSON.stringify(r2)}`);
+    assert.equal(r2.pending_dup, true, 'response carries pending_dup:true');
+    assert.ok(r2.note_key && r2.note_key.startsWith('note:'), `note_key returned for the provisional note: ${r2.note_key}`);
     assert.ok(r2.match, 'response carries match object');
     assert.ok(r2.match.key && r2.match.key.startsWith('note:'), `match.key looks like a note key: ${r2.match.key}`);
     assert.ok(typeof r2.match.title === 'string', 'match.title is a string');
     assert.ok(typeof r2.match.summary === 'string', 'match.summary is a string');
     assert.ok(typeof r2.match.score === 'number' && r2.match.score > 0 && r2.match.score <= 1.0001, `match.score is a valid similarity: ${r2.match.score}`);
-    assert.ok(typeof r2.hint === 'string' && r2.hint.length > 0, 'response carries a hint string');
-    // Hint should mention the options (skip / supersedes / force)
-    assert.ok(/supersedes/i.test(r2.hint), 'hint mentions supersedes');
-    assert.ok(/force/i.test(r2.hint), 'hint mentions force:true');
     const existingKey = r2.match.key;
 
     // ── 2. supersedes bypasses the guard ────────────────────────────────────────────────────

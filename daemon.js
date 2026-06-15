@@ -1596,6 +1596,11 @@ function buildGraph(ws) {
       created_at: n.created_at || null,   // transaction time (when the KB learned this) — read by /search?knownAsOf
       supersedes: n.supersedes ? 'note:' + n.supersedes : null,
       supersededBy: n.supersededBy ? 'note:' + n.supersededBy : null,
+      // pending_dup: this note was admitted PROVISIONAL on a write-time dup-guard fire and is awaiting
+      // the dup-judge. While set it is RETRIEVAL-INVISIBLE (the /search recall path excludes it). Derived
+      // from the local overlay.pendingDup map (round-trips via save's LOCAL_FIELDS) — NOT a note_node field.
+      pending_dup: !!(ovWs.pendingDup && ovWs.pendingDup['note:' + n.id]),
+      dup_match: (ovWs.pendingDup && ovWs.pendingDup['note:' + n.id] && ovWs.pendingDup['note:' + n.id].match) || null,
       category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [] });
   }
   // A node was first seen THIS build ⇒ bump the graph-change epoch so the edge-judge re-pulls notes
