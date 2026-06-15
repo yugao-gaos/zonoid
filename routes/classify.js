@@ -6,6 +6,7 @@ const { contextClassify } = require('../lib/context-classify-core');
 const { classifyHeuristic } = require('../lib/prompt-heuristic');
 const { refreshReadyFlag } = require('../lib/ready-flag-cache');
 const { assembleClassifyResponse } = require('../lib/classify-assemble');
+const { isAutoMode, maybeAutostartLoop } = require('../lib/loop-autostart');
 const { inflightWorkersContext, listDispatcherChildren } = require('../lib/dispatcher-children');
 const { rowKey, readJsonl, journalPath, labeledPath } = require('../scripts/gate-label');
 const { HARNESS_LEARNER_DRAIN_KEY, ensureHarnessLearnerDrainTask } = require('../lib/harness-task');
@@ -150,6 +151,10 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
 
   const sessionId = b.session_id ? String(b.session_id) : null;
   const orchGateOff = b.orch_gate_off === true || b.orch_gate_off === 1 || b.orch_gate_off === '1';
+  const autoMode = isAutoMode({
+    permissionMode: b.permission_mode,
+    autoLoopEnv: b.auto_mode === true || b.auto_mode === 1 || b.auto_mode === '1',
+  });
 
   const heuristic = classifyHeuristic(prompt);
 
@@ -168,6 +173,15 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     return g.tasks.filter((t) => t.status === 'ready').map((t) => ({ key: t.id, label: t.label }));
   });
 
+  // AUTO mode: enforce the loop default-on. When the session is in an auto-accept permission mode
+  // and tasks are ready with no active session loop, start the loop directly (idempotent) and emit a
+  // confirmation INSTEAD of the soft nudge. Opted-out sessions never reach here (classify.sh exits
+  // before relaying). Starting a loop does not auto-merge (note:note-mq561rur).
+  const autostartLine = maybeAutostartLoop({
+    ctx, sessionId, autoMode, hasReady: !!(readyEntry && readyEntry.count > 0),
+  });
+  if (autostartLine) notifyChange();
+
   const T = targetOverlay(b, u);
   judgeRoute.ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(); });
   labelRoute.ensureHarnessLabelDrainTask(T.ov, () => { T.save(); notifyChange(); });
@@ -184,6 +198,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     contextClassify: cc,
     hasMetricSpec: sessionHasMetricSpec(sessionId, ctx),
     readyEntry,
+    autostartLine,
     judgePressure: jp,
     labelPressure: lp,
     learnerPressure: lrp,
