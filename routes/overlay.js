@@ -438,6 +438,32 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     sendOp(res, b, 200, { ok: true, id, key: 'note:' + id, superseded, autowired: ingestResult.seeded, hint }); return true;
   }
 
+  if (p === '/overlay/gate' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    if (!b.kind) { send(res, 400, { ok: false, error: 'kind required' }); return true; }
+    if (!b.blocking_task_key) { send(res, 400, { ok: false, error: 'blocking_task_key required' }); return true; }
+    const { mintGateKey } = require('../lib/followups');
+    const { GATE_KINDS } = require('../lib/followup-buckets');
+    if (!GATE_KINDS[b.kind]) { send(res, 400, { ok: false, error: `Unknown gate kind: ${b.kind}` }); return true; }
+    const key = mintGateKey(T.ov, b.kind);
+    const now = new Date().toISOString();
+    overlayStore.setSnapshot(T.ov, key, {
+      subject: `Gate: ${b.kind}`,
+      description: GATE_KINDS[b.kind].guidanceQuestion,
+      status: 'pending',
+      blockedBy: [],
+      owner: null,
+      metadata: { gate_kind: b.kind, created_at: now, created_by: b.created_by || 'dispatcher', blocking_task: b.blocking_task_key },
+    });
+    overlayStore.setStatus(T.ov, key, 'not_ready', `gate/${b.kind}: waiting for ${GATE_KINDS[b.kind].satisfiedBy}`);
+    overlayStore.addEdge(T.ov, key, b.blocking_task_key, null, 'blocking');
+    T.save(); notifyChange();
+    send(res, 200, { ok: true, gate_key: key, kind: b.kind, blocking_task_key: b.blocking_task_key });
+    return true;
+  }
+
   if (p === '/overlay/note/rewire' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
