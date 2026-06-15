@@ -56,10 +56,17 @@ parallelizable work, with a token-efficient context handoff between dependent ta
      re-query ungated; abstain is the common, correct outcome).
    - **While working:** attach reusable context with `attach_knowledge(task_key, item)` so
      dependents can fetch it precisely instead of you re-deriving it.
-   - **On finish:** `mcp__orchestrator-graph__complete_task(task_key, summary, agent_id)` with
+   - **On finish — commit FIRST, then complete:** `git add -A && git commit` all your changes
+     onto the `orch/attempt/<key>` branch BEFORE calling `complete_task`. `complete_task` does
+     NOT auto-commit your worktree — if you leave changes uncommitted the attempt branch tip
+     stays equal to base, and a later `merge_attempt` is a silent no-op (returns `merged:true`
+     with the head unchanged but lands nothing on main). Only after committing call
+     `mcp__orchestrator-graph__complete_task(task_key, summary, agent_id)` with
      a SHORT, precise summary — the interface your task exposes (what you produced, key
      decisions, where outputs live). Dependents read this as their Tier-1 base context, so
      keep it tight. Use `set_status(..., "failed"|"tested")` for those cases.
+     (Complementary hardening, not in scope here: `merge_attempt` could warn or refuse when the
+     branch tip equals base.)
 
 5. **Cross-workspace:** if a task depends on work in another repo, add a ghost edge with
    `add_dependency(from, to, from_workspace)`.
