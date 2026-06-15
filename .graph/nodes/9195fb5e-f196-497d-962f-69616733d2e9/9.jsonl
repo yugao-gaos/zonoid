@@ -7,3 +7,4 @@
 {"evt":"status_changed","id":"9195fb5e-f196-497d-962f-69616733d2e9/9","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T17:51:32.833Z"}
 {"evt":"assignee_set","id":"9195fb5e-f196-497d-962f-69616733d2e9/9","workspace":"/Users/imyu/Desktop/zonoid","assignee":"fb3b-astropy","actor":"overlay-sync","ts":"2026-06-15T17:51:32.833Z"}
 {"evt":"timestamps_set","id":"9195fb5e-f196-497d-962f-69616733d2e9/9","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-15T17:47:05.123Z","lastChanged":"2026-06-15T17:51:32.776Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T17:54:22.521Z"}
+{"evt":"status_changed","id":"9195fb5e-f196-497d-962f-69616733d2e9/9","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T18:27:10.887Z"}
