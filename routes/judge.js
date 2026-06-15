@@ -162,7 +162,14 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         const kept = findEdge(v.keepEdge.from, v.keepEdge.to, 'context');
         const cos = edgeCosine(kept);
         const origin = edgeOrigin(kept);
-        if (judge.keepEdge(T.ov, v.keepEdge.from, v.keepEdge.to)) {
+        // keepEdge() only promotes (and returns truthy for) a weight-0 / judged===false autowire edge.
+        // A LEGACY already-judged edge (judged===true, weight>0) flagged for rejudge returns falsy —
+        // so we must ALSO enter this block when the edge is currently rejudge-flagged, to clear the
+        // flag + journal the keep. Compute that flag first (sig = from>>to; see overlay.markForRejudge).
+        const rejudgeSig = v.keepEdge.from + '>>' + v.keepEdge.to;
+        const wasRejudgeFlagged = !!(T.ov.edgeRejudge && T.ov.edgeRejudge[rejudgeSig]);
+        const promoted = judge.keepEdge(T.ov, v.keepEdge.from, v.keepEdge.to);
+        if (promoted || (wasRejudgeFlagged && kept)) {
           overlayStore.clearEdgeRejudge(T.ov, v.keepEdge.from, v.keepEdge.to);
           applied.kept++;
           // task→task KIND classification: the agent decided "anchor REQUIRES N" → reclassify the
