@@ -1,0 +1,10 @@
+{
+  "name": "add-jsdoc",
+  "description": "Agent is given a module with 3 exported utility functions that have no documentation. Agent must add JSDoc comments to all functions. Grader checks for required tag coverage. KB context provides no advantage.",
+  "spec": "bench/suite/scenarios/add-jsdoc/spec.md",
+  "artifact": "bench/sandbox/solution.js",
+  "grader": "bench/suite/scenarios/add-jsdoc/grader.js",
+  "minimalSource": "bench/suite/scenarios/add-jsdoc/minimal-source",
+  "kb_required": false,
+  "kb_partial": false
+}
