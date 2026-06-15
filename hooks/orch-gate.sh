@@ -49,25 +49,36 @@ RESP=$(curl -s --max-time 0.6 "localhost:$PORT/active-claim?session=$SID" 2>/dev
 [ -z "$RESP" ] && exit 0               # daemon unreachable -> fail open
 
 if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
-  # Check if the claimed task has a registered worktree (branch_task was called).
-  # Enforce branch isolation for ALL tasks with a worktree — not just metric ones.
-  TASK_KEY=$(printf '%s' "$RESP" | jq -r '.claims[0].key // empty')
-  if [ -n "$TASK_KEY" ]; then
-    DETAIL=$(curl -s --max-time 0.6 "localhost:$PORT/task/detail?key=$TASK_KEY" 2>/dev/null)
-    TASK_BRANCH=$(printf '%s' "$DETAIL" | jq -r '.task.git.branch // empty' 2>/dev/null)
-    if [ -n "$TASK_BRANCH" ]; then
-      # Resolve the branch from the EDIT TARGET's worktree, not the hook's ambient cwd
-      # (which is the session root = main). A claimed worker editing inside its
-      # orch/attempt/* worktree must be allowed even though HEAD at the session root is main.
-      BRANCH=$(git -C "$(dirname "${FP:-.}")" rev-parse --abbrev-ref HEAD 2>/dev/null)
-      case "$BRANCH" in
-        orch/attempt/*) ;;  # correct branch -> allow
-        *)
-          printf 'orch-gate: task has a registered worktree (%s) — writes must happen inside the worktree branch, not on %s. Run branch_task and work in the returned worktree path.\n' "$TASK_BRANCH" "$BRANCH" >&2
-          exit 2
-          ;;
-      esac
+  # Check if any claimed task has a registered worktree that covers the target file path.
+  # With multiple active claims a session may legitimately write to different worktrees;
+  # we must iterate ALL claims and allow if ANY claim's worktree is an ancestor of FP.
+  CLAIM_COUNT=$(printf '%s' "$RESP" | jq -r '.claims | length' 2>/dev/null)
+  CLAIM_COUNT="${CLAIM_COUNT:-0}"
+  ANY_WORKTREE=0   # did we find at least one claim with a registered worktree?
+  MATCHED=0        # did FP fall inside one of those worktrees?
+  MISMATCH_BRANCH=""
+  i=0
+  while [ "$i" -lt "$CLAIM_COUNT" ]; do
+    TASK_KEY=$(printf '%s' "$RESP" | jq -r ".claims[$i].key // empty" 2>/dev/null)
+    if [ -n "$TASK_KEY" ]; then
+      DETAIL=$(curl -s --max-time 0.6 "localhost:$PORT/task/detail?key=$TASK_KEY" 2>/dev/null)
+      TASK_BRANCH=$(printf '%s' "$DETAIL" | jq -r '.task.git.branch // empty' 2>/dev/null)
+      TASK_WT=$(printf '%s' "$DETAIL" | jq -r '.task.git.worktree // empty' 2>/dev/null)
+      if [ -n "$TASK_BRANCH" ]; then
+        ANY_WORKTREE=1
+        MISMATCH_BRANCH="$TASK_BRANCH"
+        # Allow if FP is inside this claim's worktree, or if FP is empty (non-file tool).
+        if [ -z "$FP" ] || case "$FP" in "$TASK_WT"/*|"$TASK_WT") true ;; *) false ;; esac; then
+          MATCHED=1
+          break
+        fi
+      fi
     fi
+    i=$((i + 1))
+  done
+  if [ "$ANY_WORKTREE" = "1" ] && [ "$MATCHED" = "0" ]; then
+    printf 'orch-gate: task has a registered worktree (%s) — writes must happen inside the worktree path, not at %s. Use the path returned by branch_task.\n' "$MISMATCH_BRANCH" "$FP" >&2
+    exit 2
   fi
   exit 0                               # an in_progress task is claimed for this session -> allow
 fi
