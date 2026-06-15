@@ -1,0 +1,2 @@
+{"evt":"edge_added","from":"followup/harness-daemon-restart","to":"followup/bug-fix-acknowledgedaemonrestartonboot-s-cdje","kind":"context","actor":"overlay-sync","ts":"2026-06-15T00:55:29.995Z"}
+{"evt":"edge_added","from":"followup/harness-daemon-restart","to":"followup/gate-node-type-schema-create-gate-mcp-st-ae9b","kind":"context","actor":"overlay-sync","ts":"2026-06-15T00:55:29.995Z"}
