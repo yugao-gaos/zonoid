@@ -1,1 +1,2 @@
 {"evt":"edge_added","from":"note:note-mqa3j03bqhi","to":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/21","kind":"context","actor":"overlay-sync","ts":"2026-06-14T21:28:37.151Z","by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqa3j03bqhi","to":"21","kind":"context","actor":"overlay-sync","ts":"2026-06-15T04:42:32.760Z","weight":0,"by":"autowire","judged":false,"score":0.62,"origin":"autowire-semantic"}

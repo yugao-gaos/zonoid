@@ -1,0 +1,7 @@
+{"evt":"status_changed","id":"bench/context-inject-4arm-run","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T04:30:19.112Z"}
+{"evt":"timestamps_set","id":"bench/context-inject-4arm-run","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-15T04:30:19.000Z","lastChanged":"2026-06-15T04:30:19.000Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-15T04:30:19.112Z"}
+{"evt":"status_changed","id":"bench/context-inject-4arm-run","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T04:30:44.998Z"}
+{"evt":"assignee_set","id":"bench/context-inject-4arm-run","workspace":"/Users/imyu/Desktop/zonoid","assignee":"bench-4arm-run-worker-001","actor":"overlay-sync","ts":"2026-06-15T04:30:44.998Z"}
+{"evt":"timestamps_set","id":"bench/context-inject-4arm-run","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-15T04:30:19.000Z","lastChanged":"2026-06-15T04:30:44.868Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T04:32:27.469Z"}
+{"evt":"status_changed","id":"bench/context-inject-4arm-run","workspace":"/Users/imyu/Desktop/zonoid","status":"canceled","actor":"overlay-sync","ts":"2026-06-15T04:46:06.414Z"}
+{"evt":"timestamps_set","id":"bench/context-inject-4arm-run","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-15T04:30:19.000Z","lastChanged":"2026-06-15T04:46:06.289Z","lastStatus":"canceled"},"actor":"overlay-sync","ts":"2026-06-15T04:48:12.721Z"}
