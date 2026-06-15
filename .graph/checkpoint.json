@@ -91326,6 +91326,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -91683,6 +91684,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -93217,6 +93219,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -94960,6 +94963,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -97941,6 +97945,96 @@
         "firstSeen": "2026-06-15T06:26:06.164Z",
         "lastChanged": "2026-06-15T14:40:44.507Z",
         "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "79d7035b-908d-4d6d-bf11-e5545b42846e/1": {
+      "id": "79d7035b-908d-4d6d-bf11-e5545b42846e/1",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Separated gross/delta accounting bases across usage-accounting.js, analytics.js, and graph.html. Root causes fixed: (1) documented intentional two-series contract in usage-accounting.js — scalar totals stay delta/net-of-baseline, by_model stays gross; (2) added gross_totals = Σ by_model to /costflow response (backward-compatible new field); (3) graph.html: token-economy uses t.total (delta) denominator so buckets partition to ~100%, removed broken cross-base unattributed row, opus%/plan quota now use gross_totals.output_tokens, billing hero now includes cron/gate to match Total est., added basis labels throughout. Tests: 139/139 pass; new billing-gross-totals.test.js (12 assertions) + 10 new assertions in usage-accounting.test.js all pass.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix billing/token-attribution: split gross vs delta bases (3 bugs)",
+        "description": "Dashboard billing/token-economy panel mixes two accounting bases and produces wrong numbers (token-economy %s sum >100%, \"Opus is 108% of output\", by_model totals diverge 2.6x from headline totals, BILLING hero omits cron). Root-caused. Decision: GROSS basis for billing dollars + per-model + quota%, DELTA (net-of-baseline) basis for token-economy/productivity/autonomy buckets, with both bases labeled explicitly. Files: lib/usage-accounting.js, routes/analytics.js, public/graph.html.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-15T16:09:26.515Z"
+      },
+      "assignee": "billing-fix-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-15T15:58:01.203Z",
+        "lastChanged": "2026-06-15T16:10:02.061Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "79d7035b-908d-4d6d-bf11-e5545b42846e/2": {
+      "id": "79d7035b-908d-4d6d-bf11-e5545b42846e/2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "⏸ MERGE PENDING — orch/attempt/79d7035b-908d-4d6d-bf11-e5545b42846e-1: APPROVE. All 9 billing correctness claims verified, 33 new test assertions pass independently (12/12 billing-gross-totals, 21/21 usage-accounting); single pre-existing bench-e2e failure confirmed on main unrelated to this change. Gross/delta split correct, gross_totals reconciles, token-economy partition fixed, opus%/quota denom fixed, billing hero includes cron/gate, costflow.js untouched. Hold for human merge decision.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "JUDGE: review billing/token-attribution fix attempt (self-learn-judge single-attempt)",
+        "description": "Judge task for the billing/token-attribution fix. Invoke self-learn-judge in SINGLE-ATTEMPT review mode against the impl attempt branch orch/attempt/79d7035b-908d-4d6d-bf11-e5545b42846e-1. Fetch the attempt diff (get_attempt_diff), apply the code-review rubric (correctness, scope discipline, dead/redundant code, test presence/quality, style). Verify specifically: (1) gross series used for BILLING$/by-model/quota%/Opus%, delta series for token-economy/productivity/autonomy, bases LABELED and not crossed; (2) token-economy buckets now partition (sum ~100%, no >100%); (3) BILLING hero and Total est. agree on cron inclusion; (4) Σby_model still reconciles with an explicit gross total. APPROVE (hold-merge — do NOT force-merge; merge is git merge --no-ff, abort on conflict) or KICK BACK (set_status failed + wired record_decision). NEVER force-merge.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-15T16:19:07.752Z"
+      },
+      "assignee": "billing-fix-judge",
+      "timestamps": {
+        "firstSeen": "2026-06-15T15:59:13.629Z",
+        "lastChanged": "2026-06-15T16:22:23.831Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "d236bffd-b312-4a53-89ab-6961cfba56a2/3": {
+      "id": "d236bffd-b312-4a53-89ab-6961cfba56a2/3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Found and fixed a latent secret leak in bench-e2e.js. buildTaskBPrompt was passing SECRET:scenario.secret as a template variable to renderTemplate — while task-b.prompt.md currently has no {{SECRET}} placeholder (so no active leak), any future template adding {{SECRET}} would inject the answer directly into Task B's prompt, bypassing the A→B DAG wiring test entirely. Fixed by removing SECRET from the template vars, adding an inline comment explaining the invariant, and adding 3 test assertions (OFF arm prompt excludes secret, ON arm prompt excludes secret, ON arm preamble includes get_dependency_summaries). All 16 tests pass. bench/heldout/run-trial.sh was already committed at 6172cb0 — no action needed there. seedGraphOnArm intentionally injects the secret into Task A's completion summary wired via context edge to B — this is correct and by design.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "QA: zonoid — bench-e2e seedGraph no longer includes scenario secret in ctx",
+        "description": "Nightly QA (watermark 2026-06-12→2026-06-15) found test/bench-e2e.test.js failing 1 sub-test. Reproducible across both full runs.\n\nREPRO: cd /Users/imyu/Desktop/zonoid && node test/bench-e2e.test.js\n\nROOT CAUSE (suspect): seedGraph's returned `ctx` no longer contains scenario.secret. Test line 120: `JSON.stringify(seeded.ctx).includes(scenario.secret)` → false. Note the adjacent assert \"seedGraph: task A summary template applied\" (line 122, secret in summary) still PASSES — so only the ctx path stopped carrying the secret. Likely fallout from bench-harness context-injection changes.\n\nEVIDENCE (bounded): \"FAIL seedGraph: context includes secret\" (14 passed, 1 failed, 0 skipped).\n\nSUSPECT DELTA TASKS: b3d1b5f4.../22 (Bench harness: accept --context-note flag to wire note→trial task at creation).\n\nFIX DIRECTION (morning decides — DO NOT fix at night): determine whether the bench seedGraph context shape changed intentionally (update the test assertion to the new ctx structure) or the secret was dropped from ctx by mistake (restore it). Lowest-severity of tonight's findings — bench harness, single assert.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-15T16:27:07.261Z"
+      },
+      "assignee": "qa-bench-e2e-2",
+      "timestamps": {
+        "firstSeen": "2026-06-15T06:26:20.751Z",
+        "lastChanged": "2026-06-15T16:11:32.644Z",
+        "lastStatus": "in_progress"
       },
       "metrics": null,
       "measurements": null,
@@ -118545,7 +118639,237 @@
       "judged": false,
       "score": 0.585,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq75a817",
+      "to": "79d7035b-908d-4d6d-bf11-e5545b42846e/1",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mq7hefd9gvi",
+      "to": "note:note-mqfbygur4go",
+      "kind": "context",
+      "weight": 0.627,
+      "judged": true
+    },
+    {
+      "from": "note:note-mq7heffwyzy",
+      "to": "note:note-mqfbygur4go",
+      "kind": "context",
+      "weight": 0.74,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqetzhodzyt",
+      "to": "note:note-mqfbygur4go",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.577,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqf7j1hinjg",
+      "to": "note:note-mqfbygur4go",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.692,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqf906vsjhu",
+      "to": "note:note-mqfbygur4go",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.59,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqf9al6pjvv",
+      "to": "note:note-mqfbygur4go",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.691,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqf9plgeajc",
+      "to": "note:note-mqfbygur4go",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.624,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfbt5qqpta",
+      "to": "note:note-mqfbygur4go",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.725,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfbygur4go",
+      "to": "4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/28",
+      "kind": "context",
+      "by": "autowire",
+      "judged": false
+    },
+    {
+      "from": "note:note-mqfbygur4go",
+      "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/28",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.619,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfbygur4go",
+      "to": "followup/write-judge-edge-scorecard-md-retry-as-s-pe6u",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.565,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfbygur4go",
+      "to": "followup/harness-daemon-restart",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.672,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqff4agm67d",
+      "to": "79d7035b-908d-4d6d-bf11-e5545b42846e/2",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqff4agm67d",
+      "to": "note:note-mqe9hy58oqj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.588,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "79d7035b-908d-4d6d-bf11-e5545b42846e/1",
+      "to": "79d7035b-908d-4d6d-bf11-e5545b42846e/2",
+      "kind": "blocking",
+      "origin": "asserted"
+    },
+    {
+      "from": "79d7035b-908d-4d6d-bf11-e5545b42846e/2",
+      "to": "79d7035b-908d-4d6d-bf11-e5545b42846e/1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.6,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/1",
+      "to": "79d7035b-908d-4d6d-bf11-e5545b42846e/1",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "a44324b6-bd10-4fac-a6c0-945ec4ffc000/2",
+      "to": "79d7035b-908d-4d6d-bf11-e5545b42846e/1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "bench/context-inject-verdict-report",
+      "to": "bench/context-inject-4arm-runner",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.61,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/2",
+      "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/3",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.6,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/3",
+      "to": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/2",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.767,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d2128058-5f0d-4e2f-a8f8-f8a6a0062513/2",
+      "to": "d2128058-5f0d-4e2f-a8f8-f8a6a0062513/1",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.611,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "e9d4c9d7-73dc-4558-ab81-1882239d2dc8/3",
+      "to": "79d7035b-908d-4d6d-bf11-e5545b42846e/1",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "eeadb38f-7472-4703-9689-fbf24eebee4d/1",
+      "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/3",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.765,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "f1653e44-5863-4644-bebc-963582c76510/2",
+      "to": "f38c7d2a-e05b-4d1d-a418-ae62c414fba2/6",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.605,
+      "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-15T15:48:50.832Z"
+  "compacted_at": "2026-06-15T16:33:14.045Z"
 }
