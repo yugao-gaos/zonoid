@@ -7,7 +7,11 @@ effort: high
 > **DEFAULT — HOLD-MERGE MODE (autonomous heartbeat loop).** When this judge runs under the loop,
 > it NEVER merges and NEVER halts the loop. This OVERRIDES steps 4–7 below:
 > - Pick the winner exactly as described (step 3) — metric-aware when `P` carries a metric spec
->   (improvement vs baseline + guardrail regressions + benchmark gap), else test-outcome-then-rationale.
+>   (improvement vs baseline + guardrail regressions + benchmark gap), else test-outcome-then-rationale —
+>   in BOTH cases folding in the code-review read (step 2b) per the [Code-review rubric](#code-review-rubric).
+> - **Single-attempt problems** (exactly one attempt) do NOT pick a rival winner: the code review IS the
+>   verdict (APPROVE or KICK BACK) — see [Single-attempt gate](#single-attempt-tournament-of-one-gate).
+>   Under the loop this still HOLDS the merge: an APPROVE records `⏸ MERGE PENDING`, never merges.
 > - **Do NOT call merge_attempt or `git merge`.** Merging into `main` is a HUMAN decision made on review.
 > - **Preserve every attempt branch + worktree** — no `remove_worktree`, no cancel — so the human can diff and merge later.
 > - Record the verdict on the problem P: `{ winner, winner_branch:"orch/attempt/<slug>", why, losers:[{key,reason}], merged:false, awaiting_merge:true, date }` — plus the metric-aware fields from step 6 (`metric_value`, `improvement`, `guardrails_ok`, `vs_benchmark`, …) when P carried a metric spec.
@@ -47,16 +51,31 @@ You are the judge subagent for `J`. Operate ONLY via MCP tools — never shell g
    test results / knowledge (Tier 2). Note each attempt's outcome: `tested` (passed) vs
    `failed`, plus any captured test output.
 
+2b. **Read the code, not just the outcome.** For EACH attempt, fetch its diff with the
+   `get_attempt_diff` MCP tool (`get_attempt_diff({ task_key: attempt_key })` → GET
+   `/attempt/diff`, response `{ ok, key, branch, base, stat, diff }`; `stat` is the
+   `git diff base...branch --stat`, `diff` is the full three-dot merge-base diff = only the
+   attempt's own changes). Assess each diff against the [Code-review rubric](#code-review-rubric)
+   below. Carry forward, per attempt: a one-line correctness read and a list of concerns
+   (scope creep, dead/redundant code, weak/missing tests, style drift). These findings feed the
+   winner pick (step 3) and land in the verdict (step 6) as `code_review`. If exactly ONE attempt
+   exists, this read IS the verdict — see [Single-attempt gate](#single-attempt-tournament-of-one-gate).
+
 3. **Pick the winner.** Two modes — choose by whether the problem carries a metric spec:
    - **Metric-aware mode** — `get_task_detail(P).metric` is present (an inline metric spec) AND
      the attempts carry `node.measurement` data. Judge METRIC-FIRST per
      [Metric-aware judging](#metric-aware-judging) below: weigh each attempt's improvement vs
      baseline, its guardrail regressions, and (when present) its gap to the competitor benchmark.
+     **The code review (step 2b) is a tiebreaker AND a near-veto here:** a correctness bug or a
+     guardrail-relevant regression visible in the diff loses, even to an attempt with a smaller
+     metric gain — a measured number you cannot trust is no improvement.
    - **Fallback mode (back-compat)** — `P` has NO metric spec, or the attempts have no
-     `measurement` data (older problems). Judge on test outcome then rationale:
+     `measurement` data (older problems). Judge on test outcome then the code review:
      - Eliminate every `failed` attempt outright.
-     - Among the `tested` (passed) attempts, pick the best on rationale: simplest diff, fewest
-       side effects, matches existing style, strongest test coverage. Record WHY in one line.
+     - Among the `tested` (passed) attempts, pick the best on the [Code-review rubric](#code-review-rubric)
+       read from step 2b — an actual read of each diff (correctness, scope discipline, dead code,
+       test quality, style match), NOT a vibe estimate. Record WHY in one line, grounded in what the
+       diff shows.
    - **If NO attempt is viable** (all `failed`, or — in metric mode — every attempt regresses a
      guardrail / fails to improve), do NOT force a merge. Record a "no-winner" verdict (step 6) and
      **`request_guidance({ question: "All N attempts at <P> failed — drop, retry with new approach, or take over?", context: "<one line per attempt's failure>", trigger: "repeated_failure" })`** to halt the loop and ask the user. Then stop.
@@ -80,6 +99,11 @@ You are the judge subagent for `J`. Operate ONLY via MCP tools — never shell g
      losers: [ { key, reason }, ... ],
      merged: <true|false>,
      conflict: <true if merge conflicted, else omit>,
+     // --- code review (always include; from step 2b — the read of the actual diff) ---
+     code_review: {
+       winner_notes: "<one line on the winning/sole diff: does it do the task, is it clean>",
+       concerns: [ "<key>: <scope creep | dead code | weak test | bug | style drift>", ... ]  // [] if none
+     },
      // --- metric-aware fields (include when P carried a metric spec; omit in fallback mode) ---
      metric: "<metric label>",            // the objective judged
      direction: "<min|max>",
@@ -146,12 +170,68 @@ The merge (step 4 `merge_attempt(winner_key)`) and loser retirement (step 5) are
 that `merge_attempt` now targets the task's own repo (`overlay.repos[key]` via `resolveRepo`), so the
 winner lands in the problem's target repo, not a hardcoded workspace.
 
+## Code-review rubric
+
+Used in step 2b for EVERY attempt, in BOTH modes. You judge the OUTCOME elsewhere (tests, metrics);
+here you judge the CODE ARTIFACT itself by reading its diff. Fetch it with
+`get_attempt_diff({ task_key: attempt_key })` (GET `/attempt/diff` → `{ ok, key, branch, base, stat, diff }`;
+`diff` is the three-dot merge-base diff, so it shows ONLY this attempt's own changes). The daemon just
+serves the diff — the reading is yours. Read each diff against five concrete checks:
+
+1. **Correctness** — does the diff actually do what the task asked? Look for obvious bugs, mishandled
+   edge cases, off-by-ones, inverted conditions, a "fix" that doesn't touch the real code path. A
+   passing test on a vacuous assertion does NOT clear this check — read the change, don't trust the green.
+
+2. **Scope discipline** — only the task's `files_in_scope` (or plainly-related files) touched. Flag
+   unrelated churn: drive-by reformatting, renames, refactors of code the task never mentioned.
+
+3. **Dead / redundant code left behind** — leftover legacy code the change should have removed,
+   duplicated logic, orphaned imports / variables / functions, commented-out blocks, a new path added
+   beside the old one without deleting the old one.
+
+4. **Test presence & quality** — are there REAL tests exercising the change, consistent with the
+   attempt's `tests_run`? A test that asserts nothing, mocks the thing under test, or never calls the
+   new path is vacuous — count it as missing, not present.
+
+5. **Style match** — matches surrounding conventions (naming, error handling, structure). Minor; a
+   tiebreaker, never a veto on its own.
+
+Output per attempt: a one-line correctness verdict + a `concerns[]` list (each tagged with the check it
+failed). A correctness bug (#1) or a guardrail-relevant regression seen in the diff is a **near-veto**
+in metric mode and disqualifying in fallback mode; #2–#4 weigh against an attempt; #5 only breaks ties.
+These feed the winner pick (step 3) and the verdict's `code_review` field (step 6).
+
+## Single-attempt ("tournament of one") gate
+
+The procedure above assumes ≥2 rival attempts. When a problem `P` has **exactly ONE** attempt, there
+is no rival to pick among — so the code review IS the verdict. This is the per-task pre-merge review gate.
+
+1. Run the [Code-review rubric](#code-review-rubric) on that single attempt's diff (step 2b), plus its
+   metric/test outcome as usual.
+2. Decide:
+   - **APPROVE** — the diff does the task, is in scope, leaves no dead code, has real tests, matches
+     style (and in metric mode, improves the metric with guardrails intact). Treat the lone attempt as
+     the winner and proceed to merge / hold-merge **per the active mode** — under the HOLD-MERGE default
+     this records the verdict and does NOT merge (summary starts `⏸ MERGE PENDING — <branch>: <why>`);
+     only with `auto_merge === true` do steps 4–5 actually merge.
+   - **KICK BACK** — a correctness bug, out-of-scope churn, dead code, missing/vacuous tests, or a
+     guardrail regression. Do NOT merge. `set_status(attempt, 'failed', note="<what must change>")`
+     (or reopen it for rework), and `record_decision(title, summary, wires_to=[P_key])` capturing the
+     concrete fixes required so the next attempt inherits them. Record the verdict (step 6) with
+     `winner: null`, `code_review.concerns` populated, and `needs_attention: true`.
+3. Record the verdict on `P` (step 6) exactly as for the multi-attempt case — `code_review` carries the
+   review; `winner` is the attempt key (APPROVE) or `null` (KICK BACK). Then `complete_task(J, ...)`.
+
 ## Guardrails
 
 - **Never force a merge.** No passing attempt, or a conflicting winner → record the verdict
   and stop. Forcing merges defeats the point of judging.
 - **Daemon stays dumb.** All judgement lives here. If you find yourself wanting a new endpoint,
-  you're probably overreaching this skill's scope.
+  you're probably overreaching this skill's scope. `get_attempt_diff` only SERVES the diff — the
+  read against the [Code-review rubric](#code-review-rubric) is yours.
+- **Read the code, never just the green.** A passing test or an improved metric on an unread diff is
+  not a winner — a vacuous test or a correctness bug visible in the diff is a near-veto (metric mode)
+  or disqualifying (fallback / single-attempt). Trust the diff, not the badge.
 - **Idempotent tools.** `remove_worktree` and `merge_attempt` are safe to re-run; a re-judged
   task won't corrupt state.
 - **Metric mode: evaluate, never generate.** The judge reads measurements + benchmark and weighs
