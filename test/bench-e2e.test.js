@@ -78,6 +78,13 @@ function httpJson(port, method, urlPath, body) {
     ok('dry-run ON passes', cmp.on.passed === true);
     ok('dry-run dagRequired', cmp.dagRequired === true);
 
+    // ── buildTaskBPrompt: secret must not appear in Task B prompt ──────────────
+    const offPrompt = bench.buildTaskBPrompt(scenario, scenario.dir, 'bench-test/2', 'off');
+    const onPrompt  = bench.buildTaskBPrompt(scenario, scenario.dir, 'bench-test/2', 'on');
+    ok('buildTaskBPrompt OFF: secret absent from prompt', !offPrompt.includes(scenario.secret));
+    ok('buildTaskBPrompt ON: secret absent from prompt',  !onPrompt.includes(scenario.secret));
+    ok('buildTaskBPrompt ON: preamble includes get_dependency_summaries', onPrompt.includes('get_dependency_summaries'));
+
     // ── CLI dry-run subprocess ───────────────────────────────────────────────
     const cli = spawn(process.execPath, [path.join(REPO, 'scripts', 'bench-e2e.js'), '--scenario', 'dag-chain', '--dry-run'], {
       cwd: REPO, encoding: 'utf8',

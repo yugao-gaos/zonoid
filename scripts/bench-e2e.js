@@ -126,9 +126,12 @@ async function seedGraphOnArm({ port, workspace, scenario, keyA, keyB }) {
 }
 
 function buildTaskBPrompt(scenario, scenarioDir, taskBKey, arm) {
+  // NOTE: do NOT pass SECRET (scenario.secret) as a template variable here.
+  // The secret must reach Task B only via DAG context (get_dependency_summaries),
+  // not from the prompt -- that would bypass the bench A-to-B wiring test.
   const body = renderTemplate(
     fs.readFileSync(path.join(scenarioDir, scenario.taskB.promptFile), 'utf8'),
-    { TASK_B_KEY: taskBKey, SECRET: scenario.secret }
+    { TASK_B_KEY: taskBKey }
   );
   return (arm === 'on' ? ON_PREAMBLE : '') + body.split(REPO).join('__WORKTREE__');
 }
