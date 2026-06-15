@@ -1,0 +1,10 @@
+{
+  "name": "balanced-brackets",
+  "description": "Implement isBalanced(s) returning true if all bracket pairs in s are properly nested and closed. Tests string/stack fundamentals — KB context provides no advantage.",
+  "spec": "bench/suite/scenarios/balanced-brackets/spec.md",
+  "artifact": "bench/sandbox/solution.js",
+  "grader": "bench/suite/scenarios/balanced-brackets/grader.js",
+  "minimalSource": "bench/suite/scenarios/balanced-brackets/minimal-source",
+  "kb_required": false,
+  "kb_partial": false
+}
