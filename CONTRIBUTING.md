@@ -1,6 +1,6 @@
 # Contributing to Zonoid
 
-Apache-2.0 licensed. Contributors must sign the Contributor License Agreement (CLA) before their first pull request can be merged. PRs welcome.
+Apache-2.0 licensed. Contributions require signing the [Contributor License Agreement](CLA.md) — the CLA bot prompts you automatically on your first PR. PRs welcome.
 
 ## Prerequisites
 
@@ -88,8 +88,6 @@ spurious conflicts.
 
 There is no formal review SLA. Small, well-scoped PRs merge fastest.
 
-## CLA requirement
+## Contributor License Agreement
 
-All contributors must sign the Contributor License Agreement (CLA) before their first contribution can be accepted. The CLA grants the project maintainers the rights necessary to license the project, including under commercial terms, while you retain copyright of your contribution.
-
-See [CLA.md](CLA.md) for the agreement text.
+All contributors must sign the [Contributor License Agreement](CLA.md) before their first contribution can be accepted. You retain copyright of your contribution, but grant the project owner a perpetual, royalty-free license to use, distribute, and — critically — relicense or sublicense your contribution under different terms, including commercial or proprietary terms, so the project can offer dual-licensed editions. Signing is a one-time action recorded by the CLA bot when it comments on your first PR.
