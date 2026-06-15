@@ -403,7 +403,7 @@ async function main() {
 
   const offPrompt = specBody.split(REPO).join(offTmp);
   const offSessionId = crypto.randomUUID();
-  const offEnv = { ...cleanEnv(process.env), TMPDIR: offTmp };
+  const offEnv = { ...cleanEnv(process.env), TMPDIR: offTmp, ORCH_GATE_OFF: '1' };
 
   console.log('[economy] OFF arm: session=' + offSessionId + ' budget=' + onCost.toFixed(0) + ' tok-eq');
   const offResult = runArm({
