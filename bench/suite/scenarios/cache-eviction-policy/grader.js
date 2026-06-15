@@ -12,12 +12,12 @@ try {
   ({ Cache } = require(artifactPath));
 } catch (e) {
   console.log(JSON.stringify({ ok: false, pass: 0, total: 14, error: 'require failed: ' + e.message }));
-  process.exit(0);
+  process.exit(1);
 }
 
 if (!Cache) {
   console.log(JSON.stringify({ ok: false, pass: 0, total: 14, error: 'Cache not exported' }));
-  process.exit(0);
+  process.exit(1);
 }
 
 let pass = 0;
@@ -199,3 +199,4 @@ function check(result, expected, label) {
 }
 
 console.log(JSON.stringify({ ok: pass === total, pass, total }));
+process.exit(pass === total ? 0 : 1);

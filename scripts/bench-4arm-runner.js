@@ -17,7 +17,7 @@ const SCENARIOS = fs.readdirSync(SUITE_DIR)
   .filter(d => fs.existsSync(path.join(SUITE_DIR, d, 'scenario.json')))
   .map(d => {
     const meta = JSON.parse(fs.readFileSync(path.join(SUITE_DIR, d, 'scenario.json'), 'utf8'));
-    return { name: meta.name, spec: meta.spec, grader: meta.grader };
+    return { name: meta.name, spec: meta.spec, grader: meta.grader, artifact: meta.artifact, minimalSource: meta.minimalSource };
   })
   .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -48,6 +48,8 @@ async function main() {
         '--trial', String(armCfg.armId),
         '--problem', problemLabel,
         '--grader', scenario.grader,
+        '--artifact', scenario.artifact || 'bench/sandbox/solution.js',
+        ...(scenario.minimalSource ? ['--minimal-source', scenario.minimalSource] : []),
         '--model', 'haiku',
       ];
       const injFlags = armCfg.armId > 0 ? armCfg.flags : [];

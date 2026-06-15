@@ -9,7 +9,7 @@ try {
   ({ RateLimiter } = require(artifactPath));
 } catch (e) {
   console.log(JSON.stringify({ ok: false, pass: 0, total: 13, error: 'require failed: ' + e.message }));
-  process.exit(0);
+  process.exit(1);
 }
 
 let pass = 0;
@@ -141,3 +141,4 @@ function check(desc, actual, expected) {
 
 const ok = pass === total;
 console.log(JSON.stringify({ ok, pass, total }));
+process.exit(ok ? 0 : 1);

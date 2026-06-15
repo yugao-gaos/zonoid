@@ -116,10 +116,8 @@ async function main() {
   }
   const specBody = fs.readFileSync(path.resolve(REPO, specPath), 'utf8');
   const graderArg = arg('grader');
-  const accepts = graderArg
-    ? [[process.execPath, path.resolve(REPO, graderArg)]]
-    : ACCEPTANCE[problem];
-  if (!accepts) { console.error('no acceptance test for problem: ' + problem + ' (pass --grader <path> or add to ACCEPTANCE)'); process.exit(2); }
+  const artifactArg = arg('artifact', 'bench/sandbox/solution.js');
+  const minimalSourceArg = arg('minimal-source');
 
   // (a) isolated worktree off HEAD
   const wtRel = `worktrees/bench/${problem}-${arm}-${trial}`;
@@ -133,6 +131,21 @@ async function main() {
   const add = spawnSync('git', ['-C', REPO, 'worktree', 'add', '-b', branch, wtRel, 'HEAD'],
     { encoding: 'utf8' });
   if (add.status !== 0) { console.error('worktree add failed: ' + add.stderr); process.exit(1); }
+
+  // Copy minimal-source files (e.g. tests.js, input.js) into worktree sandbox
+  if (minimalSourceArg) {
+    const srcDir = path.resolve(REPO, minimalSourceArg);
+    const dstDir = path.join(wt, 'bench/sandbox');
+    fs.mkdirSync(dstDir, { recursive: true });
+    for (const f of fs.readdirSync(srcDir)) {
+      fs.copyFileSync(path.join(srcDir, f), path.join(dstDir, f));
+    }
+  }
+  const artifactPath = path.join(wt, artifactArg);
+  const accepts = graderArg
+    ? [[process.execPath, path.resolve(REPO, graderArg), artifactPath]]
+    : ACCEPTANCE[problem];
+  if (!accepts) { console.error('no acceptance test for problem: ' + problem + ' (pass --grader <path> or add to ACCEPTANCE)'); process.exit(2); }
 
   // (b) fresh session id + prompt.
   // Redirect the spec body's literal repo-root path to THIS worktree so the agent codes in

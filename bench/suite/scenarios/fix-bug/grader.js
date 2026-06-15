@@ -14,9 +14,10 @@ try {
   runResult = run();
 } catch (e) {
   console.log(JSON.stringify({ ok: false, pass: 0, total: 8, error: e.message }));
-  process.exit(0);
+  process.exit(1);
 }
 
 const pass = runResult.pass;
 const total = runResult.total;
 console.log(JSON.stringify({ ok: pass === total, pass, total }));
+process.exit(pass === total ? 0 : 1);
