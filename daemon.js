@@ -1606,10 +1606,24 @@ function buildGraph(ws) {
     const _judging = _adoptHold || (_js.judging && !_js.timedOut);
     return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: _js.judging && _js.timedOut, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: (ovWs.taskVecs && Array.isArray(ovWs.taskVecs[t.key])) ? ovWs.taskVecs[t.key] : null, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
+  // KEPT note context edges → context_deps for note nodes. The structBoost reranker (/search) and
+  // the BFS path tier read each node's context_deps as its graph adjacency; note nodes shipped with a
+  // hardcoded context_deps:[], so a judge-KEPT note→note edge never boosted its neighbor. Mirror the
+  // task-side convention (depRefs): a context edge e.to=<note> contributes e.from to that note's
+  // context_deps. JUDGED-KEPT ONLY — same filter as depRefs: kind==='context' AND weight!==0, so raw
+  // weight-0 autowire candidates (unjudged) are excluded; only a judge-promoted edge (keepEdge lifts
+  // weight off 0) registers. Built once into a key→from[] map so the note loop is O(1) per note.
+  const keptNoteCtxDeps = {}; // 'note:<id>' -> [from-key, ...] of judged-kept context edges
+  for (const e of (ovWs.edges || [])) {
+    if (e.kind !== 'context' || e.toWorkspace) continue;
+    if (typeof e.to !== 'string' || !e.to.startsWith('note:')) continue;
+    if (overlayStore.edgeWeight(e) === 0) continue;   // unjudged autowire candidate — excluded
+    (keptNoteCtxDeps[e.to] || (keptNoteCtxDeps[e.to] = [])).push(e.from);
+  }
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
   for (const n of Object.values(ovWs.note_nodes || {})) {
-    tasks.push({ id: 'note:' + n.id, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: [], note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null,
+    tasks.push({ id: 'note:' + n.id, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptNoteCtxDeps['note:' + n.id] || [], note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null,
       // Temporal/state-change fields (null on pre-temporal notes — back-compat): validFrom/validTo
       // bound when the fact was true; supersedes/supersededBy chain it to the note it replaced / was
       // replaced by. The dashboard reads these for the superseded indicator; /search for as-of.
@@ -1938,7 +1952,7 @@ function isPrimaryCheckout(root = __dirname) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, __setOverlayForTest: (o) => { state.overlay = o; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
+  decideOne, buildGraph, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
