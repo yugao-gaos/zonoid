@@ -14,7 +14,13 @@
  *       record with agent_tool_spawn===true (read from the sandbox agents.json).
  *   (2) overlay/status in_progress (the start_task path) then ACCEPTS that agent_id.
  *   (3) negative control: an agent registered WITHOUT the flag and WITHOUT a matching
- *       parent_session_id is still refused (the gate is not loosened).
+ *       parent_session_id persists agent_tool_spawn===false (the exec.js gate is not loosened).
+ *
+ * NOTE: the claim-refusal boundaries (no-worktree claim refused, with-worktree claim allowed via
+ * the self-register-on-claim fallback) live in test/self-register-on-claim.test.js. This test no
+ * longer asserts a 409 on a worktree-backed dispatcher-like claim: that fallback now legitimately
+ * self-registers any claim bearing an agent_id AND a registered worktree, so the worktree — not the
+ * agent_tool_spawn flag — is the claim-side security boundary.
  *
  * Sandboxed daemon on a private port — same pattern as test/endpoints.test.js. Never the live
  * daemon (8787). Run: node test/agent-tool-spawn-register.test.js
@@ -85,18 +91,17 @@ test('hook-style /agent/start (agent_tool_spawn:true, no parent_session_id) regi
     const claim = await post('/overlay/status', { key: KEY, status: 'in_progress', agent_id: 'hook-worker', session_id: SID });
     assert.equal(claim.body.ok, true, 'isSubagent check accepts the hook-registered worker — claim lands');
 
-    // ── (3) negative control: no flag + no matching parent_session_id => still refused ──
+    // ── (3) negative control: no flag + no matching parent_session_id => agent_tool_spawn===false ──
+    // This is the exec.js half of the gate: registration without the explicit flag and without a
+    // matching parent_session_id must persist agent_tool_spawn===false. The claim-side boundary
+    // (worktree-backed claims self-register and are allowed; worktree-less claims are refused 409)
+    // is covered end-to-end by test/self-register-on-claim.test.js, so it is not re-asserted here.
     const SID2 = crypto.randomUUID();
-    const KEY2 = `${crypto.randomUUID()}/1`;
     assert.equal((await post('/agent/start', {
       agent_id: 'dispatcher-like', session: SID2, parent_session_id: 'some-other-session',
     })).body.ok, true, 'dispatcher-like /agent/start accepted (registration always ok)');
     assert.equal(readAgent('dispatcher-like').agent_tool_spawn, false,
       'no flag + mismatched parent => agent_tool_spawn===false (gate not loosened)');
-    await post('/mark-root', { task_key: KEY2, reason: 'ats neg root' });
-    await post('/git/worktree', { key: KEY2, repo_path: WS });
-    const refused = await post('/overlay/status', { key: KEY2, status: 'in_progress', agent_id: 'dispatcher-like', session_id: SID2 });
-    assert.equal(refused.status, 409, 'dispatcher-like worker is still refused (409)');
   } finally {
     child.kill('SIGKILL');
     try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch { /* best effort */ }
