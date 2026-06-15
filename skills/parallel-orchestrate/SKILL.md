@@ -33,6 +33,14 @@ parallelizable work, with a token-efficient context handoff between dependent ta
      thread coordinates and chats while each runs.
    - The orchestrator graph tracks logical deps, NOT file-write contention — so before
      parallelizing, check the tasks don't share files; if they do, serialize.
+   - **Pair a judge task with each substantive impl task** (dispatcher's duty, like wiring):
+     create a judge task wired `blocking` (blocked_by) the impl task **before** dispatching, so it
+     goes `ready` automatically when the impl completes (reusing the DAG-gate trigger — no new
+     machinery). Skill-tag it in the prompt: the judge worker invokes **`self-learn-judge` in
+     single-attempt review mode** against the impl's attempt branch — it reviews the attempt diff
+     against the code-review rubric and either APPROVES (hold-merge verdict) or KICKS BACK, and
+     **never force-merges** (merge auto-aborts on conflict). Genuinely trivial edits (one-liner,
+     doc/config tweak) skip the judge; substantive multi-file work gets it.
 
 4. **Each subagent follows this contract** (this is what saves tokens):
    - **On start — call `mcp__orchestrator-graph__branch_task(task_key)` FIRST** to create an
