@@ -345,3 +345,81 @@ is a one-line backend switch on an already-3-arm-capable loop; OFF needs zero wo
 work is (a) writing the `ZonoidMemorySystem` HTTP adapter (~40 LoC, drafted in §3), (b) confirming
 daemon workspace isolation over HTTP, and (c) pinning the unpinned langchain/swebench deps. Not a
 research slog.
+
+---
+
+# Full-lifecycle surface (CL-2b investigation)
+
+The CL-2 adapter was a FLAT store: `POST /overlay/note force:true` + `GET /search gated:false`.
+CL-2b upgrades it to the REAL Zonoid lifecycle (add → wire → judge → tiered retrieval) + a WARM
+start. This section records exactly which lifecycle capabilities are reachable over plain HTTP
+(the eval is a separate Python process, no MCP client) — verified live against the running daemon.
+
+## Reachability matrix (smoke-verified, daemon @ localhost:8787)
+
+| Capability | HTTP-reachable? | Route / mechanism |
+|---|---|---|
+| **ADD** (write note) | YES | `POST /overlay/note {workspace,title,summary,category}` — WITHOUT `force` so the lifecycle runs |
+| **WIRE** (autowire) | YES (automatic) | `/overlay/note` runs `ctx.ingestNode` → `autowireNoteProvider` on every write: seeds **weight-0 candidate context edges** to semantically-related notes/tasks + `markEagerJudge`. Response field `autowired:<n>` reports how many were seeded. No separate call needed. |
+| **WIRE** (explicit edge) | YES | `POST /overlay/edge {from,to,kind:"context"}` (the route behind `add_dependency`/`suggest_links`/`wires_to`); `/overlay/note` also accepts a `wires_to:[taskKey]` array inline. |
+| **JUDGE: read queue** | **NO (workspace-blind)** | `GET /judge/next` (both eager `?node=` and the global cursor queue) reads `state.overlay` / `state.workspace` **hardcoded** (routes/judge.js L47/L57/L76) — it IGNORES the `workspace` query param. An isolated per-sequence eval workspace canNOT read its candidate edges / dup-clusters over HTTP. |
+| **JUDGE: write verdict** | YES (workspace-targetable) | `POST /judge/verdict {workspace, verdicts:[...]}` uses `targetOverlay(b,u)` → targets the per-sequence workspace. Supports `keepEdge` (promote weight-0 → ranked), `pruneEdge`, `createEdge`, `markDistinct`/`consolidate` (resolve a pending-dup pair). |
+| **TIERED retrieval** | YES | `GET /search?task_key=<k>` returns a structured bundle: **DAG tier** (`tier:"dag"`, score 1.0 = the task's judged context_deps) prepended, then **RAG tier** (`tier:"rag"`). Each hit carries `tier`, `via` (semantic/lexical), `path` (provenance), and note supersede fields. Structural rerank (`structBoost`) lifts hits whose judged neighbors also score. |
+
+## The JUDGE-read gap and the bridge (faithfulness note)
+
+The ONE missing HTTP capability: **you cannot READ the judge work-queue for a non-live workspace.**
+`GET /judge/next` is hardcoded to the daemon's own workspace. So an isolated eval workspace cannot
+enumerate which candidate edges were autowired, nor pull its pending-dup clusters, over HTTP.
+
+This is NOT faked with a raw inject. It is **bridged using data the daemon already returns on the
+write**: `POST /overlay/note` responds with `autowired:<n>` and, on a dup-guard fire (cosine ≥ 0.70),
+`{pending_dup:true, note_key, match:{key,...}}`. The adapter drives the **workspace-targetable**
+`POST /judge/verdict` against exactly that pair:
+
+1. **Dup-judge:** if the write returned `pending_dup`, the new note is **retrieval-invisible** until
+   judged. The adapter posts `{verdicts:[{markDistinct:{keys:[note_key, match.key]}}]}` (CL
+   experiences are distinct attempts, not the same fact) → `clearPendingDup` makes the note visible.
+2. **Edge-judge:** the adapter posts `{verdicts:[{keepEdge:{from:note_key, to:match.key}}]}` to
+   PROMOTE the autowired weight-0 candidate edge to a ranked (judged, weight>0) context edge, so the
+   next retrieval treats the wired neighbor as real signal (and `tier:"dag"` if it becomes a context_dep).
+
+**Two HTTP gotchas (both verified live, both silent-no-op traps):**
+- `markDistinct` / `markJudged` are NOT in the `/judge/verdict` bare-body fallback allowlist
+  (routes/judge.js ~L132 only sniffs createEdge/keepEdge/pruneEdge/consolidate/surfaceCluster/
+  markJudged/item). A bare `{markDistinct:{...}}` body yields an EMPTY verdicts array → `applied`
+  all-zero, no error. **Always wrap as `{verdicts:[{markDistinct:{...}}]}`.**
+- The dup guard fires at **cosine ≥ 0.70** on the title vector. Consecutive similar CL experiences
+  (very common — same repo, adjacent files) land `pending_dup` = invisible until judged. The old
+  `force:true` flat store SUPPRESSED this entirely (and thus never exercised the judge). Dropping
+  `force` is what makes the arm faithful — and what makes driving the dup-judge mandatory.
+
+**What is genuinely missing (the only fully-faithful gap):** the dispatcher's *intelligent* judge
+(self-learn-edge-judge skill: reason keep/prune/consolidate from the neighborhood) cannot run inside
+the Python adapter — it would need an LLM-in-the-loop per task, and it cannot read the queue anyway.
+The adapter substitutes a **deterministic keep-and-distinct policy** (keep the autowired neighbor,
+mark the dup pair distinct). This is the right call for a memory-pilot: the POINT of the Zonoid arm
+is to exercise wire→judge→tiered-retrieval so the next task sees WIRED + JUDGED (visible, ranked,
+neighbor-boosted) KB instead of a flat cosine dump. If a future run wants the reasoning judge, the
+clean fix is **one HTTP change: make `GET /judge/next` honor the `workspace` query param** (route it
+through `targetOverlay` like `/judge/verdict` already does) so an external judge process can read the
+queue for the eval workspace. Logged as a graph note wired to task 22.
+
+## Tiered retrieval in `get_relevant_context_for_prompt`
+
+The adapter retrieves with the structured `/search` bundle (NOT flat `gated:false` cosine):
+ungated, structured, and it surfaces each hit's `tier`/`via`/`path` provenance. Because the
+per-task experiences are wired+judged, related experiences co-retrieve (the judged neighbor rides
+along via structBoost / the same query), so the prompt block shows the experience AND its judged
+context — the "note + judged neighbors" shape, not an isolated cosine hit.
+
+## Warm start
+
+`scripts/onboard-learn.js --inject --confirm --workspace <ABS seq path>` injects the learnt
+`[ingest]` KB notes into a **target absolute-path workspace** via `POST /overlay/note` (the
+`--workspace` flag, default = repo path, overrides to the sequence workspace). The full warm-start
+pipeline (mine git/docs/config/structure → agentic learn → drain → inject) onboards
+`pytest-dev/pytest` at the CL sequence's base commit and seeds the sequence's Zonoid workspace, so
+task 1 retrieves repo knowledge with zero prior experiences. Known onboarding fixes applied:
+`ORCH_GATE_OFF=1`, `--model sonnet`, `--workspace <abs seq path>`. The Python adapter must then NOT
+rotate/clear that workspace at sequence start (warm) — see `warm:true` constructor flag.

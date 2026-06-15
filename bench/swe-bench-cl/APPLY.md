@@ -55,6 +55,9 @@ MEMORY_BACKEND = "zonoid"
 # Absolute root for per-sequence Zonoid workspaces (MUST be absolute — see note below).
 ZONOID_BASE_URL = "http://localhost:8787"
 ZONOID_WORKSPACE_ROOT = os.path.abspath("./zonoid_cl_workspaces")
+# True ⇒ each sequence's Zonoid workspace was pre-seeded by the warm-start step (§2e); the adapter
+# then does NOT rotate/clear it at sequence start, so task 1 already has the onboarded repo KB.
+ZONOID_WARM = True
 ```
 
 ### 2b. Add the import near the other memory imports (top of file)
@@ -83,6 +86,8 @@ if is_memory_enabled_for_run:
             workspace_root=ZONOID_WORKSPACE_ROOT,
             arm="zonoid",
             num_retrieved_memories=3,               # keep equal to the FAISS arm's k
+            warm=ZONOID_WARM,                       # True ⇒ workspace was onboard-seeded; do NOT
+                                                    #   rotate/clear it at sequence start (warm)
         )
         current_memory_system.warm_up()             # pre-pay the ~10-90s embedder cold start
     else:
@@ -110,6 +115,71 @@ Keep arms comparable: same model, same `num_retrieved_memories=3`, same prompt t
 
 **The Zonoid daemon must be running on the eval box** (`http://localhost:8787`) for the Zonoid
 arm. The OFF and FAISS arms do not touch it.
+
+### 2e. WARM-START prep (run BEFORE the eval, per sequence) — Zonoid-full arm only
+
+The Zonoid arm is **FULL lifecycle + WARM start**, not a flat cold store. Warm start onboards the
+sequence's repo and seeds that sequence's Zonoid workspace, so task 1 already retrieves repo
+knowledge. Run the prep script (from the **zonoid repo** on the eval box, with the **Node daemon
+running**) once per sequence, BEFORE the eval loop reaches that sequence:
+
+```
+node bench/swe-bench-cl/warm_start.js \
+  --repo /abs/path/to/pytest \                 # repo checked out at the CL sequence's BASE commit
+  --sequence pytest-dev_pytest_sequence \      # MUST equal the eval loop's current_sequence_id
+  --workspace-root /abs/.../zonoid_cl_workspaces \   # MUST equal ZONOID_WORKSPACE_ROOT (§2a)
+  --arm zonoid                                 # MUST equal the adapter's arm
+```
+
+It mines (git/docs/config/structure) → agentic-learns (`--model sonnet`) → drains → injects the
+`[ingest]` KB into `<workspace-root>/<slug>` where `slug = slugify("<sequence>-<arm>")` — the EXACT
+absolute workspace the Python adapter reads (the script and `zonoid_memory.py.__init__` share the
+slug rule; keep them in lockstep). `ORCH_GATE_OFF=1` is set in the child env automatically. The
+script prints the resolved workspace path on stdout.
+
+Because `ZONOID_WARM = True`, the adapter's `clear_memory()` is a **no-op** for the Zonoid arm, so
+the warm seed survives into task 1 (it would otherwise rotate to a fresh empty workspace). Run
+warm_start.js for every sequence you intend to evaluate.
+
+> If you want a **cold** Zonoid arm for ablation (no onboarded seed), set `ZONOID_WARM = False`
+> and skip warm_start.js — `clear_memory()` then rotates to a fresh per-sequence workspace as
+> before. Keep the 3-arm toggle (OFF / FAISS / Zonoid-full) intact; warm is a property of the
+> Zonoid arm, not a 4th arm.
+
+### 2f. What the Zonoid arm actually does per task (full lifecycle)
+
+`add_experience_to_memory` is **add → wire → judge**, not a flat force-write:
+1. **ADD** `POST /overlay/note` (NO `force`) — the daemon autowires weight-0 candidate context
+   edges to related notes and marks the note for eager judging.
+2. **WIRE** is automatic in that write (the daemon's `ingestNode` path).
+3. **JUDGE** `POST /judge/verdict` — driven from the write response: `markDistinct` clears a
+   `pending_dup` flag (the 0.70 title-cosine dup guard makes near-dup experiences
+   retrieval-invisible until judged), and `keepEdge` promotes the autowired neighbor edge to a
+   ranked context edge.
+
+`get_relevant_context_for_prompt` is **tiered/structured** `GET /search` — each hit carries
+`tier` (dag/rag), `via`, and `path` provenance, and the wired+judged neighbor co-retrieves.
+
+**Faithfulness note / known gap:** the daemon's judge *read* queue (`GET /judge/next`) is
+workspace-blind over HTTP (hardcoded to the daemon's live workspace), so the adapter cannot read
+which edges were autowired for an isolated eval workspace. It bridges this by driving
+`/judge/verdict` (which *is* workspace-targetable) from the `{pending_dup, match}` the write
+returns — a deterministic keep-and-distinct policy, not the dispatcher's LLM reasoning judge. The
+clean future fix is one HTTP change: make `/judge/next` honor the `workspace` query param. See
+INTEGRATION-PLAN.md "Full-lifecycle surface" for the full matrix.
+
+### 2g. SMOKE EVIDENCE (captured on macOS dev daemon, 2026-06-15)
+
+`python3 eval_v1/zonoid_memory.py` runs the built-in lifecycle self-test and a scripted warm-start
+test confirmed all of:
+- **Warm-start hit at task 1:** an injected `[ingest]` repo note retrieved at relevance 0.87 with
+  zero prior experiences.
+- **Experience + judged neighbor at N+1:** two near-dup experiences (t-100, t-101) both retrieved;
+  t-101 had tripped the dup guard (pending_dup, invisible) and was made visible by the lifecycle's
+  `markDistinct` verdict — proving add→wire→judge→retrieval, not a force-bypass.
+- **Workspace isolation:** a different sequence's workspace retrieved none of the above.
+
+On the eval box re-run `python3 eval_v1/zonoid_memory.py` (daemon up) to re-confirm before the run.
 
 ---
 
@@ -155,9 +225,22 @@ server-side.
 images, amd64 native, Docker Desktop + WSL2 backend, ~50-100 GB disk. Confirm the chosen
 `--dataset_name` split has images for all 19 pytest instance_ids with a 1-task smoke run first.
 
+**Full Zonoid stack on the Windows/WSL2 box (Zonoid-full arm only):** the arm needs the **Node
+daemon running** (`http://localhost:8787`) AND the onboard scripts available (clone the zonoid
+repo on the box; `node daemon.js`). The warm-start step (§2e) shells `node
+bench/swe-bench-cl/warm_start.js`, which runs the onboard mine/learn/inject pipeline against the
+daemon. So on the box: (1) start the Node daemon, (2) run warm_start.js per sequence to seed each
+workspace, (3) run the Python eval with `ZONOID_WARM = True`. The OFF and FAISS arms need none of
+this (no daemon, no Node).
+
 ---
 
 ## 4. SMOKE CHECK — round-trip + workspace isolation (RESOLVED: YES)
+
+> **CL-2b note:** the capture below is the original CL-2 FLAT round-trip. The current adapter is
+> FULL lifecycle + warm start — its smoke evidence (warm-start hit, judged-neighbor co-retrieval,
+> isolation) is in **§2g**, and `python3 zonoid_memory.py` now exercises the full add→wire→judge
+> path. This section is retained as the baseline round-trip proof.
 
 Run against the local daemon (this was executed on the Mac during integration):
 
@@ -209,9 +292,15 @@ is retrievable from A and invisible from B.
 2. **Write route is `POST /overlay/note`, not `/record_decision`.** `record_decision` is an MCP
    tool name with no HTTP route. Body: `{workspace, title, summary, category, force}`.
 
-3. **Dup guard (0.70 cosine) → pass `force: true`.** Without it, a near-identical solution is
-   admitted "pending_dup" = **retrieval-invisible** until a judge clears it. A CL pilot wants
-   every graded attempt recorded, so the adapter always sends `force: true`.
+3. **Dup guard (0.70 cosine) → DRIVE THE JUDGE (CL-2b), do NOT force-bypass.** A near-identical
+   solution is admitted "pending_dup" = **retrieval-invisible** until a judge clears it. CL-2
+   sent `force: true` to bypass this — but that ALSO suppressed the autowire + judge lifecycle,
+   making the arm a flat store. CL-2b instead DROPS `force` and drives the judge: on a
+   `pending_dup` write response, `POST /judge/verdict {verdicts:[{markDistinct:{keys:[note_key,
+   match]}}]}` clears the flag (note becomes visible) and a `keepEdge` promotes the autowired
+   neighbor edge. This is what makes the arm the REAL Zonoid lifecycle. **Gotcha:** `markDistinct`
+   is not in the `/judge/verdict` bare-body allowlist — it MUST be wrapped in `{verdicts:[...]}`
+   or the call is a silent no-op (see INTEGRATION-PLAN "Full-lifecycle surface").
 
 4. **`/search` is GET with query-string params** (`?q=&k=&workspace=&gated=false`). POST /search
    ignores the body's query field — do not use it.
