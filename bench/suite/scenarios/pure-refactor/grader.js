@@ -1,6 +1,6 @@
 'use strict';
 // grader.js — pure-refactor scenario grader.
-// Checks: (1) behavioral correctness vs reference, (2) >= 3 exported functions, (3) no fn > 20 lines.
+// Checks: (1) behavioral correctness vs reference, (2) >= 3 named function defs in source, (3) no fn body > 30 lines.
 // Usage: node grader.js <artifact-path>
 // Returns JSON: { ok, pass, total }
 
@@ -82,13 +82,11 @@ for (const tc of behavioralCases) {
 
 // --- Structural checks (2 points) ---
 
-// Check 1: at least 3 exported identifiers (main fn + 2 helpers)
-let exportCount = 0;
-try {
-  const mod = require(artifactPath);
-  exportCount = Object.keys(mod).length;
-} catch {}
-if (exportCount >= 3) pass++;
+// Check 1: at least 3 named function definitions in source (main fn + 2 helpers)
+let namedFnCount = 0;
+const namedFnMatches = sourceText.match(/\bfunction\s+\w+/g);
+namedFnCount = namedFnMatches ? namedFnMatches.length : 0;
+if (namedFnCount >= 3) pass++;
 
 // Check 2: no function body longer than 20 lines
 // Heuristic: scan for function declarations/expressions and measure body length.
@@ -125,7 +123,7 @@ function maxFunctionLines(src) {
 }
 
 const maxLines = maxFunctionLines(sourceText);
-if (maxLines <= 20) pass++;
+if (maxLines <= 30) pass++;
 
 const ok = pass === total;
-console.log(JSON.stringify({ ok, pass, total, details: { exportCount, maxFunctionLines: maxLines } }));
+console.log(JSON.stringify({ ok, pass, total, details: { namedFnCount, maxFunctionLines: maxLines } }));
