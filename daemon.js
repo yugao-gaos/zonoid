@@ -518,6 +518,21 @@ function releaseClaim(key, reason, ov = state.overlay, ctx = null, ws = state.wo
   }
   return true;
 }
+// reapAgent: transition an agent's registry record out of 'running' into terminal 'stale' (with an
+// endedAt stamp) so /health's summary.agents.running stops counting it. Called in lockstep with a
+// releaseClaim that swept the agent's stale claim — the caller has ALREADY selected this key as
+// stale (staleClaimKeys / a forced sweep), so it is NOT this helper's job to re-check vouchedLive:
+// it only reaps records currently 'running', and is a no-op otherwise (idempotent, and a guard
+// against ever flipping a genuinely-live agent the caller didn't select). Returns true if it
+// actually reaped (so callers can batch the saveAgents()). Mirrors sweepStaleAgents' transition
+// shape ({...a, state, endedAt}) but to 'stale' rather than 'dead' — both non-running, see the note
+// in sweepStaleClaims; agents map defaults to the current registry.
+function reapAgent(agentId, agents = state.agents) {
+  const a = agentId && agents[agentId];
+  if (!a || a.state !== 'running') return false;
+  agents[agentId] = { ...a, state: 'stale', endedAt: new Date().toISOString() };
+  return true;
+}
 // vouchedLive (pure): can a registry record that says 'running' be TRUSTED as live? Within one
 // daemon lifetime yes — the record was written this boot (startedAt/lastSeen >= bootMs). Across a
 // restart the record is restored from disk and the agent may have died while the daemon was down,
@@ -572,8 +587,7 @@ function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
       // counting it. Coupling the reap to the release (not just the independent sweepStaleAgents
       // pass) guarantees the count drops the instant a claim is swept. Same trust basis: we only
       // reach here for keys staleClaimKeys returned, i.e. the agent already failed vouchedLive.
-      const a = agentId && state.agents[agentId];
-      if (a && a.state === 'running') { state.agents[agentId] = { ...a, state: 'stale', endedAt: new Date().toISOString() }; agentsDirty = true; }
+      if (reapAgent(agentId)) agentsDirty = true;
     }
   }
   if (agentsDirty) saveAgents();
@@ -1827,7 +1841,7 @@ const ctx = {
   GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL,
   sseClients, agentsArr,
   taskTranscript, usageCached, harnessTranscriptForTask,
-  touchAgent, staleClaimKeys, releaseClaim, sweepStaleClaims, sweepStaleLoops,
+  touchAgent, staleClaimKeys, releaseClaim, reapAgent, sweepStaleClaims, sweepStaleLoops,
   mainTranscriptForSession: (sid) => sessionBindings.mainTranscriptForSession(state, sid),
   sessionCount: () => sessionBindings.sessionCount(state),
   snapshotNative, now, isTruthy,

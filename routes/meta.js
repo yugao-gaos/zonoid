@@ -7,7 +7,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, buildGraph, state, setState, setWorkspace,
     GIT_HEAD, BOOTED_AT, FEATURES, sseClients, overlayStore, harness, analytics,
     analyticsState, analyticsFlush, PUBLIC, loops, taskTranscript, usageCached,
-    staleClaimKeys, releaseClaim, cache, targetOverlay, MCP_CALL,
+    staleClaimKeys, releaseClaim, reapAgent, saveAgents, cache, targetOverlay, MCP_CALL,
     embedStatus, respCacheGet, respCachePut, isTruthy, frontier, agentsArr, sessionCount } = ctx;
 
   if (p === '/ping') { send(res, 200, { ok: true, workspace: state.workspace, sessions: sessionCount() }); return true; }
@@ -53,6 +53,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const nowMs = Date.now();
     const cutoff = nowMs - staleMins * 60000;
     let released = 0;
+    let agentsDirty = false;
     const stWsSweep = ws === state.workspace ? state : { ...state, overlay: ovWs };
     if (b.force) {
       for (const [key, st] of Object.entries(ovWs.status)) {
@@ -62,7 +63,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (ts && Date.parse(ts.lastChanged) > cutoff) continue;
         const tp = taskTranscript(key, null, true, stWsSweep);
         const tokenUsage = tp ? usageCached(tp) : null;
-        if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${staleMins}m (force=true)`, ovWs, { agentId, mins: staleMins, tokenUsage }, ws)) released++;
+        if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${staleMins}m (force=true)`, ovWs, { agentId, mins: staleMins, tokenUsage }, ws)) {
+          released++;
+          // Reap the owning agent in lockstep with the claim, same as sweepStaleClaims: this key was
+          // selected for release (force bypasses vouchedLive), so its 'running' record is a zombie —
+          // drop it out of /health's running count now instead of waiting for sweepStaleAgents' 60s pass.
+          if (reapAgent(agentId)) agentsDirty = true;
+        }
       }
     } else {
       const sweepOv = staleMins !== (ovWs.config.stale_minutes ?? 10)
@@ -70,9 +77,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       for (const { key, agentId, mins } of staleClaimKeys(sweepOv, state.agents, nowMs)) {
         const tp = taskTranscript(key, null, true, stWsSweep);
         const tokenUsage = tp ? usageCached(tp) : null;
-        if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${mins}m`, ovWs, { agentId, mins, tokenUsage }, ws)) released++;
+        if (releaseClaim(key, `sweep: worker '${agentId || '?'}' idle >${mins}m`, ovWs, { agentId, mins, tokenUsage }, ws)) {
+          released++;
+          if (reapAgent(agentId)) agentsDirty = true;
+        }
       }
     }
+    if (agentsDirty) saveAgents();
     if (released) { overlayStore.save(ws, ovWs); notifyChange(); cache.agg.delete(ws); cache.aggAt.delete(ws); }
     send(res, 200, { ok: true, released }); return true;
   }

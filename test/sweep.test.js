@@ -125,6 +125,44 @@ test('POST /sweep', { timeout: 15000 }, async (t) => {
       assert.ok(d.task, 'task detail returned');
       assert.match(d.task.note, /sweep:.*idle/i, 'released task note carries the continuity reason');
     });
+
+    await t.test('a force /sweep release reaps the owning agent out of the running count, keeps a live agent', async () => {
+      // 3d: the POST /sweep route must reap the owning agent in lockstep with the released claim
+      // (shared reapAgent helper), not leave it 'running' until the independent sweepStaleAgents
+      // 60s pass. summary.agents.running is the count /graph exposes (daemon summaryFor).
+      const graph = async () => (await req('GET', `/state?workspace=${encodeURIComponent(WS)}`)).body;
+      const agentState = async (id) => (await graph()).agents.find((a) => a.agent_id === id);
+
+      // One backed task whose claim we will force-sweep, owned by its own agent.
+      dropStub('cursor', 'reap-blocker');
+      dropStub('cursor', 'reap-swept', { blockedBy: ['reap-blocker'] });
+      await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`);
+      await req('POST', '/agent/start', { agent_id: 'reap-swept-agent', session: 'reap-swept-sess', agent_tool_spawn: true });
+      await req('POST', '/git/worktree', { workspace: WS, key: 'cursor/reap-swept', repo_path: WS });
+      await req('POST', '/overlay/status', { workspace: WS, key: 'cursor/reap-swept', status: 'in_progress', agent_id: 'reap-swept-agent', session_id: 'reap-swept-sess' });
+
+      // A second agent that holds NO swept claim — the control. It must stay running across the sweep.
+      await req('POST', '/agent/start', { agent_id: 'reap-live-agent', session: 'reap-live-sess', agent_tool_spawn: true });
+
+      assert.equal((await agentState('reap-swept-agent')).state, 'running', 'claim owner running before sweep');
+      assert.equal((await agentState('reap-live-agent')).state, 'running', 'control agent running before sweep');
+      const before = (await graph()).summary.agents.running;
+
+      // force:true + stale_minutes:0 releases the idle claim; the route must reap its owning agent.
+      const swept = await req('POST', '/sweep', { workspace: WS, force: true, stale_minutes: 0 });
+      assert.equal(swept.status, 200);
+      assert.ok(swept.body.released >= 1, 'force sweep released the stale claim');
+
+      // The agent that owned the swept claim is reaped out of the running count, terminal-stamped.
+      const sweptAgent = await agentState('reap-swept-agent');
+      assert.notEqual(sweptAgent.state, 'running', 'swept agent reaped out of running');
+      assert.equal(sweptAgent.state, 'stale', 'swept agent moved to terminal stale state');
+      assert.equal(typeof sweptAgent.endedAt, 'string', 'swept agent stamped endedAt');
+
+      // The control agent (no swept claim) is untouched, and the running count dropped by exactly one.
+      assert.equal((await agentState('reap-live-agent')).state, 'running', 'control agent still running');
+      assert.equal((await graph()).summary.agents.running, before - 1, 'running count dropped by one');
+    });
   } finally {
     child.kill();
     try { fs.rmSync(SANDBOX, { recursive: true }); } catch { /* */ }
