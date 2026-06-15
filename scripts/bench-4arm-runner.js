@@ -23,6 +23,7 @@ const SCENARIOS = fs.readdirSync(SUITE_DIR)
 
 const ARM_CONFIGS = [
   { armId: 0, label: 'baseline',       flags: [] },
+  { armId: 4, label: 'mcp-only',       flags: [] },
   { armId: 1, label: 'global-summary', flags: ['--with-global-summary'] },
   { armId: 2, label: 'sliding-window', flags: ['--with-window'] },
   { armId: 3, label: 'combined',       flags: ['--with-global-summary', '--with-window'] },
@@ -87,7 +88,7 @@ async function main() {
   }
 
   if (!DRY_RUN) {
-    const outPath = path.join(REPO, 'bench-4arm-mix-results.json');
+    const outPath = path.join(REPO, 'bench-5arm-mix-results.json');
     fs.writeFileSync(outPath, JSON.stringify({ runAt: new Date().toISOString(), scenarios: SCENARIOS.map(s => s.name), results }, null, 2));
     process.stderr.write('[4arm-mix] Written: ' + outPath + '\n');
   }
