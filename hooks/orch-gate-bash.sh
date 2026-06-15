@@ -34,6 +34,15 @@ if printf '%s' "$CMD" | grep -qE '(^|[;&|]|&&|\|\|)[[:space:]]*git[[:space:]]+(-
   exit 0
 fi
 
+# ── Local daemon exemption ─────────────────────────────────────────────────
+# curl/wget to the local orchestrator daemon are HTTP calls, not file writes.
+# Edge signatures contain '>>' as a separator which false-positives the write
+# detector below. Exempt any curl targeting localhost on the orchestrator port.
+if printf '%s' "$CMD" | grep -qE '\b(curl|wget)\b.*localhost:'"${PORT}"'(/|$)' 2>/dev/null || \
+   printf '%s' "$CMD" | grep -qE '\b(curl|wget)\b.*127\.0\.0\.1:'"${PORT}"'(/|$)' 2>/dev/null; then
+  exit 0
+fi
+
 # ── Write-pattern detection ────────────────────────────────────────────────
 # We look for common file-write idioms. We match on the raw command string;
 # false-positives are fine (just triggers the claim check), false-negatives
