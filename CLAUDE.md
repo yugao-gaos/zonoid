@@ -30,6 +30,23 @@ multi-file change), the main agent should **not implement inline**. Instead:
 subagents: it is unenforced (unlike the write gate), so smaller worker models reliably drop it,
 and workers lack the structural context (e.g. which sibling tasks collide on the same files).
 
+**Pairing a judge task is the dispatcher's duty, too.** When dispatching a **substantive impl
+task**, the dispatcher ALSO creates a **judge task** wired `blocking` (blocked_by) that impl task,
+**before** dispatching the impl — so the judge goes `ready` automatically the moment the impl
+completes and the loop spawns it. This reuses the existing DAG-gate trigger (a task blocked_by its
+deps goes ready when they finish); no new trigger machinery. The judge task must be **skill-tagged
+in its handoff/prompt** — the daemon does not know skills, so the skill selection rides the prompt
+exactly like impl workers: the judge worker invokes **`self-learn-judge` in single-attempt review
+mode** against the impl's attempt branch (`orch/attempt/<impl-key>`). In that mode the review IS the
+verdict — it fetches the attempt diff (`get_attempt_diff`), applies the code-review rubric
+(correctness, scope discipline, dead/redundant code, test presence/quality, style) and either
+APPROVES (hold-merge verdict — the loop records but does not merge by default) or KICKS BACK
+(`set_status` failed + a wired `record_decision`). The judge **NEVER force-merges**: merge is
+`git merge --no-ff` and auto-aborts on conflict, escalating rather than forcing. **Complexity
+gate:** this auto-judge applies to substantive multi-file work only — genuinely trivial edits (a
+one-liner, a doc tweak, a config change) skip it, the same triviality carve-out as the inline-edit
+rule below.
+
 **Hand the worker a typed `handoff_envelope`, not prose duties.** Instead of restating the
 worker's duties verbatim in English, the dispatcher builds the slotted `handoff_envelope` defined
 in [`schemas/handoff.v1.schema.json`](./schemas/handoff.v1.schema.json) and embeds it in the
