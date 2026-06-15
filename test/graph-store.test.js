@@ -122,9 +122,9 @@ function tmpDir() {
   gs.appendEvent(store, 'note:' + noteId, { evt: 'note_vec_set', actor: 'b', id: noteId, vec: [0.1, 0.2] });
 
   ok('bare note id writes canonical file', !fs.existsSync(path.join(store.nodesDir, `${noteId}.jsonl`)));
-  ok('prefixed note id uses same file', fs.existsSync(path.join(store.nodesDir, `note:${noteId}.jsonl`)));
+  ok('prefixed note id uses same file', fs.existsSync(path.join(store.nodesDir, `note%3A${noteId}.jsonl`)));
 
-  const canonicalFile = path.join(store.nodesDir, `note:${noteId}.jsonl`);
+  const canonicalFile = path.join(store.nodesDir, `note%3A${noteId}.jsonl`);
   const lines = fs.readFileSync(canonicalFile, 'utf8').trim().split('\n');
   ok('canonical file has both events', lines.length === 2);
   ok('first event is note_created', JSON.parse(lines[0]).evt === 'note_created');
@@ -591,6 +591,34 @@ function tmpDir() {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+// ── filename codec round-trip (Windows-safe) ──────────────────────────────
+{
+  // ':' -> '%3A' on disk; '/' preserved (intentional subdir separator); round-trips back.
+  ok('idToFile encodes colon: note id',     gs.idToFile('note:note-abc') === 'note%3Anote-abc.jsonl');
+  ok('fileToId decodes colon: note id',     gs.fileToId('note%3Anote-abc.jsonl') === 'note:note-abc');
+
+  ok('idToFile encodes colon: system id',   gs.idToFile('system:repos') === 'system%3Arepos.jsonl');
+  ok('fileToId decodes colon: system id',   gs.fileToId('system%3Arepos.jsonl') === 'system:repos');
+
+  ok('idToFile plain numeric id',           gs.idToFile('12') === '12.jsonl');
+  ok('fileToId plain numeric id',           gs.fileToId('12.jsonl') === '12');
+
+  // subdir id: '/' preserved, no '%3A' introduced
+  ok('idToFile preserves subdir slash',     gs.idToFile('followup/harness-judge-drain') === 'followup/harness-judge-drain.jsonl');
+  ok('fileToId preserves subdir slash',     gs.fileToId('followup/harness-judge-drain.jsonl') === 'followup/harness-judge-drain');
+
+  // round-trip for every case
+  for (const id of ['note:note-abc', 'system:repos', '12', 'followup/harness-judge-drain']) {
+    ok(`round-trip ${id}`, gs.fileToId(gs.idToFile(id)) === id);
+  }
+
+  // backward compat: a legacy ':' filename on disk still reads back to the ':' id
+  ok('fileToId reads legacy colon filename', gs.fileToId('note:note-abc.jsonl') === 'note:note-abc');
+
+  // Windows separator normalization: a '\' in a recursive-readdir path normalizes to '/'
+  ok('fileToId normalizes windows separators', gs.fileToId('followup\\harness-judge-drain.jsonl') === 'followup/harness-judge-drain');
 }
 
 console.log('-----');
