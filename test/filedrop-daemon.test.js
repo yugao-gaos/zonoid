@@ -28,6 +28,7 @@ const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-file
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX; // before requires — both modules read env at load
 const filedrop = require('../lib/filedrop-tasks');
 const overlayStore = require('../lib/overlay');
+const git = require('../lib/git');
 
 const PORT = 18840 + Math.floor(Math.random() * 100);
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-filedrop-ws-')));
@@ -88,6 +89,7 @@ function spawnDaemon() {
 }
 
 (async () => {
+  git.initRepo(WS); // claim gate needs a registered worktree, which needs a git repo
   let child = spawnDaemon();
   try {
     ok('daemon came up', await waitForPing());
@@ -98,6 +100,9 @@ function spawnDaemon() {
     // ------------------------------------------------------------------
     dropStub('cursor', 'aaa', { description: 'the blocker', created_by: { harness: 'cursor', agent_id: 'worker-1' } });
     dropStub('cursor', 'bbb', { blockedBy: ['aaa'] });
+    // A genuinely standalone stub for the unwired-quarantine assertion: aaa is wired (bbb's
+    // native blockedBy edge clears unwired on BOTH endpoints), so it can't be the unwired example.
+    dropStub('cursor', 'ccc', { description: 'standalone unwired probe' });
 
     let g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
     let aaa = g.tasks.find((t) => t.id === 'cursor/aaa');
@@ -116,7 +121,7 @@ function spawnDaemon() {
     }
     ok('(A) blocker derives ready (after adopt-hold clears)', aaa && aaa.status === 'ready');
     ok('(A) blocked task derives not_ready', bbb && bbb.status === 'not_ready');
-    ok('(A) summary counts stub tasks', g.summary && g.summary.tasks_total === 2);
+    ok('(A) summary counts stub tasks', g.summary && g.summary.tasks_total === 3); // aaa, bbb, ccc
     let ovFirst = overlayStore.load(WS);
     ok('(D) adoption snapshot minted at first sight for cursor/aaa', ovFirst.snapshots && ovFirst.snapshots['cursor/aaa']);
     ok('(D) adopted blockedBy normalized on cursor/bbb', (ovFirst.snapshots['cursor/bbb'].blockedBy || []).includes('cursor/aaa'));
@@ -124,12 +129,16 @@ function spawnDaemon() {
     // ------------------------------------------------------------------
     // (B) overlay machinery parity: unwired quarantine + claims
     // ------------------------------------------------------------------
-    // aaa was first seen with no overlay edges -> unwired quarantine refuses an in_progress
-    // claim, exactly as for a native task (proves stubs share the same pipeline).
-    const claimAaa = await req('POST', '/overlay/status', { workspace: WS, key: 'cursor/aaa', status: 'in_progress', agent_id: 'w1' });
-    ok('(B) unwired stub claim refused 409', claimAaa.status === 409 && /unwired/.test(claimAaa.body.error || ''));
-    // bbb carries a native dep -> not quarantined; claim lands.
-    const claimBbb = await req('POST', '/overlay/status', { workspace: WS, key: 'cursor/bbb', status: 'in_progress', agent_id: 'w1' });
+    // ccc (standalone, nothing depends on it) was first seen with no overlay edges -> unwired
+    // quarantine refuses an in_progress claim, exactly as for a native task (proves stubs share the
+    // same pipeline). It needs a worktree + session_id to clear the DG1/DG2 gate and REACH the
+    // unwired check (which fires after). aaa can't be used: bbb's blockedBy edge wires it.
+    await req('POST', '/git/worktree', { workspace: WS, key: 'cursor/ccc', repo_path: WS });
+    const claimCcc = await req('POST', '/overlay/status', { workspace: WS, key: 'cursor/ccc', status: 'in_progress', agent_id: 'w1', session_id: 'fd-worker-sid' });
+    ok('(B) unwired stub claim refused 409', claimCcc.status === 409 && /unwired/.test(claimCcc.body.error || ''));
+    // bbb carries a native dep -> not quarantined; claim lands (DG1/DG2: worktree + session_id).
+    await req('POST', '/git/worktree', { workspace: WS, key: 'cursor/bbb', repo_path: WS });
+    const claimBbb = await req('POST', '/overlay/status', { workspace: WS, key: 'cursor/bbb', status: 'in_progress', agent_id: 'w1', session_id: 'fd-worker-sid' });
     ok('(B) wired stub claim accepted', claimBbb.status === 200 && claimBbb.body.ok === true);
     g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
     ok('(B) overlay status override shows on the stub node', g.tasks.find((t) => t.id === 'cursor/bbb').status === 'in_progress');

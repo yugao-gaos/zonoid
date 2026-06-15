@@ -71,12 +71,18 @@ async function mcpTool(name, args, session) {
     ok('workspace pinned', (await post('/workspace', { path: WS })).body.ok === true);
     ok('task marked root', (await post('/mark-root', { task_key: TASK })).body.ok === true);
 
-    let r = await mcpTool('start_task', { task_key: TASK, agent_id: AGENT });
+    // DG1/DG2 claim gate: a start_task claim needs a registered worktree (branch_task) + a session.
+    // branch_task auto-inits the repo and registers the worktree; the mcp-session-id header feeds
+    // ctx.session, which start_task uses as the claim session_id (mcp-core fallback).
+    const WSID = 'stop-adv-worker-sid';
+    ok('branch_task registers worktree', (await mcpTool('branch_task', { task_key: TASK }, WSID)).status === 200);
+
+    let r = await mcpTool('start_task', { task_key: TASK, agent_id: AGENT }, WSID);
     ok('clean call has no should_stop', r.body.result && r.body.result.should_stop !== true);
     ok('clean call still executes', JSON.parse(r.body.result.content[0].text).ok === true);
 
     ok('stop flag set', (await post('/agent/stop', { agent_id: AGENT })).body.ok === true);
-    r = await mcpTool('start_task', { task_key: TASK, agent_id: AGENT });
+    r = await mcpTool('start_task', { task_key: TASK, agent_id: AGENT }, WSID);
     ok('flagged agent gets should_stop', r.body.result && r.body.result.should_stop === true);
     ok('reason is stop_requested', r.body.result && r.body.result.reason === 'stop_requested');
     ok('call not blocked (re-claim ok)', JSON.parse(r.body.result.content[0].text).ok === true);

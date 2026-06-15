@@ -23,6 +23,7 @@ const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
 const overlayStore = require('../lib/overlay.js');
+const git = require('../lib/git');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-apprestart-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
@@ -85,6 +86,7 @@ function overlayInProgress() {
 }
 
 (async () => {
+  git.initRepo(WS); // claim gate needs a registered worktree, which needs a git repo
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
     stdio: 'ignore',
@@ -104,9 +106,13 @@ function overlayInProgress() {
     await req('POST', '/agent/start', {
       agent_id: 'prev-agent', state: 'running', workspace: WS, session: 'prev-session',
     });
-    // Claim test/1 via overlay status (no native task backing file needed for sweep testing)
+    // Claim test/1 via overlay status. DG1/DG2 claim gate: mark-root (clear unwired) + register a
+    // worktree (claim precondition) + supply session_id. A worktree-backed claim with an agent_id
+    // self-registers as a hook-less worker, so prev-agent/new-agent need no separate registration.
+    await req('POST', '/mark-root', { workspace: WS, task_key: 'test/1', reason: 'app-restart test root' });
+    await req('POST', '/git/worktree', { workspace: WS, key: 'test/1', repo_path: WS });
     const claim1 = await req('POST', '/overlay/status', {
-      workspace: WS, key: 'test/1', status: 'in_progress', agent_id: 'prev-agent',
+      workspace: WS, key: 'test/1', status: 'in_progress', agent_id: 'prev-agent', session_id: 'prev-session',
     });
     ok('(A) claim accepted (200)', claim1.status === 200 && claim1.body.ok === true);
     ok('(A) test/1 is in_progress in overlay', overlayInProgress().includes('test/1'));
@@ -134,7 +140,7 @@ function overlayInProgress() {
       agent_id: 'new-agent', state: 'running', workspace: WS, session: 'new-session',
     });
     const reClaim = await req('POST', '/overlay/status', {
-      workspace: WS, key: 'test/1', status: 'in_progress', agent_id: 'new-agent',
+      workspace: WS, key: 'test/1', status: 'in_progress', agent_id: 'new-agent', session_id: 'new-session',
     });
     ok('(C) new agent re-claim accepted (200)', reClaim.status === 200 && reClaim.body.ok === true);
     ok('(C) test/1 in_progress under new agent', overlayInProgress().includes('test/1'));

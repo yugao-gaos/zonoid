@@ -187,54 +187,86 @@ function tmpWs() {
   fs.rmSync(ws, { recursive: true, force: true });
 }
 
-// --- schema v2: shadow_verdict / shadow_conf / model_version optional fields ------------------
-// Rows with all three v2 fields present must round-trip through the journal intact.
+// --- schema v2: shadow_verdict / shadow_conf / model_version are SHADOW-RUN, not pass-through --
+// CONTRACT CHANGE (commit 4f4e446): appendVerdict no longer passes through the row's explicit
+// shadow_* fields. It SHADOW-RUNS the learned edge classifier (lib/judge.shadowFields ->
+// scripts/edge-clf-predict): when a classifier is loadable it stamps the classifier's verdict +
+// confidence and model_version:'v1-provisional' on EVERY journaled edge row; when no classifier is
+// loadable it adds no shadow fields. The row's own shadow_* values are ignored either way.
+const clfLoadable = (() => { try { const c = require('../scripts/edge-clf-predict'); return !!(c && typeof c.predict === 'function'); } catch { return false; } })();
 {
   const ws = tmpWs();
   judge.appendVerdict(ws, {
     epoch: 5, verdict: 'keep', from: 'note:a', to: 's/1', edgeKind: 'context',
     cosine: 0.45, origin: 'autowire-semantic', by: 'judge',
-    shadow_verdict: 'prune', shadow_conf: 0.72, model_version: 'sonnet-4-6',
+    // explicit values are intentionally ignored by the shadow-run (asserted below)
+    shadow_verdict: 'IGNORED', shadow_conf: 0.72, model_version: 'sonnet-4-6',
   });
   const rows = journal.readVerdicts(ws);
-  ok('v2: shadow_verdict round-trips', rows[0].shadow_verdict === 'prune');
-  ok('v2: shadow_conf round-trips', rows[0].shadow_conf === 0.72);
-  ok('v2: model_version round-trips', rows[0].model_version === 'sonnet-4-6');
+  if (clfLoadable) {
+    ok('v2: shadow_verdict is the classifier verdict (keep|prune), not the row value', ['keep', 'prune'].includes(rows[0].shadow_verdict) && rows[0].shadow_verdict !== 'IGNORED');
+    ok('v2: shadow_conf is a number from the classifier', typeof rows[0].shadow_conf === 'number');
+    ok("v2: model_version is the shadow-run model id 'v1-provisional'", rows[0].model_version === 'v1-provisional');
+  } else {
+    ok('v2: no classifier -> shadow_verdict absent', !('shadow_verdict' in rows[0]));
+    ok('v2: no classifier -> shadow_conf absent', !('shadow_conf' in rows[0]));
+    ok('v2: no classifier -> model_version absent', !('model_version' in rows[0]));
+  }
   ok('v2: base fields still present', rows[0].verdict === 'keep' && rows[0].cosine === 0.45);
   fs.rmSync(ws, { recursive: true, force: true });
 }
 
-// --- schema v2: row WITHOUT shadow fields is backward-compatible (no undefined keys) ----------
+// --- schema v2: shadow fields are determined by the classifier, NOT by the row -----------------
+// A row carrying no shadow_* fields still gets them shadow-run when a classifier is loadable; with
+// no classifier the row carries none. (Replaces the old "explicit absent => absent" expectation.)
 {
   const ws = tmpWs();
   judge.appendVerdict(ws, { epoch: 2, verdict: 'prune', from: 'note:b', to: 'note:c', edgeKind: 'context', cosine: 0.33, by: 'judge' });
   const rows = journal.readVerdicts(ws);
-  ok('v2 back-compat: shadow_verdict absent on legacy-style row', !('shadow_verdict' in rows[0]));
-  ok('v2 back-compat: shadow_conf absent on legacy-style row',   !('shadow_conf'    in rows[0]));
-  ok('v2 back-compat: model_version absent on legacy-style row',  !('model_version'  in rows[0]));
-  ok('v2 back-compat: verdict and cosine still correct', rows[0].verdict === 'prune' && rows[0].cosine === 0.33);
+  if (clfLoadable) {
+    ok('v2: shadow_verdict shadow-run even when row omits it', ['keep', 'prune'].includes(rows[0].shadow_verdict));
+    ok('v2: shadow_conf shadow-run even when row omits it', typeof rows[0].shadow_conf === 'number');
+    ok('v2: model_version shadow-run even when row omits it', rows[0].model_version === 'v1-provisional');
+  } else {
+    ok('v2: no classifier -> shadow_verdict absent (row omitted)', !('shadow_verdict' in rows[0]));
+    ok('v2: no classifier -> shadow_conf absent (row omitted)', !('shadow_conf' in rows[0]));
+    ok('v2: no classifier -> model_version absent (row omitted)', !('model_version' in rows[0]));
+  }
+  ok('v2: verdict and cosine still correct', rows[0].verdict === 'prune' && rows[0].cosine === 0.33);
   fs.rmSync(ws, { recursive: true, force: true });
 }
 
-// --- schema v2: partial shadow fields (shadow_verdict only, no conf/version) ------------------
+// --- schema v2: the row's explicit shadow_verdict does NOT override the shadow-run -------------
 {
   const ws = tmpWs();
-  judge.appendVerdict(ws, { epoch: 1, verdict: 'keep', cosine: 0.55, shadow_verdict: 'keep' });
+  judge.appendVerdict(ws, { epoch: 1, verdict: 'keep', cosine: 0.55, shadow_verdict: 'ROW-VALUE' });
   const rows = journal.readVerdicts(ws);
-  ok('v2 partial: shadow_verdict present', rows[0].shadow_verdict === 'keep');
-  ok('v2 partial: shadow_conf absent when not passed', !('shadow_conf' in rows[0]));
-  ok('v2 partial: model_version absent when not passed', !('model_version' in rows[0]));
+  if (clfLoadable) {
+    ok('v2: row shadow_verdict ignored — classifier verdict wins', rows[0].shadow_verdict !== 'ROW-VALUE' && ['keep', 'prune'].includes(rows[0].shadow_verdict));
+    ok('v2: shadow_conf still numeric from classifier', typeof rows[0].shadow_conf === 'number');
+    ok('v2: model_version still the shadow-run id', rows[0].model_version === 'v1-provisional');
+  } else {
+    ok('v2: no classifier -> row shadow_verdict not pass-through either', !('shadow_verdict' in rows[0]));
+    ok('v2: no classifier -> shadow_conf absent', !('shadow_conf' in rows[0]));
+    ok('v2: no classifier -> model_version absent', !('model_version' in rows[0]));
+  }
   fs.rmSync(ws, { recursive: true, force: true });
 }
 
-// --- schema v2: null shadow fields are omitted (not serialized as null) -----------------------
+// --- schema v2: shadow fields are present-or-absent as a SET (driven by classifier availability) -
+// The shadow-run emits all three fields together or none — never a partial/null subset.
 {
   const ws = tmpWs();
-  judge.appendVerdict(ws, { epoch: 1, verdict: 'keep', cosine: 0.40, shadow_verdict: null, shadow_conf: null, model_version: null });
+  judge.appendVerdict(ws, { epoch: 1, verdict: 'keep', cosine: 0.40 });
   const rows = journal.readVerdicts(ws);
-  ok('v2 null: shadow_verdict=null omitted from JSON', !('shadow_verdict' in rows[0]));
-  ok('v2 null: shadow_conf=null omitted from JSON',    !('shadow_conf'    in rows[0]));
-  ok('v2 null: model_version=null omitted from JSON',  !('model_version'  in rows[0]));
+  const present = ['shadow_verdict', 'shadow_conf', 'model_version'].filter((k) => k in rows[0]);
+  if (clfLoadable) {
+    ok('v2: all three shadow fields present together', present.length === 3);
+    ok('v2: no shadow field serialized as null', rows[0].shadow_verdict != null && rows[0].shadow_conf != null && rows[0].model_version != null);
+  } else {
+    ok('v2: no classifier -> none of the three shadow fields present', present.length === 0);
+    ok('v2: no classifier -> nothing serialized as null either', true);
+  }
   fs.rmSync(ws, { recursive: true, force: true });
 }
 

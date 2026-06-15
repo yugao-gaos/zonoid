@@ -18,7 +18,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const { spawn, spawnSync } = require('child_process');
+const { spawn, spawnSync, execSync } = require('child_process');
 const { workspaceKey } = require('../lib/filedrop-tasks');
 
 const REPO = path.resolve(__dirname, '..');
@@ -100,12 +100,15 @@ test('dispatcher model — claim gate, children, trivial gate, attribution', asy
 
   try {
     assert.ok(await waitForPing(), 'sandbox daemon up');
+    execSync('git init -q', { cwd: WS });
+    execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: WS });
     assert.equal((await post('/workspace', { path: WS })).body.ok, true);
     assert.equal((await post('/sync', { workspace: WS })).body.adopted.length, 2, 'stubs adopted');
 
     await post('/agent/start', { agent_id: 'dispatch-main', session: SID_DISPATCHER });
     assert.equal((await post('/mark-root', { task_key: KEY_A, reason: 'dispatch test' })).body.ok, true);
 
+    // Dispatcher claim with NO worktree → refused (worktree is the claim-side security boundary).
     let r = await post('/overlay/status', {
       key: KEY_A,
       status: 'in_progress',
@@ -120,6 +123,8 @@ test('dispatcher model — claim gate, children, trivial gate, attribution', asy
       session: SID_DISPATCHER,
       subagent_session: SID_WORKER,
     });
+    // DG1/DG2: the legit subagent claim needs a registered worktree (branch_task precondition).
+    assert.equal((await post('/git/worktree', { key: KEY_A, repo_path: WS })).status, 200, 'KEY_A worktree');
     r = await post('/overlay/status', {
       key: KEY_A,
       status: 'in_progress',
@@ -139,6 +144,7 @@ test('dispatcher model — claim gate, children, trivial gate, attribution', asy
       subagent_session: SID_WORKER_B,
     });
     assert.equal((await post('/mark-root', { task_key: KEY_B, reason: 'second worker' })).body.ok, true);
+    assert.equal((await post('/git/worktree', { key: KEY_B, repo_path: WS })).status, 200, 'KEY_B worktree');
     assert.equal((await post('/overlay/status', {
       key: KEY_B,
       status: 'in_progress',
