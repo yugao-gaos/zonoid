@@ -107,7 +107,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           const n = state.overlay.note_nodes[String(k).replace(/^note:/, '')];
           return n ? { key: k, title: n.title, summary: String(n.summary || '').slice(0, 300), created_at: n.created_at || null } : { key: k, title: k, summary: '', created_at: null, missing: true };
         });
-        return { kind: 'dup-cluster', id: it.id, keys: it.keys, notes };
+        return { kind: 'dup-cluster', id: it.id, keys: it.keys, notes, pending_dup: !!it.pending_dup };
       }
       const note = byId.get(it.id) || { id: it.id, label: it.id, summary: '', vec: null };
       const candidates = noteRagCandidates(state.overlay, g, it.id, note.label, note.summary, note.vec, 8)
@@ -231,6 +231,11 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           if (seen.has(sig)) return false;
           seen.add(sig); return true;
         });
+        // PENDING-DUP: this verdict adjudicates the pair (CONSOLIDATE = new superseded into match;
+        // SUPERSEDE = new is the keeper, match superseded). Clear provisional on keeper + every
+        // superseded note so the survivor becomes recall-eligible and the pair leaves the dup-queue.
+        overlayStore.clearPendingDup(T.ov, keepKey);
+        for (const sk of supersededNow) overlayStore.clearPendingDup(T.ov, sk);
         judge.stampCluster(T.ov.judgedClusters, [keepKey, ...v.consolidate.supersede.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k)], epoch);
         applied.consolidated++; applied.clustersJudged++;
         judge.appendVerdict(T.ws, { epoch, verdict: 'consolidate', from: keepKey, to: supersededNow.join(',') || null, edgeKind: 'note', cosine: null, by: 'judge' });
@@ -261,6 +266,9 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       if (v && v.markDistinct && Array.isArray(v.markDistinct.keys) && v.markDistinct.keys.length) {
         const keys = v.markDistinct.keys.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
         overlayStore.markClusterDistinct(T.ov, keys);
+        // PENDING-DUP: DISTINCT verdict — the notes are NOT the same fact. Clear provisional so a
+        // pending-dup new note becomes recall-eligible (visible) again.
+        for (const k of keys) overlayStore.clearPendingDup(T.ov, k);
         judge.stampCluster(T.ov.judgedClusters, keys, epoch);
         applied.stamped = (applied.stamped || 0) + 1; applied.clustersJudged++;
       }

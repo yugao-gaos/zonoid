@@ -377,7 +377,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // notes in an active subsystem do NOT bounce (avoids alarm-fatigue → reflexive force:true, which
     // would neuter the guard) while still catching the dense clone mass (0.68–0.88). Stragglers in
     // the 0.55–0.70 band are the dup-judge's job (defense-in-depth), not the write gate's.
+    // DEFER-TO-JUDGE (was hard-reject): on a guard fire we no longer bounce the caller back to
+    // skip/supersede/force. We ADMIT the note PROVISIONAL (pending_dup) — retrieval-invisible — and
+    // enqueue the {new,match} pair for the intelligent dup-judge, which decides consolidate/distinct/
+    // supersede. The dumb write path only flags; the judge reasons. `supersedes`/`force` still bypass
+    // the guard entirely (the caller already resolved the conflict).
     const DUP_THRESHOLD = 0.70; // title-vec cosine; see calibration note above
+    let pendingDupMatch = null;
     if (b.vec && !b.supersedes && !b.force) {
       const { cosine } = ctx;
       let bestMatch = null;
@@ -389,15 +395,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           }
         }
       }
-      if (bestMatch) {
-        send(res, 200, {
-          ok: false,
-          duplicate: true,
-          match: { key: bestMatch.key, title: bestMatch.title, summary: bestMatch.summary, score: Math.round(bestMatch.score * 10000) / 10000 },
-          hint: 'Near-duplicate of an existing note. If same fact: do not re-record. If this UPDATES the fact: re-call with supersedes:"' + bestMatch.key + '". If genuinely distinct: re-call with force:true.',
-        });
-        return true;
-      }
+      if (bestMatch) pendingDupMatch = bestMatch;
     }
 
     const id = overlayStore.addNoteNode(T.ov, b);
@@ -423,6 +421,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     }
     overlayStore.bumpEpoch(T.ov);
+    // PENDING-DUP: the guard fired (cosine >= DUP_THRESHOLD, no supersedes/force). The note was just
+    // ADMITTED; flag it pending_dup so it is retrieval-invisible and surfaced to the dup-judge as a
+    // {new,match} cluster (judge.pendingDupClusters → buildQueue → GET /judge/next). bumpEpoch above
+    // makes the pair re-pullable (clusterPending: judgedAtEpoch < epoch). The pair is queued via the
+    // pendingDup map (NOT eagerJudge — that path is edge-based and would no-op for a 0.70–0.80 pair
+    // that forms no natural cluster).
+    if (pendingDupMatch) overlayStore.markPendingDup(T.ov, 'note:' + id, pendingDupMatch.key, pendingDupMatch.score);
     let superseded = null;
     if (b.supersedes) {
       const oldId = String(b.supersedes).replace(/^note:/, '');
@@ -454,7 +459,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // markEagerJudge so the heartbeat dispatches a judge immediately when edges were seeded.
     const ingestResult = await ctx.ingestNode(T.ov, buildGraph(T.ws), 'note:' + id, { title: b.title, summary: b.summary });
     T.save(); notifyChange();
-    sendOp(res, b, 200, { ok: true, id, key: 'note:' + id, superseded, autowired: ingestResult.seeded, hint }); return true;
+    const resp = { ok: true, id, key: 'note:' + id, superseded, autowired: ingestResult.seeded, hint };
+    if (pendingDupMatch) {
+      resp.pending_dup = true;
+      resp.note_key = 'note:' + id;
+      resp.match = {
+        key: pendingDupMatch.key, title: pendingDupMatch.title, summary: pendingDupMatch.summary,
+        score: Math.round(pendingDupMatch.score * 10000) / 10000,
+      };
+    }
+    sendOp(res, b, 200, resp); return true;
   }
 
   if (p === '/overlay/gate' && m === 'POST') {

@@ -2,6 +2,7 @@
 const delta = require('../lib/delta');
 const overlayStore = require('../lib/overlay');
 const graphStore = require('../lib/graph-store');
+const judge = require('../lib/judge');
 const { contentTokens, classifyNoteType, noteText } = require('../lib/context-gate');
 const { maxCosine, nodeVecs } = require('../lib/embed');
 const path = require('path');
@@ -126,6 +127,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const plateauContinue = (notes) => round < 3 && notes.some((n) => n.tier === 'rag' && (n.kind || 'note') === 'note' && n.score >= 0.5);
     const gated = isTruthy(u.searchParams.get('gated'));
     const g = buildGraph(ws);
+    // PENDING-DUP recall invisibility: a note admitted PROVISIONAL on a write-time dup-guard fire is
+    // RETRIEVAL-INVISIBLE until the dup-judge clears it — that's what preserves the guard's purpose.
+    // Invisibility is the PURE timeout derivation (judge.pendingDupState): pending AND not-yet-timed-out
+    // ⇒ excluded; a TIMED-OUT pending note falls back to VISIBLE (provisional) without being de-queued.
+    const _ovDup = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+    const _dupTimeout = judge.judgingTimeoutMs(_ovDup);
+    const _dupNow = Date.now();
+    const dupInvisible = (node) => {
+      if ((node.kind || 'task') !== 'note' || !node.pending_dup) return false;
+      return !judge.pendingDupState(_ovDup, node.id, _dupNow, _dupTimeout).visible;
+    };
     // GATED retrieval (?gated=1) — the context-need gate (lib/context-gate.js, the abstain-by-
     // default classifier calibrated on test/context-gate-regression.test.js) now ANNOTATES the
     // bundle instead of suppressing it: gated and ungated calls run the SAME single pipeline
@@ -247,6 +259,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     let gateVia = 'lexical';
     for (const n of g.tasks) {
       if ((n.kind || 'task') !== 'note' || n.validTo || dagKeys.has(n.id) || excludeKeys.has(n.id)) continue;
+      if (dupInvisible(n)) continue;   // pending-dup note: retrieval-invisible until the dup-judge clears it
       let rawScore = 0;
       if (qvec && nodeVecs(n).length > 0) { rawScore = maxCosine(qvec, n); gateVia = 'semantic'; }
       gateCands.push({ key: n.id, title: n.label, summary: n.summary, score: rawScore, category: n.category || null, tags: n.tags || [] });
@@ -290,6 +303,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     for (const node of g.tasks) {
       if (dagKeys.has(node.id)) continue;  // skip DAG-injected notes
       if (excludeKeys.has(node.id)) continue;  // already injected in a prior round
+      if (dupInvisible(node)) continue;    // pending-dup note: retrieval-invisible until the dup-judge clears it
       if (!temporalOk(node)) continue;
       const { score, via } = scoreHybrid(node, node);
       if (!(score > 0)) continue;
