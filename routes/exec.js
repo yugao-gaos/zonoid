@@ -1,6 +1,7 @@
 'use strict';
 const crypto = require('crypto');
 const { resolveHarnessName } = require('../lib/usage-reconcile');
+const usageAccounting = require('../lib/usage-accounting');
 
 function resolveHarnessForAgent(ctx, agent, body) {
   if (body.harness) return resolveHarnessName(ctx.harnessRegistry, body.harness);
@@ -54,8 +55,18 @@ function recordUsageOnDone(ctx, T, agent, body) {
   // on the harness-judge-drain task_key. The existing task_key attribution is unchanged.
   const judgedNode = agent.judged_node || null;
   if (judgedNode) slice.judged_node = judgedNode;
+  // Explicit role tag: a judge dispatched against an attempt branch (orch/attempt/<key>) is review
+  // work even without judged_node. The dispatcher may also set body.role directly. roleForSlice
+  // reads this; we stamp it onto the slice so it survives into both rollups.
+  if (body.role === 'review' || body.role === 'implementation') slice.role = body.role;
+  else if (agent.role === 'review' || agent.role === 'implementation') slice.role = agent.role;
   if (!T.ov.usage_records) T.ov.usage_records = {};
   T.ov.usage_records[body.agent_id] = slice;
+  // Rework-aware accumulation: append this agent-run finish (worker OR judge) to the per-task
+  // rollup, role-tagged impl|review, so multiple attempts on one task SUM instead of overwriting.
+  // Fires on EVERY /agent/done (kicked-back worker re-runs and judge runs each hit this path),
+  // which is exactly the "report on agent-run finish, not just terminal complete_task" requirement.
+  if (slice.task_key) usageAccounting.recordTaskCost(T.ov, slice);
   return slice;
 }
 
