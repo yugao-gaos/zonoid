@@ -8,5 +8,7 @@
   "deps": [],
   "knowledgeQuery": "task transcript resolve owner attribution window overlap byWindow",
   "provenHeldOutWin": true,
+  "kb_required": true,
+  "kb_partial": false,
   "notes": "ON arm (search consult) solves 74/110 trials including edge cases; OFF arm solves 0/45. The decisive KB note seeds the window-overlap fallback algorithm."
 }
