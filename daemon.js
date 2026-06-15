@@ -656,6 +656,53 @@ function sweepStaleVerdicts() {
   return dirty;
 }
 
+// Is this note key superseded? A note is superseded when it has a successor (supersededBy) or a
+// validTo stamp (it stopped being current). Pure read over note_nodes. Bare ('note-…') or prefixed.
+function noteSuperseded(ov, key) {
+  const id = String(key).replace(/^note:/, '');
+  const n = (ov.note_nodes || {})[id];
+  if (!n) return false;
+  return !!(n.supersededBy || n.validTo);
+}
+
+// Decide why (if at all) a pending BLOCKING guidance item is stale, given its origin bindings:
+//   - origin_task's overlay status is 'done' OR its git record is merged → the triggering work landed.
+//   - ANY origin_note was superseded → the fact that triggered the question changed under it.
+// Returns a reason string to auto-resolve with, or null to leave it pending. NEVER stale when BOTH
+// origin_task and origin_notes are absent (no provenance to reason about). Pure read.
+function staleGuidanceReason(ov, g) {
+  const hasTask = g.origin_task != null && g.origin_task !== '';
+  const notes = Array.isArray(g.origin_notes) ? g.origin_notes : [];
+  if (!hasTask && notes.length === 0) return null;
+  if (hasTask) {
+    const st = ov.status[g.origin_task];
+    const git = (ov.git || {})[g.origin_task];
+    if (st === 'done' || (git && git.merged)) return 'auto-stale: origin task completed';
+  }
+  if (notes.some((k) => noteSuperseded(ov, k))) return 'auto-stale: triggering note superseded';
+  return null;
+}
+
+// Auto-resolve pending BLOCKING guidance whose triggering context is gone (origin task completed or a
+// triggering note superseded) — so the loop is not left paused on a question the world already
+// answered. Mirrors sweepStaleVerdicts in structure. Idempotent (resolved items are skipped). Only
+// blocking items are swept; 'review' housekeeping rows have their own settle path.
+function sweepStaleGuidance() {
+  const ov = state.overlay;
+  if (!Array.isArray(ov.guidance)) return false;
+  let dirty = false;
+  for (const g of ov.guidance) {
+    if (g.resolved || g.action || g.severity === 'review') continue;
+    const reason = staleGuidanceReason(ov, g);
+    if (!reason) continue;
+    overlayStore.resolveGuidance(ov, g.id, reason);
+    console.log(`[self-heal] guidance ${g.id} ${reason} — auto-resolved`);
+    dirty = true;
+  }
+  if (dirty) { overlayStore.save(state.workspace, ov); notifyChange(); }
+  return dirty;
+}
+
 // Sweep the agent registry: mark 'running' entries as 'dead' when not vouched live.
 function sweepStaleAgents() {
   const mins = state.overlay?.config?.stale_minutes ?? 10;
@@ -1086,6 +1133,7 @@ function decideOne(L, ctx) {
 function decideAll() {
   sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
   sweepStaleVerdicts();   // reset abandoned verdict-pending hand-offs (tested/ready, no live owner) back to pending for re-dispatch
+  sweepStaleGuidance();   // auto-resolve blocking guidance whose origin task completed / triggering note superseded
   sweepFailedTasks();   // auto-retry: flip failed tasks back to pending if maxRetries allows it
   const active = [...loops.values()].filter((L) => L.active);
   // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
