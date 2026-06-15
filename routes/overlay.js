@@ -154,6 +154,25 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         send(res, 409, { ok: false, error: 'self-learning mode: task has a metric spec — call branch_task first before editing' }); return true;
       }
     }
+    // HANDOFF VALIDATION (T2): refuse a terminal completion whose STRUCTURED task_result is
+    // incomplete. Mirrors the metric-branch invariant 409 above — daemon-side refusal on the call
+    // the daemon already mediates, no new mechanism, no hook. GATED two ways so the legacy
+    // free-string complete_task path is never hard-broken:
+    //   (1) opt-in: only enforce when the caller actually sends a structured `task_result` object;
+    //       legacy callers send only a free-string `summary` and pass through untouched.
+    //   (2) scoped: the one invariant is metric-result completeness — a task that carries a metric
+    //       spec (T.ov.metrics[key], the has_metric_spec discriminator) MUST report
+    //       task_result.metric_measurements. Tasks with no metric spec have nothing to measure and
+    //       are not refused.
+    if (newlyReady.isTerminalStatus(b.status) && b.task_result && typeof b.task_result === 'object') {
+      if (T.ov.metrics && T.ov.metrics[b.key]) {
+        const mm = b.task_result.metric_measurements;
+        const hasMeasurements = mm != null && (Array.isArray(mm) ? mm.length > 0 : Object.keys(mm).length > 0);
+        if (!hasMeasurements) {
+          send(res, 409, { ok: false, error: 'incomplete task_result: task carries a metric spec — terminal status requires task_result.metric_measurements (run measure_task and report the value)', key: b.key, missing: 'metric_measurements' }); return true;
+        }
+      }
+    }
     const readyBefore = newlyReady.isTerminalStatus(b.status)
       ? newlyReady.readyKeys(buildGraph(T.ws))
       : null;
