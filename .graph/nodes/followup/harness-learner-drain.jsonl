@@ -157,3 +157,4 @@
 {"evt":"assignee_set","id":"followup/harness-learner-drain","workspace":"/Users/imyu/Desktop/zonoid","assignee":"learner-drain-fe298fac","actor":"overlay-sync","ts":"2026-06-15T16:51:15.272Z"}
 {"evt":"timestamps_set","id":"followup/harness-learner-drain","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-14T06:29:14.527Z","lastChanged":"2026-06-15T16:51:15.221Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T16:51:15.272Z"}
 {"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T18:27:10.887Z"}
+{"evt":"timestamps_set","id":"followup/harness-learner-drain","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-14T06:29:14.527Z","lastChanged":"2026-06-15T18:30:21.307Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-15T18:35:40.022Z"}
