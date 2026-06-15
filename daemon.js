@@ -462,9 +462,9 @@ function validateBenchmark(b) {
 // ready/not_ready, recording why. Returns true if it actually released an in_progress claim.
 // `ov` = the overlay holding the claim (defaults to the current workspace's — callers targeting
 // another workspace pass that workspace's overlay; the native write-through is workspace-agnostic).
-// Optional `ctx` = { agentId, mins, tokenUsage } — when provided, a continuity note node is written
-// onto the overlay and wired as a context edge to the task, so the next agent that claims it sees
-// what happened. If tokenUsage has token counts they are also appended to the cost log.
+// Continuity for the next claimer rides on `ov.notes[key]` (the reason), surfaced via
+// get_task_detail → task.note. Optional `ctx` = { agentId, mins, tokenUsage } drives cost-log
+// accounting: when provided, the release event (with any token counts) is appended to the cost log.
 // `ws` = the workspace `ov` belongs to — needed to route the status write-through for file-drop
 // stub keys (the stub folders are per-workspace); callers passing a non-current `ov` pass its ws.
 function releaseClaim(key, reason, ov = state.overlay, ctx = null, ws = state.workspace) {
@@ -474,22 +474,10 @@ function releaseClaim(key, reason, ov = state.overlay, ctx = null, ws = state.wo
   // Also revert the native status (start_task wrote it to in_progress via write-through); otherwise
   // the task would still derive as in_progress from its native/stub file. 'pending' = available to retry.
   try { writeTaskStatus(ws, key, 'pending'); } catch { /* best effort */ }
-  // Continuity note: record what happened so the next agent that picks up this task has context.
+  // Continuity rides on ov.notes[key] (set above) — it surfaces to the next claimer via
+  // get_task_detail → task.note, so no separate note node is needed. ctx still drives cost logging.
   if (ctx) {
     const { agentId, mins, tokenUsage } = ctx;
-    const tokStr = tokenUsage && typeof tokenUsage.total === 'number'
-      ? ` Partial tokens: input=${tokenUsage.input_tokens || 0} output=${tokenUsage.output_tokens || 0} cache_read=${tokenUsage.cache_read_input_tokens || 0} total=${tokenUsage.total}.`
-      : '';
-    const noteSummary = `Task was reset to ready after being stale for >${mins}m. Agent '${agentId || '?'}' held the claim but is no longer running (orphaned or crashed).${tokStr} The task has NOT been completed — pick it up fresh or review any partial work before re-attempting.`;
-    try {
-      const noteId = overlayStore.addNoteNode(ov, {
-        title: `Continuity: stale claim reset (agent '${agentId || '?'}')`,
-        summary: noteSummary,
-        created_by: 'daemon:sweepStaleClaims',
-      });
-      // Wire note → task as a context edge so the next agent's get_dependency_summaries sees it.
-      overlayStore.addEdge(ov, 'note:' + noteId, key, null, 'context', overlayStore.DEFAULT_CONTEXT_WEIGHT);
-    } catch { /* best effort — never block the release */ }
     // Partial cost accounting: if there are token counts, append to the cost log.
     if (tokenUsage && typeof tokenUsage.total === 'number' && tokenUsage.total > 0) {
       try {
