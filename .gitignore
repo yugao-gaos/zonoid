@@ -56,7 +56,9 @@ wake/
 # Agent scratch debris (gate-exempt sandbox; keep tracked spike tools)
 scratch/*
 !scratch/cursor-hook-capture.sh
-!scratch/competitive/
+
+# Internal business/strategy docs — co-located but NEVER shipped publicly
+business/
 
 # Editor backups
 .cursor/*.bak
