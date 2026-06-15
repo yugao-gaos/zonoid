@@ -28,11 +28,12 @@ function judgePressure(overlay, buildGraph, ws) {
     ws,
     overlay,
     harnessKey: judgeRoute.HARNESS_JUDGE_DRAIN_KEY,
+    maxRunning: 6,
     // Eager dispatch (task C) is the PRIMARY trigger; suppress the periodic catch-up nudge while it
     // is actively draining freshly-wired nodes — fallback only when eager is not keeping up.
     eagerActive: judge.eagerJudgePending(overlay),
   });
-  return { depth, dupClusters, nudge: gate.nudge, harness_task_key: judgeRoute.HARNESS_JUDGE_DRAIN_KEY };
+  return { depth, dupClusters, nudge: gate.nudge, available: gate.available, harness_task_key: judgeRoute.HARNESS_JUDGE_DRAIN_KEY };
 }
 
 function labelPressure(state, buildGraph) {
