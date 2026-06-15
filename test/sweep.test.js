@@ -9,11 +9,24 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sweep-test-')));
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sweep-ws-')));
 const PORT = 19900 + Math.floor(Math.random() * 100);
+process.env.CLAUDE_PLUGIN_DATA = SANDBOX; // before filedrop reads env — test + daemon must agree on the stub dir
+const filedropTasks = require('../lib/filedrop-tasks');
+
+// Drop a file-drop task stub (a real adapter would), so the task is backed by a file and
+// survives release — exactly how a stale claim lands on a real native/file-drop task.
+function dropStub(harness, id, extra = {}) {
+  const dir = path.join(filedropTasks.dirFor(WS), harness);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${id}.json`);
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify({ id, subject: `stub ${id}`, ...extra }, null, 2));
+  fs.renameSync(tmp, file);
+}
 
 function req(method, p, body) {
   return new Promise((resolve, reject) => {
@@ -52,6 +65,10 @@ test('POST /sweep', { timeout: 15000 }, async (t) => {
     stdio: 'ignore',
   });
 
+  // WS doubles as the workspace AND the task repo — the claim path requires a registered worktree.
+  execSync('git init -q', { cwd: WS });
+  execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: WS });
+
   try {
     assert.ok(await waitForDaemon(), 'daemon came up');
     await req('POST', '/workspace', { path: WS });
@@ -72,19 +89,41 @@ test('POST /sweep', { timeout: 15000 }, async (t) => {
     });
 
     await t.test('releases a stale in_progress claim with force:true', async () => {
-      // Register a dead agent and place a claim via the overlay endpoint.
+      // A file-drop stub task backed by a real file — survives release (unlike a synthetic
+      // overlay-only key, which vanishes from buildGraph). Wired via blockedBy so it clears the
+      // unwired quarantine and the in_progress claim lands.
+      dropStub('cursor', 'blocker');
+      dropStub('cursor', 'swp', { blockedBy: ['blocker'] });
+      // First peek adopts the stubs into the overlay (mints snapshots + dependency edge).
+      await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`);
+      // Register the (soon-dead) worker so the claim's session_id is inferable from the registry.
       await req('POST', '/agent/start', {
-        agent_id: 'dead-agent-sweep', state: 'running', workspace: WS, session: 'dead-session',
+        agent_id: 'dead-agent-sweep', session: 'dead-session', agent_tool_spawn: true,
       });
-      await req('POST', '/overlay/status', {
-        workspace: WS, key: 'sweep-test/1', status: 'in_progress', agent_id: 'dead-agent-sweep',
+      await req('POST', '/git/worktree', { workspace: WS, key: 'cursor/swp', repo_path: WS });
+      const claim = await req('POST', '/overlay/status', {
+        workspace: WS, key: 'cursor/swp', status: 'in_progress',
+        agent_id: 'dead-agent-sweep', session_id: 'dead-session',
       });
+      assert.equal(claim.status, 200, 'claim placed (in_progress)');
 
       // stale_minutes:0 forces any claim to be immediately stale, force:true bypasses vouchedLive.
       const r = await req('POST', '/sweep', { workspace: WS, force: true, stale_minutes: 0 });
       assert.equal(r.status, 200);
       assert.equal(r.body.ok, true);
       assert.equal(r.body.released, 1);
+
+      // (a) No durable "Continuity: stale claim reset" note node is created — continuity now
+      // rides on the task's note, not a separate note node.
+      const g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
+      const continuityNotes = (g.tasks || []).filter(
+        (t) => t.kind === 'note' && /Continuity: stale claim reset/.test(t.label || ''));
+      assert.equal(continuityNotes.length, 0, 'no stale-claim continuity note node in graph');
+
+      // (b) The released task still carries the continuity reason via get_task_detail → task.note.
+      const d = (await req('GET', `/task/detail?key=${encodeURIComponent('cursor/swp')}&workspace=${encodeURIComponent(WS)}`)).body;
+      assert.ok(d.task, 'task detail returned');
+      assert.match(d.task.note, /sweep:.*idle/i, 'released task note carries the continuity reason');
     });
   } finally {
     child.kill();
