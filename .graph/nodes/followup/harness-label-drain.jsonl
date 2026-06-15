@@ -160,3 +160,8 @@
 {"evt":"status_changed","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T16:11:43.551Z"}
 {"evt":"assignee_set","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","assignee":"label-drain-pass-16","actor":"overlay-sync","ts":"2026-06-15T16:11:43.551Z"}
 {"evt":"timestamps_set","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T18:12:08.921Z","lastChanged":"2026-06-15T16:11:43.494Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T16:14:01.482Z"}
+{"evt":"status_changed","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T16:38:14.154Z"}
+{"evt":"timestamps_set","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T18:12:08.921Z","lastChanged":"2026-06-15T16:46:35.054Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-15T16:51:15.272Z"}
+{"evt":"status_changed","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T16:52:51.894Z"}
+{"evt":"assignee_set","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","assignee":"label-drain-pass-17","actor":"overlay-sync","ts":"2026-06-15T16:52:51.894Z"}
+{"evt":"timestamps_set","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T18:12:08.921Z","lastChanged":"2026-06-15T16:52:51.846Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T16:53:15.248Z"}
