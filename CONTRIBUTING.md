@@ -1,6 +1,6 @@
 # Contributing to Zonoid
 
-MIT licensed. No CLA. PRs welcome.
+Apache-2.0 licensed. Contributors must sign the Contributor License Agreement (CLA) before their first pull request can be merged. PRs welcome.
 
 ## Prerequisites
 
@@ -87,3 +87,9 @@ spurious conflicts.
 4. Open a PR against `main` with a short description of what and why.
 
 There is no formal review SLA. Small, well-scoped PRs merge fastest.
+
+## CLA requirement
+
+All contributors must sign the Contributor License Agreement (CLA) before their first contribution can be accepted. The CLA grants the project maintainers the rights necessary to license the project, including under commercial terms, while you retain copyright of your contribution.
+
+See [CLA.md](CLA.md) for the agreement text.

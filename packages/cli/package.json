@@ -5,5 +5,5 @@
   "bin": { "zonoid": "./bin/zonoid.js" },
   "main": "./bin/zonoid.js",
   "engines": { "node": ">=18" },
-  "license": "MIT"
+  "license": "Apache-2.0"
 }

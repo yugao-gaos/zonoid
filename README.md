@@ -224,4 +224,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the testing conventions.
 
 ## License
 
-MIT
+Apache-2.0. Contributions require a signed CLA — see [CONTRIBUTING.md](CONTRIBUTING.md).
