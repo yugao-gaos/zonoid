@@ -3,3 +3,5 @@
 {"evt":"edge_added","from":"9195fb5e-f196-497d-962f-69616733d2e9/2","to":"9195fb5e-f196-497d-962f-69616733d2e9/3","kind":"blocking","actor":"overlay-sync","ts":"2026-06-15T04:10:09.327Z","origin":"asserted"}
 {"evt":"timestamps_set","id":"9195fb5e-f196-497d-962f-69616733d2e9/2","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-15T04:09:31.249Z","lastChanged":"2026-06-15T04:19:38.724Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-15T04:19:43.222Z"}
 {"evt":"timestamps_set","id":"9195fb5e-f196-497d-962f-69616733d2e9/2","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-15T04:09:31.249Z","lastChanged":"2026-06-15T04:31:04.987Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-15T04:32:27.469Z"}
+{"evt":"status_changed","id":"9195fb5e-f196-497d-962f-69616733d2e9/2","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T15:12:54.945Z"}
+{"evt":"assignee_set","id":"9195fb5e-f196-497d-962f-69616733d2e9/2","workspace":"/Users/imyu/Desktop/zonoid","assignee":"fb2-agent","actor":"overlay-sync","ts":"2026-06-15T15:12:54.945Z"}

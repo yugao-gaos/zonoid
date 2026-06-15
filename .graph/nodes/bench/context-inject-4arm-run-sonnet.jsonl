@@ -3,3 +3,4 @@
 {"evt":"status_changed","id":"bench/context-inject-4arm-run-sonnet","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T04:46:37.638Z"}
 {"evt":"assignee_set","id":"bench/context-inject-4arm-run-sonnet","workspace":"/Users/imyu/Desktop/zonoid","assignee":"bench-4arm-sonnet-worker-001","actor":"overlay-sync","ts":"2026-06-15T04:46:37.638Z"}
 {"evt":"timestamps_set","id":"bench/context-inject-4arm-run-sonnet","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-15T04:46:13.366Z","lastChanged":"2026-06-15T04:46:37.492Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T04:48:12.721Z"}
+{"evt":"status_changed","id":"bench/context-inject-4arm-run-sonnet","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T13:07:09.352Z"}

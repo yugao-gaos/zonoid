@@ -18,3 +18,4 @@
 {"evt":"edge_added","from":"note:note-mq6rpqlc","to":"bench/context-inject-mix-set-runner","kind":"context","actor":"overlay-sync","ts":"2026-06-15T03:47:56.088Z","weight":0,"by":"autowire","judged":false,"score":0.568,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mq6rpqlc","to":"eeadb38f-7472-4703-9669-fbf24eebee4d/22","kind":"context","actor":"overlay-sync","ts":"2026-06-15T05:33:09.484Z","weight":0,"by":"autowire","judged":false,"score":0.554,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mq6rpqlc","to":"2","kind":"context","actor":"overlay-sync","ts":"2026-06-15T11:42:58.283Z","weight":0,"by":"autowire","judged":false,"score":0.55,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mq6rpqlc","to":"415b5695-1a15-46be-8b63-505311cffe4f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-15T14:19:01.639Z","weight":0,"by":"autowire","judged":false,"score":0.607,"origin":"autowire-semantic"}

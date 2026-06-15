@@ -19,3 +19,12 @@
 {"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T03:16:25.213Z"}
 {"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-add-jsdoc-1","actor":"overlay-sync","ts":"2026-06-15T03:16:25.213Z"}
 {"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T03:59:39.706Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T14:00:05.736Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"wip-halo-worker","actor":"overlay-sync","ts":"2026-06-15T14:00:05.736Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T14:07:20.997Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T14:07:50.948Z"}
+{"evt":"timestamps_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T18:16:25.553Z","lastChanged":"2026-06-15T14:07:20.957Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-15T14:07:50.948Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T14:08:05.756Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"wip-halo-w3","actor":"overlay-sync","ts":"2026-06-15T14:08:05.756Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T14:09:04.710Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-15T14:14:39.631Z"}
