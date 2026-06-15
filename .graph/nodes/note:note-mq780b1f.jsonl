@@ -12,3 +12,4 @@
 {"evt":"edge_added","from":"note:note-mq780b1f","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/28","kind":"context","actor":"overlay-sync","ts":"2026-06-14T21:22:22.798Z","weight":0,"by":"autowire","judged":false,"score":0.619,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mq780b1f","to":"followup/write-judge-edge-scorecard-md-retry-as-s-pe6u","kind":"context","actor":"overlay-sync","ts":"2026-06-14T21:36:02.466Z","weight":0,"by":"autowire","judged":false,"score":0.565,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mq780b1f","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-14T23:49:48.620Z","weight":0,"by":"autowire","judged":false,"score":0.672,"origin":"autowire-semantic"}
+{"evt":"note_superseded","id":"note-mq780b1f","supersededBy":"note-mqfbygur4go","validTo":"2026-06-15T14:50:27.411Z","ts":"2026-06-15T14:50:27.411Z","actor":"supersede"}

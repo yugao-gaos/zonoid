@@ -1,0 +1,59 @@
+{
+  "kept": [
+    {
+      "title": "Task assignee is a logical name; transcript records key on random harness agent_ids",
+      "summary": "A task's recorded assignee is the LOGICAL worker name passed to start_task, but the agent record carrying transcript_path is registered by the SubagentStart hook under an opaque random harness agent_id. The two never match by key, so you cannot look up a task's transcript by its assignee id.",
+      "evidence": "daemon.js:1387-1389",
+      "kind": "invariant",
+      "source": "13"
+    },
+    {
+      "title": "Task transcripts are recovered by same-session time-window correlation, not by id",
+      "summary": "Because assignee ids never equal the transcript-bearing run ids, harnessTranscriptForTask correlates instead: among agents in the SAME session, it picks the one whose [startedAt,endedAt] interval overlaps the task's claim window (overlay firstSeen..lastChanged) the most. Returns that run's transcript_path or null.",
+      "evidence": "daemon.js:1386-1412",
+      "kind": "convention",
+      "source": "2"
+    },
+    {
+      "title": "Session-shared transcript fallback is gated so it never double-counts across tasks",
+      "summary": "taskTranscript's final fallback (the task's whole-session transcript) is gated by anySession: taskTokens only permits it when the session maps to a single task, so a conversation-wide total is never painted across many tasks. /costflow always permits it because splitSessionTokens divides the shared total honestly.",
+      "evidence": "daemon.js:1414-1434",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Real daemon widens the claim window asymmetrically: missing end -> now, missing start -> null",
+      "summary": "harnessTranscriptForTask defensively parses the claim window: an unparseable lastChanged widens to Date.now(), but a NaN winStart returns null (it bails, not widen). NOTE the bench/specs/v4-hard.md synthetic task deliberately specifies the opposite (missing start -> -Infinity) to make the reimplementation harder; do not assume the spec rule reflects the daemon.",
+      "evidence": "daemon.js:1399-1401 vs bench/specs/v4-hard.md:48-49",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "taskTokens prefers recorded per-task usage and only reads the transcript file as fallback",
+      "summary": "taskTokens first calls usageAccounting.taskOutputFromRecords(overlay, key); a positive value short-circuits and is returned directly. Only when no per-task usage record exists does it resolve and parse the transcript JSONL. Recorded output always wins over transcript-derived totals.",
+      "evidence": "daemon.js:1437-1444",
+      "kind": "convention",
+      "source": "discovered"
+    }
+  ],
+  "rejected": [
+    { "candidate": "0: transcript recovered by correlating claim window", "reason": "restatement" },
+    { "candidate": "1: match and give up, or fall back to fuzzy time-window", "reason": "restatement" },
+    { "candidate": "3: bound widens window (missing start -> -Infinity)", "reason": "stale" },
+    { "candidate": "4: resolve-owner must export module.exports (CommonJS)", "reason": "restatement" },
+    { "candidate": "5: rejected-digest test requires resolve-owner, PASS/FAIL", "reason": "restatement" },
+    { "candidate": "6: the test must construct the registry", "reason": "restatement" },
+    { "candidate": "7: must print N passed, 0 failed and exit 0", "reason": "restatement" },
+    { "candidate": "8: Note ms must be matched before m", "reason": "generic" },
+    { "candidate": "9: valid input always returns finite non-negative number", "reason": "generic" },
+    { "candidate": "10: parse-duration must export the function", "reason": "restatement" },
+    { "candidate": "11: rejected-digest test requires parse-duration, PASS/FAIL", "reason": "restatement" },
+    { "candidate": "12: it must assert at minimum", "reason": "restatement" },
+    { "candidate": "14: unparseable claim-window bound widens (missing start ->)", "reason": "stale" },
+    { "candidate": "15: task-tokens must export module.exports (CommonJS)", "reason": "restatement" },
+    { "candidate": "16: repo file do NOT modify/move/delete", "reason": "generic" },
+    { "candidate": "17: blockedBy is a list of local ids in the same session", "reason": "restatement" },
+    { "candidate": "18: omit missing dep, do not throw or invent a node", "reason": "restatement" },
+    { "candidate": "19: resolve-deps must export module.exports (CommonJS)", "reason": "restatement" }
+  ]
+}

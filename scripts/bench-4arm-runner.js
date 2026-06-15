@@ -51,7 +51,7 @@ async function main() {
         '--grader', scenario.grader,
         '--artifact', scenario.artifact || 'bench/sandbox/solution.js',
         ...(scenario.minimalSource ? ['--minimal-source', scenario.minimalSource] : []),
-        '--model', 'haiku',
+        '--model', 'sonnet',
       ];
       const injFlags = armCfg.armId > 0 ? armCfg.flags : [];
       const args = [...baseArgs, ...injFlags, ...(DRY_RUN ? ['--dry-run'] : [])];

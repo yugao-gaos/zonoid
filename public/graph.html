@@ -114,9 +114,10 @@
   #flowsvg:active { cursor: grabbing; }
   #flowsvg text { font: 11px ui-monospace, Menlo, monospace; pointer-events: none; user-select: none; }
   #flowsvg g.fn { cursor: pointer; }
-  /* work-in-progress: static blue ring + left-to-right shine sweep on node body */
+  /* work-in-progress: pulsing blue ring + left-to-right shine sweep on node body */
   #flowsvg g.fn .fhalo { opacity: 0; pointer-events: none; }
-  #flowsvg g.fn.wip .fhalo { opacity: .5; stroke: #58a6ff; stroke-width: 1.5; }
+  #flowsvg g.fn.wip .fhalo { opacity: 1; stroke: #58a6ff; animation: wipHalo 1.6s ease-in-out infinite; }
+  @keyframes wipHalo { 0%,100% { stroke-opacity: .7; stroke-width: 1.5; } 50% { stroke-opacity: .12; stroke-width: 3.5; } }
   #flowsvg g.fn .fshine-wrap { opacity: 0; pointer-events: none; }
   #flowsvg g.fn.wip .fshine-wrap { opacity: 1; }
   /* Focus view: steady amber halo on the focused node */

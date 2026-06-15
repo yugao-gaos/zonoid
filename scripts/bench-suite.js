@@ -22,7 +22,8 @@ const fs = require('fs');
 const path = require('path');
 
 const REPO = process.env.ZONOID_REPO || path.resolve(__dirname, '..');
-const BENCH_ECONOMY = path.join(REPO, 'scripts', 'bench-economy.js');
+const DAG_MODE = process.argv.includes('--dag');
+const BENCH_ECONOMY = path.join(REPO, 'scripts', DAG_MODE ? 'bench-economy-dag.js' : 'bench-economy.js');
 
 function arg(name, def) {
   const i = process.argv.indexOf('--' + name);
@@ -84,7 +85,7 @@ function runScenario(scenario) {
 
 // Parse the last JSON line from bench-economy results.jsonl that matches this scenario+trial.
 function readLastResult(scenario) {
-  const resultsFile = path.join(REPO, 'bench', 'economy', 'results.jsonl');
+  const resultsFile = path.join(REPO, 'bench', 'economy', DAG_MODE ? 'results-dag.jsonl' : 'results.jsonl');
   if (!fs.existsSync(resultsFile)) return null;
   const lines = fs.readFileSync(resultsFile, 'utf8').split('\n').filter(Boolean);
   // Scan backwards for matching scenario+trial.

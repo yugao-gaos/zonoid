@@ -1,6 +1,6 @@
 {
   "version": "v1",
-  "trained_at": "2026-06-15T01:58:39.215Z",
+  "trained_at": "2026-06-15T03:32:12.170Z",
   "features": [
     "cosine_sim",
     "kinds_match",

@@ -1,0 +1,108 @@
+{
+  "kept": [
+    {
+      "title": "Daemon serves a graph layered ON native Claude Code tasks (live source of truth)",
+      "summary": "daemon.js does not own task state — native Claude Code tasks are read live and are authoritative; the overlay only holds what native can't (cross-session dep edges, richer statuses, notes). A status override in the overlay always wins in the scheduler over re-derived native status. Listens on port 8787 (override with ORCH_PORT).",
+      "evidence": "daemon.js:37 (PORT), lib/overlay.js:116-119 (override-wins sentinel)",
+      "kind": "invariant",
+      "source": "4"
+    },
+    {
+      "title": "Embeddings are local MiniLM (384-dim) over a unix socket, stored in overlay JSON — no vector DB",
+      "summary": "lib/embed.js uses Xenova/all-MiniLM-L6-v2 producing 384-float vectors via a local sidecar over a unix domain socket (BASE/embed.sock, 5000ms request timeout); embed() returns null while loading/on error and callers fall back to lexical. Vectors persist inline in the overlay JSON / graph-store events, NOT in any external vector DB.",
+      "evidence": "lib/embed.js:19,22,59,146; lib/overlay.js taskVecs",
+      "kind": "decision",
+      "source": "5"
+    },
+    {
+      "title": "Attempt worktrees live OUTSIDE the workspace, keyed by workspace hash, on branch orch/attempt/<slug>",
+      "summary": "lib/git.js branchName() = `orch/attempt/${slugify(taskKey)}`, and the worktree path is `<BASE>/worktrees/<wsHash>/<slug>` — outside the repo and namespaced by workspace hash so distinct repos never collide. Merge default message is `orch: merge attempt <slug>`.",
+      "evidence": "lib/git.js:23-30,162-170",
+      "kind": "convention",
+      "source": "6"
+    },
+    {
+      "title": "MCP client retries only transient connection errors, 3×500ms; protocol pinned 2025-06-18",
+      "summary": "lib/mcp-core.js retries a daemon call ONLY on ECONNREFUSED/ECONNRESET/EPIPE (a brief daemon restart must be invisible), bounded to RETRY_ATTEMPTS=3 with RETRY_BACKOFF_MS×attempt backoff; HTTP-level 4xx/5xx are never retried. Per-call timeout 30000ms. MCP initialize reports protocol version 2025-06-18.",
+      "evidence": "lib/mcp-core.js:21,51-54,77,80",
+      "kind": "invariant",
+      "source": "7"
+    },
+    {
+      "title": "measure.js default metric parse is the LAST numeric token; custom parse needs exactly one capture group",
+      "summary": "lib/measure.js parses a metric from stdout: default/'last_number' takes the last signed/decimal/exponent token; otherwise `parse` is a regex string whose group 1 must capture the number (throws on no match — no silent NaN). Subprocess bounded by DEFAULT_TIMEOUT_MS=120000 so a runaway command can't hang the daemon.",
+      "evidence": "lib/measure.js:12,19-31,40",
+      "kind": "convention",
+      "source": "8"
+    },
+    {
+      "title": "Self-improvement convergence precedence: target → stuck → diminishing → budget → iterate",
+      "summary": "lib/optimize.js decides converged-vs-iterate in fixed precedence (first match wins): explicit target met → 'converged'; last K rounds with no winning verdict → 'stuck'; last K improvement deltas all < epsilon → 'converged'; budget exhausted → 'budget'; else 'iterate'. Defaults epsilon=0.01, diminishing_rounds(K)=3. A round only counts as a 'win' if verdict.winner!=null AND guardrails_ok!==false.",
+      "evidence": "lib/optimize.js:12,32,53-95",
+      "kind": "decision",
+      "source": "10"
+    },
+    {
+      "title": "Overlay edge kinds: blocking (absent default), context, supersede — blocking upgrades to context, never downgrades",
+      "summary": "lib/overlay.js stores three edge kinds: blocking (the JSON-absent default, gates readiness), context (non-blocking provenance whose summary flows as Tier-1 context even when source is done), supersede (non-blocking retirement link). Re-adding an edge upgrades blocking→context but never silently downgrades. Statuses go beyond native: not_ready/ready/in_progress/tested/failed/done/canceled, where 'ready' written to the log is a SENTINEL meaning 'override deleted', not a real status. Overlay file: BASE/overlay/<base>-<sha1[0:16]>.json (collision-safe).",
+      "evidence": "lib/overlay.js:116-120,334-359,80-83",
+      "kind": "invariant",
+      "source": "11"
+    },
+    {
+      "title": "bench/sandbox/*.test.js are FROZEN golden acceptance tests — DO NOT EDIT",
+      "summary": "The sandbox benchmark's acceptance tests (e.g. bench/sandbox/resolve-deps.test.js, task-tokens.test.js) carry a 'Fixed acceptance test … DO NOT EDIT' header. They are the immutable scoring oracle; editing them games the benchmark rather than passing it. New engineers must change the implementation, never the test.",
+      "evidence": "bench/sandbox/resolve-deps.test.js:2",
+      "kind": "convention",
+      "source": "1,2"
+    },
+    {
+      "title": "Context-injection gate uses project-LOCALITY, not raw cosine — cosine+margin both collapse on the live KB",
+      "summary": "lib/context-gate.js injects a note only if top-1 cosine >= 0.50 AND externalGap >= 0.25 (fraction of the note's content tokens recurring in the task text) AND projectLocality >= 2 of 4 categories (measured quantities, literal error values, local identifiers, observed-on-real-data language). Alt path: a SHARP standalone hit (cosine>=0.50 AND empirical AND margin>=0.08) can inject without the gap test. Rationale: on the topically-tight orchestrator KB, true positives sit at ~0.548 cosine / 0.017 margin — cosine and margin both fail to separate them, so locality is the real discriminator (~14% of the KB scores >=2).",
+      "evidence": "lib/context-gate.js:30-59,118,274",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Haiku is the LLM fallback context-gate, guarded by a 4-per-60s circuit breaker",
+      "summary": "When semantic embedding is unavailable, lib/embed-haiku.js asks claude-haiku-4-5-20251001 to judge injection over the top MAX_NOTES=5 lexical candidates (8000ms timeout), emitting a SYNTHETIC cosine of 0.6 on inject / 0 on abstain (Haiku produces no real score). lib/haiku-breaker.js opens after >4 attempts in 60s and stays open for a 300000ms (5 min) cooldown before a single half-open probe — cost control on the paid fallback.",
+      "evidence": "lib/embed-haiku.js:14-16,133; lib/haiku-breaker.js:18-20,47-50",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "branch_task MUST precede start_task — daemon 409s a claim with no registered worktree; force-claim cap is 3",
+      "summary": "routes/overlay.js rejects start_task with 409 ('call branch_task(task_key) before start_task — subagents must work in an isolated worktree') unless T.ov.git[key].worktree exists, and bounces dispatcher sessions from claiming. Force-claim is capped at FORCE_CAP=3, after which a guidance gate blocks further retries. This ordering is enforced in the route, NOT in the MCP tool schema.",
+      "evidence": "routes/overlay.js:85,97,100-108",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "orch-gate hook: exit 2 blocks, fails OPEN if daemon unreachable, /tmp is NOT exempt",
+      "summary": "hooks/orch-gate.sh blocks Edit/Write with exit 2 unless the target is allowlisted (memory dirs, .claude settings/keybindings/launch/mcp.json, */CLAUDE.md, .claude/orchestrator|.claude/tasks, */scratch/*, *.log) — but /tmp and /private/tmp are explicitly NOT exempt (workers must use claimed worktrees) and orchestrator source stays gated. ORCH_GATE_OFF=1 fully ungates (for harnesses that spawn claude). If a worktree is registered, writes are allowed only on the orch/attempt/* branch. Curl to the daemon has a ~0.6s timeout and fails open (allow) when unreachable.",
+      "evidence": "hooks/orch-gate.sh:21,34-39,61-67,82",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Note-graph judge: dup cluster at cosine 0.80, 10-min judging gate, autowire edges seeded at 0.25",
+      "summary": "lib/judge.js clusters duplicate notes at DUP_RECALL_THRESHOLD=0.80 (loose high-recall; agent supplies precision), and a node with unjudged autowire edges stays unclaimable until adjudicated OR JUDGING_TIMEOUT_MS=600000 (10 min) elapses, after which edges fall back to provisional. Autowire seeds edges at a deliberately loose 0.25 cosine with weight 0 (retrieval-invisible) + judged:false; a kept edge is promoted to weight 0.5. Neighborhood expansion: NB_DECAY=0.6/hop, NB_MAX_NODES=12, NB_MAX_CHARS=4000.",
+      "evidence": "lib/judge.js:103,250,360-363,467,494",
+      "kind": "decision",
+      "source": "discovered"
+    }
+  ],
+  "rejected": [
+    { "candidate": "0 bench/ingest/inject.js", "reason": "restatement" },
+    { "candidate": "3 bench/temporal/run.js", "reason": "restatement" },
+    { "candidate": "9 lib/native-tasks.js", "reason": "restatement" },
+    { "candidate": "12 mcp-graph.js", "reason": "restatement" },
+    { "candidate": "13 scripts/bench-arm.js", "reason": "restatement" },
+    { "candidate": "14 scripts/bench-report.js", "reason": "restatement" },
+    { "candidate": "15 scripts/bench-report.test.js", "reason": "restatement" },
+    { "candidate": "16 scripts/extract-decisions.js", "reason": "generic" },
+    { "candidate": "17 scripts/gc-worktrees.js", "reason": "unverifiable" },
+    { "candidate": "18 scripts/ingest-docs.js", "reason": "restatement" },
+    { "candidate": "19 scripts/ingest-git.js", "reason": "restatement" }
+  ]
+}

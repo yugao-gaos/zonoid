@@ -1,0 +1,5337 @@
+{
+  "repo": "/Users/imyu/Desktop/zonoid",
+  "nodes": [
+    {
+      "id": "bench/context-gate-eval.js",
+      "role": "Offline labeled eval + regret metric for the context-need gate (lib/context-gate.js)."
+    },
+    {
+      "id": "bench/e2e/scenarios/dag-chain/grader.js",
+      "role": "E2E scenario grader for dag-chain."
+    },
+    {
+      "id": "bench/economy/scenarios/task-transcript/grader.js",
+      "role": "Economy-bench grader for task-transcript scenario."
+    },
+    {
+      "id": "bench/heldout/deps/batch.js",
+      "role": "batch.js — the platform's batch ingest client."
+    },
+    {
+      "id": "bench/heldout/fixtures/batch.js",
+      "role": "batch.js — workspace batch processing utility Known issue: silently drops records after index 1000 when input is a generator/iterator Use Array.from() or spr..."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-off-0/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-off-1/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-off-30/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-off-31/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-on-gated-0/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-on-gated-1/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-on-gated-2/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-on-gated-3/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-on-gated-4/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-on-gated-5/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-on-gated-6/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/_pre-fix-archive/overlay-save-on-gated-7/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/api-contract-off-0/build-event-ht.js",
+      "role": "Exports: buildEvent"
+    },
+    {
+      "id": "bench/heldout/frozen/api-contract-off-200/build-event-ht.js",
+      "role": "Exports: buildEvent"
+    },
+    {
+      "id": "bench/heldout/frozen/api-contract-on-gated-0/build-event-ht.js",
+      "role": "Exports: buildEvent"
+    },
+    {
+      "id": "bench/heldout/frozen/api-contract-on-iterative-200/build-event-ht.js",
+      "role": "Exports: buildEvent"
+    },
+    {
+      "id": "bench/heldout/frozen/api-contract-on-search-0/build-event-ht.js",
+      "role": "Exports: buildEvent"
+    },
+    {
+      "id": "bench/heldout/frozen/api-contract-on-search-200/build-event-ht.js",
+      "role": "Exports: buildEvent"
+    },
+    {
+      "id": "bench/heldout/frozen/bench-metric-off-0/compute-ratio-ht.js",
+      "role": "Exports: computeRatio"
+    },
+    {
+      "id": "bench/heldout/frozen/bench-metric-off-1/compute-ratio-ht.js",
+      "role": "Exports: computeRatio"
+    },
+    {
+      "id": "bench/heldout/frozen/bench-metric-off-2/compute-ratio-ht.js",
+      "role": "Exports: computeRatio"
+    },
+    {
+      "id": "bench/heldout/frozen/bench-metric-on-gated-0/compute-ratio-ht.js",
+      "role": "Exports: computeRatio"
+    },
+    {
+      "id": "bench/heldout/frozen/bench-metric-on-gated-1/compute-ratio-ht.js",
+      "role": "Exports: computeRatio"
+    },
+    {
+      "id": "bench/heldout/frozen/bench-metric-on-gated-2/compute-ratio-ht.js",
+      "role": "Exports: computeRatio"
+    },
+    {
+      "id": "bench/heldout/frozen/bench-metric-on-search-0/compute-ratio-ht.js",
+      "role": "Exports: computeRatio"
+    },
+    {
+      "id": "bench/heldout/frozen/bench-metric-on-search-1/compute-ratio-ht.js",
+      "role": "Exports: computeRatio"
+    },
+    {
+      "id": "bench/heldout/frozen/claim-task-off-0/claim-task-ht.js",
+      "role": "Exports: claimTask"
+    },
+    {
+      "id": "bench/heldout/frozen/claim-task-off-1/claim-task-ht.js",
+      "role": "claimTask: an agent takes a task from the shared graph before working it."
+    },
+    {
+      "id": "bench/heldout/frozen/claim-task-off-2/claim-task-ht.js",
+      "role": "Claim a task from a shared task-graph store on behalf of an agent."
+    },
+    {
+      "id": "bench/heldout/frozen/claim-task-on-gated-0/claim-task-ht.js",
+      "role": "Exports: claimTask"
+    },
+    {
+      "id": "bench/heldout/frozen/claim-task-on-search-0/claim-task-ht.js",
+      "role": "Exports: claimTask"
+    },
+    {
+      "id": "bench/heldout/frozen/claim-task-on-search-1/claim-task-ht.js",
+      "role": "Claim a task from a shared task graph: mark it in_progress and record the claiming agent."
+    },
+    {
+      "id": "bench/heldout/frozen/cron-next-off-0/cron-next-ht.js",
+      "role": "Exports: nextRun"
+    },
+    {
+      "id": "bench/heldout/frozen/cron-next-on-gated-0/cron-next-ht.js",
+      "role": "Exports: nextRun"
+    },
+    {
+      "id": "bench/heldout/frozen/cron-next-on-iterative-200/cron-next-ht.js",
+      "role": "Exports: nextRun"
+    },
+    {
+      "id": "bench/heldout/frozen/cron-next-on-search-0/cron-next-ht.js",
+      "role": "Exports: nextRun"
+    },
+    {
+      "id": "bench/heldout/frozen/cron-next-on-search-200/cron-next-ht.js",
+      "role": "Exports: nextRun"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-agg-report-off-0/agg-report-ht.js",
+      "role": "Exports: summarizeRuns"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-agg-report-off-1/agg-report-ht.js",
+      "role": "Exports: summarizeRuns"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-agg-report-off-2/agg-report-ht.js",
+      "role": "Exports: summarizeRuns"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-agg-report-on-gated-0/agg-report-ht.js",
+      "role": "Exports: summarizeRuns"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-agg-report-on-search-0/agg-report-ht.js",
+      "role": "Exports: summarizeRuns"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-agg-report-on-search-1/agg-report-ht.js",
+      "role": "Exports: summarizeRuns"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-loop-next-off-0/loop-next-ht.js",
+      "role": "Exports: nextLoopAction"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-loop-next-off-1/loop-next-ht.js",
+      "role": "Exports: nextLoopAction"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-loop-next-off-2/loop-next-ht.js",
+      "role": "Decide the controller's next action in the metric-driven improvement loop."
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-loop-next-on-gated-0/loop-next-ht.js",
+      "role": "Exports: nextLoopAction"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-loop-next-on-search-0/loop-next-ht.js",
+      "role": "Exports: nextLoopAction"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-loop-next-on-search-1/loop-next-ht.js",
+      "role": "Returns the next action string for the metric-driven improvement loop controller."
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-stale-claims-off-0/stale-claims-ht.js",
+      "role": "Exports: findStaleClaims"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-stale-claims-off-1/stale-claims-ht.js",
+      "role": "Exports: findStaleClaims"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-stale-claims-off-2/stale-claims-ht.js",
+      "role": "Exports: findStaleClaims"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-stale-claims-on-gated-0/stale-claims-ht.js",
+      "role": "Returns ids of stale claims: in_progress tasks whose agent has stopped heartbeating."
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-stale-claims-on-search-0/stale-claims-ht.js",
+      "role": "Exports: findStaleClaims"
+    },
+    {
+      "id": "bench/heldout/frozen/ctl-stale-claims-on-search-1/stale-claims-ht.js",
+      "role": "findStaleClaims(tasks, nowMs, staleMs) Returns ids of in_progress tasks whose agent has gone stale, oldest heartbeat first."
+    },
+    {
+      "id": "bench/heldout/frozen/fixtures/batch.js",
+      "role": "batch.js — workspace batch processing utility Known issue: silently drops records after index 1000 when input is a generator/iterator Use Array.from() or spr..."
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-off-0/batch.js",
+      "role": "batch.js — workspace batch processing utility Known issue: silently drops records after index 1000 when input is a generator/iterator Use Array.from() or spr..."
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-off-0/process-records-ht.js",
+      "role": "Exports: processRecords"
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-off-200/batch.js",
+      "role": "batch.js — workspace batch processing utility Known issue: silently drops records after index 1000 when input is a generator/iterator Use Array.from() or spr..."
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-off-200/process-records-ht.js",
+      "role": "Exports: processRecords"
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-on-gated-0/batch.js",
+      "role": "batch.js — workspace batch processing utility Known issue: silently drops records after index 1000 when input is a generator/iterator Use Array.from() or spr..."
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-on-gated-0/process-records-ht.js",
+      "role": "Exports: processRecords"
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-on-iterative-200/batch.js",
+      "role": "batch.js — workspace batch processing utility Known issue: silently drops records after index 1000 when input is a generator/iterator Use Array.from() or spr..."
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-on-iterative-200/process-records-ht.js",
+      "role": "Exports: processRecords"
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-on-search-0/batch.js",
+      "role": "batch.js — workspace batch processing utility Known issue: silently drops records after index 1000 when input is a generator/iterator Use Array.from() or spr..."
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-on-search-0/process-records-ht.js",
+      "role": "Exports: processRecords"
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-on-search-200/batch.js",
+      "role": "batch.js — workspace batch processing utility Known issue: silently drops records after index 1000 when input is a generator/iterator Use Array.from() or spr..."
+    },
+    {
+      "id": "bench/heldout/frozen/flaky-dep-on-search-200/process-records-ht.js",
+      "role": "Exports: processRecords"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-off-0/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-off-1/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-off-2/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-off-200/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-off-3/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-off-4/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-off-5/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-off-6/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-off-7/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-off-8/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-off-9/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-gated-0/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-gated-1/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-gated-2/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-gated-3/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-gated-4/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-gated-5/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-gated-6/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-gated-7/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-gated-8/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-gated-9/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-iterative-0/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-iterative-1/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-iterative-2/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-iterative-200/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-iterative-3/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-iterative-4/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-iterative-5/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-iterative-6/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-iterative-7/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-iterative-8/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-iterative-9/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-search-0/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-search-1/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-search-2/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-search-200/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-search-3/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-search-4/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-search-5/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-search-6/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-search-7/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-search-8/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/interval-merge-on-search-9/merge-intervals-ht.js",
+      "role": "Exports: mergeIntervals"
+    },
+    {
+      "id": "bench/heldout/frozen/legacy-id-off-0/parse-task-id-ht.js",
+      "role": "Exports: parseTaskId"
+    },
+    {
+      "id": "bench/heldout/frozen/legacy-id-off-200/parse-task-id-ht.js",
+      "role": "Exports: parseTaskId"
+    },
+    {
+      "id": "bench/heldout/frozen/legacy-id-on-gated-0/parse-task-id-ht.js",
+      "role": "Exports: parseTaskId"
+    },
+    {
+      "id": "bench/heldout/frozen/legacy-id-on-iterative-200/parse-task-id-ht.js",
+      "role": "Exports: parseTaskId"
+    },
+    {
+      "id": "bench/heldout/frozen/legacy-id-on-search-0/parse-task-id-ht.js",
+      "role": "UUID/<seq> format: current IDs"
+    },
+    {
+      "id": "bench/heldout/frozen/legacy-id-on-search-200/parse-task-id-ht.js",
+      "role": "Exports: parseTaskId"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-0/sum-amounts-ht.js",
+      "role": "The upstream billing export intermixes en-US (1,234.56) and de-DE (1.234,56) decimal formats in the same feed."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-1/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-100/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-101/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-102/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-103/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-104/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-105/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-106/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-107/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-108/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-109/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-2/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-20/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) -> Number Sum a feed of line items whose `amount` is serialized as a STRING (the upstream export never emits JSON numbers)."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-200/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-21/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — grand total of a billing line-item feed."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-22/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — sum a feed of monetary line items into a grand total."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-23/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — grand total of a billing line-item feed."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-24/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — sum a billing feed of line items into a grand total."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-3/sum-amounts-ht.js",
+      "role": "Parse one row's `amount` string into a Number of dollars."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-4/sum-amounts-ht.js",
+      "role": "Parse one amount string into a Number."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-off-99/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-autonomous-20/sum-amounts-ht.js",
+      "role": "Parse a single row's `amount` string into a Number of currency units."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-autonomous-21/sum-amounts-ht.js",
+      "role": "Sum a feed of line items whose `amount` is a money string."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-autonomous-22/sum-amounts-ht.js",
+      "role": "Parse one row's `amount` (a money string) into a Number of cents, or null if it is missing / empty / not a parseable monetary value."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-autonomous-23/sum-amounts-ht.js",
+      "role": "Parse a single amount string into a Number, or null if it is not a parseable monetary value."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-autonomous-24/sum-amounts-ht.js",
+      "role": "Parse a single string amount into a Number, honoring an optional leading currency symbol ($) and sign."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-autonomous-25/sum-amounts-ht.js",
+      "role": "Sum a feed of string-rendered monetary amounts into a Number total, rounded to 2 decimals (half-up at the cent)."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-autonomous-26/sum-amounts-ht.js",
+      "role": "Parse one row's `amount` string into a Number."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-autonomous-27/sum-amounts-ht.js",
+      "role": "Parse one row's `amount` (a money string) into a Number of dollars."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-autonomous-28/sum-amounts-ht.js",
+      "role": "Parse a single row's `amount` into a Number of currency units."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-autonomous-29/sum-amounts-ht.js",
+      "role": "Parse a single amount string into integer cents."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-0/sum-amounts-ht.js",
+      "role": "The upstream billing export mixes en-US (\"1,234.56\") and de-DE (\"1.234,56\") decimal formats in the same feed, so a plain parseFloat silently mis-sums."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-1/sum-amounts-ht.js",
+      "role": "Real upstream feed mixes en-US (1,234.56) and de-DE (1.234,56) decimal formats."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-10/sum-amounts-ht.js",
+      "role": "Normalize a single-separator string to a JS-parseable decimal (\".\" as decimal)."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-100/sum-amounts-ht.js",
+      "role": "The real billing feed mixes en-US (1,234.56) and de-DE (1.234,56) formats."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-101/sum-amounts-ht.js",
+      "role": "Parse a monetary string that may use en-US (1,234.56) or de-DE (1.234,56 / 99,90) formatting."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-102/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-103/sum-amounts-ht.js",
+      "role": "Locale-aware monetary string parser."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-104/sum-amounts-ht.js",
+      "role": "The billing feed mixes en-US (1,234.56) and de-DE (1.234,56) decimal formats."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-105/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-106/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-107/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-108/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-109/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-11/sum-amounts-ht.js",
+      "role": "Resolve the role of a single separator char (`.` or `,`) in a numeric string: thousands grouping vs."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-12/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) -> Number Sums an array of line items whose `amount` is a money STRING (the upstream export never serializes money as a JSON number)."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-2/sum-amounts-ht.js",
+      "role": "Parses a monetary string tolerating en-US (1,234.56) and de-DE (1.234,56) formats."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-3/sum-amounts-ht.js",
+      "role": "sumAmounts: sum a feed of string-rendered monetary amounts into a Number total."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-4/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — sum a feed of string-serialized monetary amounts into a Number."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-5/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — sum a feed of line-item money strings into a rounded Number total."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-6/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — total a feed of line items whose `amount` is a money string."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-7/sum-amounts-ht.js",
+      "role": "Parse a single monetary amount string into a Number, or null if unparseable."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-8/sum-amounts-ht.js",
+      "role": "Parse a single monetary amount string to a Number, or NaN if unparseable."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-gated-9/sum-amounts-ht.js",
+      "role": "Parse a single amount string into a Number, or return null if it is not a parseable monetary value (the caller treats null as a contribution of 0)."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-100/sum-amounts-ht.js",
+      "role": "Handles both en-US (1,234.56) and de-DE (1.234,56) locale formats."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-101/sum-amounts-ht.js",
+      "role": "Detect locale by position of last separator: no comma → en-US plain \"1234.56\" comma only → de-DE decimal \"99,90\" → 99.9 dot after comma → en-US (dot is decim..."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-102/sum-amounts-ht.js",
+      "role": "The upstream export mixes en-US (dot-decimal) and de-DE (comma-decimal) amount strings."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-103/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-104/sum-amounts-ht.js",
+      "role": "The upstream export mixes en-US (dot-decimal) and de-DE (comma-decimal) formats."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-105/sum-amounts-ht.js",
+      "role": "Detects en-US (dot-decimal) vs de-DE (comma-decimal) from the position of the last separator character, with a disambiguation rule for bare thousands commas ..."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-106/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-107/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-108/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-109/sum-amounts-ht.js",
+      "role": "De-DE format uses comma as decimal separator and dot as thousands separator."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-200/sum-amounts-ht.js",
+      "role": "The billing feed mixes en-US dot-decimal (\"1,234.56\") and de-DE comma-decimal (\"99,90\", \"1.234,56\") formats."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-30/sum-amounts-ht.js",
+      "role": "Parse a single row's `amount` string into a Number."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-31/sum-amounts-ht.js",
+      "role": "Matches an optional sign followed by a plain decimal: \"12\", \"12.50\", \".99\", \"5.\""
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-32/sum-amounts-ht.js",
+      "role": "Parse one row's `amount` (a string) into a Number of currency units."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-33/sum-amounts-ht.js",
+      "role": "Parse a single string amount into a Number of cents (integer), or null if the value is missing / not a parseable monetary string."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-34/sum-amounts-ht.js",
+      "role": "Sum a feed of line-item amounts (each rendered as a string) into a grand total."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-35/sum-amounts-ht.js",
+      "role": "Parse a single row's `amount` into a finite Number, or return null when the value is missing / empty / not a parseable monetary string."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-36/sum-amounts-ht.js",
+      "role": "Sum a feed of line items whose `amount` is a money string."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-37/sum-amounts-ht.js",
+      "role": "Parse one row's `amount` string into a Number of dollars."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-38/sum-amounts-ht.js",
+      "role": "Parse one row's `amount` into a Number of dollars, or null if it is not a parseable monetary value."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-39/sum-amounts-ht.js",
+      "role": "Parse one row's `amount` string into a Number of dollars."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-40/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — sum a feed of money-as-string line items into a Number, rounded to 2 decimals (half away from zero at the cent)."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-41/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — sum a feed of money line items into a grand total Number."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-42/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — total an upstream billing feed of string `amount`s."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-43/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — grand total of a billing line-item feed."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-44/sum-amounts-ht.js",
+      "role": "sumAmounts — total a feed of money line items."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-45/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — total a feed of line items whose `amount` is a money STRING."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-46/sum-amounts-ht.js",
+      "role": "Parse one amount string into a Number, per the feed contract: - leading/trailing whitespace is insignificant - an optional leading '$' currency symbol is str..."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-47/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — total a feed of line items whose `amount` is a money string."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-48/sum-amounts-ht.js",
+      "role": "Sum a feed of line-item amounts (rendered as strings by the upstream export) into a grand total, returned as a Number rounded to 2 decimals (half-up)."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-iterative-49/sum-amounts-ht.js",
+      "role": "Parse one amount string from the billing feed into a Number, or 0 if it is missing / empty / not a parseable monetary value."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-0/sum-amounts-ht.js",
+      "role": "Handles both en-US (\"1,234.56\") and de-DE (\"1.234,56\") decimal formats — the upstream billing export mixes both conventions per-row (KB note: note-mq7ydrv353p)."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-1/sum-amounts-ht.js",
+      "role": "Exports: sumAmounts"
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-100/sum-amounts-ht.js",
+      "role": "KB note (empirical): the upstream billing export mixes en-US dot-decimal (\"1,234.56\") and de-DE comma-decimal (\"1.234,56\") in the same feed."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-101/sum-amounts-ht.js",
+      "role": "Parse a monetary amount string, handling both en-US (1,234.56) and de-DE (1.234,56) locale formats."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-102/sum-amounts-ht.js",
+      "role": "KB override: the billing feed mixes en-US (dot-decimal) and de-DE (comma-decimal) formats per-row."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-103/sum-amounts-ht.js",
+      "role": "The upstream billing export mixes en-US (period decimal) and de-DE (comma decimal, period thousands) amount strings in the same feed."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-104/sum-amounts-ht.js",
+      "role": "The billing export mixes en-US (dot-decimal) and de-DE (comma-decimal) formats."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-105/sum-amounts-ht.js",
+      "role": "Detects locale by the position of the last separator: - last separator is '.' → en-US (dot=decimal, comma=thousands) - last separator is ',' → de-DE (comma=d..."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-106/sum-amounts-ht.js",
+      "role": "Parse a monetary string tolerating en-US (1234.56) and de-DE (1.234,56 / 99,90) formats."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-107/sum-amounts-ht.js",
+      "role": "Parses a monetary amount string in either en-US (\"1,234.56\") or de-DE (\"1.234,56\") locale."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-108/sum-amounts-ht.js",
+      "role": "KB GOTCHA: billing feed mixes en-US (dot-decimal) and de-DE (comma-decimal) formats per row."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-109/sum-amounts-ht.js",
+      "role": "Parse a monetary string that may be en-US (1,234.56) or de-DE (1.234,56)."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-2/sum-amounts-ht.js",
+      "role": "The upstream billing export mixes en-US (1,234.56) and de-DE (1.234,56) formats per-row."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-200/sum-amounts-ht.js",
+      "role": "KB override: real feed mixes en-US (1,234.56) and de-DE (1.234,56) formats."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-3/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) — total an upstream billing feed of string-rendered amounts."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-4/sum-amounts-ht.js",
+      "role": "sumAmounts(rows) -> grand total of the export's string `amount` field, as a Number rounded to 2 decimals."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-43/sum-amounts-ht.js",
+      "role": "Sum a feed of line-item amounts (each rendered as a money string) into a grand total Number, rounded half-up to the cent."
+    },
+    {
+      "id": "bench/heldout/frozen/locale-sum-on-search-99/sum-amounts-ht.js",
+      "role": "sumAmounts(rows): total an upstream billing feed of string amounts -> Number (2dp)."
+    },
+    {
+      "id": "bench/heldout/frozen/native-store-off-0/task-store-ht.js",
+      "role": "Exports: createTaskStore"
+    },
+    {
+      "id": "bench/heldout/frozen/native-store-off-1/task-store-ht.js",
+      "role": "Exports: createTaskStore"
+    },
+    {
+      "id": "bench/heldout/frozen/native-store-off-2/task-store-ht.js",
+      "role": "createTaskStore(dir): a store over Claude Code's native task directory."
+    },
+    {
+      "id": "bench/heldout/frozen/native-store-on-gated-0/task-store-ht.js",
+      "role": "Exports: createTaskStore"
+    },
+    {
+      "id": "bench/heldout/frozen/native-store-on-search-0/task-store-ht.js",
+      "role": "Exports: createTaskStore"
+    },
+    {
+      "id": "bench/heldout/frozen/native-store-on-search-1/task-store-ht.js",
+      "role": "Exports: createTaskStore"
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-0/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-20/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-21/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-22/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-23/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-24/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-25/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-26/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-27/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-28/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-29/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-30/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-31/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-32/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-33/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-34/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-35/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-36/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-37/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-38/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-off-39/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-0/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-20/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-21/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-22/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-23/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-24/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-25/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-26/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-27/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-28/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-29/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-30/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-31/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-32/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-33/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-34/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-35/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-36/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-37/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-38/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-gated-39/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/overlay-save-on-search-0/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "bench/heldout/frozen/silent-cap-off-0/batch.js",
+      "role": "batch.js — the platform's batch ingest client."
+    },
+    {
+      "id": "bench/heldout/frozen/silent-cap-off-0/process-all.js",
+      "role": "Exports: processAll"
+    },
+    {
+      "id": "bench/heldout/frozen/silent-cap-off-1/batch.js",
+      "role": "batch.js — the platform's batch ingest client."
+    },
+    {
+      "id": "bench/heldout/frozen/silent-cap-off-1/process-all.js",
+      "role": "Exports: processAll"
+    },
+    {
+      "id": "bench/heldout/frozen/silent-cap-off-2/batch.js",
+      "role": "batch.js — the platform's batch ingest client."
+    },
+    {
+      "id": "bench/heldout/frozen/silent-cap-off-2/process-all.js",
+      "role": "Exports: processAll"
+    },
+    {
+      "id": "bench/heldout/frozen/silent-cap-on-gated-0/batch.js",
+      "role": "batch.js — the platform's batch ingest client."
+    },
+    {
+      "id": "bench/heldout/frozen/silent-cap-on-gated-0/process-all.js",
+      "role": "Exports: processAll"
+    },
+    {
+      "id": "bench/heldout/frozen/silent-cap-on-search-0/batch.js",
+      "role": "batch.js — the platform's batch ingest client."
+    },
+    {
+      "id": "bench/heldout/frozen/silent-cap-on-search-0/process-all.js",
+      "role": "Exports: processAll"
+    },
+    {
+      "id": "bench/heldout/frozen/sum-basic-off-0/format-duration-ht.js",
+      "role": "Exports: formatDuration"
+    },
+    {
+      "id": "bench/heldout/frozen/sum-basic-off-1/format-duration-ht.js",
+      "role": "Exports: formatDuration"
+    },
+    {
+      "id": "bench/heldout/frozen/sum-basic-on-gated-0/format-duration-ht.js",
+      "role": "Exports: formatDuration"
+    },
+    {
+      "id": "bench/heldout/frozen/sum-basic-on-gated-1/format-duration-ht.js",
+      "role": "Exports: formatDuration"
+    },
+    {
+      "id": "bench/heldout/frozen/sum-basic-on-search-0/format-duration-ht.js",
+      "role": "Exports: formatDuration"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-0/resolve-owner-ht.js",
+      "role": "Resolve the transcript path that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-1/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-10/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-100/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-101/resolve-owner-ht.js",
+      "role": "Returns the transcript path for the agent that owns the given task, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-102/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-103/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-104/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-105/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for a task's assignee."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-106/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-107/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-108/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-109/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for the agent that owns a given task."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-11/resolve-owner-ht.js",
+      "role": "Resolve the transcript file that holds a given task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-12/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-13/resolve-owner-ht.js",
+      "role": "Resolve the transcript file that holds a given task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-14/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-15/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-16/resolve-owner-ht.js",
+      "role": "Resolve the transcript file that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-17/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-18/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-19/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-2/resolve-owner-ht.js",
+      "role": "Resolve the transcript path that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-200/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for a given task key using the daemon's registry."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-3/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-4/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-5/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-6/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-7/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-8/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-off-9/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-autonomous-65/resolve-owner-ht.js",
+      "role": "Resolve the transcript file that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-autonomous-66/resolve-owner-ht.js",
+      "role": "Resolve the transcript path that holds a given task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-autonomous-67/resolve-owner-ht.js",
+      "role": "Resolve the transcript path that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-autonomous-68/resolve-owner-ht.js",
+      "role": "Resolve the transcript file that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-autonomous-69/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-autonomous-70/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-autonomous-71/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-autonomous-72/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-autonomous-73/resolve-owner-ht.js",
+      "role": "Resolve the transcript path that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-autonomous-74/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-0/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-1/resolve-owner-ht.js",
+      "role": "Resolve the transcript file that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-10/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-100/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-101/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for a task given the daemon's registry."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-102/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for a task given the daemon's assembled registry."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-103/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-104/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for a task from the daemon's registry."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-105/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for the agent that claimed a task."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-106/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for the agent that worked on taskKey."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-107/resolve-owner-ht.js",
+      "role": "Three-leg resolver per KB override note-mqa3vbpct2c: 1."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-108/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-109/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for a task, using three-leg attribution: 1."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-11/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-12/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-13/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-14/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-15/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-16/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-17/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-18/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-19/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-2/resolve-owner-ht.js",
+      "role": "Resolve the transcript file that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-20/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-21/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-22/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-23/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-24/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-25/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-26/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-27/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-28/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-29/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-3/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-30/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-31/resolve-owner-ht.js",
+      "role": "Resolve the transcript file that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-32/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string | null Resolves the transcript that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-33/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-34/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-35/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-36/resolve-owner-ht.js",
+      "role": "Resolve, for a given task, the transcript file that holds that task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-37/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-38/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-39/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-4/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-40/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-41/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-42/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-43/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-44/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-45/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-46/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-47/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-48/resolve-owner-ht.js",
+      "role": "Resolve the transcript file that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-49/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-5/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-50/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-51/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-52/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-53/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) Return the transcript path attributable to a task, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-54/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-55/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-56/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-57/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-58/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-59/resolve-owner-ht.js",
+      "role": "Resolve the transcript file that holds a given task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-6/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-60/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-61/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-62/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-63/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-7/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-8/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-gated-9/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-100/resolve-owner-ht.js",
+      "role": "resolveOwner — given a taskKey and the daemon registry, return the transcript path attributed to that task, or null if none can be found."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-101/resolve-owner-ht.js",
+      "role": "Return the transcript path for the task, or null if none can be attributed."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-102/resolve-owner-ht.js",
+      "role": "Three-leg resolver: direct → session → byWindow overlap (byWindow leg required — ~40% of agent records carry neither transcript_path nor session)"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-103/resolve-owner-ht.js",
+      "role": "Three-leg resolver for task → transcript attribution."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-104/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for a task."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-105/resolve-owner-ht.js",
+      "role": "Given a taskKey and the daemon's assembled registry, return the transcript path for that task, or null if none can be attributed."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-106/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-107/resolve-owner-ht.js",
+      "role": "Returns the transcript path for the agent that claimed taskKey, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-108/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-109/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for a task given the daemon's runtime registry."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-200/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for a task via its assignee agent record."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-75/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-76/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string | null Given a task and the registry the daemon assembles at read time, return the transcript file ..."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-77/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-78/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-79/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-80/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string | null For a given task, find the transcript file that holds its token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-81/resolve-owner-ht.js",
+      "role": "Resolve the transcript file that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-82/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-83/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-iterative-84/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-0/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string | null Resolve the transcript file that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-1/resolve-owner-ht.js",
+      "role": "Parse an ISO-8601 string to epoch ms, falling back when absent/invalid."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-100/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-101/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-102/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for a given task key."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-103/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-104/resolve-owner-ht.js",
+      "role": "Proxy for an open-ended interval end: ~year 275760, well beyond any real timestamp."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-105/resolve-owner-ht.js",
+      "role": "Three-leg resolver: 1."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-106/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-107/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for a task, given the daemon's registry."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-108/resolve-owner-ht.js",
+      "role": "Exports: resolveOwner"
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-109/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for the task that claimed a given task key."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-2/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string | null For a given task, return the transcript file that holds that task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-200/resolve-owner-ht.js",
+      "role": "Resolve the transcript path for the agent that claimed a task."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-3/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string | null Resolve the transcript file that holds a task's token usage by following the task's assignee..."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-4/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path (string) | null Returns the transcript file that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-5/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string | null Resolves the transcript file that holds a task's token usage."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-6/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/task-transcript-on-search-7/resolve-owner-ht.js",
+      "role": "resolveOwner(taskKey, registry) -> transcript path string, or null."
+    },
+    {
+      "id": "bench/heldout/frozen/tls-local-off-0/local-https-ht.js",
+      "role": "Exports: localHttpsSetup"
+    },
+    {
+      "id": "bench/heldout/frozen/tls-local-off-1/local-https-ht.js",
+      "role": "Setup plan for serving the orchestrator daemon (localhost:8787) over HTTPS so the chat client can add it as a custom connector."
+    },
+    {
+      "id": "bench/heldout/frozen/tls-local-on-gated-0/local-https-ht.js",
+      "role": "TLS validates the cert issuer against the system trust store regardless of hostname."
+    },
+    {
+      "id": "bench/heldout/frozen/tls-local-on-search-0/local-https-ht.js",
+      "role": "Exports: localHttpsSetup"
+    },
+    {
+      "id": "bench/heldout/frozen/tls-local-on-search-1/local-https-ht.js",
+      "role": "Setup plan for serving the orchestrator daemon over HTTPS so the chat client can add it as a custom connector."
+    },
+    {
+      "id": "bench/heldout/frozen/wt-gc-off-0/gc-plan-ht.js",
+      "role": "Exports: gcPlan"
+    },
+    {
+      "id": "bench/heldout/frozen/wt-gc-off-1/gc-plan-ht.js",
+      "role": "GC planner for the orchestrator's `worktrees/` directory."
+    },
+    {
+      "id": "bench/heldout/frozen/wt-gc-off-2/gc-plan-ht.js",
+      "role": "GC planner for the orchestrator's `worktrees/` directory."
+    },
+    {
+      "id": "bench/heldout/frozen/wt-gc-on-gated-0/gc-plan-ht.js",
+      "role": "Exports: gcPlan"
+    },
+    {
+      "id": "bench/heldout/frozen/wt-gc-on-search-0/gc-plan-ht.js",
+      "role": "Retention window: worktrees younger than this are kept even if merged/unregistered."
+    },
+    {
+      "id": "bench/heldout/frozen/wt-gc-on-search-1/gc-plan-ht.js",
+      "role": "Default retention window, mirroring scripts/gc-worktrees.js (--retention-hours 24)."
+    },
+    {
+      "id": "bench/heldout/graders/api-contract.grader.js",
+      "role": "Grader for api-contract."
+    },
+    {
+      "id": "bench/heldout/graders/bench-metric.grader.js",
+      "role": "HELD-OUT grader for bench-metric (computeRatio)."
+    },
+    {
+      "id": "bench/heldout/graders/claim-task.grader.js",
+      "role": "HELD-OUT grader for the claim-task candidate."
+    },
+    {
+      "id": "bench/heldout/graders/cron-next.grader.js",
+      "role": "HELD-OUT grader for the cron-next candidate."
+    },
+    {
+      "id": "bench/heldout/graders/ctl-agg-report.grader.js",
+      "role": "HELD-OUT grader for the ctl-agg-report CONTROL candidate."
+    },
+    {
+      "id": "bench/heldout/graders/ctl-loop-next.grader.js",
+      "role": "HELD-OUT grader for the ctl-loop-next CONTROL candidate."
+    },
+    {
+      "id": "bench/heldout/graders/ctl-stale-claims.grader.js",
+      "role": "HELD-OUT grader for the ctl-stale-claims CONTROL candidate."
+    },
+    {
+      "id": "bench/heldout/graders/flaky-dep.grader.js",
+      "role": "flaky-dep.grader.js Tests processRecords against small, medium, and large inputs."
+    },
+    {
+      "id": "bench/heldout/graders/interval-merge.grader.js",
+      "role": "HELD-OUT grader for the interval-merge candidate."
+    },
+    {
+      "id": "bench/heldout/graders/legacy-id.grader.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "bench/heldout/graders/locale-sum.grader.js",
+      "role": "HELD-OUT grader for the locale-sum candidate."
+    },
+    {
+      "id": "bench/heldout/graders/native-store.grader.js",
+      "role": "HELD-OUT grader for the native-store candidate."
+    },
+    {
+      "id": "bench/heldout/graders/overlay-save.grader.js",
+      "role": "HELD-OUT grader for overlay-save (diagnostics field — durable persistence)."
+    },
+    {
+      "id": "bench/heldout/graders/silent-cap.grader.js",
+      "role": "HELD-OUT grader for the silent-cap candidate."
+    },
+    {
+      "id": "bench/heldout/graders/sum-basic.grader.js",
+      "role": "HELD-OUT grader for sum-basic (formatDuration)."
+    },
+    {
+      "id": "bench/heldout/graders/task-transcript.grader.js",
+      "role": "HELD-OUT grader for the task->transcript candidate."
+    },
+    {
+      "id": "bench/heldout/graders/tls-local.grader.js",
+      "role": "HELD-OUT grader for the tls-local candidate."
+    },
+    {
+      "id": "bench/heldout/graders/wt-gc.grader.js",
+      "role": "HELD-OUT grader for the wt-gc candidate."
+    },
+    {
+      "id": "bench/ingest/inject.js",
+      "role": "inject.js — populate the orchestrator graph with the ingest candidate knowledge-base."
+    },
+    {
+      "id": "bench/judge-edge/run.js",
+      "role": "bench/judge-edge/run.js Scores the judge's edge keep/prune logic against a labeled eval set."
+    },
+    {
+      "id": "bench/judge-edge/score-synthetic.js",
+      "role": "bench/judge-edge/score-synthetic.js GROUND-TRUTH scorer for the NEIGHBORHOOD-AWARE edge judge."
+    },
+    {
+      "id": "bench/judge-model/run.js",
+      "role": "bench/judge-model/run.js Compares haiku vs sonnet for edge keep/prune verdict quality on the labeled eval set."
+    },
+    {
+      "id": "bench/sandbox/resolve-deps.test.js",
+      "role": "Fixed acceptance test for bench/sandbox/resolve-deps.js — DO NOT EDIT."
+    },
+    {
+      "id": "bench/sandbox/task-tokens.test.js",
+      "role": "Fixed acceptance test for bench/sandbox/task-tokens.js — DO NOT EDIT."
+    },
+    {
+      "id": "bench/sandbox/wincase-resolve.test.js",
+      "role": "Fixed acceptance test for bench/sandbox/wincase-resolve.js — DO NOT EDIT."
+    },
+    {
+      "id": "bench/suite/scenarios/add-jsdoc/grader.js",
+      "role": "Grader for add-jsdoc scenario."
+    },
+    {
+      "id": "bench/suite/scenarios/add-jsdoc/minimal-source/input.js",
+      "role": "Exports: formatDate, truncate, deepMerge"
+    },
+    {
+      "id": "bench/suite/scenarios/balanced-brackets/grader.js",
+      "role": "grader.js — balanced-brackets correctness grader Usage: node grader.js <artifact-path> Output: JSON { ok, pass, total }"
+    },
+    {
+      "id": "bench/suite/scenarios/cache-eviction-policy/grader.js",
+      "role": "grader.js — cache-eviction-policy correctness grader Usage: node grader.js <artifact-path> Output: JSON { ok, pass, total } Tests 1-8: basic correctness (bot..."
+    },
+    {
+      "id": "bench/suite/scenarios/cron-next-fire/grader.js",
+      "role": "grader.js — cron-next-fire correctness grader Usage: node grader.js <artifact-path> Output: JSON { ok, pass, total }"
+    },
+    {
+      "id": "bench/suite/scenarios/fix-bug/grader.js",
+      "role": "Grader for fix-bug scenario."
+    },
+    {
+      "id": "bench/suite/scenarios/fix-bug/minimal-source/input.js",
+      "role": "BUG: when a key is first seen, assigns the item directly instead of initializing an array."
+    },
+    {
+      "id": "bench/suite/scenarios/fix-bug/minimal-source/tests.js",
+      "role": "Exports: run, total"
+    },
+    {
+      "id": "bench/suite/scenarios/lru-cache/grader.js",
+      "role": "grader.js — lru-cache correctness grader Usage: node grader.js <artifact-path> Output: JSON { ok, pass, total }"
+    },
+    {
+      "id": "bench/suite/scenarios/pure-algorithm/grader.js",
+      "role": "grader.js — MedianFinder correctness grader."
+    },
+    {
+      "id": "bench/suite/scenarios/pure-refactor/grader.js",
+      "role": "grader.js — pure-refactor scenario grader."
+    },
+    {
+      "id": "bench/suite/scenarios/pure-refactor/minimal-source/input.js",
+      "role": "messyFunction: parses a CSV-like record string into a structured object."
+    },
+    {
+      "id": "bench/suite/scenarios/rate-limiter-strategy/grader.js",
+      "role": "grader.js — RateLimiter correctness + structural grader."
+    },
+    {
+      "id": "bench/suite/scenarios/write-tests/grader.js",
+      "role": "Grader for write-tests scenario Evaluates an agent-written test suite for parseConfig."
+    },
+    {
+      "id": "bench/suite/scenarios/write-tests/minimal-source/input.js",
+      "role": "Exports: parseConfig"
+    },
+    {
+      "id": "bench/temporal/run.js",
+      "role": "Temporal / state-change retrieval benchmark runner."
+    },
+    {
+      "id": "bin/backfill-merged.js",
+      "role": "One-shot, idempotent backfill: stamp merged:true + merge_sha + merged_at onto HISTORICAL done task nodes whose attempt branch (orch/attempt/<slugified-task-k..."
+    },
+    {
+      "id": "daemon.js",
+      "role": "Orchestrator daemon: serves a per-WORKSPACE task graph built ON TOP of native Claude Code tasks (read live, source of truth) plus our overlay (cross-session ..."
+    },
+    {
+      "id": "docs/papers/quality-gain/assets/grader-overlay-save.js",
+      "role": "HELD-OUT grader for overlay-save (diagnostics field — durable persistence)."
+    },
+    {
+      "id": "lib/adapters/claude.js",
+      "role": "Claude Code harness adapter: implements the lib/harness.js interface by THIN delegation to the existing Claude-specific modules (lib/native-tasks, lib/human-..."
+    },
+    {
+      "id": "lib/adapters/codex.js",
+      "role": "Codex harness adapter: file-drop tasks + self-reported usage; hookless scheduler substrate."
+    },
+    {
+      "id": "lib/adapters/cursor.js",
+      "role": "Cursor harness adapter: file-drop tasks + Cursor transcript JSONLs under ~/.cursor/projects/<encoded-workspace>/agent-transcripts/."
+    },
+    {
+      "id": "lib/adapters/scheduler-substrate.js",
+      "role": "Hookless harness scheduler: armWakeup/cancelWakeup via lib/schedule-wakeup.js; writeScheduledTask writes a deferred NOTE.md under ORCH_DATA/scheduled-tasks/<..."
+    },
+    {
+      "id": "lib/adapters/stub.js",
+      "role": "Exports: name, tasks, transcripts, scheduler, usage"
+    },
+    {
+      "id": "lib/analytics.js",
+      "role": "Tool-usage analytics: aggregated MCP tool-call counters, persisted across daemon restarts."
+    },
+    {
+      "id": "lib/ask-gate-recall.js",
+      "role": "Shared recall+gate+journal path for the ask-vs-predict preference gate (lib/ask-gate.js)."
+    },
+    {
+      "id": "lib/ask-gate.js",
+      "role": "Ask-vs-predict preference gate — predict-only-on-confidence, ask-by-default."
+    },
+    {
+      "id": "lib/ask-promote.js",
+      "role": "ask-promote.js — ask-gate's binding of the generic promotion comparator (lib/promotion.js)."
+    },
+    {
+      "id": "lib/classify-assemble.js",
+      "role": "Exports: assembleClassifyResponse, buildJudgeNudge, buildLabelNudge, buildLearnerNudge, GATE_REMINDER, HEARTBEAT"
+    },
+    {
+      "id": "lib/classify-compose.js",
+      "role": "Exports: composeClassify, logRoute, judgeNudge, labelNudge"
+    },
+    {
+      "id": "lib/context-classify-core.js",
+      "role": "Exports: contextClassify"
+    },
+    {
+      "id": "lib/context-gate.js",
+      "role": "Context-need gate — abstain-by-default retrieval-confidence classifier."
+    },
+    {
+      "id": "lib/costflow.js",
+      "role": "Token cost-flow attribution (\"autonomy score\") over the workspace task graph."
+    },
+    {
+      "id": "lib/cursor-transcripts.js",
+      "role": "Cursor IDE transcript JSONL discovery and token parsing for the harness adapter."
+    },
+    {
+      "id": "lib/delta.js",
+      "role": "\"What changed since T\" delta — the read-only change sensor for the nightly-QA loop."
+    },
+    {
+      "id": "lib/dispatcher-attribution.js",
+      "role": "Exports: focusForSession, attributionMeta, resolveDispatcherAttribution"
+    },
+    {
+      "id": "lib/dispatcher-children.js",
+      "role": "Exports: isSubagentSession, listDispatcherChildren, formatInflightWorkersBlock, inflightWorkersContext"
+    },
+    {
+      "id": "lib/embed-haiku.js",
+      "role": "Haiku gate fallback — used when MiniLM sidecar is unavailable (loading / disabled)."
+    },
+    {
+      "id": "lib/embed-server.js",
+      "role": "MiniLM embedding sidecar — runs detached from the daemon, survives daemon restarts."
+    },
+    {
+      "id": "lib/embed.js",
+      "role": "Embedding client — delegates to the MiniLM sidecar (lib/embed-server.js)."
+    },
+    {
+      "id": "lib/filedrop-gc.js",
+      "role": "Shared file-drop stub GC: adopt snapshots, detect terminal state, remove mint artifacts."
+    },
+    {
+      "id": "lib/filedrop-tasks.js",
+      "role": "File-drop task source: the daemon's OWN documented task-minting substrate (multi-harness plan, Phase 2)."
+    },
+    {
+      "id": "lib/followup-buckets.js",
+      "role": "Registry of follow-up consolidation rules."
+    },
+    {
+      "id": "lib/followups.js",
+      "role": "Structural follow-ups: when complete_task carries a `follow_ups` array, the daemon turns each item into an overlay-originated graph task instead of letting i..."
+    },
+    {
+      "id": "lib/frontier.js",
+      "role": "Frontier projection + archival sweep for GET /state."
+    },
+    {
+      "id": "lib/git.js",
+      "role": "Thin, dependency-free wrapper over the git CLI, scoped to a repo path."
+    },
+    {
+      "id": "lib/graph-store.js",
+      "role": "Exports: open, appendEvent, loadGraph, compact, initGitAttributes, forWorkspace"
+    },
+    {
+      "id": "lib/haiku-breaker.js",
+      "role": "Circuit breaker for the Haiku gate fallback (lib/embed-haiku.js)."
+    },
+    {
+      "id": "lib/harness-task.js",
+      "role": "Exports: HARNESS_JUDGE_DRAIN_KEY, HARNESS_LABEL_DRAIN_KEY, HARNESS_LEARNER_DRAIN_KEY, DAEMON_RESTART_KEY, ensureHarnessLearnerDrainTask, isStandingHarnessTask"
+    },
+    {
+      "id": "lib/harness-usage.js",
+      "role": "Shared usage/transcript helpers for harness adapters."
+    },
+    {
+      "id": "lib/harness.js",
+      "role": "Harness adapter registry: the seam between the (harness-agnostic) daemon core and concrete agent harnesses (Claude, Cursor, Codex, …)."
+    },
+    {
+      "id": "lib/human-input.js",
+      "role": "Human-input denominator for the autonomy score: how many tokens did the user GENUINELY type? Parses main-session transcript JSONLs under ~/.claude/projects/<..."
+    },
+    {
+      "id": "lib/judge-journal.js",
+      "role": "Pure reader over the append-only judge verdict journal (.graph/judge-journal.jsonl)."
+    },
+    {
+      "id": "lib/judge.js",
+      "role": "Judge queue substrate — the DUMB half of the RAG-candidate → agent-adjudicator pipeline."
+    },
+    {
+      "id": "lib/loop-autostart.js",
+      "role": "AUTO-mode loop autostart: when a session is in an auto-accept permission mode (bypassPermissions or acceptEdits) AND tasks are ready AND no loop is already b..."
+    },
+    {
+      "id": "lib/mcp-core.js",
+      "role": "Shared MCP core: tool/resource definitions + JSON-RPC dispatch, used by BOTH transports — the stdio server (mcp-graph.js) and the daemon's HTTP /mcp endpoint..."
+    },
+    {
+      "id": "lib/mcp-harness-tools.js",
+      "role": "Client-scoped MCP tools — NOT part of the default lib/mcp-core.js TOOLS surface."
+    },
+    {
+      "id": "lib/measure.js",
+      "role": "Run a task's inline metric spec (lib/overlay metrics[key]) in a worktree and parse the number(s)."
+    },
+    {
+      "id": "lib/native-tasks.js",
+      "role": "Native task aggregator."
+    },
+    {
+      "id": "lib/newly-ready.js",
+      "role": "Tasks whose completion can unblock dependents — complete_task and terminal set_status responses carry newly_ready so hookless harnesses get the post-agent.sh..."
+    },
+    {
+      "id": "lib/node-tags.js",
+      "role": "Normalize author-supplied tags: lowercase, deduped, non-empty strings."
+    },
+    {
+      "id": "lib/optimize.js",
+      "role": "Converged-vs-iterate control for the metric-driven self-improvement loop (note note-mq6xh98a, ⑥)."
+    },
+    {
+      "id": "lib/overlay.js",
+      "role": "Per-workspace overlay store: the things native tasks can't hold — cross-session dependency edges, richer statuses, and notes."
+    },
+    {
+      "id": "lib/pressure-nudge.js",
+      "role": "Exports: JUDGE_DEPTH, LABEL_DEPTH, DEFAULT_MAX_RUNNING, countRunning, harnessInProgress, computePressureNudge"
+    },
+    {
+      "id": "lib/promotion.js",
+      "role": "promotion.js — generic shadow→enforce AUTO-PROMOTE comparator."
+    },
+    {
+      "id": "lib/prompt-heuristic.js",
+      "role": "Exports: classifyHeuristic, selectModels, routeSteer, formatNoteSummaries, formatScaffoldList"
+    },
+    {
+      "id": "lib/ready-flag-cache.js",
+      "role": "Exports: CACHE_TTL_SEC, refreshReadyFlag, readyInjection, markReadyInjected, syncBusyState, isLoopTick"
+    },
+    {
+      "id": "lib/schedule-wakeup.js",
+      "role": "Shared ScheduleWakeup substrate: cancel prior wake for a session, arm a delayed re-prompt."
+    },
+    {
+      "id": "lib/session-bindings.js",
+      "role": "Exports: resolveSessionId, inferHarness, bindSession, sessionBinding, mainTranscriptForSession, resolveSessionTranscriptPath"
+    },
+    {
+      "id": "lib/usage-accounting.js",
+      "role": "Uniform UsageSlice / UsageReport helpers — adapters translate IDE layouts; daemon stores and sums."
+    },
+    {
+      "id": "lib/usage-reconcile.js",
+      "role": "Exports: runUsageReconcile, resolveHarnessName"
+    },
+    {
+      "id": "lib/verdicts.js",
+      "role": "Structured verdicts about EXISTING tasks: when complete_task carries a `verdicts` array, the daemon ACTS on each judgment instead of letting it evaporate as ..."
+    },
+    {
+      "id": "mcp-graph.js",
+      "role": "MCP server (stdio) for the orchestrator graph."
+    },
+    {
+      "id": "packages/cli/bin/zonoid.js",
+      "role": "Exports: parseInitArgs, mergeCursorHooks, VALID_HARNESSES, scheduleWakeupScriptPath, opencodePluginHasScheduleWakeup, INSTALL_DIR"
+    },
+    {
+      "id": "packages/opencode-plugin/lib/gate.js",
+      "role": "Exports: WRITE_TOOLS, orchPost, gateWriteTool"
+    },
+    {
+      "id": "packages/opencode-plugin/lib/schedule-wakeup.js",
+      "role": "Resolve lib/schedule-wakeup.js from monorepo layout or @zonoid/core install."
+    },
+    {
+      "id": "packages/opencode-plugin/lib/stub-writer.js",
+      "role": "Atomic stub writer for the daemon file-drop task substrate (lib/filedrop-tasks.js layout)."
+    },
+    {
+      "id": "packages/opencode-plugin/zonoid.ts",
+      "role": "Zonoid orchestrator bridge for OpenCode."
+    },
+    {
+      "id": "routes/analytics.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/classify.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/exec.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/git.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/graph.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/judge.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/label.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/meta.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/onboard.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/overlay.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/session.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/task.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/ui.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "routes/usage.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "scratch/edge-clf-featurize-new.js",
+      "role": "edge-clf-featurize.js — featurizer for the edge classifier."
+    },
+    {
+      "id": "scratch/edge-clf-featurize.test.js",
+      "role": "edge-clf-featurize.test.js — unit tests for the edge-clf-featurize.js featurizer."
+    },
+    {
+      "id": "scripts/ask-clf-fit.js",
+      "role": "ask-clf-fit.js — train a logistic-regression ask-vs-predict classifier on .graph/ask-journal.jsonl."
+    },
+    {
+      "id": "scripts/ask-clf-predict.js",
+      "role": "ask-clf-predict.js — load the latest ask classifier model and export predict()."
+    },
+    {
+      "id": "scripts/bench-4arm-runner.js",
+      "role": "4-arm context-injection bench runner — mix-set suite scenarios arm 0: baseline (no injection) arm 1: global summary only arm 2: sliding window only arm 3: gl..."
+    },
+    {
+      "id": "scripts/bench-arm.js",
+      "role": "Single-arm bench runner for the orchestrator-MCP A/B benchmark."
+    },
+    {
+      "id": "scripts/bench-context-inject.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "scripts/bench-cost-analysis.js",
+      "role": "Bench token cost analysis: was KB injection worth it? For each candidate, compares off vs on-search vs on-iterative across: - solve rate (% trials solved) - ..."
+    },
+    {
+      "id": "scripts/bench-e2e.js",
+      "role": "Product E2E bench — full orchestrator (DAG + RAG + gate) vs plain agent."
+    },
+    {
+      "id": "scripts/bench-economy-dag.js",
+      "role": "bench-economy-dag.js — Token-economy bench: ON (orchestrator) vs OFF (inline) cost comparison."
+    },
+    {
+      "id": "scripts/bench-economy.js",
+      "role": "bench-economy.js — Token-economy bench: ON (orchestrator) vs OFF (inline) cost comparison."
+    },
+    {
+      "id": "scripts/bench-heldout.js",
+      "role": "Held-out single-arm bench runner for the orchestrator-MCP A/B benchmark."
+    },
+    {
+      "id": "scripts/bench-kb-dedup-audit.js",
+      "role": "bench-kb-dedup-audit.js — offline clone-cluster audit for retrieval bench diagnostics."
+    },
+    {
+      "id": "scripts/bench-learning-journal.js",
+      "role": "bench-learning-journal.js — reducer that pairs ON/OFF bench arms into cost-aware training rows."
+    },
+    {
+      "id": "scripts/bench-mine-journals.js",
+      "role": "bench-mine-journals.js — bulk KB miner for bench held-out journals."
+    },
+    {
+      "id": "scripts/bench-report.js",
+      "role": "bench-report - aggregate headless-bench runs into bench/report.{md,json}."
+    },
+    {
+      "id": "scripts/bench-report.test.js",
+      "role": "Plain Node test for scripts/bench-report.js (no framework; matches test/token-attr.test.js style)."
+    },
+    {
+      "id": "scripts/bench-snapshot-daemon.js",
+      "role": "Isolated snapshot-daemon for bench reproducibility."
+    },
+    {
+      "id": "scripts/bench-snapshot-refresh.js",
+      "role": "Refresh the frozen KB snapshot from the live .graph for held-out retrieval bench reproducibility."
+    },
+    {
+      "id": "scripts/bench-suite.js",
+      "role": "bench-suite.js — Mixed KB-required + KB-neutral scenario registry + suite runner."
+    },
+    {
+      "id": "scripts/bench-verdict-report.js",
+      "role": "bench-verdict-report.js Reads bench/context-inject/results.jsonl and produces a verdict table + recommendation."
+    },
+    {
+      "id": "scripts/context-inject-global-summary.js",
+      "role": "Exports: getGlobalSummary"
+    },
+    {
+      "id": "scripts/context-inject-sliding-window.js",
+      "role": "Exports: getWindowContext"
+    },
+    {
+      "id": "scripts/edge-clf-featurize.js",
+      "role": "edge-clf-featurize.js — featurizer for the edge classifier."
+    },
+    {
+      "id": "scripts/edge-clf-fit.js",
+      "role": "edge-clf-fit.js — train logistic regression on .graph/judge-train.jsonl Writes versioned model to .graph/edge-clf/v1.json and appends to .graph/edge-clf/metr..."
+    },
+    {
+      "id": "scripts/edge-clf-predict.js",
+      "role": "edge-clf-predict.js — load latest edge classifier model and export predict() CommonJS version (lib/judge.js uses CJS require)."
+    },
+    {
+      "id": "scripts/export-kb.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "scripts/extract-decisions.js",
+      "role": "extract-decisions.js — PROPOSE durable-decision note nodes from a conversation turn, behind the same reviewable candidate-bundle / accept-gate as bench/inges..."
+    },
+    {
+      "id": "scripts/gate-label.js",
+      "role": "gate-label.js — outcome-linkage labeler for the gate flywheel."
+    },
+    {
+      "id": "scripts/gc-filedrop-stubs.js",
+      "role": "gc-filedrop-stubs.js — file-drop stub retention sweep."
+    },
+    {
+      "id": "scripts/gc-worktrees.js",
+      "role": "gc-worktrees.js — conservative worktree GC / retention sweep."
+    },
+    {
+      "id": "scripts/graph-init.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "scripts/ingest-docs.js",
+      "role": "ingest-docs.js — distill the repo's rationale docs (README, CLAUDE.md, SKILL.md, ADRs) into candidate note nodes for the self-learning graph."
+    },
+    {
+      "id": "scripts/ingest-git.js",
+      "role": "ingest-git.js — mine git history into candidate knowledge notes."
+    },
+    {
+      "id": "scripts/ingest-structure.js",
+      "role": "ingest-structure - extract the orchestrator's STATIC module-dependency graph."
+    },
+    {
+      "id": "scripts/migrate-overlay.js",
+      "role": "One-time migration: read the shared fields from an existing overlay JSON file and emit them as JSONL events into the graph-store (.graph/nodes/)."
+    },
+    {
+      "id": "scripts/note-web-maint.js",
+      "role": "One-shot maintenance for the SEMANTIC note-web upgrade, run against the cloude overlay WITHOUT going through the live daemon (which is loaded on a DIFFERENT ..."
+    },
+    {
+      "id": "scripts/onboard-harness.js",
+      "role": "onboard-harness.js — HONEST cold-vs-KB onboarding-COMPETENCE harness + LLM judge."
+    },
+    {
+      "id": "scripts/onboard-learn.js",
+      "role": "onboard-learn.js — AGENTIC project learner."
+    },
+    {
+      "id": "scripts/onboard-loop.js",
+      "role": "onboard-loop.js — the ONBOARDING LEARNING LOOP: deepen the KB until competence plateaus."
+    },
+    {
+      "id": "scripts/onboard-mine-assets.js",
+      "role": "onboard-mine-assets.js — static miner for BINARY-ASSET knowledge (images, models, audio, engine files, large data tables)."
+    },
+    {
+      "id": "scripts/onboard-mine-config.js",
+      "role": "onboard-mine-config.js — static miner for CONFIG-DEFAULT definitions."
+    },
+    {
+      "id": "scripts/onboard-mine-docs.js",
+      "role": "onboard-mine-docs.js — generalized rationale-doc miner for ANY repo."
+    },
+    {
+      "id": "scripts/onboard-mine-git.js",
+      "role": "onboard-mine-git.js — generalized git-history miner for ANY repo."
+    },
+    {
+      "id": "scripts/onboard-mine-structure.js",
+      "role": "onboard-mine-structure.js — generalized static module-dependency miner for ANY repo."
+    },
+    {
+      "id": "scripts/onboard-probes.js",
+      "role": "onboard-probes.js — onboarding-competence probe SCHEMA + validator."
+    },
+    {
+      "id": "scripts/onboard.js",
+      "role": "onboard.js — DROP-IN onboarding entry point."
+    },
+    {
+      "id": "scripts/rejudge-legacy-edges.js",
+      "role": "Re-judge LEGACY KEPT context edges with the neighborhood-aware judge to converge the graph."
+    },
+    {
+      "id": "scripts/retire-continuity-notes.js",
+      "role": "One-time BACKFILL (task 3b): retire the existing auto-generated \"Continuity: stale claim reset\" note nodes that pollute search_knowledge (RAG recall) and jud..."
+    },
+    {
+      "id": "scripts/retrieval-bench.js",
+      "role": "retrieval-bench.js — retrieval-quality benchmark for search_knowledge (/search)."
+    },
+    {
+      "id": "scripts/rewire-notes.js",
+      "role": "Backfill orphan NOTE nodes: every note currently with ZERO edges is replayed through the daemon's provider auto-wiring (POST /overlay/note/rewire), which wri..."
+    },
+    {
+      "id": "scripts/run-tests.js",
+      "role": "Dependency-free test runner: discovers test/*.test.js, runs each as a child process with ZONOID_SKIP_LIVE=1, reports per-file pass/fail, exits non-zero if an..."
+    },
+    {
+      "id": "scripts/sample-legacy-edges.js",
+      "role": "Sample legacy kept edges for LLM calibration pilot (task #30)."
+    },
+    {
+      "id": "scripts/warmup-embeddings.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "test/adopt-native-daemon.test.js",
+      "role": "Integration test for P2-A3 adopt-on-first-sight + precedence flip (Claude native tasks)."
+    },
+    {
+      "id": "test/agent-tool-spawn-register.test.js",
+      "role": "Regression for task #29 — unify worker-registration into one /agent/start path."
+    },
+    {
+      "id": "test/app-restart.test.js",
+      "role": "Integration test for Claude app restart resilience (Task #18)."
+    },
+    {
+      "id": "test/ask-clf.test.js",
+      "role": "Plain Node test (no framework; matches test/ask-gate.test.js style) for the learned ask-gate (T3): 1."
+    },
+    {
+      "id": "test/ask-gate.test.js",
+      "role": "Plain Node test (no framework; matches test/context-gate.test.js style) for the ask-vs-predict preference gate (lib/ask-gate.js)."
+    },
+    {
+      "id": "test/autowire-newtask-wholegraph.test.js",
+      "role": "Plain Node test (no framework; matches test/autowire-note.test.js style) for the CREATION-TIME whole-graph wiring recall — autowireNewTaskWholeGraph in daemo..."
+    },
+    {
+      "id": "test/autowire-note.test.js",
+      "role": "Plain Node test for auto-wiring a NOTE as a context PROVIDER in daemon.js (no framework; matches test/autowire.test.js style)."
+    },
+    {
+      "id": "test/autowire-weight0-promotion.test.js",
+      "role": "Plain Node test (no framework; matches test/autowire-note.test.js style)."
+    },
+    {
+      "id": "test/bench-e2e.test.js",
+      "role": "Smoke tests for scripts/bench-e2e.js — dry-run only (no Claude, no live daemon by default)."
+    },
+    {
+      "id": "test/bench-learning-journal.test.js",
+      "role": "Tests for scripts/bench-learning-journal.js — the paired learning-journal reducer."
+    },
+    {
+      "id": "test/bench-snapshot-daemon.test.js",
+      "role": "Tests the isolated snapshot-daemon helper (scripts/bench-snapshot-daemon.js): - module surface (ensureRunning/teardown fns, SNAPSHOT_WS/SNAPSHOT_GRAPH paths)..."
+    },
+    {
+      "id": "test/benchmark.test.js",
+      "role": "Plain Node test for the researched competitor/industry-average benchmark: overlay.setBenchmark set/clear, save/load persistence, back-compat load of an old o..."
+    },
+    {
+      "id": "test/block-mechanism.test.js",
+      "role": "Tests for the block mechanism (Lever 1 + Lever 2)."
+    },
+    {
+      "id": "test/capacity-fill.test.js",
+      "role": "Plain Node test for decideOne's CAPACITY-FILL + PARALLEL judge logic in daemon.js (no framework; matches test/judge-queue.test.js style)."
+    },
+    {
+      "id": "test/classify-endpoint.test.js",
+      "role": "POST /classify endpoint — heuristic routing, model selection, ready-flag cache, injection text."
+    },
+    {
+      "id": "test/classify-hook-automode.test.js",
+      "role": "Tests that hooks/classify.sh forwards the auto-mode signal to POST /classify: - permission_mode from the UserPromptSubmit payload - auto_mode:true when ORCH_..."
+    },
+    {
+      "id": "test/classify-hook-relay.test.js",
+      "role": "Tests hooks/classify.sh as a dumb relay to POST /classify."
+    },
+    {
+      "id": "test/classify-loop-directive.test.js",
+      "role": "Unit coverage for the [Loop] request-scoped directive added by assembleClassifyResponse."
+    },
+    {
+      "id": "test/cli-init.test.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "test/context-gate-regression.test.js",
+      "role": "9-case ground-truth regression suite for the context-need gate (lib/context-gate.js)."
+    },
+    {
+      "id": "test/context-gate-route.test.js",
+      "role": "Route-level test for GATED retrieval — GET /search?gated=1 (daemon.js) wiring the context-need gate (lib/context-gate.js) into the live consult path."
+    },
+    {
+      "id": "test/context-gate.test.js",
+      "role": "Plain Node test (no framework; matches test/search-knowledge.test.js + test/embed.test.js style) for the context-need gate (lib/context-gate.js)."
+    },
+    {
+      "id": "test/costflow.test.js",
+      "role": "Plain Node test for lib/costflow.js (no framework; matches test/native-write.test.js style)."
+    },
+    {
+      "id": "test/cursor-adapter-scheduler.test.js",
+      "role": "Cursor adapter scheduler: armWakeup/cancelWakeup/writeScheduledTask via schedule-wakeup substrate."
+    },
+    {
+      "id": "test/cursor-classify-relay.test.js",
+      "role": "Cursor beforeSubmitPrompt → adapters/cursor/classify.sh relay (CI-safe stub curl)."
+    },
+    {
+      "id": "test/cursor-e2e-integration.test.js",
+      "role": "Cursor adapter stack — end-to-end integration (CI-safe, no live Cursor IDE)."
+    },
+    {
+      "id": "test/cursor-session-normalizer.test.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "test/cursor-transcript-reader.test.js",
+      "role": "Cursor transcript reader — path discovery, human-input parsing, adapter contract."
+    },
+    {
+      "id": "test/dag-only-claim-context.test.js",
+      "role": "Test for DAG-ONLY auto-injected claim context (Judge E), GET /search?task_key=..."
+    },
+    {
+      "id": "test/dispatcher-model.test.js",
+      "role": "Dispatcher model integration tests (DG6): - Main/dispatcher start_task → 409; subagent start_task → ok - GET /dispatcher/children attribution meta (sole vs m..."
+    },
+    {
+      "id": "test/edge-clf-featurize.test.js",
+      "role": "edge-clf-featurize.test.js — unit tests for the edge-clf-featurize.js featurizer."
+    },
+    {
+      "id": "test/embed.test.js",
+      "role": "Plain Node test (no framework; matches test/search-knowledge.test.js style) for local-embedding semantic retrieval."
+    },
+    {
+      "id": "test/endpoints.test.js",
+      "role": "Endpoint coverage for previously-untested daemon routes: 1."
+    },
+    {
+      "id": "test/extract-decisions.test.js",
+      "role": "Plain Node test for the auto-decision extractor (no framework; matches autowire.test.js style)."
+    },
+    {
+      "id": "test/filedrop-daemon.test.js",
+      "role": "Integration test for the file-drop task source wired through the daemon (multi-harness plan Phase 2, deliverable 1): stub tasks enter the aggregate at the sa..."
+    },
+    {
+      "id": "test/filedrop-gc.test.js",
+      "role": "Unit tests for lib/filedrop-gc.js Run: node test/filedrop-gc.test.js"
+    },
+    {
+      "id": "test/filedrop-tasks.test.js",
+      "role": "Unit test for lib/filedrop-tasks.js — the designated-folder (file-drop) task source."
+    },
+    {
+      "id": "test/followup-ingest.test.js",
+      "role": "Plain Node test (no framework; matches test/ingest-node.test.js style) for the FOLLOW-UP born-path reroute — BUILD3 of the node-lifecycle unification (design..."
+    },
+    {
+      "id": "test/followups.test.js",
+      "role": "Plain Node test for lib/followups.js — structural follow-ups on complete_task (no framework; matches test/guidance-resolve.test.js style)."
+    },
+    {
+      "id": "test/force-claim-cap.test.js",
+      "role": "Tests for the force-claim hard cap (3 per task) and dashboard-only approval reset."
+    },
+    {
+      "id": "test/frontier.test.js",
+      "role": "Plain Node test for lib/frontier.js (frontier-scoped /state projection + archival sweep) — no framework; matches the style of test/graph-delta.test.js."
+    },
+    {
+      "id": "test/gate-journal.test.js",
+      "role": "Tests that every /search verdict — gated AND ungated (shadow) — is appended as a parseable JSONL row to .graph/gate-journal.jsonl inside the workspace dir."
+    },
+    {
+      "id": "test/gate-label.test.js",
+      "role": "Tests for scripts/gate-label.js — the outcome-linkage labeler."
+    },
+    {
+      "id": "test/gate-node.test.js",
+      "role": "Plain Node tests for gate node support — mintGateKey + acknowledgeDaemonRestartOnBoot gate sweep."
+    },
+    {
+      "id": "test/gc-worktrees.test.js",
+      "role": "Plain Node test for scripts/gc-worktrees.js — focuses on the dirty-worktree GC guard (Item 4: never reap a worktree that holds uncommitted work, even if it w..."
+    },
+    {
+      "id": "test/git-feature.test.js",
+      "role": "Plain Node test for the FEATURE tier of lib/git.js (createFeatureWorktree, mergeFeature, removeFeatureWorktree) + the attempt->feature reuse path (createWork..."
+    },
+    {
+      "id": "test/git-merge.test.js",
+      "role": "Plain Node test for the merge half of lib/git.js (currentBranch, mergeBranch)."
+    },
+    {
+      "id": "test/git.test.js",
+      "role": "Plain Node test for lib/git.js (no framework; matches the style of test/smoke.sh)."
+    },
+    {
+      "id": "test/graph-delta.test.js",
+      "role": "Plain Node test for lib/delta.js (the /graph/delta change sensor) — no framework; matches the style of test/native-write.test.js / test/repo-target.test.js."
+    },
+    {
+      "id": "test/graph-store-compact.test.js",
+      "role": "Tests for graphStore.compact() — the checkpoint contract."
+    },
+    {
+      "id": "test/graph-store-edge-meta.test.js",
+      "role": "Tests for edge judging-metadata persistence (by/judged/score/origin) across a graph-store reload and checkpoint round-trip."
+    },
+    {
+      "id": "test/graph-store-integration.test.js",
+      "role": "Integration smoke test for the graph-store dual-write path via overlay.save()."
+    },
+    {
+      "id": "test/graph-store.test.js",
+      "role": "Tests for lib/graph-store.js — the in-repo JSONL event store."
+    },
+    {
+      "id": "test/guidance-dedupe.test.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "test/guidance-resolve.test.js",
+      "role": "Plain Node test for ACTION-AWARE guidance resolution — the decision effects /guidance/resolve applies, modeled over the same pure overlay + judge primitives ..."
+    },
+    {
+      "id": "test/guidance-seam-gate.test.js",
+      "role": "Seam-gating test for request_guidance (routes/session.js POST /guidance)."
+    },
+    {
+      "id": "test/haiku-breaker.test.js",
+      "role": "Plain Node test (no framework; matches test/embed.test.js style) for the Haiku-fallback circuit breaker (lib/haiku-breaker.js)."
+    },
+    {
+      "id": "test/handoff-roundtrip.test.js",
+      "role": "E2E (T4, level 2 — product round-trip): a full dispatcher→worker handoff against a LIVE daemon."
+    },
+    {
+      "id": "test/handoff-validation.test.js",
+      "role": "E2E: /overlay/status (complete_task) refuses a TERMINAL status when the caller sends a structured task_result that is INCOMPLETE — specifically a metric-carr..."
+    },
+    {
+      "id": "test/harness-bucket.test.js",
+      "role": "Tests for the harness cost-attribution changes: (1) /harness/overhead self_maintenance bucket aggregates output_tokens for harness-prefixed tasks (2) judge-p..."
+    },
+    {
+      "id": "test/harness-registry.test.js",
+      "role": "Registry smoke: all(), get(), route() namespace dispatch (local/ms1)."
+    },
+    {
+      "id": "test/harness-requeue.test.js",
+      "role": "Tests for standing harness drain auto-requeue after complete_task."
+    },
+    {
+      "id": "test/harness-usage.test.js",
+      "role": "Harness usage-source abstraction: self-reported fallback, adapter contract, costflow split."
+    },
+    {
+      "id": "test/human-input.test.js",
+      "role": "Plain Node test for lib/human-input.js — the autonomy-score denominator (genuinely human-TYPED tokens)."
+    },
+    {
+      "id": "test/ingest-node.test.js",
+      "role": "Plain Node test (no framework; matches test/autowire-newtask-wholegraph.test.js style) for the UNIFIED INGEST FUNNEL — ingestNode() in daemon.js (BUILD1 of t..."
+    },
+    {
+      "id": "test/judge-eager-lease.test.js",
+      "role": "Tests for the eager-judge dispatch lease (task 27): concurrent next_action calls must not double-dispatch the same node."
+    },
+    {
+      "id": "test/judge-eager.test.js",
+      "role": "Plain Node test for the EAGER event-triggered judge dispatch (task C) — no framework; matches test/capacity-fill.test.js / judge-queue.test.js style."
+    },
+    {
+      "id": "test/judge-hook-nudge.test.js",
+      "role": "Tests for the judge nudge relayed by hooks/classify.sh via POST /classify."
+    },
+    {
+      "id": "test/judge-journal.test.js",
+      "role": "Plain Node test for the DURABLE judge verdict journal — the additive logging that makes keep-rate-by-cosine recoverable."
+    },
+    {
+      "id": "test/judge-keep-legacy-rejudge.test.js",
+      "role": "Regression test for task #31: a KEEP verdict on a LEGACY already-judged context edge that is currently flagged for rejudge must CLEAR the flag (+ journal + c..."
+    },
+    {
+      "id": "test/judge-neighborhood.test.js",
+      "role": "Plain Node test for the PURE neighborhood-expansion + supersede-chain logic in lib/judge.js (no framework; matches test/judge-queue.test.js style)."
+    },
+    {
+      "id": "test/judge-node-cost.test.js",
+      "role": "Judge per-node cost attribution (task 24)."
+    },
+    {
+      "id": "test/judge-pressure.test.js",
+      "role": "Tests for GET /judge/pressure — queue depth, dup-cluster count, and capacity-gated nudge."
+    },
+    {
+      "id": "test/judge-queue.test.js",
+      "role": "Plain Node test for the PURE edge-judge queue/cursor/budget/epoch logic in lib/judge.js (no framework; matches test/orphan-sweep.test.js style)."
+    },
+    {
+      "id": "test/judge-rejudge-edges.test.js",
+      "role": "Offline test for POST /judge/rejudge-edges — the bulk markForRejudge endpoint added in task #30."
+    },
+    {
+      "id": "test/judge-verdict.test.js",
+      "role": "Plain Node test for edge-judge VERDICT application — the create/keep/prune/surface effects the /judge/verdict route applies, modeled over the same pure overl..."
+    },
+    {
+      "id": "test/judging-gate.test.js",
+      "role": "Plain Node test for the JUDGING→READY gate (task D) — no framework; matches judge-eager.test.js style."
+    },
+    {
+      "id": "test/label-pressure.test.js",
+      "role": "Tests for GET /label/pressure — gradable backlog depth and capacity-gated nudge."
+    },
+    {
+      "id": "test/lean-learnings.test.js",
+      "role": "Plain Node test for daemon.js leanLearnings + isTruthy — the /learnings ?compact=1 lean payload (no framework; matches test/rejected-digest.test.js style)."
+    },
+    {
+      "id": "test/learner-queue.test.js",
+      "role": "Unit tests for the queue-based batch processing mode in onboard-learn.js."
+    },
+    {
+      "id": "test/loop-autostart.test.js",
+      "role": "Coverage for AUTO-mode loop default-on (task 0b5a907e/4): the daemon STARTS the heartbeat loop itself when the session is in an auto-accept permission mode a..."
+    },
+    {
+      "id": "test/mcp-harness-tools.test.js",
+      "role": "Harness-scoped MCP tool list (P7-G1): default surface unchanged; codex adds create_task."
+    },
+    {
+      "id": "test/mcp-schedule-wakeup.test.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "test/measure.test.js",
+      "role": "Plain Node test for the measure node: lib/measure.parseNumber (both parse forms + failure), runMeasure against FAKE measure commands (echo), evalGuardrails r..."
+    },
+    {
+      "id": "test/metric-branch-claim.test.js",
+      "role": "E2E: /overlay/status (start_task) refuses in_progress claims on metric-spec tasks unless the claim workspace is on an orch/attempt/* branch — mirrors hooks/o..."
+    },
+    {
+      "id": "test/metric-spec.test.js",
+      "role": "Plain Node test for the inline metric spec: overlay.setMetricSpec set/clear, save/load persistence, back-compat load of an old overlay (no metrics map), and ..."
+    },
+    {
+      "id": "test/native-adopt-hold.test.js",
+      "role": "Plain Node test for BUILD2 (unify/ready-only-via-judged): the ADOPT-HOLD that keeps a freshly native-adopted task OUT of `ready`/dispatch until its eager jud..."
+    },
+    {
+      "id": "test/native-blockedby-unit.test.js",
+      "role": "Unit test for native-blockedBy overlay edge invariant (task #10)."
+    },
+    {
+      "id": "test/native-tasks-adopt.test.js",
+      "role": "Unit test for adopt-on-first-sight precedence flip in lib/native-tasks.js aggregateWorkspace."
+    },
+    {
+      "id": "test/native-write.test.js",
+      "role": "Plain Node test for lib/native-tasks.js writeStatus (no framework; matches test/git.test.js style)."
+    },
+    {
+      "id": "test/neighborhood-rejudge.test.js",
+      "role": "Test for neighborhood-change-aware re-judgment (task /23)."
+    },
+    {
+      "id": "test/newly-ready.test.js",
+      "role": "Tests for newly_ready on terminal /overlay/status (complete_task / set_status path)."
+    },
+    {
+      "id": "test/note-dup-guard.test.js",
+      "role": "Tests for the write-time near-duplicate guard on /overlay/note."
+    },
+    {
+      "id": "test/opencode-schedule-wakeup.test.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "test/opencode-stub-writer.test.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "test/optimize.test.js",
+      "role": "Plain Node test for the converged-vs-iterate control (⑥): lib/optimize.decideOptimize across all five outcomes (converge-on-target, converge-on-diminishing-r..."
+    },
+    {
+      "id": "test/orch-gate-bash.test.js",
+      "role": "Tests for hooks/orch-gate-bash.sh pattern-detection and allowlist logic."
+    },
+    {
+      "id": "test/orch-gate.test.js",
+      "role": "Tests for hooks/orch-gate.sh path allowlist and claim-check logic."
+    },
+    {
+      "id": "test/orphan-sweep.test.js",
+      "role": "Plain Node test for the periodic orphan-note sweep in daemon.js (no framework; matches test/autowire-note.test.js / test/self-heal.test.js style)."
+    },
+    {
+      "id": "test/overlay-reembed.test.js",
+      "role": "Verifies /overlay/reembed and /overlay/backfill-embeddings embed full note text (title + category + tags + summary) via noteEmbedText, not title-only."
+    },
+    {
+      "id": "test/overlay-split.test.js",
+      "role": "Regression tests for the shared/local overlay split."
+    },
+    {
+      "id": "test/pending-dup.test.js",
+      "role": "Tests for the DEFER-TO-JUDGE pending_dup flow (write-time dup guard turned from REJECT into admit-provisional + dup-judge adjudication)."
+    },
+    {
+      "id": "test/phase2-integration.test.js",
+      "role": "P2-A4 integration test: Phase 2 durability, GC resilience, namespace safety."
+    },
+    {
+      "id": "test/pressure-nudge.test.js",
+      "role": "Unit tests for lib/pressure-nudge.js capacity gate."
+    },
+    {
+      "id": "test/prompt-heuristic.test.js",
+      "role": "Unit tests for lib/prompt-heuristic.js — mirrors hooks/classify.sh Python heuristics."
+    },
+    {
+      "id": "test/rejected-digest.test.js",
+      "role": "Plain Node test for daemon.js digestRejected — the /learnings `rejected[]` ledger (no framework; matches test/token-attr.test.js style)."
+    },
+    {
+      "id": "test/repo-target.test.js",
+      "role": "Plain Node test for the target-repo decoupling: git.js operating on a repo path that is NOT a daemon workspace, plus overlay.setRepo / the explicit > task-fi..."
+    },
+    {
+      "id": "test/resp-cache.test.js",
+      "role": "Tests for the /state-//costflow response cache (respCacheGet/respCachePut: TTL + overlay-file mtime stamp, invalidated by notifyChange) and the compaction gu..."
+    },
+    {
+      "id": "test/retrieval-quality.test.js",
+      "role": "Offline regression guard for retrieval quality of search_knowledge (/search)."
+    },
+    {
+      "id": "test/retrieval-warmup-gate.test.js",
+      "role": "Tests the embed-warmup gate in scripts/retrieval-bench.js (warmupGate)."
+    },
+    {
+      "id": "test/schedule-wakeup-contract.test.js",
+      "role": "P9-HB6: cross-harness ScheduleWakeup contract smoke — substrate, MCP, OpenCode, adapters."
+    },
+    {
+      "id": "test/schedule-wakeup.test.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "test/score-semantic.test.js",
+      "role": "Plain Node test (no framework; matches test/embed.test.js style) for scoreMatchesSemantic in daemon.js — the SEMANTIC scorer behind note auto-wiring."
+    },
+    {
+      "id": "test/search-knowledge.test.js",
+      "role": "Plain Node test for the query-by-text scorer behind /search + search_knowledge (no framework; matches test/autowire.test.js style)."
+    },
+    {
+      "id": "test/self-heal.test.js",
+      "role": "Plain Node test for the daemon self-heal sweeps (no framework; matches test/autowire.test.js style)."
+    },
+    {
+      "id": "test/self-register-on-claim.test.js",
+      "role": "E2E: /overlay/status (start_task) self-register-on-claim fallback."
+    },
+    {
+      "id": "test/session-bindings.test.js",
+      "role": "(no description)"
+    },
+    {
+      "id": "test/should-stop-advisory.test.js",
+      "role": "P3-B4: should_stop advisory in MCP tool responses."
+    },
+    {
+      "id": "test/spawn-lease.test.js",
+      "role": "Tests for the spawn dispatch lease (task /3): concurrent heartbeat loops must not double-dispatch the same READY task in one tick."
+    },
+    {
+      "id": "test/supersede-roundtrip.test.js",
+      "role": "End-to-end test for the bi-temporal supersede round-trip."
+    },
+    {
+      "id": "test/sweep-reaps-agent.test.js",
+      "role": "Plain Node test (matches test/self-heal.test.js style): sweepStaleClaims must REAP the owning agent's registry record in lockstep with the stale claim it hel..."
+    },
+    {
+      "id": "test/sweep.test.js",
+      "role": "Integration test for POST /sweep endpoint."
+    },
+    {
+      "id": "test/sync-route.test.js",
+      "role": "Integration test for POST /sync — the explicit pull trigger for file-drop task adoption (multi-harness plan Phase 2, deliverable 2)."
+    },
+    {
+      "id": "test/task-context.test.js",
+      "role": "Tier-1 dependency handoff: context edge weights surface in /task/context ordering."
+    },
+    {
+      "id": "test/task-cost-accum.test.js",
+      "role": "Plain Node test (no framework; matches test/token-attr.test.js style) for rework-aware, role-tagged per-task cost accumulation in lib/usage-accounting.js."
+    },
+    {
+      "id": "test/task-embed-multivec.test.js",
+      "role": "Plain Node test (no framework; matches test/embed.test.js style) for Step 0 of the retrieval-recall ladder: TASK nodes now carry embeddings under the MULTI-V..."
+    },
+    {
+      "id": "test/temporal-knowledge.test.js",
+      "role": "Plain Node test (no framework; matches search-knowledge.test.js style) for temporal / state-change reasoning over note nodes — the supersede chain + as-of re..."
+    },
+    {
+      "id": "test/test-cmd.test.js",
+      "role": "Plain Node test for the per-repo test-command config: overlay.setTestCmd set/clear, testCmdFor reads, save/load persistence (nested under config), back-compa..."
+    },
+    {
+      "id": "test/token-attr.test.js",
+      "role": "Plain Node test for daemon.js taskTokens read-side time-window correlation (no framework; matches test/native-write.test.js style)."
+    },
+    {
+      "id": "test/tool-analytics.test.js",
+      "role": "Plain Node test for lib/analytics.js (MCP tool-usage counters) — no framework; matches the style of test/graph-delta.test.js."
+    },
+    {
+      "id": "test/touch-agent.test.js",
+      "role": "P3-B1: start_task auto-register + heartbeat stamping (touchAgent)."
+    },
+    {
+      "id": "test/unwired-quarantine.test.js",
+      "role": "E2E test for the unwired-task quarantine (daemon.js buildGraph stamp + /overlay/status claim guard + /mark-root, lib/overlay.js addEdge clearing)."
+    },
+    {
+      "id": "test/usage-accounting.test.js",
+      "role": "MS3 usage accounting: parseTranscriptUsage, sample shape, reconcile stale gate."
+    },
+    {
+      "id": "test/usage-recorded-graph-event.test.js",
+      "role": "Test: usage_recorded graph events so cost survives overlay reset."
+    },
+    {
+      "id": "test/verdicts.test.js",
+      "role": "Plain Node test for lib/verdicts.js — structured verdicts about EXISTING tasks on complete_task (no framework; matches test/followups.test.js style)."
+    },
+    {
+      "id": "test/weighted-edges.test.js",
+      "role": "Plain Node test for context-edge relevance weights in lib/overlay.js (no framework; matches test/native-write.test.js style)."
+    },
+    {
+      "id": "test/workspace-read-target.test.js",
+      "role": "Regression test for the READ-side workspace gremlin (counterpart of workspace-write-target): 1) lib/mcp-core makeCall must inject the session's pinned worksp..."
+    },
+    {
+      "id": "test/workspace-write-target.test.js",
+      "role": "Regression test for the daemon workspace gremlin: graph-MUTATING routes must honor a per-request `workspace` (request body) instead of always writing into th..."
+    }
+  ],
+  "edges": [
+    {
+      "from": "bench/context-gate-eval.js",
+      "to": "lib/context-gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/context-gate-eval.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/heldout/frozen/flaky-dep-off-0/process-records-ht.js",
+      "to": "bench/heldout/frozen/fixtures/batch.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/heldout/frozen/flaky-dep-off-200/process-records-ht.js",
+      "to": "bench/heldout/frozen/fixtures/batch.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/heldout/frozen/flaky-dep-on-gated-0/process-records-ht.js",
+      "to": "bench/heldout/frozen/fixtures/batch.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/heldout/frozen/flaky-dep-on-iterative-200/process-records-ht.js",
+      "to": "bench/heldout/frozen/fixtures/batch.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/heldout/frozen/flaky-dep-on-search-0/process-records-ht.js",
+      "to": "bench/heldout/frozen/fixtures/batch.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/heldout/frozen/flaky-dep-on-search-200/process-records-ht.js",
+      "to": "bench/heldout/frozen/fixtures/batch.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/heldout/frozen/silent-cap-off-0/process-all.js",
+      "to": "bench/heldout/frozen/silent-cap-off-0/batch.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/heldout/frozen/silent-cap-off-1/process-all.js",
+      "to": "bench/heldout/frozen/silent-cap-off-1/batch.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/heldout/frozen/silent-cap-off-2/process-all.js",
+      "to": "bench/heldout/frozen/silent-cap-off-2/batch.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/heldout/frozen/silent-cap-on-gated-0/process-all.js",
+      "to": "bench/heldout/frozen/silent-cap-on-gated-0/batch.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/heldout/frozen/silent-cap-on-search-0/process-all.js",
+      "to": "bench/heldout/frozen/silent-cap-on-search-0/batch.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/judge-edge/score-synthetic.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/temporal/run.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bench/temporal/run.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bin/backfill-merged.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bin/backfill-merged.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "bin/backfill-merged.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/harness.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/filedrop-gc.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/measure.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/optimize.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/embed-haiku.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/delta.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/followups.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/verdicts.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/context-gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/usage-reconcile.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/frontier.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/analytics.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/session-bindings.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "lib/node-tags.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/meta.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/graph.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/task.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/label.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/analytics.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/onboard.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/session.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/exec.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/classify.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/ui.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "daemon.js",
+      "to": "routes/usage.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/claude.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/claude.js",
+      "to": "lib/human-input.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/claude.js",
+      "to": "lib/followups.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/claude.js",
+      "to": "lib/harness-usage.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/claude.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/claude.js",
+      "to": "lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/codex.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/codex.js",
+      "to": "lib/harness-usage.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/codex.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/codex.js",
+      "to": "lib/adapters/scheduler-substrate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/cursor.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/cursor.js",
+      "to": "lib/cursor-transcripts.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/cursor.js",
+      "to": "lib/harness-usage.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/cursor.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/cursor.js",
+      "to": "lib/adapters/scheduler-substrate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/scheduler-substrate.js",
+      "to": "lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/stub.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/stub.js",
+      "to": "lib/harness-usage.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/stub.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/adapters/stub.js",
+      "to": "lib/adapters/scheduler-substrate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/ask-gate-recall.js",
+      "to": "lib/ask-gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/ask-gate-recall.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/ask-gate.js",
+      "to": "lib/context-gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/ask-gate.js",
+      "to": "lib/node-tags.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/ask-gate.js",
+      "to": "scripts/ask-clf-predict.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/ask-gate.js",
+      "to": "lib/ask-promote.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/ask-promote.js",
+      "to": "lib/promotion.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/classify-assemble.js",
+      "to": "lib/prompt-heuristic.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/classify-assemble.js",
+      "to": "lib/ready-flag-cache.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/classify-compose.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/classify-compose.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/classify-compose.js",
+      "to": "lib/prompt-heuristic.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/classify-compose.js",
+      "to": "lib/ready-flag-cache.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/classify-compose.js",
+      "to": "lib/context-classify-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/classify-compose.js",
+      "to": "lib/dispatcher-children.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/context-classify-core.js",
+      "to": "lib/context-gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/context-gate.js",
+      "to": "lib/node-tags.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/cursor-transcripts.js",
+      "to": "lib/human-input.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/dispatcher-attribution.js",
+      "to": "lib/dispatcher-children.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/embed-haiku.js",
+      "to": "lib/haiku-breaker.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/filedrop-gc.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/filedrop-gc.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/followup-buckets.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/followups.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/followups.js",
+      "to": "lib/followup-buckets.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/harness-task.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/harness.js",
+      "to": "lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/harness.js",
+      "to": "lib/adapters/claude.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/harness.js",
+      "to": "lib/adapters/cursor.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/harness.js",
+      "to": "lib/adapters/codex.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/harness.js",
+      "to": "lib/adapters/stub.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/judge.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/judge.js",
+      "to": "scripts/edge-clf-predict.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/mcp-harness-tools.js",
+      "to": "lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/mcp-harness-tools.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/native-tasks.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/overlay.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/overlay.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/overlay.js",
+      "to": "lib/node-tags.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/session-bindings.js",
+      "to": "lib/harness.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/usage-accounting.js",
+      "to": "lib/human-input.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/usage-reconcile.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "lib/verdicts.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "mcp-graph.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "mcp-graph.js",
+      "to": "lib/mcp-harness-tools.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "packages/opencode-plugin/zonoid.ts",
+      "to": "packages/opencode-plugin/lib/stub-writer.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "packages/opencode-plugin/zonoid.ts",
+      "to": "packages/opencode-plugin/lib/gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "packages/opencode-plugin/zonoid.ts",
+      "to": "packages/opencode-plugin/lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/analytics.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/analytics.js",
+      "to": "lib/costflow.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/analytics.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "routes/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "routes/label.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "lib/context-classify-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "lib/prompt-heuristic.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "lib/ready-flag-cache.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "lib/classify-assemble.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "lib/loop-autostart.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "lib/dispatcher-children.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "scripts/gate-label.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "lib/harness-task.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/classify.js",
+      "to": "lib/pressure-nudge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/exec.js",
+      "to": "lib/usage-reconcile.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/exec.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/git.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/git.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/graph.js",
+      "to": "lib/delta.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/graph.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/graph.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/graph.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/graph.js",
+      "to": "lib/context-gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/graph.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/graph.js",
+      "to": "lib/context-classify-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/graph.js",
+      "to": "lib/ask-gate-recall.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/judge.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/judge.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/judge.js",
+      "to": "lib/pressure-nudge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/label.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/label.js",
+      "to": "scripts/gate-label.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/label.js",
+      "to": "lib/pressure-nudge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/meta.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/overlay.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/overlay.js",
+      "to": "lib/filedrop-gc.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/overlay.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/overlay.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/overlay.js",
+      "to": "lib/node-tags.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/overlay.js",
+      "to": "lib/newly-ready.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/overlay.js",
+      "to": "lib/harness-task.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/overlay.js",
+      "to": "lib/followups.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/overlay.js",
+      "to": "lib/followup-buckets.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/session.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/session.js",
+      "to": "lib/followups.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/session.js",
+      "to": "lib/verdicts.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/session.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/session.js",
+      "to": "lib/dispatcher-children.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/session.js",
+      "to": "lib/dispatcher-attribution.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/session.js",
+      "to": "lib/ask-gate-recall.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/task.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/task.js",
+      "to": "lib/measure.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/task.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/usage.js",
+      "to": "lib/usage-reconcile.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/usage.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "routes/usage.js",
+      "to": "lib/dispatcher-attribution.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scratch/edge-clf-featurize.test.js",
+      "to": "scripts/edge-clf-featurize.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-arm.js",
+      "to": "scripts/context-inject-global-summary.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-arm.js",
+      "to": "scripts/context-inject-sliding-window.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-e2e.js",
+      "to": "scripts/bench-snapshot-daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-e2e.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-heldout.js",
+      "to": "scripts/bench-snapshot-daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-kb-dedup-audit.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-kb-dedup-audit.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-report.test.js",
+      "to": "scripts/bench-report.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-snapshot-daemon.js",
+      "to": "scripts/bench-snapshot-daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/bench-snapshot-refresh.js",
+      "to": "scripts/bench-snapshot-daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/gate-label.js",
+      "to": "lib/context-gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/gc-filedrop-stubs.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/gc-filedrop-stubs.js",
+      "to": "lib/filedrop-gc.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/graph-init.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/migrate-overlay.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/note-web-maint.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/note-web-maint.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/note-web-maint.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/onboard-harness.js",
+      "to": "scripts/onboard-probes.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "scripts/retrieval-bench.js",
+      "to": "scripts/bench-snapshot-daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/adopt-native-daemon.test.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/adopt-native-daemon.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/app-restart.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/app-restart.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/ask-clf.test.js",
+      "to": "scripts/ask-clf-predict.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/ask-clf.test.js",
+      "to": "lib/ask-gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/ask-clf.test.js",
+      "to": "lib/promotion.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/ask-clf.test.js",
+      "to": "lib/ask-promote.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/ask-gate.test.js",
+      "to": "lib/ask-gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/autowire-newtask-wholegraph.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/autowire-newtask-wholegraph.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/autowire-note.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/autowire-note.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/autowire-weight0-promotion.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/autowire-weight0-promotion.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/autowire-weight0-promotion.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/bench-snapshot-daemon.test.js",
+      "to": "scripts/bench-snapshot-daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/benchmark.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/block-mechanism.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/block-mechanism.test.js",
+      "to": "routes/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/block-mechanism.test.js",
+      "to": "routes/task.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/capacity-fill.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/capacity-fill.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/classify-endpoint.test.js",
+      "to": "lib/prompt-heuristic.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/classify-endpoint.test.js",
+      "to": "lib/ready-flag-cache.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/classify-endpoint.test.js",
+      "to": "lib/classify-assemble.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/classify-loop-directive.test.js",
+      "to": "lib/prompt-heuristic.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/classify-loop-directive.test.js",
+      "to": "lib/classify-assemble.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cli-init.test.js",
+      "to": "packages/cli/bin/zonoid.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/context-gate-regression.test.js",
+      "to": "lib/context-gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/context-gate-regression.test.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/context-gate-regression.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/context-gate-route.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/context-gate.test.js",
+      "to": "lib/context-gate.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/context-gate.test.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/costflow.test.js",
+      "to": "lib/costflow.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cursor-adapter-scheduler.test.js",
+      "to": "lib/adapters/cursor.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cursor-adapter-scheduler.test.js",
+      "to": "lib/adapters/claude.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cursor-adapter-scheduler.test.js",
+      "to": "lib/adapters/codex.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cursor-adapter-scheduler.test.js",
+      "to": "lib/adapters/stub.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cursor-adapter-scheduler.test.js",
+      "to": "lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cursor-e2e-integration.test.js",
+      "to": "lib/cursor-transcripts.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cursor-e2e-integration.test.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cursor-transcript-reader.test.js",
+      "to": "lib/cursor-transcripts.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cursor-transcript-reader.test.js",
+      "to": "lib/adapters/cursor.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cursor-transcript-reader.test.js",
+      "to": "lib/human-input.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/cursor-transcript-reader.test.js",
+      "to": "lib/harness.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/dag-only-claim-context.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/dispatcher-model.test.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/edge-clf-featurize.test.js",
+      "to": "scripts/edge-clf-featurize.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/embed.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/embed.test.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/extract-decisions.test.js",
+      "to": "scripts/extract-decisions.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/filedrop-daemon.test.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/filedrop-daemon.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/filedrop-daemon.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/filedrop-gc.test.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/filedrop-gc.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/filedrop-gc.test.js",
+      "to": "lib/filedrop-gc.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/filedrop-tasks.test.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/filedrop-tasks.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/followup-ingest.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/followup-ingest.test.js",
+      "to": "lib/followups.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/followup-ingest.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/followups.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/followups.test.js",
+      "to": "lib/followups.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/followups.test.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/followups.test.js",
+      "to": "lib/followup-buckets.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/frontier.test.js",
+      "to": "lib/frontier.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/gate-node.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/gate-node.test.js",
+      "to": "lib/followups.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/gc-worktrees.test.js",
+      "to": "scripts/gc-worktrees.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/git-feature.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/git-merge.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/git.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/graph-delta.test.js",
+      "to": "lib/delta.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/graph-store-compact.test.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/graph-store-edge-meta.test.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/graph-store-edge-meta.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/graph-store-integration.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/graph-store-integration.test.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/graph-store.test.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/graph-store.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/guidance-dedupe.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/guidance-dedupe.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/guidance-resolve.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/guidance-resolve.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/guidance-seam-gate.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/guidance-seam-gate.test.js",
+      "to": "routes/session.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/haiku-breaker.test.js",
+      "to": "lib/haiku-breaker.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/handoff-roundtrip.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/handoff-roundtrip.test.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/handoff-validation.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/handoff-validation.test.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-bucket.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-bucket.test.js",
+      "to": "routes/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-bucket.test.js",
+      "to": "lib/costflow.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-registry.test.js",
+      "to": "lib/harness.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-requeue.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-requeue.test.js",
+      "to": "routes/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-requeue.test.js",
+      "to": "routes/label.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-requeue.test.js",
+      "to": "lib/harness-task.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-usage.test.js",
+      "to": "lib/harness-usage.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-usage.test.js",
+      "to": "lib/adapters/stub.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-usage.test.js",
+      "to": "lib/adapters/claude.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-usage.test.js",
+      "to": "lib/costflow.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/harness-usage.test.js",
+      "to": "lib/adapters/cursor.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/human-input.test.js",
+      "to": "lib/human-input.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/ingest-node.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/ingest-node.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-eager-lease.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-eager-lease.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-eager-lease.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-eager.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-eager.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-eager.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-hook-nudge.test.js",
+      "to": "lib/classify-assemble.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-journal.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-journal.test.js",
+      "to": "lib/judge-journal.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-journal.test.js",
+      "to": "scripts/edge-clf-predict.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-keep-legacy-rejudge.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-keep-legacy-rejudge.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-keep-legacy-rejudge.test.js",
+      "to": "routes/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-neighborhood.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-neighborhood.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-node-cost.test.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-pressure.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-pressure.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-pressure.test.js",
+      "to": "routes/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-pressure.test.js",
+      "to": "lib/pressure-nudge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-queue.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-queue.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-rejudge-edges.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-rejudge-edges.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-verdict.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judge-verdict.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judging-gate.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/judging-gate.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/label-pressure.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/label-pressure.test.js",
+      "to": "routes/label.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/label-pressure.test.js",
+      "to": "lib/pressure-nudge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/label-pressure.test.js",
+      "to": "scripts/gate-label.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/lean-learnings.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/loop-autostart.test.js",
+      "to": "lib/loop-autostart.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/loop-autostart.test.js",
+      "to": "lib/prompt-heuristic.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/loop-autostart.test.js",
+      "to": "lib/classify-assemble.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/loop-autostart.test.js",
+      "to": "lib/ready-flag-cache.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/mcp-harness-tools.test.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/mcp-harness-tools.test.js",
+      "to": "lib/mcp-harness-tools.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/mcp-harness-tools.test.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/mcp-schedule-wakeup.test.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/mcp-schedule-wakeup.test.js",
+      "to": "lib/mcp-harness-tools.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/mcp-schedule-wakeup.test.js",
+      "to": "lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/measure.test.js",
+      "to": "lib/measure.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/measure.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/metric-branch-claim.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/metric-branch-claim.test.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/metric-spec.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/native-adopt-hold.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/native-adopt-hold.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/native-blockedby-unit.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/native-blockedby-unit.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/native-tasks-adopt.test.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/native-write.test.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/neighborhood-rejudge.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/newly-ready.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/newly-ready.test.js",
+      "to": "lib/newly-ready.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/newly-ready.test.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/note-dup-guard.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/opencode-schedule-wakeup.test.js",
+      "to": "packages/opencode-plugin/lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/opencode-schedule-wakeup.test.js",
+      "to": "lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/opencode-stub-writer.test.js",
+      "to": "packages/opencode-plugin/lib/stub-writer.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/opencode-stub-writer.test.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/optimize.test.js",
+      "to": "lib/optimize.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/optimize.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/orphan-sweep.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/orphan-sweep.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/overlay-reembed.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/overlay-reembed.test.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/overlay-reembed.test.js",
+      "to": "lib/node-tags.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/overlay-reembed.test.js",
+      "to": "routes/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/overlay-split.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/overlay-split.test.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/pending-dup.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/pending-dup.test.js",
+      "to": "lib/judge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/phase2-integration.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/phase2-integration.test.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/phase2-integration.test.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/phase2-integration.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/pressure-nudge.test.js",
+      "to": "lib/pressure-nudge.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/prompt-heuristic.test.js",
+      "to": "lib/prompt-heuristic.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/rejected-digest.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/repo-target.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/repo-target.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/resp-cache.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/resp-cache.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/retrieval-quality.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/retrieval-quality.test.js",
+      "to": "scripts/retrieval-bench.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/retrieval-warmup-gate.test.js",
+      "to": "scripts/retrieval-bench.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/retrieval-warmup-gate.test.js",
+      "to": "scripts/bench-snapshot-daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/schedule-wakeup-contract.test.js",
+      "to": "lib/classify-assemble.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/schedule-wakeup-contract.test.js",
+      "to": "lib/mcp-harness-tools.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/schedule-wakeup-contract.test.js",
+      "to": "lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/schedule-wakeup-contract.test.js",
+      "to": "packages/opencode-plugin/lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/schedule-wakeup-contract.test.js",
+      "to": "lib/adapters/cursor.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/schedule-wakeup-contract.test.js",
+      "to": "lib/adapters/claude.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/schedule-wakeup-contract.test.js",
+      "to": "lib/adapters/codex.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/schedule-wakeup.test.js",
+      "to": "lib/schedule-wakeup.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/schedule-wakeup.test.js",
+      "to": "lib/adapters/claude.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/schedule-wakeup.test.js",
+      "to": "lib/harness.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/score-semantic.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/score-semantic.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/search-knowledge.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/self-heal.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/self-heal.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/self-register-on-claim.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/self-register-on-claim.test.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/session-bindings.test.js",
+      "to": "lib/session-bindings.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/session-bindings.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/should-stop-advisory.test.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/spawn-lease.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/spawn-lease.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/sweep-reaps-agent.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/sweep-reaps-agent.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/sweep.test.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/sync-route.test.js",
+      "to": "lib/filedrop-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/task-cost-accum.test.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/task-embed-multivec.test.js",
+      "to": "lib/embed.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/task-embed-multivec.test.js",
+      "to": "lib/node-tags.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/task-embed-multivec.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/task-embed-multivec.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/temporal-knowledge.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/temporal-knowledge.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/test-cmd.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/token-attr.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/tool-analytics.test.js",
+      "to": "lib/analytics.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/touch-agent.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/touch-agent.test.js",
+      "to": "daemon.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/unwired-quarantine.test.js",
+      "to": "lib/git.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/unwired-quarantine.test.js",
+      "to": "lib/native-tasks.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/usage-accounting.test.js",
+      "to": "lib/usage-accounting.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/usage-accounting.test.js",
+      "to": "lib/adapters/claude.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/usage-accounting.test.js",
+      "to": "lib/usage-reconcile.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/usage-accounting.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/usage-accounting.test.js",
+      "to": "lib/harness.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/usage-recorded-graph-event.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/usage-recorded-graph-event.test.js",
+      "to": "lib/graph-store.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/verdicts.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/verdicts.test.js",
+      "to": "lib/verdicts.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/weighted-edges.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/weighted-edges.test.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/workspace-read-target.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/workspace-read-target.test.js",
+      "to": "lib/mcp-core.js",
+      "kind": "depends-on"
+    },
+    {
+      "from": "test/workspace-write-target.test.js",
+      "to": "lib/overlay.js",
+      "kind": "depends-on"
+    }
+  ]
+}
