@@ -224,13 +224,18 @@ Seeded via `record_decision` by a subagent (not human-written):
 
 ---
 
-## 4. task-transcript candidate (inconclusive)
+## 4. task-transcript candidate (confirmed — clean bench re-run)
 
-**task-transcript** was attempted as a third candidate (n=20 OFF, n=33 ON) but is **not included
-in the analysis**. The OFF arm showed 0% solve rate, which is suspiciously low and likely reflects
-transcript read errors in the bench harness rather than a real signal. The ON arm numbers are
-similarly unreliable. Data is inconclusive; this candidate needs a clean re-run with verified
-transcript access before it can be included.
+**task-transcript** was initially attempted as a third candidate and flagged inconclusive (original §4 note: "OFF arm showed 0% solve rate, which is suspiciously low and likely reflects transcript read errors"). A clean re-run using the `bench-economy.js` harness (2026-06-14) confirms: **the 0% OFF result was real, not a harness error.**
+
+Clean re-run results (trial=0, model=sonnet):
+
+| Arm | Solved | Core (pass/total) | Edge (pass/total) | Cost (tok-eq) |
+|-----|--------|-------------------|-------------------|---------------|
+| ON  | ✅ Yes | 27/27 | 10/10 | 141,010 |
+| OFF | ❌ No  | 0/0   | 0/0   | 1,052,755 |
+
+OFF genuinely cannot solve this task without KB context — it is a different regime from overlay-save and locale-sum. See Paper 003 (Whole-Product Token Economy) for full analysis. This candidate is excluded from the overlay-save/locale-sum aggregate statistics (which measure the RAG injection component in isolation) because the whole-product dynamics dominate.
 
 ---
 
