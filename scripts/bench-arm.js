@@ -27,6 +27,10 @@ const TIMEOUT_S = 600;
 // Per-problem acceptance test commands, run with cwd = worktree root (relative paths resolve there).
 const ACCEPTANCE = {
   greenfield:    [['node', 'bench/sandbox/parse-duration.test.js']],
+  'greenfield-ci0':[['node', 'bench/sandbox/parse-duration.test.js']],
+  'greenfield-ci1':[['node', 'bench/sandbox/parse-duration.test.js']],
+  'greenfield-ci2':[['node', 'bench/sandbox/parse-duration.test.js']],
+  'greenfield-ci3':[['node', 'bench/sandbox/parse-duration.test.js']],
   'context-rich':[['node', 'test/summarize-rejected.test.js'], ['node', 'test/rejected-digest.test.js']],
   'graph-dependent':[['node', 'bench/sandbox/resolve-owner.test.js']],
   'v4-hard':[['node', 'bench/sandbox/task-tokens.test.js']],
@@ -131,7 +135,46 @@ function main() {
   const body = specBody.split(REPO).join(wt);
   const cm = consultMode();
   const onPreamble = cm === 'mandatory' ? ON_PREAMBLE_MANDATORY : cm === 'lean' ? ON_PREAMBLE_LEAN : cm === 'search' ? ON_PREAMBLE_SEARCH : cm === 'dagrag' ? ON_PREAMBLE_DAGRAG : ON_PREAMBLE_PERMISSIVE;
-  const prompt = (arm === 'on' ? onPreamble : '') + body;
+
+  // Context injection: bench-context-inject.js may pass pre-fetched context via env vars.
+  // BENCH_INJECT_GLOBAL_SUMMARY: JSON { done, in_progress, ready, blocked, recentTitles[] }
+  // BENCH_INJECT_WINDOW: JSON Array<{ task_key, title, summary }>
+  // Injected as a read-only context block prepended to the full prompt (works for any arm).
+  let injectionPrefix = '';
+  if (process.env.BENCH_INJECT_GLOBAL_SUMMARY) {
+    try {
+      const gs = JSON.parse(process.env.BENCH_INJECT_GLOBAL_SUMMARY);
+      injectionPrefix +=
+        '## Graph context (global summary)\n' +
+
+        `Tasks: ${gs.done} done, ${gs.in_progress} in-progress, ${gs.ready} ready, ${gs.blocked} blocked.\n` +
+
+        (gs.recentTitles && gs.recentTitles.length
+          ? 'Recently completed: ' + gs.recentTitles.slice(0, 5).join('; ') + '.\n'
+
+          : '') +
+        '\n';
+
+    } catch { /* malformed — skip */ }
+  }
+  if (process.env.BENCH_INJECT_WINDOW) {
+    try {
+      const win = JSON.parse(process.env.BENCH_INJECT_WINDOW);
+      if (Array.isArray(win) && win.length) {
+        injectionPrefix += '## Graph context (recent completed tasks)\n';
+
+        for (const t of win) {
+          injectionPrefix += `- ${t.task_key}: ${t.title}` +
+            (t.summary ? ` — ${t.summary}` : '') + '\n';
+
+        }
+        injectionPrefix += '\n';
+
+      }
+    } catch { /* malformed — skip */ }
+  }
+
+  const prompt = injectionPrefix + (arm === 'on' ? onPreamble : '') + body;
   const mcpConfig = path.join(REPO, `bench/mcp-${arm}.json`);
 
   // (c) headless run, guarded by perl alarm (macOS has no `timeout`)

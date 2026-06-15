@@ -1,0 +1,159 @@
+{
+  "runAt": "2026-06-15T02:36:19.134Z",
+  "totalMs": 169927,
+  "partial": false,
+  "scenarios": [
+    "greenfield"
+  ],
+  "globalSummary": {
+    "done": 17,
+    "in_progress": 3,
+    "ready": 6,
+    "blocked": 0,
+    "recentTitles": [
+      "Judge C: eager event-triggered dispatch on node-add (replace the standing drain queue)",
+      "Judge D: judging→ready gate — block ready/claim until a task's wirings are judged (timeout fallback)",
+      "Judge E: DAG-only injected context at claim (drop RAG-fill tier; keep search_knowledge as explicit tool)",
+      "Judge F: migrate — drain existing backlog to converge the graph, retire queue-as-default",
+      "Persist edge metadata (by/judged/score/origin) in graph-store — gate state must survive daemon restart",
+      "Remove post-agent.sh hook (redundant — classify.sh covers ready-task injection)",
+      "Restart daemon to activate /session-info endpoint",
+      "P2-A3: adopt-on-first-sight + precedence flip (Claude native tasks)",
+      "P3-B1: start_task auto-register + heartbeat stamping",
+      "P4-C1: /classify endpoint absorbs classify.sh script-resident heuristics"
+    ]
+  },
+  "windowTaskCount": 5,
+  "armStats": [
+    {
+      "armId": 0,
+      "label": "baseline",
+      "solved": 1,
+      "total": 1,
+      "pct": 100
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "solved": 1,
+      "total": 1,
+      "pct": 100
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "solved": 1,
+      "total": 1,
+      "pct": 100
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "solved": 1,
+      "total": 1,
+      "pct": 100
+    }
+  ],
+  "results": [
+    {
+      "armId": 0,
+      "label": "baseline",
+      "problem": "greenfield",
+      "useGlobal": false,
+      "useWindow": false,
+      "solved": true,
+      "wallMs": 45810,
+      "timedOut": false,
+      "exitCode": 0,
+      "raw": {
+        "problem": "greenfield-ci0",
+        "arm": "off",
+        "trial": 0,
+        "sessionId": "27575111-cc61-44bb-a710-6dcb4aaebbfa",
+        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci0-off-0/27575111-cc61-44bb-a710-6dcb4aaebbfa.jsonl",
+        "worktree": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-runner/worktrees/bench/greenfield-ci0-off-0",
+        "model": "haiku",
+        "exitCode": 0,
+        "solved": true,
+        "wallMs": 45326,
+        "diffChars": 2674,
+        "diffTokens": 669
+      }
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "problem": "greenfield",
+      "useGlobal": true,
+      "useWindow": false,
+      "solved": true,
+      "wallMs": 46886,
+      "timedOut": false,
+      "exitCode": 0,
+      "raw": {
+        "problem": "greenfield-ci1",
+        "arm": "off",
+        "trial": 1,
+        "sessionId": "b4021b61-8366-4e59-b1c6-35e35a4a9e8d",
+        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci1-off-1/b4021b61-8366-4e59-b1c6-35e35a4a9e8d.jsonl",
+        "worktree": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-runner/worktrees/bench/greenfield-ci1-off-1",
+        "model": "haiku",
+        "exitCode": 0,
+        "solved": true,
+        "wallMs": 46419,
+        "diffChars": 3076,
+        "diffTokens": 769
+      }
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "problem": "greenfield",
+      "useGlobal": false,
+      "useWindow": true,
+      "solved": true,
+      "wallMs": 35973,
+      "timedOut": false,
+      "exitCode": 0,
+      "raw": {
+        "problem": "greenfield-ci2",
+        "arm": "off",
+        "trial": 2,
+        "sessionId": "99f50a8d-6768-40c8-a817-43ba93c5d147",
+        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci2-off-2/99f50a8d-6768-40c8-a817-43ba93c5d147.jsonl",
+        "worktree": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-runner/worktrees/bench/greenfield-ci2-off-2",
+        "model": "haiku",
+        "exitCode": 0,
+        "solved": true,
+        "wallMs": 35532,
+        "diffChars": 3822,
+        "diffTokens": 956
+      }
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "problem": "greenfield",
+      "useGlobal": true,
+      "useWindow": true,
+      "solved": true,
+      "wallMs": 41122,
+      "timedOut": false,
+      "exitCode": 0,
+      "raw": {
+        "problem": "greenfield-ci3",
+        "arm": "off",
+        "trial": 3,
+        "sessionId": "63e977b1-0b44-417a-a21c-d83aafd07e78",
+        "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-62dae274979b8432-bench-context-inject-4arm-runner-worktrees-bench-greenfield-ci3-off-3/63e977b1-0b44-417a-a21c-d83aafd07e78.jsonl",
+        "worktree": "/Users/imyu/Desktop/zonoid/worktrees/62dae274979b8432/bench-context-inject-4arm-runner/worktrees/bench/greenfield-ci3-off-3",
+        "model": "haiku",
+        "exitCode": 0,
+        "solved": true,
+        "wallMs": 40700,
+        "diffChars": 2816,
+        "diffTokens": 704
+      }
+    }
+  ]
+}
