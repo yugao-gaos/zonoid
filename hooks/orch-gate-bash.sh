@@ -50,13 +50,18 @@ fi
 
 WRITE_PATTERN=0
 
+# Mask quoted spans so literal redirect chars (> <) inside quoted args
+# don't false-positive as redirects (e.g. find -name '*[<>]*'). Placeholder
+# 'Q' (not deletion) keeps a real `> "file"` redirect detectable.
+CMD_REDIR=$(printf '%s' "$CMD" | sed "s/'[^']*'/Q/g; s/\"[^\"]*\"/Q/g")
+
 # Redirect (excluding /dev/null):
 # Exclude fd redirects like 2>&1 (digit or & after >) and closing angle brackets in
 # strings like "<email@host.com>" where > is immediately preceded by a word/email char.
-if printf '%s' "$CMD" | grep -qE '(^|[^[:alnum:]._@-])(>>?)\s*[^/\s&0-9]' 2>/dev/null; then
+if printf '%s' "$CMD_REDIR" | grep -qE '(^|[^[:alnum:]._@-])(>>?)\s*[^/\s&0-9]' 2>/dev/null; then
   WRITE_PATTERN=1
 fi
-if printf '%s' "$CMD" | grep -qE '(>>?)\s*/(?!(dev/null))' 2>/dev/null; then
+if printf '%s' "$CMD_REDIR" | grep -qE '(>>?)\s*/(?!(dev/null))' 2>/dev/null; then
   WRITE_PATTERN=1
 fi
 
