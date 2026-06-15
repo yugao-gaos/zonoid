@@ -4,3 +4,4 @@
 {"evt":"note_superseded","id":"note-mqa7nneujbd","supersededBy":"note-mqd77seckrl","validTo":"2026-06-14T03:02:11.844Z","ts":"2026-06-14T03:02:11.844Z","actor":"supersede"}
 {"evt":"note_superseded","id":"note-mqa7nneujbd","supersededBy":"note-mqd77seckrl","validTo":"2026-06-14T03:02:11.844Z","ts":"2026-06-14T03:02:11.844Z","actor":"supersede"}
 {"evt":"note_superseded","id":"note-mqa7nneujbd","supersededBy":"note-mqd77seckrl","validTo":"2026-06-14T03:02:11.844Z","ts":"2026-06-14T03:02:11.844Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mqa7nneujbd","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-15T03:44:58.164Z","weight":0,"by":"autowire","judged":false,"score":0.552,"origin":"autowire-semantic"}

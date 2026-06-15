@@ -14,3 +14,8 @@
 {"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T19:55:18.517Z"}
 {"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-13T01:50:26.368Z"}
 {"evt":"edge_added","from":"1","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-13T13:32:16.967Z"}
+{"evt":"edge_added","from":"1","to":"2","kind":"blocking","actor":"overlay-sync","ts":"2026-06-15T03:09:37.629Z"}
+{"evt":"edge_added","from":"1","to":"3","kind":"blocking","actor":"overlay-sync","ts":"2026-06-15T03:09:38.290Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T03:16:25.213Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-add-jsdoc-1","actor":"overlay-sync","ts":"2026-06-15T03:16:25.213Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T03:59:39.706Z"}

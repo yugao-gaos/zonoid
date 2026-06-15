@@ -25,3 +25,4 @@
 {"evt":"edge_added","from":"note:note-mqaqoz9rvm3","to":"df63dcd1-69b2-48ae-926b-1f360ad2fc0c/fix-active-claim","kind":"context","actor":"overlay-sync","ts":"2026-06-14T03:33:07.765Z","weight":0.5}
 {"evt":"edge_added","from":"note:note-mqaqoz9rvm3","to":"26253b2f-626e-4c59-a5ee-dfbcfe756572/1","kind":"context","actor":"overlay-sync","ts":"2026-06-14T03:33:07.765Z","weight":0.5}
 {"evt":"edge_added","from":"note:note-mqaqoz9rvm3","to":"followup/write-cron-next-implementation-af37","kind":"context","actor":"overlay-sync","ts":"2026-06-14T03:33:07.765Z","weight":0.5}
+{"evt":"note_superseded","id":"note-mqaqoz9rvm3","validTo":"2026-06-15T03:54:28.894Z","ts":"2026-06-15T03:54:28.894Z","actor":"continuity-note-purge"}

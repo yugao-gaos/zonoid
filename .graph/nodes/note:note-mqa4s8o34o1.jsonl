@@ -8,3 +8,4 @@
 {"evt":"note_supersedes","id":"note-mqa4s8o34o1","supersedes":"note-mqb0hptz0i6","ts":"2026-06-11T23:30:48.675Z","actor":"supersede"}
 {"evt":"note_supersedes","id":"note-mqa4s8o34o1","supersedes":"note-mqbp7nlsaxa","ts":"2026-06-11T23:30:48.675Z","actor":"supersede"}
 {"evt":"note_supersedes","id":"note-mqa4s8o34o1","supersedes":"note-mqcen9nehfm","ts":"2026-06-11T23:30:48.675Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mqa4s8o34o1","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-15T03:44:58.164Z","weight":0,"by":"autowire","judged":false,"score":0.594,"origin":"autowire-semantic"}

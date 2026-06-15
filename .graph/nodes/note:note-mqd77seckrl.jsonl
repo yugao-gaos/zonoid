@@ -21,3 +21,4 @@
 {"evt":"note_supersedes","id":"note-mqd77seckrl","supersedes":"note-mqaoh94mvnr","ts":"2026-06-14T03:02:11.844Z","actor":"supersede"}
 {"evt":"note_supersedes","id":"note-mqd77seckrl","supersedes":"note-mqb1ixlleqr","ts":"2026-06-14T03:02:11.844Z","actor":"supersede"}
 {"evt":"note_supersedes","id":"note-mqd77seckrl","supersedes":"note-mqb5hk9xd52","ts":"2026-06-14T03:02:11.844Z","actor":"supersede"}
+{"evt":"note_superseded","id":"note-mqd77seckrl","validTo":"2026-06-15T03:54:28.894Z","ts":"2026-06-15T03:54:28.894Z","actor":"continuity-note-purge"}
