@@ -165,20 +165,37 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const taskNode = g.tasks.find(t => t.id === task_key);
       if (taskNode) {
         dagOnly = !taskNode.provisional;  // fully-judged ⇒ DAG-only; provisional ⇒ keep RAG-fill
+        // SUPERSEDE-AWARE DAG injection: a context_dep may point at a note that has since been
+        // SUPERSEDED. Injecting the stale note verbatim at score 1.0 would surface dead truth (and
+        // under dagOnly, the current replacement would never appear at all since RAG-fill is dropped).
+        // So before pushing, walk the note's supersededBy chain to the CURRENT HEAD and inject that.
+        // supersededBy is already 'note:'-prefixed in the built graph (daemon.js), matching node ids.
+        const resolvedHeads = new Set();  // head ids pushed this loop — dedup two deps → one head.
         for (const depKey of (taskNode.context_deps || [])) {
-          const noteNode = g.tasks.find(t => t.id === depKey);
-          if (noteNode && noteNode.kind === 'note') {
-            dagNotes.push({
-              key: depKey,
-              title: noteNode.label,
-              summary: String(noteNode.summary || '').slice(0, 200),
-              score: 1.0,
-              kind: 'note',
-              tier: 'dag',
-              via: 'dag',
-              path: [`context_dep of task/${task_key}`]
-            });
+          let noteNode = g.tasks.find(t => t.id === depKey);
+          if (!(noteNode && noteNode.kind === 'note')) continue;
+          // Follow supersededBy to the current head. Cycle guard via `seen`; if the chain points at
+          // an id not present in g.tasks (archived/swept), stop at the last resolvable node.
+          const seen = new Set([noteNode.id]);
+          while (noteNode.supersededBy) {
+            const next = g.tasks.find(t => t.id === noteNode.supersededBy);
+            if (!next || seen.has(next.id)) break;
+            seen.add(next.id);
+            noteNode = next;
           }
+          if (resolvedHeads.has(noteNode.id)) continue;  // another dep already resolved to this head
+          resolvedHeads.add(noteNode.id);
+          const viaSupersede = noteNode.id !== depKey;
+          dagNotes.push({
+            key: noteNode.id,
+            title: noteNode.label,
+            summary: String(noteNode.summary || '').slice(0, 200),
+            score: 1.0,
+            kind: 'note',
+            tier: 'dag',
+            via: 'dag',
+            path: [`context_dep of task/${task_key}${viaSupersede ? ' (via supersede)' : ''}`]
+          });
         }
       }
     }
