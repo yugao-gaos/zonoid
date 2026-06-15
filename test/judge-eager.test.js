@@ -156,9 +156,10 @@ function eagerOverlay(n, budgetPerRun = 6) {
   const d = daemon.decideOne(L, ctxFor(makeGraph(0, 0)));
   ok('burst of 10 → judge_eager', d.action === 'judge_eager');
   ok('burst capped at judgeParallelCap=6 nodes', d.nodes.length === 6);
-  // the daemon does NOT clear marks (the /judge/next?node call clears on dispatch) → all 10 still marked,
-  // so the next tick drains the remaining 4. eagerJudgeNodes still reports all 10 pending here.
-  ok('excess nodes stay marked for next tick', judge.eagerJudgeNodes(o).length === 10);
+  // 6 are dispatched and leased; 4 remain unleased. eagerJudgeNodes skips leased nodes,
+  // so the next tick sees 4 dispatchable (excess). The eagerJudge marks themselves stay (10 total).
+  ok('excess nodes stay marked for next tick', Object.keys(o.eagerJudge || {}).length === 10);
+  ok('excess unleased nodes available next tick', judge.eagerJudgeNodes(o).length === 4);
 }
 
 // === burst clamped by HEADROOM too (running workers eat slots) =================================
