@@ -22,7 +22,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     }
     if (sid) {
-      for (const t of all.filter((t) => t.session !== sid && t.agent_id && state.agents[t.agent_id]?.subagent_session === sid)) {
+      for (const t of all.filter((t) => t.session !== sid && t.agent_id && (
+        state.agents[t.agent_id]?.subagent_session === sid ||
+        // hookless background workers (run_in_background Agent-tool spawns): SubagentStart hook
+        // does NOT fire so they self-register via start_task with session=their own UUID.
+        // touchAgent nulls subagent_session when it equals session, so match by session+agent_tool_spawn.
+        (state.agents[t.agent_id]?.agent_tool_spawn && state.agents[t.agent_id]?.session === sid)
+      ))) {
         all.push({ ...t, session: sid });
       }
     }

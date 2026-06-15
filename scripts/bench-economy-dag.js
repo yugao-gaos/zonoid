@@ -268,8 +268,21 @@ function printJudgeDisplacement() {
 }
 
 
-// Fetch DAG context via GET /search. Returns { results, injected, hitCount, daemonOk }.
-async function fetchDagContext(query, k) {
+// Judge a single candidate edge via inline Sonnet: returns 'keep' or 'prune'.
+// specBody: full task spec text so the judge has complete context to assess relevance.
+function judgeEdge(specBody, candidateLabel, candidateSummary) {
+  var prompt = 'A worker is about to solve this task:\n\n"""\n' + specBody + '\n"""\n\n' +
+    'Candidate prior-work context to inject:\n  Title: ' + candidateLabel + '\n  Summary: ' + candidateSummary + '\n\n' +
+    'Would injecting this prior work help the worker solve the task correctly — i.e. does it contain a fact, algorithm, constraint, or correction that is NOT obvious from the task description alone and would change or improve the solution? ' +
+    'Reply KEEP if yes, PRUNE if no. Then one sentence reason.';
+  var result = spawnSync(CLAUDE, ['-p', prompt, '--model', 'sonnet', '--dangerously-skip-permissions', '--output-format', 'text'], { encoding: 'utf8', timeout: 30000 });
+  if (result.error || result.status === null) return 'keep';
+  var out = (result.stdout || '').trim();
+  return out.toUpperCase().startsWith('KEEP') ? 'keep' : 'prune';
+}
+
+// Fetch DAG context via GET /search, then judge each candidate. Returns { results, injected, hitCount, judgedKept, daemonOk }.
+async function fetchDagContext(query, k, specBody) {
   return new Promise(function(resolve) {
     var q = encodeURIComponent(query);
     var url = new URL('/search?q=' + q + '&k=' + k, DAEMON_URL);
@@ -280,18 +293,20 @@ async function fetchDagContext(query, k) {
         try {
           var parsed = JSON.parse(data);
           var hits = (parsed.results || []).filter(function(r) { return r.score >= DAG_SCORE_THRESHOLD; }).slice(0, DAG_MAX_RESULTS);
-          if (!hits.length) { resolve({ results: [], injected: '', hitCount: 0, daemonOk: true }); return; }
-          var lines = hits.map(function(r) { return '\u2022 ' + (r.title || r.key) + ': ' + (r.summary || '(no summary)'); });
+          var hitCount = hits.length;
+          var kept = hits.filter(function(c) { return judgeEdge(specBody, c.title || c.key, c.summary || '(no summary)') === 'keep'; });
+          if (!kept.length) { resolve({ results: [], injected: '', hitCount: hitCount, judgedKept: 0, daemonOk: true }); return; }
+          var lines = kept.map(function(r) { return '\u2022 ' + (r.title || r.key) + ': ' + (r.summary || '(no summary)'); });
           var injected = '=== Context from related prior work (DAG-injected) ===\n' + lines.join('\n') + '\n===\n\n';
-          resolve({ results: hits, injected: injected, hitCount: hits.length, daemonOk: true });
+          resolve({ results: kept, injected: injected, hitCount: hitCount, judgedKept: kept.length, daemonOk: true });
         } catch (e) {
           console.error('[dag] daemon search parse error:', e.message);
-          resolve({ results: [], injected: '', hitCount: 0, daemonOk: false, error: e.message });
+          resolve({ results: [], injected: '', hitCount: 0, judgedKept: 0, daemonOk: false, error: e.message });
         }
       });
     }).on('error', function(e) {
       console.error('[dag] daemon search failed:', e.message);
-      resolve({ results: [], injected: '', hitCount: 0, daemonOk: false, error: e.message });
+      resolve({ results: [], injected: '', hitCount: 0, judgedKept: 0, daemonOk: false, error: e.message });
     });
   });
 }
@@ -386,8 +401,8 @@ async function main() {
   // ON arm: pre-inject DAG context, no live search_knowledge MCP.
   var knowledgeQuery = scenario.knowledgeQuery || (scenario.description || SCENARIO_NAME).slice(0, 120);
   console.log('[economy-dag] fetching DAG context: ' + knowledgeQuery.slice(0, 60));
-  var dagCtx = await fetchDagContext(knowledgeQuery, DAG_MAX_RESULTS);
-  console.log('[economy-dag] DAG context: daemonOk=' + dagCtx.daemonOk + ' hitCount=' + dagCtx.hitCount);
+  var dagCtx = await fetchDagContext(knowledgeQuery, DAG_MAX_RESULTS, specBody);
+  console.log('[economy-dag] DAG context: daemonOk=' + dagCtx.daemonOk + ' hitCount=' + dagCtx.hitCount + ' judgedKept=' + dagCtx.judgedKept);
   if (dagCtx.hitCount) {
     dagCtx.results.forEach(function(r) { console.log('  score=' + r.score + ' ' + (r.title || r.key).slice(0, 60)); });
   }
@@ -461,7 +476,7 @@ async function main() {
   // ratio = ON_cost / OFF_cost; < 1 = ON cheaper, > 1 = ON more expensive
   const ratio = offCost > 0 ? onCost / offCost : null;
   const row = {
-    dag_mode: true, scenario: SCENARIO_NAME, trial: TRIAL, model: MODEL, skipped: false, snapshotTs,
+    dag_mode: true, dag_judge: true, scenario: SCENARIO_NAME, trial: TRIAL, model: MODEL, skipped: false, snapshotTs,
     ON_cost: onCost, OFF_cost: offCost, ON_solved: onSolved, OFF_solved: offSolved,
     ratio, offBudgetExhausted,
     onGrade: { pass: onGrade.pass, total: onGrade.total, edgePass: onGrade.edgePass, edgeTotal: onGrade.edgeTotal },

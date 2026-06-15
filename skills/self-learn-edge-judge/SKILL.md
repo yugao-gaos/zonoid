@@ -65,6 +65,20 @@ through incrementally, a handful per tick, across many ticks.
 The bar is: **would a reader/worker of one node genuinely NEED the other node's fact to understand or
 act correctly?** Topical nearness is not enough.
 
+### OVERRIDE / SPEC IS INCOMPLETE notes — stronger prior toward KEEP
+
+Notes whose **title starts with `OVERRIDE:`** or whose **summary starts with `SPEC IS INCOMPLETE:`**
+are high-signal by convention (see CLAUDE.md KB authoring rules). They exist precisely because a
+worker following only the spec or the code would produce a wrong result. When evaluating an edge
+involving such a note:
+
+- **Raise the prior toward KEEP.** The note asserts a correction or gap that a spec-following worker
+  will miss. If the adjacent task or note is topically related (same function, same subsystem, same
+  scenario), that is usually sufficient — treat it as a genuine prerequisite, not merely topical
+  overlap.
+- **The bar is still semantic.** An OVERRIDE note about `resolveOwner` is not a prerequisite for a
+  task about `lru-cache`. Topic mismatch still prunes. But within the same topic area, lean KEEP.
+
 - **NO edge (MAJORITY outcome).** The two notes are near in topic but neither is *needed* to
   understand or act on the other. Two findings about "the gate", two unrelated benchmarks, two notes
   that merely share vocabulary → no edge. When in doubt, NO edge.
