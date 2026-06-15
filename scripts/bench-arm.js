@@ -107,8 +107,11 @@ function main() {
     process.exit(2);
   }
   const specBody = fs.readFileSync(path.resolve(REPO, specPath), 'utf8');
-  const accepts = ACCEPTANCE[problem];
-  if (!accepts) { console.error('no acceptance test for problem: ' + problem); process.exit(2); }
+  const graderArg = arg('grader');
+  const accepts = graderArg
+    ? [[process.execPath, path.resolve(REPO, graderArg)]]
+    : ACCEPTANCE[problem];
+  if (!accepts) { console.error('no acceptance test for problem: ' + problem + ' (pass --grader <path> or add to ACCEPTANCE)'); process.exit(2); }
 
   // (a) isolated worktree off HEAD
   const wtRel = `worktrees/bench/${problem}-${arm}-${trial}`;
