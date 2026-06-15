@@ -75,3 +75,11 @@
 {"evt":"status_changed","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-15T02:51:16.062Z"}
 {"evt":"summary_set","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","summary":"Label queue empty. /label/pressure reported depth=0 — no unlabeled journal rows with terminal task keys. Nothing to drain.","actor":"overlay-sync","ts":"2026-06-15T02:51:16.062Z"}
 {"evt":"status_changed","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T02:51:16.168Z"}
+{"evt":"timestamps_set","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T18:12:08.921Z","lastChanged":"2026-06-15T02:51:54.772Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-15T02:52:37.736Z"}
+{"evt":"status_changed","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T02:55:34.586Z"}
+{"evt":"assignee_set","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","assignee":"label-drain-04","actor":"overlay-sync","ts":"2026-06-15T02:55:34.586Z"}
+{"evt":"status_changed","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-15T02:56:02.165Z"}
+{"evt":"summary_set","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","summary":"Label queue empty. No queue file found at .graph/onboard/onboard-queue.json — run --enqueue first to populate before draining.","actor":"overlay-sync","ts":"2026-06-15T02:56:02.165Z"}
+{"evt":"status_changed","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T02:56:02.277Z"}
+{"evt":"status_changed","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T02:57:46.877Z"}
+{"evt":"timestamps_set","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T18:12:08.921Z","lastChanged":1781492162242,"lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-15T02:57:46.877Z"}
