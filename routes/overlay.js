@@ -7,6 +7,7 @@ const path = require('path');
 const { noteEmbedText, taskEmbedText } = require('../lib/node-tags');
 const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
+const recallJournal = require('../lib/recall-outcome-journal');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, sendOp, readBody, notifyChange, buildGraph, state, targetOverlay,
@@ -251,6 +252,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const NATIVE_STATUS = { in_progress: 'in_progress', done: 'completed', tested: 'completed' };
     const ns = NATIVE_STATUS[b.status];
     if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) snapshotNative(T.ov, b.key, ns);
+    // RECALL-OUTCOME attribution: when a task reaches a terminal status, append a resolved row
+    // joining the task_key to its outcome. Readers take the latest row per task_key — this
+    // supersedes any prior 'pending' row written at context-assembly time (/search?task_key=).
+    // Best-effort: never block the status write on journal IO.
+    if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && b.key) {
+      try {
+        const outcome = recallJournal.STATUS_TO_OUTCOME[b.status] || b.status;
+        // Recover recalled note keys from the latest pending row for this task, if any.
+        const latestPending = recallJournal.latestByTask(T.ws).get(b.key);
+        const recalled = latestPending ? (latestPending.recalled_note_keys || []) : [];
+        const via = latestPending ? (latestPending.via || 'rag') : 'rag';
+        recallJournal.appendRow(T.ws, { task_key: b.key, recalled_note_keys: recalled, outcome, via });
+      } catch { /* attribution logging must never block the status write */ }
+    }
     let followUpResults = null;
     let bucketCleanup = null;
     if (b.status === 'done' && Array.isArray(b.follow_ups) && b.follow_ups.length) {
