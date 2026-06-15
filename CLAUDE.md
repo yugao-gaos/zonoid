@@ -47,6 +47,38 @@ gate:** this auto-judge applies to substantive multi-file work only — genuinel
 one-liner, a doc tweak, a config change) skip it, the same triviality carve-out as the inline-edit
 rule below.
 
+**Substantial work gets a two-tier feature branch; the dispatcher stays on main.** This is a
+dispatcher-decides call, on the same complexity axis as the judge gate above. When the dispatcher
+judges a unit of work **substantial** (a multi-task feature, not a lone edit), it groups the tasks
+under a **feature branch** instead of letting each attempt fork off main:
+
+1. `create_feature(key)` opens `orch/feature/<slug>` + a feature worktree (overlay records
+   `features[key]={feature_branch, feature_worktree, base}`).
+2. The decomposed tasks are grouped under the feature: `configure_task repo_path=<feature worktree>`,
+   and workers are dispatched with `branch_task base=orch/feature/<slug>` so each attempt forks off
+   the **stable feature branch**, not main.
+3. **Tier-1 (cheap, automatic):** the single-attempt code-judge **auto-merges** each approved
+   attempt into the feature branch — same judge as above, but under a feature an APPROVE merges
+   attempt→feature rather than holding (the merge is cheap and reversible; a flat task still holds
+   for main).
+4. **Tier-2 (consequential, gated):** when the feature is complete and reviewed, the **dispatcher**
+   makes the deliberate `merge_feature(key)` call (feature→main). This step is **never automatic** —
+   it is the dispatcher-only gated decision, the way feature→main is never the judge's call.
+
+**Why two tiers:** forking attempts off a stable feature branch sidesteps the conflict class where
+**main drifts under concurrent agents mid-feature** — attempts integrate against a base that holds
+still while the feature is in flight, and **main only ever sees one reviewed, atomic feature merge.**
+
+**The dispatcher stays on main — it does NOT relocate into a feature worktree.** A single session
+has one cwd and cannot live in N feature worktrees at once, so it coordinates **N features
+concurrently** from main; the feature worktrees are pure **integration surfaces** targeted via
+`base` + `repo_path`, never the dispatcher's working directory. (`EnterWorktree` relocation is an
+OPTIONAL convenience for a focused **single-feature interactive** session — not the default
+coordinating posture.)
+
+For **trivial / single-task** work, skip the feature tier entirely and use today's flat
+attempt→main flow — the same triviality carve-out as the inline-edit and judge rules.
+
 **Hand the worker a typed `handoff_envelope`, not prose duties.** Instead of restating the
 worker's duties verbatim in English, the dispatcher builds the slotted `handoff_envelope` defined
 in [`schemas/handoff.v1.schema.json`](./schemas/handoff.v1.schema.json) and embeds it in the

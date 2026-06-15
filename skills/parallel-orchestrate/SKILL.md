@@ -41,6 +41,17 @@ parallelizable work, with a token-efficient context handoff between dependent ta
      against the code-review rubric and either APPROVES (hold-merge verdict) or KICKS BACK, and
      **never force-merges** (merge auto-aborts on conflict). Genuinely trivial edits (one-liner,
      doc/config tweak) skip the judge; substantive multi-file work gets it.
+   - **Substantial multi-task work gets a two-tier feature branch** (dispatcher-decides, same
+     complexity axis as the judge). The dispatcher `create_feature(key)` → `orch/feature/<slug>` +
+     worktree, groups tasks under it (`configure_task repo_path=<feature worktree>`, dispatch with
+     `branch_task base=orch/feature/<slug>` so attempts fork off the **stable feature branch, not
+     the drifting main**). **Tier-1:** the single-attempt judge auto-merges each approved attempt
+     into the feature branch (cheap/reversible). **Tier-2:** the dispatcher makes the GATED
+     `merge_feature(key)` call (feature→main) once complete — never automatic. The **dispatcher
+     stays on main** coordinating N features concurrently (one cwd can't live in N worktrees);
+     feature worktrees are integration surfaces targeted via `base`+`repo_path`, not the working
+     dir (`EnterWorktree` relocation is an optional single-feature-interactive convenience). Trivial
+     single-task work skips the feature tier and uses the flat attempt→main flow.
 
 4. **Each subagent follows this contract** (this is what saves tokens):
    - **On start — call `mcp__orchestrator-graph__branch_task(task_key)` FIRST** to create an
