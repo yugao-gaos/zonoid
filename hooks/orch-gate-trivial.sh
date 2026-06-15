@@ -84,19 +84,11 @@ main_session_deny_message() {
   case "${TRIVIAL_DENY_REASON:-}" in
     budget) printf 'orch-gate: trivial patch budget exhausted for this turn (1 allowed). Dispatch a subagent for further edits.\n' ;;
     no_workers)
-      if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
-        printf 'orch-gate: no in-flight workers. Use native TaskCreate tool to register the task, then dispatch a subagent (Agent tool) — the subagent must call POST /agent/start with parent_session_id + task_key, then start_task, before editing.\n'
-      else
-        printf 'orch-gate: no in-flight workers. Dispatch a subagent (Agent tool) before editing.\n'
-      fi
+      printf 'orch-gate: no in-flight workers. Main/dispatcher sessions must NOT claim tasks directly. Use the native TaskCreate tool to register a task, then spawn a background subagent (Agent tool, run_in_background:true) — the subagent calls branch_task then start_task before editing.\n'
       ;;
     focus) printf 'orch-gate: multiple in-flight workers — set dispatcher focus (POST /overlay/dispatcher-focus) before trivial edits.\n' ;;
     *)
-      if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
-        printf 'orch-gate: no task claimed. Use native TaskCreate tool to register the task, then dispatch a subagent (Agent tool) — the subagent must call POST /agent/start with parent_session_id + task_key, then start_task, before editing.\n'
-      else
-        printf 'orch-gate: no task claimed. Use native TaskCreate tool to register the task, then dispatch a background subagent (Agent tool) — the subagent must call start_task before editing.\n'
-      fi
+      printf 'orch-gate: no task claimed. Main/dispatcher sessions must NOT claim tasks directly. Use the native TaskCreate tool (not an MCP endpoint) to register a task, then spawn a background subagent (Agent tool, run_in_background:true) — the subagent calls branch_task then start_task before editing.\n'
       ;;
   esac
 }
