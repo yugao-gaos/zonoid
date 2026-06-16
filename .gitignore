@@ -73,3 +73,10 @@ tasks/
 
 # Frozen .graph snapshot for the isolated bench daemon (generated, large, reproducible from .graph)
 bench/snapshot/
+
+# agent-memory bench: generated artifacts (never commit)
+bench/agent-memory/report.json
+bench/agent-memory/report.md
+bench/agent-memory/results.jsonl
+bench/agent-memory/checkpoints/
+bench/agent-memory/fixture_results.jsonl

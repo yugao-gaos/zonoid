@@ -1,0 +1,86 @@
+{
+  "benchmark": "locomo",
+  "competitor_bars": {
+    "Mem0": {
+      "LongMemEval-S": "94.4%",
+      "LongMemEval-Oracle": "92.5%",
+      "LoCoMo": "~84% (disputed)"
+    },
+    "Zep": {
+      "LongMemEval-S": "94.8%",
+      "LongMemEval-Oracle": "91.6%",
+      "LoCoMo": "~75.1% (corrected)"
+    }
+  },
+  "arms": {
+    "cold": {
+      "total": 2,
+      "judge_correct": 0,
+      "judge_failed": 0,
+      "accuracy": 0.0,
+      "f1_mean": 0.0,
+      "by_category": {
+        "multi-hop": {
+          "total": 1,
+          "judge_correct": 0,
+          "judge_failed": 0,
+          "accuracy": 0.0,
+          "f1_mean": 0.0
+        },
+        "single-hop": {
+          "total": 1,
+          "judge_correct": 0,
+          "judge_failed": 0,
+          "accuracy": 0.0,
+          "f1_mean": 0.0
+        }
+      }
+    },
+    "our-way": {
+      "total": 2,
+      "judge_correct": 2,
+      "judge_failed": 0,
+      "accuracy": 1.0,
+      "f1_mean": 1.0,
+      "by_category": {
+        "multi-hop": {
+          "total": 1,
+          "judge_correct": 1,
+          "judge_failed": 0,
+          "accuracy": 1.0,
+          "f1_mean": 1.0
+        },
+        "single-hop": {
+          "total": 1,
+          "judge_correct": 1,
+          "judge_failed": 0,
+          "accuracy": 1.0,
+          "f1_mean": 1.0
+        }
+      }
+    },
+    "search": {
+      "total": 2,
+      "judge_correct": 1,
+      "judge_failed": 0,
+      "accuracy": 0.5,
+      "f1_mean": 0.5,
+      "by_category": {
+        "multi-hop": {
+          "total": 1,
+          "judge_correct": 0,
+          "judge_failed": 0,
+          "accuracy": 0.0,
+          "f1_mean": 0.0
+        },
+        "single-hop": {
+          "total": 1,
+          "judge_correct": 1,
+          "judge_failed": 0,
+          "accuracy": 1.0,
+          "f1_mean": 1.0
+        }
+      }
+    }
+  }
+}
