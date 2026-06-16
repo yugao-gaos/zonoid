@@ -2010,6 +2010,7 @@ const overlayRoute = require('./routes/overlay');
 const gitRoute = require('./routes/git');
 const judgeRoute = require('./routes/judge');
 const labelRoute = require('./routes/label');
+const configRoute = require('./routes/config');
 const analyticsRoute = require('./routes/analytics');
 const onboardRoute = require('./routes/onboard');
 const sessionRoute = require('./routes/session');
@@ -2088,7 +2089,7 @@ const ctx = {
 };
 const routeModules = [
   metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
-  gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
+  gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), configRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
   sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), uiRoute(ctx),
 ];
 
@@ -2110,7 +2111,7 @@ const handler = async (req, res) => {
     // Default-deny for writes, workspace-targeting, and agent/file-read endpoints (review H1).
     // Public reads of the CURRENT workspace + the dashboard stay open; any ?workspace= read is gated too.
     const protectedPath = p === '/mcp' || p === '/reset' || p.startsWith('/overlay/') || p === '/loop/start' || p === '/loop/stop'
-      || p === '/workspace' || p === '/usage/reconcile' || p === '/usage/dispatcher-edit' || p === '/peek' || p === '/config' || p === '/route' || p.startsWith('/agent/') || p.startsWith('/git/')
+      || p === '/workspace' || p === '/usage/reconcile' || p === '/usage/dispatcher-edit' || p === '/peek' || p.startsWith('/config') || p === '/route' || p.startsWith('/agent/') || p.startsWith('/git/')
       || p.startsWith('/guidance') || p === '/supersede' || p === '/judge/verdict' || p === '/analytics/tool-call' || p === '/sync';
     if ((protectedPath || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 
