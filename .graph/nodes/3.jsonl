@@ -1,1 +1,2 @@
 {"evt":"edge_added","from":"3","to":"4","kind":"blocking","actor":"overlay-sync","ts":"2026-06-15T03:09:39.708Z"}
+{"evt":"edge_added","from":"3","to":"5","kind":"blocking","actor":"overlay-sync","ts":"2026-06-15T21:58:39.134Z","origin":"asserted"}

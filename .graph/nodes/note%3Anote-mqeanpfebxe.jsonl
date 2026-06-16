@@ -6,3 +6,4 @@
 {"evt":"edge_added","from":"note:note-mqeanpfebxe","to":"followup/gate-node-type-schema-create-gate-mcp-st-ae9b","kind":"context","actor":"overlay-sync","ts":"2026-06-15T00:55:29.995Z","weight":0,"by":"autowire","judged":false,"score":0.576,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqeanpfebxe","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/8","kind":"context","actor":"overlay-sync","ts":"2026-06-15T02:29:35.118Z","weight":0,"by":"autowire","judged":false,"score":0.605,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqeanpfebxe","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/10","kind":"context","actor":"overlay-sync","ts":"2026-06-15T02:34:02.254Z","origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mqeanpfebxe","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/10","kind":"context","actor":"overlay-sync","ts":"2026-06-15T20:25:40.073Z","by":"autowire","judged":false,"origin":"asserted"}

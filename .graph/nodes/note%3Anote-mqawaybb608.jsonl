@@ -1,3 +1,4 @@
 {"evt":"edge_added","from":"note:note-mqawaybb608","to":"ddccf8ca-a541-49a7-8912-43ff5c7ccc63/11","kind":"context","weight":1,"actor":"record-decision","ts":1781266871354}
 {"evt":"edge_added","from":"note:note-mqawaybb608","to":"ddccf8ca-a541-49a7-8912-43ff5c7ccc63/11","kind":"context","actor":"overlay-sync","ts":"2026-06-12T12:21:11.355Z","weight":1}
 {"evt":"edge_added","from":"note:note-mqawaybb608","to":"fd641e02-5bc5-4ee2-81fc-8bef835d0352/1","kind":"context","actor":"overlay-sync","ts":"2026-06-12T12:35:03.910Z"}
+{"evt":"edge_promoted","from":"note:note-mqawaybb608","to":"fd641e02-5bc5-4ee2-81fc-8bef835d0352/1","kind":"context","actor":"overlay-sync","ts":"2026-06-15T20:25:40.073Z","by":"autowire","judged":false}
