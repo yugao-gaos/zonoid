@@ -94,6 +94,39 @@ OpenCode blocks only via throw in `tool.execute.before`.
 
 ---
 
+## Install-time file ownership
+
+`npx @zonoid/cli init --harness <h>` is **additive per harness**, so the SAME repo can be opened
+in multiple harnesses at once (e.g. `--harness claude,codex`). The map below is the contract for
+which file each harness's wiring writes — picked so two harnesses never fight over one file.
+
+| File | Owner harness(es) | Written by | Carries |
+|---|---|---|---|
+| `~/.codex/config.toml` → `[mcp_servers.orchestrator-graph]` | **codex** | `writeCodexMcp()` (TOML merge) | Codex's MCP server identity + `ORCH_CLIENT=codex` |
+| `~/.codex/hooks.json` | **codex** | `checkCodexHooks()` | Codex relay hooks |
+| `<cwd>/.mcp.json` → `mcpServers["orchestrator-graph"]` | **claude**, **cursor**, **opencode** | `bin/install.js installMcp` (claude) / `writeMcp()` (cursor, opencode) — both **MERGE** | The MCP server for JSON-config harnesses; cursor's entry adds `ORCH_CLIENT=cursor` |
+| `<cwd>/.claude/settings.json` | **claude** | `bin/install.js installSettings` | Claude hooks + statusLine + MCP allow-list |
+| `<cwd>/CLAUDE.md` | **claude** | `checkClaude()` | Orchestrator workspace instructions |
+| `<cwd>/.cursor/hooks.json` | **cursor** | `checkCursorHooks()` | Cursor relay hooks |
+| `<cwd>/.opencode/plugins/*`, `<cwd>/.opencode/package.json` | **opencode** | `checkOpencodePlugin()` | OpenCode plugin + deps |
+
+**Key split — Codex's MCP store is `config.toml`, not `.mcp.json`.** Codex reads MCP servers from
+`~/.codex/config.toml` under `[mcp_servers.*]`; the repo `.mcp.json` is the store for
+**claude / cursor / opencode** only. Earlier builds wrote Codex's server into `<cwd>/.mcp.json`,
+which (a) Codex never reads and (b) clobbered the Claude/Cursor entry on a second `init` — both
+fixed by routing Codex to its native TOML store and making **every** `.mcp.json` writer a
+read-modify-write merge (`mcpServers["orchestrator-graph"]` set; sibling servers preserved).
+
+**Coexistence invariants:**
+- One repo, two client identities: Claude's server lives in `.mcp.json` (no `ORCH_CLIENT`),
+  Codex's lives in `config.toml` with `ORCH_CLIENT=codex`. They never collide because they are
+  different files.
+- All writers are **idempotent merges**: re-running any harness's init replaces only its own
+  `orchestrator-graph` entry and backs the file up once (`*.bak`); user-added MCP servers and
+  unrelated config survive.
+
+---
+
 ## File-drop task minting
 
 Non-Claude harnesses mint tasks by **dropping a stub file**, then calling `POST /sync`. This
