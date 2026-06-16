@@ -910,6 +910,62 @@ test('flag ON: label iteration is suppressed when the iteration cap is exhausted
 });
 
 // ===========================================================================
+// windowsHide: every drain spawn must suppress the Windows console-window popup
+// ===========================================================================
+//
+// COSMETIC-ONLY guard: child_process spawns on Windows flash a console window unless the launch
+// opts carry `windowsHide: true`. runDrain is the single chokepoint every drain (learner/judge/label)
+// funnels through, so asserting it here covers the whole drain family. The mocked-spawn seam records
+// the opts object handed to spawn — we assert the flag is present and true. This has ZERO functional
+// effect (no flag/gate/behavior change); it only hides the cosmetic popup.
+
+test('runDrain passes windowsHide:true to spawn (Windows console-popup suppression)', async () => {
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  try {
+    const result = await hd.runDrain({
+      bin: process.execPath,
+      args: ['--version'],
+      cwd: os.tmpdir(),
+      timeoutMs: 5000,
+    });
+    assert.equal(calls.length, 1, 'runDrain should spawn exactly one child');
+    assert.equal(calls[0].opts.windowsHide, true, 'spawn opts must carry windowsHide:true to suppress the Windows console window');
+    // The flag must not perturb the resolved shape — runDrain still resolves the normal contract.
+    assert.equal(result.spawnError, null, 'windowsHide must not introduce a spawn error');
+  } finally {
+    restore();
+  }
+});
+
+test('every runDueDrains spawn (judge fan-out) carries windowsHide:true', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    await hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
+      judgeDeps({ depth: 2, eagerNodes: ['note:a', 'note:b'] }));
+    assert.ok(calls.length >= 1, 'at least one drain should have spawned');
+    for (const c of calls) {
+      assert.equal(c.opts.windowsHide, true, 'every drain spawn must set windowsHide:true');
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+  }
+});
+
+// ===========================================================================
 // DEADLOCK REGRESSION (task /7): the daemon must stay responsive DURING a drain
 // ===========================================================================
 //

@@ -45,7 +45,7 @@ let ensuring = null;
 async function ensureDaemon() {
   if (await ping()) return;
   if (!ensuring) ensuring = (async () => {
-    try { spawn(process.execPath, [DAEMON], { detached: true, stdio: 'ignore', env: daemonEnv() }).unref(); } catch { /* ignore */ }
+    try { spawn(process.execPath, [DAEMON], { detached: true, stdio: 'ignore', env: daemonEnv(), windowsHide: true }).unref(); } catch { /* ignore */ }
     for (let i = 0; i < 40; i++) { if (await ping()) break; await new Promise((r) => setTimeout(r, 100)); }
   })().finally(() => { ensuring = null; });
   return ensuring;

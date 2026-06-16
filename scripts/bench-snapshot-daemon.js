@@ -152,6 +152,7 @@ async function ensureRunning({ refreshSnapshot = false, port: requestedPort } = 
     },
     stdio: 'ignore',
     detached: false,
+    windowsHide: true,
   });
   _pid = child.pid;
   _port = chosenPort;

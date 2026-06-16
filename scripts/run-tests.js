@@ -31,6 +31,7 @@ for (const file of files) {
     env: { ...process.env, ZONOID_SKIP_LIVE: '1' },
     encoding: 'utf8',
     timeout: TIMEOUT_MS,
+    windowsHide: true,
   });
   const ms = Date.now() - start;
   const timedOut = res.error && res.error.code === 'ETIMEDOUT';

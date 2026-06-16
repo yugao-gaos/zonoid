@@ -152,7 +152,7 @@ function mineInventory(assets, out) {
 let SIPS_OK = null;
 function sipsAvailable() {
   if (SIPS_OK === null) {
-    const r = spawnSync('sips', ['--help'], { encoding: 'utf8' });
+    const r = spawnSync('sips', ['--help'], { encoding: 'utf8', windowsHide: true });
     SIPS_OK = !r.error && r.status === 0;
   }
   return SIPS_OK;
@@ -160,7 +160,7 @@ function sipsAvailable() {
 
 function imageDims(abs) {
   if (!sipsAvailable()) return null;
-  const r = spawnSync('sips', ['-g', 'pixelWidth', '-g', 'pixelHeight', abs], { encoding: 'utf8' });
+  const r = spawnSync('sips', ['-g', 'pixelWidth', '-g', 'pixelHeight', abs], { encoding: 'utf8', windowsHide: true });
   if (r.error || r.status !== 0) return null; // fake/corrupt image: degrade silently
   const w = (r.stdout.match(/pixelWidth:\s*(\d+)/) || [])[1];
   const h = (r.stdout.match(/pixelHeight:\s*(\d+)/) || [])[1];
@@ -217,7 +217,7 @@ function isAssetPath(p) {
 function mineChurn(repo, out) {
   const fmt = `${REC_SEP}%h${FLD_SEP}%s${FLD_SEP}%b${FLD_SEP}`;
   const r = spawnSync('git', ['-C', repo, 'log', '--diff-filter=AMD', `--pretty=format:${fmt}`, '--name-status', '-n', '3000'],
-    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true });
   if (r.error || r.status !== 0) return; // not a git repo / shallow oddities: skip churn class
   const modCount = new Map(); // asset path -> times Modified (i.e. replaced in place)
   const rationale = [];

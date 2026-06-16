@@ -12,12 +12,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const { spawnSync } = require('child_process');
     const SCRIPTS = path.join(__dirname, '..', 'scripts');
     for (const s of ['onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-config.js']) {
-      spawnSync(process.execPath, [path.join(SCRIPTS, s), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+      spawnSync(process.execPath, [path.join(SCRIPTS, s), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
     }
-    spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-mine-structure.js'), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: path.join(__dirname, '..') });
-    const enqR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--enqueue'], { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+    spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-mine-structure.js'), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
+    const enqR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--enqueue'], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
     if (enqR.status !== 0) { send(res, 500, { ok: false, error: `enqueue failed (exit ${enqR.status})` }); return true; }
-    const statusR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8' });
+    const statusR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8', windowsHide: true });
     let status = null;
     try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
     send(res, 200, { ok: true, total: status && status.total, remaining: status && status.remaining, outDir }); return true;
@@ -39,7 +39,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const { spawnSync, spawn } = require('child_process');
     const learnScript = path.join(__dirname, '..', 'scripts', 'onboard-learn.js');
-    const statusR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8' });
+    const statusR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8', windowsHide: true });
     let initStatus = null;
     try { initStatus = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
     const total = (initStatus && initStatus.total) || 0;
@@ -52,16 +52,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       try {
         while (true) {
           await new Promise((resolve, reject) => {
-            const child = spawn(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', bs], { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+            const child = spawn(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', bs], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
             child.on('close', code => code === 0 ? resolve() : reject(new Error(`drain exited ${code}`)));
           });
-          const stR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8' });
+          const stR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8', windowsHide: true });
           let st = null;
           try { st = JSON.parse(stR.stdout || ''); } catch { /* ignore */ }
           if (st) { job.total = st.total || job.total; job.remaining = st.remaining || 0; job.processed = job.total - job.remaining; }
           if (!st || job.remaining === 0) break;
         }
-        spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm'], { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+        spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm'], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
         job.done = true; job.remaining = 0; job.processed = job.total;
       } catch (err) {
         job.error = String(err && err.message || err); job.done = true;
@@ -87,9 +87,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
     const { spawnSync } = require('child_process');
     const learnScript = path.join(__dirname, '..', 'scripts', 'onboard-learn.js');
-    const drainR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', String(batchSize || 50)], { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+    const drainR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--drain', '--batch', String(batchSize || 50)], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
     if (drainR.status !== 0) { send(res, 500, { ok: false, error: `drain failed (exit ${drainR.status})` }); return true; }
-    const statusR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8' });
+    const statusR = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8', windowsHide: true });
     let status = null;
     try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
     send(res, 200, { ok: true, status }); return true;

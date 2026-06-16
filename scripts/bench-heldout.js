@@ -203,9 +203,9 @@ async function main() {
   const wtRel = `worktrees/bench/ht-${candidate}-${armLabel}-${trial}`;
   const wt = path.join(REPO, wtRel);
   const branch = `orch/bench/ht-${candidate}-${armLabel}-${trial}`;
-  spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', wtRel], { stdio: 'ignore' });
-  spawnSync('git', ['-C', REPO, 'branch', '-D', branch], { stdio: 'ignore' });
-  const add = spawnSync('git', ['-C', REPO, 'worktree', 'add', '-b', branch, wtRel, 'HEAD'], { encoding: 'utf8' });
+  spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', wtRel], { stdio: 'ignore', windowsHide: true });
+  spawnSync('git', ['-C', REPO, 'branch', '-D', branch], { stdio: 'ignore', windowsHide: true });
+  const add = spawnSync('git', ['-C', REPO, 'worktree', 'add', '-b', branch, wtRel, 'HEAD'], { encoding: 'utf8', windowsHide: true });
   if (add.status !== 0) { console.error('worktree add failed: ' + add.stderr); process.exit(1); }
 
   // (b-pre) Strip oracle material from the solve worktree so the agent cannot inspect graders or
@@ -255,7 +255,7 @@ async function main() {
     ? { ...process.env, ORCH_WORKSPACE, ORCH_GATE_OFF: '1', ...(isolatedPort ? { ORCH_PORT: String(isolatedPort) } : {}) }
     : { ...process.env, ORCH_GATE_OFF: '1' };
   const t0 = Date.now();
-  const run = spawnSync('perl', args, { cwd: wt, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const run = spawnSync('perl', args, { cwd: wt, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true });
   const wallMs = Date.now() - t0;
   const exitCode = run.status === null ? 124 : run.status;
 
@@ -319,7 +319,7 @@ async function main() {
 
   let grade = { ok: false, pass: 0, total: 0, edgePass: 0, edgeTotal: 0, error: artifactPresent ? null : 'no artifact produced' };
   if (artifactPresent) {
-    const g = spawnSync('node', [path.join(REPO, cfg.grader), frozenArtifact, wt], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    const g = spawnSync('node', [path.join(REPO, cfg.grader), frozenArtifact, wt], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, windowsHide: true });
     try { grade = JSON.parse((g.stdout || '').trim().split('\n').filter(Boolean).pop()); }
     catch (e) { grade = { ok: false, pass: 0, total: 0, edgePass: 0, edgeTotal: 0, error: 'grader parse fail: ' + (g.stderr || e.message).slice(0, 200) }; }
   }

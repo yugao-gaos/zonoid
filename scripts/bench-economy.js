@@ -87,7 +87,7 @@ function runArm({ prompt, mcpConfig, sessionId, worktree, env, timeoutS }) {
     '--dangerously-skip-permissions', '--add-dir', worktree,
   ];
   const t0 = Date.now();
-  const run = spawnSync('perl', args, { cwd: worktree, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const run = spawnSync('perl', args, { cwd: worktree, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true });
   const wallMs = Date.now() - t0;
   const exitCode = run.status === null ? 124 : run.status;
   return { exitCode, wallMs, transcriptPath: findTranscript(worktree, sessionId) };
@@ -98,7 +98,7 @@ function grade(graderPath, artifactPath) {
   if (!fs.existsSync(artifactPath)) {
     return { ok: false, pass: 0, total: 0, edgePass: 0, edgeTotal: 0, error: 'no artifact' };
   }
-  const g = spawnSync('node', [graderPath, artifactPath], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  const g = spawnSync('node', [graderPath, artifactPath], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, windowsHide: true });
   try {
     return JSON.parse((g.stdout || '').trim().split('\n').filter(Boolean).pop());
   } catch (e) {
@@ -115,11 +115,11 @@ function buildOffRepo(minimalSourceDir, installDir) {
       fs.copyFileSync(path.join(minimalSourceDir, f), path.join(installDir, f));
     }
   }
-  spawnSync('git', ['init'], { cwd: installDir });
-  spawnSync('git', ['config', 'user.email', 'bench@economy.local'], { cwd: installDir });
-  spawnSync('git', ['config', 'user.name', 'Economy Bench'], { cwd: installDir });
-  spawnSync('git', ['add', '-A'], { cwd: installDir });
-  spawnSync('git', ['commit', '--allow-empty', '-m', 'initial'], { cwd: installDir });
+  spawnSync('git', ['init'], { cwd: installDir, windowsHide: true });
+  spawnSync('git', ['config', 'user.email', 'bench@economy.local'], { cwd: installDir, windowsHide: true });
+  spawnSync('git', ['config', 'user.name', 'Economy Bench'], { cwd: installDir, windowsHide: true });
+  spawnSync('git', ['add', '-A'], { cwd: installDir, windowsHide: true });
+  spawnSync('git', ['commit', '--allow-empty', '-m', 'initial'], { cwd: installDir, windowsHide: true });
 }
 
 // Strip ZONOID_* and ORCH_* from env for the OFF arm.
@@ -325,9 +325,9 @@ async function main() {
   const onWtRel = 'worktrees/bench/econ-' + SCENARIO_NAME + '-on-' + TRIAL;
   const onWt = path.join(REPO, onWtRel);
   const onBranch = 'orch/bench/econ-' + SCENARIO_NAME + '-on-' + TRIAL;
-  spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', onWtRel], { stdio: 'ignore' });
-  spawnSync('git', ['-C', REPO, 'branch', '-D', onBranch], { stdio: 'ignore' });
-  const onAdd = spawnSync('git', ['-C', REPO, 'worktree', 'add', '-b', onBranch, onWtRel, 'HEAD'], { encoding: 'utf8' });
+  spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', onWtRel], { stdio: 'ignore', windowsHide: true });
+  spawnSync('git', ['-C', REPO, 'branch', '-D', onBranch], { stdio: 'ignore', windowsHide: true });
+  const onAdd = spawnSync('git', ['-C', REPO, 'worktree', 'add', '-b', onBranch, onWtRel, 'HEAD'], { encoding: 'utf8', windowsHide: true });
   if (onAdd.status !== 0) { console.error('ON worktree add failed:', onAdd.stderr); process.exit(1); }
 
   // Strip oracle material so agent cannot inspect grader or prior results.

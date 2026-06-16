@@ -237,7 +237,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       try {
         const gitUser = require('child_process').execFileSync(
           'git', ['-C', T.ws, 'config', 'user.name'],
-          { encoding: 'utf8', timeout: 2000 }
+          { encoding: 'utf8', timeout: 2000, windowsHide: true }
         ).trim() || null;
         if (gitUser) {
           if (!T.ov.git_users) T.ov.git_users = {};

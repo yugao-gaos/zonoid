@@ -49,7 +49,7 @@ function renderTemplate(text, vars) {
 
 function runGrader(scenarioDir, graderRel, artifactPath, secret) {
   const grader = path.join(scenarioDir, graderRel);
-  const g = spawnSync(process.execPath, [grader, artifactPath, secret], { encoding: 'utf8' });
+  const g = spawnSync(process.execPath, [grader, artifactPath, secret], { encoding: 'utf8', windowsHide: true });
   const line = (g.stdout || '').trim().split('\n').filter(Boolean).pop() || '{}';
   try { return JSON.parse(line); }
   catch (e) { return { ok: false, error: 'grader parse fail: ' + e.message }; }
@@ -172,9 +172,9 @@ function prepareWorktree(scenarioName, trial) {
   const wtRel = 'worktrees/bench/e2e-' + scenarioName + '-' + trial;
   const wt = path.join(REPO, wtRel);
   const branch = 'orch/bench/e2e-' + scenarioName + '-' + trial;
-  spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', wtRel], { stdio: 'ignore' });
-  spawnSync('git', ['-C', REPO, 'branch', '-D', branch], { stdio: 'ignore' });
-  const add = spawnSync('git', ['-C', REPO, 'worktree', 'add', '-b', branch, wtRel, 'HEAD'], { encoding: 'utf8' });
+  spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', wtRel], { stdio: 'ignore', windowsHide: true });
+  spawnSync('git', ['-C', REPO, 'branch', '-D', branch], { stdio: 'ignore', windowsHide: true });
+  const add = spawnSync('git', ['-C', REPO, 'worktree', 'add', '-b', branch, wtRel, 'HEAD'], { encoding: 'utf8', windowsHide: true });
   if (add.status !== 0) throw new Error('worktree add failed: ' + add.stderr);
   return wt;
 }
@@ -212,7 +212,7 @@ async function runLiveArm({ arm, scenario, scenarioDir, trial, worktree, orchPor
     : { ...process.env, ORCH_GATE_OFF: '1' };
 
   const t0 = Date.now();
-  const run = spawnSync('perl', args, { cwd: worktree, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const run = spawnSync('perl', args, { cwd: worktree, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true });
   const wallMs = Date.now() - t0;
 
   let transcriptPath = path.join(process.env.HOME, '.claude', 'projects',
@@ -270,6 +270,7 @@ async function main() {
       daemonChild = require('child_process').spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
         env: { ...process.env, ORCH_PORT: String(isolatedPort), CLAUDE_PLUGIN_DATA: sandboxData },
         stdio: 'ignore',
+        windowsHide: true,
       });
       for (let i = 0; i < 80; i++) {
         try {

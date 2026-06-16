@@ -94,7 +94,7 @@ function runArm({ prompt, mcpConfig, sessionId, worktree, env, timeoutS }) {
     '--dangerously-skip-permissions', '--add-dir', worktree,
   ];
   const t0 = Date.now();
-  const run = spawnSync('perl', args, { cwd: worktree, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const run = spawnSync('perl', args, { cwd: worktree, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true });
   const wallMs = Date.now() - t0;
   const exitCode = run.status === null ? 124 : run.status;
   return { exitCode, wallMs, transcriptPath: findTranscript(worktree, sessionId) };
@@ -105,7 +105,7 @@ function grade(graderPath, artifactPath) {
   if (!fs.existsSync(artifactPath)) {
     return { ok: false, pass: 0, total: 0, edgePass: 0, edgeTotal: 0, error: 'no artifact' };
   }
-  const g = spawnSync('node', [graderPath, artifactPath], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  const g = spawnSync('node', [graderPath, artifactPath], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, windowsHide: true });
   try {
     return JSON.parse((g.stdout || '').trim().split('\n').filter(Boolean).pop());
   } catch (e) {
@@ -122,11 +122,11 @@ function buildOffRepo(minimalSourceDir, installDir) {
       fs.copyFileSync(path.join(minimalSourceDir, f), path.join(installDir, f));
     }
   }
-  spawnSync('git', ['init'], { cwd: installDir });
-  spawnSync('git', ['config', 'user.email', 'bench@economy.local'], { cwd: installDir });
-  spawnSync('git', ['config', 'user.name', 'Economy Bench'], { cwd: installDir });
-  spawnSync('git', ['add', '-A'], { cwd: installDir });
-  spawnSync('git', ['commit', '--allow-empty', '-m', 'initial'], { cwd: installDir });
+  spawnSync('git', ['init'], { cwd: installDir, windowsHide: true });
+  spawnSync('git', ['config', 'user.email', 'bench@economy.local'], { cwd: installDir, windowsHide: true });
+  spawnSync('git', ['config', 'user.name', 'Economy Bench'], { cwd: installDir, windowsHide: true });
+  spawnSync('git', ['add', '-A'], { cwd: installDir, windowsHide: true });
+  spawnSync('git', ['commit', '--allow-empty', '-m', 'initial'], { cwd: installDir, windowsHide: true });
 }
 
 // Strip ZONOID_* and ORCH_* from env for the OFF arm.
@@ -275,7 +275,7 @@ function judgeEdge(specBody, candidateLabel, candidateSummary) {
     'Candidate prior-work context to inject:\n  Title: ' + candidateLabel + '\n  Summary: ' + candidateSummary + '\n\n' +
     'Would injecting this prior work help the worker solve the task correctly — i.e. does it contain a fact, algorithm, constraint, or correction that is NOT obvious from the task description alone and would change or improve the solution? ' +
     'Reply KEEP if yes, PRUNE if no. Then one sentence reason.';
-  var result = spawnSync(CLAUDE, ['-p', prompt, '--model', 'sonnet', '--dangerously-skip-permissions', '--output-format', 'text'], { encoding: 'utf8', timeout: 30000 });
+  var result = spawnSync(CLAUDE, ['-p', prompt, '--model', 'sonnet', '--dangerously-skip-permissions', '--output-format', 'text'], { encoding: 'utf8', timeout: 30000, windowsHide: true });
   if (result.error || result.status === null) return 'keep';
   var out = (result.stdout || '').trim();
   return out.toUpperCase().startsWith('KEEP') ? 'keep' : 'prune';
@@ -370,9 +370,9 @@ async function main() {
   const onWtRel = 'worktrees/bench/econ-' + SCENARIO_NAME + '-on-' + TRIAL;
   const onWt = path.join(REPO, onWtRel);
   const onBranch = 'orch/bench/econ-' + SCENARIO_NAME + '-on-' + TRIAL;
-  spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', onWtRel], { stdio: 'ignore' });
-  spawnSync('git', ['-C', REPO, 'branch', '-D', onBranch], { stdio: 'ignore' });
-  const onAdd = spawnSync('git', ['-C', REPO, 'worktree', 'add', '-b', onBranch, onWtRel, 'HEAD'], { encoding: 'utf8' });
+  spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', onWtRel], { stdio: 'ignore', windowsHide: true });
+  spawnSync('git', ['-C', REPO, 'branch', '-D', onBranch], { stdio: 'ignore', windowsHide: true });
+  const onAdd = spawnSync('git', ['-C', REPO, 'worktree', 'add', '-b', onBranch, onWtRel, 'HEAD'], { encoding: 'utf8', windowsHide: true });
   if (onAdd.status !== 0) { console.error('ON worktree add failed:', onAdd.stderr); process.exit(1); }
 
   // Strip oracle material so agent cannot inspect grader or prior results.

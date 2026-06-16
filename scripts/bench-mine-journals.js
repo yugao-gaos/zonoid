@@ -71,6 +71,7 @@ for (const row of filtered) {
   const result = spawnSync('node', [extractScript, journalPath, '--no-dedup'], {
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
+    windowsHide: true,
   });
 
   if (result.status !== 0) {
@@ -89,6 +90,7 @@ for (const row of filtered) {
     const r2 = spawnSync('node', [extractScript, journalPath, '--no-dedup', '--out', tmpOut], {
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
+      windowsHide: true,
     });
     if (fs.existsSync(tmpOut)) {
       candidates = JSON.parse(fs.readFileSync(tmpOut, 'utf8'));
@@ -129,6 +131,7 @@ if (CONFIRM) {
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
       stdio: 'inherit',
+      windowsHide: true,
     });
     if (r.status === 0) injected++;
   }

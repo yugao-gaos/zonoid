@@ -62,6 +62,7 @@ function run(label, file, args, env) {
     stdio: 'inherit',
     cwd: REPO_ROOT,
     env: { ...process.env, ORCH_GATE_OFF: '1', ...env },   // ungate onboard writes (known fix)
+    windowsHide: true,
   });
   if (r.status !== 0) throw new Error(`${label} failed (exit ${r.status})`);
 }
@@ -70,7 +71,7 @@ function queueStatus(repo, outDir, daemon) {
   const r = spawnSync(process.execPath,
     [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--queue-status'],
     { stdio: ['ignore', 'pipe', 'pipe'], cwd: REPO_ROOT, encoding: 'utf8',
-      env: { ...process.env, ORCH_GATE_OFF: '1', ORCH_DAEMON: daemon } });
+      env: { ...process.env, ORCH_GATE_OFF: '1', ORCH_DAEMON: daemon }, windowsHide: true });
   try { return JSON.parse(r.stdout || ''); } catch { return null; }
 }
 
