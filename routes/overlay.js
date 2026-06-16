@@ -31,7 +31,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // autowire origin), so default origin:'asserted'. This is the population keepRateByBand must EXCLUDE
     // when tuning the autowire-lexical threshold (asserted note->task edges contaminated the sub-0.40 band).
     overlayStore.addEdge(T.ov, b.from, b.to, b.fromWorkspace, b.kind, b.weight, { origin: 'asserted' });
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, edges: T.ov.edges.length, ghost: !!b.fromWorkspace, kind: b.kind === 'context' ? 'context' : 'blocking' }); return true;
   }
 
@@ -42,7 +42,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const before = T.ov.edges.length;
     overlayStore.removeEdge(T.ov, b.from, b.to, b.fromWorkspace, b.kind);
     const removed = before - T.ov.edges.length;
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, removed, edges: T.ov.edges.length }); return true;
   }
 
@@ -139,7 +139,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
             severity: 'blocking',
             action: { kind: 'force_claim_cap', taskKey: b.key },
           });
-          T.save(); ctx.notifyChange();
+          T.save(); ctx.notifyChange(T.ws);
         }
         const dashUrl = `http://${(req.headers && req.headers.host) || '127.0.0.1:8787'}/graph`;
         send(res, 409, { ok: false, error: `force-claim cap reached — tell the user to approve the reset on the dashboard at ${dashUrl} (guidance gate), then retry`, approval_required: true, dashboard: dashUrl }); return true;
@@ -337,7 +337,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         cache.agg.delete(T.ws); cache.aggAt.delete(T.ws);
       }
     }
-    notifyChange();
+    notifyChange(T.ws);
     const statusResp = { ok: true };
     if (followUpResults) statusResp.follow_ups = followUpResults;
     if (verdictResults) statusResp.verdicts = verdictResults;
@@ -365,7 +365,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ov.dispatcher_focus) T.ov.dispatcher_focus = {};
     T.ov.dispatcher_focus[b.session_id] = b.task_key;
     T.save();
-    notifyChange();
+    notifyChange(T.ws);
     send(res, 200, { ok: true, session_id: b.session_id, focus: b.task_key });
     return true;
   }
@@ -388,7 +388,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const kvec = await embed(knowledgeText(b.item));
     if (kvec) b.item._vec = kvec;
     (T.ov.knowledge[b.key] = T.ov.knowledge[b.key] || []).push(b.item);
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.ws);
     sendOp(res, b, 200, { ok: true, count: T.ov.knowledge[b.key].length }); return true;
   }
 
@@ -495,7 +495,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // calls autowireNoteProvider to seed weight-0 candidate edges to relevant tasks/notes, then stamps
     // markEagerJudge so the heartbeat dispatches a judge immediately when edges were seeded.
     const ingestResult = await ctx.ingestNode(T.ov, buildGraph(T.ws), 'note:' + id, { title: b.title, summary: b.summary });
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.ws);
     const resp = { ok: true, id, key: 'note:' + id, superseded, autowired: ingestResult.seeded, hint };
     if (pendingDupMatch) {
       resp.pending_dup = true;
@@ -529,7 +529,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     });
     overlayStore.setStatus(T.ov, key, 'not_ready', `gate/${b.kind}: waiting for ${GATE_KINDS[b.kind].satisfiedBy}`);
     overlayStore.addEdge(T.ov, key, b.blocking_task_key, null, 'blocking');
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, gate_key: key, kind: b.kind, blocking_task_key: b.blocking_task_key });
     return true;
   }
@@ -543,7 +543,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!n) { send(res, 404, { ok: false, error: 'unknown note' }); return true; }
     if (!T.ov.judgedAtEpoch) T.ov.judgedAtEpoch = {};
     delete T.ov.judgedAtEpoch['note:' + id];
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, key: 'note:' + id, requeued: true, autowired: 0 }); return true;
   }
 
@@ -556,7 +556,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const r = overlayStore.supersedeNote(T.ov, oldId, newId, b.at, T.ws);
     if (!r.ok) { send(res, 400, { ok: false, error: r.error }); return true; }
     overlayStore.markForRejudge(T.ov, 'note:' + oldId);
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, old_key: 'note:' + oldId, new_key: 'note:' + newId, at: r.at }); return true;
   }
 
@@ -565,7 +565,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
     overlayStore.setBlocked(T.ov, b.key, b.reason);
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, key: b.key, blocked: T.ov.blocked[b.key] }); return true;
   }
 
@@ -575,7 +575,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
     const wasBlocked = overlayStore.isBlocked(T.ov, b.key);
     overlayStore.clearBlocked(T.ov, b.key);
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, key: b.key, was_blocked: wasBlocked }); return true;
   }
 
@@ -662,7 +662,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     overlayStore.markForRejudge(T.ov, b.old_key);
     snapshotNative(T.ov, b.old_key);
     overlayStore.addEdge(T.ov, b.old_key, b.new_key, null, 'supersede');
-    T.save(); notifyChange();
+    T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, old_key: b.old_key, new_key: b.new_key }); return true;
   }
 
