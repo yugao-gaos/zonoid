@@ -78,6 +78,7 @@ function claude(prompt, model, opts = {}) {
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
     cwd: opts.noRepo ? NO_REPO_CWD : SELF_REPO,
+    windowsHide: true,
   });
   return (run.stdout || '').trim();
 }

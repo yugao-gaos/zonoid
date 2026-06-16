@@ -260,7 +260,7 @@ const BOOTED_AT = new Date(BOOT_MS).toISOString();
 // After a deploy, /version.head ≠ `git rev-parse HEAD` on disk ⇒ "restart required" — the check
 // hooks/restart-daemon.sh asserts. null when the source dir isn't a git checkout.
 let GIT_HEAD = null;
-try { GIT_HEAD = require('child_process').execFileSync('git', ['-C', __dirname, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 3000 }).trim(); } catch { /* not a checkout */ }
+try { GIT_HEAD = require('child_process').execFileSync('git', ['-C', __dirname, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 3000, windowsHide: true }).trim(); } catch { /* not a checkout */ }
 // Capability flags, bumped per change — cheap self-description so a restart script can verify the
 // new code is actually serving (beyond the git head).
 const FEATURES = { perRequestWorkspaceWrites: true, perRequestWorkspaceReads: true, gatedSearch: true };

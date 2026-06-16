@@ -51,6 +51,7 @@ function git(cwd, args) {
     encoding: 'utf8',
     timeout: 30000,
     maxBuffer: 16 * 1024 * 1024,
+    windowsHide: true,
   });
   return {
     ok: r.status === 0 && !r.error,

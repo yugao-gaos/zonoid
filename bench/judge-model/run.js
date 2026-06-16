@@ -135,6 +135,7 @@ function runCase(entry, modelId) {
     maxBuffer: 16 * 1024 * 1024,
     timeout: 90000,
     env: { ...process.env },
+    windowsHide: true,
   });
 
   if (result.error) {

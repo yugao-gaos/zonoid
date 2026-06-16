@@ -209,6 +209,7 @@ function runLearner(repoAbs, candidates, outFile, model, maxKeep) {
     timeout: TIMEOUT_S * 1000,
     killSignal: 'SIGKILL',
     shell: _needsShell(CLAUDE),
+    windowsHide: true,
   });
   console.error(`[learn] agent finished in ${Math.round((Date.now() - t0) / 1000)}s exit=${run.status}`);
   if (run.error && run.error.code === 'ENOENT') {

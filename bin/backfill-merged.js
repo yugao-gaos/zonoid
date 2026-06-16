@@ -44,7 +44,7 @@ const RELOAD = !flag('--no-reload');
 // Same slug rule as lib/git.js branchName(): collapse anything outside [A-Za-z0-9._-] to '-'.
 const slugify = (key) => String(key || '').replace(/[^A-Za-z0-9._-]/g, '-');
 function git(repo, args) {
-  try { return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
+  try { return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).trim(); }
   catch { return null; }
 }
 const isRepo = (p) => !!p && fs.existsSync(p) && git(p, ['rev-parse', '--is-inside-work-tree']) === 'true';

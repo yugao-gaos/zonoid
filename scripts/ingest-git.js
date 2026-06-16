@@ -20,6 +20,7 @@ function git(args) {
   const r = spawnSync('git', ['-C', REPO, ...args], {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
+    windowsHide: true,
   });
   if (r.status !== 0) {
     throw new Error(`git ${args.join(' ')} failed: ${r.stderr || r.status}`);

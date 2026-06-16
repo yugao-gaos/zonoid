@@ -20,7 +20,7 @@ const k = require('./lib/hookkit');
       const daemon = path.join(__dirname, '..', 'daemon.js');
       const env = { ...process.env };
       delete env.ZONOID_HARNESS; delete env.ORCH_CLIENT;
-      spawn(process.execPath, [daemon], { detached: true, stdio: 'ignore', env }).unref();
+      spawn(process.execPath, [daemon], { detached: true, stdio: 'ignore', env, windowsHide: true }).unref();
     } catch { /* ignore */ }
     for (let i = 0; i < 40; i++) { if (await k.ping(200)) break; await new Promise((r) => setTimeout(r, 100)); }
   }

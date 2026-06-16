@@ -58,6 +58,7 @@ function node(script, args) {
   const r = spawnSync(process.execPath, [path.join(SCRIPTS, script), ...args], {
     stdio: 'inherit',
     cwd: SELF_REPO,
+    windowsHide: true,
   });
   return r.status;
 }

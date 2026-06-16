@@ -63,6 +63,7 @@ async function main() {
         cwd: REPO, env, encoding: 'utf8',
         maxBuffer: 32 * 1024 * 1024,
         timeout: DRY_RUN ? 30000 : TRIAL_TIMEOUT_MS,
+        windowsHide: true,
       });
 
       if (r.stderr) process.stderr.write('[bench-arm] ' + r.stderr.slice(-500) + '\n');

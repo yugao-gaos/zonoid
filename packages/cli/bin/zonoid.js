@@ -85,7 +85,7 @@ function checkInstallDir() {
       fix('Install dir has live data — cloning to temp, then copying source files in (data preserved)...');
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-clone-'));
       try {
-        execSync(`git clone ${REPO_URL} ${tmpDir}`, { stdio: 'inherit' });
+        execSync(`git clone ${REPO_URL} ${tmpDir}`, { stdio: 'inherit', windowsHide: true });
         // Copy source files from the temp clone into INSTALL_DIR,
         // but skip the data subdirs so they are left untouched.
         // Runtime-state entries written by daemon.js + lib/* under CLAUDE_PLUGIN_DATA:
@@ -132,7 +132,7 @@ function checkInstallDir() {
     fix(`Cloning ${REPO_URL} ...`);
     fs.mkdirSync(path.dirname(INSTALL_DIR), { recursive: true });
   }
-  execSync(`git clone ${REPO_URL} ${INSTALL_DIR}`, { stdio: 'inherit' });
+  execSync(`git clone ${REPO_URL} ${INSTALL_DIR}`, { stdio: 'inherit', windowsHide: true });
   ok('Cloned.');
 }
 
@@ -143,7 +143,7 @@ function checkNodeModules() {
     return;
   }
   fix('Running npm install — downloading ML model (~200 MB), takes 1–3 min...');
-  execSync('npm install', { cwd: INSTALL_DIR, stdio: 'inherit' });
+  execSync('npm install', { cwd: INSTALL_DIR, stdio: 'inherit', windowsHide: true });
   ok('npm install done.');
 }
 
@@ -428,7 +428,7 @@ function checkDaemon() {
     );
     req.on('error', () => {
       fix('Daemon not running — starting it...');
-      spawnSync('node', [path.join(INSTALL_DIR, 'daemon.js')], { detached: true, stdio: 'ignore' });
+      spawnSync('node', [path.join(INSTALL_DIR, 'daemon.js')], { detached: true, stdio: 'ignore', windowsHide: true });
       ok('Daemon started.');
       resolve();
     });
@@ -463,8 +463,8 @@ function ask(question) {
 const PLACEHOLDER_NAMES = new Set(['orchestrator', 'root', 'admin', 'user']);
 
 async function checkGitIdentity() {
-  const gitName  = (() => { try { return execSync('git config user.name',  { encoding: 'utf8' }).trim(); } catch { return ''; } })();
-  const gitEmail = (() => { try { return execSync('git config user.email', { encoding: 'utf8' }).trim(); } catch { return ''; } })();
+  const gitName  = (() => { try { return execSync('git config user.name',  { encoding: 'utf8', windowsHide: true }).trim(); } catch { return ''; } })();
+  const gitEmail = (() => { try { return execSync('git config user.email', { encoding: 'utf8', windowsHide: true }).trim(); } catch { return ''; } })();
 
   const nameMissing  = !gitName  || PLACEHOLDER_NAMES.has(gitName.toLowerCase());
   const emailMissing = !gitEmail || gitEmail.endsWith('@localhost');
@@ -478,8 +478,8 @@ async function checkGitIdentity() {
   const name  = nameMissing  ? await ask(`  Your name  [${gitName  || 'e.g. Jane Smith'}]: `) : gitName;
   const email = emailMissing ? await ask(`  Your email [${gitEmail || 'e.g. you@example.com'}]: `) : gitEmail;
 
-  if (name)  { execSync(`git config --global user.name  "${name.replace(/"/g, '\\"')}"`);  ok(`set user.name  = ${name}`); }
-  if (email) { execSync(`git config --global user.email "${email.replace(/"/g, '\\"')}"`); ok(`set user.email = ${email}`); }
+  if (name)  { execSync(`git config --global user.name  "${name.replace(/"/g, '\\"')}"`, { windowsHide: true });  ok(`set user.name  = ${name}`); }
+  if (email) { execSync(`git config --global user.email "${email.replace(/"/g, '\\"')}"`, { windowsHide: true }); ok(`set user.email = ${email}`); }
 }
 
 const ORCH_PORT = process.env.ORCH_PORT || '8787';
@@ -526,8 +526,8 @@ function installLaunchdService() {
     fs.writeFileSync(PLIST_PATH, plist);
   } catch (e) { warn(`Could not write plist: ${e.message}`); return; }
 
-  spawnSync('launchctl', ['unload', PLIST_PATH], { stdio: 'ignore' });
-  const load = spawnSync('launchctl', ['load', '-w', PLIST_PATH], { encoding: 'utf8' });
+  spawnSync('launchctl', ['unload', PLIST_PATH], { stdio: 'ignore', windowsHide: true });
+  const load = spawnSync('launchctl', ['load', '-w', PLIST_PATH], { encoding: 'utf8', windowsHide: true });
   if (load.status === 0) ok(`launchd service installed (${PLIST_PATH}) — starts on login, restarts on crash`);
   else warn(`launchctl load failed: ${(load.stderr || '').trim()}`);
 }
@@ -559,13 +559,13 @@ WantedBy=default.target
     fs.writeFileSync(SYSTEMD_PATH, unit);
   } catch (e) { warn(`Could not write systemd unit: ${e.message}`); return; }
 
-  const reload = spawnSync('systemctl', ['--user', 'daemon-reload'], { encoding: 'utf8' });
+  const reload = spawnSync('systemctl', ['--user', 'daemon-reload'], { encoding: 'utf8', windowsHide: true });
   if (reload.status !== 0) {
     warn(`systemctl daemon-reload failed: ${(reload.stderr || reload.stdout || '').trim()}`);
     log(`Unit written to ${SYSTEMD_PATH} — run: systemctl --user enable --now ${SYSTEMD_UNIT}`);
     return;
   }
-  const enable = spawnSync('systemctl', ['--user', 'enable', '--now', SYSTEMD_UNIT], { encoding: 'utf8' });
+  const enable = spawnSync('systemctl', ['--user', 'enable', '--now', SYSTEMD_UNIT], { encoding: 'utf8', windowsHide: true });
   if (enable.status === 0) ok(`systemd user service installed (${SYSTEMD_PATH}) — enabled and started`);
   else {
     warn(`systemctl enable failed: ${(enable.stderr || enable.stdout || '').trim()}`);
@@ -648,7 +648,7 @@ function checkGraphAutocommitHook(cwd, opts = {}) {
   // Resolve hooks dir via git (handles worktrees + core.hooksPath)
   let hooksDir;
   try {
-    const raw = execSync('git rev-parse --git-path hooks', { cwd, encoding: 'utf8' }).trim();
+    const raw = execSync('git rev-parse --git-path hooks', { cwd, encoding: 'utf8', windowsHide: true }).trim();
     // May be relative — resolve relative to cwd
     hooksDir = path.isAbsolute(raw) ? raw : path.resolve(cwd, raw);
   } catch (_) {
@@ -1016,6 +1016,7 @@ function checkClaudeWiring(cwd) {
   const result = spawnSync(process.execPath, args, {
     stdio: 'inherit',
     env: process.env,
+    windowsHide: true,
   });
 
   if (result.status === 0) {
@@ -1144,7 +1145,7 @@ async function init(opts = {}) {
   const warmupScript = path.join(INSTALL_DIR, 'scripts', 'warmup-embeddings.js');
   if (fs.existsSync(warmupScript)) {
     fix('Warming up embedding model (first search_knowledge will be instant)...');
-    const r = spawnSync('node', [warmupScript], { encoding: 'utf8', timeout: 130000 });
+    const r = spawnSync('node', [warmupScript], { encoding: 'utf8', timeout: 130000, windowsHide: true });
     if (r.status === 0) ok('Embedding model ready.');
     else warn('Warmup timed out — first search_knowledge may be slow.');
   }

@@ -101,6 +101,7 @@ function callClaude(prompt) {
       input: prompt,
       encoding: 'utf8',
       timeout: 30000,
+      windowsHide: true,
     }
   );
   return result.trim();

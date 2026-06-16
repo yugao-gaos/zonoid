@@ -61,7 +61,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const isExplorationTask = (t) => t.kind === 'note' || supersededIds.has(t.id) || t.status === 'canceled' || t.status === 'failed' || !!(t.git && t.git.branch && t.git.branch.startsWith('orch/attempt/'));
     let mergedBranches = null;
     try {
-      const out = execFileSync('git', ['-C', T.ws, 'branch', '--merged', 'HEAD'], { encoding: 'utf8', timeout: 5000 });
+      const out = execFileSync('git', ['-C', T.ws, 'branch', '--merged', 'HEAD'], { encoding: 'utf8', timeout: 5000, windowsHide: true });
       mergedBranches = new Set(out.split('\n').map(b => b.replace(/^\*?\s+/, '').trim()).filter(Boolean));
     } catch { mergedBranches = new Set(); }
     let overlayDirty = false;

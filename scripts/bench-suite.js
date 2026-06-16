@@ -78,6 +78,7 @@ function runScenario(scenario) {
     cwd: REPO, env, encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
   });
   const wallMs = Date.now() - start;
   return { exitCode: result.status, stdout: result.stdout, stderr: result.stderr, wallMs };

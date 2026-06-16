@@ -123,13 +123,13 @@ async function main() {
   const wtRel = `worktrees/bench/${problem}-${arm}-${trial}`;
   const wt = path.join(REPO, wtRel);
   if (fs.existsSync(wt)) {
-    spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', wtRel], { stdio: 'ignore' });
+    spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', wtRel], { stdio: 'ignore', windowsHide: true });
   }
   const branch = `orch/bench/${problem}-${arm}-${trial}`;
-  spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', wtRel], { stdio: 'ignore' });
-  spawnSync('git', ['-C', REPO, 'branch', '-D', branch], { stdio: 'ignore' });
+  spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', wtRel], { stdio: 'ignore', windowsHide: true });
+  spawnSync('git', ['-C', REPO, 'branch', '-D', branch], { stdio: 'ignore', windowsHide: true });
   const add = spawnSync('git', ['-C', REPO, 'worktree', 'add', '-b', branch, wtRel, 'HEAD'],
-    { encoding: 'utf8' });
+    { encoding: 'utf8', windowsHide: true });
   if (add.status !== 0) { console.error('worktree add failed: ' + add.stderr); process.exit(1); }
 
   // Copy minimal-source files (e.g. tests.js, input.js) into worktree sandbox
@@ -235,7 +235,7 @@ async function main() {
   // context) — verified NOT to hijack the daemon workspace. OFF arm: unchanged env.
   const env = arm === 'on' ? { ...process.env, ORCH_WORKSPACE } : process.env;
   const t0 = Date.now();
-  const run = spawnSync('perl', args, { cwd: wt, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const run = spawnSync('perl', args, { cwd: wt, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true });
   const wallMs = Date.now() - t0;
   const exitCode = run.status === null ? 124 : run.status;  // null => killed by alarm/signal
 
@@ -256,7 +256,7 @@ async function main() {
   // run acceptance test(s) in the worktree
   let solved = true;
   for (const cmd of accepts) {
-    const r = spawnSync(cmd[0], cmd.slice(1), { cwd: wt, encoding: 'utf8' });
+    const r = spawnSync(cmd[0], cmd.slice(1), { cwd: wt, encoding: 'utf8', windowsHide: true });
     if (r.status !== 0) { solved = false; break; }
   }
 
@@ -266,10 +266,10 @@ async function main() {
   let diffChars = 0;
   try {
     const d = spawnSync('git', ['-C', wt, '--no-pager', 'diff', 'HEAD'],
-      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true });
     if (d.status === 0 && typeof d.stdout === 'string') diffChars += d.stdout.length;
     const u = spawnSync('git', ['-C', wt, 'ls-files', '--others', '--exclude-standard'],
-      { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+      { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, windowsHide: true });
     if (u.status === 0 && typeof u.stdout === 'string') {
       for (const rel of u.stdout.split('\n')) {
         if (!rel) continue;

@@ -63,7 +63,7 @@ for (const arm of ARMS) {
       ...arm.extraFlags,
     ];
     const env = { ...process.env, ORCH_GATE_OFF: '1' };
-    const r = spawnSync(NODE, args, { cwd: REPO, env, timeout: 660000, encoding: 'utf8' });
+    const r = spawnSync(NODE, args, { cwd: REPO, env, timeout: 660000, encoding: 'utf8', windowsHide: true });
     const pass = r.status === 0;
     // bench-arm writes transcripts to bench/transcripts/<problem>-<arm>-<trial>.jsonl
     const transcriptPath = path.join(REPO, 'bench', 'transcripts',

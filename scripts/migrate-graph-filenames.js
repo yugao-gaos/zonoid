@@ -22,7 +22,7 @@ const nodesDir = process.argv[2] || path.join(process.cwd(), '.graph', 'nodes');
 function isGitTracked(file) {
   try {
     execFileSync('git', ['ls-files', '--error-unmatch', file], {
-      cwd: path.dirname(file), stdio: 'ignore',
+      cwd: path.dirname(file), stdio: 'ignore', windowsHide: true,
     });
     return true;
   } catch {
@@ -32,7 +32,7 @@ function isGitTracked(file) {
 
 function gitMv(src, dest) {
   execFileSync('git', ['mv', path.basename(src), path.basename(dest)], {
-    cwd: path.dirname(src), stdio: 'ignore',
+    cwd: path.dirname(src), stdio: 'ignore', windowsHide: true,
   });
 }
 
