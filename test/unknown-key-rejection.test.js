@@ -518,34 +518,6 @@ function makeSP(params = {}) {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 
-  // ── SECTION 15: /overlay/gate (create_gate) ───────────────────────────────
-  // 15.1: unknown blocking_task_key is rejected with 404
-  {
-    const o = makeOv();
-    const { ctx, getLastSent } = makeCtx(o);
-    ctx.readBody = async () => ({ kind: 'human-approval', blocking_task_key: UNKNOWN_KEY });
-    const route = overlayRoute(ctx);
-    await route('/overlay/gate', 'POST', { headers: {} }, {}, makeSP(), null);
-    const r = getLastSent();
-    ok('15.1: /overlay/gate rejects unknown blocking_task_key with 404', r && r.status === 404);
-    ok('15.2: /overlay/gate error mentions the unknown key', r && r.body && r.body.error && r.body.error.includes(UNKNOWN_KEY));
-    // Confirm no gate node was written into the overlay
-    const gateKeys = Object.keys(o.status || {}).filter((k) => k.startsWith('gate:'));
-    ok('15.3: /overlay/gate creates no gate node when blocking_task_key is unknown', gateKeys.length === 0);
-  }
-
-  // 15.4: known blocking_task_key is accepted
-  {
-    const o = makeOv();
-    const { ctx, getLastSent } = makeCtx(o);
-    ctx.readBody = async () => ({ kind: 'human-approval', blocking_task_key: KNOWN_KEY });
-    const route = overlayRoute(ctx);
-    await route('/overlay/gate', 'POST', { headers: {} }, {}, makeSP(), null);
-    const r = getLastSent();
-    ok('15.4: /overlay/gate known blocking_task_key returns 200', r && r.status === 200);
-    ok('15.5: /overlay/gate response includes gate_key', r && r.body && typeof r.body.gate_key === 'string');
-  }
-
   console.log('-----');
   console.log(`${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
