@@ -38,9 +38,11 @@
 <header><h1>Zonoid</h1><div class="sum" id="sum"></div><div class="src" id="src"></div></header>
 <div id="dag"><div class="empty">connecting…</div></div>
 <script>
-// ---- MCP Apps bridge + direct-fetch (belt and suspenders) ----
-const DAEMON = 'http://localhost:8787';
-let started = false, rpc = 1000, useBridge = false; const pending = {};
+  // ---- MCP Apps bridge + direct-fetch (belt and suspenders) ----
+  const DAEMON = 'http://localhost:8787';
+  const WS = new URLSearchParams(location.search).get('workspace') || '';
+  const scoped = (path) => WS ? path + (path.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WS) : path;
+  let started = false, rpc = 1000, useBridge = false; const pending = {};
 function postParent(msg){ try { parent.postMessage(msg, '*'); } catch(e){} }
 function bridgeCall(name, args){
   return new Promise((resolve) => { const id = ++rpc; pending[id] = resolve;
@@ -66,7 +68,7 @@ function handshake(){
 }
 async function getState(){
   // 1) direct fetch (works if connectDomains allows localhost — proven in the preview panel)
-  try { const r = await fetch(DAEMON + '/state', { cache:'no-store' }); if (r.ok) { useBridge=false; return await r.json(); } } catch(e){}
+  try { const r = await fetch(DAEMON + scoped('/state'), { cache:'no-store' }); if (r.ok) { useBridge=false; return await r.json(); } } catch(e){}
   // 2) fallback: ask the host to call our get_full_graph tool
   try { const out = await bridgeCall('get_full_graph'); const t = out && out.content && out.content[0] && out.content[0].text; if (t) { useBridge=true; return JSON.parse(t); } } catch(e){}
   return null;
@@ -120,7 +122,7 @@ function render(d){
 }
 async function refresh(){ render(await getState()); }
 function start(){ if(started)return; started=true; refresh(); setInterval(refresh, 3000);
-  try { const es = new EventSource(DAEMON + '/events'); es.onmessage = () => refresh(); } catch(e){} }
+  try { const es = new EventSource(DAEMON + scoped('/events')); es.onmessage = () => refresh(); } catch(e){} }
 handshake();                 // drive the MCP Apps handshake immediately
 setTimeout(start, 1000);     // fallback: standalone / preview-panel (no host responds)
 </script>

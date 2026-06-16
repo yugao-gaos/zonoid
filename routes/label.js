@@ -37,11 +37,12 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/label/pressure' && m === 'GET') {
     // Ensure the standing harness task exists before we might nudge (idempotent, cheap).
     const T = targetOverlay(null, u);
+    const targetWs = T.ws || state.workspace;
     ensureHarnessLabelDrainTask(T.ov, () => { T.save(); notifyChange(); });
 
     // Compute gradable backlog: journal rows that (a) have a non-null task_key, (b) are not
     // already labeled, and (c) whose task_key resolves to a TERMINAL task.
-    const ws = state.workspace;
+    const ws = targetWs;
     const journalRows = readJsonl(journalPath(ws));
     const labeledRows = readJsonl(labeledPath(ws));
     const labeledKeys = new Set(labeledRows.map((r) => r._key).filter(Boolean));
@@ -66,10 +67,11 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       depthThreshold: LABEL_DEPTH,
       buildGraph,
       ws,
-      overlay: state.overlay,
+      overlay: T.ov,
       harnessKey: HARNESS_LABEL_DRAIN_KEY,
     });
     send(res, 200, {
+      workspace: ws,
       depth, nudge: gate.nudge, harness_task_key: HARNESS_LABEL_DRAIN_KEY,
       running: gate.running, capacity_ok: gate.capacity_ok, drain_in_progress: gate.drain_in_progress,
     }); return true;

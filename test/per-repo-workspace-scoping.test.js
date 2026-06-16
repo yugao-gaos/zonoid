@@ -11,6 +11,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
+const overlayStore = require('../lib/overlay');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ws-scope-base-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
@@ -162,6 +163,14 @@ async function waitForPing(ms = 10000) {
     ok('show_dashboard deep_link points to /graph', dashOut && dashOut.deep_link && dashOut.deep_link.includes('/graph'));
     ok('show_dashboard workspace echoed back', dashOut && dashOut.workspace === WS_A);
 
+    const mcpShowDashQueryWs = await req('POST', `/mcp?workspace=${encodeURIComponent(WS_A)}`, {
+      jsonrpc: '2.0', id: 3, method: 'tools/call',
+      params: { name: 'show_dashboard', arguments: {} },
+    });
+    let dashQueryWs = null;
+    try { dashQueryWs = JSON.parse(mcpShowDashQueryWs.body.result.content[0].text); } catch { /* */ }
+    ok('/mcp?workspace=A injects workspace into show_dashboard', dashQueryWs && dashQueryWs.workspace === WS_A && dashQueryWs.deep_link.includes(encodeURIComponent(WS_A)));
+
     // Without workspace arg: back-compat (no deep_link, just rendered:true note)
     const mcpShowDashNoWs = await req('POST', '/mcp', {
       jsonrpc: '2.0', id: 2, method: 'tools/call',
@@ -172,6 +181,29 @@ async function waitForPing(ms = 10000) {
     try { dashNoWs = JSON.parse(mcpShowDashNoWs.body.result.content[0].text); } catch { /* */ }
     ok('show_dashboard without workspace has rendered:true', dashNoWs && dashNoWs.rendered === true);
     ok('show_dashboard without workspace has no deep_link (back-compat)', !dashNoWs || dashNoWs.deep_link === undefined);
+
+    // ── Newly fixed direct API reads should also honor ?workspace= ─────────────
+    const ovA = overlayStore.load(WS_A);
+    ovA.edges.push({ from: 'note:a', to: 'note:b', kind: 'context', judged: false });
+    ovA.note_nodes.a = { id: 'a', title: 'A source', summary: 'A source summary', validTo: null };
+    ovA.note_nodes.b = { id: 'b', title: 'A target', summary: 'A target summary', validTo: null };
+    overlayStore.save(WS_A, ovA);
+    const judgeA = await req('GET', `/judge/pressure?workspace=${encodeURIComponent(WS_A)}`);
+    ok('/judge/pressure?workspace=A sees A queue', judgeA.status === 200 && judgeA.body.workspace === WS_A && judgeA.body.depth >= 1);
+    const judgeB = await req('GET', '/judge/pressure');
+    ok('/judge/pressure without workspace stays on global B', judgeB.status === 200 && judgeB.body.workspace === WS_B && judgeB.body.depth === 0);
+
+    await req('POST', '/mark-root', { workspace: WS_A, task_key: 'sessA/claim1', reason: 'claim fixture' });
+    await req('POST', '/git/init', { workspace: WS_A, key: 'sessA/claim1', repo_path: WS_A });
+    await req('POST', '/git/worktree', { workspace: WS_A, key: 'sessA/claim1', repo_path: WS_A });
+    await req('POST', '/overlay/status', { workspace: WS_A, key: 'sessA/claim1', status: 'in_progress', agent_id: 'claim-worker-A', session_id: 'claim-session-A' });
+    await req('POST', '/agent/stop', { workspace: WS_A, agent_id: 'claim-worker-A' });
+    const claimA = await req('GET', `/active-claim?session=${encodeURIComponent('claim-session-A')}&workspace=${encodeURIComponent(WS_A)}`);
+    ok('/active-claim?workspace=A sees A claim session', claimA.status === 200 && claimA.body.claimed === true && claimA.body.claims.some((c) => c.key === 'sessA/claim1'));
+    const stopA = await req('GET', `/should-stop?session=${encodeURIComponent('claim-session-A')}&agent=${encodeURIComponent('claim-worker-A')}&workspace=${encodeURIComponent(WS_A)}`);
+    ok('/should-stop?workspace=A sees A stop flag', stopA.status === 200 && stopA.body.stop === true && stopA.body.agent === 'claim-worker-A');
+    const stopB = await req('GET', `/should-stop?session=${encodeURIComponent('claim-session-A')}&agent=${encodeURIComponent('claim-worker-A')}`);
+    ok('/should-stop without workspace stays on global B', stopB.status === 200 && stopB.body.stop === false);
 
   } catch (e) {
     console.error('TEST ERROR:', e);

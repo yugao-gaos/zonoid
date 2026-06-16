@@ -829,22 +829,22 @@ function sweepStaleLoops() {
 function stopSignalFor(session, opts = {}) {
   // `graph`/`ov` (loop path only): the PINNED workspace's graph/overlay, so a pinned loop's
   // cooperative-stop check scans ITS claims, not the daemon-global workspace's. Defaults unchanged.
-  const { actor = null, hook = false, graph = null, ov = state.overlay } = opts;
+  const { actor = null, hook = false, graph = null, ov = state.overlay, ws = state.workspace } = opts;
   if (hook) {
     // Agent-scoped stop: the calling worker is itself flagged → halt it (and nobody else). The driver
     // that requested the stop calls with a different/absent agent_id, so it falls through and runs on.
-    if (actor && state.overlay.stop_requested[actor]) {
-      const g = buildGraph(state.workspace);
-      const own = g.tasks.find((t) => t.status === 'in_progress' && (t.agent_id || state.overlay.assignee[t.id]) === actor);
-      return { task: own ? own.id : null, agent: actor, reason: 'stop_requested', cancel_requested: null, stop_requested: state.overlay.stop_requested[actor] };
+    if (actor && ov.stop_requested[actor]) {
+      const g = graph || buildGraph(ws);
+      const own = g.tasks.find((t) => t.status === 'in_progress' && (t.agent_id || ov.assignee[t.id]) === actor);
+      return { task: own ? own.id : null, agent: actor, reason: 'stop_requested', cancel_requested: null, stop_requested: ov.stop_requested[actor] };
     }
     // Session-scoped CANCEL still halts any actor working a canceled task in this session.
     if (!session) return null;
-    const g = buildGraph(state.workspace);
+    const g = graph || buildGraph(ws);
     for (const t of g.tasks) {
       if (t.status !== 'in_progress' || t.session !== session) continue;
-      const cr = state.overlay.cancel_requested[t.id] || null;
-      if (cr) return { task: t.id, agent: t.agent_id || state.overlay.assignee[t.id] || null, reason: 'cancel_requested', cancel_requested: cr, stop_requested: null };
+      const cr = ov.cancel_requested[t.id] || null;
+      if (cr) return { task: t.id, agent: t.agent_id || ov.assignee[t.id] || null, reason: 'cancel_requested', cancel_requested: cr, stop_requested: null };
     }
     return null;
   }
