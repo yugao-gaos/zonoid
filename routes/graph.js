@@ -374,8 +374,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // /search rerank is DEFAULT-ON (validated by the CE-3 A/B): it fires unless explicitly disabled
     // with ORCH_RERANK in {0,false,off} or ?rerank=0. Null-safe — if the cross-encoder sidecar is
     // unavailable, rerank() returns null and we keep cosine order, so default-on never breaks search
-    // (it lazily spawns the sidecar on first use). The autowire/suggest paths stay OPT-IN behind a
-    // truthy ORCH_RERANK (their seed threshold is uncalibrated); ORCH_RERANK=0 force-disables all.
+    // (it lazily spawns the sidecar on first use). suggest_links is DEFAULT-ON too (it surfaces to the
+    // agent, who reviews each candidate — no weight-0 seed threshold to calibrate). The autowire path
+    // stays OPT-IN behind a truthy ORCH_RERANK (its seed threshold is uncalibrated); ORCH_RERANK=0
+    // force-disables all.
     const _rrEnv = String(process.env.ORCH_RERANK ?? '').trim().toLowerCase();
     const _rrParam = String(u.searchParams.get('rerank') ?? '').trim().toLowerCase();
     const _off = (v) => v === '0' || v === 'false' || v === 'off';
