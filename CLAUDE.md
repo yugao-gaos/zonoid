@@ -76,6 +76,20 @@ concurrently** from main; the feature worktrees are pure **integration surfaces*
 OPTIONAL convenience for a focused **single-feature interactive** session — not the default
 coordinating posture.)
 
+**An interactive session that EDITS code directly (not just dispatching) MUST `EnterWorktree` first.**
+The shared main checkout is where the daemon lives and constantly writes + commits `.graph` (it runs
+`git add -A && commit`) and where attempt branches merge. Editing code there means concurrent sessions
+collide on one working tree: another session's `git stash` — or the daemon's own `git add -A` — silently
+sweeps up or clobbers your uncommitted edits (observed live: `<<<<<<< Updated upstream` markers injected
+mid-edit, and a session's edits absorbed into a daemon commit). A per-session worktree removes that
+collision class entirely (worktrees share `.git` but have **separate working trees**, so one tree's
+`git stash` can't touch another's). **The graph stays unified:** the orchestrator pins the canonical
+workspace in `~/.claude/orchestrator/workspace`, which `mcp-graph.js` reads independent of `cwd`, so a
+worktree session's graph ops still resolve to the same canonical graph — only code/git is isolated,
+never coordination. Carve-out (same triviality bar as elsewhere): a purely conversational, read-only, or
+one-liner session can stay on main; and the **dispatcher** posture above is unchanged (it doesn't edit
+code — it stays on main to coordinate N features).
+
 For **trivial / single-task** work, skip the feature tier entirely and use today's flat
 attempt→main flow — the same triviality carve-out as the inline-edit and judge rules.
 
