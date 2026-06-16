@@ -12,6 +12,7 @@ const {
   INSTALL_DIR,
   dirHasLiveData,
   resolveInstallDir,
+  linkSkill,
 } = require('../packages/cli/bin/zonoid.js');
 const fs = require('fs');
 
@@ -122,42 +123,74 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
   }
 }
 
-// ── Invariant 2: skills link strategy fallback ───────────────────────────────
-// Verify that when symlinkSync fails we fall through to junction then cpSync.
-// We test this by mocking the scenario: a real tmp dir with a "skill" subdir,
-// then attempting what checkSkills() does but in isolation.
+// ── Invariant 2: linkSkill() — stub-injected fallback branch coverage ────────
+// These tests inject synthetic symlinkFn / cpFn stubs so that the junction and
+// copy branches of linkSkill() actually execute on this host regardless of OS
+// privilege level.  A broken fallback path will cause the wrong strategy to be
+// returned and the corresponding ok() assertion to fail.
+
+// (a) symlink fails for 2-arg call but succeeds for 'junction' → returns 'junction'
 {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-skill-test-'));
   try {
     const src  = path.join(base, 'src-skill');
     const dest = path.join(base, 'dest-skill');
     fs.mkdirSync(src, { recursive: true });
-    fs.writeFileSync(path.join(src, 'skill.md'), '# test skill');
+    fs.writeFileSync(path.join(src, 'skill.md'), '# junction test');
 
-    // Simulate the fallback chain: try symlink, if EPERM try junction, if still
-    // EPERM use cpSync.  On most systems symlink succeeds; we just verify the
-    // end-to-end: after the chain, dest exists and skill.md is readable.
-    let linkOk = false;
-    try {
-      fs.symlinkSync(src, dest);
-      linkOk = true;
-    } catch (_e1) {
-      try {
-        fs.symlinkSync(src, dest, 'junction');
-        linkOk = true;
-      } catch (_e2) {
-        try {
-          fs.cpSync(src, dest, { recursive: true });
-          linkOk = true;
-        } catch (_e3) { /* ignore */ }
-      }
-    }
-    ok('skill link strategy: dest exists after chain', linkOk && fs.existsSync(dest));
-    const skillMdPath = path.join(
-      fs.lstatSync(dest).isSymbolicLink() ? fs.realpathSync(dest) : dest,
-      'skill.md'
-    );
-    ok('skill link strategy: skill.md readable via dest', fs.existsSync(skillMdPath));
+    // symlinkFn throws only when called WITHOUT the 'junction' type arg
+    const stubSymlink = (s, d, type) => {
+      if (!type) throw Object.assign(new Error('EPERM stub'), { code: 'EPERM' });
+      // 'junction' call: delegate to the real fs.symlinkSync
+      fs.symlinkSync(s, d, type);
+    };
+
+    const result = linkSkill(src, dest, stubSymlink, fs.cpSync);
+    ok('linkSkill junction branch: returns junction', result === 'junction');
+    ok('linkSkill junction branch: dest is a junction/symlink', fs.existsSync(dest));
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+// (b) symlinkFn throws for BOTH symlink and junction; cpFn wraps fs.cpSync → returns 'copy'
+//     AND dest is a real dir with skill.md present
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-skill-test-'));
+  try {
+    const src  = path.join(base, 'src-skill');
+    const dest = path.join(base, 'dest-skill');
+    fs.mkdirSync(src, { recursive: true });
+    fs.writeFileSync(path.join(src, 'skill.md'), '# copy test');
+
+    // symlinkFn always throws
+    const stubSymlink = () => { throw Object.assign(new Error('EPERM stub'), { code: 'EPERM' }); };
+    // cpFn delegates to real fs.cpSync
+    const stubCp = (s, d, opts) => fs.cpSync(s, d, opts);
+
+    const result = linkSkill(src, dest, stubSymlink, stubCp);
+    ok('linkSkill copy branch: returns copy', result === 'copy');
+    ok('linkSkill copy branch: dest dir exists', fs.existsSync(dest) && fs.statSync(dest).isDirectory());
+    ok('linkSkill copy branch: skill.md present in dest', fs.existsSync(path.join(dest, 'skill.md')));
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+// (c) default happy path (no stubs) → returns 'symlink' (or at minimum a non-null strategy)
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-skill-test-'));
+  try {
+    const src  = path.join(base, 'src-skill');
+    const dest = path.join(base, 'dest-skill');
+    fs.mkdirSync(src, { recursive: true });
+    fs.writeFileSync(path.join(src, 'skill.md'), '# happy path test');
+
+    const result = linkSkill(src, dest);
+    ok('linkSkill happy path: returns a non-null strategy', result !== null);
+    ok('linkSkill happy path: dest exists after chain', fs.existsSync(dest));
+    const resolvedDest = (result === 'copy') ? dest : fs.realpathSync(dest);
+    ok('linkSkill happy path: skill.md readable via dest', fs.existsSync(path.join(resolvedDest, 'skill.md')));
   } finally {
     fs.rmSync(base, { recursive: true, force: true });
   }

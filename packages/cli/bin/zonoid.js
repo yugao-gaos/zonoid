@@ -83,7 +83,24 @@ function checkInstallDir() {
         execSync(`git clone ${REPO_URL} ${tmpDir}`, { stdio: 'inherit' });
         // Copy source files from the temp clone into INSTALL_DIR,
         // but skip the data subdirs so they are left untouched.
-        const protectedNames = new Set(['overlay', 'sessions', 'worktrees', 'workspace', 'token', 'node_modules']);
+        // Runtime-state entries written by daemon.js + lib/* under CLAUDE_PLUGIN_DATA:
+        //   agents.json  — registered agent registry
+        //   loops.json   — loop/heartbeat registry  (loop.json = legacy migration source)
+        //   op-cache.json — operation idempotency cache
+        //   tool-analytics.json — per-tool usage counters
+        //   certs/       — TLS cert + key (orch TLS mode)
+        //   models/      — embed + rerank model cache (~200 MB)
+        //   tasks/       — filedrop task queue
+        //   embed.pid / rerank.pid / rerank-server.log — server PID + log files
+        //   *.sock       — IPC socket files (lib/ipc-path.js)
+        const protectedNames = new Set([
+          // Existing live-data guards
+          'overlay', 'sessions', 'worktrees', 'workspace', 'token', 'node_modules',
+          // Daemon runtime-state entries (C2)
+          'agents.json', 'loops.json', 'loop.json', 'op-cache.json',
+          'tool-analytics.json', 'certs', 'models', 'tasks',
+          'embed.pid', 'rerank.pid', 'rerank-server.log',
+        ]);
         for (const entry of fs.readdirSync(tmpDir)) {
           if (protectedNames.has(entry)) continue;
           const src  = path.join(tmpDir, entry);
@@ -295,6 +312,42 @@ function checkClaude(cwd) {
   ok('CLAUDE.md updated.');
 }
 
+/**
+ * Try to create a directory link from `dest` pointing at `src`, using
+ * the best available strategy on this platform.
+ *
+ * Injection points (`symlinkFn`, `cpFn`) exist so tests can stub the OS
+ * primitives and force the junction / copy fallback branches to execute
+ * on any host — not just Windows without elevation.
+ *
+ * @param {string} src        - source directory path
+ * @param {string} dest       - destination path (must not already exist)
+ * @param {Function} [symlinkFn=fs.symlinkSync]  - injectable symlink primitive
+ * @param {Function} [cpFn=fs.cpSync]            - injectable copy primitive
+ * @returns {'symlink'|'junction'|'copy'|null}   - winning strategy, or null on total failure
+ */
+function linkSkill(src, dest, symlinkFn = fs.symlinkSync, cpFn = fs.cpSync) {
+  // Strategy 1: plain symlink (works on Unix and Windows with elevation)
+  try {
+    symlinkFn(src, dest);
+    return 'symlink';
+  } catch (_e1) { /* fall through */ }
+
+  // Strategy 2: junction (works without elevation on Windows for directories)
+  try {
+    symlinkFn(src, dest, 'junction');
+    return 'junction';
+  } catch (_e2) { /* fall through */ }
+
+  // Strategy 3: deep copy (always works, but no live-update benefit)
+  try {
+    cpFn(src, dest, { recursive: true });
+    return 'copy';
+  } catch (_e3) { /* total failure */ }
+
+  return null;
+}
+
 function checkSkills() {
   const srcDir = path.join(INSTALL_DIR, 'skills');
   if (!fs.existsSync(srcDir)) { warn('No skills/ dir in install — skipping'); return; }
@@ -332,30 +385,14 @@ function checkSkills() {
     }
 
     // Install as symlink so updates to the repo are picked up automatically.
-    // INVARIANT 2: wrap in try/catch for cross-platform compatibility.
-    // On Windows, bare symlinks require elevated privileges; fall through to
-    // junction (for dirs) then plain copy.
-    let linkOk = false;
-    try {
-      fs.symlinkSync(src, dest);
-      linkOk = true;
-    } catch (_e1) {
-      try {
-        // 'junction' works without elevation on Windows for directories.
-        fs.symlinkSync(src, dest, 'junction');
-        linkOk = true;
-      } catch (_e2) {
-        try {
-          fs.cpSync(src, dest, { recursive: true });
-          linkOk = true;
-        } catch (e3) {
-          warn(`Skill '${skill}' could not be installed: ${e3.message}`);
-        }
-      }
-    }
-    if (linkOk) {
+    // INVARIANT 2: linkSkill() falls through symlink → junction → cpSync for
+    // cross-platform compatibility (Windows bare symlinks require elevation).
+    const strategy = linkSkill(src, dest);
+    if (strategy) {
       installed++;
       ok(`Skill installed: ${skill}`);
+    } else {
+      warn(`Skill '${skill}' could not be installed (all strategies failed)`);
     }
   }
 
@@ -890,5 +927,7 @@ if (require.main === module) {
     // new exports for test coverage (invariants 1, 3, 2)
     dirHasLiveData,
     resolveInstallDir,
+    // C1: extracted link strategy helper — injectable stubs enable fallback branch coverage
+    linkSkill,
   };
 }
