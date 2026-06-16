@@ -18,10 +18,36 @@ function noteKnowledge(overlay, n) {
   return Array.isArray(side) ? side : [];
 }
 
+function isAdmissibleOverlayTaskKey(key) {
+  return typeof key === 'string'
+    && (/^[^/\s]+\/[^/\s]+$/.test(key) || /^[A-Za-z][A-Za-z0-9_.-]*$/.test(key));
+}
+
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, sendOp, readBody, notifyChange, buildGraph, state, targetOverlay, nodeExistsInGraph,
     embed, knowledgeText, snapshotNative, now, suggestToks, scoreNodeAgainstTokens,
     SUGGEST_DUP_THRESHOLD, DIMS, seedBlockingDepContext } = ctx;
+  const graphHasKey = (ws, key) => {
+    if (typeof nodeExistsInGraph !== 'function') return true;
+    return nodeExistsInGraph(buildGraph(ws), key);
+  };
+  const acceptsTaskKey = (T, key) => graphHasKey(T.ws, key) || isAdmissibleOverlayTaskKey(key);
+  const ensureTaskSnapshot = (T, key) => {
+    if (!isAdmissibleOverlayTaskKey(key)) return;
+    if (T.ov.snapshots && T.ov.snapshots[key]) return;
+    overlayStore.setSnapshot(T.ov, key, {
+      subject: key,
+      description: '',
+      status: T.ov.status[key] || 'pending',
+      blockedBy: [],
+      owner: null,
+      metadata: { synthetic_overlay_task: true },
+    });
+    if (ctx.cache) {
+      if (ctx.cache.agg) ctx.cache.agg.delete(T.ws);
+      if (ctx.cache.aggAt) ctx.cache.aggAt.delete(T.ws);
+    }
+  };
 
   if (p === '/overlay/edge' && m === 'POST') {
     const b = await readBody(req);
@@ -30,13 +56,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // Reject unknown task keys: both endpoints must resolve to existing nodes.
     // Cross-workspace ghost edges carry fromWorkspace on `from` — skip the local-graph check for `from`
     // in that case (the foreign node lives in a different workspace and cannot be validated here).
-    const g = buildGraph(T.ws);
-    if (!b.fromWorkspace && !nodeExistsInGraph(g, b.from)) {
+    if (!b.fromWorkspace && !acceptsTaskKey(T, b.from)) {
       send(res, 404, { ok: false, error: `unknown task: ${b.from}` }); return true;
     }
-    if (!nodeExistsInGraph(g, b.to)) {
+    if (!acceptsTaskKey(T, b.to)) {
       send(res, 404, { ok: false, error: `unknown task: ${b.to}` }); return true;
     }
+    if (!b.fromWorkspace) ensureTaskSnapshot(T, b.from);
+    ensureTaskSnapshot(T, b.to);
     // add_dependency / wires_to / suggest_links all land here — these are hand-ASSERTED edges (no
     // autowire origin), so default origin:'asserted'. This is the population keepRateByBand must EXCLUDE
     // when tuning the autowire-lexical threshold (asserted note->task edges contaminated the sub-0.40 band).
@@ -56,11 +83,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.from || !b.to) { send(res, 400, { ok: false, error: 'from and to required' }); return true; }
     // Reject unknown task keys — same cross-workspace carve-out as /overlay/edge.
-    const g = buildGraph(T.ws);
-    if (!b.fromWorkspace && !nodeExistsInGraph(g, b.from)) {
+    if (!b.fromWorkspace && !acceptsTaskKey(T, b.from)) {
       send(res, 404, { ok: false, error: `unknown task: ${b.from}` }); return true;
     }
-    if (!nodeExistsInGraph(g, b.to)) {
+    if (!acceptsTaskKey(T, b.to)) {
       send(res, 404, { ok: false, error: `unknown task: ${b.to}` }); return true;
     }
     const before = T.ov.edges.length;
@@ -78,10 +104,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!ALL_STATUSES.includes(b.status)) { send(res, 400, { ok: false, error: 'invalid status', allowed: ALL_STATUSES }); return true; }
     // Reject unknown task key — prevents phantom node creation (symmetry with READ ops).
     if (b.key) {
-      const _g = buildGraph(T.ws);
-      if (!nodeExistsInGraph(_g, b.key)) {
+      if (!acceptsTaskKey(T, b.key)) {
         send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
       }
+      ensureTaskSnapshot(T, b.key);
     }
     if (b.follow_ups != null) {
       if (b.status !== 'done') { send(res, 400, { ok: false, error: 'follow_ups only allowed with status "done"' }); return true; }
@@ -416,9 +442,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (ctx.opReplay(res, b)) return true;
     const T = targetOverlay(b, u);
     if (!b.key || !b.item) { send(res, 400, { ok: false, error: 'key and item required' }); return true; }
-    if (!nodeExistsInGraph(buildGraph(T.ws), b.key)) {
+    if (!acceptsTaskKey(T, b.key)) {
       send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
     }
+    ensureTaskSnapshot(T, b.key);
     const kvec = await embed(knowledgeText(b.item));
     if (kvec) b.item._vec = kvec;
     (T.ov.knowledge[b.key] = T.ov.knowledge[b.key] || []).push(b.item);
@@ -433,9 +460,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!b.title || !b.summary) { send(res, 400, { ok: false, error: 'title and summary required' }); return true; }
     // Validate wires_to targets BEFORE creating the note — reject unknown task keys (phantom-node guard).
     if (Array.isArray(b.wires_to) && b.wires_to.length) {
-      const _wg = buildGraph(T.ws);
-      const _bad = b.wires_to.filter((k) => !nodeExistsInGraph(_wg, k));
+      const _bad = b.wires_to.filter((k) => !acceptsTaskKey(T, k));
       if (_bad.length) { send(res, 404, { ok: false, error: `unknown task(s) in wires_to: ${_bad.join(', ')}` }); return true; }
+      for (const k of b.wires_to) ensureTaskSnapshot(T, k);
     }
     b.vec = await embed(noteEmbedText({ title: b.title, category: b.category, tags: b.tags, summary: b.summary }));
     // FIELD-LEVEL multi-vec set (note.vecs): embed each salient field (title/summary/each knowledge[]
@@ -554,9 +581,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.kind) { send(res, 400, { ok: false, error: 'kind required' }); return true; }
     if (!b.blocking_task_key) { send(res, 400, { ok: false, error: 'blocking_task_key required' }); return true; }
-    if (!nodeExistsInGraph(buildGraph(T.ws), b.blocking_task_key)) {
+    if (!acceptsTaskKey(T, b.blocking_task_key)) {
       return send(res, 404, { ok: false, error: `unknown task: ${b.blocking_task_key}` });
     }
+    ensureTaskSnapshot(T, b.blocking_task_key);
     const { mintGateKey } = require('../lib/followups');
     const { GATE_KINDS } = require('../lib/followup-buckets');
     if (!GATE_KINDS[b.kind]) { send(res, 400, { ok: false, error: `Unknown gate kind: ${b.kind}` }); return true; }
@@ -607,9 +635,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    if (!nodeExistsInGraph(buildGraph(T.ws), b.key)) {
+    if (!acceptsTaskKey(T, b.key)) {
       send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
     }
+    ensureTaskSnapshot(T, b.key);
     overlayStore.setBlocked(T.ov, b.key, b.reason);
     T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, key: b.key, blocked: T.ov.blocked[b.key] }); return true;
@@ -619,7 +648,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    if (!nodeExistsInGraph(buildGraph(T.ws), b.key)) {
+    if (!acceptsTaskKey(T, b.key)) {
       send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
     }
     const wasBlocked = overlayStore.isBlocked(T.ov, b.key);
@@ -707,9 +736,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.old_key || !b.new_key) { send(res, 400, { ok: false, error: 'old_key and new_key required' }); return true; }
     // Reject unknown task keys — both old and new must exist (phantom-node guard).
-    const _sg = buildGraph(T.ws);
-    if (!nodeExistsInGraph(_sg, b.old_key)) { send(res, 404, { ok: false, error: `unknown task: ${b.old_key}` }); return true; }
-    if (!nodeExistsInGraph(_sg, b.new_key)) { send(res, 404, { ok: false, error: `unknown task: ${b.new_key}` }); return true; }
+    if (!acceptsTaskKey(T, b.old_key)) { send(res, 404, { ok: false, error: `unknown task: ${b.old_key}` }); return true; }
+    if (!acceptsTaskKey(T, b.new_key)) { send(res, 404, { ok: false, error: `unknown task: ${b.new_key}` }); return true; }
+    ensureTaskSnapshot(T, b.old_key);
+    ensureTaskSnapshot(T, b.new_key);
     const note = `superseded by ${b.new_key}${b.reason ? ': ' + b.reason : ''}`;
     overlayStore.setStatus(T.ov, b.old_key, 'canceled', note);
     overlayStore.markForRejudge(T.ov, b.old_key);
