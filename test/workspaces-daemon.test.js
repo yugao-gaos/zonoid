@@ -15,8 +15,11 @@ process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const PORT = 18960 + Math.floor(Math.random() * 100);
 
 // Two distinct temp workspaces: WS1 (primary, set via /workspace) and WS2 (secondary).
+// Each gets a .graph sub-dir so the existence+.graph filter in GET /workspaces lets them through.
 const WS1 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-wslist-ws1-')));
+fs.mkdirSync(path.join(WS1, '.graph'), { recursive: true });
 const WS2 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-wslist-ws2-')));
+fs.mkdirSync(path.join(WS2, '.graph'), { recursive: true });
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -130,6 +133,35 @@ function spawnDaemon() {
       // Current workspace is still WS2
       const ping = await req('GET', '/ping');
       ok('(F) current workspace unchanged after ?workspace= read', ping.body.workspace === WS2);
+    }
+
+    // (G) Ghost path: a path that never existed on disk is dropped from /workspaces.
+    // Inject a nonexistent path directly into the registry file; the daemon reads it fresh.
+    {
+      const GHOST = path.join(os.tmpdir(), 'orch-wslist-ghost-never-existed-' + Date.now());
+      const wsFile = path.join(SANDBOX, 'workspaces.json');
+      let known = [];
+      try { known = JSON.parse(fs.readFileSync(wsFile, 'utf8')); } catch { /* */ }
+      if (!Array.isArray(known)) known = [];
+      if (!known.includes(GHOST)) { known.push(GHOST); fs.writeFileSync(wsFile, JSON.stringify(known)); }
+
+      const r = await req('GET', '/workspaces');
+      ok('(G) /workspaces ok with ghost in registry', r.status === 200 && r.body.ok === true);
+      const list = r.body.workspaces || [];
+      ok('(G) ghost nonexistent path is absent from list', !list.some((w) => w.path === GHOST));
+      // Real workspaces are still present
+      ok('(G) WS2 still in list despite ghost', list.some((w) => w.path === WS2));
+    }
+
+    // (H) Removed-dir workspace disappears: delete WS1 from disk; it should drop out of the list.
+    // WS1 is currently in the registry (added during (B)/(C)) but its dir is now removed.
+    {
+      try { fs.rmSync(WS1, { recursive: true, force: true }); } catch { /* */ }
+      const r = await req('GET', '/workspaces');
+      ok('(H) /workspaces ok after WS1 removed', r.status === 200 && r.body.ok === true);
+      const list = r.body.workspaces || [];
+      ok('(H) removed WS1 dir no longer in list', !list.some((w) => w.path === WS1));
+      ok('(H) WS2 still present after WS1 removed', list.some((w) => w.path === WS2));
     }
 
   } finally {
