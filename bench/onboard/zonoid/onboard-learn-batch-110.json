@@ -1,0 +1,58 @@
+{
+  "kept": [
+    {
+      "title": "Context-gate inject rule: ABSTAIN by default; the exact 5-threshold gate",
+      "summary": "lib/context-gate.js INJECTs a retrieved note only if ALL hold: top1 cosine >= 0.50 (cosThreshold) AND the top note classifies as 'empirical' (requireEmpirical) AND (margin >= 0.08 OR externalGap >= 0.25) AND projectLocality >= 2 of 4 (localityThreshold). Anything else ABSTAINS. Conservative by construction so every miss is a false-negative (missed win), never a wasted inject.",
+      "evidence": "lib/context-gate.js:52-62, 264-287",
+      "kind": "invariant",
+      "source": "12"
+    },
+    {
+      "title": "cosThreshold was lowered 0.55->0.50; external-gap, not cosine/margin, discriminates",
+      "summary": "The first real positive sat at top1=0.548 inside a tight 0.50-0.55 MiniLM topical cluster where neither a raw cosine cut nor a margin cut can separate the true scar from topical near-ties. The external-gap (fraction of the note's content tokens that recur in the task text) does: positive ~0.34 vs every topical negative <=0.17. Thresholds are provisional, calibrated on n=1, and fragile to note supersession (a replacement note can drift below the floor).",
+      "evidence": "lib/context-gate.js:27-40, 48-51",
+      "kind": "decision",
+      "source": "16"
+    },
+    {
+      "title": "Note TYPE is inferred from text by regex — notes carry no explicit type field",
+      "summary": "classifyNoteType derives empirical|principle|neutral purely from text markers (overlay addNoteNode stores no type). An empirical signature wins even if principle words also appear, but pure-principle phrasing ('always/never/best practice/prefer/generally') is DISQUALIFIED from inject because the base model already knows principles. Consequence: phrasing a genuine scar as a principle silently makes it non-injectable.",
+      "evidence": "lib/context-gate.js:64-102",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "projectLocality guard needs >=2 of 4 categories — phrasing alone can sink a real note",
+      "summary": "A note must hit >=2 of {measured (%/ N/M ratio), errval (NaN/ERR_/quoted digit/exit code), ident (camelCase/snake_case/path/call), observed ('empirically/discovered/observed/measured')} or the gate ABSTAINS 'non-local' even when the fact IS project-local. A migration-schema note written as plain prose scored locality=1 and was rejected; adding a function name like parseTaskId() or 'discovered empirically' pushes it to 2 and clears the guard.",
+      "evidence": "lib/context-gate.js:104-144; bench/heldout/gate-autopsy.md (legacy-id case)",
+      "kind": "gotcha",
+      "source": "19"
+    },
+    {
+      "title": "orch-gate FAILS OPEN and exempts a fixed allow-list; /tmp and orch source are NOT exempt",
+      "summary": "The pre-tool claim gate (hooks/orch-gate.js) allows writes without a claim only for a fixed list: .claude/projects/**/memory/, .claude settings/keybindings/launch.json, .mcp.json, CLAUDE.md, .claude/orchestrator/tasks/, .claude/tasks/, /scratch/, *.log and /logs/. It deliberately does NOT exempt /tmp (//private/tmp) or .claude/orchestrator/ source. It also FAILS OPEN: no session_id, daemon unreachable, or orch-off all -> allow.",
+      "evidence": "hooks/orch-gate.js:69-95",
+      "kind": "convention",
+      "source": "discovered"
+    }
+  ],
+  "rejected": [
+    { "candidate": "0: v1 skeleton pre-seed", "reason": "generic" },
+    { "candidate": "1: Task A summary MUST be exactly", "reason": "generic" },
+    { "candidate": "2: do not write code to file", "reason": "generic" },
+    { "candidate": "3: code must come from prior-task context", "reason": "generic" },
+    { "candidate": "4: do not invent a placeholder", "reason": "generic" },
+    { "candidate": "5: resolveOwner transcript attribution", "reason": "unverifiable" },
+    { "candidate": "6: do not write test files", "reason": "generic" },
+    { "candidate": "7: subagent never completed within 10-min wall clock", "reason": "unverifiable" },
+    { "candidate": "8: OFF-arm scaffolding defect", "reason": "unverifiable" },
+    { "candidate": "9: ON-search found orch-gate /tmp workaround", "reason": "stale" },
+    { "candidate": "10: do NOT seed a winner note first", "reason": "generic" },
+    { "candidate": "11: fix OFF-arm scaffold first", "reason": "unverifiable" },
+    { "candidate": "13: fails only because 0.489 < 0.500", "reason": "stale" },
+    { "candidate": "14: new note phrased more abstractly", "reason": "stale" },
+    { "candidate": "15: en-US/de-DE duplicate notes", "reason": "stale" },
+    { "candidate": "17: deduplicate via the judge", "reason": "stale" },
+    { "candidate": "18: top-ranked note note-mq7hef8gcd6", "reason": "stale" }
+  ]
+}
