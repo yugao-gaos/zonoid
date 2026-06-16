@@ -18,7 +18,7 @@ npx @zonoid/cli init --service   # optional: always-on daemon via launchd/system
 |---|---|---|
 | `--harness` | `claude` (default) | Core install + merge `.claude/settings.json`, `.mcp.json`, `CLAUDE.md` (unchanged from pre-harness behavior) |
 | `--harness` | `cursor` | Core install + write `.cursor/hooks.json` from `adapters/cursor/hooks.json.sample` (project hooks) + `.mcp.json`; chmod cursor adapter scripts; chmod `adapters/common/schedule-wakeup.sh`; MCP `ScheduleWakeup` + monitored `.fire` tail workflow in next steps |
-| `--harness` | `codex` | Core install + write `~/.codex/hooks.json` from `adapters/codex/hooks.json.sample` + Codex-scoped `.mcp.json` (`ORCH_CLIENT=codex`); skips Claude settings; `ScheduleWakeup` MCP + `.fire` monitor documented in next steps |
+| `--harness` | `codex` | Core install + merge `~/.codex/hooks.json` from `adapters/codex/hooks.json.sample` + Codex MCP in `~/.codex/config.toml` (`ORCH_CLIENT=codex`); skips Claude settings; `ScheduleWakeup` MCP + `.fire` monitor documented in next steps |
 | `--harness` | `opencode` | Core install + symlink `packages/opencode-plugin` into `.opencode/plugins/` (includes `schedule_wakeup` tool) + write `.opencode/package.json` deps + `.mcp.json`; chmod `schedule-wakeup.sh` |
 | `--service` | (flag) | Install user-level launchd (macOS) or systemd (Linux) daemon service with `ORCH_PORT` and `CLAUDE_PLUGIN_DATA` |
 

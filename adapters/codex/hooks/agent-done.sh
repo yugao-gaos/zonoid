@@ -43,8 +43,31 @@ fi
 if [ -z "$REPORTED" ]; then
   CODEX_SESS="${CODEX_HOME:-$HOME/.codex}/sessions"
   if [ -d "$CODEX_SESS" ]; then
-    ROLLOUT=$(find "$CODEX_SESS" -type f -name 'rollout-*.jsonl' -printf '%T@ %p\n' 2>/dev/null \
-      | sort -nr | head -1 | cut -d' ' -f2- || true)
+    ROLLOUT=$(node - "$CODEX_SESS" <<'NODE' 2>/dev/null || true
+const fs = require('fs');
+const path = require('path');
+const root = process.argv[2];
+let best = null;
+function walk(dir, depth = 0) {
+  if (depth > 4) return;
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const e of entries) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      walk(full, depth + 1);
+    } else if (e.isFile() && e.name.startsWith('rollout-') && e.name.endsWith('.jsonl')) {
+      try {
+        const mtimeMs = fs.statSync(full).mtimeMs;
+        if (!best || mtimeMs > best.mtimeMs) best = { file: full, mtimeMs };
+      } catch {}
+    }
+  }
+}
+walk(root);
+if (best) process.stdout.write(best.file);
+NODE
+)
     if [ -n "$ROLLOUT" ] && [ -f "$ROLLOUT" ]; then
       LAST_USAGE=$(jq -c 'select((.payload.type // .type) == "token_count")
         | .payload.info.total_token_usage // .info.total_token_usage // empty' "$ROLLOUT" 2>/dev/null \

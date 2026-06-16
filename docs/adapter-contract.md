@@ -412,7 +412,7 @@ Hookless MCP and plugin tools return `{ command, notify_pattern }` so the harnes
 |---|---|---|---|
 | **Claude Code** | Native `ScheduleWakeup` (built-in) | Harness session | Native — `lib/adapters/claude.js` returns `{ method: 'native' }`; **not** on default orchestrator MCP |
 | **Cursor** | MCP `ScheduleWakeup` (harness-scoped extra tool) | `ORCH_SESSION` from hook context | `lib/schedule-wakeup.js` via `lib/mcp-harness-tools.js` |
-| **Codex** | MCP `ScheduleWakeup` (+ harness-scoped `create_task`) | `ORCH_SESSION` from hook context | Same substrate as Cursor |
+| **Codex** | MCP `ScheduleWakeup` (+ harness-scoped `create_task`) | `ORCH_SESSION` from hook context when available, else explicit `session_id` tool arg | Same substrate as Cursor |
 | **OpenCode** | Plugin tool `schedule_wakeup` | Plugin session id | Same substrate via `packages/opencode-plugin/lib/schedule-wakeup.js` |
 | **Default MCP** (`mcp-graph.js`, default `ORCH_CLIENT=claude` or unset) | **Not exposed** | — | Agents use harness-specific MCP config or Claude native |
 

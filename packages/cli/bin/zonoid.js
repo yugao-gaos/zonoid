@@ -889,27 +889,68 @@ function checkOpencodePlugin(cwd) {
   log('OpenCode runs bun install in .opencode/ at startup.');
 }
 
+function codexHookCommands(sample) {
+  const out = new Set();
+  for (const entries of Object.values((sample && sample.hooks) || {})) {
+    for (const entry of entries || []) {
+      for (const h of (entry && entry.hooks) || []) {
+        if (h && h.command) out.add(h.command);
+      }
+    }
+  }
+  return out;
+}
+
+function isCodexHookCommand(command, sampleCommands) {
+  if (sampleCommands.has(command)) return true;
+  return typeof command === 'string' && command.replace(/\\/g, '/').includes('/adapters/codex/hooks/');
+}
+
+function mergeCodexHooks(existing, sample) {
+  const out = JSON.parse(JSON.stringify(existing || {}));
+  if (!out.hooks) out.hooks = {};
+  const sampleCommands = codexHookCommands(sample);
+  for (const [event, entries] of Object.entries(out.hooks)) {
+    out.hooks[event] = (entries || [])
+      .map((entry) => {
+        const hooks = ((entry && entry.hooks) || []).filter((h) => !isCodexHookCommand(h && h.command, sampleCommands));
+        return hooks.length ? { ...entry, hooks } : null;
+      })
+      .filter(Boolean);
+    if (out.hooks[event].length === 0) delete out.hooks[event];
+  }
+  for (const [event, entries] of Object.entries((sample && sample.hooks) || {})) {
+    out.hooks[event] = (out.hooks[event] || []).concat(JSON.parse(JSON.stringify(entries || [])));
+  }
+  return out;
+}
+
 function checkCodexHooks() {
   const sample = path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks.json.sample');
   const dest = path.join(os.homedir(), '.codex', 'hooks.json');
   if (!fs.existsSync(sample)) { warn(`Codex hook sample missing at ${sample}`); return; }
-  let content = fs.readFileSync(sample, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR);
+  const sampleJson = JSON.parse(fs.readFileSync(sample, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR));
   chmodScripts(path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks'));
   if (fs.existsSync(dest)) {
-    const existing = fs.readFileSync(dest, 'utf8');
-    if (existing.includes(INSTALL_DIR) && existing.includes('adapters/codex/hooks/')) {
+    let existing;
+    try { existing = JSON.parse(fs.readFileSync(dest, 'utf8')); }
+    catch (e) { warn('Cannot parse ~/.codex/hooks.json — leaving as-is'); return; }
+    const merged = mergeCodexHooks(existing, sampleJson);
+    if (JSON.stringify(existing) === JSON.stringify(merged)) {
       ok('~/.codex/hooks.json already references this install');
       return;
     }
     fix('Merging Codex hooks into ~/.codex/hooks.json...');
     fs.copyFileSync(dest, dest + '.bak');
     log('Backed up existing hooks.json to hooks.json.bak');
+    fs.writeFileSync(dest, JSON.stringify(merged, null, 2) + '\n');
+    ok(`Merged: ${dest}`);
   } else {
     fix('Writing ~/.codex/hooks.json from sample...');
     fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, JSON.stringify(sampleJson, null, 2) + '\n');
+    ok(`Written: ${dest}`);
   }
-  fs.writeFileSync(dest, content);
-  ok(`Written: ${dest}`);
   log('Open /hooks in Codex CLI to review and trust hook definitions.');
 }
 
@@ -1190,6 +1231,7 @@ if (require.main === module) {
     // existing exports
     parseInitArgs,
     mergeCursorHooks,
+    mergeCodexHooks,
     VALID_HARNESSES,
     scheduleWakeupScriptPath,
     opencodePluginHasScheduleWakeup,

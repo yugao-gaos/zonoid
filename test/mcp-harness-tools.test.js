@@ -10,6 +10,7 @@ const { spawn } = require('child_process');
 const { TOOLS, handleRpc, makeCall, formatToolsList } = require('../lib/mcp-core');
 const { extraToolsForClient } = require('../lib/mcp-harness-tools');
 const filedrop = require('../lib/filedrop-tasks');
+const scheduleWakeup = require('../lib/schedule-wakeup');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-mcp-harness-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
@@ -74,8 +75,12 @@ async function waitForPing(ms = 8000) {
 
   const codexExtra = extraToolsForClient('codex', WS);
   ok('codex extraTools has create_task + ScheduleWakeup', codexExtra.length === 2 && codexExtra[0].name === 'create_task' && codexExtra[1].name === 'ScheduleWakeup');
+  ok('ScheduleWakeup schema accepts explicit session_id', codexExtra[1].inputSchema.properties.session_id && codexExtra[1].inputSchema.properties.session_id.type === 'string');
   ok('claude extraTools empty', extraToolsForClient('claude', WS).length === 0);
   ok('cursor extraTools is ScheduleWakeup', extraToolsForClient('cursor', WS, { session: 'test' }).length === 1 && extraToolsForClient('cursor', WS, { session: 'test' })[0].name === 'ScheduleWakeup');
+  const explicitWake = await codexExtra[1].run({ delaySeconds: 60, reason: 'test', prompt: 'wake', session_id: 'codex-explicit-session' });
+  ok('ScheduleWakeup works with explicit session_id and no ctx.session', explicitWake.ok === true && explicitWake.command.includes('codex-explicit-session.fire'));
+  scheduleWakeup.cancelWakeup('codex-explicit-session');
 
   const codexList = await handleRpc({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, { call: () => ({}), extraTools: codexExtra });
   ok('codex tools/list adds create_task + ScheduleWakeup', codexList.result.tools.length === TOOLS.length + 2);
@@ -102,6 +107,13 @@ async function waitForPing(ms = 8000) {
     ok('stub file on disk', fs.existsSync(path.join(filedrop.dirFor(WS), 'codex', 'mint1.json')));
     const stub = JSON.parse(fs.readFileSync(path.join(filedrop.dirFor(WS), 'codex', 'mint1.json'), 'utf8'));
     ok('stub created_by harness', stub.created_by && stub.created_by.harness === 'codex');
+    const badMint = await handleRpc({
+      jsonrpc: '2.0', id: 33, method: 'tools/call',
+      params: { name: 'create_task', arguments: { id: '../escape', subject: 'bad task' } },
+    }, { call, extraTools: codexExtra });
+    const badOut = JSON.parse(badMint.result.content[0].text);
+    ok('create_task rejects traversal ids', /letters, numbers/.test(badOut.error || ''));
+    ok('create_task traversal did not write outside codex namespace', !fs.existsSync(path.join(filedrop.dirFor(WS), 'escape.json')));
 
     const httpList = await req('POST', '/mcp', { jsonrpc: '2.0', id: 4, method: 'tools/list' });
     ok('HTTP /mcp has no create_task (default surface)', !httpList.body.result.tools.some((t) => t.name === 'create_task'));
