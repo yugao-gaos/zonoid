@@ -5626,7 +5626,21 @@ setView(currentView);              // apply persisted view + toggle state on loa
     teardownSSE();
     try{
       _sseSource = new EventSource(BASE + '/events');
-      _sseSource.onmessage = () => tick();
+      _sseSource.onmessage = (evt) => {
+        // Workspace-tagged SSE: if the daemon emits `changed:<ws>`, skip the refetch when the
+        // tagged workspace does NOT match our selected WS (the user is viewing a different repo).
+        // A bare 'changed' (legacy / no ws) always triggers a refetch — back-compat.
+        const data = evt && evt.data ? evt.data : '';
+        if (data.startsWith('changed:')) {
+          const evtWs = data.slice('changed:'.length);
+          // WS is the page-level selected workspace ('' means daemon default).
+          // If the tagged ws doesn't match our selected ws (accounting for '' meaning the daemon
+          // default which shows state.workspace), skip — this mutation is for a different repo.
+          if (evtWs !== WS && WS !== '') return;
+          if (WS === '' && evtWs !== '') return;
+        }
+        tick();
+      };
       _sseSource.onerror   = () => {
         // SSE error → trigger a health check cycle; don't spam
         teardownSSE();

@@ -122,7 +122,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/ready') {
-    const g = buildGraph(state.workspace);
+    const ws = u.searchParams.get('workspace') || state.workspace;
+    const g = buildGraph(ws);
     const sessionParam = u.searchParams.get('session');
     const rootsParam = u.searchParams.get('roots');
     let ready = g.tasks.filter((t) => t.status === 'ready');
@@ -176,7 +177,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       });
       send(res, 200, respCachePut(stWs, stKey, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary, ...archField })); return true;
     }
-    send(res, 200, respCachePut(stWs, stKey, { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr(), summary, ...archField })); return true;
+    send(res, 200, respCachePut(stWs, stKey, { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr().filter((a) => a.workspace === ws), summary, ...archField })); return true;
   }
 
   if (p === '/workspaces' && m === 'GET') {
