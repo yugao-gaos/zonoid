@@ -115,6 +115,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // gate forces 'ask', so they always escalate. Only plain question escalations are gated;
     // structured action-guidance (dup-cluster, follow-up approval) is daemon-internal, not a
     // user-preference question, so it bypasses. Pass gate:false to bypass explicitly.
+    // (A) ORIGIN BINDING: resolve the claiming task (the requester's in_progress claim) so the
+    // staleness sweep can auto-resolve this escalation once that task completes. recalledNotes holds
+    // the note keys the ask-gate recalled (populated below) so a superseded trigger note also clears it.
+    const originTask = (() => {
+      const sid = b.session_id || u.searchParams.get('session');
+      if (!sid) return null;
+      const g = buildGraph(T.ws);
+      const claim = g.tasks.find((t) => t.status === 'in_progress' && t.session === sid);
+      return claim ? claim.id : null;
+    })();
+    let recalledNotes = [];
+
     const gateable = b.gate !== false && !b.action;
     if (gateable) {
       const flags = {
@@ -122,24 +134,41 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         highImpact: !!b.highImpact, scopeExpansion: !!b.scopeExpansion, repeatedFailure: !!b.repeatedFailure,
       };
       const decision = b.context ? `${b.question}\n${b.context}` : b.question;
-      const { runAskGate } = require('../lib/ask-gate-recall');
+      const { runAskGate, answeredDownstream } = require('../lib/ask-gate-recall');
       const r = await runAskGate(ctx, T.ws, { decision, flags, tags: b.tags, seam: 'guidance' });
+      if (r.topKey) recalledNotes = [String(r.topKey).replace(/^note:/, '')];
       if (r.decision === 'predict') {
         // Auto-answer from the matched preference note. Record a RESOLVED guidance item carrying the
         // predicted answer + provenance (so the dashboard shows what was decided and why) — it never
         // enters the pending queue and never pauses the loop. The verdict is already journaled.
         const provenance = { key: r.topKey, title: r.appliedNote && (r.appliedNote.title || r.appliedNote.label) || null, summary: r.appliedNote && r.appliedNote.summary || null };
         const answer = provenance.summary || provenance.title || '';
-        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity });
+        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
         overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: provenance, gateReason: r.reason });
         overlayStore.resolveGuidance(T.ov, id, answer);
         T.save(); notifyChange();
         send(res, 200, { ok: true, id, predicted: true, answer, appliedNote: provenance, reason: r.reason }); return true;
       }
-      // r.decision === 'ask' → fall through to the normal escalation below.
+      // ANSWERED-DOWNSTREAM (EL-2/D, fix Mode-1 over-escalation): the preference pass said ASK, but
+      // the answer may already live in the graph as a DECISION/CORRECTION note the preference pool
+      // never consults. Run a SECOND, stricter recall pass over that pool; on a confident "already
+      // answered" hit, auto-resolve the question from that note instead of pausing the loop — same
+      // predicted:true shape as above. CONSERVATIVE by design (a wrong hit silently drops a real
+      // question), and hard-override questions are short-circuited inside answeredDownstream so they
+      // ALWAYS escalate regardless of any note match.
+      const ds = await answeredDownstream(ctx, T.ws, { decision, flags, tags: b.tags, seam: 'guidance' });
+      if (ds) {
+        if (ds.provenance.key) recalledNotes = [String(ds.provenance.key).replace(/^note:/, '')];
+        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
+        overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: ds.provenance, gateReason: ds.reason });
+        overlayStore.resolveGuidance(T.ov, id, ds.answer);
+        T.save(); notifyChange();
+        send(res, 200, { ok: true, id, predicted: true, answer: ds.answer, appliedNote: ds.provenance, reason: ds.reason }); return true;
+      }
+      // r.decision === 'ask' AND no downstream answer → fall through to the normal escalation below.
     }
 
-    const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity });
+    const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
     const effectiveSeverity = b.severity === 'review' ? 'review' : 'blocking';
     if (effectiveSeverity !== 'review') { for (const L of loops.values()) L.active = false; saveLoops(); }
     T.save(); notifyChange();
