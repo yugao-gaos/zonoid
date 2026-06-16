@@ -20,6 +20,7 @@ const git = require('./lib/git');
 const measure = require('./lib/measure');
 const optimize = require('./lib/optimize');
 const { embed, cosine, nodeVecs, maxCosine, embedStatus, ping: embedPing, DIMS, MODEL: EMBED_MODEL } = require('./lib/embed');
+const { rerank } = require('./lib/rerank');
 const { haikusGate } = require('./lib/embed-haiku');
 const judge = require('./lib/judge');
 const delta = require('./lib/delta');
@@ -1341,22 +1342,54 @@ const TASK_CREATE_FANOUT = 5;
 // All seeded edges are weight 0 (retrieval-invisible) + {by:'autowire', judged:false, origin:'autowire-semantic'}
 // so they surface on /judge/next and stay invisible to retrieval until the neighborhood-aware judge
 // promotes them. Pure on (overlay, g, anchorKey, ...) ⇒ unit-testable; idempotent (addEdge dedupes).
-function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD) {
+async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD) {
   const target = { id: anchorKey, label: title, summary: summary || '', deps: [], context_deps: [] };
-  const scored = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= threshold);
+  // CROSS-ENCODER GATE (opt-in via ORCH_RERANK) — "cross-encoder first, then gate". When on, recall a
+  // WIDER cosine pool (ORCH_RERANK_RECALL_FLOOR, default 0.40 — below the 0.55 precision bar), rerank
+  // those candidates with the cross-encoder, and SEED on the cross-encoder score (ORCH_RERANK_SEED_
+  // THRESHOLD, default 0.5 on the sigmoid scale) instead of the cosine 0.55 cutoff. This sharpens
+  // which weight-0 candidate edges reach the edge-judge — the precision lever on the new-task wiring
+  // path. NULL-SAFE: if the rerank sidecar is unavailable, rerank() returns null and we fall back to
+  // the exact cosine-0.55 gate (today's behavior). DEFAULT OFF ⇒ identical to today.
+  // NOTE: seeded edges keep the COSINE in `score` (the judge's keepRateByBand is calibrated on the
+  // cosine scale) and carry the cross-encoder score separately as `ceScore` in the edge meta.
+  let scored;
+  if (isTruthy(process.env.ORCH_RERANK)) {
+    const recallFloor = parseFloat(process.env.ORCH_RERANK_RECALL_FLOOR || '0.40') || 0.40;
+    const pool = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= recallFloor);
+    const byKey = new Map(g.tasks.map((t) => [t.id, t]));
+    const ce = pool.length
+      ? await rerank(`${title}\n${summary || ''}`.trim(),
+                     pool.map((m) => `${m.label}\n${(byKey.get(m.key) || {}).summary || ''}`.trim()))
+      : null;
+    if (Array.isArray(ce) && ce.length === pool.length) {
+      const seedThresh = parseFloat(process.env.ORCH_RERANK_SEED_THRESHOLD || '0.5') || 0.5;
+      scored = pool
+        .map((m, i) => ({ ...m, ceScore: Math.round(ce[i] * 1000) / 1000 }))
+        .filter((m) => m.ceScore >= seedThresh)
+        .sort((a, b) => b.ceScore - a.ceScore);
+    } else {
+      // rerank unavailable ⇒ degrade to the cosine gate (current behavior, no throw)
+      scored = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= threshold);
+    }
+  } else {
+    scored = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= threshold);
+  }
   const isNote = (k) => typeof k === 'string' && k.startsWith('note:');
   const notes = scored.filter((m) => isNote(m.key)).slice(0, TASK_CREATE_FANOUT);
   const taskCands = scored.filter((m) => !isNote(m.key)).slice(0, TASK_CREATE_FANOUT);
   let added = 0;
-  const seed = (from, to, score) => {
+  const seed = (from, to, score, ceScore) => {
     const before = overlay.edges.length;
-    overlayStore.addEdge(overlay, from, to, null, 'context', 0, { by: 'autowire', judged: false, score, origin: 'autowire-semantic' });
+    const meta = { by: 'autowire', judged: false, score, origin: 'autowire-semantic' };
+    if (ceScore !== undefined) meta.ceScore = ceScore;
+    overlayStore.addEdge(overlay, from, to, null, 'context', 0, meta);
     if (overlay.edges.length > before) added++; // count only genuinely-new edges (addEdge dedupes)
   };
   // NOTE candidates: note is provider ⇒ note -> anchor (mirrors autowireNoteProvider's direction).
-  for (const m of notes) seed(m.key, anchorKey, m.score);
+  for (const m of notes) seed(m.key, anchorKey, m.score, m.ceScore);
   // TASK candidates: anchor is provider ⇒ anchor -> task (taskTask path fires in the judge).
-  for (const m of taskCands) seed(anchorKey, m.key, m.score);
+  for (const m of taskCands) seed(anchorKey, m.key, m.score, m.ceScore);
   return added;
 }
 
@@ -1398,7 +1431,7 @@ async function ingestNode(overlay, g, key, { title, summary } = {}) {
       if (!vec) return out;                                 // no embedding ⇒ lexical fallback, nothing to seed
       overlayStore.setTaskVec(overlay, key, vec);
       out.vec = vec;
-      const seeded = autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec);
+      const seeded = await autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec);
       out.seeded = seeded;
       if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
     }

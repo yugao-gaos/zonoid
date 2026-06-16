@@ -34,10 +34,13 @@ const ANCHOR = 's/anchor';
 const TITLE = 'refund pipeline retry safety task';
 const SUMMARY = 'ensure stripe refund pipeline retries are idempotent and never double-refund';
 
+// autowireNewTaskWholeGraph is async (it may await the cross-encoder when ORCH_RERANK is on; here
+// the flag is unset so the sync cosine path runs, just returned via a Promise). Wrap in an async IIFE.
+(async () => {
 // --- anchor gets candidate edges to BOTH a note AND a task ---------------------------------------
 {
   const overlay = ov.EMPTY();
-  const added = autowireNewTaskWholeGraph(overlay, g, ANCHOR, TITLE, SUMMARY, null, TH);
+  const added = await autowireNewTaskWholeGraph(overlay, g, ANCHOR, TITLE, SUMMARY, null, TH);
   ok('seeded at least 2 edges (note + task)', added >= 2);
 
   const noteEdge = overlay.edges.find((e) => e.from === 'note:refund-idem' && e.to === ANCHOR);
@@ -72,9 +75,9 @@ const SUMMARY = 'ensure stripe refund pipeline retries are idempotent and never 
 // --- idempotent: a second run adds nothing (addEdge dedupes) --------------------------------------
 {
   const overlay = ov.EMPTY();
-  autowireNewTaskWholeGraph(overlay, g, ANCHOR, TITLE, SUMMARY, null, TH);
+  await autowireNewTaskWholeGraph(overlay, g, ANCHOR, TITLE, SUMMARY, null, TH);
   const before = overlay.edges.length;
-  const addedAgain = autowireNewTaskWholeGraph(overlay, g, ANCHOR, TITLE, SUMMARY, null, TH);
+  const addedAgain = await autowireNewTaskWholeGraph(overlay, g, ANCHOR, TITLE, SUMMARY, null, TH);
   ok('re-run is idempotent (0 new edges)', addedAgain === 0);
   ok('edge count unchanged on re-run', overlay.edges.length === before);
 }
@@ -85,7 +88,7 @@ const SUMMARY = 'ensure stripe refund pipeline retries are idempotent and never 
   for (let i = 0; i < 8; i++) many.tasks.push({ id: 'note:n' + i, label: 'refund pipeline note ' + i, summary: 'stripe refund pipeline idempotency note ' + i, kind: 'note', status: 'note', context_deps: [], deps: [] });
   for (let i = 0; i < 8; i++) many.tasks.push({ id: 't/' + i, label: 'refund pipeline task ' + i, summary: 'stripe refund pipeline retry task ' + i, status: 'ready', context_deps: [], deps: [] });
   const overlay = ov.EMPTY();
-  autowireNewTaskWholeGraph(overlay, many, ANCHOR, TITLE, SUMMARY, null, TH);
+  await autowireNewTaskWholeGraph(overlay, many, ANCHOR, TITLE, SUMMARY, null, TH);
   const noteEdges = overlay.edges.filter((e) => String(e.from).startsWith('note:'));
   const taskEdges = overlay.edges.filter((e) => e.from === ANCHOR);
   ok('note fan-out capped at 5', noteEdges.length <= 5);
@@ -94,3 +97,4 @@ const SUMMARY = 'ensure stripe refund pipeline retries are idempotent and never 
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
+})();
