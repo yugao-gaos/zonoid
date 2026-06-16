@@ -1,6 +1,8 @@
 # Secrets — never commit
 certs/
 token
+.env
+.env.local
 
 # Per-machine runtime state (not source)
 overlay/
