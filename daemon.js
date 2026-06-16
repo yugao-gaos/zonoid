@@ -1588,7 +1588,7 @@ function makeResolver() {
     // edges have sat unjudged past judgingTimeoutMs the task FALLS BACK to 'ready' (a judge hiccup can
     // never permanently deadlock it); the surviving unjudged edges are surfaced as a provisional flag
     // in the task projection (buildGraph), not silently trusted.
-    const js = judge.judgingState(overlay, key, Date.now(), judge.judgingTimeoutMs(overlay));
+    const js = judge.judgingState(overlay, key, Date.now(), judge.judgingTimeoutMs(overlay), judge.judgingHardCeilingMs(overlay));
     if (js.judging && !js.timedOut) return (memo[id] = 'not_ready');
     return (memo[id] = 'ready');
   }
@@ -1734,7 +1734,7 @@ function buildGraph(ws) {
     // it. `judging` = task still has unjudged autowire edges within the timeout (held not_ready above);
     // `provisional` = the timeout fired so the task fell back to ready but its surviving unjudged edges
     // are NOT yet adjudicated (a consuming agent should treat inherited context as not-yet-verified).
-    const _js = judge.judgingState(ovWs, t.key, now(), judge.judgingTimeoutMs(ovWs));
+    const _js = judge.judgingState(ovWs, t.key, now(), judge.judgingTimeoutMs(ovWs), judge.judgingHardCeilingMs(ovWs));
     // ADOPT-HOLD projection fix: R.effective() memoized status BEFORE we stamped markEagerJudge at
     // adoption. For newly adopted nodes that would otherwise be 'ready', hold them at 'not_ready' and
     // show judging:true so this build's projection is consistent with the persist (which carries the

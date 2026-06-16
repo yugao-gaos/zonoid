@@ -90,6 +90,39 @@ const HOUR = 3600 * 1000;
   ok('config timeoutMs:0 ignored → default', judge.judgingTimeoutMs(bad) === judge.JUDGING_TIMEOUT_MS);
 }
 
+// --- PURE: HARD CEILING (FU-2) — firstSeen-anchored backstop, immune to judgingSince resets --------
+// The deadlock: the soft judgingSince anchor gets reset to "now" by edge churn / overlay races, so the
+// soft timeout never fires. The hard ceiling measures from the task's stable firstSeen instead.
+{
+  const now = 3_000_000_000_000;
+  const HARD = 30 * 60 * 1000;
+  const o = ov.EMPTY();
+  o.edges = [{ from: 's/d', to: 'note:q', kind: 'context', judged: false }];
+  o.judgingSince = { 's/d': now - 10_000 };                                        // soft anchor only 10s old
+  o.timestamps = { 's/d': { firstSeen: new Date(now - 2 * HARD).toISOString() } }; // but firstSeen is 1h old
+  const soft = judge.judgingState(o, 's/d', now, HOUR);                            // 4-arg: soft-only
+  ok('hard-ceiling: soft-only (4-arg) still HOLDS on a fresh judgingSince (the deadlock)', soft.judging === true && soft.timedOut === false);
+  const hard = judge.judgingState(o, 's/d', now, HOUR, HARD);                      // 5-arg: ceiling on
+  ok('hard-ceiling: firstSeen past ceiling FORCES timedOut (breaks the deadlock)', hard.judging === true && hard.timedOut === true);
+  o.timestamps = { 's/d': { firstSeen: new Date(now - 60_000).toISOString() } };   // 1 min old
+  const young = judge.judgingState(o, 's/d', now, HOUR, HARD);
+  ok('hard-ceiling: young task within ceiling still holds (no premature release)', young.judging === true && young.timedOut === false);
+  o.timestamps = {};
+  const noTs = judge.judgingState(o, 's/d', now, HOUR, HARD);
+  ok('hard-ceiling: missing firstSeen → soft-only, no spurious timeout', noTs.judging === true && noTs.timedOut === false);
+}
+
+// --- PURE: judgingHardCeilingMs precedence (config > env > default) ------------------------------
+{
+  delete process.env.JUDGE_HARD_CEILING_MS;
+  ok('hard-ceiling default = JUDGING_HARD_CEILING_MS', judge.judgingHardCeilingMs(ov.EMPTY()) === judge.JUDGING_HARD_CEILING_MS);
+  process.env.JUDGE_HARD_CEILING_MS = String(15 * 60 * 1000);
+  ok('hard-ceiling env JUDGE_HARD_CEILING_MS overrides default', judge.judgingHardCeilingMs(ov.EMPTY()) === 15 * 60 * 1000);
+  const cfg = ov.EMPTY(); cfg.config = { judge: { hardCeilingMs: 99 * 1000 } };
+  ok('hard-ceiling config.judge.hardCeilingMs overrides env', judge.judgingHardCeilingMs(cfg) === 99 * 1000);
+  delete process.env.JUDGE_HARD_CEILING_MS;
+}
+
 // --- GATE PREDICATE over the full lifecycle (what daemon.effective + the claim gate compute) -----
 // Both callsites hold a task iff `js.judging && !js.timedOut`. We drive a node through the real
 // overlay helpers (markEagerJudge seed → judge edge → drain) and assert the predicate at each step.

@@ -186,7 +186,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // deadlock: once the edges sit unjudged past judgingTimeoutMs the task falls back to ready and this
     // arm no longer fires (timedOut → not judging), so a judge hiccup can never permanently block it.
     if (b.status === 'in_progress' && !b.force) {
-      const _js = judge.judgingState(T.ov, b.key, Date.now(), judge.judgingTimeoutMs(T.ov));
+      const _js = judge.judgingState(T.ov, b.key, Date.now(), judge.judgingTimeoutMs(T.ov), judge.judgingHardCeilingMs(T.ov));
       if (_js.judging && !_js.timedOut) {
         send(res, 409, { ok: false, error: 'task wirings not yet judged — this task is in the judging phase (unjudged autowire context edges); its inherited context is provisional. Wait for the eager judge to keep/prune them (it dispatches automatically), or it falls back to claimable after the judging timeout.' }); return true;
       }
