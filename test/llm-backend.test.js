@@ -79,7 +79,10 @@ async function assertNoChildProcess(fn) {
 // runner's ambient environment. Returns a restore() that puts the originals back.
 function withEnv(overrides) {
   const keys = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENROUTER_API_KEY', 'OPENROUTER_KEY',
-    'ZONOID_CLAUDE_BIN', 'CLAUDE_BIN'];
+    'ZONOID_CLAUDE_BIN', 'CLAUDE_BIN',
+    // Codex/Cursor agentic-cli provider env (bin overrides + auth keys).
+    'CODEX_BIN', 'CODEX_API_KEY', 'OPENAI_API_KEY', 'CODEX_HOME',
+    'CURSOR_BIN', 'CURSOR_API_KEY', 'CURSOR_AUTH_TOKEN'];
   const saved = {};
   for (const k of keys) saved[k] = process.env[k];
   for (const k of keys) delete process.env[k];
@@ -422,4 +425,262 @@ test('api provider: runJudgeLoop requires a daemonUrl (clean failure result, not
   const result = await backend.runJudgeLoop({ httpModule: makeFakeHttp(() => ({ status: 200, body: {} })) });
   assert.equal(result.exitCode, 1);
   assert.match(result.stderr, /daemonUrl/);
+});
+
+// ================================================================================================
+// Codex + Cursor providers (kind 'agentic-cli') — task /22
+// ================================================================================================
+// These two providers mirror the Claude provider's interface exactly. We drive bin resolution via
+// the CODEX_BIN / CURSOR_BIN env overrides (which short-circuit the spawnSync PATH lookup), pointing
+// them at a real temp file for the "installed" case and clearing them for the "not-installed" case
+// (bare-name fallback ⇒ isAvailable false, no throw). withEnv() manages those keys so the runner's
+// ambient PATH/creds can't make these flaky.
+
+const os = require('node:os');
+const fs = require('node:fs');
+const pathMod = require('node:path');
+
+// A real temp file that exists on disk, so an env-override bin resolves AND fs.existsSync() is true.
+const INSTALLED_BIN = pathMod.join(os.tmpdir(), `zonoid-fake-cli-${process.pid}`);
+try { fs.writeFileSync(INSTALLED_BIN, '#!/bin/sh\n'); } catch { /* best-effort; existsSync test guards */ }
+
+// --- registry: codex + cursor seeded -----------------------------------------------------------
+test('registry: codex + cursor providers are seeded and looked up by id', () => {
+  const codex = backend.getProvider('codex');
+  const cursor = backend.getProvider('cursor');
+  assert.ok(codex, 'codex provider registered');
+  assert.equal(codex.id, 'codex');
+  assert.equal(codex.kind, 'agentic-cli');
+  assert.ok(cursor, 'cursor provider registered');
+  assert.equal(cursor.id, 'cursor');
+  assert.equal(cursor.kind, 'agentic-cli');
+  const ids = backend.listProviders().map((p) => p.id);
+  assert.ok(ids.includes('codex') && ids.includes('cursor'), 'both appear in listProviders');
+});
+
+// --- Codex provider: resolveBin / isAvailable --------------------------------------------------
+test('codex provider: resolveBin honors the CODEX_BIN override', () => {
+  const restore = withEnv({ CODEX_BIN: '/custom/codex' });
+  try { assert.equal(backend.codexProvider.resolveBin(), '/custom/codex'); } finally { restore(); }
+});
+
+test('codex provider: isAvailable true for an existing override bin, false (no throw) when not installed', () => {
+  let restore = withEnv({ CODEX_BIN: INSTALLED_BIN });
+  try { assert.equal(backend.codexProvider.isAvailable(), true, 'override pointing at a real file ⇒ available'); }
+  finally { restore(); }
+
+  // No override + no PATH hit (the bare-name fallback) ⇒ not installed ⇒ false, and MUST NOT throw.
+  restore = withEnv({});
+  try {
+    let val;
+    assert.doesNotThrow(() => { val = backend.codexProvider.isAvailable(); });
+    // The runner host has no `codex` on PATH (verified at impl time); assert the not-installed contract.
+    assert.equal(val, false, 'no override + no PATH hit ⇒ isAvailable false');
+  } finally { restore(); }
+});
+
+// --- Codex provider: isAuthed ------------------------------------------------------------------
+test('codex provider: isAuthed reflects CODEX_API_KEY / OPENAI_API_KEY / auth.json presence', () => {
+  // Point CODEX_HOME at an empty temp dir so the no-creds case is deterministic (no auth.json there).
+  const emptyHome = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'zonoid-codex-home-'));
+  let restore = withEnv({ CODEX_HOME: emptyHome });
+  try { assert.equal(backend.codexProvider.isAuthed(), false, 'no key + no auth.json ⇒ not authed'); }
+  finally { restore(); }
+
+  restore = withEnv({ CODEX_API_KEY: 'cx-test' });
+  try { assert.equal(backend.codexProvider.isAuthed(), true, 'CODEX_API_KEY ⇒ authed'); } finally { restore(); }
+
+  restore = withEnv({ OPENAI_API_KEY: 'sk-test' });
+  try { assert.equal(backend.codexProvider.isAuthed(), true, 'OPENAI_API_KEY ⇒ authed'); } finally { restore(); }
+
+  // auth.json present under CODEX_HOME ⇒ authed even with no env key.
+  const authHome = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'zonoid-codex-auth-'));
+  fs.writeFileSync(pathMod.join(authHome, 'auth.json'), '{"tokens":{}}');
+  restore = withEnv({ CODEX_HOME: authHome });
+  try { assert.equal(backend.codexProvider.isAuthed(), true, '~/.codex/auth.json ⇒ authed'); } finally { restore(); }
+});
+
+// --- Codex provider: buildInvocation argv ------------------------------------------------------
+test('codex provider: buildInvocation produces the expected `codex exec` argv', () => {
+  const restore = withEnv({ CODEX_BIN: '/bin/codex' });
+  try {
+    const inv = backend.codexProvider.buildInvocation({
+      prompt: 'judge the diff', model: 'gpt-5-codex',
+      mcpConfig: '/ws/.mcp.json', addDir: '/ws', budget: 6,
+    });
+    assert.equal(inv.bin, '/bin/codex');
+    assert.ok(Array.isArray(inv.args));
+    assert.equal(inv.args[0], 'exec', 'non-interactive subcommand is `exec`');
+    // model selection
+    assert.ok(inv.args.includes('--model'));
+    assert.equal(inv.args[inv.args.indexOf('--model') + 1], 'gpt-5-codex');
+    // machine-readable output
+    assert.ok(inv.args.includes('--json'));
+    // auto-approve analogue of --dangerously-skip-permissions
+    assert.ok(inv.args.includes('--dangerously-bypass-approvals-and-sandbox'));
+    // add-dir wiring
+    assert.ok(inv.args.includes('--add-dir'));
+    assert.equal(inv.args[inv.args.indexOf('--add-dir') + 1], '/ws');
+    // prompt is the trailing positional
+    assert.equal(inv.args[inv.args.length - 1], 'judge the diff');
+    // mcpConfig has NO codex-exec flag — carried through, NOT emitted as an arg.
+    assert.equal(inv.mcpConfig, '/ws/.mcp.json');
+    assert.ok(!inv.args.includes('--mcp-config'), 'codex exec has no per-run mcp flag');
+    assert.ok(!inv.args.includes('--strict-mcp-config'));
+    // budget carried through, not a CLI flag
+    assert.equal(inv.budget, 6);
+    assert.ok(!inv.args.includes('--budget'));
+  } finally { restore(); }
+});
+
+test('codex provider: buildInvocation defaults model and throws without a prompt', () => {
+  const inv = backend.codexProvider.buildInvocation({ prompt: 'hi' });
+  assert.equal(inv.args[inv.args.indexOf('--model') + 1], 'gpt-5-codex', 'defaults model');
+  assert.ok(!inv.args.includes('--add-dir'), 'no addDir ⇒ no --add-dir');
+  assert.throws(() => backend.codexProvider.buildInvocation({}), /prompt is required/);
+});
+
+// --- Codex provider: parseResult (shape parity with Claude) ------------------------------------
+test('codex provider: parseResult extracts final message + usage into the Claude shape', () => {
+  const stream = [
+    '{"type":"thread.started"}',
+    '{"type":"item.completed","item":{"text":"intermediate"}}',
+    '{"type":"agent_message","message":"final codex answer","usage":{"input_tokens":7,"output_tokens":2}}',
+  ].join('\n');
+  const parsed = backend.codexProvider.parseResult(stream);
+  // Same key shape as claudeProvider.parseResult: { result, usage, raw }.
+  assert.deepEqual(Object.keys(parsed).sort(), ['raw', 'result', 'usage']);
+  assert.equal(parsed.result, 'final codex answer');
+  assert.deepEqual(parsed.usage, { input_tokens: 7, output_tokens: 2 });
+  assert.equal(typeof parsed.raw, 'string');
+});
+
+test('codex provider: parseResult tolerates malformed/empty output without throwing', () => {
+  const parsed = backend.codexProvider.parseResult('not json\n{bad}\n');
+  assert.equal(parsed.result, null);
+  assert.equal(parsed.usage, null);
+});
+
+// --- Cursor provider: resolveBin / isAvailable -------------------------------------------------
+test('cursor provider: resolveBin honors the CURSOR_BIN override', () => {
+  const restore = withEnv({ CURSOR_BIN: '/custom/cursor-agent' });
+  try { assert.equal(backend.cursorProvider.resolveBin(), '/custom/cursor-agent'); } finally { restore(); }
+});
+
+test('cursor provider: isAvailable true for an existing override bin, false (no throw) when not installed', () => {
+  let restore = withEnv({ CURSOR_BIN: INSTALLED_BIN });
+  try { assert.equal(backend.cursorProvider.isAvailable(), true); } finally { restore(); }
+
+  restore = withEnv({});
+  try {
+    let val;
+    assert.doesNotThrow(() => { val = backend.cursorProvider.isAvailable(); });
+    assert.equal(val, false, 'no override + no PATH hit ⇒ isAvailable false');
+  } finally { restore(); }
+});
+
+// --- Cursor provider: isAuthed -----------------------------------------------------------------
+test('cursor provider: isAuthed reflects CURSOR_API_KEY / CURSOR_AUTH_TOKEN presence', () => {
+  let restore = withEnv({ CURSOR_API_KEY: 'cur-test' });
+  try { assert.equal(backend.cursorProvider.isAuthed(), true, 'CURSOR_API_KEY ⇒ authed'); } finally { restore(); }
+
+  restore = withEnv({ CURSOR_AUTH_TOKEN: 'tok-test' });
+  try { assert.equal(backend.cursorProvider.isAuthed(), true, 'CURSOR_AUTH_TOKEN ⇒ authed'); } finally { restore(); }
+
+  // No env key: result depends only on whether a ~/.cursor dir exists; either way it MUST be a
+  // boolean and MUST NOT throw (the not-installed/no-creds contract).
+  restore = withEnv({});
+  try {
+    let val;
+    assert.doesNotThrow(() => { val = backend.cursorProvider.isAuthed(); });
+    assert.equal(typeof val, 'boolean', 'isAuthed returns a boolean with no env key, no throw');
+  } finally { restore(); }
+});
+
+// --- Cursor provider: buildInvocation argv -----------------------------------------------------
+test('cursor provider: buildInvocation produces the expected `cursor-agent -p` argv', () => {
+  const restore = withEnv({ CURSOR_BIN: '/bin/cursor-agent' });
+  try {
+    const inv = backend.cursorProvider.buildInvocation({
+      prompt: 'review attempt', model: 'sonnet-4.5',
+      mcpConfig: '/ws/.mcp.json', addDir: '/ws', budget: 6,
+    });
+    assert.equal(inv.bin, '/bin/cursor-agent');
+    // print/non-interactive flag + prompt
+    assert.equal(inv.args[0], '-p');
+    assert.equal(inv.args[1], 'review attempt');
+    // machine-readable output
+    assert.ok(inv.args.includes('--output-format'));
+    assert.equal(inv.args[inv.args.indexOf('--output-format') + 1], 'json');
+    // auto-approve analogue of --dangerously-skip-permissions
+    assert.ok(inv.args.includes('--force'));
+    // model selection
+    assert.ok(inv.args.includes('--model'));
+    assert.equal(inv.args[inv.args.indexOf('--model') + 1], 'sonnet-4.5');
+    // mcpConfig + addDir have NO cursor-agent headless flag — carried through, NOT emitted as args.
+    assert.equal(inv.mcpConfig, '/ws/.mcp.json');
+    assert.equal(inv.addDir, '/ws');
+    assert.ok(!inv.args.includes('--mcp-config'), 'cursor-agent headless has no mcp flag');
+    assert.ok(!inv.args.includes('--add-dir'), 'cursor-agent headless has no add-dir flag');
+    assert.equal(inv.budget, 6);
+  } finally { restore(); }
+});
+
+test('cursor provider: buildInvocation omits --model when unset and throws without a prompt', () => {
+  const inv = backend.cursorProvider.buildInvocation({ prompt: 'hi' });
+  assert.ok(!inv.args.includes('--model'), 'no model ⇒ no --model (defer to CLI/login default)');
+  assert.ok(inv.args.includes('-p') && inv.args.includes('--force'));
+  assert.throws(() => backend.cursorProvider.buildInvocation({}), /prompt is required/);
+});
+
+// --- Cursor provider: parseResult (shape parity with Claude) -----------------------------------
+test('cursor provider: parseResult parses the single-object json shape into the Claude shape', () => {
+  const single = JSON.stringify({
+    type: 'result', subtype: 'success', is_error: false,
+    result: 'final cursor answer', session_id: 's1', usage: { total_tokens: 9 },
+  });
+  const parsed = backend.cursorProvider.parseResult(single);
+  assert.deepEqual(Object.keys(parsed).sort(), ['raw', 'result', 'usage']);
+  assert.equal(parsed.result, 'final cursor answer');
+  assert.deepEqual(parsed.usage, { total_tokens: 9 });
+});
+
+test('cursor provider: parseResult also handles a stream-json fallback', () => {
+  const stream = [
+    '{"type":"system","subtype":"init"}',
+    '{"type":"assistant","message":{}}',
+    '{"type":"result","result":"streamed answer"}',
+  ].join('\n');
+  const parsed = backend.cursorProvider.parseResult(stream);
+  assert.equal(parsed.result, 'streamed answer');
+});
+
+test('cursor provider: parseResult tolerates malformed/empty output without throwing', () => {
+  const parsed = backend.cursorProvider.parseResult('not json\n{bad}\n');
+  assert.equal(parsed.result, null);
+  assert.equal(parsed.usage, null);
+});
+
+// --- parseResult shape parity across all three agentic-cli providers ---------------------------
+test('agentic-cli: codex + cursor parseResult return the SAME key shape as claude', () => {
+  const claudeKeys = Object.keys(backend.claudeProvider.parseResult('{}')).sort();
+  assert.deepEqual(Object.keys(backend.codexProvider.parseResult('{}')).sort(), claudeKeys);
+  assert.deepEqual(Object.keys(backend.cursorProvider.parseResult('{}')).sort(), claudeKeys);
+});
+
+// --- getActiveBackend selects codex / cursor by overlay provider id ----------------------------
+test('getActiveBackend: selects codex when overlay.config.backend.provider is "codex"', () => {
+  const r = backend.getActiveBackend({ config: { backend: { provider: 'codex', model: 'gpt-5-codex' } } });
+  assert.equal(r.providerId, 'codex');
+  assert.equal(r.provider.id, 'codex');
+  assert.equal(r.provider.kind, 'agentic-cli');
+  assert.equal(r.model, 'gpt-5-codex');
+});
+
+test('getActiveBackend: selects cursor when overlay.config.backend.provider is "cursor"', () => {
+  const r = backend.getActiveBackend({ config: { backend: { provider: 'cursor', model: 'sonnet-4.5' } } });
+  assert.equal(r.providerId, 'cursor');
+  assert.equal(r.provider.id, 'cursor');
+  assert.equal(r.provider.kind, 'agentic-cli');
+  assert.equal(r.model, 'sonnet-4.5');
 });
