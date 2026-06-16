@@ -1,4 +1,0 @@
-{"evt":"edge_added","from":"9195fb5e-f196-497d-962f-69616733d2e9/1","to":"9195fb5e-f196-497d-962f-69616733d2e9/14","kind":"blocking","actor":"overlay-sync","ts":"2026-06-15T18:25:57.724Z","origin":"asserted"}
-{"evt":"edge_added","from":"9195fb5e-f196-497d-962f-69616733d2e9/1","to":"9195fb5e-f196-497d-962f-69616733d2e9/15","kind":"blocking","actor":"overlay-sync","ts":"2026-06-15T18:25:58.642Z","origin":"asserted"}
-{"evt":"edge_added","from":"9195fb5e-f196-497d-962f-69616733d2e9/1","to":"9195fb5e-f196-497d-962f-69616733d2e9/16","kind":"blocking","actor":"overlay-sync","ts":"2026-06-15T18:26:00.039Z","origin":"asserted"}
-{"evt":"edge_added","from":"9195fb5e-f196-497d-962f-69616733d2e9/1","to":"9195fb5e-f196-497d-962f-69616733d2e9/17","kind":"blocking","actor":"overlay-sync","ts":"2026-06-15T18:26:01.023Z","origin":"asserted"}

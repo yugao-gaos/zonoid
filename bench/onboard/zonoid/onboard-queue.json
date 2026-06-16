@@ -1,6 +1,6 @@
 {
   "total": 1691,
-  "cursor": 50,
+  "cursor": 70,
   "kept": [
     {
       "title": "Five escalation triggers ship default-ON; catch-all burns at 1e6 tokens",
@@ -85,6 +85,83 @@
       "evidence": "lib/judge-journal.js:10-14",
       "kind": "decision",
       "source": "discovered"
+    },
+    {
+      "title": "ask-gate ships 5 hard-override categories that ALWAYS escalate regardless of confidence",
+      "summary": "lib/ask-gate.js hardOverride() short-circuits BEFORE recall scoring: irreversible, outward, highImpact, scopeExpansion, repeatedFailure decisions always ask the user even on a perfect preference match. Triggered by opts flags OR conservative keyword regexes (delete/drop/purge, publish/deploy/release/email, payment/charge/refund, scope creep, repeated failure). A confident learned preference can never license one of these.",
+      "evidence": "lib/ask-gate.js:15-94,141",
+      "kind": "invariant",
+      "source": "6"
+    },
+    {
+      "title": "ask-gate predict-vs-ask thresholds are concrete shipped defaults",
+      "summary": "DEFAULTS in lib/ask-gate.js: cosThreshold 0.50 (top-1 cosine floor), gapThreshold 0.25 (external-gap token recurrence), marginThreshold 0.08 (alt sharp-standalone-hit path), localityThreshold 2 (>=2 of 4 project-locality cats), requireEmpirical true (a bare topical note never predicts). These gate whether request_guidance silently predicts instead of escalating.",
+      "evidence": "lib/ask-gate.js:45-50",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Unclaimed dispatcher edits are allowed only under a 20-line / 800-char trivial budget",
+      "summary": "hooks/orch-gate-trivial.sh sets TRIVIAL_MAX_LINES=20 and TRIVIAL_MAX_CHARS=800; a main/dispatcher session that hasn't claimed a task may only write patches within BOTH limits (and counter is per-session, reset in classify.sh). Larger edits hard-block and require claiming a task. Sourced by both orch-gate.sh and orch-gate-bash.sh.",
+      "evidence": "hooks/orch-gate-trivial.sh:4-6,24-29",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": ".graph/** uses merge=ours and needs a one-time per-clone git config",
+      "summary": ".gitattributes assigns `.graph/** merge=ours` (overriding the older per-file `merge=union` — last matching line wins) because attempt-branch worktrees would otherwise cause delete/modify + checkpoint.json conflicts; the daemon is source of truth so the current branch's .graph wins wholesale, never content-merged. Merge drivers aren't portable, so each clone must run once: `git config merge.ours.driver true`.",
+      "evidence": ".gitattributes:1-8; CONTRIBUTING.md:69-76",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Tests must spawn a private sandboxed daemon — never the live :8787",
+      "summary": "Sandboxed-daemon convention: any test needing a daemon spawns a private one on a private port with a tmp-dir CLAUDE_PLUGIN_DATA (pattern in test/app-restart.test.js); tests must not read/mutate real graph state. scripts/run-tests.js runs every test/*.test.js as a child with ZONOID_SKIP_LIVE=1. CI uses `npm ci --omit=optional` to skip the large @xenova/transformers optional dep.",
+      "evidence": "CONTRIBUTING.md:56-67",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Note dedup uses a 0.80 recall cluster threshold plus a 0.70–0.80 write-time signature guard",
+      "summary": "lib/judge.js dupClusters() recalls near-duplicate notes at DUP_RECALL_THRESHOLD=0.80; a separate write-time signature guard catches the 0.70–0.80 band that never forms a natural 0.80 cluster. The two mechanisms are intentionally independent so close-but-sub-0.80 pairs don't slip through.",
+      "evidence": "lib/judge.js:155,350,602-603",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Background (run_in_background) workers self-register via start_task, not the SubagentStart hook",
+      "summary": "The SubagentStart hook does NOT fire for run_in_background Agent-tool spawns (they use .output paths, not .jsonl), so such workers never carry agent_tool_spawn:true. The overlay claim path treats a start_task claim that bears an agent_id AND is backed by a registered worktree as a legitimate hook-less worker and registers it on claim — a claim with no worktree is still refused. Thus the branch_task→start_task order IS the registration.",
+      "evidence": "routes/overlay.js:80-96; routes/session.js:27-28; hooks/subagent-start.sh:11-12",
+      "kind": "invariant",
+      "source": "0"
+    },
+    {
+      "title": "Notes overriding spec/code MUST prefix title `OVERRIDE:` or summary `SPEC IS INCOMPLETE:`",
+      "summary": "Project KB convention: when a note contradicts the spec or existing code, the title must start with `OVERRIDE:` or the summary with `SPEC IS INCOMPLETE:`. This prefix signals to consuming agents that the note takes priority and they must NOT dismiss the discrepancy as a note error.",
+      "evidence": "CLAUDE.md (KB note authoring); note:note-mqfatdr2s67 in graph uses OVERRIDE:",
+      "kind": "convention",
+      "source": "13"
+    },
+    {
+      "title": "Note titles must use space-separated tokens, not camelCase/hyphenated compounds",
+      "summary": "Titles must use isolated vocabulary matching how agents query (\"task transcript\" not \"taskTranscript\", \"time window overlap\" not \"time-window-overlap\"). The embedding tokenizer relies on word boundaries; fused tokens produce poor retrieval recall so the note may never surface for the queries it was written to answer.",
+      "evidence": "CLAUDE.md (KB note authoring)",
+      "kind": "convention",
+      "source": "15"
+    },
+    {
+      "title": "Note creators MUST pass wires_to=[current_task_key] — do not rely on cosine autowire",
+      "summary": "Agents creating notes via record_decision must pass wires_to=[current_task_key] so the DAG provenance edge is created at note-creation time. Cosine autowire is best-effort and misses structurally important edges, so structural provenance must be explicit.",
+      "evidence": "CLAUDE.md (KB note authoring); note:note-mqa3j03bqhi",
+      "kind": "convention",
+      "source": "17"
+    },
+    {
+      "title": "Contributions require a CLA enforced by a real GitHub Action, enabling dual-licensing",
+      "summary": "Apache-2.0 licensed but every contributor must sign CLA.md before their first contribution is accepted; .github/workflows/cla.yml runs CLA Assistant (signatures recorded to signatures/version1/cla.json on branch cla-signatures). The CLA grants the maintainer a perpetual right to relicense/sublicense contributions under different (incl. commercial/proprietary) terms so the project can offer dual-licensed editions.",
+      "evidence": ".github/workflows/cla.yml:1-34; CONTRIBUTING.md:93; CLA.md",
+      "kind": "decision",
+      "source": "19"
     }
   ],
   "rejected": [
@@ -95,6 +172,46 @@
     {
       "candidate": "8: IMPORTANT_WEIGHT=0.5",
       "reason": "stale"
+    },
+    {
+      "candidate": "2: agents must claim before editing",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "3: writes must happen inside the worktree",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "4: never bypass via rsync/fabricated claims",
+      "reason": "generic"
+    },
+    {
+      "candidate": "5: you don't have to police this, the seam enforces",
+      "reason": "generic"
+    },
+    {
+      "candidate": "7: a real decision with a reason",
+      "reason": "generic"
+    },
+    {
+      "candidate": "8: anytime user says remember/record, capture",
+      "reason": "generic"
+    },
+    {
+      "candidate": "9: do not record chatter/restatements",
+      "reason": "generic"
+    },
+    {
+      "candidate": "10: standing-preference examples",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "11: predict instead of escalating",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "12: write summary empirically and project-locally",
+      "reason": "generic"
     }
   ],
   "pending": [
