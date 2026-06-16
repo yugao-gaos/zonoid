@@ -1252,8 +1252,24 @@ function scoreMatches(g, target) {
 // Link-suggestion package for one task: top-5 scored matches + duplicate warning + wiring hint.
 // The ONE source of suggestion semantics, shared by GET /task/suggest and POST /sync (the
 // adoption nudge carries the same suggestions in-band) — keep route responses in lockstep.
-function suggestForTask(g, target) {
-  const suggestions = scoreMatches(g, target).slice(0, 5);
+async function suggestForTask(g, target) {
+  // Lexical candidate ranking (token overlap). When ORCH_RERANK is on, rerank the top window with
+  // the cross-encoder and surface the top-5 by CE relevance instead of by lexical overlap — the
+  // agent then sees genuinely-relevant link suggestions first, not just word-overlap matches.
+  // NULL-SAFE: rerank()==null ⇒ keep the lexical order. DEFAULT OFF ⇒ identical to today.
+  let ranked = scoreMatches(g, target);
+  if (isTruthy(process.env.ORCH_RERANK) && ranked.length > 1) {
+    const pool = ranked.slice(0, 20);   // rerank a candidate window, then re-pick the top 5
+    const byKey = new Map(g.tasks.map((t) => [t.id, t]));
+    const ce = await rerank(`${target.label}\n${target.summary || ''}`.trim(),
+                            pool.map((m) => `${m.label}\n${(byKey.get(m.key) || {}).summary || ''}`.trim()));
+    if (Array.isArray(ce) && ce.length === pool.length) {
+      ranked = pool
+        .map((m, i) => ({ ...m, ceScore: Math.round(ce[i] * 1000) / 1000 }))
+        .sort((a, b) => b.ceScore - a.ceScore);
+    }
+  }
+  const suggestions = ranked.slice(0, 5);
   const duplicates = suggestions.filter((c) => c.duplicate).map((c) => c.key);
   let hint = 'Link DONE matches as kind:context (their summary becomes Tier-1 context); link a true prerequisite as kind:blocking. Skip unrelated ones.';
   if (duplicates.length) hint = `WARNING: this looks like a near-duplicate of OPEN task(s) ${duplicates.join(', ')}. If it is the same work re-planned, do NOT keep both — call supersede_task(old_task_key=<existing>, new_task_key=${target.id}) so the graph reconciles old→new instead of leaving orphaned duplicates. ` + hint;
@@ -2030,7 +2046,7 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, migrateBlindEdges, sessionBindings,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, buildGraph, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };

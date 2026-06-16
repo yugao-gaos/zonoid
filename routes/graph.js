@@ -58,7 +58,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const suggestions = {};
     for (const key of adopted) {
       const target = g.tasks.find((x) => x.id === key);
-      if (target) suggestions[key] = ctx.suggestForTask(g, target).suggestions;
+      if (target) suggestions[key] = (await ctx.suggestForTask(g, target)).suggestions;
     }
     ctx.notifyChange();
     send(res, 200, { ok: true, workspace: T.ws, adopted, suggestions }); return true;
