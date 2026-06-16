@@ -273,7 +273,15 @@ const analyticsFlush = analytics.makeFlusher(ANALYTICS_FILE, analyticsState);
 
 // SSE: push a "changed" event to connected dashboards on every mutation (live updates without polling).
 const sseClients = new Set();
-function notifyChange() { respCache.clear(); for (const r of sseClients) { try { r.write('data: changed\n\n'); } catch { sseClients.delete(r); } } }
+// notifyChange(ws?): push a 'changed' event to connected dashboards on every mutation.
+// When `ws` is given, emits `data: changed:<ws>\n\n` so workspace-specific clients can skip
+// refetches that don't affect their selected workspace. Bare call (no ws) emits the legacy
+// `data: changed\n\n` payload and always triggers a refetch on all clients (back-compat).
+function notifyChange(ws) {
+  respCache.clear();
+  const payload = ws ? `data: changed:${ws}\n\n` : 'data: changed\n\n';
+  for (const r of sseClients) { try { r.write(payload); } catch { sseClients.delete(r); } }
+}
 
 // Heartbeat loop: the daemon is the decider. The agent polls next_action on a schedule; the
 // daemon replies spawn/idle/stop + how long to wait before checking again (adaptive backoff),
@@ -643,19 +651,19 @@ function staleVerdictKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
 // Reset stale verdict-pending hand-offs back to pending so the loop re-dispatches them.
 // The agent that picks them up can read the codebase and task description to determine current
 // state — no human escalation needed. Mirrors sweepStaleClaims in structure.
-function sweepStaleVerdicts() {
-  const stale = staleVerdictKeys(state.overlay, state.agents, Date.now());
+function sweepStaleVerdicts(ws = state.workspace, ov = state.overlay) {
+  const stale = staleVerdictKeys(ov, state.agents, Date.now());
   if (!stale.length) return false;
   let dirty = false;
   for (const { key, status, agentId } of stale) {
-    delete state.overlay.status[key];
-    delete state.overlay.assignee[key];
-    state.overlay.notes[key] = `auto-requeued: '${status}' owner '${agentId || '?'}' not running — reset to pending for re-dispatch`;
-    try { writeTaskStatus(state.workspace, key, 'pending'); } catch { /* best effort */ }
+    delete ov.status[key];
+    delete ov.assignee[key];
+    ov.notes[key] = `auto-requeued: '${status}' owner '${agentId || '?'}' not running — reset to pending for re-dispatch`;
+    try { writeTaskStatus(ws, key, 'pending'); } catch { /* best effort */ }
     console.log(`[self-heal] task ${key} (was ${status}) reset to pending — owner gone`);
     dirty = true;
   }
-  if (dirty) { overlayStore.save(state.workspace, state.overlay); notifyChange(); }
+  if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
   return dirty;
 }
 
@@ -690,8 +698,7 @@ function staleGuidanceReason(ov, g) {
 // triggering note superseded) — so the loop is not left paused on a question the world already
 // answered. Mirrors sweepStaleVerdicts in structure. Idempotent (resolved items are skipped). Only
 // blocking items are swept; 'review' housekeeping rows have their own settle path.
-function sweepStaleGuidance() {
-  const ov = state.overlay;
+function sweepStaleGuidance(ws = state.workspace, ov = state.overlay) {
   if (!Array.isArray(ov.guidance)) return false;
   let dirty = false;
   for (const g of ov.guidance) {
@@ -702,7 +709,7 @@ function sweepStaleGuidance() {
     console.log(`[self-heal] guidance ${g.id} ${reason} — auto-resolved`);
     dirty = true;
   }
-  if (dirty) { overlayStore.save(state.workspace, ov); notifyChange(); }
+  if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
   return dirty;
 }
 
@@ -751,11 +758,16 @@ function sessionIsLive(session) {
 // the staleness threshold. This reclaims zombies — e.g. a loop bound to a closed conversation that
 // is never polled again — without a stop hook. Returns true if it demoted anything (caller persists).
 function sweepStaleLoops() {
-  const mins = state.overlay.config.loop_stale_minutes ?? STALE_PROGRESS_MIN_DEFAULT;
-  const cutoff = Date.now() - mins * 60000;
   let dirty = false;
   for (const L of loops.values()) {
     if (!L.active) continue;
+    // Evaluate each loop against ITS OWN workspace config, not the daemon-global state.overlay.config.
+    // A loop may be pinned to a workspace with different stale_minutes / loop_stale_minutes settings.
+    const loopWs = L.workspace || state.workspace;
+    const loopOv = loopWs ? ((loopWs === state.workspace) ? state.overlay : overlayStore.load(loopWs)) : state.overlay;
+    const loopOvConfig = loopOv ? loopOv.config : state.overlay.config;
+    const mins = loopOvConfig.loop_stale_minutes ?? STALE_PROGRESS_MIN_DEFAULT;
+    const cutoff = Date.now() - mins * 60000;
     let reason = null;
     if (L.iterations > L.config.maxIterations) reason = 'iteration cap reached';
     else if (L.spent > L.config.tokenBudget) reason = 'token budget exhausted';
@@ -764,7 +776,7 @@ function sweepStaleLoops() {
       // claim until its FIRST spawn, so sessionIsLive reads false on the loop's very first tick.
       // Skip the session-dead demotion while the loop itself is fresh (within the same
       // stale_minutes window sessionIsLive uses); the other demotion reasons still apply.
-      const grace = Date.now() - (state.overlay.config.stale_minutes ?? 10) * 60000;
+      const grace = Date.now() - (loopOvConfig.stale_minutes ?? 10) * 60000;
       const last = Date.parse(L.lastProgress || L.startedAt || 0);
       if (!last || last < grace) reason = `driving session '${L.session}' dead`;
     }
@@ -1135,10 +1147,19 @@ function decideOne(L, ctx) {
 // batch settings — generous but bounded). Inactive loops are skipped. Caller persists the registry.
 function decideAll() {
   sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
-  sweepStaleVerdicts();   // reset abandoned verdict-pending hand-offs (tested/ready, no live owner) back to pending for re-dispatch
-  sweepStaleGuidance();   // auto-resolve blocking guidance whose origin task completed / triggering note superseded
-  sweepFailedTasks();   // auto-retry: flip failed tasks back to pending if maxRetries allows it
+  // Collect the DISTINCT set of active-loop workspaces UNION state.workspace so sweeps run once
+  // per workspace that actually has live work — not only the daemon-global pointer.
   const active = [...loops.values()].filter((L) => L.active);
+  const activeWsSet = new Set(active.map((L) => L.workspace || state.workspace).filter(Boolean));
+  if (state.workspace) activeWsSet.add(state.workspace);
+  for (const ws of activeWsSet) {
+    const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+    sweepStaleVerdicts(ws, ov);   // reset abandoned verdict-pending hand-offs per-workspace
+    sweepStaleGuidance(ws, ov);   // auto-resolve stale blocking guidance per-workspace
+    sweepFailedTasks(ws, ov);     // auto-retry: flip failed tasks back to pending (already (ws,ov)) per-workspace
+    // Note: sweepStaleClaims is NOT called here — buildGraph already handles per-ws claim liveness
+    // in the ctxFor() loop below; calling it here again would be a redundant double-sweep.
+  }
   // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
   // concurrency bound is about total spawned workers, not per-workspace.
   const batch = { remaining: active.reduce((m, L) => Math.max(m, L.config.batch || 0), 0) };
@@ -2055,8 +2076,8 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, migrateBlindEdges, sessionBindings,
-  isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
+  isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, buildGraph, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
 
@@ -2209,14 +2230,37 @@ if (require.main === module) {
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command
   // yet but old agent claims are blocking work. Matches the loop-sweep cadence (60s).
-  setInterval(() => { try { sweepStaleClaims(); } catch { /* best effort */ } }, 60000).unref();
+  // Iterates ALL distinct active-loop workspaces + state.workspace so per-repo loops don't miss
+  // stale claims just because no route is being served for that workspace.
+  setInterval(() => {
+    try {
+      const wsSet = new Set([...loops.values()].filter((L) => L.active && L.workspace).map((L) => L.workspace));
+      if (state.workspace) wsSet.add(state.workspace);
+      for (const ws of wsSet) {
+        const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+        sweepStaleClaims(ws, ov);
+      }
+    } catch { /* best effort */ }
+  }, 60000).unref();
+  // sweepStaleAgents stays global: agent liveness is workspace-agnostic — an agent's heartbeat
+  // is a process-level signal, not a workspace-specific one. An agent may serve tasks across
+  // multiple workspaces, so a per-workspace agent sweep would incorrectly dead-mark a live
+  // cross-workspace worker.
   setInterval(() => { try { sweepStaleAgents(); } catch { /* best effort */ } }, 60000).unref();
 
   // Periodic orphan-note self-heal: re-wire note nodes that are still orphaned as the graph grows
   // (a zero-match note at creation can gain a real neighbor later). Re-check is side-effect-free —
   // no match ⇒ no edge, no write. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepOrphanNotes(); } catch { /* best effort */ } }, 300000).unref();
-  setInterval(() => { try { sweepFiledropStubs(); } catch { /* best effort */ } }, 300000).unref();
+  // sweepFiledropStubs iterates ALL active-loop workspaces + state.workspace so stub GC covers
+  // per-repo loops that target non-default workspaces.
+  setInterval(() => {
+    try {
+      const wsSet = new Set([...loops.values()].filter((L) => L.active && L.workspace).map((L) => L.workspace));
+      if (state.workspace) wsSet.add(state.workspace);
+      for (const ws of wsSet) sweepFiledropStubs(ws);
+    } catch { /* best effort */ }
+  }, 300000).unref();
 
   // Heartbeat to MiniLM sidecar every 60s so the sidecar knows the daemon is alive.
   // The sidecar exits if it misses 2 consecutive pings (2 min), keeping its lifecycle
