@@ -58,7 +58,7 @@ const ok = (label, cond) => {
 
     const mainTp = listed[0].path;
     ok('sessionTranscriptPath returns main', cursorTx.sessionTranscriptPath(mainTp, conv) === mainTp);
-    ok('sessionTranscriptPath finds subagent', cursorTx.sessionTranscriptPath(mainTp, 'sub1').endsWith('subagents/sub1.jsonl'));
+    ok('sessionTranscriptPath finds subagent', cursorTx.sessionTranscriptPath(mainTp, 'sub1').replace(/\\/g, '/').endsWith('subagents/sub1.jsonl'));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

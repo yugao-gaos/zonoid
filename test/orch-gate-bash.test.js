@@ -364,8 +364,12 @@ function runMainBlocked(cmd, extra) {
 // ── Multi-claim gate tests ───────────────────────────────────────────────────
 // Two synthetic worktree paths under TMP. The bash gate does a string prefix
 // check on the extracted write target — these directories need not be real git repos.
-const WT_A = path.join(TMP, 'wt-a');
-const WT_B = path.join(TMP, 'wt-b');
+// Forward-slash paths: git emits forward-slash worktree paths even on Windows, so this mirrors
+// what the daemon actually stores. A raw backslash path embedded in the stub's JSON below would be
+// an invalid JSON escape (jq parse error → empty worktree → the gate's prefix glob degrades to '/*'
+// and matches ANY absolute path, falsely allowing out-of-worktree writes).
+const WT_A = path.join(TMP, 'wt-a').replace(/\\/g, '/');
+const WT_B = path.join(TMP, 'wt-b').replace(/\\/g, '/');
 fs.mkdirSync(WT_A, { recursive: true });
 fs.mkdirSync(WT_B, { recursive: true });
 
@@ -398,7 +402,7 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 {
   const stubMultiA = path.join(TMP, 'stub-multi-claim-a');
   makeMultiClaimStub(stubMultiA);
-  const destInA = path.join(WT_A, 'src.js');
+  const destInA = `${WT_A}/src.js`;
   const r = runHook(
     mkInput(`cp /tmp/src.js ${destInA}`),
     { PATH: stubMultiA + ':' + process.env.PATH },
@@ -410,7 +414,7 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 {
   const stubMultiB = path.join(TMP, 'stub-multi-claim-b');
   makeMultiClaimStub(stubMultiB);
-  const destInB = path.join(WT_B, 'lib.js');
+  const destInB = `${WT_B}/lib.js`;
   const r = runHook(
     mkInput(`cp /tmp/lib.js ${destInB}`),
     { PATH: stubMultiB + ':' + process.env.PATH },
@@ -434,7 +438,7 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 {
   const stubFirstNoWt = path.join(TMP, 'stub-multi-first-no-wt');
   makeMultiClaimStub(stubFirstNoWt, { noWtA: true });
-  const destInB = path.join(WT_B, 'index.js');
+  const destInB = `${WT_B}/index.js`;
   const r = runHook(
     mkInput(`cp /tmp/index.js ${destInB}`),
     { PATH: stubFirstNoWt + ':' + process.env.PATH },

@@ -40,7 +40,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 // Native-task fixtures: lib/native-tasks reads ONLY ~/.claude/projects/<encoded-ws>/ (session
 // listing) and ~/.claude/tasks/<session>/ (task files). WS is a unique tmp dir, so its encoded
 // projects dir cannot collide with any real workspace, and the session ids are fresh UUIDs.
-const encodeWorkspace = (p) => String(p).replace(/[/.]/g, '-');
+const encodeWorkspace = (p) => String(p).replace(/[/.\\:]/g, '-');
 const PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects', encodeWorkspace(WS));
 const SID_A = crypto.randomUUID();   // session that claims a task
 const SID_B = crypto.randomUUID();   // session with a task but NO claim
@@ -88,7 +88,10 @@ test('untested daemon endpoints', async () => {
   execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: REPO });
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '' },
+    // Scrub CLAUDE_CODE_SESSION_ID: when the suite runs inside a Claude Code session the daemon
+    // would otherwise inherit it as the session fallback (routes/overlay.js), masking the
+    // "missing session_id → 400" claim-gate branch this test asserts.
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', CLAUDE_CODE_SESSION_ID: '' },
     stdio: 'ignore',
   });
   try {

@@ -25,8 +25,12 @@ WS=$(printf '%s' "$INPUT" | jq -r '.workspace_roots[0] // .cwd // empty')
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Windows/Cygwin: `pwd` yields a Cygwin path (/d/zonoid) that the native Windows `node` cannot
+# require(). Convert to a node-friendly mixed path (D:/zonoid) when cygpath is present; no-op on POSIX.
+REPO_ROOT_NODE="$REPO_ROOT"
+if command -v cygpath >/dev/null 2>&1; then REPO_ROOT_NODE="$(cygpath -m "$REPO_ROOT")"; fi
 DATA="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}"
-STUB_DIR="$DATA/tasks/$(node -e "console.log(require('$REPO_ROOT/lib/filedrop-tasks').workspaceKey(process.argv[1]))" "$WS")/$HARNESS"
+STUB_DIR="$DATA/tasks/$(node -e "console.log(require('$REPO_ROOT_NODE/lib/filedrop-tasks').workspaceKey(process.argv[1]))" "$WS")/$HARNESS"
 mkdir -p "$STUB_DIR"
 
 AGENT=$(printf '%s' "$INPUT" | jq -r '.agent_id // .generation_id // empty')

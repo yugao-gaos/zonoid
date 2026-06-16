@@ -3,6 +3,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const http = require('http');
 const { spawn } = require('child_process');
 const sessionBindings = require('../lib/session-bindings');
 const { taskTranscript } = require('../daemon.js');
@@ -70,13 +71,26 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
     stdio: 'ignore',
   });
 
-  async function req(method, p, body) {
-    const res = await fetch(`http://127.0.0.1:${PORT}${p}`, {
-      method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
+  // Raw http.request (not global fetch/undici): undici keeps background async resources that race
+  // with the child-process kill during Windows teardown, tripping a libuv async-handle assertion.
+  function req(method, p, body) {
+    return new Promise((resolve, reject) => {
+      const data = body ? JSON.stringify(body) : null;
+      const r = http.request({
+        host: '127.0.0.1', port: PORT, path: p, method,
+        headers: data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {},
+      }, (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          try { resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') }); }
+          catch (e) { reject(e); }
+        });
+      });
+      r.on('error', reject);
+      if (data) r.write(data);
+      r.end();
     });
-    return { status: res.status, body: await res.json() };
   }
 
   try {
@@ -105,7 +119,17 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
 
   console.log('-----');
   console.log(`${pass} passed, ${fail} failed`);
-  process.exit(fail === 0 ? 0 : 1);
+  // Windows-safe exit: the SIGTERM above followed by an immediate process.exit() in the same tick
+  // trips a libuv async-handle assertion on Windows (UV_HANDLE_CLOSING, win/async.c) — the
+  // child-exit watcher fires while the event loop is already closing. Defer the exit until the
+  // child's 'close' has drained that watcher (unref'd timer as a safety net).
+  const exitCode = fail === 0 ? 0 : 1;
+  if (child.exitCode !== null || child.signalCode !== null) {
+    process.exit(exitCode);
+  } else {
+    child.once('close', () => process.exit(exitCode));
+    setTimeout(() => process.exit(exitCode), 3000).unref();
+  }
 })().catch((e) => {
   console.error(e);
   process.exit(1);

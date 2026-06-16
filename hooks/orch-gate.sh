@@ -68,7 +68,9 @@ if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
         ANY_WORKTREE=1
         MISMATCH_BRANCH="$TASK_BRANCH"
         # Allow if FP is inside this claim's worktree, or if FP is empty (non-file tool).
-        if [ -z "$FP" ] || case "$FP" in "$TASK_WT"/*|"$TASK_WT") true ;; *) false ;; esac; then
+        # Require non-empty TASK_WT for the glob branch: an empty worktree would make "$TASK_WT"/*
+        # degrade to /* and falsely match any absolute path (silently allowing out-of-worktree writes).
+        if [ -z "$FP" ] || { [ -n "$TASK_WT" ] && case "$FP" in "$TASK_WT"/*|"$TASK_WT") true ;; *) false ;; esac; }; then
           MATCHED=1
           break
         fi

@@ -205,13 +205,18 @@ if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
         ANY_WORKTREE=1
         MISMATCH_BRANCH="$TASK_BRANCH"
         # Allow if target is inside this claim's worktree, or if TARGETS is empty.
+        # Guard on non-empty TASK_WT: an empty worktree (e.g. malformed daemon JSON) would make the
+        # prefix glob "$TASK_WT"/* degrade to /* and falsely match ANY absolute path — silently
+        # allowing out-of-worktree writes. Empty worktree → no match → fall through to block.
         _MATCH_FOUND=0
-        while IFS= read -r _t; do
-          [ -z "$_t" ] && continue
-          case "$_t" in "$TASK_WT"/*|"$TASK_WT") _MATCH_FOUND=1; break ;; esac
-        done <<TARGETEOF
+        if [ -n "$TASK_WT" ]; then
+          while IFS= read -r _t; do
+            [ -z "$_t" ] && continue
+            case "$_t" in "$TASK_WT"/*|"$TASK_WT") _MATCH_FOUND=1; break ;; esac
+          done <<TARGETEOF
 $TARGETS
 TARGETEOF
+        fi
         if [ "$_MATCH_FOUND" = "1" ] || [ -z "$TARGETS" ]; then
           MATCHED=1
           break

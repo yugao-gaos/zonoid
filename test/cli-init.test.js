@@ -48,7 +48,7 @@ ok('usage lists codex', usage.includes('codex'));
 ok('usage lists --service', usage.includes('--service'));
 
 const swScript = scheduleWakeupScriptPath();
-ok('scheduleWakeupScriptPath under adapters/common', swScript.endsWith('adapters/common/schedule-wakeup.sh'));
+ok('scheduleWakeupScriptPath under adapters/common', swScript.replace(/\\/g, '/').endsWith('adapters/common/schedule-wakeup.sh'));
 ok('scheduleWakeupScriptPath uses INSTALL_DIR', swScript.startsWith(INSTALL_DIR));
 
 const pluginTs = path.join(__dirname, '..', 'packages', 'opencode-plugin', 'zonoid.ts');

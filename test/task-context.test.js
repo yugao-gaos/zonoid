@@ -11,7 +11,7 @@ const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-task
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-task-ctx-ws-')));
 const PORT = 19650 + Math.floor(Math.random() * 50);
 const BASE = `http://127.0.0.1:${PORT}`;
-const encodeWorkspace = (p) => String(p).replace(/[/.]/g, '-');
+const encodeWorkspace = (p) => String(p).replace(/[/.\\:]/g, '-');
 const PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects', encodeWorkspace(WS));
 const SID = crypto.randomUUID();
 const KEY = `${SID}/1`;

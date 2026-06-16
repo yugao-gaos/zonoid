@@ -161,7 +161,9 @@ function runMainBlocked(filePath, extra) {
 // 9. Trivial allow posts dispatcher-edit
 {
   const stubDirReport = path.join(TMP, 'stub-main-report');
-  const marker = path.join(TMP, 'dispatcher-edit-called');
+  // Forward slashes: this path is embedded into the bash stub's `touch`, where backslashes would be
+  // consumed as escapes (creating a garbage filename) and the existsSync check below would miss it.
+  const marker = path.join(TMP, 'dispatcher-edit-called').replace(/\\/g, '/');
   try { fs.unlinkSync(marker); } catch { /* */ }
   fs.mkdirSync(stubDirReport, { recursive: true });
   const curlStub = [
@@ -186,8 +188,11 @@ function runMainBlocked(filePath, extra) {
 // Two synthetic worktree paths under TMP. These directories do NOT need to be
 // real git repos — the new gate logic does a string prefix check (is FP inside
 // worktree path?), not a `git rev-parse` call.
-const WT_A = path.join(TMP, 'wt-a');
-const WT_B = path.join(TMP, 'wt-b');
+// Forward-slash paths: git emits forward-slash worktree paths even on Windows. A raw backslash
+// path embedded in the stub JSON below would be an invalid JSON escape (jq parse error → empty
+// worktree → the prefix glob degrades to /* and falsely matches any absolute path).
+const WT_A = path.join(TMP, 'wt-a').replace(/\\/g, '/');
+const WT_B = path.join(TMP, 'wt-b').replace(/\\/g, '/');
 fs.mkdirSync(WT_A, { recursive: true });
 fs.mkdirSync(WT_B, { recursive: true });
 
@@ -223,7 +228,7 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 {
   const stubMultiA = path.join(TMP, 'stub-multi-claim-a');
   makeMultiClaimStub(stubMultiA);
-  const targetInA = path.join(WT_A, 'src.js');
+  const targetInA = `${WT_A}/src.js`;
   const r = runHook(mkInput(targetInA), { PATH: stubMultiA + ':' + process.env.PATH });
   ok('multi-claim: write to first claim worktree → exit 0', r.status === 0);
 }
@@ -232,7 +237,7 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 {
   const stubMultiB = path.join(TMP, 'stub-multi-claim-b');
   makeMultiClaimStub(stubMultiB);
-  const targetInB = path.join(WT_B, 'lib.js');
+  const targetInB = `${WT_B}/lib.js`;
   const r = runHook(mkInput(targetInB), { PATH: stubMultiB + ':' + process.env.PATH });
   ok('multi-claim: write to second claim worktree → exit 0 (fixed bug)', r.status === 0);
 }
@@ -251,7 +256,7 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 {
   const stubMultiFirstNoWt = path.join(TMP, 'stub-multi-first-no-wt');
   makeMultiClaimStub(stubMultiFirstNoWt, { noWtA: true });
-  const targetInB = path.join(WT_B, 'index.js');
+  const targetInB = `${WT_B}/index.js`;
   const r = runHook(mkInput(targetInB), { PATH: stubMultiFirstNoWt + ':' + process.env.PATH });
   ok('multi-claim: first claim no worktree, second has worktree, write to second → exit 0', r.status === 0);
 }

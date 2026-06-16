@@ -37,22 +37,18 @@ SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // .s
 # in auto-accept modes. ORCH_AUTO_LOOP=1 is an explicit env fallback for harnesses whose payload
 # lacks permission_mode.
 PERMISSION_MODE=$(printf '%s' "$INPUT" | jq -r '.permission_mode // .permissionMode // empty' 2>/dev/null)
-BODY=$(python3 -c "
-import json, sys, os
-prompt = sys.argv[1]
-session_id = sys.argv[2] or None
-permission_mode = sys.argv[3] or None
-body = {'prompt': prompt}
-if session_id:
-    body['session_id'] = session_id
-if permission_mode:
-    body['permission_mode'] = permission_mode
-if os.environ.get('ORCH_AUTO_LOOP') == '1':
-    body['auto_mode'] = True
-if os.environ.get('ORCH_GATE_OFF') == '1':
-    body['orch_gate_off'] = True
-print(json.dumps(body))
-" "$PROMPT" "$SESSION_ID" "$PERMISSION_MODE")
+# Build the POST body with jq (already a hard dependency of this hook) rather than python3, which
+# is not present on every platform — notably the Windows Store 'python3' is a non-executing stub,
+# which would yield an empty body and drop the auto-mode signal.
+BODY=$(jq -nc \
+  --arg prompt "$PROMPT" \
+  --arg session_id "$SESSION_ID" \
+  --arg permission_mode "$PERMISSION_MODE" \
+  '{prompt: $prompt}
+   + (if $session_id != "" then {session_id: $session_id} else {} end)
+   + (if $permission_mode != "" then {permission_mode: $permission_mode} else {} end)
+   + (if env.ORCH_AUTO_LOOP == "1" then {auto_mode: true} else {} end)
+   + (if env.ORCH_GATE_OFF == "1" then {orch_gate_off: true} else {} end)')
 
 RESP=$(curl -s --max-time 2 -XPOST "localhost:$PORT/classify" \
   -H 'content-type: application/json' \

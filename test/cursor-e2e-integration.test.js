@@ -138,6 +138,9 @@ exit 0
       tool_input: { file_path: '/Users/x/proj/src.js', new_string: 'x' },
     });
     const gr = runHook(ORCH_GATE, gateIn, {
+      // lib.sh resolves the shared gate from ZONOID_ROOT (not ORCH_ROOT, which it overwrites);
+      // without it the path falls back to ~/.claude/orchestrator, which isn't present in CI.
+      ZONOID_ROOT: REPO,
       ORCH_ROOT: REPO,
       ORCH_PORT: '8787',
       PATH: `${stubDir}:${process.env.PATH}`,
