@@ -26,6 +26,12 @@ function isExempt(p) {
   return false;
 }
 
+function resolveTarget(t, wt) {
+  const s = k.slash(t);
+  const isAbs = s.startsWith('/') || /^[A-Za-z]:\//.test(s);
+  return k.normalizePath(isAbs ? s : `${k.slash(wt).replace(/\/+$/, '')}/${s}`);
+}
+
 (async () => {
   if (k.gateOff()) k.allow();
   const input = await k.readInput();
@@ -88,7 +94,7 @@ function isExempt(p) {
       if (branch) {
         anyWorktree = true;
         mismatchBranch = branch;
-        if (!targets.length || targets.some((t) => k.isUnder(t, wt))) { matched = true; break; }
+        if (!targets.length || targets.some((t) => wt && k.isUnder(resolveTarget(t, wt), wt))) { matched = true; break; }
       }
     }
     if (anyWorktree && !matched) {

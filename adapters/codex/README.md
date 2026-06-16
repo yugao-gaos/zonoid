@@ -74,13 +74,15 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 
 - **Fail-closed PreToolUse:** relays emit only supported fields (`permissionDecision`, `permissionDecisionReason`, `hookEventName`). Unsupported fields (`continue`, `stopReason`, `updatedInput` without allow) cause Codex to fail the hook and **continue the tool call**.
 - **Partial interception:** not every shell path uses hooked tools (`unified_exec`, some reads). Treat hooks as defense-in-depth; daemon-side refusal still applies on MCP claims/merges.
+- **Session IDs:** if the Codex MCP server cannot infer the current session from the harness environment, pass `session_id` explicitly to session-bound MCP tools such as `start_task` and `ScheduleWakeup`.
 - **Task minting:** use MCP `create_task` (writes `codex/<id>.json` stub + `POST /sync`) or drop a stub file under the daemon file-drop folder manually.
 
 ## Workflow
 
 1. `create_task` or file-drop stub → task appears in graph
-2. MCP `start_task(task_key, agent_id)` → claim before edits
-3. Edit via `apply_patch` / `Bash` — gates allow while claimed
-4. MCP `complete_task` → release claim
+2. MCP `branch_task(task_key)` → create an isolated attempt worktree
+3. MCP `start_task(task_key, agent_id, session_id)` → claim before edits
+4. Edit via `apply_patch` / `Bash` inside the returned worktree — gates allow while claimed
+5. MCP `complete_task` → release claim
 
 Dashboard: http://localhost:8787/graph

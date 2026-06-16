@@ -6,6 +6,7 @@ const os = require('os');
 const {
   parseInitArgs,
   mergeCursorHooks,
+  mergeCodexHooks,
   VALID_HARNESSES,
   scheduleWakeupScriptPath,
   opencodePluginHasScheduleWakeup,
@@ -59,6 +60,31 @@ ok('merge preserves existing hook', merged.hooks.postToolUse.some((e) => e.comma
 ok('merge adds sample hook', merged.hooks.preToolUse.some((e) => e.command === '/new/gate.sh'));
 ok('merge appends extra hook', merged.hooks.postToolUse.some((e) => e.command === '/new/todo.sh'));
 ok('merge skips duplicate command', merged.hooks.postToolUse.length === 2);
+
+const codexMerged = mergeCodexHooks(
+  { hooks: {
+    PreToolUse: [
+      { matcher: 'Bash', hooks: [{ type: 'command', command: '/old/adapters/codex/hooks/orch-gate-bash.sh' }] },
+      { matcher: 'Write', hooks: [{ type: 'command', command: 'C:\\old\\adapters\\codex\\hooks\\orch-gate.sh' }] },
+      { matcher: 'Bash', hooks: [{ type: 'command', command: '/user/custom-hook.sh' }] },
+    ],
+    Stop: [{ hooks: [{ type: 'command', command: '/user/stop-hook.sh' }] }],
+  } },
+  { hooks: {
+    PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: '/new/adapters/codex/hooks/orch-gate-bash.sh' }] }],
+    UserPromptSubmit: [{ hooks: [{ type: 'command', command: '/new/adapters/codex/hooks/classify-relay.sh' }] }],
+  } },
+);
+ok('mergeCodexHooks preserves user PreToolUse hook',
+  codexMerged.hooks.PreToolUse.some((e) => e.hooks.some((h) => h.command === '/user/custom-hook.sh')));
+ok('mergeCodexHooks preserves unrelated Stop hook',
+  codexMerged.hooks.Stop.some((e) => e.hooks.some((h) => h.command === '/user/stop-hook.sh')));
+ok('mergeCodexHooks replaces stale Codex hook',
+  !JSON.stringify(codexMerged).includes('/old/adapters/codex/hooks/orch-gate-bash.sh') &&
+  !JSON.stringify(codexMerged).includes('C:\\old\\adapters\\codex\\hooks\\orch-gate.sh') &&
+  JSON.stringify(codexMerged).includes('/new/adapters/codex/hooks/orch-gate-bash.sh'));
+ok('mergeCodexHooks adds missing sample event',
+  codexMerged.hooks.UserPromptSubmit.some((e) => e.hooks.some((h) => h.command.includes('classify-relay.sh'))));
 
 const bad = spawnSync(process.execPath, [zonoid, 'init', '--harness', 'invalid'], { encoding: 'utf8' });
 ok('invalid --harness exits non-zero', bad.status !== 0);

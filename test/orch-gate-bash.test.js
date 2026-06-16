@@ -422,7 +422,18 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
   ok('multi-claim: cp dest in second claim worktree → exit 0 (fixed bug)', r.status === 0);
 }
 
-// 35. Multi-claim: cp dest outside BOTH worktrees → denied
+// 35. Multi-claim: relative cp dest resolves against a claimed worktree → allowed
+{
+  const stubMultiRel = path.join(TMP, 'stub-multi-claim-relative');
+  makeMultiClaimStub(stubMultiRel);
+  const r = runHook(
+    mkInput('cp /tmp/src.js src.js'),
+    { PATH: stubMultiRel + ':' + process.env.PATH },
+  );
+  ok('multi-claim: relative cp dest resolves inside a worktree → exit 0', r.status === 0);
+}
+
+// 36. Multi-claim: cp dest outside BOTH worktrees → denied
 {
   const stubMultiOut = path.join(TMP, 'stub-multi-claim-out');
   makeMultiClaimStub(stubMultiOut);
@@ -434,7 +445,7 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
   ok('multi-claim: cp dest outside both worktrees → worktree path message', r.stderr.includes('worktree path'));
 }
 
-// 36. Multi-claim: first claim has NO worktree, second does → cp to second's worktree → allowed
+// 37. Multi-claim: first claim has NO worktree, second does → cp to second's worktree → allowed
 {
   const stubFirstNoWt = path.join(TMP, 'stub-multi-first-no-wt');
   makeMultiClaimStub(stubFirstNoWt, { noWtA: true });
