@@ -440,6 +440,22 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
       ragResults.sort((a, b) => b.score - a.score);
     }
+    // CORROBORATION FILTER: drop RAG-tier note results that have not yet appeared in at least
+    // CORROBORATION_MIN resolved task journals. Brand-new notes have zero signal and must not
+    // pollute context before they have been independently corroborated. DAG-tier notes always
+    // bypass this (they are injected from explicit context_deps, not from RAG). Knowledge items
+    // (kind==='knowledge') are task-attached and are also exempt — only free KB notes are gated.
+    {
+      const _corrStats = recallJournal.computeNoteStats(ws);
+      const _corrMin = recallJournal.CORROBORATION_MIN;
+      for (let _ci = ragResults.length - 1; _ci >= 0; _ci--) {
+        const _r = ragResults[_ci];
+        if ((_r.kind || 'task') !== 'note') continue; // keep non-note items (tasks, knowledge)
+        if (!recallJournal.isCorroborated(_r.key, _corrStats)) {
+          ragResults.splice(_ci, 1);
+        }
+      }
+    }
     // DAG notes always prepend (bypass gate). For a fully-judged claim consult (dagOnly), the
     // auto-injected context is the judged DAG neighborhood ONLY — drop the RAG-fill tier (Judge E,
     // safe under D's ready-gate). Otherwise (no task_key, or a provisional/timed-out task whose DAG
