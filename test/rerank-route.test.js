@@ -73,13 +73,23 @@ const noteKeys = (b) => (b.results || []).filter((r) => String(r.key).startsWith
   try {
     if (!(await waitForPing())) { console.log('FAIL  daemon did not come up'); process.exit(1); }
 
-    // 1. FLAG OFF ⇒ inert. Default lexical order is A>B>C and nothing is reranked.
-    const base = await get(`/search?workspace=${wsq}&q=${q}&k=5`);
-    ok('off: HTTP 200', base.status === 200);
+    // 1. EXPLICIT OFF (?rerank=0) ⇒ inert. /search rerank is DEFAULT-ON now, so the off baseline must
+    // be requested explicitly. Lexical order is A>B>C and nothing is reranked.
+    const base = await get(`/search?workspace=${wsq}&q=${q}&k=5&rerank=0`);
+    ok('off (?rerank=0): HTTP 200', base.status === 200);
     const baseKeys = noteKeys(base.body);
     ok('off: all three notes returned', baseKeys.length === 3);
     ok('off: lexical order A>B>C', baseKeys.join(',') === 'note:noteA,note:noteB,note:noteC');
     ok('off: no result carries reranked flag', !(base.body.results || []).some((r) => r.reranked === true));
+
+    // 1b. DEFAULT (no param) ⇒ rerank is ON. On a COLD sandbox the cross-encoder isn't loaded so
+    // rerank() null-degrades to cosine order — result SET preserved, never an error. (Proves the
+    // default-on path is wired + null-safe; a warmed sidecar would reorder, asserted set-preserving.)
+    const def = await get(`/search?workspace=${wsq}&q=${q}&k=5`);
+    ok('default (on): HTTP 200', def.status === 200);
+    const defKeys = noteKeys(def.body);
+    ok('default (on): result SET preserved vs off baseline',
+       defKeys.length === baseKeys.length && [...defKeys].sort().join(',') === [...baseKeys].sort().join(','));
 
     // 2. ?rerank=1 on a COLD sandbox ⇒ rerank() returns null ⇒ cosine order kept (null-degrade).
     const rr = await get(`/search?workspace=${wsq}&q=${q}&k=5&rerank=1`);

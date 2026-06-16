@@ -371,7 +371,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // relax the cheap cosine stage and let the CE see more candidates (two-stage retrieve-then-rerank:
     // loose recall, precise rerank). CRITICAL: this does NOT touch gateCands (computed far above on
     // RAW cosine) — the context-gate calibration is unaffected by reranking.
-    const rerankOn = isTruthy(process.env.ORCH_RERANK) || isTruthy(u.searchParams.get('rerank'));
+    // /search rerank is DEFAULT-ON (validated by the CE-3 A/B): it fires unless explicitly disabled
+    // with ORCH_RERANK in {0,false,off} or ?rerank=0. Null-safe — if the cross-encoder sidecar is
+    // unavailable, rerank() returns null and we keep cosine order, so default-on never breaks search
+    // (it lazily spawns the sidecar on first use). The autowire/suggest paths stay OPT-IN behind a
+    // truthy ORCH_RERANK (their seed threshold is uncalibrated); ORCH_RERANK=0 force-disables all.
+    const _rrEnv = String(process.env.ORCH_RERANK ?? '').trim().toLowerCase();
+    const _rrParam = String(u.searchParams.get('rerank') ?? '').trim().toLowerCase();
+    const _off = (v) => v === '0' || v === 'false' || v === 'off';
+    const rerankOn = _rrParam ? !_off(_rrParam) : !_off(_rrEnv);
     if (rerankOn && ragResults.length > 1) {
       const K = Math.max(1, parseInt(process.env.ORCH_RERANK_K || '50', 10) || 50);
       const aRaw = parseFloat(process.env.ORCH_RERANK_ALPHA || '0.5');
