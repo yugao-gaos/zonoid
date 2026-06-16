@@ -4,13 +4,16 @@ const measure = require('../lib/measure');
 const git = require('../lib/git');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, buildGraph, state, targetOverlay,
+  const { send, readBody, buildGraph, state, targetOverlay, nodeExistsInGraph,
     validateMetricSpec, validateBenchmark, resolveRepo, taskTranscript, usageCached } = ctx;
 
   if (p === '/task/metric' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
+    if (!nodeExistsInGraph(buildGraph(T.ws), b.key)) {
+      send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
+    }
     if (b.spec) {
       const err = validateMetricSpec(b.spec);
       if (err) { send(res, 400, { ok: false, error: err }); return true; }
@@ -24,6 +27,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
+    if (!nodeExistsInGraph(buildGraph(T.ws), b.key)) {
+      send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
+    }
     if (b.benchmark) {
       const err = validateBenchmark(b.benchmark);
       if (err) { send(res, 400, { ok: false, error: err }); return true; }
@@ -37,6 +43,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
+    if (!nodeExistsInGraph(buildGraph(T.ws), b.key)) {
+      send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
+    }
     const spec = T.ov.metrics && T.ov.metrics[b.key];
     if (!spec) { send(res, 409, { ok: false, error: 'no metric spec on task: set one with configure_task (metric) first' }); return true; }
     const repo = resolveRepo(b.key, b.repo_path, T.ov);
@@ -157,6 +166,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     const key = b.task_key || b.key;
     if (!key) { send(res, 400, { ok: false, error: 'task_key required' }); return true; }
+    if (!nodeExistsInGraph(buildGraph(T.ws), key)) {
+      send(res, 404, { ok: false, error: `unknown task: ${key}` }); return true;
+    }
     const wasUnwired = !!(T.ov.unwired && T.ov.unwired[key]);
     if (T.ov.unwired) delete T.ov.unwired[key];
     T.ov.notes[key] = `root: ${b.reason || 'declared standalone root'}`.slice(0, 280);

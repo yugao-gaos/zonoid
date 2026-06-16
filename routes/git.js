@@ -3,12 +3,15 @@ const overlayStore = require('../lib/overlay');
 const git = require('../lib/git');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, notifyChange, targetOverlay, resolveRepo, now } = ctx;
+  const { send, readBody, notifyChange, targetOverlay, resolveRepo, now, buildGraph, nodeExistsInGraph } = ctx;
 
   if (p === '/git/repo' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
+    if (!nodeExistsInGraph(buildGraph(T.ws), b.key)) {
+      send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
+    }
     overlayStore.setRepo(T.ov, b.key, b.repo_path);
     T.save(); notifyChange();
     send(res, 200, { ok: true, key: b.key, repo: T.ov.repos[b.key] || null }); return true;

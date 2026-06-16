@@ -52,3 +52,15 @@
 {"ts":"2026-06-16T17:46:38.181Z","workspace":"D:\\zonoid","task_key":"59fc18e1-744e-4f7a-9093-a8e12d43087b/3","recalled_note_keys":[],"outcome":"approve","via":"rag"}
 {"ts":"2026-06-16T18:00:30.243Z","workspace":"D:\\zonoid","task_key":"b1c48279-9822-4abe-81a5-1b7b2a329970/7","recalled_note_keys":[],"outcome":"approve","via":"rag"}
 {"ts":"2026-06-16T18:01:28.482Z","workspace":"D:\\zonoid","task_key":"b1c48279-9822-4abe-81a5-1b7b2a329970/8","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-16T18:04:56.577Z","workspace":"D:\\zonoid","task_key":"b1c48279-9822-4abe-81a5-1b7b2a329970/8","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-16T18:05:13.030Z","workspace":"D:\\zonoid","task_key":"b1c48279-9822-4abe-81a5-1b7b2a329970/10","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-16T18:05:21.463Z","workspace":"D:\\zonoid","task_key":"b1c48279-9822-4abe-81a5-1b7b2a329970/7","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-16T18:05:37.754Z","workspace":"D:\\zonoid","task_key":"b1c48279-9822-4abe-81a5-1b7b2a329970/9","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-16T18:31:27.206Z","workspace":"D:\\zonoid","task_key":"59fc18e1-744e-4f7a-9093-a8e12d43087b/6","recalled_note_keys":["note:note-mqgvsc4wtct","note:note-mqgwr63ms7q","note:note-mqgwrh5a63x","note:note-mqgz977tbqe"],"outcome":"pending","via":"dag"}
+{"ts":"2026-06-16T18:35:28.454Z","workspace":"D:\\zonoid","task_key":"59fc18e1-744e-4f7a-9093-a8e12d43087b/6","recalled_note_keys":["note:note-mqgvsc4wtct","note:note-mqgwr63ms7q","note:note-mqgwrh5a63x","note:note-mqgz977tbqe"],"outcome":"approve","via":"dag"}
+{"ts":"2026-06-16T18:37:59.282Z","workspace":"D:\\zonoid","task_key":"followup/harness-learner-drain","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-16T18:38:32.335Z","workspace":"D:\\zonoid","task_key":"59fc18e1-744e-4f7a-9093-a8e12d43087b/7","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-16T18:40:59.606Z","workspace":"D:\\zonoid","task_key":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/13","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-16T18:50:12.820Z","workspace":"D:\\zonoid","task_key":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/13","recalled_note_keys":[],"outcome":"failed","via":"rag"}
+{"ts":"2026-06-16T18:50:40.381Z","workspace":"D:\\zonoid","task_key":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/14","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-16T18:58:45.608Z","workspace":"D:\\zonoid","task_key":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/13","recalled_note_keys":[],"outcome":"approve","via":"rag"}

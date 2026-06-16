@@ -433,6 +433,17 @@ function targetOverlay(b, u) {
   return { ws, ov, save: () => overlayStore.save(ws, ov) };
 }
 
+// Reject-unknown-key guard: returns true if the key resolves to an EXISTING node in the
+// graph (task OR note node). Used by WRITE ops to reject phantom/bare keys that have no
+// corresponding native task or note node — symmetric with the existing READ-op checks in
+// /task/detail, /task/suggest, /task/context etc. which already do g.tasks.find() guards.
+// NOTE: add_dependency legitimately creates note↔task edges; the note: prefix is handled
+// by the caller, which skips the ghost check for keys already in the graph.
+function nodeExistsInGraph(g, key) {
+  if (!key || !g || !Array.isArray(g.tasks)) return false;
+  return g.tasks.some((t) => t.id === key);
+}
+
 // Validate an inline metric spec ({ metric, direction, measure_command, parse?, target?,
 // guardrails? }). Returns an error string if invalid, or null if OK. Required: a non-empty
 // `metric` label, `direction` ∈ {min,max}, and a `measure_command`. Optional `guardrails` must be
@@ -1210,8 +1221,13 @@ function baseStatus(s) { return s === 'completed' ? 'done' : s === 'in_progress'
 const SUGGEST_STOP = new Set(['the', 'and', 'for', 'task', 'with', 'that', 'this', 'from', 'into', 'use', 'run', 'add', 'all', 'new', 'via', 'its']);
 const suggestToks = (s) => new Set((String(s || '').toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter((w) => !SUGGEST_STOP.has(w)));
 const SUGGEST_DUP_THRESHOLD = 0.6;   // high label/summary overlap with an OPEN task ⇒ likely a re-plan duplicate
+// Semantic-scale duplicate bar for scoreMatchesSemantic's cosine path. MiniLM cosine runs hotter than
+// token overlap: ~0.55 is merely "related" (SEMANTIC_AUTOWIRE_THRESHOLD), so a DUPLICATE must sit well
+// above that — ~0.85 ≈ near-paraphrase / same task re-planned. High-precision initial estimate (a false
+// dup-warning only nudges supersede; a miss just lets a dup through), calibrate as data accrues.
+const SEMANTIC_DUP_THRESHOLD = 0.85;
 // Score a single node's label+summary against a precomputed set of QUERY tokens (`qt`), using the
-// IDENTICAL cosine-style token-overlap as scoreMatches — but anchored on a free-text query instead
+// IDENTICAL cosine-style token-overlap as scoreMatchesSemantic's lexical fallback — but anchored on a free-text query instead
 // of another task. Returns { shared, score }. Shared by /search (query-by-text retrieval).
 // Flatten a Tier-2 knowledge item to a single searchable string (for embedding + lexical scoring).
 // Items are { type, value, ... } where value is a string or an object; we join the human-meaningful
@@ -1255,33 +1271,30 @@ function noteCurrentAsOf(node, asOf) {
   return true;
 }
 
-function scoreMatches(g, target) {
-  const tg = suggestToks(`${target.label} ${target.summary || ''}`);
-  const linked = new Set([...(target.deps || []), ...(target.context_deps || [])]);
-  const OPEN = new Set(['not_ready', 'ready', 'in_progress']);
-  return g.tasks
-    .filter((x) => x.id !== target.id && !linked.has(x.id))
-    .map((x) => {
-      const xt = suggestToks(`${x.label} ${x.summary || ''}`);
-      const shared = [...tg].filter((w) => xt.has(w));
-      const score = tg.size && xt.size ? shared.length / Math.sqrt(tg.size * xt.size) : 0;
-      const duplicate = score >= SUGGEST_DUP_THRESHOLD && OPEN.has(x.status) && x.kind !== 'note';
-      return { key: x.id, label: x.label, status: x.status, score: Math.round(score * 1000) / 1000, shared: shared.slice(0, 8), suggest_kind: (x.kind === 'note' || x.status === 'done') ? 'context' : 'blocking', duplicate };
-    })
-    .filter((c) => c.score > 0)
-    .sort((a, b) => b.score - a.score);
-}
+// (lexical scoreMatches removed in the suggest_links semantic consolidation — suggestForTask now
+//  ranks with scoreMatchesSemantic. The token-overlap evidence it produced lives on as the `shared`
+//  field that scoreMatchesSemantic still computes per candidate.)
 
 // Link-suggestion package for one task: top-5 scored matches + duplicate warning + wiring hint.
 // The ONE source of suggestion semantics, shared by GET /task/suggest and POST /sync (the
 // adoption nudge carries the same suggestions in-band) — keep route responses in lockstep.
 async function suggestForTask(g, target) {
-  // Lexical candidate ranking (token overlap). When ORCH_RERANK is on, rerank the top window with
-  // the cross-encoder and surface the top-5 by CE relevance instead of by lexical overlap — the
-  // agent then sees genuinely-relevant link suggestions first, not just word-overlap matches.
-  // NULL-SAFE: rerank()==null ⇒ keep the lexical order. DEFAULT OFF ⇒ identical to today.
-  let ranked = scoreMatches(g, target);
-  if (isTruthy(process.env.ORCH_RERANK) && ranked.length > 1) {
+  // SEMANTIC candidate ranking (cosine over MiniLM embeddings) with per-candidate lexical fallback
+  // when a vec is missing — scoreMatchesSemantic, the SAME retrieval core /search uses. suggest_links
+  // no longer forks onto a lexical-only scorer that orphaned related-but-differently-worded tasks.
+  // The agent reviews each suggestion and asserts the edge (origin:'asserted'), so a semantic
+  // candidate list + agent judgment replaces the old lexical pass.
+  // Use the task's PRIMARY (title+summary) vec as the "query", scored against each candidate's full
+  // vec set inside scoreMatchesSemantic (maxCosine) — the SAME one-query-vec-vs-candidate-set model
+  // /search uses, so a multi-vec candidate is still fully considered. null ⇒ pure-lexical fallback.
+  const targetVec = nodeVecs(target)[0] || null;
+  let ranked = scoreMatchesSemantic(g, target, targetVec);
+  // CROSS-ENCODER RERANK — DEFAULT-ON (mirrors /search, validated by the CE-3 A/B): fires unless
+  // explicitly disabled via ORCH_RERANK in {0,false,off}. NULL-SAFE: rerank()==null (sidecar
+  // loading/unavailable) ⇒ keep the cosine order, no throw — default-on never breaks suggestions.
+  const _rrEnv = String(process.env.ORCH_RERANK ?? '').trim().toLowerCase();
+  const rerankOn = !(_rrEnv === '0' || _rrEnv === 'false' || _rrEnv === 'off');
+  if (rerankOn && ranked.length > 1) {
     const pool = ranked.slice(0, 20);   // rerank a candidate window, then re-pick the top 5
     const byKey = new Map(g.tasks.map((t) => [t.id, t]));
     const ce = await rerank(`${target.label}\n${target.summary || ''}`.trim(),
@@ -1299,12 +1312,13 @@ async function suggestForTask(g, target) {
   return { suggestions, duplicates, hint };
 }
 
-// SEMANTIC variant of scoreMatches: identical return shape, but each candidate is scored by
+// The semantic suggest/autowire scorer (identical return shape to the old lexical scorer): each candidate is scored by
 // cosine(targetVec, candidate.vec) when BOTH carry a 384-dim embedding, falling back PER-CANDIDATE
 // to the lexical token-overlap score when either vec is genuinely missing. This is what lets note
 // wiring connect prose that shares MEANING but few literal tokens (the lexical scorer scored those
-// pairs below 0.25 and left them orphaned). Used by autowireNoteProvider; `target` is the synthetic
-// note target, `targetVec` its stored embedding (may be null ⇒ everything falls back to lexical).
+// pairs below 0.25 and left them orphaned). Used by suggestForTask + autowireNoteProvider +
+// autowireNewTaskWholeGraph; `target` is the consuming task/note node, `targetVec` its embedding
+// (may be null ⇒ everything falls back to lexical).
 function scoreMatchesSemantic(g, target, targetVec) {
   const tg = suggestToks(`${target.label} ${target.summary || ''}`);
   const linked = new Set([...(target.deps || []), ...(target.context_deps || [])]);
@@ -1322,7 +1336,11 @@ function scoreMatchesSemantic(g, target, targetVec) {
       // when the node carries exactly one vector, so note pairs score unchanged.
       const semantic = tvec && nodeVecs(x).length > 0;
       const score = semantic ? maxCosine(tvec, x) : lex;
-      const duplicate = score >= SUGGEST_DUP_THRESHOLD && OPEN.has(x.status) && x.kind !== 'note';
+      // Scale-aware duplicate bar: cosine and token-overlap live on different scales, so one constant
+      // mis-flags. Semantic pairs use SEMANTIC_DUP_THRESHOLD (near-paraphrase cosine); lexical-fallback
+      // pairs keep SUGGEST_DUP_THRESHOLD (token-overlap scale).
+      const dupBar = semantic ? SEMANTIC_DUP_THRESHOLD : SUGGEST_DUP_THRESHOLD;
+      const duplicate = score >= dupBar && OPEN.has(x.status) && x.kind !== 'note';
       return { key: x.id, label: x.label, status: x.status, score: Math.round(score * 1000) / 1000, shared: shared.slice(0, 8), suggest_kind: (x.kind === 'note' || x.status === 'done') ? 'context' : 'blocking', duplicate, via: semantic ? 'semantic' : 'lexical' };
     })
     .filter((c) => c.score > 0)
@@ -2000,7 +2018,7 @@ const ctx = {
     if (!sessionId) return;
     state.sessions = sessionBindings.bindSession(state.sessions, sessionId, patch);
   },
-  send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, resolveRepo,
+  send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, resolveRepo, nodeExistsInGraph,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
@@ -2014,8 +2032,8 @@ const ctx = {
   snapshotNative, now, isTruthy,
   embed, cosine, embedStatus, DIMS, EMBED_MODEL,
   gateTask, haikusGate,
-  scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks, suggestForTask,
-  SUGGEST_DUP_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,
+  scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks, suggestForTask,
+  SUGGEST_DUP_THRESHOLD, SEMANTIC_DUP_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,
   autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD,
   noteCurrentAsOf, gatedSearchCounts, checkGatedRateLimit,
   knowledgeText, digestRejected, leanLearnings,
@@ -2076,8 +2094,8 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatches, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
-  isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
+  isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, buildGraph, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
 

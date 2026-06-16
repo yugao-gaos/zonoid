@@ -192,3 +192,15 @@
 {"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-16T17:17:08.649Z"}
 {"evt":"assignee_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","assignee":"learner-drain-be4d54ed","actor":"overlay-sync","ts":"2026-06-16T17:17:08.649Z"}
 {"evt":"timestamps_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-14T06:29:14.527Z","lastChanged":"2026-06-16T17:17:08.132Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-16T17:20:39.620Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-16T18:07:31.802Z"}
+{"evt":"edge_promoted","from":"followup/harness-learner-drain","to":"followup/learner-queue-batch-process-all-candidat-d6bo","kind":"context","actor":"overlay-sync","ts":"2026-06-16T18:08:57.450Z","weight":0.557,"by":"judge","judged":true,"score":0.557,"origin":"autowire-semantic"}
+{"evt":"timestamps_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-14T06:29:14.527Z","lastChanged":"2026-06-16T18:12:23.236Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-16T18:13:02.842Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-16T18:34:53.658Z"}
+{"evt":"assignee_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","assignee":"learner-drain-671a3137","actor":"overlay-sync","ts":"2026-06-16T18:34:53.658Z"}
+{"evt":"timestamps_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-14T06:29:14.527Z","lastChanged":"2026-06-16T18:37:09.308Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-16T18:37:37.307Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-16T18:37:59.298Z"}
+{"evt":"summary_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","summary":"Drained batch 130–149 (20 candidates) from onboard queue for zonoid repo. Cursor advanced to 150/1691, remaining: 1541. kept_so_far=65.","actor":"overlay-sync","ts":"2026-06-16T18:37:59.298Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-16T18:37:59.561Z"}
+{"evt":"timestamps_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-14T06:29:14.527Z","lastChanged":"2026-06-16T18:42:16.838Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-16T18:42:54.690Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-16T19:00:10.635Z"}
+{"evt":"assignee_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","assignee":"learner-drain-a2c4fd49","actor":"overlay-sync","ts":"2026-06-16T19:00:10.635Z"}
