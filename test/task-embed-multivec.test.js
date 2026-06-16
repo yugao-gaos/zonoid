@@ -16,7 +16,7 @@
 'use strict';
 
 const { cosine, nodeVecs, maxCosine, embed, DIMS } = require('../lib/embed');
-const { taskEmbedText } = require('../lib/node-tags');
+const { taskEmbedText, noteFieldTexts } = require('../lib/node-tags');
 const overlayStore = require('../lib/overlay');
 const { scoreMatchesSemantic } = require('../daemon');
 
@@ -62,12 +62,50 @@ const skipped = (label, why) => { console.log(`SKIP  ${label} (${why})`); skip++
     ok('taskEmbedText excludes tags', !/recall/.test(text));
   }
 
+  // ---- 4b. noteFieldTexts: [title, summary, ...knowledge[]]; addNoteNode stores .vecs -----------
+  {
+    const note = {
+      title: 'Multivec note',
+      summary: 'Field-level vectors land in note.vecs.',
+      knowledge: [
+        'Pooled vec stays the gate/dedup vector.',
+        'Each knowledge entry becomes its own vector.',
+      ],
+    };
+    const texts = noteFieldTexts(note);
+    ok('noteFieldTexts is [title, summary, ...knowledge[]] (count)', texts.length === note.knowledge.length + 2);
+    ok('noteFieldTexts[0] is the title', texts[0] === note.title);
+    ok('noteFieldTexts[1] is the summary', texts[1] === note.summary);
+    ok('noteFieldTexts INCLUDES each knowledge[] entry', note.knowledge.every((k) => texts.includes(k)));
+    ok('noteFieldTexts drops empty fields', noteFieldTexts({ title: 'only title', summary: '', knowledge: ['', null, 'kept'] }).length === 2);
+    // Structured knowledge items are flattened, not dropped.
+    ok('noteFieldTexts flattens object knowledge items',
+      noteFieldTexts({ title: 't', summary: 's', knowledge: [{ title: 'k-title', summary: 'k-sum' }] }).length === 3);
+
+    // addNoteNode stores a supplied .vecs ARRAY on the note (and leaves .vec as the pooled vector).
+    const fakeVecs = texts.map((_, i) => [i, i + 1, i + 2]);
+    const ov2 = overlayStore.EMPTY();
+    const id = overlayStore.addNoteNode(ov2, { ...note, vec: [9, 9, 9], vecs: fakeVecs });
+    const stored = ov2.note_nodes[id];
+    ok('addNoteNode stores note.vecs (array)', Array.isArray(stored.vecs) && stored.vecs.length === texts.length);
+    ok('addNoteNode keeps the pooled note.vec', JSON.stringify(stored.vec) === JSON.stringify([9, 9, 9]));
+    ok('addNoteNode .vecs has one vector per knowledge[] entry (+title +summary)',
+      stored.vecs.length === note.knowledge.length + 2);
+    // nodeVecs prefers .vecs, so corpus scoring upgrades automatically.
+    ok('nodeVecs(note) returns the .vecs set (prefers .vecs over .vec)',
+      JSON.stringify(nodeVecs(stored)) === JSON.stringify(fakeVecs));
+    // No .vecs supplied ⇒ stays null (back-compat single-.vec shape).
+    const id2 = overlayStore.addNoteNode(ov2, { title: 't', summary: 's', vec: [1, 2, 3] });
+    ok('addNoteNode leaves .vecs null when none supplied', ov2.note_nodes[id2].vecs === null);
+  }
+
   // ---- 5. REAL embed: task gets a vec; scoreMatchesSemantic does max-cosine; note unchanged ---
   const probe = await embed('hello world');
   if (!Array.isArray(probe)) {
     skipped('task gets a 384-dim vec', 'model unavailable');
     skipped('scoreMatchesSemantic max-cosine over task vecs[]', 'model unavailable');
     skipped('note score via multi-vec path == single-.vec cosine', 'model unavailable');
+    skipped('note.vecs built from noteFieldTexts (one per knowledge entry)', 'model unavailable');
   } else {
     const taskVec = await embed(taskEmbedText({ title: 'database migration rollback', summary: 'steps to roll back a failed schema change' }));
     ok('task gets a 384-dim vec', Array.isArray(taskVec) && taskVec.length === DIMS);
@@ -90,6 +128,28 @@ const skipped = (label, why) => { console.log(`SKIP  ${label} (${why})`); skip++
     const nhit = out2.find((m) => m.key === 'note:n1');
     ok('note scored via multi-vec path == single-.vec cosine (UNCHANGED)',
       nhit && nhit.score === Math.round(cosine(targetVec, noteVec) * 1000) / 1000);
+
+    // Build a note's field-level .vecs the same way the route does, and assert one vector per
+    // knowledge[] entry (+title +summary). Then a corpus-side note carrying .vecs scores via the
+    // MAX-cosine path against the closest field vector (knowledge entries become independently hittable).
+    const noteFields = {
+      title: 'migration rollback',
+      summary: 'general notes on schema changes',
+      knowledge: [
+        'undo a broken database migration by restoring the prior schema',
+        'unrelated: tune the embedding cache TTL',
+      ],
+    };
+    const fieldTexts = noteFieldTexts(noteFields);
+    const noteVecs = (await Promise.all(fieldTexts.map(embed))).filter(Boolean);
+    ok('note.vecs has one vector per field (title+summary+each knowledge entry)',
+      noteVecs.length === noteFields.knowledge.length + 2 && fieldTexts.length === noteFields.knowledge.length + 2);
+    ok('note.vecs vectors are 384-dim', noteVecs.every((v) => Array.isArray(v) && v.length === DIMS));
+    // The migration-rollback query should hit the dedicated knowledge field vector at least as well as
+    // the pooled-ish title/summary vectors — multi-vec max-cosine >= the title-only cosine.
+    const mc = maxCosine(targetVec, { vecs: noteVecs });
+    ok('maxCosine over note.vecs >= cosine to the title vec (knowledge field is hittable)',
+      mc >= cosine(targetVec, noteVecs[0]) - 1e-9);
   }
 
   console.log('-----');

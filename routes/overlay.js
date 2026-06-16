@@ -4,10 +4,19 @@ const filedropGc = require('../lib/filedrop-gc');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
 const path = require('path');
-const { noteEmbedText, taskEmbedText } = require('../lib/node-tags');
+const { noteEmbedText, noteFieldTexts, taskEmbedText } = require('../lib/node-tags');
 const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
 const recallJournal = require('../lib/recall-outcome-journal');
+
+// Resolve a note's knowledge[] for field-level embedding. addNoteNode stores it inline on the node
+// (n.knowledge), but the /overlay/note route also mirrors it into overlay.knowledge[id]; prefer the
+// inline copy and fall back to the side table so backfill/reembed work for both shapes.
+function noteKnowledge(overlay, n) {
+  if (n && Array.isArray(n.knowledge) && n.knowledge.length) return n.knowledge;
+  const side = overlay && overlay.knowledge && n ? overlay.knowledge[n.id] : null;
+  return Array.isArray(side) ? side : [];
+}
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, sendOp, readBody, notifyChange, buildGraph, state, targetOverlay,
@@ -389,6 +398,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.title || !b.summary) { send(res, 400, { ok: false, error: 'title and summary required' }); return true; }
     b.vec = await embed(noteEmbedText({ title: b.title, category: b.category, tags: b.tags, summary: b.summary }));
+    // FIELD-LEVEL multi-vec set (note.vecs): embed each salient field (title/summary/each knowledge[]
+    // entry) on its own so a knowledge item is retrievable without being diluted into the pooled vec.
+    // The pooled b.vec above stays the gate/dedup vector; b.vecs only upgrades corpus scoring.
+    b.vecs = (await Promise.all(noteFieldTexts({ title: b.title, summary: b.summary, knowledge: b.knowledge }).map(embed))).filter(Boolean);
 
     // Near-duplicate guard: reject if a current note has cosine(title-vec) >= DUP_THRESHOLD,
     // unless the caller already resolved the conflict with `supersedes` or `force:true`.
@@ -571,12 +584,27 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const gs = state.graphStore || graphStore.open(path.join(state.workspace, '.graph'));
     const ts = new Date().toISOString();
     for (const n of Object.values(state.overlay.note_nodes || {})) {
-      if (Array.isArray(n.vec)) { notesSkipped++; continue; }
-      const v = await embed(noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
-      if (v) {
-        n.vec = v; notesEmbedded++;
-        graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
-      } else failed++;
+      // Upgrade a note that is missing EITHER the pooled `.vec` OR the field-level `.vecs` set.
+      // (Previously only notes missing `.vec` were touched, so existing notes never gained `.vecs`.)
+      const hasVec = Array.isArray(n.vec);
+      const hasVecs = Array.isArray(n.vecs) && n.vecs.length > 0;
+      if (hasVec && hasVecs) { notesSkipped++; continue; }
+      let touched = false;
+      if (!hasVec) {
+        const v = await embed(noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
+        if (v) {
+          n.vec = v; touched = true;
+          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
+        } else failed++;
+      }
+      if (!hasVecs) {
+        const vecs = (await Promise.all(noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(state.overlay, n) }).map(embed))).filter(Boolean);
+        if (vecs.length) {
+          n.vecs = vecs; touched = true;
+          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs, actor: 'backfill', ts });
+        }
+      }
+      if (touched) notesEmbedded++;
     }
     for (const items of Object.values(state.overlay.knowledge || {})) {
       for (const it of (items || [])) {
@@ -608,9 +636,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const gs2 = state.graphStore || graphStore.open(path.join(state.workspace, '.graph'));
     const ts2 = new Date().toISOString();
     for (const n of Object.values(state.overlay.note_nodes || {})) {
-      if (!force2 && Array.isArray(n.vec) && n.vec.length === DIMS) { skipped++; continue; }
+      // Skip only when BOTH the pooled `.vec` and the field-level `.vecs` set are already present at
+      // full DIMS (and not forced) — so existing single-vec notes get upgraded to multivec.
+      const vecOk = Array.isArray(n.vec) && n.vec.length === DIMS;
+      const vecsOk = Array.isArray(n.vecs) && n.vecs.length > 0;
+      if (!force2 && vecOk && vecsOk) { skipped++; continue; }
+      let touched = false;
       const v = await embed(noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
-      if (v) { n.vec = v; embedded++; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'reembed', ts: ts2 }); } else failed++;
+      if (v) { n.vec = v; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'reembed', ts: ts2 }); } else failed++;
+      const vecs = (await Promise.all(noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(state.overlay, n) }).map(embed))).filter(Boolean);
+      if (vecs.length) { n.vecs = vecs; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs, actor: 'reembed', ts: ts2 }); }
+      if (touched) embedded++;
     }
     overlayStore.save(state.workspace, state.overlay);
     notifyChange();
