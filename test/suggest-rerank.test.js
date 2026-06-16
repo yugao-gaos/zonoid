@@ -13,6 +13,11 @@ const { suggestForTask } = require('../daemon');
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
 
+// Suite watchdog: the rerank=1 leg can trigger an 80MB cross-encoder load; under the parallel suite
+// that may contend. Never exceed the runner's per-test cap — exit cleanly at 60s. The off-path
+// assertions (the safety invariant) have already run by then; a slow model only skips the on-leg.
+setTimeout(() => { console.log(`\n(watchdog 60s) ${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0); }, 60_000).unref();
+
 // Target + candidates with decreasing lexical overlap (vec-less ⇒ lexical scoring path).
 const target = { id: 's/anchor', label: 'refund pipeline retry idempotency', summary: 'make stripe refund retries idempotent', deps: [], context_deps: [] };
 const g = { tasks: [
