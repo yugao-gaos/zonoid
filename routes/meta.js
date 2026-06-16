@@ -8,7 +8,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     GIT_HEAD, BOOTED_AT, FEATURES, sseClients, overlayStore, harness, analytics,
     analyticsState, analyticsFlush, PUBLIC, loops, taskTranscript, usageCached,
     staleClaimKeys, releaseClaim, reapAgent, saveAgents, cache, targetOverlay, MCP_CALL,
-    embedStatus, respCacheGet, respCachePut, isTruthy, frontier, agentsArr, sessionCount } = ctx;
+    embedStatus, respCacheGet, respCachePut, isTruthy, frontier, agentsArr, sessionCount,
+    WORKSPACES_FILE, graphStore } = ctx;
 
   if (p === '/ping') { send(res, 200, { ok: true, workspace: state.workspace, sessions: sessionCount() }); return true; }
 
@@ -176,6 +177,45 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 200, respCachePut(stWs, stKey, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary, ...archField })); return true;
     }
     send(res, 200, respCachePut(stWs, stKey, { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr(), summary, ...archField })); return true;
+  }
+
+  if (p === '/workspaces' && m === 'GET') {
+    // Build the union of all known workspaces for the dashboard workspace switcher.
+    // Sources (all deduped): workspaces.json registry + state.workspace + sessions + agents + graphStore known dirs.
+    // Cheap: NO buildGraph per workspace — just path enumeration + basename.
+    const seenPaths = new Set();
+    const addPath = (p2) => { if (p2 && typeof p2 === 'string') seenPaths.add(p2); };
+
+    // 1. Registry file (persisted across restarts)
+    try {
+      const stored = JSON.parse(fs.readFileSync(WORKSPACES_FILE, 'utf8'));
+      if (Array.isArray(stored)) stored.forEach(addPath);
+    } catch { /* file may not exist yet */ }
+
+    // 2. Current pinned workspace
+    addPath(state.workspace);
+
+    // 3. Distinct session workspaces
+    for (const s of Object.values(state.sessions || {})) addPath(s.workspace);
+
+    // 4. Distinct agent workspaces
+    for (const a of Object.values(state.agents || {})) addPath(a.workspace);
+
+    // 5. graphStore opened dirs (strip /.graph suffix)
+    for (const store of graphStore.allStores()) {
+      const dir = store.dir;
+      if (dir && dir.endsWith(path.sep + '.graph')) addPath(dir.slice(0, -(path.sep.length + 6)));
+      else if (dir && dir.endsWith('/.graph')) addPath(dir.slice(0, -7));
+    }
+
+    const current = state.workspace;
+    const workspaces = [...seenPaths].map((wsPath) => ({
+      path: wsPath,
+      name: path.basename(wsPath),
+      current: wsPath === current,
+    }));
+
+    send(res, 200, { ok: true, current, workspaces }); return true;
   }
 
   return false;

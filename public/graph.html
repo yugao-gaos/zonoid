@@ -409,6 +409,7 @@
 <div class="wrap">
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
+    <div id="wsPickerWrap" style="padding:0 16px 8px;display:none"><select id="wsPicker" style="font-size:11px;background:#161b22;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 6px;cursor:pointer;max-width:220px"></select></div>
     <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
     <div id="flowstats"></div>
@@ -4270,6 +4271,50 @@ function stubFalse(){return false}module.exports=stubFalse},{}],279:[function(re
 // When served by the daemon use relative URLs; when opened as a file (e.g. the desktop
 // preview panel), hit the daemon absolutely.
 const BASE = (location.protocol === 'http:' || location.protocol === 'https:') ? '' : 'http://localhost:8787';
+// Workspace switcher: ?workspace= drives the view (defaults to current pinned workspace when absent).
+// ?token= is threaded alongside workspace for token-gated deploys.
+let WS = new URLSearchParams(location.search).get('workspace') || '';
+const _TOKEN = new URLSearchParams(location.search).get('token') || '';
+// dfetch: wrapper that appends workspace= + token= to any per-repo fetch.
+// Leave /health and /cron/usage UNWRAPPED (global endpoints).
+function dfetch(pathAndQuery, init) {
+  let url = BASE + pathAndQuery;
+  const sep = url.includes('?') ? '&' : '?';
+  const parts = [];
+  if (WS) parts.push('workspace=' + encodeURIComponent(WS));
+  if (_TOKEN) parts.push('token=' + encodeURIComponent(_TOKEN));
+  if (parts.length) url += sep + parts.join('&');
+  return fetch(url, init);
+}
+// Load the workspace picker from GET /workspaces and wire on-change to switch repos.
+async function loadWorkspacePicker() {
+  const sel = document.getElementById('wsPicker');
+  const wrap = document.getElementById('wsPickerWrap');
+  if (!sel || !wrap) return;
+  let data;
+  try { data = await (await fetch(BASE + '/workspaces')).json(); } catch { return; }
+  if (!data || !data.workspaces || data.workspaces.length <= 1) return; // nothing to switch
+  sel.innerHTML = '';
+  for (const w of data.workspaces) {
+    const opt = document.createElement('option');
+    opt.value = w.path;
+    opt.textContent = w.name;
+    if (w.current && !WS) opt.selected = true;
+    if (WS && w.path === WS) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  wrap.style.display = '';
+  sel.onchange = function() {
+    WS = this.value;
+    const u = new URL(location.href);
+    if (WS) u.searchParams.set('workspace', WS);
+    else u.searchParams.delete('workspace');
+    history.replaceState(null, '', u.toString());
+    // Repaint: clear caches and re-run tick + guidance + costflow
+    lastRenderFp = ''; lastDetailFp = ''; costAt = 0; guidSig = '';
+    tick(); renderGuidance(true); refreshCost();
+  };
+}
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let selected=null;
 let lastDetailFp='';
@@ -4288,7 +4333,7 @@ function wrapLabel(s,perLine){ s=String(s||''); const lines=[]; while(s.length>p
 async function openDetail(key){
   selected=key; document.getElementById('panel').classList.add('open');
   const pad=document.getElementById('pad'); pad.innerHTML='loading…';
-  let d; try{ d=await(await fetch(BASE+'/task/detail?key='+encodeURIComponent(key))).json(); }catch{ pad.innerHTML='error'; return; }
+  let d; try{ d=await(await dfetch('/task/detail?key='+encodeURIComponent(key))).json(); }catch{ pad.innerHTML='error'; return; }
   if(d.error||!d.task){ pad.innerHTML='<span class="pclose" onclick="closeDetail()">✕</span>not found'; return; }
   const t=d.task, u=d.tokenUsage||{};
   const byId=lastState?Object.fromEntries((lastState.tasks||[]).map(x=>[x.id,x])):{};
@@ -4323,7 +4368,7 @@ let costCache=null, costAt=0, costBusy=false;
 function refreshCost(){
   if(costBusy||Date.now()-costAt<2000) return;
   costBusy=true;
-  fetch(BASE+'/costflow').then(r=>r.json()).then(d=>{ if(d&&!d.error&&d.totals){ costCache=d; costAt=Date.now(); } }).catch(()=>{}).finally(()=>{ costAt=Date.now(); costBusy=false; });
+  dfetch('/costflow').then(r=>r.json()).then(d=>{ if(d&&!d.error&&d.totals){ costCache=d; costAt=Date.now(); } }).catch(()=>{}).finally(()=>{ costAt=Date.now(); costBusy=false; });
 }
 let cronTokCache=null, cronAt=0, cronBusy=false;
 let harnessOhCache=null;
@@ -4426,7 +4471,7 @@ function updateDock(s, sc){
   if(hbtn && excl>0) hbtn.textContent='History ('+excl+') ▾';
 }
 async function tick(){
-  let d; try{ d=await(await fetch(BASE+'/state')).json(); }catch{ return; }
+  let d; try{ d=await(await dfetch('/state')).json(); }catch{ return; }
   refreshCost(); refreshCronTok(); refreshInfraHero();
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
 
@@ -4603,7 +4648,7 @@ function loadClusterNotes(itemId){
     if(guidNote[k]&&guidNote[k]!=='loading'){ patchMember(itemId,i,k); return; }
     if(guidNote[k]==='loading') return;
     guidNote[k]='loading';
-    fetch(BASE+'/task/detail?key='+encodeURIComponent(k)).then(r=>r.json()).then(d=>{
+    dfetch('/task/detail?key='+encodeURIComponent(k)).then(r=>r.json()).then(d=>{
       guidNote[k]={label:(d&&d.task&&d.task.label)||k, summary:(d&&d.task&&d.task.summary)||''};
       patchMember(itemId,i,k);
     }).catch(()=>{ guidNote[k]={label:k,summary:'(detail fetch failed)'}; patchMember(itemId,i,k); });
@@ -4641,7 +4686,7 @@ async function openNotePopup(key,ev){
   if(!noteDetailCache[key]){
     renderNotePopup(key,null,null);   // loading state
     try{
-      const d=await(await fetch(BASE+'/task/detail?key='+encodeURIComponent(key))).json();
+      const d=await(await dfetch('/task/detail?key='+encodeURIComponent(key))).json();
       if(d&&d.task) noteDetailCache[key]=d;
       else { if(notePopupKey===key) renderNotePopup(key,null,(d&&d.error)||'not found'); return; }
     }catch(e){ if(notePopupKey===key) renderNotePopup(key,null,'fetch failed: '+((e&&e.message)||e)); return; }
@@ -4680,7 +4725,7 @@ function renderNotePopup(key,d,err){
 }
 async function renderGuidance(force){
   const box=document.getElementById('guidance');
-  let g; try{ g=await(await fetch(BASE+'/guidance')).json(); }catch{ return; }
+  let g; try{ g=await(await dfetch('/guidance')).json(); }catch{ return; }
   const pending=(g&&g.pending)||[];
   const review=(g&&g.review)||[];
   // stash items so the [Copy for Claude] handler and the cluster lazy-loader can read full content
@@ -4770,7 +4815,7 @@ async function resolveGuidance(id,decision){
   else { const inp=document.getElementById('ans-'+id); body.answer=(inp?inp.value:guidAns[id])||''; }
   delete guidErr[id];
   try{
-    const r=await fetch(BASE+'/guidance/resolve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    const r=await dfetch('/guidance/resolve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
     if(!r.ok){
       let msg='HTTP '+r.status; try{ const j=await r.json(); if(j&&j.error) msg+=': '+j.error; }catch(e){}
       guidErr[id]=msg; renderGuidance(true); return false;
@@ -4793,7 +4838,7 @@ async function consolidateAllClusters(){
     const st=document.getElementById('gst-'+it.id); if(st) st.textContent='…';
     delete guidErr[it.id];
     try{
-      const r=await fetch(BASE+'/guidance/resolve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:it.id,decision:'consolidate'})});
+      const r=await dfetch('/guidance/resolve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:it.id,decision:'consolidate'})});
       if(!r.ok){
         let msg='HTTP '+r.status; try{ const j=await r.json(); if(j&&j.error) msg+=': '+j.error; }catch(e){}
         guidErr[it.id]=msg; if(st) st.textContent='✗ '+msg;
@@ -5318,7 +5363,7 @@ async function toggleCostPopup(){
   const p=document.getElementById('costPopup'); p.classList.toggle('show');
   if(!p.classList.contains('show')) return;
   const el=document.getElementById('costbody'); el.innerHTML='<div class="empty">computing…</div>';
-  let d; try{ d=await(await fetch(BASE+'/costflow')).json(); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
+  let d; try{ d=await(await dfetch('/costflow')).json(); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
   if(d.error){ el.innerHTML=`<div class="empty">${esc(d.error)}</div>`; return; }
   const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n));
   const row=(r,v)=>`<div class="cfrow"><span class="cfl" title="${esc(r.task)}">${esc(r.label||r.task)}</span>`+
@@ -5362,7 +5407,7 @@ async function toggleBillingPopup(){
   const el=document.getElementById('billingBody'); el.innerHTML='<div class="empty" style="padding:20px 0">loading…</div>';
   let cf, cd, oh;
   let delta;
-  try{ [cf,cd,oh,delta]=await Promise.all([fetch(BASE+'/costflow').then(r=>r.json()), fetchCronData(), fetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null), fetch(BASE+'/graph/delta?since=0').then(r=>r.json()).catch(()=>null)]); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
+  try{ [cf,cd,oh,delta]=await Promise.all([dfetch('/costflow').then(r=>r.json()), fetchCronData(), fetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null), dfetch('/graph/delta?since=0').then(r=>r.json()).catch(()=>null)]); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
 
   const t=cf.totals||{};
   const bm=cf.by_model||{};
@@ -5691,7 +5736,7 @@ setView(currentView);              // apply persisted view + toggle state on loa
   const _origTick = tick;
   window.tick = async function tick_resilient(){
     try {
-      const res = await fetch(BASE + '/state', { cache: 'no-store' });
+      const res = await dfetch('/state', { cache: 'no-store' });
       if (res.status === 503){
         let body = null;
         try { body = await res.json(); } catch(e){}
@@ -5750,7 +5795,7 @@ async function checkOnboardingState() {
 
   let notes = [];
   try {
-    const res = await fetch(BASE + '/search?q=ingest&k=5');
+    const res = await dfetch('/search?q=ingest&k=5');
     const data = await res.json();
     // /search returns { results: [...] } or an array directly — handle both.
     const items = Array.isArray(data) ? data : (data.results || []);
@@ -5855,6 +5900,8 @@ function setTaskCreationDisabled(disabled) {
 // Run the onboarding check once after the first tick has a chance to populate state.
 // A short delay ensures the page has rendered before we potentially inject the banner.
 setTimeout(checkOnboardingState, 500);
+// Load the workspace picker once at boot (only shows when >1 workspace exists).
+loadWorkspacePicker();
 </script>
 </body>
 </html>
