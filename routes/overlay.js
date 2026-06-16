@@ -70,6 +70,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (ag.subagent_session && ag.subagent_session !== ag.session) claimSid = ag.subagent_session;
         else if (ag.session) claimSid = ag.session;
       }
+      // DAEMON-SIDE harness-session fallback: when a worker claims without a resolvable session, use
+      // the daemon's own CLAUDE_CODE_SESSION_ID (inherited via daemonEnv from the MCP server). Under
+      // the claude-desktop entrypoint that equals the worker's harness .session_id — the value the
+      // PreToolUse gate queries /active-claim with — so the claim becomes gate-visible and background-
+      // worker writes are no longer wrongly denied (note-mqftffo7f2b). Mirrors the mcp-graph SESSION
+      // fix but activates on a DAEMON restart, not an MCP-server reload. A worker that DOES pass a
+      // real session_id is unaffected. (Relies on workers sharing the harness session id, probe-verified.)
+      if (!claimSid && process.env.CLAUDE_CODE_SESSION_ID) claimSid = String(process.env.CLAUDE_CODE_SESSION_ID);
       if (!claimSid) {
         send(res, 400, { ok: false, error: 'session_id required on in_progress claim when not inferable from agent registry' }); return true;
       }
