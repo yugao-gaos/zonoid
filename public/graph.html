@@ -5366,12 +5366,18 @@ async function toggleCostPopup(){
   let d; try{ d=await(await dfetch('/costflow')).json(); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
   if(d.error){ el.innerHTML=`<div class="empty">${esc(d.error)}</div>`; return; }
   const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n));
+  // Dollar overlay (CDX-3): server-authoritative cost from d.cost (adapter-priced via pricing.json,
+  // daemon-summed). "$X.XX" when source:'real', "$X.XX ≈" when source:'estimated' (chars/4 fallback
+  // tainted the rollup). Additive — token figures are unchanged.
+  const fmtUSD2=n=>n==null?'—':'$'+Number(n).toFixed(2);
+  const costStr=d.cost?`${fmtUSD2(d.cost.usd)}${d.cost.source==='estimated'?' ≈':''}`:null;
   const row=(r,v)=>`<div class="cfrow"><span class="cfl" title="${esc(r.task)}">${esc(r.label||r.task)}</span>`+
     (r.members?`<span class="cfm">×${r.members.length}</span>`:'')+
     (r.inherited!=null?`<span class="cfm">own ${fmt(r.own)} + ${fmt(r.inherited)}</span>`:'')+
     `<b>${fmt(v)}</b></div>`;
   el.innerHTML=
     `<div style="font-size:13px;margin:4px 0 10px">autonomy score <b style="font-size:18px;color:#79c0ff">${d.autonomy_score==null?'—':d.autonomy_score+'×'}</b>`+
+    (costStr?` · <b style="font-size:16px;color:#d29922" title="Adapter-priced from pricing.json, daemon-summed${d.cost.source==='estimated'?' — includes estimated (chars/4) usage':''}">${costStr}</b>`:'')+
     ` <span class="muted">· ${fmt(d.totals.productive)} landed + ${fmt(d.totals.trapped)} trapped = ${fmt(d.totals.total)} · human-typed ${fmt(d.human.tokens)} tok (${d.human.messages} msgs)${d.sessions?` · ${fmt(d.sessions.unattributed)} chat-unattributed across ${d.sessions.count} sessions`:''}</span></div>`+
     `<h2 style="margin-left:0">Landed — merged sinks (${d.results.length})</h2>`+
     (d.results.length?d.results.slice(0,15).map(r=>row(r,r.T)).join(''):'<div class="empty">no merged results yet</div>')+
@@ -5467,6 +5473,9 @@ async function toggleBillingPopup(){
     `<div class="bpdiv"></div>`+
 
     `<div class="bptotal"><span>Task sessions est.</span><span style="color:#d29922">${fmtUSD(totalCost)}</span></div>`+
+    // Server-priced $ (CDX-3): cf.cost is the daemon-summed, adapter-priced (pricing.json) dollar
+    // overlay over per-slice cost.usd. "≈" marks an estimated rollup (some chars/4 fallback usage).
+    (cf.cost?`<div class="bprow" style="padding-top:2px"><span class="bpdot" style="background:#d29922"></span><span class="bplabel" title="Adapter-priced from pricing.json, daemon-summed per-slice cost.usd">server-priced ($/slice)</span><span class="bpcost">$${Number(cf.cost.usd||0).toFixed(2)}${cf.cost.source==='estimated'?' ≈':''}</span></div>`:'')+
     `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ cron/gate API cost (extra, not in sessions)</span><span style="color:#8b949e;font-size:11px">${fmtUSD(cronCost)}</span></div>`+
     `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px;font-size:15px;font-weight:700"><span>Total est. <span style="font-size:10px;font-weight:400;color:#484f58">this project</span></span><span style="color:#d29922;font-size:18px">${fmtUSD(totalCost+cronCost)}</span></div>`+
     (()=>{
