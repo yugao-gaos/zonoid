@@ -363,3 +363,236 @@ test('HEADLESS_DRAIN_CONFIG has the same structural keys as AUTOSTART_CONFIG', (
     assert.ok(typeof v === 'number' && v > 0, `${k} should be a positive number, got ${v}`);
   }
 });
+
+// ===========================================================================
+// JUDGE DRAIN tests (task /3)
+// ===========================================================================
+//
+// The judge drain drives the self-learn-edge-judge skill via a headless `claude -p` against the
+// daemon, covering BOTH the periodic (/judge/next?budget=N) and eager (/judge/next?node=<key>)
+// paths. It rides the SAME runner + governor as the learner. ALL spawns are MOCKED — these tests
+// never shell out to a real `claude -p` or hit a live daemon.
+//
+// Mock seam: lib/headless-drain.js captures `spawnSync` via a top-level destructure of
+// child_process. Patching child_process.spawnSync BEFORE freshModule() (which re-requires the
+// module) makes the fresh module capture the patched fn, intercepting runDrain's spawn.
+
+const child_process = require('child_process');
+
+/** Patch child_process.spawnSync, return { hd, calls, restore }. Each spawn is recorded, not run. */
+function freshModuleWithMockedSpawn(stub) {
+  const orig = child_process.spawnSync;
+  const calls = [];
+  child_process.spawnSync = (bin, args, opts) => {
+    calls.push({ bin, args, opts });
+    return stub ? stub(bin, args, opts) : { status: 0, stdout: '', stderr: '', error: null };
+  };
+  const hd = freshModule();
+  return { hd, calls, restore: () => { child_process.spawnSync = orig; } };
+}
+
+/** No-op HTTP module so _reportDrainProgress never touches the network during tests. */
+function noopHttp() {
+  return {
+    request(_opts, cb) {
+      // Immediately resolve the response callback with an end-emitting stub.
+      const res = { resume() {}, on(ev, fn) { if (ev === 'end') fn(); } };
+      if (cb) cb(res);
+      return { on() {}, write() {}, end() {} };
+    },
+  };
+}
+
+/** Stub judgeDeps so findDueJudgeWork is driven entirely by the test (no real overlay touched). */
+function judgeDeps({ depth = 0, eagerNodes = [] } = {}) {
+  return {
+    judgeDeps: {
+      overlayLoad: () => ({ /* sentinel overlay */ }),
+      judgeLib: {
+        buildQueue: () => Array.from({ length: depth }, (_, i) => ({ kind: 'edge', id: `e${i}` })),
+        eagerJudgeNodes: () => eagerNodes.slice(),
+      },
+    },
+  };
+}
+
+// ---- buildJudgeArgs: command/prompt shape --------------------------------------------
+
+test('buildJudgeArgs (PERIODIC): targets /judge/next with a bounded budget, no node', () => {
+  const hd = freshModule();
+  const args = hd.buildJudgeArgs({ budget: 6 });
+  // -p <prompt> present
+  const pIdx = args.indexOf('-p');
+  assert.ok(pIdx >= 0, 'must pass -p');
+  const prompt = args[pIdx + 1];
+  assert.match(prompt, /self-learn-edge-judge/, 'prompt must name the skill');
+  assert.match(prompt, /\/judge\/next\?budget=6/, 'periodic prompt must target /judge/next?budget=N');
+  assert.doesNotMatch(prompt, /node=/, 'periodic prompt must NOT carry a node param');
+  assert.match(prompt, /\/judge\/verdict/, 'prompt must mention applying verdicts');
+  assert.match(prompt, /AT MOST 6/, 'prompt must bound the batch to the budget');
+  // headless flags mirror onboard-learn
+  assert.ok(args.includes('--dangerously-skip-permissions'), 'must skip permissions (headless)');
+  assert.ok(args.includes('--model'), 'must pin a model');
+  assert.ok(args.includes('--output-format') && args.includes('stream-json'), 'must stream JSON');
+});
+
+test('buildJudgeArgs (EAGER): targets /judge/next?node=<key> for the node-scoped path', () => {
+  const hd = freshModule();
+  const args = hd.buildJudgeArgs({ budget: 6, node: 'note:abc 123' });
+  const prompt = args[args.indexOf('-p') + 1];
+  // node is URL-encoded into the query
+  assert.match(prompt, /\/judge\/next\?node=note%3Aabc%20123&budget=6/, 'eager prompt must target node-scoped /judge/next with encoded node');
+  assert.match(prompt, /EAGER/i, 'eager prompt should identify itself as the eager path');
+});
+
+test('buildJudgeArgs clamps budget to 1..50', () => {
+  const hd = freshModule();
+  const tooBig = hd.buildJudgeArgs({ budget: 9999 });
+  assert.match(tooBig[tooBig.indexOf('-p') + 1], /budget=50/, 'budget clamps to 50 max');
+  const tooSmall = hd.buildJudgeArgs({ budget: 0 });
+  assert.match(tooSmall[tooSmall.indexOf('-p') + 1], /budget=1/, 'budget clamps to 1 min');
+});
+
+test('buildJudgeArgs attaches --mcp-config + --add-dir when provided', () => {
+  const hd = freshModule();
+  const args = hd.buildJudgeArgs({ budget: 6, mcpConfig: '/ws/.mcp.json', addDir: '/ws' });
+  assert.ok(args.includes('--mcp-config'), 'must pass --mcp-config when given');
+  assert.ok(args.includes('/ws/.mcp.json'));
+  assert.ok(args.includes('--strict-mcp-config'), 'must lock to the given mcp config');
+  assert.ok(args.includes('--add-dir') && args.includes('/ws'), 'must grant workspace read');
+});
+
+// ---- findDueJudgeWork: due-detection via injected deps -------------------------------
+
+test('findDueJudgeWork reports periodic depth + eager nodes from injected deps', () => {
+  const hd = freshModule();
+  const deps = judgeDeps({ depth: 4, eagerNodes: ['note:x', 'note:y'] }).judgeDeps;
+  const due = hd.findDueJudgeWork('/irrelevant', deps);
+  assert.equal(due.periodic, true, 'periodic true when queue has depth');
+  assert.equal(due.depth, 4);
+  assert.deepEqual(due.eagerNodes, ['note:x', 'note:y']);
+});
+
+test('findDueJudgeWork reports nothing due on empty queue + no eager nodes', () => {
+  const hd = freshModule();
+  const deps = judgeDeps({ depth: 0, eagerNodes: [] }).judgeDeps;
+  const due = hd.findDueJudgeWork('/irrelevant', deps);
+  assert.equal(due.periodic, false);
+  assert.deepEqual(due.eagerNodes, []);
+});
+
+test('findDueJudgeWork swallows loader errors and returns no due work', () => {
+  const hd = freshModule();
+  const due = hd.findDueJudgeWork('/irrelevant', {
+    overlayLoad: () => { throw new Error('overlay missing'); },
+    judgeLib: { buildQueue: () => [], eagerJudgeNodes: () => [] },
+  });
+  assert.equal(due.periodic, false);
+  assert.deepEqual(due.eagerNodes, []);
+  assert.equal(due.depth, 0);
+});
+
+// ---- flag OFF: no judge spawn even when judge work is pending ------------------------
+
+test('flag OFF ⇒ NO judge spawn even when eager + periodic work is pending', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  delete process.env.ORCH_HEADLESS_DRAINS;
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  try {
+    const result = hd.runDueDrains({ workspace: os.tmpdir() }, undefined,
+      judgeDeps({ depth: 5, eagerNodes: ['note:x'] }));
+    assert.equal(result.skipped, 'flag_off');
+    assert.equal(calls.length, 0, 'flag off must spawn nothing');
+  } finally {
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+// ---- flag ON: judge spawns for both eager + periodic, governor accounted -------------
+
+test('flag ON: runDueDrains spawns judge for each eager node + one periodic batch', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
+  // Empty workspace ⇒ no learner spawn; judge work comes from injected deps.
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
+      judgeDeps({ depth: 3, eagerNodes: ['note:a', 'note:b'] }));
+    // 2 eager + 1 periodic = 3 judge spawns
+    assert.equal(calls.length, 3, 'should spawn 2 eager + 1 periodic');
+    assert.equal(result.ran, 3, 'ran should count all 3 judge drains');
+    assert.equal(result.drains.filter((d) => d.drain === hd.JUDGE_DRAIN_KEY).length, 3);
+    // The eager spawns carry node-scoped prompts; the periodic does not.
+    const prompts = calls.map((c) => c.args[c.args.indexOf('-p') + 1]);
+    const eagerPrompts = prompts.filter((p) => /node=/.test(p));
+    const periodicPrompts = prompts.filter((p) => !/node=/.test(p));
+    assert.equal(eagerPrompts.length, 2, 'two eager (node-scoped) prompts');
+    assert.equal(periodicPrompts.length, 1, 'one periodic (cursor-walked) prompt');
+    assert.match(eagerPrompts[0], /node=note%3Aa/, 'first eager prompt targets note:a');
+    assert.match(periodicPrompts[0], /\/judge\/next\?budget=/, 'periodic prompt targets the depth queue');
+    // governor consumed 3 iterations, concurrency fully restored
+    assert.equal(hd._governor.iterationsUsed, 3, 'three iterations consumed');
+    assert.equal(hd._governor.concurrentRunning, 0, 'concurrency restored after runs');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+  }
+});
+
+test('flag ON: judge fan-out is bounded by the iteration cap', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '2'; // only 2 spawns allowed total
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    // 3 eager nodes + periodic, but cap is 2 → only 2 spawns happen.
+    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
+      judgeDeps({ depth: 3, eagerNodes: ['note:a', 'note:b', 'note:c'] }));
+    assert.equal(calls.length, 2, 'iteration cap must bound spawns to 2');
+    assert.equal(result.ran, 2);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+  }
+});
+
+test('flag ON but no judge work due ⇒ no judge spawn (no_due_drains)', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
+      judgeDeps({ depth: 0, eagerNodes: [] }));
+    assert.equal(calls.length, 0, 'no judge work ⇒ no spawn');
+    assert.equal(result.skipped, 'no_due_drains');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
