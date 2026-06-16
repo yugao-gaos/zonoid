@@ -40,6 +40,11 @@ function warn(msg)      { console.log(`  ⚠ ${msg}`); }
 function fix(msg)       { console.log(`  ↻ ${msg}`); }
 function section(title) { console.log(`\n── ${title} ─────────────────────────────`); }
 
+// Forward slashes work as path separators on every OS (Node accepts them on
+// Windows too) and keep the JSON/TOML config values free of backslash-escaping
+// noise. Same convention as bin/install.js `fwd`.
+const fwdSlash = (p) => String(p).replace(/\\/g, '/');
+
 // ── individual checks & fixes ───────────────────────────────────────────────
 
 // ── Invariant 1: detect live data so we NEVER rm -rf a data dir ─────────────
@@ -253,7 +258,10 @@ function checkMcp(cwd, orchClient = null) {
   try { content = fs.readFileSync(dest, 'utf8'); } catch (e) { warn('Cannot read .mcp.json'); return; }
 
   const hasTemplate = content.includes('__INSTALL_DIR__') || content.includes('${CLAUDE_PLUGIN_ROOT}');
-  const hasWrongPath = content.includes('mcp-graph.js') && !content.includes(INSTALL_DIR);
+  // writeMcp emits forward-slashed paths (valid + escape-free in JSON on every
+  // OS), so compare against the forward-slashed install dir — otherwise a
+  // correct Windows entry would be flagged "wrong path" and rewritten each run.
+  const hasWrongPath = content.includes('mcp-graph.js') && !content.includes(fwdSlash(INSTALL_DIR));
   if (hasTemplate || hasWrongPath) {
     warn(`.mcp.json has ${hasTemplate ? 'unresolved template tokens' : 'wrong path'} — rewriting...`);
     writeMcp(cwd, true, orchClient);
@@ -262,37 +270,44 @@ function checkMcp(cwd, orchClient = null) {
   ok('.mcp.json looks correct');
 }
 
-function injectOrchClient(content, orchClient) {
-  if (!orchClient) return content;
-  try {
-    const j = JSON.parse(content);
-    const srv = j.mcpServers && j.mcpServers['orchestrator-graph'];
-    if (srv) {
-      srv.env = srv.env || {};
-      srv.env.ORCH_CLIENT = orchClient;
-      delete srv.env.ZONOID_HARNESS;
-    }
-    return JSON.stringify(j, null, 2) + '\n';
-  } catch {
-    return content;
-  }
+// Build the orchestrator-graph server entry for .mcp.json, resolving the
+// INSTALL_DIR path and (optionally) injecting a per-client ORCH_CLIENT.
+// Returns a plain object: { type, command, args, env }.
+function orchestratorMcpEntry(orchClient = null) {
+  const env = { ORCH_PORT: ORCH_PORT };
+  if (orchClient) env.ORCH_CLIENT = orchClient;
+  return {
+    type: 'stdio',
+    command: 'node',
+    args: [`${fwdSlash(INSTALL_DIR)}/mcp-graph.js`],
+    env,
+  };
 }
 
+// MERGE the orchestrator-graph server into <cwd>/.mcp.json instead of
+// clobbering it. Mirrors bin/install.js installMcp: read existing JSON, set
+// mcpServers["orchestrator-graph"], and preserve every other user-added
+// server. `overwrite` is retained for call-site compatibility but is a no-op
+// now that the write is always a read-modify-write merge — the back-up is
+// taken whenever an existing file is rewritten.
 function writeMcp(cwd, overwrite = false, orchClient = null) {
   const dest = path.join(cwd, '.mcp.json');
-  const src  = path.join(INSTALL_DIR, 'mcp.sample.json');
-  let content;
-  try {
-    content = fs.readFileSync(src, 'utf8')
-      .replace(/__INSTALL_DIR__/g, INSTALL_DIR)
-      .replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, INSTALL_DIR);
-  } catch (e) { warn(`Sample not found at ${src}`); return; }
-  if (overwrite && fs.existsSync(dest)) {
+
+  let existing = {};
+  const had = fs.existsSync(dest);
+  if (had) {
+    try { existing = JSON.parse(fs.readFileSync(dest, 'utf8')); }
+    catch (e) { warn(`.mcp.json exists but is not valid JSON — leaving it untouched`); return; }
     fs.copyFileSync(dest, dest + '.bak');
     log(`Backed up existing .mcp.json to ${dest}.bak`);
   }
-  fs.writeFileSync(dest, injectOrchClient(content, orchClient));
-  ok(`Written: ${dest}`);
+
+  existing.mcpServers = existing.mcpServers || {};
+  existing.mcpServers['orchestrator-graph'] = orchestratorMcpEntry(orchClient);
+
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, JSON.stringify(existing, null, 2) + '\n');
+  ok(`${had ? 'Merged' : 'Written'}: ${dest}`);
 }
 
 function checkClaude(cwd) {
@@ -566,11 +581,26 @@ function installService() {
 
 const VALID_HARNESSES = new Set(['claude', 'cursor', 'codex', 'opencode']);
 
+// Parse `--harness` as comma-separated AND/OR repeatable, e.g.
+//   --harness claude,codex            → ['claude','codex']
+//   --harness claude --harness codex  → ['claude','codex']
+// De-duplicated, order preserved. Defaults to ['claude'] when none given.
+// `harness` (singular) is kept as the first selection for back-compat with
+// existing callers/tests that read a single value.
 function parseInitArgs(argv) {
   const rest = argv.slice(3);
-  const harnessIdx = rest.indexOf('--harness');
-  const harness = harnessIdx >= 0 && rest[harnessIdx + 1] ? rest[harnessIdx + 1] : 'claude';
-  return { service: rest.includes('--service'), harness };
+  const harnesses = [];
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i] === '--harness' && rest[i + 1]) {
+      for (const h of rest[i + 1].split(',')) {
+        const name = h.trim();
+        if (name && !harnesses.includes(name)) harnesses.push(name);
+      }
+      i++; // consume the value
+    }
+  }
+  if (harnesses.length === 0) harnesses.push('claude');
+  return { service: rest.includes('--service'), harnesses, harness: harnesses[0] };
 }
 
 function mergeCursorHooks(existing, sample, extras = []) {
@@ -755,17 +785,79 @@ function checkCodexHooks() {
   log('Open /hooks in Codex CLI to review and trust hook definitions.');
 }
 
-function writeCodexMcp(cwd, overwrite = false) {
-  const dest = path.join(cwd, '.mcp.json');
-  const src = path.join(INSTALL_DIR, 'adapters', 'codex', 'mcp.sample.json');
-  if (!fs.existsSync(src)) { warn(`Codex MCP sample missing at ${src}`); return; }
-  const content = fs.readFileSync(src, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR);
-  if (overwrite && fs.existsSync(dest)) {
-    fs.copyFileSync(dest, dest + '.bak');
-    log(`Backed up existing .mcp.json to ${dest}.bak`);
+// Render the orchestrator-graph server as a TOML [mcp_servers.*] block for
+// Codex's native ~/.codex/config.toml. Codex reads MCP from config.toml (TOML),
+// NOT from .mcp.json — so the Codex server identity must live here.
+function codexMcpTomlBlock() {
+  const scriptArg = `${fwdSlash(INSTALL_DIR)}/mcp-graph.js`;
+  return [
+    '[mcp_servers.orchestrator-graph]',
+    'command = "node"',
+    `args = ["${scriptArg}"]`,
+    '',
+    '[mcp_servers.orchestrator-graph.env]',
+    `ORCH_PORT = "${ORCH_PORT}"`,
+    'ORCH_CLIENT = "codex"',
+  ].join('\n');
+}
+
+// Idempotently strip any prior [mcp_servers.orchestrator-graph] table (and its
+// nested [mcp_servers.orchestrator-graph.env] subtable) from a TOML document,
+// WITHOUT a TOML-parser dependency. We operate line-wise: a table header line
+// `[...]` opens a table that runs until the next top-level/sibling header. We
+// drop the orchestrator-graph table and any header that is a child of it
+// (prefix `[mcp_servers.orchestrator-graph.` or `[mcp_servers.orchestrator-graph]`),
+// preserving every other [mcp_servers.*] and unrelated config untouched.
+function stripCodexOrchTable(toml) {
+  const lines = toml.split(/\r?\n/);
+  const out = [];
+  const isHeader = (l) => /^\s*\[\[?[^\]]+\]\]?\s*$/.test(l);
+  const headerName = (l) => {
+    const m = l.match(/^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*$/);
+    return m ? m[1].trim() : null;
+  };
+  const isOrchHeader = (name) =>
+    name === 'mcp_servers.orchestrator-graph' ||
+    name.startsWith('mcp_servers.orchestrator-graph.');
+
+  let dropping = false;
+  for (const line of lines) {
+    if (isHeader(line)) {
+      const name = headerName(line);
+      // Entering a new table — decide whether to drop it.
+      dropping = name != null && isOrchHeader(name);
+      if (dropping) continue;
+    }
+    if (dropping) continue; // body lines under a dropped table
+    out.push(line);
   }
-  fs.writeFileSync(dest, content);
-  ok(`Written Codex MCP config: ${dest} (ORCH_CLIENT=codex)`);
+  // Collapse any run of blank lines left behind, and trim trailing blanks.
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s*$/, '');
+}
+
+// Write/merge the orchestrator-graph MCP server into Codex's NATIVE store:
+// ~/.codex/config.toml under [mcp_servers.orchestrator-graph]. Idempotent —
+// re-running replaces only our table and leaves all other config intact. Backs
+// up once when an existing config.toml is rewritten. `configPath` is injectable
+// for tests; defaults to ~/.codex/config.toml.
+function writeCodexMcp(configPath = path.join(os.homedir(), '.codex', 'config.toml')) {
+  const block = codexMcpTomlBlock();
+  let next;
+  const had = fs.existsSync(configPath);
+  if (had) {
+    let existing;
+    try { existing = fs.readFileSync(configPath, 'utf8'); }
+    catch (e) { warn(`Cannot read ${configPath} — leaving it untouched`); return; }
+    fs.copyFileSync(configPath, configPath + '.bak');
+    log(`Backed up existing config.toml to ${configPath}.bak`);
+    const stripped = stripCodexOrchTable(existing);
+    next = stripped.length ? `${stripped}\n\n${block}\n` : `${block}\n`;
+  } else {
+    next = `${block}\n`;
+  }
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, next);
+  ok(`${had ? 'Merged into' : 'Wrote'} Codex MCP config: ${configPath} (ORCH_CLIENT=codex)`);
 }
 
 // ── Invariant 4: Delegate Claude harness wiring to bin/install.js ──────────
@@ -805,23 +897,11 @@ function checkClaudeWiring(cwd) {
   }
 }
 
-async function init(opts = {}) {
-  const cwd = process.cwd();
-  const harness = opts.harness || 'claude';
-  if (!VALID_HARNESSES.has(harness)) {
-    console.error(`Unknown --harness "${harness}" — use claude|cursor|codex|opencode`);
-    process.exit(1);
-  }
-  console.log(`\nZonoid init — workspace: ${cwd}`);
-  console.log(`Install dir:  ${INSTALL_DIR}`);
-  console.log(`Harness:      ${harness}\n`);
-
-  section('1. Core install');
-  checkInstallDir();
-  checkNodeModules();
-  checkHooks();
-
-  section('2. Workspace config');
+// Run ONE harness's additive workspace wiring. Each branch is idempotent and
+// only touches that harness's own files, so wiring a 2nd harness over a 1st
+// does not disturb the 1st (Codex → ~/.codex/config.toml; claude/cursor/opencode
+// → MERGE into <cwd>/.mcp.json preserving sibling servers).
+function wireHarness(harness, cwd) {
   if (harness === 'claude') {
     // INVARIANT 4: delegate .mcp.json + settings.json to bin/install.js
     checkClaudeWiring(cwd);
@@ -833,19 +913,89 @@ async function init(opts = {}) {
     warn('Cursor init uses native .cursor/hooks.json — do not also wire adapters/cursor/settings.sample.json (double execution)');
   } else if (harness === 'codex') {
     checkCodexHooks();
-    writeCodexMcp(cwd, fs.existsSync(path.join(cwd, '.mcp.json')));
+    // Codex reads MCP from ~/.codex/config.toml (TOML), NOT <cwd>/.mcp.json.
+    writeCodexMcp();
     warn('Codex init skips Claude settings.json / CLAUDE.md — wire hooks via ~/.codex/hooks.json');
   } else if (harness === 'opencode') {
     checkOpencodePlugin(cwd);
     checkMcp(cwd);
     warn('OpenCode init skips Claude hooks — wire orchestrator MCP in opencode.json for start_task / complete_task');
   }
+}
 
+function printNextSteps(harness) {
+  if (harness === 'codex') {
+    console.log('  Next steps (codex):');
+    console.log('    1. Open /hooks in Codex CLI and trust the Zonoid hook definitions');
+    console.log('    2. Restart Codex in this directory');
+    console.log('    3. Open the dashboard: http://localhost:8787/graph');
+    console.log('    4. Mint tasks with MCP create_task, then start_task before editing');
+    console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — run the returned');
+    console.log('       tail command on the session .fire file; on ORCH_SCHEDULED_TASK, re-inject the prompt');
+    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
+  } else if (harness === 'cursor') {
+    console.log('  Next steps (cursor):');
+    console.log('    1. Trust the workspace in Cursor so project hooks run');
+    console.log('    2. Restart Cursor in this directory');
+    console.log('    3. Open the dashboard: http://localhost:8787/graph');
+    console.log('    4. Mint tasks via todo adoption or MCP, then start_task before editing');
+    console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — monitor stdout with');
+    console.log('       the returned tail command (notify_pattern ORCH_SCHEDULED_TASK) and re-inject the prompt');
+    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
+  } else if (harness === 'opencode') {
+    console.log('  Next steps (opencode):');
+    console.log('    1. Wire orchestrator MCP in opencode.json (stdio transport)');
+    console.log('    2. Restart OpenCode in this directory');
+    console.log('    3. Open the dashboard: http://localhost:8787/graph');
+    console.log('    4. Use task_create to mint, then start_task before editing');
+    console.log('    5. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
+  } else {
+    console.log('  Next steps (claude):');
+    console.log('    1. Restart Claude Code in this directory');
+    console.log('    2. Open the dashboard: http://localhost:8787/graph');
+    console.log('    3. Ask Claude to start working — it will create tasks automatically');
+    console.log('');
+    console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
+    console.log('  Claude will create a task automatically before editing.');
+  }
+}
 
-  if (harness !== 'claude') {
+async function init(opts = {}) {
+  const cwd = process.cwd();
+  // Accept either the new harnesses[] (multi) or legacy single harness.
+  const harnesses = (opts.harnesses && opts.harnesses.length)
+    ? opts.harnesses
+    : [opts.harness || 'claude'];
+  for (const h of harnesses) {
+    if (!VALID_HARNESSES.has(h)) {
+      console.error(`Unknown --harness "${h}" — use claude|cursor|codex|opencode`);
+      process.exit(1);
+    }
+  }
+  console.log(`\nZonoid init — workspace: ${cwd}`);
+  console.log(`Install dir:  ${INSTALL_DIR}`);
+  console.log(`Harness:      ${harnesses.join(', ')}\n`);
+
+  section('1. Core install');
+  checkInstallDir();
+  checkNodeModules();
+  checkHooks();
+
+  // Run EACH selected harness's additive wiring in one invocation.
+  section('2. Workspace config');
+  for (const h of harnesses) {
+    if (harnesses.length > 1) log(`── harness: ${h} ──`);
+    wireHarness(h, cwd);
+  }
+
+  // ScheduleWakeup shim for any non-claude harness selected.
+  const nonClaude = harnesses.filter((h) => h !== 'claude');
+  if (nonClaude.length) {
     section('2b. ScheduleWakeup');
-    checkScheduleWakeupShim(harness);
-    if (harness === 'opencode') verifyOpencodeScheduleWakeup();
+    for (const h of nonClaude) {
+      checkScheduleWakeupShim(h);
+      if (h === 'opencode') verifyOpencodeScheduleWakeup();
+    }
   }
 
   section('3. Git identity');
@@ -869,37 +1019,10 @@ async function init(opts = {}) {
   }
 
   console.log('\n✓ Done.\n');
-  console.log('  Next steps:');
-  if (harness === 'codex') {
-    console.log('    1. Open /hooks in Codex CLI and trust the Zonoid hook definitions');
-    console.log('    2. Restart Codex in this directory');
-    console.log('    3. Open the dashboard: http://localhost:8787/graph');
-    console.log('    4. Mint tasks with MCP create_task, then start_task before editing');
-    console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — run the returned');
-    console.log('       tail command on the session .fire file; on ORCH_SCHEDULED_TASK, re-inject the prompt');
-    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
-  } else if (harness === 'cursor') {
-    console.log('    1. Trust the workspace in Cursor so project hooks run');
-    console.log('    2. Restart Cursor in this directory');
-    console.log('    3. Open the dashboard: http://localhost:8787/graph');
-    console.log('    4. Mint tasks via todo adoption or MCP, then start_task before editing');
-    console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — monitor stdout with');
-    console.log('       the returned tail command (notify_pattern ORCH_SCHEDULED_TASK) and re-inject the prompt');
-    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
-  } else if (harness === 'opencode') {
-    console.log('    1. Wire orchestrator MCP in opencode.json (stdio transport)');
-    console.log('    2. Restart OpenCode in this directory');
-    console.log('    3. Open the dashboard: http://localhost:8787/graph');
-    console.log('    4. Use task_create to mint, then start_task before editing');
-    console.log('    5. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
-  } else {
-    console.log('    1. Restart Claude Code in this directory');
-    console.log('    2. Open the dashboard: http://localhost:8787/graph');
-    console.log('    3. Ask Claude to start working — it will create tasks automatically');
-    console.log('');
-    console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
-    console.log('  Claude will create a task automatically before editing.');
-  }
+  harnesses.forEach((h, i) => {
+    if (i > 0) console.log('');
+    printNextSteps(h);
+  });
   console.log('');
 }
 
@@ -910,7 +1033,9 @@ if (require.main === module) {
   } else {
     console.log('Usage: npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service]');
     console.log('');
-    console.log('  --harness  claude (default) | cursor | codex | opencode — adapter wiring');
+    console.log('  --harness  claude (default) | cursor | codex | opencode — adapter wiring.');
+    console.log('             Accepts a comma-separated list and/or repeats, e.g.');
+    console.log('             --harness claude,codex  → wires BOTH in one run (coexistence).');
     console.log('  --service  Install user-level launchd (macOS) or systemd (Linux) service');
     console.log('             so the daemon starts on login and survives IDE restarts.');
     process.exit(cmd ? 1 : 0);
@@ -929,5 +1054,11 @@ if (require.main === module) {
     resolveInstallDir,
     // C1: extracted link strategy helper — injectable stubs enable fallback branch coverage
     linkSkill,
+    // CDX-2: Claude+Codex coexistence — MCP store split + multi-harness init
+    writeMcp,
+    writeCodexMcp,
+    orchestratorMcpEntry,
+    codexMcpTomlBlock,
+    stripCodexOrchTable,
   };
 }
