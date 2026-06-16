@@ -185,7 +185,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // Sources (all deduped): workspaces.json registry + state.workspace + sessions + agents + graphStore known dirs.
     // Cheap: NO buildGraph per workspace — just path enumeration + basename.
     const seenPaths = new Set();
-    const addPath = (p2) => { if (p2 && typeof p2 === 'string') seenPaths.add(p2); };
+    // Normalize to the OS-native separator and resolve any trailing sep — so Windows paths with
+    // forward-slash variants (stored e.g. from ?workspace= URL decode) dedup against backslash ones.
+    const normPath = (p2) => p2.replace(/[/\\]+$/, '').replace(/\//g, path.sep);
+    const addPath = (p2) => { if (p2 && typeof p2 === 'string') seenPaths.add(normPath(p2)); };
 
     // 1. Registry file (persisted across restarts)
     try {
@@ -210,11 +213,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
 
     const current = state.workspace;
-    const workspaces = [...seenPaths].map((wsPath) => ({
-      path: wsPath,
-      name: path.basename(wsPath),
-      current: wsPath === current,
-    }));
+    // Filter: keep only paths that still exist on disk AND have a .graph dir (are real workspaces),
+    // AND are not git worktrees (orchestrator attempt/feature branches where .git is a FILE, not a
+    // directory — a gitdir-pointer file written by `git worktree add`). Worktrees accumulate in
+    // graphStore._stores via ?workspace= reads but should never appear in the user-facing switcher.
+    const workspaces = [...seenPaths]
+      .filter((wsPath) => {
+        if (!fs.existsSync(wsPath)) return false;
+        if (!fs.existsSync(path.join(wsPath, '.graph'))) return false;
+        // Exclude git worktrees: in a worktree .git is a regular file (gitdir pointer), not a dir.
+        try { if (fs.statSync(path.join(wsPath, '.git')).isFile()) return false; } catch { /* no .git = not a repo clone, allow */ }
+        return true;
+      })
+      .map((wsPath) => ({
+        path: wsPath,
+        name: path.basename(wsPath),
+        current: wsPath === current,
+      }));
 
     send(res, 200, { ok: true, current, workspaces }); return true;
   }
