@@ -133,6 +133,17 @@ async function ensureRunning({ refreshSnapshot = false, port: requestedPort } = 
   // Isolated CLAUDE_PLUGIN_DATA so the snapshot daemon's state never pollutes production.
   _dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-bench-snap-'));
 
+  // SHARE the immutable model cache (read-only weights) instead of isolating it: a fresh temp
+  // dir has no embed/rerank models, forcing an ~80MB+ re-download per run — which never finishes
+  // before the bench queries complete, so the cross-encoder silently never engages (rerank() → null
+  // → cosine order). Symlink the canonical models dir so the sidecars load the CACHED weights fast
+  // and reliably. State stays isolated; only the read-only weights are shared.
+  try {
+    const realModels = [path.join(REPO, 'models'), path.join(os.homedir(), '.claude', 'orchestrator', 'models')]
+      .find((p) => fs.existsSync(p));
+    if (realModels) fs.symlinkSync(realModels, path.join(_dataDir, 'models'), 'dir');
+  } catch { /* best effort — falls back to download if the symlink can't be made */ }
+
   const child = spawn(process.execPath, [DAEMON], {
     env: {
       ...process.env,
