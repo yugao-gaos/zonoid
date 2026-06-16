@@ -5,6 +5,7 @@ const graphStore = require('../lib/graph-store');
 const judge = require('../lib/judge');
 const { contentTokens, classifyNoteType, noteText } = require('../lib/context-gate');
 const { maxCosine, nodeVecs } = require('../lib/embed');
+const { rerank } = require('../lib/rerank');
 const path = require('path');
 const fs = require('fs');
 const recallJournal = require('../lib/recall-outcome-journal');
@@ -356,6 +357,32 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       });
     }
     ragResults.sort((a, b) => b.score - a.score);
+    // CROSS-ENCODER RERANK (opt-in via ORCH_RERANK / ?rerank=1) — runs BETWEEN the cosine sort and
+    // the structBoost block, so the cross-encoder supplies precision and structBoost stays the
+    // additive structural prior on top of it. DEFAULT OFF: when the flag is absent this whole block
+    // is skipped and ordering is byte-identical to today. NULL-SAFE: if the sidecar is unavailable
+    // rerank() returns null and we keep the cosine order (no throw). The cross-encoder rescores only
+    // the top-K cosine shortlist (K = ORCH_RERANK_K, default 50); since K >> the returned k, the
+    // returned bundle always comes from the reranked set, so the reranked (1+score) band and the
+    // untouched cosine tail never scale-mix in the output. CRITICAL: this does NOT touch gateCands
+    // (computed far above on RAW cosine) — the context-gate calibration is unaffected by reranking.
+    const rerankOn = isTruthy(process.env.ORCH_RERANK) || isTruthy(u.searchParams.get('rerank'));
+    if (rerankOn && ragResults.length > 1) {
+      const K = Math.max(1, parseInt(process.env.ORCH_RERANK_K || '50', 10) || 50);
+      const shortlist = ragResults.slice(0, K);
+      const ceScores = await rerank(q, shortlist.map((r) => `${r.title || ''}\n${r.summary || ''}`.trim()));
+      if (Array.isArray(ceScores) && ceScores.length === shortlist.length) {
+        // Offset reranked items into [1,2] so the reranked shortlist sorts among itself by cross-
+        // encoder relevance and stays above the untouched cosine tail (which sits in [0,1]).
+        for (let i = 0; i < shortlist.length; i++) {
+          shortlist[i].ceScore = Math.round(ceScores[i] * 1000) / 1000;
+          shortlist[i].reranked = true;
+          shortlist[i].score = Math.round((1 + ceScores[i]) * 1000) / 1000;
+        }
+        ragResults.sort((a, b) => b.score - a.score);
+      }
+      // ceScores null (sidecar loading/unavailable) ⇒ keep cosine order — best-effort precision only.
+    }
     // Structural rerank: boost items whose graph neighbors also appear in ragResults.
     // "Structure outranks similarity once you have a foothold." (note-mqaaf1ox5pn)
     // Runs for BOTH gated and ungated calls — the gate already took its raw scores above.
