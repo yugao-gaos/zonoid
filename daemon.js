@@ -2224,7 +2224,10 @@ if (require.main === module) {
   // Default OFF (flag unset = no-op). Cadence: every 5 minutes, unref'd so it never holds the
   // process open. AUGMENTS the existing loop-based dispatch; does not replace or alter it.
   setInterval(() => {
-    try { headlessDrain.runDueDrains(state); } catch { /* best effort — never crash the daemon */ }
+    // runDueDrains is async (spawns drain children via async child_process.spawn so the event loop
+    // stays free during each child run — the deadlock fix). Fire-and-forget: do NOT await it inside
+    // this timer, just swallow any rejection so a drain failure never crashes the daemon.
+    try { headlessDrain.runDueDrains(state).catch(() => {}); } catch { /* best effort — never crash the daemon */ }
   }, 5 * 60 * 1000).unref();
 
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
