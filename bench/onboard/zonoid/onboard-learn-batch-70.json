@@ -1,0 +1,111 @@
+﻿{
+  "kept": [
+    {
+      "title": "Tests use a private daemon + tmp-dir CLAUDE_PLUGIN_DATA, never the live :8787 graph",
+      "summary": "Sandboxed-daemon convention: any test needing a daemon spawns a private one on a random port with a tmp-dir CLAUDE_PLUGIN_DATA (pattern in test/app-restart.test.js) and must never read or mutate real graph state. Forgetting this corrupts the operator's live :8787 graph.",
+      "evidence": "CONTRIBUTING.md:57-59; test/app-restart.test.js:27-29",
+      "kind": "convention",
+      "source": "0,1"
+    },
+    {
+      "title": "The shipped benchmark is held-out grading: prose spec in, external suite the agent never sees grades it",
+      "summary": "bench/heldout/ is the only benchmark this repo claims on: the agent solves from a prose spec with NO test/rubric in the worktree, the frozen artifact is graded by an external held-out suite it never saw, and a cold-arm-must-fail guard gates any win claim. The only arm difference is graph access during solve.",
+      "evidence": "README.md:124-127; bench/MEMORY-RAG-FINDINGS.md:103-105",
+      "kind": "decision",
+      "source": "3,4"
+    },
+    {
+      "title": "Memory is load-bearing iff the knowledge is empirical, external-to-artifact, AND project-local",
+      "summary": "The standing proven claim: retrieved memory lets an agent solve cases it otherwise cannot ONLY when all three hold - (1) empirical (found by running, not derivable from spec), (2) external to the artifact (nothing in-worktree reveals it), (3) project-local (absent from the model's pretraining prior). Violate any one and memory is a null or a tax.",
+      "evidence": "bench/MEMORY-RAG-FINDINGS.md:14-15,141-156",
+      "kind": "decision",
+      "source": "11"
+    },
+    {
+      "title": "Causal win measured at n=2: cold 0/10 and 0/8, warm 8.8/10 and 8/8, warm wrote MORE code",
+      "summary": "On held-out edge cases the agent never saw, cold scored 0/10 and 0/8 with zero variance; warm scored 8.8/10 and 8/8. Warm wrote 3.8x and 1.7x MORE artifact (citing the seeded note), so the win is retrieve-and-apply (added capability), not shortcutting. These are the actual project-local measured numbers.",
+      "evidence": "bench/MEMORY-RAG-FINDINGS.md:16-19,113-134",
+      "kind": "decision",
+      "source": "12"
+    },
+    {
+      "title": "Winnable-regime frequency on this corpus is ~23% (12/52), resting on project-local facts",
+      "summary": "Of 52 completed note-dependent tasks, ~23% (12/52) are winnable - the project-local-measured-facts slice, NOT the general-infra slice (pretraining covers that: 0/4 traps survived in Phase 1). Carries an explicit self-similar-corpus caveat: the corpus is the orchestrator benchmarking itself, so the category transfers but not the 23% point estimate.",
+      "evidence": "bench/MEMORY-RAG-FINDINGS.md:29-30,187-212",
+      "kind": "decision",
+      "source": "13"
+    },
+    {
+      "title": "Injection cost = payload size only; the entire ON/OFF gap is cache_read, work never moved",
+      "summary": "Forced full payload (~25k chars) cost 1.63x ON/OFF; lean payload (~1-3k chars) cost 1.03x. The whole cost difference is cache_read on the injected payload - output tokens (real work) never moved. Lean injection is cost-neutral. Measure work with output_tokens; headline on cost-weighted gross (cache_read bills ~0.1x).",
+      "evidence": "bench/MEMORY-RAG-FINDINGS.md:48-56,241-243",
+      "kind": "gotcha",
+      "source": "14"
+    },
+    {
+      "title": "Forced context imposes up to ~2x over-deliberation tax; the blocker was never recall",
+      "summary": "Eight consecutive nulls on self-solvable tasks; forced/precise context only added deliberation (monotone in amount injected, up to ~2x hardness tax - the combined DAG+RAG arm was the WORST). v7 proved semantic retrieval demonstrably worked and changed nothing - recall quality was never the limiter, so don't blame/tune retrieval to chase wins.",
+      "evidence": "bench/MEMORY-RAG-FINDINGS.md:21-23,68-76",
+      "kind": "decision",
+      "source": "15"
+    },
+    {
+      "title": "The oracle leak: an in-worktree test/dependency IS the answer key, so the agent reverse-engineers it",
+      "summary": "wincase-c's rigging guard did NOT hold - cold solved 3/3 by reading the committed acceptance test, whose generator exposes expected behavior, no matter how strategy-silent the prose spec is. A fully-specified committed test (or dependency source, see silent-cap) for a pure function leaves no empirical gap. This is structural, not a spec-writing flaw - production is naturally held-out, the bench had to be re-engineered to look like it.",
+      "evidence": "bench/MEMORY-RAG-FINDINGS.md:80-97",
+      "kind": "gotcha",
+      "source": "16"
+    },
+    {
+      "title": "Bench v1-v7 are contaminated and excluded from the release - make NO claims on them",
+      "summary": "The first seven ON-vs-OFF benchmark versions shipped their acceptance tests inside the agent's worktree, so every cold baseline overstated self-solvability (caught by the rigging guard on the eighth). v1-v7 are gitignored, excluded from the release, and carry no claims. Only bench/heldout/ ships.",
+      "evidence": "README.md:121-127; bench/MEMORY-RAG-FINDINGS.md:91-93",
+      "kind": "convention",
+      "source": "17"
+    },
+    {
+      "title": "Cursor: do NOT also wire the same hook events in .cursor/hooks.json - double execution",
+      "summary": "When merging adapters/cursor/settings.sample.json into .claude/settings.json, do not additionally wire the same events in .cursor/hooks.json - both fire and the gate/mint hooks run twice. The CLI even emits a warning for the native-.cursor/hooks.json path.",
+      "evidence": "adapters/cursor/README.md:28; packages/cli/bin/zonoid.js:833",
+      "kind": "gotcha",
+      "source": "9"
+    },
+    {
+      "title": "When session hooks don't fire, MCP-side daemon refusal on start_task/merge is the backstop",
+      "summary": "The edit-gate is defense-in-depth: session hooks are the front line, but in harnesses/modes where hooks degrade (Cursor CLI -p, cloud, Codex), the daemon's MCP-side refusal on start_task/merge (rejects a claim with no registered worktree) remains the enforcement backstop. Don't assume removing hooks removes the gate.",
+      "evidence": "adapters/cursor/README.md:86; docs/cursor-compat-spike.md:123",
+      "kind": "invariant",
+      "source": "10"
+    },
+    {
+      "title": ".graph/** is merge=ours; every clone must run 'git config merge.ours.driver true' once",
+      "summary": "The daemon is the source of truth for graph state, so .gitattributes assigns '.graph/** merge=ours' - on any merge the current branch's .graph wins wholesale, never content-merged (avoids delete/modify + checkpoint.json conflicts from attempt-branch worktrees). Merge drivers aren't portable, so each fresh clone needs the one-time 'git config merge.ours.driver true' or merges break.",
+      "evidence": ".gitattributes:4-7; CONTRIBUTING.md:65-77",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "The net = gross - plumbing token metric was a retracted artifact of sticky MCP attribution",
+      "summary": "Early reporting used net tokens and saw ON look like 0.35x ('65% less work') - but attributionMcpServer tagging is sticky across post-call messages, bucketing most of ON's cache_read into 'plumbing'. Pure artifact, retracted. Use output_tokens (or fresh input+output) as the work measure, not net.",
+      "evidence": "bench/MEMORY-RAG-FINDINGS.md:240-243",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Bench driver waits must be foreground 'kill -0' polling on the child PID",
+      "summary": "Three driver-death failure modes cost real runs: macOS has no 'timeout' coreutil (scripts assuming it die silently), detached/background drivers get orphaned and killed, and watching for output files gives FS read-cache false positives. The only reliable wait is foreground 'kill -0' polling on the child PID.",
+      "evidence": "bench/MEMORY-RAG-FINDINGS.md:244-248",
+      "kind": "gotcha",
+      "source": "discovered"
+    }
+  ],
+  "rejected": [
+    { "candidate": "2 (signed CLA before first contribution)", "reason": "generic" },
+    { "candidate": "5 (accumulated findings vs blank slate)", "reason": "restatement" },
+    { "candidate": "6 (Contributions require a signed CLA)", "reason": "generic" },
+    { "candidate": "7 (Trust hooks - Codex manual review)", "reason": "generic" },
+    { "candidate": "8 (chmod +x hook scripts)", "reason": "generic" },
+    { "candidate": "18 (artifact frozen, graded by external suite)", "reason": "restatement" },
+    { "candidate": "19 (Rigging guard: cold must fail)", "reason": "restatement" }
+  ]
+}
