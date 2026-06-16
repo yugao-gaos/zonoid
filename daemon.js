@@ -2076,6 +2076,7 @@ if (require.main === module) {
   }
 
   let httpsServer = null; // assigned in the listen callback when certs exist; closed on signal
+  let server6 = null;     // IPv6 loopback listener — so `localhost` (→ ::1 on Windows) reaches us
 
   process.on('exit', removeDaemonPort); // 'exit' must stay synchronous — port cleanup only
   // SIGINT/SIGTERM: release BOTH listening ports at SIGNAL time, not exit time. server.close()
@@ -2089,6 +2090,9 @@ if (require.main === module) {
     if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
     if (httpsServer) {
       try { httpsServer.close(); if (typeof httpsServer.closeAllConnections === 'function') httpsServer.closeAllConnections(); } catch { /* already down */ }
+    }
+    if (server6) {
+      try { server6.close(); if (typeof server6.closeAllConnections === 'function') server6.closeAllConnections(); } catch { /* already down */ }
     }
     setTimeout(() => process.exit(0), 5000).unref();
   }));
@@ -2136,6 +2140,14 @@ if (require.main === module) {
     });
     server.listen(port, '127.0.0.1', () => {
       process.stdout.write(`orchestrator daemon on http://127.0.0.1:${port}\n`);
+
+      // Also bind IPv6 loopback so `localhost` resolves on every OS — Windows resolves it to ::1
+      // first, which an IPv4-only bind misses. Best-effort + loopback-only (no 0.0.0.0 exposure).
+      try {
+        server6 = http.createServer(handler);
+        server6.on('error', (e) => { if (e.code !== 'EADDRINUSE') process.stderr.write(`IPv6 loopback listener skipped: ${e.message}\n`); });
+        server6.listen(port, '::1');
+      } catch (e) { process.stderr.write(`IPv6 loopback listener skipped: ${e.message}\n`); }
 
       // BIND-EARLY: the port is now held; load state asynchronously so /health (whitelisted
       // through the 503 gate) reports boot progress while everything else gets an honest 503.
