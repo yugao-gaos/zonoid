@@ -53,7 +53,7 @@ function makeCompletedQueueDir() {
 // Test 1: flag OFF → no spawn
 // ---------------------------------------------------------------------------
 
-test('flag ORCH_HEADLESS_DRAINS unset → isHeadlessEnabled returns false, runDueDrains no-ops', () => {
+test('flag ORCH_HEADLESS_DRAINS unset → isHeadlessEnabled returns false, runDueDrains no-ops', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   delete process.env.ORCH_HEADLESS_DRAINS;
   try {
@@ -61,7 +61,7 @@ test('flag ORCH_HEADLESS_DRAINS unset → isHeadlessEnabled returns false, runDu
     assert.equal(hd.isHeadlessEnabled(), false, 'should be disabled when env var is unset');
 
     // runDueDrains must return immediately with skipped=flag_off and ran=0
-    const result = hd.runDueDrains(null);
+    const result = await hd.runDueDrains(null);
     assert.equal(result.ran, 0, 'ran should be 0 when flag is off');
     assert.equal(result.skipped, 'flag_off', 'skipped reason should be flag_off');
     assert.deepEqual(result.drains, [], 'drains array should be empty');
@@ -71,13 +71,13 @@ test('flag ORCH_HEADLESS_DRAINS unset → isHeadlessEnabled returns false, runDu
   }
 });
 
-test('flag ORCH_HEADLESS_DRAINS=0 → isHeadlessEnabled returns false', () => {
+test('flag ORCH_HEADLESS_DRAINS=0 → isHeadlessEnabled returns false', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '0';
   try {
     const hd = freshModule();
     assert.equal(hd.isHeadlessEnabled(), false);
-    const result = hd.runDueDrains(null);
+    const result = await hd.runDueDrains(null);
     assert.equal(result.skipped, 'flag_off');
   } finally {
     if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
@@ -113,7 +113,7 @@ test('flag ORCH_HEADLESS_DRAINS=1 → isHeadlessEnabled returns true', () => {
 // Test 2: budget/concurrency caps honored
 // ---------------------------------------------------------------------------
 
-test('iterationsUsed >= maxIterations → runDueDrains skips with iterations_exhausted', () => {
+test('iterationsUsed >= maxIterations → runDueDrains skips with iterations_exhausted', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   // Set a very low cap via env
@@ -125,7 +125,7 @@ test('iterationsUsed >= maxIterations → runDueDrains skips with iterations_exh
     hd._governor.iterationsUsed = 2;
     const tmpDir = makePendingQueueDir();
     try {
-      const result = hd.runDueDrains({ workspace: tmpDir });
+      const result = await hd.runDueDrains({ workspace: tmpDir });
       assert.equal(result.ran, 0);
       assert.equal(result.skipped, 'iterations_exhausted');
     } finally {
@@ -139,7 +139,7 @@ test('iterationsUsed >= maxIterations → runDueDrains skips with iterations_exh
   }
 });
 
-test('tokensUsed >= tokenBudget → runDueDrains skips with token_budget_exhausted', () => {
+test('tokensUsed >= tokenBudget → runDueDrains skips with token_budget_exhausted', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedBudget = process.env.HEADLESS_DRAIN_TOKEN_BUDGET;
@@ -149,7 +149,7 @@ test('tokensUsed >= tokenBudget → runDueDrains skips with token_budget_exhaust
     hd._governor.tokensUsed = 1000; // at cap
     const tmpDir = makePendingQueueDir();
     try {
-      const result = hd.runDueDrains({ workspace: tmpDir });
+      const result = await hd.runDueDrains({ workspace: tmpDir });
       assert.equal(result.ran, 0);
       assert.equal(result.skipped, 'token_budget_exhausted');
     } finally {
@@ -163,7 +163,7 @@ test('tokensUsed >= tokenBudget → runDueDrains skips with token_budget_exhaust
   }
 });
 
-test('concurrentRunning >= maxConcurrency → runDueDrains skips with concurrency_cap', () => {
+test('concurrentRunning >= maxConcurrency → runDueDrains skips with concurrency_cap', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
@@ -173,7 +173,7 @@ test('concurrentRunning >= maxConcurrency → runDueDrains skips with concurrenc
     hd._governor.concurrentRunning = 1; // at cap
     const tmpDir = makePendingQueueDir();
     try {
-      const result = hd.runDueDrains({ workspace: tmpDir });
+      const result = await hd.runDueDrains({ workspace: tmpDir });
       assert.equal(result.ran, 0);
       assert.equal(result.skipped, 'concurrency_cap');
     } finally {
@@ -187,7 +187,7 @@ test('concurrentRunning >= maxConcurrency → runDueDrains skips with concurrenc
   }
 });
 
-test('no pending queue repos → runDueDrains skips with no_due_drains (flag ON, budget OK)', () => {
+test('no pending queue repos → runDueDrains skips with no_due_drains (flag ON, budget OK)', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   try {
@@ -195,7 +195,7 @@ test('no pending queue repos → runDueDrains skips with no_due_drains (flag ON,
     // Workspace with a completed queue (cursor === total) — not due
     const tmpDir = makeCompletedQueueDir();
     try {
-      const result = hd.runDueDrains({ workspace: tmpDir });
+      const result = await hd.runDueDrains({ workspace: tmpDir });
       assert.equal(result.ran, 0);
       assert.equal(result.skipped, 'no_due_drains');
     } finally {
@@ -257,7 +257,7 @@ test('findPendingLearnerRepos returns empty when no queue file exists', () => {
   }
 });
 
-test('runDueDrains with mocked runDrain: governor is incremented and decremented correctly', () => {
+test('runDueDrains with mocked runDrain: governor is incremented and decremented correctly', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedMaxIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -284,7 +284,7 @@ test('runDueDrains with mocked runDrain: governor is incremented and decremented
     // With a completed queue, runDueDrains should not touch the governor
     const tmpDir = makeCompletedQueueDir();
     try {
-      hd.runDueDrains({ workspace: tmpDir });
+      await hd.runDueDrains({ workspace: tmpDir });
       assert.equal(hd._governor.iterationsUsed, 0, 'no iterations consumed for no-op run');
       assert.equal(hd._governor.concurrentRunning, 0, 'concurrency restored to 0 after no-op');
     } finally {
@@ -301,28 +301,30 @@ test('runDueDrains with mocked runDrain: governor is incremented and decremented
 });
 
 // ---------------------------------------------------------------------------
-// Test 4: runDrain shape validation (direct invocation with real spawnSync of trivial command)
+// Test 4: runDrain shape validation (direct invocation with a REAL async spawn of a trivial command)
+// runDrain now returns a Promise (async child_process.spawn) — these await it. Spawning the same Node
+// that runs the test is fast, deterministic, and exercises the real non-blocking path end-to-end.
 // ---------------------------------------------------------------------------
 
-test('runDrain returns correct shape on a successful command (node --version)', () => {
+test('runDrain resolves with correct shape on a successful command (node --version)', async () => {
   const hd = freshModule();
   // Use the same Node executable that runs this test — guaranteed to exist, fast, exit 0.
-  const result = hd.runDrain({
+  const result = await hd.runDrain({
     bin: process.execPath,
     args: ['--version'],
     cwd: os.tmpdir(),
     timeoutMs: 10000,
   });
   assert.equal(result.exitCode, 0, 'exitCode should be 0 for node --version');
-  assert.ok(result.stdout.includes('v') || result.stdout === '', 'stdout should have version string');
+  assert.ok(result.stdout.includes('v'), 'stdout should have version string');
   assert.equal(result.timedOut, false, 'timedOut should be false for fast command');
   assert.equal(result.spawnError, null, 'spawnError should be null on success');
 });
 
-test('runDrain returns non-zero exitCode for a failing command', () => {
+test('runDrain resolves with non-zero exitCode for a failing command', async () => {
   const hd = freshModule();
   // node -e 'process.exit(42)' → exit code 42
-  const result = hd.runDrain({
+  const result = await hd.runDrain({
     bin: process.execPath,
     args: ['-e', 'process.exit(42)'],
     cwd: os.tmpdir(),
@@ -332,16 +334,29 @@ test('runDrain returns non-zero exitCode for a failing command', () => {
   assert.equal(result.timedOut, false, 'should not be a timeout');
 });
 
-test('runDrain returns timedOut=true when the command exceeds the timeout', () => {
+test('runDrain resolves timedOut=true when the command exceeds the timeout', async () => {
   const hd = freshModule();
-  // node -e 'setTimeout(()=>{},9999)' → spawnSync will SIGKILL it after 200ms
-  const result = hd.runDrain({
+  // node -e 'setTimeout(()=>{},9999)' → the unref'd timer SIGKILLs it after 200ms, close → timedOut.
+  const result = await hd.runDrain({
     bin: process.execPath,
     args: ['-e', 'setTimeout(()=>{},9999)'],
     cwd: os.tmpdir(),
     timeoutMs: 200, // very short — will time out
   });
   assert.equal(result.timedOut, true, 'should be marked as timed out');
+  assert.equal(result.exitCode, null, 'exitCode is null when the child was SIGKILL\'d on timeout');
+});
+
+test('runDrain resolves spawnError (not throw) when the binary does not exist', async () => {
+  const hd = freshModule();
+  const result = await hd.runDrain({
+    bin: path.join(os.tmpdir(), 'no-such-binary-zzz-' + Date.now()),
+    args: [],
+    cwd: os.tmpdir(),
+    timeoutMs: 5000,
+  });
+  assert.ok(result.spawnError, 'spawnError should be populated for a missing binary');
+  assert.equal(result.timedOut, false, 'a spawn error is not a timeout');
 });
 
 // ---------------------------------------------------------------------------
@@ -373,22 +388,53 @@ test('HEADLESS_DRAIN_CONFIG has the same structural keys as AUTOSTART_CONFIG', (
 // paths. It rides the SAME runner + governor as the learner. ALL spawns are MOCKED — these tests
 // never shell out to a real `claude -p` or hit a live daemon.
 //
-// Mock seam: lib/headless-drain.js captures `spawnSync` via a top-level destructure of
-// child_process. Patching child_process.spawnSync BEFORE freshModule() (which re-requires the
-// module) makes the fresh module capture the patched fn, intercepting runDrain's spawn.
+// Mock seam: lib/headless-drain.js captures `spawn` via a top-level destructure of child_process.
+// Patching child_process.spawn BEFORE freshModule() (which re-requires the module) makes the fresh
+// module capture the patched fn, intercepting runDrain's spawn — no real `claude -p` child runs.
 
 const child_process = require('child_process');
+const { EventEmitter } = require('events');
 
-/** Patch child_process.spawnSync, return { hd, calls, restore }. Each spawn is recorded, not run. */
+/**
+ * A fake child process for the async `spawn` seam: an EventEmitter with stdout/stderr sub-emitters.
+ * runDrain attaches data/close/error listeners, so the fake schedules its lifecycle on the next tick
+ * (mirroring a real child) — emitting optional stdout/stderr data then `close`. The async schedule
+ * means the event loop genuinely yields between spawn and resolution, exactly as the real path does.
+ *
+ * @param {object} [opts] — { code=0 (close exit code), stdout='', stderr='', emitError=Error|null,
+ *                            never=false (never emit close — simulate a child still running) }
+ */
+function makeFakeChild(opts = {}) {
+  const child = new EventEmitter();
+  child.stdout = new EventEmitter();
+  child.stdout.setEncoding = () => {};
+  child.stderr = new EventEmitter();
+  child.stderr.setEncoding = () => {};
+  child.kill = () => { child.emit('close', null); return true; };
+  setImmediate(() => {
+    if (opts.emitError) { child.emit('error', opts.emitError); return; }
+    if (opts.stdout) child.stdout.emit('data', opts.stdout);
+    if (opts.stderr) child.stderr.emit('data', opts.stderr);
+    if (!opts.never) child.emit('close', opts.code != null ? opts.code : 0);
+  });
+  return child;
+}
+
+/**
+ * Patch child_process.spawn, return { hd, calls, restore }. Each spawn is recorded and returns a
+ * fake child (async-close on next tick). `stub(bin,args,opts)` may return a custom fake child to
+ * tailor exit code / streams per call; default is a clean exit-0 child. Because runDrain is now
+ * async, callers must AWAIT runDueDrains for these recorded calls to be populated.
+ */
 function freshModuleWithMockedSpawn(stub) {
-  const orig = child_process.spawnSync;
+  const orig = child_process.spawn;
   const calls = [];
-  child_process.spawnSync = (bin, args, opts) => {
+  child_process.spawn = (bin, args, opts) => {
     calls.push({ bin, args, opts });
-    return stub ? stub(bin, args, opts) : { status: 0, stdout: '', stderr: '', error: null };
+    return stub ? stub(bin, args, opts) : makeFakeChild();
   };
   const hd = freshModule();
-  return { hd, calls, restore: () => { child_process.spawnSync = orig; } };
+  return { hd, calls, restore: () => { child_process.spawn = orig; } };
 }
 
 /** No-op HTTP module so _reportDrainProgress never touches the network during tests. */
@@ -511,12 +557,12 @@ test('findDueJudgeWork swallows loader errors and returns no due work', () => {
 
 // ---- flag OFF: no judge spawn even when judge work is pending ------------------------
 
-test('flag OFF ⇒ NO judge spawn even when eager + periodic work is pending', () => {
+test('flag OFF ⇒ NO judge spawn even when eager + periodic work is pending', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   delete process.env.ORCH_HEADLESS_DRAINS;
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   try {
-    const result = hd.runDueDrains({ workspace: os.tmpdir() }, undefined,
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, undefined,
       judgeDeps({ depth: 5, eagerNodes: ['note:x'] }));
     assert.equal(result.skipped, 'flag_off');
     assert.equal(calls.length, 0, 'flag off must spawn nothing');
@@ -529,7 +575,7 @@ test('flag OFF ⇒ NO judge spawn even when eager + periodic work is pending', (
 
 // ---- flag ON: judge spawns for both eager + periodic, governor accounted -------------
 
-test('flag ON: runDueDrains spawns judge for each eager node + one periodic batch', () => {
+test('flag ON: runDueDrains spawns judge for each eager node + one periodic batch', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
@@ -540,7 +586,7 @@ test('flag ON: runDueDrains spawns judge for each eager node + one periodic batc
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const tmpDir = makeCompletedQueueDir();
   try {
-    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
       judgeDeps({ depth: 3, eagerNodes: ['note:a', 'note:b'] }));
     // 2 eager + 1 periodic = 3 judge spawns
     assert.equal(calls.length, 3, 'should spawn 2 eager + 1 periodic');
@@ -569,7 +615,7 @@ test('flag ON: runDueDrains spawns judge for each eager node + one periodic batc
   }
 });
 
-test('flag ON: judge fan-out is bounded by the iteration cap', () => {
+test('flag ON: judge fan-out is bounded by the iteration cap', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -580,7 +626,7 @@ test('flag ON: judge fan-out is bounded by the iteration cap', () => {
   const tmpDir = makeCompletedQueueDir();
   try {
     // 3 eager nodes + periodic, but cap is 2 → only 2 spawns happen.
-    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
       judgeDeps({ depth: 3, eagerNodes: ['note:a', 'note:b', 'note:c'] }));
     assert.equal(calls.length, 2, 'iteration cap must bound spawns to 2');
     assert.equal(result.ran, 2);
@@ -596,13 +642,13 @@ test('flag ON: judge fan-out is bounded by the iteration cap', () => {
   }
 });
 
-test('flag ON but no judge work due ⇒ no judge spawn (no_due_drains)', () => {
+test('flag ON but no judge work due ⇒ no judge spawn (no_due_drains)', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const tmpDir = makeCompletedQueueDir();
   try {
-    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
       judgeDeps({ depth: 0, eagerNodes: [] }));
     assert.equal(calls.length, 0, 'no judge work ⇒ no spawn');
     assert.equal(result.skipped, 'no_due_drains');
@@ -621,7 +667,7 @@ test('flag ON but no judge work due ⇒ no judge spawn (no_due_drains)', () => {
 // The label drain runs the DETERMINISTIC gate-labeler (node scripts/gate-label.js) headless under
 // the SAME runner + governor as the learner — a Node child via process.execPath, NOT a `claude -p`.
 // ALL spawns are MOCKED — these tests never shell out to a real gate-label.js or hit a live daemon.
-// Mock seam is identical to the JUDGE tests: patch child_process.spawnSync BEFORE freshModule().
+// Mock seam is identical to the JUDGE tests: patch child_process.spawn BEFORE freshModule().
 
 // ---- buildLabelArgs: command shape ---------------------------------------------------
 
@@ -721,12 +767,12 @@ test('findDueLabelWork swallows loader errors and returns no due work', () => {
 
 // ---- flag OFF: no label spawn even when label work is pending ------------------------
 
-test('flag OFF ⇒ NO label spawn even when label work is pending', () => {
+test('flag OFF ⇒ NO label spawn even when label work is pending', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   delete process.env.ORCH_HEADLESS_DRAINS;
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   try {
-    const result = hd.runDueDrains({ workspace: os.tmpdir() }, undefined, {
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, undefined, {
       ...judgeDeps({ depth: 0, eagerNodes: [] }),
       ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
     });
@@ -741,7 +787,7 @@ test('flag OFF ⇒ NO label spawn even when label work is pending', () => {
 
 // ---- flag ON: label spawns ONE Node child targeting gate-label.js --------------------
 
-test('flag ON: runDueDrains spawns ONE label drain (node gate-label.js), governor accounted', () => {
+test('flag ON: runDueDrains spawns ONE label drain (node gate-label.js), governor accounted', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
@@ -752,7 +798,7 @@ test('flag ON: runDueDrains spawns ONE label drain (node gate-label.js), governo
   // Completed learner queue ⇒ no learner spawn; empty judge deps ⇒ no judge spawn.
   const tmpDir = makeCompletedQueueDir();
   try {
-    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
       ...judgeDeps({ depth: 0, eagerNodes: [] }),
       ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }, { _k: 'b', task_key: 't2' }], labeledKeys: [] }),
     });
@@ -783,13 +829,13 @@ test('flag ON: runDueDrains spawns ONE label drain (node gate-label.js), governo
   }
 });
 
-test('flag ON but no label work due ⇒ no label spawn', () => {
+test('flag ON but no label work due ⇒ no label spawn', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const tmpDir = makeCompletedQueueDir();
   try {
-    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
       ...judgeDeps({ depth: 0, eagerNodes: [] }),
       ...labelDeps({ journal: [], labeledKeys: [] }),
     });
@@ -803,7 +849,7 @@ test('flag ON but no label work due ⇒ no label spawn', () => {
   }
 });
 
-test('flag ON: label spawn is suppressed when the concurrency cap is already reached', () => {
+test('flag ON: label spawn is suppressed when the concurrency cap is already reached', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
@@ -814,7 +860,7 @@ test('flag ON: label spawn is suppressed when the concurrency cap is already rea
     // Pre-seed concurrency at the cap → the top-of-function guard short-circuits with concurrency_cap
     // BEFORE any drain runs, proving the label drain shares the same governor gate as the others.
     hd._governor.concurrentRunning = 2;
-    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
       ...judgeDeps({ depth: 0, eagerNodes: [] }),
       ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
     });
@@ -830,7 +876,7 @@ test('flag ON: label spawn is suppressed when the concurrency cap is already rea
   }
 });
 
-test('flag ON: label iteration is suppressed when the iteration cap is exhausted mid-pass', () => {
+test('flag ON: label iteration is suppressed when the iteration cap is exhausted mid-pass', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -842,7 +888,7 @@ test('flag ON: label iteration is suppressed when the iteration cap is exhausted
   try {
     // One eager judge spawn consumes the single iteration; the label drain must then be skipped
     // by its `iterationsUsed < maxIterations` guard — proving the label rides the shared iteration cap.
-    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
       ...judgeDeps({ depth: 0, eagerNodes: ['note:a'] }),
       ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
     });
@@ -860,5 +906,120 @@ test('flag ON: label iteration is suppressed when the iteration cap is exhausted
     else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+  }
+});
+
+// ===========================================================================
+// DEADLOCK REGRESSION (task /7): the daemon must stay responsive DURING a drain
+// ===========================================================================
+//
+// THE BUG this guards: runDrain used spawnSync, which blocks the daemon's single-threaded event
+// loop for the ENTIRE child run. The JUDGE drain's `claude -p` child calls BACK into the daemon
+// (GET /judge/next + POST /judge/verdict) and the LABEL child HTTP-calls it too — but a frozen
+// event loop serves NONE of those, so the child hangs waiting on the daemon while the daemon hangs
+// inside spawnSync waiting on the child: a circular deadlock that only broke at the 10-min timeout.
+// The 40 mocked-spawn tests above never caught it because the mock never actually runs a child.
+//
+// This test stands up a REAL http server (the stand-in daemon) and runs a REAL drain whose spawned
+// child makes an HTTP request to that server. Because the server runs on the SAME event loop as
+// runDrain, the only way the child's request gets answered (and the only way an INDEPENDENT
+// mid-drain probe gets answered) is if runDrain did NOT block the loop. Under the old spawnSync
+// code this test deadlocks until the timeout fires (runDrain resolves timedOut:true); under the
+// async-spawn fix the server answers promptly and the drain exits 0. We assert BOTH: the in-flight
+// liveness probe is served quickly AND the drain child completed successfully (exit 0, not timeout).
+
+const http = require('http');
+
+/** Promisified one-shot GET returning { status, body, ms }. */
+function httpGet(url) {
+  const started = Date.now();
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, (res) => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => resolve({ status: res.statusCode, body, ms: Date.now() - started }));
+    });
+    req.on('error', reject);
+    req.setTimeout(8000, () => { req.destroy(new Error('client timeout')); });
+  });
+}
+
+test('DEADLOCK REGRESSION: daemon (http server) stays responsive while a drain child runs against it', async () => {
+  // 1) Stand up a real stand-in daemon: a tiny http server on an ephemeral port.
+  //    /ping  → immediate liveness probe (the independent mid-drain request).
+  //    /judge/next → the endpoint the drain child calls back into (like the real JUDGE drain).
+  let pingServedDuringDrain = false;
+  let childCalledBack = false;
+  const server = http.createServer((req, res) => {
+    if (req.url.startsWith('/ping')) {
+      pingServedDuringDrain = true;
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"ok":true}');
+      return;
+    }
+    if (req.url.startsWith('/judge/next')) {
+      childCalledBack = true;
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"idle":true}');
+      return;
+    }
+    res.writeHead(404); res.end('nope');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  const base = `http://127.0.0.1:${port}`;
+
+  const hd = freshModule();
+
+  // 2) The drain child is a REAL Node process that calls BACK into our server (mirrors the JUDGE
+  //    child hitting /judge/next), waits for the reply, then exits 0. If the event loop were blocked
+  //    by runDrain, this request would never reach the server's handler and the child would hang to
+  //    the timeout. The child stays alive ~250ms after its callback so the loop is provably busy with
+  //    a live child when we fire the independent /ping probe below.
+  const childScript = `
+    const http = require('http');
+    http.get(process.env.DRAIN_TARGET + '/judge/next?budget=1', (res) => {
+      res.resume();
+      res.on('end', () => setTimeout(() => process.exit(0), 250));
+    }).on('error', (e) => { process.stderr.write(String(e)); process.exit(7); });
+    setTimeout(() => process.exit(8), 7000); // safety: never hang the test forever
+  `;
+
+  try {
+    // 3) Kick off the drain WITHOUT awaiting — it returns a Promise immediately (proving it does not
+    //    block synchronously). Inject the target URL via env on the child.
+    const savedTarget = process.env.DRAIN_TARGET;
+    process.env.DRAIN_TARGET = base;
+    let drainPromise;
+    try {
+      drainPromise = hd.runDrain({
+        bin: process.execPath,
+        args: ['-e', childScript],
+        cwd: os.tmpdir(),
+        timeoutMs: 6000,
+      });
+    } finally {
+      if (savedTarget === undefined) delete process.env.DRAIN_TARGET;
+      else process.env.DRAIN_TARGET = savedTarget;
+    }
+    assert.ok(typeof drainPromise.then === 'function', 'runDrain must return a Promise (non-blocking)');
+
+    // 4) While the drain is in flight, fire an INDEPENDENT liveness probe at the same server. On a
+    //    blocked event loop this would not be answered until the child was SIGKILL'd at timeout.
+    //    Give the child a moment to spawn, then probe.
+    await new Promise((r) => setTimeout(r, 150));
+    const ping = await httpGet(`${base}/ping`);
+    assert.equal(ping.status, 200, 'liveness probe must be served WHILE the drain is in flight');
+    assert.ok(ping.ms < 3000, `liveness probe must be answered promptly (was ${ping.ms}ms) — a blocked loop would stall it until the drain timeout`);
+
+    // 5) The drain child completes on its own (server answered its callback) — exit 0, not a timeout.
+    const result = await drainPromise;
+    assert.equal(result.timedOut, false, 'drain must NOT time out — the deadlock would force a timeout');
+    assert.equal(result.exitCode, 0, 'drain child should exit 0 after its HTTP callback was served');
+    assert.equal(childCalledBack, true, 'the drain child actually called back into the server (/judge/next)');
+    assert.equal(pingServedDuringDrain, true, 'the independent /ping was served during the drain');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
   }
 });
