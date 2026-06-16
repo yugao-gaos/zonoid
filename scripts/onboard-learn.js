@@ -41,38 +41,13 @@ const http = require('http');
 const crypto = require('crypto');
 
 const SELF_REPO = path.resolve(__dirname, '..');
+// Shared Claude CLI helpers (binary resolver + .env loader) — extracted to lib/claude-cli.js so
+// other callers (e.g. lib/headless-drain.js) can reuse them without duplication.
+const { resolveClaudeBin, loadEnvForClaude, needsShell: _needsShell } = require('../lib/claude-cli');
 // Load secrets from a gitignored .env.local (then .env) at the repo root into process.env without
 // overriding the real environment — this is how the headless Claude CLI spawned below picks up
 // ANTHROPIC_API_KEY (the key never lives in source). In Docker, inject the same vars at run time.
-try { require('../lib/load-env').loadEnvFiles(SELF_REPO); } catch { /* optional */ }
-// Resolve the Claude CLI cross-platform (was a hardcoded '/opt/homebrew/bin/claude', Mac-only).
-// Order: explicit override (ZONOID_CLAUDE_BIN / CLAUDE_BIN) → common absolute install paths →
-// PATH lookup (`which`/`where`) → bare 'claude'. Keeps existing Mac setups working via the abs list.
-function resolveClaudeBin() {
-  const override = process.env.ZONOID_CLAUDE_BIN || process.env.CLAUDE_BIN;
-  if (override) return override;
-  const isWin = process.platform === 'win32';
-  const abs = isWin ? [] : ['/opt/homebrew/bin/claude', '/usr/local/bin/claude', '/usr/bin/claude'];
-  for (const c of abs) { try { if (fs.existsSync(c)) return c; } catch { /* ignore */ } }
-  if (isWin) {
-    // Claude Code desktop-app CLI lives at %APPDATA%\Claude\claude-code\<version>\claude.exe and
-    // auto-updates (version folder changes), usually NOT on PATH — probe it, newest build first.
-    try {
-      const base = path.join(process.env.APPDATA || '', 'Claude', 'claude-code');
-      const exes = fs.readdirSync(base)
-        .map((v) => path.join(base, v, 'claude.exe'))
-        .filter((p) => { try { return fs.statSync(p).isFile(); } catch { return false; } })
-        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
-      if (exes.length) return exes[0];
-    } catch { /* ignore */ }
-  }
-  try {
-    const r = spawnSync(isWin ? 'where' : 'which', ['claude'], { encoding: 'utf8' });
-    const hit = (r.stdout || '').split(/\r?\n/).map((s) => s.trim()).find(Boolean);
-    if (hit) return hit;
-  } catch { /* ignore */ }
-  return 'claude';
-}
+try { loadEnvForClaude(SELF_REPO); } catch { /* optional */ }
 const CLAUDE = resolveClaudeBin();
 const DAEMON = process.env.ORCH_DAEMON || 'http://localhost:8787';
 const PREFIX = '[ingest] '; // reuse the existing reversible prefix so injected nodes stay uniform
@@ -227,14 +202,13 @@ function runLearner(repoAbs, candidates, outFile, model, maxKeep) {
   const t0 = Date.now();
   // Native cross-platform timeout (replaces the Unix-only `perl -e 'alarm N; exec @ARGV'` wrapper).
   // shell:true only when the resolved binary is a Windows .cmd/.bat shim, which Node won't spawn directly.
-  const needsShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(CLAUDE);
   const run = spawnSync(CLAUDE, args, {
     cwd: repoAbs,
     encoding: 'utf8',
     maxBuffer: 128 * 1024 * 1024,
     timeout: TIMEOUT_S * 1000,
     killSignal: 'SIGKILL',
-    shell: needsShell,
+    shell: _needsShell(CLAUDE),
   });
   console.error(`[learn] agent finished in ${Math.round((Date.now() - t0) / 1000)}s exit=${run.status}`);
   if (run.error && run.error.code === 'ENOENT') {
