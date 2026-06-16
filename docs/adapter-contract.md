@@ -272,18 +272,48 @@ parses IDE JSONL field names.
   "endedAt": "…",
   "usage": { "input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "by_model": {} },
   "human": { "tokens": 0, "chars": 0, "messages": 0, "dropped": 0 },
-  "overhead": { "tokens": 0, "by_category": {} }
+  "overhead": { "tokens": 0, "by_category": {} },
+  "cost": { "usd": 0, "source": "real", "by_model": { "<model>": { "tokens": 0, "usd": 0 } } }
 }
 ```
+
+**Tokens are the source of truth; `cost` is an ADDITIVE dollar overlay derived FROM them.** The
+`cost` block is filled by the adapter's `price()` method (below), never by the daemon. `cost.source`
+is `"real"` when `usage` came from a transcript / usage event, `"estimated"` when it came from a
+chars/4 fallback. `cost.by_model` mirrors `usage.by_model` keys with `{ tokens, usd }`. An unknown
+model prices to `0` (recorded in `cost.unpriced_models`) — pricing never throws.
+
+### Pricing is ADAPTER-OWNED; the daemon only sums dollar subtotals
+
+Per-model USD rates live in a shipped **`pricing.json`** at the repo root (`models.<key>` →
+`{ input, output, cache_read, cache_write }` in USD per 1M tokens, plus a `_provenance` block with
+source URLs + an as-of date). Rates live in config so a price change is an **edit, not a release**.
+Each adapter's `price(slice)` reads `pricing.json`, longest-prefix-matches each `usage.by_model`
+model id to a rate row, multiplies token counts by the rates, and fills `slice.cost`. The shared
+multiply primitive is `usageAccounting.priceSlice(slice, models)` — harness-agnostic math — but the
+**rate lookup and the decision to price stay in the adapter**. The daemon's only role is to SUM the
+already-computed `cost.usd` across slices (`sumUsageRecords`, `recordTaskCost`) and propagate the
+**weakest** source (any `estimated` slice ⇒ the rolled-up total is `estimated`). The daemon never
+embeds rates and never prices inline; on `/agent/done` it may *invoke* `adapter.price(slice)` (an
+adapter call), but the logic is the adapter's.
 
 ### Adapter `usage` API (each harness implements)
 
 | Method | When | Behavior |
 |---|---|---|
-| `sample(transcript_path, { baseline?, window })` | `/agent/done` (hot path) | Read **one** file; return one `UsageSlice`. |
-| `normalizeReported(raw)` | `/agent/done` body | Codex/hookless counts → `UsageSlice`. |
-| `reconcile(workspace, { since })` | Cold path only | Adapter sweeps **its own** dirs; return `UsageReport`. |
+| `sample(transcript_path, { baseline?, window })` | `/agent/done` (hot path) | Read **one** file; return one priced `UsageSlice`. |
+| `normalizeReported(raw)` | `/agent/done` body | Codex/hookless counts → priced `UsageSlice`. |
+| `price(slice)` | after sample/normalize (or daemon-invoked on store) | Read `pricing.json`; fill `slice.cost.usd` + `slice.cost.by_model` from `usage.by_model` token counts. Pricing LOGIC is adapter-owned. |
+| `reconcile(workspace, { since })` | Cold path only | Adapter sweeps **its own** dirs; return `UsageReport` (now also carries a summed `cost`). |
 | `onSessionStart({ session, workspace })` | `sessionStart` | Stale-at check + arm adapter daily scheduler. |
+
+**Codex capture (CDX-3):** the Codex adapter `reconcile()`/`sample()` sweep the interactive session
+rollout JSONL under `~/.codex/sessions` (`CODEX_HOME` override) for the latest
+`token_count.total_token_usage` (cumulative per session), and also accept the `codex exec --json`
+`turn.completed` / `response.done` `usage` shape. The `adapters/codex/hooks/agent-done.sh` Stop hook
+extracts that usage (from hook stdin or the latest rollout file) and forwards it as `reported_usage`
+in the `POST /agent/done` body. When no usage event is found, a chars/4 **estimate** is stamped
+`cost.source: "estimated"`.
 
 ### Hot path (every subagent run)
 
@@ -301,7 +331,11 @@ Per-harness watermark: `overlay.usage_reconcile[harness].at` (ISO). **No daemon 
 | **IDE opens** | `sessionStart` → `/workspace` or `/usage/reconcile` | If `at` missing or older than 24h (configurable), run **that harness's** `reconcile()` once; update `at`. Harness not opened ⇒ no sweep. |
 | **Long session** | Adapter scheduler on `sessionStart` | Cancel prior wake; arm 24h `ScheduleWakeup` (Claude native; Cursor/Codex MCP/substrate; OpenCode plugin). On fire: curl `/usage/reconcile { harness }` with same stale-at gate. |
 
-`/costflow` and dashboard ticks read `usage_records` + `usage_reconcile_snapshot` only.
+`/costflow` and dashboard ticks read `usage_records` + `usage_reconcile_snapshot` only. `/costflow`
+additionally emits a summed `cost: { usd, source, by_model }` and `/task/cost` emits `cost_usd` +
+`cost_source` alongside the token rollups — both are pure SUMS of per-slice `cost.usd`, never priced
+in the route. The dashboard renders `$X.XX` (real) or `$X.XX ≈` (estimated) next to the token
+figures; all token rendering and autonomy math is unchanged.
 
 ---
 

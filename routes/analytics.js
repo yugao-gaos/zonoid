@@ -150,6 +150,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       // gross_totals: gross/pre-baseline (BILLING) — Σ by_model, for billing %, plan quota, "X% of output"
       gross_totals: grossTotals,
       by_model: byModelEmit,
+      // cost: DOLLAR overlay (CDX-3). Daemon SUMS already-computed per-slice cost.usd (adapter-priced
+      // from pricing.json); it does NOT price here. source is weakest-wins ('estimated' if any
+      // contributing slice was a chars/4 estimate, else 'real'). ADDITIVE to the token figures above.
+      cost: { usd: Math.round(((merged.cost && merged.cost.usd) || 0) * 100) / 100, source: (merged.cost && merged.cost.source) || 'real', by_model: (merged.cost && merged.cost.by_model) || {} },
       sessions: { count: catchalls.nodes.length, unattributed: rnd(catchalls.nodes.reduce((s, n) => s + n.own, 0)) },
       results: flow.results.map((r) => ({ task: r.task, kind: kindOf(r.task), label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
       waste: wasteTrapped.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
