@@ -34,6 +34,7 @@ const analytics = require('./lib/analytics');
 const graphStore = require('./lib/graph-store');
 const sessionBindings = require('./lib/session-bindings');
 const { taskEmbedText } = require('./lib/node-tags');
+const headlessDrain = require('./lib/headless-drain');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -2188,6 +2189,15 @@ if (require.main === module) {
   // bound to a closed conversation is otherwise never re-evaluated). decideAll already sweeps on each
   // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepStaleLoops(); } catch { /* best effort */ } }, 60000).unref();
+
+  // Headless drain runner: when ORCH_HEADLESS_DRAINS is set, runs due background maintenance drains
+  // (learner, and later judge/label) via headless `node scripts/onboard-learn.js --drain` child
+  // processes. This is the NO-SESSION path — real ready-task impl work remains session-dispatched.
+  // Default OFF (flag unset = no-op). Cadence: every 5 minutes, unref'd so it never holds the
+  // process open. AUGMENTS the existing loop-based dispatch; does not replace or alter it.
+  setInterval(() => {
+    try { headlessDrain.runDueDrains(state); } catch { /* best effort — never crash the daemon */ }
+  }, 5 * 60 * 1000).unref();
 
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command
