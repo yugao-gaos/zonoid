@@ -60,9 +60,9 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 | Event | Script | Daemon endpoints |
 |---|---|---|
 | `SessionStart` | `session-start.sh` | `/ping`, `/workspace` |
-| `UserPromptSubmit` | `classify-relay.sh` | `/route`, `/context-classify`, `/ready`, … |
+| `UserPromptSubmit` | `classify-relay.sh` | `/classify` |
 | `PreToolUse` `*` | `orch-stop.sh` | `/should-stop` → `permissionDecision: deny` |
-| `PreToolUse` `apply_patch\|Write\|Edit` | `orch-gate.sh` | `/active-claim`, `/task/detail` |
+| `PreToolUse` `apply_patch\|Write\|Edit` | `orch-gate.sh` | `/active-claim`, `/task/detail`, `/session-info`, `/dispatcher/children` |
 | `PreToolUse` `Bash` | `orch-gate-bash.sh` | `/active-claim` |
 | `SubagentStart` | `subagent-start.sh` | `/agent/start` |
 | `SubagentStop` | `subagent-stop.sh` | `/agent/done` |
