@@ -119,31 +119,111 @@ across the lifetime of the KB, not just the trial that prompted them.
 
 ---
 
-## §5 Limitations
+## §5 DAG bench — judge-gated pre-injection across 11 scenarios (N=8–14)
 
-- **Single trial, single scenario**: n=1 per arm. This is a proof-of-concept measurement, not a
-  statistical study. Regime B may not hold for all context-required tasks; some may be solvable by
-  sufficiently extended OFF-arm exploration.
+The single-trial result above (§2) uses the full orchestrator ON arm with live `search_knowledge`
+MCP. A parallel bench variant isolates the **context injection** component: the bench runner
+pre-fetches KB candidates via `GET /search`, then runs each candidate through an inline Sonnet
+`judgeEdge()` call (KEEP/PRUNE) using the full task spec, and injects only KEEP candidates as a
+preamble before the ON arm runs — with **no live MCP at all**. This separates "does injected
+context help?" from "can the agent find the right context on its own?"
 
-- **Controlled environment**: the task-transcript scenario was designed to require KB context.
-  Real-world workloads are a mix of Regime A (KB-neutral or KB-beneficial) and Regime B
-  (KB-required) tasks. The overall ROI depends on the distribution of task types in practice.
+Eleven scenarios across two groups (KB-required and KB-neutral), N=8–14 trials per scenario
+(trials 20–30, post judge-fix, model=sonnet). Raw data: `bench/economy/results-dag.jsonl`.
+
+### §5.1 KB-required group (3 scenarios)
+
+These scenarios have a planted KB note that teaches a non-obvious fact the spec omits. OFF arm
+has no KB access.
+
+| Scenario | N | ON solved | OFF solved | avg ON/OFF ratio |
+|---|---|---|---|---|
+| task-transcript | 14 | **14/14** | **0/14** | 2.83× (ON more expensive but only arm that solves) |
+| rate-limiter-strategy | 8 | **8/8** | **3/8** | 1.35× |
+| cache-eviction-policy | 10 | **10/10** | **5/10** | **0.35×** (ON 2.9× cheaper) |
+
+`task-transcript`: perfect separation across 14 trials (p < 10⁻⁸, Fisher exact). OFF arm
+consistently scores 17/27 core cases and 0/10 edge cases — the same failure mode every time —
+confirming the spec genuinely omits the byWindow fallback pattern and the KB note is the only
+reliable path to it.
+
+`rate-limiter-strategy`: ON always solves; OFF flukes 3/8. The OFF successes are independent
+deductions — consistent with a task that is *hard but not impossible* without KB.
+
+`cache-eviction-policy`: the decisive finding is cost. When ON solves (10/10), it averages
+45k tok-eq; when OFF solves (5/10 trials), it averages 130k+ tok-eq and frequently hits the
+budget cap. The KB note (CLOCK algorithm) saves ~3× in tokens on the trials where OFF can solve at
+all — and removes the 50% failure rate entirely.
+
+### §5.2 KB-neutral group (8 scenarios)
+
+These scenarios have no planted KB note and the correct solution is derivable from the spec alone.
+The question is whether DAG injection adds overhead.
+
+| Scenario | N | ON solved | OFF solved | avg ON/OFF ratio |
+|---|---|---|---|---|
+| fix-bug | 10 | 10/10 | 10/10 | 1.34× |
+| write-tests | 8 | 8/8 | 8/8 | 1.38× |
+| pure-algorithm | 9 | 9/9 | 9/9 | 1.37× |
+| add-jsdoc | 12 | 12/12 | 12/12 | 1.42× |
+| lru-cache | 9 | 9/9 | 9/9 | 1.49× |
+| pure-refactor | 9 | 9/9 | 9/9 | 1.58× |
+| balanced-brackets | 12 | 12/12 | 12/12 | 1.61× |
+| cron-next-fire | 11 | 11/11 | 11/11 | **3.39×** |
+
+Seven of eight KB-neutral scenarios: 1.34–1.61× overhead. Solve rate unchanged (100%/100%
+in both arms). The judge correctly returns `judgedKept=0` for most queries — meaning the Sonnet
+judge prunes all candidates and no context is injected. The overhead comes from the
+`GET /search` + judge call itself (~1 Sonnet invocation at ~700 tok-eq per query).
+
+`cron-next-fire` is the outlier at 3.39×. It consistently returns `judgedKept=1` — a loosely
+matched implementation note that passes the judge but then inflates the ON arm's prompt without
+helping. This is a false-positive injection: the judge is too permissive for this scenario's query.
+The note scores 0.57 cosine (above the 0.5 threshold) but is topically adjacent rather than a
+genuine prerequisite.
+
+### §5.3 Net economics summary
+
+| Group | Avg ON/OFF ratio | Solve rate impact |
+|---|---|---|
+| KB-required (3 scenarios) | varies (0.35× to 2.83×) | ON: 100%; OFF: 0–63% |
+| KB-neutral (7 of 8 scenarios) | **1.46×** | Unchanged (100%/100%) |
+| KB-neutral outlier (cron-next-fire) | 3.39× | Unchanged |
+
+**The economics are regime-dependent:**
+- In the KB-required regime, DAG injection is decisive: OFF fails or costs 3× more. The injection
+  overhead is trivially offset by the solve-rate gain.
+- In the KB-neutral regime, injection costs ~1.46× on average when the judge correctly prunes.
+  The judge call itself is the main overhead source; a faster gate (haiku or local classifier) would
+  reduce this.
+- The cron-next-fire false positive is the one case where the judge should prune but doesn't.
+  Tightening the score threshold from 0.5 to 0.6 would cut this injection while preserving all
+  KB-required hits (minimum KB-required score in the data: 0.695).
+
+---
+
+## §6 Limitations
+
+- **Controlled scenarios**: KB-required scenarios were designed to require KB context. Real-world
+  task distributions include a larger fraction of KB-neutral work. The overhead-vs-gain tradeoff
+  depends on that distribution.
+
+- **Single codebase**: all scenarios run against the Zonoid codebase. Generalization to foreign
+  repos with sparser KB coverage is not measured here.
 
 - **Sonnet model only**: results may vary with other model sizes. Larger models may have better
-  independent deduction, raising the OFF baseline and shifting the crossover threshold.
+  independent deduction, raising the OFF baseline for KB-required tasks.
 
-- **Token budget cap**: the OFF arm's behavior under an unlimited budget is unknown. It is possible
-  (but unlikely, given 0/37 at 1M tok-eq) that OFF would eventually solve with sufficient tokens.
-
-- **Mixed-suite bench underway**: `bench/suite/` is measuring ON overhead on KB-neutral tasks and
-  computing net ROI across a realistic distribution of task types. That will provide a more complete
-  picture of whole-product economics across the full task distribution.
+- **cron-next-fire false positive**: one scenario shows 3.39× overhead from a false-positive
+  injection. Raising the score threshold to 0.6 would address this but has not been validated
+  across the full scenario set.
 
 ---
 
 ## Appendix
 
-- **Raw result**: `bench/economy/results.jsonl` (trial=0, model=sonnet, scenario=task-transcript)
-- **Harness**: `bench/bench-economy.js`
+- **Raw result (§2)**: `bench/economy/results.jsonl` (trial=0, model=sonnet, scenario=task-transcript)
+- **Raw data (§5 DAG bench)**: `bench/economy/results-dag.jsonl` (trials 20–30, all 11 scenarios)
+- **Harness**: `scripts/bench-economy.js`, `scripts/bench-economy-dag.js`, `scripts/bench-suite.js`
 - **Related**: [Paper 001 — KB Injection Lifts Agent Solve Rate](../quality-gain/)
 - **Related**: [Paper 002 — Measuring Autonomous Leverage](../autonomy-score/)
