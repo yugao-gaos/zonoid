@@ -876,6 +876,88 @@ test('flag ON: label spawn is suppressed when the concurrency cap is already rea
   }
 });
 
+// ---- rate-limit / overload backoff + per-tick cap (fire-rate) ---------------------------
+
+test('isThrottled detects 429/529/overloaded/rate-limit; false for a clean result', () => {
+  const hd = freshModule();
+  assert.ok(hd.isThrottled({ stderr: 'Error 429 Too Many Requests' }));
+  assert.ok(hd.isThrottled({ stdout: 'API Error: 529 Overloaded' }));
+  assert.ok(hd.isThrottled({ stderr: 'overloaded_error' }));
+  assert.ok(hd.isThrottled({ stdout: 'rate limit exceeded' }));
+  assert.ok(!hd.isThrottled({ stdout: 'all good', stderr: '' }));
+  assert.ok(!hd.isThrottled(null));
+});
+
+test('recordDrainOutcome: a throttle sets an exponentially-growing backoff; a clean run resets it', () => {
+  const hd = freshModule();
+  const T0 = 1_000_000;
+  const base = hd.backoffConfig().baseMs;
+  hd.recordDrainOutcome({ stderr: '429' }, T0);
+  assert.equal(hd._governor.consecutiveThrottles, 1);
+  assert.equal(hd._governor.backoffUntil, T0 + base, 'first throttle = base window');
+  hd.recordDrainOutcome({ stdout: '529 overloaded' }, T0);
+  assert.equal(hd._governor.consecutiveThrottles, 2);
+  assert.equal(hd._governor.backoffUntil, T0 + base * 2, 'second throttle doubles the window');
+  hd.recordDrainOutcome({ timedOut: true }, T0); // a timeout is also a backoff trigger
+  assert.equal(hd._governor.consecutiveThrottles, 3);
+  assert.equal(hd._governor.backoffUntil, T0 + base * 4);
+  hd.recordDrainOutcome({ exitCode: 0, stdout: 'done' }, T0); // clean run resets
+  assert.equal(hd._governor.consecutiveThrottles, 0);
+  assert.equal(hd._governor.backoffUntil, 0, 'clean run clears the backoff');
+});
+
+test('recordDrainOutcome: backoff window is capped at capMs', () => {
+  const hd = freshModule();
+  const { capMs } = hd.backoffConfig();
+  hd._governor.consecutiveThrottles = 20; // uncapped this would be astronomically large
+  hd.recordDrainOutcome({ stderr: '429' }, 0);
+  assert.equal(hd._governor.backoffUntil, capMs, 'window capped at capMs');
+});
+
+test('flag ON: runDueDrains no-ops with skipped:backoff while backoffUntil is in the future', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const tmpDir = makePendingQueueDir(); // learner WOULD be due — backoff must pre-empt it
+  try {
+    hd._governor.backoffUntil = Date.now() + 60_000;
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 5, eagerNodes: ['n1', 'n2'] }),
+      ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
+    });
+    assert.equal(result.skipped, 'backoff', 'backoff pre-empts all drains');
+    assert.equal(calls.length, 0, 'nothing spawned while backed off');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+test('flag ON: judge spawns are capped per tick (HEADLESS_DRAIN_MAX_PER_TICK) despite many eager nodes', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_PER_TICK;
+  process.env.HEADLESS_DRAIN_MAX_PER_TICK = '2';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn(); // clean exit-0 children
+  const tmpDir = makeCompletedQueueDir(); // learner NOT due
+  try {
+    await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: ['n1', 'n2', 'n3', 'n4', 'n5'] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }), // label NOT due
+    });
+    assert.equal(calls.length, 2, 'per-tick cap bounds judge spawns to 2, not the 5 eager nodes');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_PER_TICK;
+    else process.env.HEADLESS_DRAIN_MAX_PER_TICK = savedCap;
+  }
+});
+
 test('flag ON: label iteration is suppressed when the iteration cap is exhausted mid-pass', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';

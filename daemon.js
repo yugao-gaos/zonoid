@@ -2280,14 +2280,18 @@ if (require.main === module) {
   // Headless drain runner: when ORCH_HEADLESS_DRAINS is set, runs due background maintenance drains
   // (learner, and later judge/label) via headless `node scripts/onboard-learn.js --drain` child
   // processes. This is the NO-SESSION path — real ready-task impl work remains session-dispatched.
-  // Default OFF (flag unset = no-op). Cadence: every 5 minutes, unref'd so it never holds the
-  // process open. AUGMENTS the existing loop-based dispatch; does not replace or alter it.
+  // Default OFF (flag unset = no-op). Cadence: configurable (HEADLESS_DRAIN_INTERVAL_MS, default
+  // 15 min) + a small boot-time jitter so instances don't align; unref'd so it never holds the
+  // process open. AUGMENTS the existing loop-based dispatch; does not replace or alter it. The
+  // governor's rate-limit backoff (lib/headless-drain.js) additionally skips ticks under 429/529.
+  const HEADLESS_DRAIN_INTERVAL_MS =
+    (Number(process.env.HEADLESS_DRAIN_INTERVAL_MS) || 15 * 60 * 1000) + Math.floor(Math.random() * 60 * 1000);
   setInterval(() => {
     // runDueDrains is async (spawns drain children via async child_process.spawn so the event loop
     // stays free during each child run — the deadlock fix). Fire-and-forget: do NOT await it inside
     // this timer, just swallow any rejection so a drain failure never crashes the daemon.
     try { headlessDrain.runDueDrains(state).catch(() => {}); } catch { /* best effort — never crash the daemon */ }
-  }, 5 * 60 * 1000).unref();
+  }, HEADLESS_DRAIN_INTERVAL_MS).unref();
 
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command
