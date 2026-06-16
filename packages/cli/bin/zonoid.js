@@ -566,11 +566,137 @@ function installService() {
 
 const VALID_HARNESSES = new Set(['claude', 'cursor', 'codex', 'opencode']);
 
+// ── Graph auto-commit hook ──────────────────────────────────────────────────
+
+/**
+ * Returns the verbatim content for .git/hooks/post-commit that snapshots
+ * .graph/*.jsonl files after each commit when ORCH_GRAPH_AUTOCOMMIT=1.
+ */
+function graphAutocommitHookScript() {
+  return `#!/bin/sh
+[ "\${ORCH_GRAPH_AUTOCOMMIT}" = "1" ] || exit 0
+
+CHECKPOINT=".git/GRAPH_CHECKPOINT"
+REPO_ROOT=$(git rev-parse --show-toplevel)
+COMMIT_HASH=$(git rev-parse --short HEAD)
+
+# On first run, catch all pending changes
+[ -f "$CHECKPOINT" ] || touch -t 197001010000 "$CHECKPOINT"
+
+# Find .graph/ files modified since last snapshot
+CHANGED=$(find .graph -name "*.jsonl" -newer "$CHECKPOINT" 2>/dev/null)
+[ -n "$CHANGED" ] || exit 0
+
+claude --dangerously-skip-permissions -p "
+The git commit $COMMIT_HASH just landed in $REPO_ROOT.
+Stage and commit these .graph/ files (changed since last graph snapshot):
+
+$CHANGED
+
+Steps:
+1. git add $CHANGED
+2. git commit --no-verify -m 'chore: graph snapshot [$COMMIT_HASH]'
+3. touch $REPO_ROOT/$CHECKPOINT
+
+Do not touch anything outside .graph/.
+" 2>/dev/null &
+`;
+}
+
+/**
+ * Returns a NEW merged settings object with ORCH_GRAPH_AUTOCOMMIT set in env.
+ * Safety rule: never downgrade an existing "1" to "0".
+ * If enable=true  → set env.ORCH_GRAPH_AUTOCOMMIT = "1"
+ * If enable=false → only ADD "0" when the key is ABSENT (never overwrite "1")
+ */
+function mergeGraphAutocommitFlag(settings, enable) {
+  const out = JSON.parse(JSON.stringify(settings));
+  if (!out.env) out.env = {};
+  if (enable) {
+    out.env.ORCH_GRAPH_AUTOCOMMIT = '1';
+  } else {
+    // Only add "0" if the key doesn't already exist
+    if (!Object.prototype.hasOwnProperty.call(out.env, 'ORCH_GRAPH_AUTOCOMMIT')) {
+      out.env.ORCH_GRAPH_AUTOCOMMIT = '0';
+    }
+    // If it's already "1", leave it as "1" — no downgrade
+  }
+  return out;
+}
+
+/**
+ * Check and install the graph auto-commit post-commit hook into the git repo
+ * at `cwd`. Also merges ORCH_GRAPH_AUTOCOMMIT into ~/.claude/settings.json.
+ * opts.enable=true → write "1" into env; false/absent → write "0" (only if absent).
+ */
+function checkGraphAutocommitHook(cwd, opts = {}) {
+  // Resolve hooks dir via git (handles worktrees + core.hooksPath)
+  let hooksDir;
+  try {
+    const raw = execSync('git rev-parse --git-path hooks', { cwd, encoding: 'utf8' }).trim();
+    // May be relative — resolve relative to cwd
+    hooksDir = path.isAbsolute(raw) ? raw : path.resolve(cwd, raw);
+  } catch (_) {
+    warn('not a git repo — skipping graph auto-commit hook');
+    return;
+  }
+
+  const hookPath = path.join(hooksDir, 'post-commit');
+  const MARKER = 'ORCH_GRAPH_AUTOCOMMIT';
+
+  if (fs.existsSync(hookPath)) {
+    const existing = fs.readFileSync(hookPath, 'utf8');
+    if (existing.includes(MARKER)) {
+      ok('post-commit hook already installed');
+    } else if (existing.trim() === '') {
+      // Empty file — safe to replace with our hook
+      fix('Writing graph auto-commit post-commit hook (replacing empty file)...');
+      fs.writeFileSync(hookPath, graphAutocommitHookScript());
+      try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+      ok('post-commit hook installed');
+    } else {
+      // Non-empty, foreign post-commit — do NOT overwrite
+      warn('A foreign post-commit hook exists — not overwriting. Add ORCH_GRAPH_AUTOCOMMIT guard manually.');
+    }
+  } else {
+    // Hook does not exist — write it
+    fix('Writing graph auto-commit post-commit hook...');
+    fs.mkdirSync(hooksDir, { recursive: true });
+    fs.writeFileSync(hookPath, graphAutocommitHookScript());
+    try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+    ok('post-commit hook installed');
+  }
+
+  // Merge the flag into ~/.claude/settings.json
+  const claudeDir = path.join(os.homedir(), '.claude');
+  const settingsPath = path.join(claudeDir, 'settings.json');
+  let settings = {};
+  if (fs.existsSync(settingsPath)) {
+    try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); }
+    catch (_) { settings = {}; }
+  }
+  const merged = mergeGraphAutocommitFlag(settings, opts.enable);
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2));
+  if (opts.enable) {
+    ok('ORCH_GRAPH_AUTOCOMMIT=1 set in ~/.claude/settings.json');
+  } else if (merged.env && merged.env.ORCH_GRAPH_AUTOCOMMIT === '0') {
+    fix('ORCH_GRAPH_AUTOCOMMIT added as "0" in ~/.claude/settings.json');
+    log('Tip: set ORCH_GRAPH_AUTOCOMMIT=1 in ~/.claude/settings.json env to enable graph auto-snapshots');
+  } else {
+    ok('~/.claude/settings.json env updated (existing ORCH_GRAPH_AUTOCOMMIT preserved)');
+  }
+}
+
 function parseInitArgs(argv) {
   const rest = argv.slice(3);
   const harnessIdx = rest.indexOf('--harness');
   const harness = harnessIdx >= 0 && rest[harnessIdx + 1] ? rest[harnessIdx + 1] : 'claude';
-  return { service: rest.includes('--service'), harness };
+  return {
+    service: rest.includes('--service'),
+    harness,
+    enableGraphAutocommit: rest.includes('--graph-autocommit'),
+  };
 }
 
 function mergeCursorHooks(existing, sample, extras = []) {
@@ -859,7 +985,10 @@ async function init(opts = {}) {
   await checkDaemon();
   await registerWorkspace(cwd);
 
-  section('6. Warmup');
+  section('6. Graph auto-commit hook');
+  checkGraphAutocommitHook(cwd, { enable: opts.enableGraphAutocommit });
+
+  section('7. Warmup');
   const warmupScript = path.join(INSTALL_DIR, 'scripts', 'warmup-embeddings.js');
   if (fs.existsSync(warmupScript)) {
     fix('Warming up embedding model (first search_knowledge will be instant)...');
@@ -899,6 +1028,12 @@ async function init(opts = {}) {
     console.log('');
     console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
     console.log('  Claude will create a task automatically before editing.');
+    console.log('');
+    console.log('  Graph auto-commit hook:');
+    console.log('    A post-commit hook was installed in .git/hooks/post-commit.');
+    console.log('    It snapshots .graph/*.jsonl changes after each commit when enabled.');
+    console.log('    To enable: set ORCH_GRAPH_AUTOCOMMIT=1 in ~/.claude/settings.json env block,');
+    console.log('    or re-run: npx @zonoid/cli init --graph-autocommit');
   }
   console.log('');
 }
@@ -908,11 +1043,14 @@ if (require.main === module) {
   if (cmd === 'init') {
     init(parseInitArgs(process.argv)).catch((err) => { console.error(err); process.exit(1); });
   } else {
-    console.log('Usage: npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service]');
+    console.log('Usage: npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service] [--graph-autocommit]');
     console.log('');
-    console.log('  --harness  claude (default) | cursor | codex | opencode — adapter wiring');
-    console.log('  --service  Install user-level launchd (macOS) or systemd (Linux) service');
-    console.log('             so the daemon starts on login and survives IDE restarts.');
+    console.log('  --harness         claude (default) | cursor | codex | opencode — adapter wiring');
+    console.log('  --service         Install user-level launchd (macOS) or systemd (Linux) service');
+    console.log('                    so the daemon starts on login and survives IDE restarts.');
+    console.log('  --graph-autocommit  Set ORCH_GRAPH_AUTOCOMMIT=1 in ~/.claude/settings.json env');
+    console.log('                    to enable automatic graph snapshot commits after each git commit.');
+    console.log('                    Without this flag the hook is installed but disabled (flag is "0").');
     process.exit(cmd ? 1 : 0);
   }
 } else {
@@ -929,5 +1067,8 @@ if (require.main === module) {
     resolveInstallDir,
     // C1: extracted link strategy helper — injectable stubs enable fallback branch coverage
     linkSkill,
+    // graph auto-commit hook helpers
+    graphAutocommitHookScript,
+    mergeGraphAutocommitFlag,
   };
 }

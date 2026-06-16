@@ -13,6 +13,8 @@ const {
   dirHasLiveData,
   resolveInstallDir,
   linkSkill,
+  graphAutocommitHookScript,
+  mergeGraphAutocommitFlag,
 } = require('../packages/cli/bin/zonoid.js');
 const fs = require('fs');
 
@@ -194,6 +196,72 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
   } finally {
     fs.rmSync(base, { recursive: true, force: true });
   }
+}
+
+// ── graphAutocommitHookScript ────────────────────────────────────────────────
+{
+  const script = graphAutocommitHookScript();
+  ok('graphAutocommitHookScript: ORCH_GRAPH_AUTOCOMMIT guard present',
+    script.includes('[ "${ORCH_GRAPH_AUTOCOMMIT}" = "1" ]'));
+  ok('graphAutocommitHookScript: find .graph -name "*.jsonl" present',
+    script.includes('find .graph -name "*.jsonl"'));
+  ok('graphAutocommitHookScript: -newer flag present',
+    script.includes('-newer'));
+  ok('graphAutocommitHookScript: git commit --no-verify present',
+    script.includes('git commit --no-verify'));
+}
+
+// ── mergeGraphAutocommitFlag ─────────────────────────────────────────────────
+// (a) enable=true → env.ORCH_GRAPH_AUTOCOMMIT === "1"
+{
+  const base = { env: { OTHER: 'keep' }, someTopLevel: 'value' };
+  const result = mergeGraphAutocommitFlag(base, true);
+  ok('mergeGraphAutocommitFlag enable=true: flag is "1"', result.env.ORCH_GRAPH_AUTOCOMMIT === '1');
+  ok('mergeGraphAutocommitFlag enable=true: preserves OTHER env key', result.env.OTHER === 'keep');
+  ok('mergeGraphAutocommitFlag enable=true: preserves top-level settings', result.someTopLevel === 'value');
+  // Ensure input was not mutated
+  ok('mergeGraphAutocommitFlag enable=true: input not mutated', !('ORCH_GRAPH_AUTOCOMMIT' in base.env));
+}
+
+// (b) enable=false + key absent → "0"
+{
+  const base = { env: { OTHER: 'keep' }, topKey: 42 };
+  const result = mergeGraphAutocommitFlag(base, false);
+  ok('mergeGraphAutocommitFlag enable=false absent: flag is "0"', result.env.ORCH_GRAPH_AUTOCOMMIT === '0');
+  ok('mergeGraphAutocommitFlag enable=false absent: preserves OTHER', result.env.OTHER === 'keep');
+  ok('mergeGraphAutocommitFlag enable=false absent: preserves topKey', result.topKey === 42);
+}
+
+// (c) enable=false + existing "1" → STILL "1" (no downgrade)
+{
+  const base = { env: { ORCH_GRAPH_AUTOCOMMIT: '1', OTHER: 'keep' } };
+  const result = mergeGraphAutocommitFlag(base, false);
+  ok('mergeGraphAutocommitFlag no-downgrade: existing "1" stays "1"', result.env.ORCH_GRAPH_AUTOCOMMIT === '1');
+  ok('mergeGraphAutocommitFlag no-downgrade: preserves OTHER', result.env.OTHER === 'keep');
+}
+
+// (d) env absent → created with flag
+{
+  const base = { topOnly: 'yes' };
+  const result = mergeGraphAutocommitFlag(base, true);
+  ok('mergeGraphAutocommitFlag no-env: env created', result.env && result.env.ORCH_GRAPH_AUTOCOMMIT === '1');
+  ok('mergeGraphAutocommitFlag no-env: topOnly preserved', result.topOnly === 'yes');
+}
+
+// ── parseInitArgs: --graph-autocommit ───────────────────────────────────────
+{
+  const withFlag = parseInitArgs(['node', 'zonoid', 'init', '--graph-autocommit']);
+  ok('parseInitArgs --graph-autocommit: enableGraphAutocommit=true', withFlag.enableGraphAutocommit === true);
+
+  const withoutFlag = parseInitArgs(['node', 'zonoid', 'init']);
+  ok('parseInitArgs no --graph-autocommit: enableGraphAutocommit is falsy',
+    !withoutFlag.enableGraphAutocommit);
+
+  // Existing --harness and --service parsing unaffected
+  const combined = parseInitArgs(['node', 'zonoid', 'init', '--harness', 'cursor', '--service', '--graph-autocommit']);
+  ok('parseInitArgs combined: harness still parsed', combined.harness === 'cursor');
+  ok('parseInitArgs combined: service still parsed', combined.service === true);
+  ok('parseInitArgs combined: enableGraphAutocommit=true', combined.enableGraphAutocommit === true);
 }
 
 process.exit(failed ? 1 : 0);
