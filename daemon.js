@@ -1451,6 +1451,42 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
   return added;
 }
 
+// Seed low-weight context edges from a task's blocking prerequisites (gate-transparent).
+// Called at block-edge creation and at task adoption so prerequisites flow as retrieval context.
+// Gate nodes (kind==='gate') are structural — seed their predecessors instead (1-hop transit).
+// Pure on (overlay, ws, taskId) — mutates `overlay` in place; the CALLER is responsible for saving.
+// Idempotent: addEdge dedupes on (from, to, fromWorkspace) — safe to call multiple times.
+// Uses ov.edges directly for blocking-edge lookup (buildGraph output does not expose edges array).
+// `_g` is an optional pre-built graph (for unit tests — omit in production and buildGraph(ws) is used).
+function seedBlockingDepContext(ov, ws, taskId, _g) {
+  if (!ov || !taskId) return;
+  const g = _g || buildGraph(ws);
+  const task = g.tasks.find((t) => t.id === taskId);
+  if (!task || (task.kind || 'task') === 'gate') return; // gates don't receive context seeds
+  const edges = ov.edges || [];
+  // Blocking edges are stored WITHOUT a kind field (absent = blocking, back-compat) — match both.
+  const isBlocking = (e) => !e.kind || e.kind === 'blocking';
+  const directBlockers = edges.filter((e) => e.to === taskId && isBlocking(e));
+  for (const e of directBlockers) {
+    const dep = g.tasks.find((t) => t.id === e.from);
+    if (!dep) continue;
+    if ((dep.kind || 'task') === 'gate') {
+      // Gate-transparent: seed gate's own blocking deps instead (1-hop transit, no recursion)
+      const gateBlockers = edges.filter((ge) => ge.to === dep.id && isBlocking(ge));
+      for (const ge of gateBlockers) {
+        const realDep = g.tasks.find((t) => t.id === ge.from);
+        if (realDep && (realDep.kind || 'task') !== 'gate') {
+          overlayStore.addEdge(ov, ge.from, taskId, null, 'context', 0,
+            { weight: 0, judged: false, by: 'autowire-blockdep', origin: 'blocking-dep-seed' });
+        }
+      }
+    } else {
+      overlayStore.addEdge(ov, e.from, taskId, null, 'context', 0,
+        { weight: 0, judged: false, by: 'autowire-blockdep', origin: 'blocking-dep-seed' });
+    }
+  }
+}
+
 // UNIFIED INGEST FUNNEL — the one path every node passes through at BIRTH (BUILD1 of the lifecycle
 // unification, design note:note-mqeapqae6jf). Historically embed → setTaskVec → autowire → markEagerJudge
 // fired ONLY inside /overlay/status on the first vec, so native/file-drop/follow-up tasks reached
@@ -1462,7 +1498,9 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
 // like the lazy path. Mutates `overlay` in place; the CALLER is responsible for saving. `g` is a built
 // graph for the recall pass (pass a fresh buildGraph(ws)). Idempotent at the edge layer (addEdge dedupes)
 // and at the vec layer (re-embed just rewrites the vec). Returns { vec, seeded, marked } for callers/tests.
-async function ingestNode(overlay, g, key, { title, summary } = {}) {
+// `ws` is optional: when provided, seedBlockingDepContext fires after autowire to seed blocking-dep
+// context edges for tasks that already have blocking prerequisites at adoption time.
+async function ingestNode(overlay, g, key, { title, summary } = {}, ws = null) {
   const out = { vec: null, seeded: 0, marked: false };
   if (!overlay || !key) return out;
   try {
@@ -1492,6 +1530,9 @@ async function ingestNode(overlay, g, key, { title, summary } = {}) {
       const seeded = await autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec);
       out.seeded = seeded;
       if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
+      // Seed context edges from existing blocking deps (covers tasks adopted after their block edges exist).
+      // Best-effort: errors in seedBlockingDepContext must not abort ingestion.
+      if (ws) { try { seedBlockingDepContext(overlay, ws, key); } catch { /* best-effort */ } }
     }
   } catch { /* best-effort — never let ingestion throw into a caller's hot path */ }
   return out;
@@ -1798,7 +1839,7 @@ function buildGraph(ws) {
     (async () => {
       for (const n of newlyAdopted) {
         try {
-          const r = await ingestNode(state.overlay, buildGraph(ws), n.key, { title: n.title, summary: n.summary });
+          const r = await ingestNode(state.overlay, buildGraph(ws), n.key, { title: n.title, summary: n.summary }, ws);
           // If ingest found no edges to seed (embed disabled, isolated node, etc.), the ADOPT-HOLD
           // judgingSince stamp we set synchronously above would keep the node in not_ready forever.
           // Clear it so the node can progress to ready without waiting for a judge that will never come.
@@ -2034,7 +2075,7 @@ const ctx = {
   gateTask, haikusGate,
   scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks, suggestForTask,
   SUGGEST_DUP_THRESHOLD, SEMANTIC_DUP_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,
-  autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD,
+  autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD,
   noteCurrentAsOf, gatedSearchCounts, checkGatedRateLimit,
   knowledgeText, digestRejected, leanLearnings,
   respCacheGet, respCachePut, frontier,
@@ -2094,7 +2135,7 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, buildGraph, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
