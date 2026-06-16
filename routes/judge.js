@@ -123,6 +123,20 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           action: it.action,
         };
       }
+      if (it.kind === 'reinforce') {
+        const noteId = String(it.noteId || it.id).replace(/^note:/, '');
+        const n = state.overlay.note_nodes[noteId];
+        return {
+          kind: 'reinforce',
+          id: it.id,
+          noteId: it.noteId,
+          note: n ? { key: it.noteId, title: n.title, summary: String(n.summary || '').slice(0, 300), validFrom: n.validFrom || null } : { key: it.noteId, title: it.id, summary: '' },
+          boost: it.boost,
+          winRate: it.winRate,
+          total: it.total,
+          action: it.action,
+        };
+      }
       const note = byId.get(it.id) || { id: it.id, label: it.id, summary: '', vec: null };
       const candidates = noteRagCandidates(state.overlay, g, it.id, note.label, note.summary, note.vec, 8)
         .map((c) => ({ key: c.key, title: c.title, summary: c.summary, score: c.score, status: c.status, via: c.via }));
@@ -285,6 +299,24 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         for (const k of keys) overlayStore.clearPendingDup(T.ov, k);
         judge.stampCluster(T.ov.judgedClusters, keys, epoch);
         applied.stamped = (applied.stamped || 0) + 1; applied.clustersJudged++;
+      }
+      // boostNote: record a reinforce boost on a note that has a high win rate.
+      // Appends note_reinforced event carrying the boost amount, winRate, and observation count.
+      // Best-effort: skips notes not found or already retired.
+      if (v && v.boostNote && v.boostNote.noteKey) {
+        const bId = String(v.boostNote.noteKey).replace(/^note:/, '');
+        const bNode = T.ov.note_nodes && T.ov.note_nodes[bId];
+        if (bNode && bNode.validTo == null) {
+          const store = graphStore.forWorkspace(T.ws);
+          graphStore.appendEvent(store, 'note:' + bId, {
+            evt: 'note_reinforced',
+            actor: 'judge:reinforce',
+            boost: typeof v.boostNote.boost === 'number' ? v.boostNote.boost : 0,
+            winRate: v.boostNote.winRate,
+            total: v.boostNote.total,
+          });
+          applied.reinforced = (applied.reinforced || 0) + 1;
+        }
       }
       // retireNote: soft-retire a note that failed the decay gate (low win rate, age+opp gated).
       // Appends note_superseded with validTo set, NO supersededBy — retire-without-replacement.
