@@ -2,6 +2,7 @@
 const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
+const { computeNoteStats, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-journal');
 
 const { JUDGE_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 
@@ -383,6 +384,45 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       running: gate.running, capacity_ok: gate.capacity_ok, drain_in_progress: gate.drain_in_progress,
       eager_active: gate.eager_active,
     }); return true;
+  }
+
+  // GET /judge/decay-preview
+  // Read-only diagnostic endpoint. Runs the same decay gate logic as buildQueue pass (4) and returns
+  // which notes WOULD be soft-retired WITHOUT writing any note_superseded event.
+  // Response: { candidates: [{noteId, label, winRate, wins, losses, total, ageDays, validFrom}],
+  //             scanned, belowThreshold }
+  if (p === '/judge/decay-preview' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    const ws = T.ws;
+    const noteNodes = T.ov.note_nodes || {};
+    const noteStats = computeNoteStats(ws);
+    const nowMs = Date.now();
+    let scanned = 0;
+    let belowThreshold = 0;
+    const candidates = [];
+    for (const n of Object.values(noteNodes)) {
+      scanned++;
+      const stat = noteStats.get('note:' + n.id);
+      const check = judge.isDecayCandidate(n, stat, nowMs);
+      // Count notes that have stats but fail win-rate gate (regardless of age/opportunities).
+      if (stat && stat.winRate < WIN_RATE_THRESHOLD) belowThreshold++;
+      if (!check.candidate) continue;
+      const wins = stat ? stat.wins : 0;
+      const losses = stat ? stat.losses : 0;
+      candidates.push({
+        noteId: 'note:' + n.id,
+        label: n.title || n.id,
+        winRate: check.winRate,
+        wins,
+        losses,
+        total: check.total,
+        ageDays: check.ageDays,
+        validFrom: n.validFrom || null,
+      });
+    }
+    // Stable ordering: ascending by noteId so output is deterministic
+    candidates.sort((a, b) => (a.noteId < b.noteId ? -1 : a.noteId > b.noteId ? 1 : 0));
+    send(res, 200, { candidates, scanned, belowThreshold }); return true;
   }
 
   return false;
