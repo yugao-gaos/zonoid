@@ -1360,19 +1360,20 @@ const TASK_CREATE_FANOUT = 5;
 // promotes them. Pure on (overlay, g, anchorKey, ...) ⇒ unit-testable; idempotent (addEdge dedupes).
 async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD) {
   const target = { id: anchorKey, label: title, summary: summary || '', deps: [], context_deps: [] };
-  // CROSS-ENCODER GATE (opt-in via ORCH_RERANK) — "cross-encoder first, then gate". When on, recall a
-  // WIDER cosine pool (ORCH_RERANK_RECALL_FLOOR, default 0.40 — below the 0.55 precision bar), rerank
-  // those candidates with the cross-encoder, and SEED on the cross-encoder score (ORCH_RERANK_SEED_
-  // THRESHOLD, default 0.5 on the sigmoid scale) instead of the cosine 0.55 cutoff. This sharpens
-  // which weight-0 candidate edges reach the edge-judge — the precision lever on the new-task wiring
-  // path. NULL-SAFE: if the rerank sidecar is unavailable, rerank() returns null and we fall back to
-  // the exact cosine-0.55 gate (today's behavior). DEFAULT OFF ⇒ identical to today.
+  // CROSS-ENCODER GATE (opt-in via ORCH_RERANK) — "cross-encoder first, then gate". When on, take the
+  // top-K cosine candidates as the recall pool (ORCH_RERANK_K, default 50 — a rank-based COST CAP, not
+  // a score floor: no brittle cosine threshold to calibrate, K just bounds how many candidates the
+  // cross-encoder must score), rerank them, and SEED on the cross-encoder score (ORCH_RERANK_SEED_
+  // THRESHOLD, default 0.5 on the sigmoid scale). The CE score is the precision arbiter; cosine is
+  // only the cheap recall stage. This sharpens which weight-0 candidate edges reach the edge-judge.
+  // NULL-SAFE: if the rerank sidecar is unavailable, rerank() returns null and we fall back to the
+  // exact cosine-0.55 gate (today's behavior). DEFAULT OFF ⇒ identical to today.
   // NOTE: seeded edges keep the COSINE in `score` (the judge's keepRateByBand is calibrated on the
   // cosine scale) and carry the cross-encoder score separately as `ceScore` in the edge meta.
   let scored;
   if (isTruthy(process.env.ORCH_RERANK)) {
-    const recallFloor = parseFloat(process.env.ORCH_RERANK_RECALL_FLOOR || '0.40') || 0.40;
-    const pool = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= recallFloor);
+    const K = Math.max(1, parseInt(process.env.ORCH_RERANK_K || '50', 10) || 50);
+    const pool = scoreMatchesSemantic(g, target, targetVec).slice(0, K);
     const byKey = new Map(g.tasks.map((t) => [t.id, t]));
     const ce = pool.length
       ? await rerank(`${title}\n${summary || ''}`.trim(),

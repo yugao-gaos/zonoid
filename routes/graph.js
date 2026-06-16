@@ -361,23 +361,29 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // the structBoost block, so the cross-encoder supplies precision and structBoost stays the
     // additive structural prior on top of it. DEFAULT OFF: when the flag is absent this whole block
     // is skipped and ordering is byte-identical to today. NULL-SAFE: if the sidecar is unavailable
-    // rerank() returns null and we keep the cosine order (no throw). The cross-encoder rescores only
-    // the top-K cosine shortlist (K = ORCH_RERANK_K, default 50); since K >> the returned k, the
-    // returned bundle always comes from the reranked set, so the reranked (1+score) band and the
-    // untouched cosine tail never scale-mix in the output. CRITICAL: this does NOT touch gateCands
-    // (computed far above on RAW cosine) — the context-gate calibration is unaffected by reranking.
+    // rerank() returns null and we keep the cosine order (no throw).
+    // BLEND (not a hard offset): the new score is a convex blend of the existing cosine score and the
+    // cross-encoder score, score = α·cosine + (1−α)·ce (ORCH_RERANK_ALPHA, default 0.5). Keeping
+    // cosine weight means a high-cosine note the cross-encoder underrates is NOT buried — that fixes
+    // the recall@k regression the earlier hard [1,2] offset caused (it froze the top-K order and let
+    // the CE drop genuinely-relevant notes out of top-k). α=1 ⇒ pure cosine (rerank inert); α=0 ⇒
+    // pure CE. K = ORCH_RERANK_K (default 50) is the recall shortlist fed to the CE — RAISE it to
+    // relax the cheap cosine stage and let the CE see more candidates (two-stage retrieve-then-rerank:
+    // loose recall, precise rerank). CRITICAL: this does NOT touch gateCands (computed far above on
+    // RAW cosine) — the context-gate calibration is unaffected by reranking.
     const rerankOn = isTruthy(process.env.ORCH_RERANK) || isTruthy(u.searchParams.get('rerank'));
     if (rerankOn && ragResults.length > 1) {
       const K = Math.max(1, parseInt(process.env.ORCH_RERANK_K || '50', 10) || 50);
+      const aRaw = parseFloat(process.env.ORCH_RERANK_ALPHA || '0.5');
+      const ALPHA = Number.isFinite(aRaw) ? Math.min(1, Math.max(0, aRaw)) : 0.5;
       const shortlist = ragResults.slice(0, K);
       const ceScores = await rerank(q, shortlist.map((r) => `${r.title || ''}\n${r.summary || ''}`.trim()));
       if (Array.isArray(ceScores) && ceScores.length === shortlist.length) {
-        // Offset reranked items into [1,2] so the reranked shortlist sorts among itself by cross-
-        // encoder relevance and stays above the untouched cosine tail (which sits in [0,1]).
         for (let i = 0; i < shortlist.length; i++) {
+          const cos = shortlist[i].score;   // pre-rerank cosine (or lexical) score for this item
           shortlist[i].ceScore = Math.round(ceScores[i] * 1000) / 1000;
           shortlist[i].reranked = true;
-          shortlist[i].score = Math.round((1 + ceScores[i]) * 1000) / 1000;
+          shortlist[i].score = Math.round((ALPHA * cos + (1 - ALPHA) * ceScores[i]) * 1000) / 1000;
         }
         ragResults.sort((a, b) => b.score - a.score);
       }
