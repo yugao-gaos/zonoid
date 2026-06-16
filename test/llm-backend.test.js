@@ -9,13 +9,71 @@
  *   - Claude provider (kind 'agentic-cli'): resolveBin, isAuthed (env-gated), buildInvocation argv.
  *   - getActiveBackend: defaults to Claude when overlay.config.backend is unset/unknown; honors a
  *     valid override; carries model through.
- *   - API provider (kind 'api'): isAuthed env-gated; the call seam THROWS a clear "not implemented".
+ *   - API provider (kind 'api'): isAuthed env-gated; callApi does an IN-PROCESS HTTPS call (mocked
+ *     http layer, NO child_process.spawn) returning { text, usage }, throwing a typed ApiBackendError
+ *     (with .throttle) on non-200; runJudgeLoop walks /judge/next → callApi → /judge/verdict
+ *     in-process and returns a drain-result shape — all with NO child process spawned.
  */
 
 const { test } = require('node:test');
 const assert = require('node:assert');
+const child_process = require('node:child_process');
+const { EventEmitter } = require('node:events');
 
 const backend = require('../lib/llm-backend');
+
+// ---- in-process mock helpers (api-backend path) ------------------------------------------------
+
+/**
+ * A fake https/http module whose `request(opts, cb)` returns a writable-ish request stub and drives a
+ * fake IncomingMessage on the next tick. Records every request (opts + written body) so a test can
+ * assert what was sent. `responder(opts, bodyText)` returns { status, body } for that request.
+ * NEVER touches the network and NEVER uses child_process — proving the api path is pure in-process I/O.
+ */
+function makeFakeHttp(responder) {
+  const requests = [];
+  return {
+    requests,
+    request(opts, cb) {
+      const rec = { opts, body: '' };
+      requests.push(rec);
+      const req = new EventEmitter();
+      req.write = (chunk) => { rec.body += chunk; };
+      req.setTimeout = () => {};
+      req.destroy = (err) => { req.emit('error', err || new Error('destroyed')); };
+      req.end = () => {
+        setImmediate(() => {
+          let r;
+          try { r = responder(opts, rec.body); } catch (e) { req.emit('error', e); return; }
+          const res = new EventEmitter();
+          res.statusCode = r.status;
+          res.setEncoding = () => {};
+          cb(res);
+          const payload = typeof r.body === 'string' ? r.body : JSON.stringify(r.body);
+          if (payload) res.emit('data', payload);
+          res.emit('end');
+        });
+      };
+      return req;
+    },
+  };
+}
+
+/** Run `fn` while child_process.spawn/spawnSync/exec/execSync are tripwires; assert none fired. */
+async function assertNoChildProcess(fn) {
+  const saved = {};
+  let tripped = null;
+  for (const m of ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork']) {
+    saved[m] = child_process[m];
+    child_process[m] = (...a) => { tripped = m; throw new Error(`child_process.${m} must NOT be called on the api path`); };
+  }
+  try {
+    return await fn();
+  } finally {
+    for (const m of Object.keys(saved)) child_process[m] = saved[m];
+    assert.equal(tripped, null, `api path spawned a child via child_process.${tripped}`);
+  }
+}
 
 // Save/restore the env vars isAuthed() reads, so these tests are deterministic regardless of the
 // runner's ambient environment. Returns a restore() that puts the originals back.
@@ -238,10 +296,130 @@ test('api provider: isAuthed reflects OPENROUTER_API_KEY presence', () => {
   } finally { restore(); }
 });
 
-test('api provider: callApi throws a clear "not implemented" error', () => {
-  assert.throws(() => backend.openRouterProvider.callApi(), /not implemented/i);
+// --- API provider: callApi (IN-PROCESS HTTPS, no child process) --------------------------------
+test('api provider: callApi does an IN-PROCESS HTTPS call and returns { text, usage } (no spawn)', async () => {
+  const restore = withEnv({ OPENROUTER_API_KEY: 'or-key' });
+  const fake = makeFakeHttp((opts, body) => {
+    // Assert the request targets the OpenRouter chat-completions endpoint with bearer auth + model.
+    assert.equal(opts.hostname, 'openrouter.ai');
+    assert.equal(opts.path, '/api/v1/chat/completions');
+    assert.equal(opts.method, 'POST');
+    assert.equal(opts.headers.Authorization, 'Bearer or-key');
+    const sent = JSON.parse(body);
+    assert.equal(sent.model, 'gpt-test');
+    assert.ok(Array.isArray(sent.messages) && sent.messages.length >= 1);
+    return { status: 200, body: { choices: [{ message: { content: 'hello world' } }], usage: { total_tokens: 12 } } };
+  });
+  try {
+    const out = await assertNoChildProcess(() => backend.callApi({
+      messages: [{ role: 'user', content: 'hi' }], model: 'gpt-test', httpsModule: fake,
+    }));
+    assert.equal(out.text, 'hello world', 'parses choices[0].message.content');
+    assert.deepEqual(out.usage, { total_tokens: 12 }, 'carries usage through');
+    assert.equal(fake.requests.length, 1, 'exactly one HTTPS request was made (in-process)');
+  } finally { restore(); }
 });
 
-test('api provider: runJudgeLoop throws a clear "not implemented" error', () => {
-  assert.throws(() => backend.openRouterProvider.runJudgeLoop(), /not implemented/i);
+test('api provider: callApi rejects with ApiBackendError on a missing key (no spawn, no request)', async () => {
+  const restore = withEnv({}); // no OPENROUTER_API_KEY
+  const fake = makeFakeHttp(() => ({ status: 200, body: {} }));
+  try {
+    await assertNoChildProcess(async () => {
+      await assert.rejects(
+        () => backend.callApi({ messages: [{ role: 'user', content: 'hi' }], httpsModule: fake }),
+        (e) => e instanceof backend.ApiBackendError && /api key/i.test(e.message),
+      );
+    });
+    assert.equal(fake.requests.length, 0, 'no request attempted without a key');
+  } finally { restore(); }
+});
+
+test('api provider: callApi maps a 429 to a typed ApiBackendError with throttle:true', async () => {
+  const restore = withEnv({ OPENROUTER_API_KEY: 'or-key' });
+  const fake = makeFakeHttp(() => ({ status: 429, body: { error: 'rate limited' } }));
+  try {
+    await assert.rejects(
+      () => backend.callApi({ messages: [{ role: 'user', content: 'hi' }], httpsModule: fake }),
+      (e) => e instanceof backend.ApiBackendError && e.status === 429 && e.throttle === true,
+    );
+  } finally { restore(); }
+});
+
+test('api provider: openRouterProvider.callApi delegates to the in-process callApi', async () => {
+  const restore = withEnv({ OPENROUTER_API_KEY: 'or-key' });
+  const fake = makeFakeHttp(() => ({ status: 200, body: { choices: [{ message: { content: 'via-provider' } }] } }));
+  try {
+    const out = await backend.openRouterProvider.callApi({ messages: [{ role: 'user', content: 'x' }], httpsModule: fake });
+    assert.equal(out.text, 'via-provider');
+  } finally { restore(); }
+});
+
+// --- API provider: runJudgeLoop (IN-PROCESS judge loop, no child process) ----------------------
+test('api provider: runJudgeLoop walks /judge/next → callApi → /judge/verdict in-process (no spawn)', async () => {
+  // Fake the daemon http: GET /judge/next returns one edge item; POST /judge/verdict acks applied.
+  const fakeHttp = makeFakeHttp((opts) => {
+    if (opts.method === 'GET' && /\/judge\/next/.test(opts.path)) {
+      return { status: 200, body: { idle: false, items: [{ kind: 'edge', id: 'e1', from: { key: 'note:a' }, to: { key: 't1' } }] } };
+    }
+    if (opts.method === 'POST' && /\/judge\/verdict/.test(opts.path)) {
+      return { status: 200, body: { ok: true, applied: { pruned: 1 } } };
+    }
+    return { status: 404, body: {} };
+  });
+  // Inject a callApi that returns a verdicts JSON (so we don't hit the real https path here).
+  const callApiCalls = [];
+  const fakeCallApi = async (o) => { callApiCalls.push(o); return { text: '{"verdicts":[{"pruneEdge":{"from":"note:a","to":"t1"}}]}', usage: null }; };
+
+  const result = await assertNoChildProcess(() => backend.runJudgeLoop({
+    daemonUrl: 'http://localhost:8787', budget: 6, httpModule: fakeHttp, callApiFn: fakeCallApi,
+  }));
+  // Drain-result shape (consumed interchangeably with a spawn result by headless-drain).
+  assert.equal(result.exitCode, 0, 'clean run exits 0');
+  assert.equal(result.timedOut, false);
+  assert.equal(result.spawnError, null);
+  assert.match(result.stdout, /adjudicated 1 item/);
+  // It actually walked the loop: a GET, a callApi, and a POST.
+  assert.equal(callApiCalls.length, 1, 'callApi invoked once to reason the items');
+  const methods = fakeHttp.requests.map((r) => `${r.opts.method} ${r.opts.path}`);
+  assert.ok(methods.some((m) => /^GET \/judge\/next/.test(m)), 'GET /judge/next happened');
+  assert.ok(methods.some((m) => /^POST \/judge\/verdict/.test(m)), 'POST /judge/verdict happened');
+  // The verdicts parsed from the model reply were forwarded to the daemon.
+  const postReq = fakeHttp.requests.find((r) => r.opts.method === 'POST');
+  assert.deepEqual(JSON.parse(postReq.body).verdicts, [{ pruneEdge: { from: 'note:a', to: 't1' } }]);
+});
+
+test('api provider: runJudgeLoop on an idle queue returns exit 0 without calling callApi or POSTing', async () => {
+  const fakeHttp = makeFakeHttp((opts) => {
+    if (/\/judge\/next/.test(opts.path)) return { status: 200, body: { idle: true, items: [] } };
+    return { status: 500, body: {} };
+  });
+  let called = false;
+  const result = await backend.runJudgeLoop({
+    daemonUrl: 'http://localhost:8787', httpModule: fakeHttp, callApiFn: async () => { called = true; return { text: '{}' }; },
+  });
+  assert.equal(result.exitCode, 0);
+  assert.equal(called, false, 'idle queue must not call the API');
+  assert.equal(fakeHttp.requests.filter((r) => r.opts.method === 'POST').length, 0, 'no verdict POST on idle');
+});
+
+test('api provider: runJudgeLoop surfaces a throttle in stderr (so the drain backoff sees it)', async () => {
+  const fakeHttp = makeFakeHttp((opts) => {
+    if (/\/judge\/next/.test(opts.path)) return { status: 200, body: { idle: false, items: [{ kind: 'edge', id: 'e1' }] } };
+    return { status: 404, body: {} };
+  });
+  // callApi throws a throttling ApiBackendError → runJudgeLoop must NOT throw; it returns a failure
+  // result whose stderr matches the drain's isThrottled() regex (429 / rate limit / overloaded).
+  const throttled = new backend.ApiBackendError('OpenRouter API returned HTTP 429', { status: 429, throttle: true });
+  const result = await backend.runJudgeLoop({
+    daemonUrl: 'http://localhost:8787', httpModule: fakeHttp, callApiFn: async () => { throw throttled; },
+  });
+  assert.equal(result.exitCode, 1, 'a throttle is a non-clean run');
+  assert.match(result.stderr, /\b429\b|rate limit|overloaded/i, 'stderr carries a throttle signal for the backoff governor');
+  assert.equal(result.spawnError, null, 'no spawnError — this is an in-process failure, not a spawn failure');
+});
+
+test('api provider: runJudgeLoop requires a daemonUrl (clean failure result, not a throw)', async () => {
+  const result = await backend.runJudgeLoop({ httpModule: makeFakeHttp(() => ({ status: 200, body: {} })) });
+  assert.equal(result.exitCode, 1);
+  assert.match(result.stderr, /daemonUrl/);
 });
