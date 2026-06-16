@@ -220,6 +220,7 @@ let state = { workspace: null, overlay: overlayStore.EMPTY(), routes: [], agents
 // Persist + restore the workspace, so a daemon respawn (e.g. after a crash/kill) keeps serving
 // the same project instead of coming back with no workspace.
 const WS_FILE = path.join(BASE, 'workspace');
+const WORKSPACES_FILE = path.join(BASE, 'workspaces.json');
 // One-time migration for the edge-judge rework: tag every BLIND note-provider similarity edge
 // (kind:context, from a note node, written by the old autowireNoteProvider pass) as UNVERIFIED
 // ({judged:false, by:'autowire'}) so the judge can re-adjudicate keep-vs-prune. Idempotent — an
@@ -1956,6 +1957,12 @@ const ctx = {
       });
     }
     try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(WS_FILE, p); } catch { /* best effort */ }
+    try {
+      let known = [];
+      try { known = JSON.parse(fs.readFileSync(WORKSPACES_FILE, 'utf8')); } catch { /* first write */ }
+      if (!Array.isArray(known)) known = [];
+      if (!known.includes(p)) { known.push(p); fs.writeFileSync(WORKSPACES_FILE, JSON.stringify(known)); }
+    } catch { /* best effort — same as WS_FILE */ }
     const harnessName = opts.harness || (sessionId && state.sessions[sessionId] && state.sessions[sessionId].harness) || 'claude';
     try {
       runUsageReconcile(ctx, { harness: harnessName, workspace: p, session: sessionId || opts.session_id || null });
@@ -1976,7 +1983,7 @@ const ctx = {
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
-  GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL,
+  GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE,
   sseClients, agentsArr,
   taskTranscript, usageCached, harnessTranscriptForTask,
   touchAgent, staleClaimKeys, releaseClaim, reapAgent, sweepStaleClaims, sweepStaleLoops,
