@@ -18,7 +18,12 @@ const DAEMON = path.join(__dirname, 'daemon.js');
 // global state.workspace (the workspace-gremlin fix).
 const WS = process.env.ORCH_WORKSPACE || (() => { try { return require('fs').readFileSync(require('path').join(process.env.CLAUDE_PLUGIN_DATA || require('path').join(require('os').homedir(),'.claude','orchestrator'), 'workspace'), 'utf8').trim() || null; } catch {} return null; })() || process.cwd();
 const CALL = core.makeCall(PORT, WS);
-const SESSION = process.env.ORCH_SESSION || process.env.ZONOID_SESSION || null;
+// CLAUDE_CODE_SESSION_ID fallback: under the claude-desktop entrypoint the harness exports the
+// session as CLAUDE_CODE_SESSION_ID (ORCH_SESSION/ZONOID_SESSION are unset). Without this the MCP
+// server's session is null, so start_task records a claim under no/ fabricated session and the
+// PreToolUse gate (which queries /active-claim with the worker's real harness .session_id) never
+// matches → background-worker writes are wrongly denied (verified by probe, note-mqftffo7f2b).
+const SESSION = process.env.ORCH_SESSION || process.env.ZONOID_SESSION || process.env.CLAUDE_CODE_SESSION_ID || null;
 const CLIENT_EXTRA = extraToolsForClient(CLIENT, WS, { session: SESSION });
 
 function daemonEnv() {
