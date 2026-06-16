@@ -203,7 +203,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   // its current cooperative-stop flag, so one session can SEE a worker running in another.
   if (p === '/agents') {
     const ovStops = targetOverlay(null, u).ov;   // stop flags live per-workspace; honor ?workspace=
-    const list = agentsArr().map((a) => ({
+    const wsFilter = u.searchParams.get('workspace') || null;
+    const all = agentsArr();
+    const filtered = wsFilter ? all.filter((a) => a.workspace === wsFilter) : all;
+    const list = filtered.map((a) => ({
       agent_id: a.agent_id, agent_type: a.agent_type, state: a.state,
       task: a.task || null, session: a.session || null, workspace: a.workspace || null,
       startedAt: a.startedAt || null, endedAt: a.endedAt || null,
