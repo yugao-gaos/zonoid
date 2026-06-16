@@ -8,8 +8,29 @@ const { execSync, spawnSync } = require('child_process');
 const http = require('http');
 
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
-const INSTALL_DIR = path.join(os.homedir(), '.claude', 'orchestrator');
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
+
+// ── Invariant 3: Resolve install dir — prefer local checkout ─────────────────
+
+/**
+ * If the repo root above packages/cli/bin contains daemon.js + mcp-graph.js +
+ * package.json, treat THAT as the install dir (no clone needed).
+ * Otherwise fall back to ~/.claude/orchestrator (the default clone target).
+ */
+function resolveInstallDir() {
+  // packages/cli/bin/zonoid.js → up 3 levels = repo root
+  const candidateRoot = path.resolve(__dirname, '..', '..', '..');
+  const hasPackageJson = fs.existsSync(path.join(candidateRoot, 'package.json'));
+  const hasDaemon      = fs.existsSync(path.join(candidateRoot, 'daemon.js'));
+  const hasMcp         = fs.existsSync(path.join(candidateRoot, 'mcp-graph.js'));
+  if (hasPackageJson && hasDaemon && hasMcp) {
+    return candidateRoot;
+  }
+  return path.join(os.homedir(), '.claude', 'orchestrator');
+}
+
+// Computed once at startup; exported for tests.
+const INSTALL_DIR = resolveInstallDir();
 
 // ── output helpers ──────────────────────────────────────────────────────────
 
@@ -21,6 +42,25 @@ function section(title) { console.log(`\n── ${title} ───────�
 
 // ── individual checks & fixes ───────────────────────────────────────────────
 
+// ── Invariant 1: detect live data so we NEVER rm -rf a data dir ─────────────
+
+/**
+ * Returns true if `dir` contains live orchestrator data that must not be
+ * deleted: overlay/, sessions/, worktrees/, a `workspace` file, or a `token`
+ * file at the root level.
+ */
+function dirHasLiveData(dir) {
+  const liveSubdirs = ['overlay', 'sessions', 'worktrees'];
+  const liveFiles   = ['workspace', 'token'];
+  for (const sub of liveSubdirs) {
+    if (fs.existsSync(path.join(dir, sub))) return true;
+  }
+  for (const f of liveFiles) {
+    if (fs.existsSync(path.join(dir, f))) return true;
+  }
+  return false;
+}
+
 function checkInstallDir() {
   const hasPkg    = fs.existsSync(path.join(INSTALL_DIR, 'package.json'));
   const hasDaemon = fs.existsSync(path.join(INSTALL_DIR, 'daemon.js'));
@@ -29,11 +69,60 @@ function checkInstallDir() {
     ok(`Install dir present: ${INSTALL_DIR}`);
     return;
   }
+
   if (fs.existsSync(INSTALL_DIR)) {
     const missing = [!hasPkg && 'package.json', !hasDaemon && 'daemon.js', !hasMcp && 'mcp-graph.js'].filter(Boolean);
     warn(`Install dir exists but is incomplete (missing: ${missing.join(', ')})`);
+
+    // INVARIANT 1: NEVER delete a dir that holds live orchestrator data.
+    if (dirHasLiveData(INSTALL_DIR)) {
+      // Auto-heal: clone to a temp dir, then copy source files in so data is preserved.
+      fix('Install dir has live data — cloning to temp, then copying source files in (data preserved)...');
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-clone-'));
+      try {
+        execSync(`git clone ${REPO_URL} ${tmpDir}`, { stdio: 'inherit' });
+        // Copy source files from the temp clone into INSTALL_DIR,
+        // but skip the data subdirs so they are left untouched.
+        // Runtime-state entries written by daemon.js + lib/* under CLAUDE_PLUGIN_DATA:
+        //   agents.json  — registered agent registry
+        //   loops.json   — loop/heartbeat registry  (loop.json = legacy migration source)
+        //   op-cache.json — operation idempotency cache
+        //   tool-analytics.json — per-tool usage counters
+        //   certs/       — TLS cert + key (orch TLS mode)
+        //   models/      — embed + rerank model cache (~200 MB)
+        //   tasks/       — filedrop task queue
+        //   embed.pid / rerank.pid / rerank-server.log — server PID + log files
+        //   *.sock       — IPC socket files (lib/ipc-path.js)
+        const protectedNames = new Set([
+          // Existing live-data guards
+          'overlay', 'sessions', 'worktrees', 'workspace', 'token', 'node_modules',
+          // Daemon runtime-state entries (C2)
+          'agents.json', 'loops.json', 'loop.json', 'op-cache.json',
+          'tool-analytics.json', 'certs', 'models', 'tasks',
+          'embed.pid', 'rerank.pid', 'rerank-server.log',
+        ]);
+        for (const entry of fs.readdirSync(tmpDir)) {
+          if (protectedNames.has(entry)) continue;
+          const src  = path.join(tmpDir, entry);
+          const dest = path.join(INSTALL_DIR, entry);
+          if (fs.existsSync(dest)) {
+            // Cross-platform removal of stale source file/dir
+            fs.rmSync(dest, { recursive: true, force: true });
+          }
+          fs.cpSync(src, dest, { recursive: true });
+        }
+        ok('Source files refreshed (live data preserved).');
+      } finally {
+        // Clean up temp clone — safe because it contains no live data.
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+      return;
+    }
+
+    // No live data — safe to remove and re-clone.
     fix('Removing incomplete install and re-cloning...');
-    execSync(`rm -rf ${INSTALL_DIR}`);
+    // INVARIANT 2: use fs.rmSync instead of `rm -rf` shell command.
+    fs.rmSync(INSTALL_DIR, { recursive: true, force: true });
   } else {
     fix(`Cloning ${REPO_URL} ...`);
     fs.mkdirSync(path.dirname(INSTALL_DIR), { recursive: true });
@@ -54,13 +143,17 @@ function checkNodeModules() {
 }
 
 function checkHooks() {
+  // INVARIANT 4: validate the Node .js hooks that bin/install.js actually wires
+  // (not the legacy .sh hooks that were stale / Unix-only).
   const required = [
-    'start-daemon.sh', 'classify.sh', 'orch-gate.sh', 'orch-stop.sh',
-    'subagent-start.sh', 'subagent-stop.sh', 'post-agent.sh',
-    'suggest-links.sh', 'statusline.sh',
+    'orch-gate.js',
+    'orch-gate-bash.js',
+    'orch-posttool-starttask.js',
+    'classify.js',
   ];
-  const missing = required.filter(h => !fs.existsSync(path.join(INSTALL_DIR, 'hooks', h)));
-  if (missing.length === 0) { ok('All hook scripts present'); return; }
+  const hooksDir = path.join(INSTALL_DIR, 'hooks');
+  const missing = required.filter(h => !fs.existsSync(path.join(hooksDir, h)));
+  if (missing.length === 0) { ok('All Node hook scripts present'); return; }
   warn(`Missing hooks: ${missing.join(', ')} — re-run after verifying the install dir`);
 }
 
@@ -219,6 +312,42 @@ function checkClaude(cwd) {
   ok('CLAUDE.md updated.');
 }
 
+/**
+ * Try to create a directory link from `dest` pointing at `src`, using
+ * the best available strategy on this platform.
+ *
+ * Injection points (`symlinkFn`, `cpFn`) exist so tests can stub the OS
+ * primitives and force the junction / copy fallback branches to execute
+ * on any host — not just Windows without elevation.
+ *
+ * @param {string} src        - source directory path
+ * @param {string} dest       - destination path (must not already exist)
+ * @param {Function} [symlinkFn=fs.symlinkSync]  - injectable symlink primitive
+ * @param {Function} [cpFn=fs.cpSync]            - injectable copy primitive
+ * @returns {'symlink'|'junction'|'copy'|null}   - winning strategy, or null on total failure
+ */
+function linkSkill(src, dest, symlinkFn = fs.symlinkSync, cpFn = fs.cpSync) {
+  // Strategy 1: plain symlink (works on Unix and Windows with elevation)
+  try {
+    symlinkFn(src, dest);
+    return 'symlink';
+  } catch (_e1) { /* fall through */ }
+
+  // Strategy 2: junction (works without elevation on Windows for directories)
+  try {
+    symlinkFn(src, dest, 'junction');
+    return 'junction';
+  } catch (_e2) { /* fall through */ }
+
+  // Strategy 3: deep copy (always works, but no live-update benefit)
+  try {
+    cpFn(src, dest, { recursive: true });
+    return 'copy';
+  } catch (_e3) { /* total failure */ }
+
+  return null;
+}
+
 function checkSkills() {
   const srcDir = path.join(INSTALL_DIR, 'skills');
   if (!fs.existsSync(srcDir)) { warn('No skills/ dir in install — skipping'); return; }
@@ -255,10 +384,16 @@ function checkSkills() {
       repaired++;
     }
 
-    // Install as symlink so updates to the repo are picked up automatically
-    fs.symlinkSync(src, dest);
-    installed++;
-    ok(`Skill installed: ${skill}`);
+    // Install as symlink so updates to the repo are picked up automatically.
+    // INVARIANT 2: linkSkill() falls through symlink → junction → cpSync for
+    // cross-platform compatibility (Windows bare symlinks require elevation).
+    const strategy = linkSkill(src, dest);
+    if (strategy) {
+      installed++;
+      ok(`Skill installed: ${skill}`);
+    } else {
+      warn(`Skill '${skill}' could not be installed (all strategies failed)`);
+    }
   }
 
   if (skipped > 0)  ok(`${skipped} skill(s) already up to date`);
@@ -633,6 +768,43 @@ function writeCodexMcp(cwd, overwrite = false) {
   ok(`Written Codex MCP config: ${dest} (ORCH_CLIENT=codex)`);
 }
 
+// ── Invariant 4: Delegate Claude harness wiring to bin/install.js ──────────
+
+/**
+ * For the 'claude' harness, spawn `node <INSTALL_DIR>/bin/install.js
+ * --workspace <cwd>` so that .mcp.json + .claude/settings.json get the
+ * canonical Node .js hooks (including orch-gate-bash, orch-posttool-starttask)
+ * from bin/install.js.  This avoids drift between what zonoid.js hand-rolls
+ * and what bin/install.js writes.
+ *
+ * checkClaude() (CLAUDE.md merge) is kept separately because bin/install.js
+ * does not own CLAUDE.md.
+ */
+function checkClaudeWiring(cwd) {
+  const installScript = path.join(INSTALL_DIR, 'bin', 'install.js');
+  if (!fs.existsSync(installScript)) {
+    warn(`bin/install.js not found at ${installScript} — falling back to inline settings wiring`);
+    checkSettings(cwd);
+    checkMcp(cwd);
+    return;
+  }
+
+  fix('Delegating .mcp.json + settings.json wiring to bin/install.js...');
+  const args = [installScript, '--workspace', cwd];
+  if (process.env.ORCH_PORT) args.push('--port', process.env.ORCH_PORT);
+
+  const result = spawnSync(process.execPath, args, {
+    stdio: 'inherit',
+    env: process.env,
+  });
+
+  if (result.status === 0) {
+    ok('bin/install.js completed Claude harness wiring');
+  } else {
+    warn(`bin/install.js exited with status ${result.status} — check output above`);
+  }
+}
+
 async function init(opts = {}) {
   const cwd = process.cwd();
   const harness = opts.harness || 'claude';
@@ -651,8 +823,9 @@ async function init(opts = {}) {
 
   section('2. Workspace config');
   if (harness === 'claude') {
-    checkSettings(cwd);
-    checkMcp(cwd);
+    // INVARIANT 4: delegate .mcp.json + settings.json to bin/install.js
+    checkClaudeWiring(cwd);
+    // CLAUDE.md merge is kept here (bin/install.js doesn't own CLAUDE.md)
     checkClaude(cwd);
   } else if (harness === 'cursor') {
     checkCursorHooks(cwd);
@@ -744,11 +917,17 @@ if (require.main === module) {
   }
 } else {
   module.exports = {
+    // existing exports
     parseInitArgs,
     mergeCursorHooks,
     VALID_HARNESSES,
     scheduleWakeupScriptPath,
     opencodePluginHasScheduleWakeup,
     INSTALL_DIR,
+    // new exports for test coverage (invariants 1, 3, 2)
+    dirHasLiveData,
+    resolveInstallDir,
+    // C1: extracted link strategy helper — injectable stubs enable fallback branch coverage
+    linkSkill,
   };
 }
