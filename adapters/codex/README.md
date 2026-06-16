@@ -22,13 +22,25 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 
    Alternative: merge `adapters/codex/config.toml.sample` into `~/.codex/config.toml` (use **either** `hooks.json` **or** inline `[hooks]` per layer — not both).
 
-3. **Wire MCP** with harness-scoped tools (`create_task` for file-drop minting):
+3. **Wire MCP** with harness-scoped tools (`create_task` for file-drop minting).
 
-   ```sh
-   sed "s|__INSTALL_DIR__|$INSTALL|g" "$INSTALL/adapters/codex/mcp.sample.json" >> ~/.codex/config.toml
+   Codex reads MCP servers from `~/.codex/config.toml` under `[mcp_servers.*]` (TOML) —
+   **not** from a repo `.mcp.json` (that file is for Claude/Cursor/OpenCode). `npx @zonoid/cli init --harness codex`
+   merges the block below into `~/.codex/config.toml` for you, idempotently and preserving
+   your other `[mcp_servers.*]`. To add it by hand, append this TOML (replace `__INSTALL_DIR__`):
+
+   ```toml
+   [mcp_servers.orchestrator-graph]
+   command = "node"
+   args = ["__INSTALL_DIR__/mcp-graph.js"]
+
+   [mcp_servers.orchestrator-graph.env]
+   ORCH_PORT = "8787"
+   ORCH_CLIENT = "codex"
    ```
 
-   Or add the `orchestrator-graph` server from `mcp.sample.json` to your Codex MCP config. **Required env:** `ORCH_CLIENT=codex`.
+   **Required env:** `ORCH_CLIENT=codex` (makes the stdio MCP expose `create_task`). The JSON
+   in `mcp.sample.json` is a reference shape only — do **not** `>>`-append JSON into `config.toml`.
 
 4. **Trust hooks** — Codex requires manual review when hook definitions change:
 
@@ -48,9 +60,9 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 | Event | Script | Daemon endpoints |
 |---|---|---|
 | `SessionStart` | `session-start.sh` | `/ping`, `/workspace` |
-| `UserPromptSubmit` | `classify-relay.sh` | `/route`, `/context-classify`, `/ready`, … |
+| `UserPromptSubmit` | `classify-relay.sh` | `/classify` |
 | `PreToolUse` `*` | `orch-stop.sh` | `/should-stop` → `permissionDecision: deny` |
-| `PreToolUse` `apply_patch\|Write\|Edit` | `orch-gate.sh` | `/active-claim`, `/task/detail` |
+| `PreToolUse` `apply_patch\|Write\|Edit` | `orch-gate.sh` | `/active-claim`, `/task/detail`, `/session-info`, `/dispatcher/children` |
 | `PreToolUse` `Bash` | `orch-gate-bash.sh` | `/active-claim` |
 | `SubagentStart` | `subagent-start.sh` | `/agent/start` |
 | `SubagentStop` | `subagent-stop.sh` | `/agent/done` |

@@ -13,6 +13,10 @@ const {
   dirHasLiveData,
   resolveInstallDir,
   linkSkill,
+  writeMcp,
+  writeCodexMcp,
+  orchestratorMcpEntry,
+  stripCodexOrchTable,
   graphAutocommitHookScript,
   mergeGraphAutocommitFlag,
 } = require('../packages/cli/bin/zonoid.js');
@@ -31,6 +35,20 @@ ok('cursor harness parsed', parseInitArgs(['node', 'zonoid', 'init', '--harness'
 ok('opencode harness parsed', parseInitArgs(['node', 'zonoid', 'init', '--harness', 'opencode']).harness === 'opencode');
 ok('--service flag parsed', parseInitArgs(['node', 'zonoid', 'init', '--service', '--harness', 'codex']).service === true);
 ok('invalid harness not in VALID_HARNESSES', !VALID_HARNESSES.has('invalid'));
+
+// ── CDX-2: multi-harness --harness parsing (comma-separated and/or repeatable) ──
+ok('default harnesses is [claude]',
+  JSON.stringify(parseInitArgs(['node', 'zonoid', 'init']).harnesses) === JSON.stringify(['claude']));
+ok('comma-separated --harness claude,codex → both',
+  JSON.stringify(parseInitArgs(['node', 'zonoid', 'init', '--harness', 'claude,codex']).harnesses) === JSON.stringify(['claude', 'codex']));
+ok('repeated --harness flags → both',
+  JSON.stringify(parseInitArgs(['node', 'zonoid', 'init', '--harness', 'claude', '--harness', 'codex']).harnesses) === JSON.stringify(['claude', 'codex']));
+ok('duplicate harness de-duped',
+  JSON.stringify(parseInitArgs(['node', 'zonoid', 'init', '--harness', 'codex,codex']).harnesses) === JSON.stringify(['codex']));
+ok('multi-harness keeps .harness = first for back-compat',
+  parseInitArgs(['node', 'zonoid', 'init', '--harness', 'claude,codex']).harness === 'claude');
+ok('--service parsed alongside comma list',
+  parseInitArgs(['node', 'zonoid', 'init', '--harness', 'claude,codex', '--service']).service === true);
 
 const merged = mergeCursorHooks(
   { version: 1, hooks: { postToolUse: [{ command: '/keep/me.sh' }] } },
@@ -196,6 +214,125 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
   } finally {
     fs.rmSync(base, { recursive: true, force: true });
   }
+}
+
+// ── CDX-2: Claude + Codex coexistence in ONE repo ────────────────────────────
+// Wire the claude MCP store (.mcp.json) then the codex MCP store
+// (~/.codex/config.toml, injected path) and assert BOTH client identities
+// survive AND a pre-existing user-added .mcp.json server is not dropped.
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-coexist-'));
+  try {
+    const cwd = path.join(base, 'repo');
+    fs.mkdirSync(cwd, { recursive: true });
+    const mcpPath = path.join(cwd, '.mcp.json');
+    const codexToml = path.join(base, 'codex-config.toml');
+
+    // Pre-existing user-added MCP server + unrelated config that MUST survive.
+    fs.writeFileSync(mcpPath, JSON.stringify({
+      mcpServers: { 'my-other-server': { command: 'node', args: ['other.js'] } },
+    }, null, 2) + '\n');
+
+    // 1) Claude wiring: MERGE orchestrator-graph into .mcp.json (no ORCH_CLIENT).
+    writeMcp(cwd); // default orchClient=null == claude identity
+    let mcp = JSON.parse(fs.readFileSync(mcpPath, 'utf8'));
+    ok('coexist: .mcp.json keeps pre-existing user server after claude wiring',
+      mcp.mcpServers['my-other-server'] && mcp.mcpServers['my-other-server'].args[0] === 'other.js');
+    ok('coexist: .mcp.json gains orchestrator-graph (claude) after claude wiring',
+      !!mcp.mcpServers['orchestrator-graph']);
+    ok('coexist: claude orchestrator-graph has NO ORCH_CLIENT',
+      !mcp.mcpServers['orchestrator-graph'].env || !mcp.mcpServers['orchestrator-graph'].env.ORCH_CLIENT);
+    ok('coexist: claude entry args point at mcp-graph.js with forward slashes',
+      /\/mcp-graph\.js$/.test(mcp.mcpServers['orchestrator-graph'].args[0]));
+    ok('coexist: .mcp.json backed up on merge', fs.existsSync(mcpPath + '.bak'));
+
+    // 2) Codex wiring: write orchestrator-graph into ~/.codex/config.toml (TOML),
+    //    NOT .mcp.json. Inject the config path so no real ~/.codex is touched.
+    writeCodexMcp(codexToml);
+    ok('coexist: codex config.toml created', fs.existsSync(codexToml));
+    const toml = fs.readFileSync(codexToml, 'utf8');
+    ok('coexist: config.toml has [mcp_servers.orchestrator-graph] table',
+      toml.includes('[mcp_servers.orchestrator-graph]'));
+    ok('coexist: config.toml carries ORCH_CLIENT = "codex"',
+      /\[mcp_servers\.orchestrator-graph\.env\][\s\S]*ORCH_CLIENT\s*=\s*"codex"/.test(toml));
+    ok('coexist: config.toml command = "node"', /command\s*=\s*"node"/.test(toml));
+
+    // 3) Codex wiring did NOT touch .mcp.json — Claude's identity + user server intact.
+    mcp = JSON.parse(fs.readFileSync(mcpPath, 'utf8'));
+    ok('coexist: BOTH survive — claude orchestrator-graph still in .mcp.json',
+      !!mcp.mcpServers['orchestrator-graph'] &&
+      (!mcp.mcpServers['orchestrator-graph'].env || !mcp.mcpServers['orchestrator-graph'].env.ORCH_CLIENT));
+    ok('coexist: user server still present after codex wiring',
+      !!mcp.mcpServers['my-other-server']);
+
+    // 3b) .mcp.json merge is deterministic/idempotent: re-running writeMcp
+    //     yields byte-identical content (the forward-slashed path is stable, so
+    //     checkMcp would treat it as "looks correct" rather than rewriting).
+    const before = fs.readFileSync(mcpPath, 'utf8');
+    writeMcp(cwd);
+    const after = fs.readFileSync(mcpPath, 'utf8');
+    ok('coexist: .mcp.json merge is idempotent (stable content)', before === after);
+
+    // 4) Idempotency: re-run codex wiring over existing config.toml → single table.
+    //    Seed an unrelated [features] block to prove non-orch config is preserved.
+    fs.writeFileSync(codexToml, '[features]\nhooks = true\n\n' + fs.readFileSync(codexToml, 'utf8'));
+    writeCodexMcp(codexToml);
+    const toml2 = fs.readFileSync(codexToml, 'utf8');
+    const tableCount = (toml2.match(/^\[mcp_servers\.orchestrator-graph\]\s*$/gm) || []).length;
+    ok('coexist: codex re-run is idempotent — exactly one orchestrator-graph table', tableCount === 1);
+    ok('coexist: codex re-run preserves unrelated [features] config', toml2.includes('[features]'));
+    ok('coexist: codex re-run still carries ORCH_CLIENT = "codex"', /ORCH_CLIENT\s*=\s*"codex"/.test(toml2));
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+// ── CDX-2: cursor identity injection still works on the merging writer ────────
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-cursor-mcp-'));
+  try {
+    const cwd = path.join(base, 'repo');
+    fs.mkdirSync(cwd, { recursive: true });
+    writeMcp(cwd, false, 'cursor');
+    const mcp = JSON.parse(fs.readFileSync(path.join(cwd, '.mcp.json'), 'utf8'));
+    ok('cursor wiring injects ORCH_CLIENT=cursor',
+      mcp.mcpServers['orchestrator-graph'].env.ORCH_CLIENT === 'cursor');
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+// ── CDX-2: orchestratorMcpEntry shape + stripCodexOrchTable preserves siblings ──
+{
+  const claudeEntry = orchestratorMcpEntry();
+  ok('orchestratorMcpEntry: claude has no ORCH_CLIENT', !claudeEntry.env.ORCH_CLIENT);
+  ok('orchestratorMcpEntry: stdio + node command',
+    claudeEntry.type === 'stdio' && claudeEntry.command === 'node');
+  const codexEntry = orchestratorMcpEntry('codex');
+  ok('orchestratorMcpEntry: codex injects ORCH_CLIENT', codexEntry.env.ORCH_CLIENT === 'codex');
+
+  // stripCodexOrchTable must drop ONLY the orchestrator-graph table + its .env
+  // subtable, preserving a sibling [mcp_servers.other] entirely.
+  const doc = [
+    '[mcp_servers.other]',
+    'command = "node"',
+    'args = ["x.js"]',
+    '',
+    '[mcp_servers.orchestrator-graph]',
+    'command = "node"',
+    'args = ["old.js"]',
+    '',
+    '[mcp_servers.orchestrator-graph.env]',
+    'ORCH_CLIENT = "codex"',
+    '',
+    '[features]',
+    'hooks = true',
+  ].join('\n');
+  const stripped = stripCodexOrchTable(doc);
+  ok('stripCodexOrchTable: removes orchestrator-graph table', !stripped.includes('orchestrator-graph'));
+  ok('stripCodexOrchTable: keeps sibling [mcp_servers.other]', stripped.includes('[mcp_servers.other]'));
+  ok('stripCodexOrchTable: keeps sibling server args', stripped.includes('args = ["x.js"]'));
+  ok('stripCodexOrchTable: keeps unrelated [features]', stripped.includes('[features]'));
 }
 
 // ── graphAutocommitHookScript ────────────────────────────────────────────────

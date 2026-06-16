@@ -49,6 +49,14 @@ function recordUsageOnDone(ctx, T, agent, body) {
   }
   if (!slice) return null;
   if (!slice.task_key) slice.task_key = baseCtx.task_key;
+  // Dollar overlay (CDX-3): ensure the slice carries cost.usd before it lands in usage_records.
+  // Pricing stays ADAPTER-OWNED — the daemon only INVOKES adapter.price(slice) (which reads
+  // pricing.json and multiplies per-model token counts); it never embeds rates. Adapters that
+  // already priced at normalize time are re-priced idempotently (same rates → same numbers). The
+  // daemon's own rollups (sumUsageRecords / recordTaskCost) only SUM the resulting cost.usd.
+  if (typeof usageApi.price === 'function') {
+    try { usageApi.price(slice); } catch { /* pricing must never block usage recording */ }
+  }
   // Node-scoped eager judge attribution: when the completing agent was dispatched for a specific
   // node (judged_node set at /agent/start), stamp the node key on the slice so the per-node
   // judging-cost rollup can sum it. Non-node-scoped drains have no judged_node and stay pooled

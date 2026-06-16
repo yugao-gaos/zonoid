@@ -1,5 +1,5 @@
 {
-  "_comment": "Codex MCP wiring — set ORCH_CLIENT=codex so stdio MCP exposes create_task (file-drop mint + POST /sync).",
+  "_comment": "Reference shape only. Codex reads MCP from ~/.codex/config.toml under [mcp_servers.orchestrator-graph] (TOML) — NOT from this .mcp.json. `npx @zonoid/cli init --harness codex` writes the TOML form into config.toml for you (see config.toml.sample + README step 3). ORCH_CLIENT=codex makes the stdio MCP expose create_task (file-drop mint + POST /sync).",
   "mcpServers": {
     "orchestrator-graph": {
       "type": "stdio",
