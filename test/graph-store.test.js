@@ -367,12 +367,12 @@ function tmpDir() {
   // Creates file when absent
   gs.initGitAttributes(dir);
   const content = fs.readFileSync(path.join(dir, '.gitattributes'), 'utf8');
-  ok('initGitAttributes creates .gitattributes', content.includes('.graph/nodes/*.jsonl merge=union'));
+  ok('initGitAttributes creates .gitattributes (.graph/** merge=ours)', content.includes('.graph/** merge=ours'));
 
   // Idempotent — calling again must not duplicate
   gs.initGitAttributes(dir);
   const content2 = fs.readFileSync(path.join(dir, '.gitattributes'), 'utf8');
-  const count = (content2.match(/merge=union/g) || []).length;
+  const count = (content2.match(/merge=ours/g) || []).length;
   ok('initGitAttributes is idempotent (no duplicate entry)', count === 1);
 
   // Appends to existing content
@@ -381,7 +381,7 @@ function tmpDir() {
   gs.initGitAttributes(dir2);
   const content3 = fs.readFileSync(path.join(dir2, '.gitattributes'), 'utf8');
   ok('initGitAttributes preserves existing content', content3.includes('*.png binary'));
-  ok('initGitAttributes appends new entry', content3.includes('.graph/nodes/*.jsonl merge=union'));
+  ok('initGitAttributes appends new entry', content3.includes('.graph/** merge=ours'));
 
   fs.rmSync(dir,  { recursive: true });
   fs.rmSync(dir2, { recursive: true });

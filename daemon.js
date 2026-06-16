@@ -2030,6 +2030,7 @@ const ctx = {
     migrateBlindEdges(p, state.overlay);
     state.graphStore = graphStore.open(require('path').join(p, '.graph'));
     graphStore.initGitAttributes(p);
+    git.ensureMergeDriver(p);   // register `ours` driver so `.graph/** merge=ours` takes effect (FU-2 desync guard)
     const transcript = opts.transcript || null;
     const sessionId = sessionBindings.resolveSessionId(opts, transcript);
     if (sessionId) {
