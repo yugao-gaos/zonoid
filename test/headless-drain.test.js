@@ -416,6 +416,23 @@ function judgeDeps({ depth = 0, eagerNodes = [] } = {}) {
   };
 }
 
+/**
+ * Stub labelDeps so findDueLabelWork is driven entirely by the test (no real journal file touched).
+ * `journal` is an array of synthetic journal rows; `labeledKeys` is the set of already-labeled
+ * rowKeys. The stub rowKey is the row's own `_k` field so tests control dedup precisely.
+ */
+function labelDeps({ journal = [], labeledKeys = [] } = {}) {
+  const labeled = labeledKeys.map((k) => ({ _key: k }));
+  return {
+    labelDeps: {
+      rowKey: (row) => row._k,
+      journalPath: () => '/irrelevant/gate-journal.jsonl',
+      labeledPath: () => '/irrelevant/gate-labeled.jsonl',
+      readJsonl: (file) => (file.endsWith('gate-labeled.jsonl') ? labeled : journal),
+    },
+  };
+}
+
 // ---- buildJudgeArgs: command/prompt shape --------------------------------------------
 
 test('buildJudgeArgs (PERIODIC): targets /judge/next with a bounded budget, no node', () => {
@@ -594,5 +611,254 @@ test('flag ON but no judge work due ⇒ no judge spawn (no_due_drains)', () => {
     restore();
     if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
     else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+// ===========================================================================
+// LABEL DRAIN tests (task /4)
+// ===========================================================================
+//
+// The label drain runs the DETERMINISTIC gate-labeler (node scripts/gate-label.js) headless under
+// the SAME runner + governor as the learner — a Node child via process.execPath, NOT a `claude -p`.
+// ALL spawns are MOCKED — these tests never shell out to a real gate-label.js or hit a live daemon.
+// Mock seam is identical to the JUDGE tests: patch child_process.spawnSync BEFORE freshModule().
+
+// ---- buildLabelArgs: command shape ---------------------------------------------------
+
+test('buildLabelArgs builds correct node invocation for gate-label.js (workspace + port)', () => {
+  const hd = freshModule();
+  const args = hd.buildLabelArgs('/some/workspace', 9191);
+  // Must be: [<path-to-gate-label.js>, '--workspace', '/some/workspace', '--port', '9191']
+  assert.equal(args.length, 5, 'should have 5 argv elements');
+  assert.match(args[0], /gate-label\.js$/, 'first arg must be the gate-label.js script');
+  assert.equal(args[1], '--workspace', 'second arg must be --workspace');
+  assert.equal(args[2], '/some/workspace', 'third arg must be the workspace path');
+  assert.equal(args[3], '--port', 'fourth arg must be --port');
+  assert.equal(args[4], '9191', 'fifth arg must be the stringified port');
+  // It targets gate-label.js — NOT onboard-learn.js and NOT a claude -p prompt.
+  assert.doesNotMatch(args[0], /onboard-learn/, 'must NOT target the learner script');
+  assert.ok(!args.includes('-p'), 'label drain is a Node script, NOT a claude -p invocation');
+});
+
+test('buildLabelArgs defaults the port when not provided', () => {
+  const hd = freshModule();
+  const savedPort = process.env.ORCH_PORT;
+  delete process.env.ORCH_PORT;
+  try {
+    const args = hd.buildLabelArgs('/ws');
+    assert.equal(args[4], '8787', 'port defaults to 8787 when neither arg nor ORCH_PORT set');
+  } finally {
+    if (savedPort === undefined) delete process.env.ORCH_PORT;
+    else process.env.ORCH_PORT = savedPort;
+  }
+});
+
+// ---- findDueLabelWork: due-detection via injected deps -------------------------------
+
+test('findDueLabelWork: due when journal has unlabeled rows carrying a task_key', () => {
+  const hd = freshModule();
+  const deps = labelDeps({
+    journal: [
+      { _k: 'a', task_key: 't1' },
+      { _k: 'b', task_key: 't2' },
+    ],
+    labeledKeys: [],
+  }).labelDeps;
+  const due = hd.findDueLabelWork('/ws', deps);
+  assert.equal(due.due, true, 'due when there are unlabeled rows with task_key');
+  assert.equal(due.pending, 2, 'both rows count as pending');
+});
+
+test('findDueLabelWork: rows already in gate-labeled.jsonl are NOT pending (dedup by rowKey)', () => {
+  const hd = freshModule();
+  const deps = labelDeps({
+    journal: [
+      { _k: 'a', task_key: 't1' },
+      { _k: 'b', task_key: 't2' },
+    ],
+    labeledKeys: ['a'], // row 'a' already labeled
+  }).labelDeps;
+  const due = hd.findDueLabelWork('/ws', deps);
+  assert.equal(due.pending, 1, 'only the unlabeled row remains pending');
+  assert.equal(due.due, true);
+});
+
+test('findDueLabelWork: rows without a task_key are skipped (unlabelable)', () => {
+  const hd = freshModule();
+  const deps = labelDeps({
+    journal: [
+      { _k: 'a' },               // no task_key → unlabelable
+      { _k: 'b', task_key: '' },  // empty task_key → unlabelable
+    ],
+    labeledKeys: [],
+  }).labelDeps;
+  const due = hd.findDueLabelWork('/ws', deps);
+  assert.equal(due.pending, 0, 'rows without a usable task_key are not pending');
+  assert.equal(due.due, false);
+});
+
+test('findDueLabelWork: not due when every task_key row is already labeled', () => {
+  const hd = freshModule();
+  const deps = labelDeps({
+    journal: [{ _k: 'a', task_key: 't1' }],
+    labeledKeys: ['a'],
+  }).labelDeps;
+  const due = hd.findDueLabelWork('/ws', deps);
+  assert.equal(due.due, false);
+  assert.equal(due.pending, 0);
+});
+
+test('findDueLabelWork swallows loader errors and returns no due work', () => {
+  const hd = freshModule();
+  const due = hd.findDueLabelWork('/ws', {
+    journalPath: () => '/x', labeledPath: () => '/y',
+    rowKey: (r) => r._k,
+    readJsonl: () => { throw new Error('journal unreadable'); },
+  });
+  assert.equal(due.due, false);
+  assert.equal(due.pending, 0);
+});
+
+// ---- flag OFF: no label spawn even when label work is pending ------------------------
+
+test('flag OFF ⇒ NO label spawn even when label work is pending', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  delete process.env.ORCH_HEADLESS_DRAINS;
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  try {
+    const result = hd.runDueDrains({ workspace: os.tmpdir() }, undefined, {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
+    });
+    assert.equal(result.skipped, 'flag_off');
+    assert.equal(calls.length, 0, 'flag off must spawn nothing (label included)');
+  } finally {
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+// ---- flag ON: label spawns ONE Node child targeting gate-label.js --------------------
+
+test('flag ON: runDueDrains spawns ONE label drain (node gate-label.js), governor accounted', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  // Completed learner queue ⇒ no learner spawn; empty judge deps ⇒ no judge spawn.
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }, { _k: 'b', task_key: 't2' }], labeledKeys: [] }),
+    });
+    // Exactly one spawn — the label drain.
+    assert.equal(calls.length, 1, 'exactly one label spawn');
+    assert.equal(result.ran, 1, 'ran counts the single label drain');
+    const labelDrains = result.drains.filter((d) => d.drain === hd.LABEL_DRAIN_KEY);
+    assert.equal(labelDrains.length, 1, 'one LABEL_DRAIN_KEY summary recorded');
+    assert.equal(labelDrains[0].pending, 2, 'summary carries the pending count');
+    // The spawn is `node <gate-label.js> --workspace <ws> --port <n>` — Node child, NOT claude -p.
+    const call = calls[0];
+    assert.equal(call.bin, process.execPath, 'must spawn via the daemon Node (process.execPath)');
+    assert.match(call.args[0], /gate-label\.js$/, 'must target gate-label.js');
+    assert.ok(call.args.includes('--workspace') && call.args.includes(tmpDir), 'must pass --workspace <ws>');
+    assert.ok(!call.args.includes('-p'), 'label drain must NOT be a claude -p invocation');
+    // governor consumed exactly one iteration, concurrency fully restored.
+    assert.equal(hd._governor.iterationsUsed, 1, 'one iteration consumed');
+    assert.equal(hd._governor.concurrentRunning, 0, 'concurrency restored after run');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+  }
+});
+
+test('flag ON but no label work due ⇒ no label spawn', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+    });
+    assert.equal(calls.length, 0, 'empty journal ⇒ no label spawn');
+    assert.equal(result.skipped, 'no_due_drains');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+test('flag ON: label spawn is suppressed when the concurrency cap is already reached', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '2';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    // Pre-seed concurrency at the cap → the top-of-function guard short-circuits with concurrency_cap
+    // BEFORE any drain runs, proving the label drain shares the same governor gate as the others.
+    hd._governor.concurrentRunning = 2;
+    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
+    });
+    assert.equal(calls.length, 0, 'no spawn when concurrency cap is reached');
+    assert.equal(result.skipped, 'concurrency_cap');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+  }
+});
+
+test('flag ON: label iteration is suppressed when the iteration cap is exhausted mid-pass', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '1'; // exactly one spawn allowed total
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    // One eager judge spawn consumes the single iteration; the label drain must then be skipped
+    // by its `iterationsUsed < maxIterations` guard — proving the label rides the shared iteration cap.
+    const result = hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: ['note:a'] }),
+      ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
+    });
+    assert.equal(calls.length, 1, 'iteration cap bounds total spawns to 1 (judge wins the slot)');
+    assert.equal(result.ran, 1);
+    // The single spawn was the judge (claude -p), not the label drain.
+    assert.equal(result.drains.filter((d) => d.drain === hd.LABEL_DRAIN_KEY).length, 0,
+      'label drain suppressed once the iteration budget is spent');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
   }
 });
