@@ -21,7 +21,7 @@ function noteKnowledge(overlay, n) {
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, sendOp, readBody, notifyChange, buildGraph, state, targetOverlay, nodeExistsInGraph,
     embed, knowledgeText, snapshotNative, now, suggestToks, scoreNodeAgainstTokens,
-    SUGGEST_DUP_THRESHOLD, DIMS } = ctx;
+    SUGGEST_DUP_THRESHOLD, DIMS, seedBlockingDepContext } = ctx;
 
   if (p === '/overlay/edge' && m === 'POST') {
     const b = await readBody(req);
@@ -41,6 +41,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // autowire origin), so default origin:'asserted'. This is the population keepRateByBand must EXCLUDE
     // when tuning the autowire-lexical threshold (asserted note->task edges contaminated the sub-0.40 band).
     overlayStore.addEdge(T.ov, b.from, b.to, b.fromWorkspace, b.kind, b.weight, { origin: 'asserted' });
+    // When a blocking edge is created, auto-seed a low-weight context edge so the prerequisite's
+    // knowledge flows as retrieval context to the blocked task (gate-transparent). Best-effort.
+    // Absent kind defaults to 'blocking' (back-compat) — fire for both absent and explicit blocking.
+    if (b.kind !== 'context' && b.kind !== 'supersede' && seedBlockingDepContext) {
+      try { seedBlockingDepContext(T.ov, T.ws, b.to); } catch { /* best-effort — never abort the edge write */ }
+    }
     T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, edges: T.ov.edges.length, ghost: !!b.fromWorkspace, kind: b.kind === 'context' ? 'context' : 'blocking' }); return true;
   }
