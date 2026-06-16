@@ -76,7 +76,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const key = u.searchParams.get('key');
     const target = g.tasks.find((x) => x.id === key);
     if (!target) { send(res, 404, { ok: false, error: 'unknown task' }); return true; }
-    const { suggestions, duplicates, hint } = ctx.suggestForTask(g, target);
+    const { suggestions, duplicates, hint } = await ctx.suggestForTask(g, target);
     send(res, 200, { task: { id: target.id, label: target.label }, suggestions, duplicates, hint }); return true;
   }
 
