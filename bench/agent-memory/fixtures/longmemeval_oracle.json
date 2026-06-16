@@ -1,0 +1,76 @@
+[
+  {
+    "question_id": "fx-lme-001",
+    "question_type": "multi-session",
+    "question": "What programming language did the user switch to for their side project?",
+    "answer": "Rust",
+    "question_date": "2024-03-15",
+    "haystack_sessions": [
+      {
+        "session_id": "sess-a",
+        "date": "2024-01-05",
+        "content": [
+          {"role": "user", "content": "I'm building a CLI tool in Python for my side project."},
+          {"role": "assistant", "content": "Python is a great choice for CLIs. Are you using argparse or Click?"},
+          {"role": "user", "content": "Click. It's cleaner for subcommands."}
+        ]
+      },
+      {
+        "session_id": "sess-b",
+        "date": "2024-02-20",
+        "content": [
+          {"role": "user", "content": "Python is getting slow for my CLI — parsing 10k files takes 8 seconds."},
+          {"role": "assistant", "content": "You could profile it, or consider rewriting the hot path in a compiled language."},
+          {"role": "user", "content": "I've been looking at Rust. The tooling seems solid."}
+        ]
+      },
+      {
+        "session_id": "sess-c",
+        "date": "2024-03-10",
+        "content": [
+          {"role": "user", "content": "Rewrote the CLI in Rust. Same 10k files now takes 0.4 seconds!"},
+          {"role": "assistant", "content": "Impressive speedup. Was the rewrite painful?"},
+          {"role": "user", "content": "Lifetimes were tricky at first, but the borrow checker helped catch bugs early."}
+        ]
+      }
+    ],
+    "answer_session_ids": ["sess-b", "sess-c"]
+  },
+  {
+    "question_id": "fx-lme-002",
+    "question_type": "temporal-reasoning",
+    "question": "How long after the user started the Python CLI did they rewrite it in Rust?",
+    "answer": "About two months (from early January to early March 2024)",
+    "question_date": "2024-03-15",
+    "haystack_sessions": [
+      {
+        "session_id": "sess-a",
+        "date": "2024-01-05",
+        "content": [
+          {"role": "user", "content": "I'm building a CLI tool in Python for my side project."},
+          {"role": "assistant", "content": "Python is a great choice for CLIs. Are you using argparse or Click?"},
+          {"role": "user", "content": "Click. It's cleaner for subcommands."}
+        ]
+      },
+      {
+        "session_id": "sess-b",
+        "date": "2024-02-20",
+        "content": [
+          {"role": "user", "content": "Python is getting slow for my CLI — parsing 10k files takes 8 seconds."},
+          {"role": "assistant", "content": "You could profile it, or consider rewriting the hot path in a compiled language."},
+          {"role": "user", "content": "I've been looking at Rust. The tooling seems solid."}
+        ]
+      },
+      {
+        "session_id": "sess-c",
+        "date": "2024-03-10",
+        "content": [
+          {"role": "user", "content": "Rewrote the CLI in Rust. Same 10k files now takes 0.4 seconds!"},
+          {"role": "assistant", "content": "Impressive speedup. Was the rewrite painful?"},
+          {"role": "user", "content": "Lifetimes were tricky at first, but the borrow checker helped catch bugs early."}
+        ]
+      }
+    ],
+    "answer_session_ids": ["sess-a", "sess-c"]
+  }
+]

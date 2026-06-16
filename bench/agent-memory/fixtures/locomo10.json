@@ -1,0 +1,50 @@
+[
+  {
+    "dialogue_id": "fx-locomo-001",
+    "sessions": [
+      {
+        "session_id": 0,
+        "date": "2024-01-10",
+        "conversation": [
+          {"speaker": "user", "text": "I just started learning to bake bread.", "turn_id": "t1"},
+          {"speaker": "assistant", "text": "That's great! Sourdough or yeast-based?", "turn_id": "t2"},
+          {"speaker": "user", "text": "Yeast-based for now. I made a focaccia yesterday.", "turn_id": "t3"}
+        ]
+      },
+      {
+        "session_id": 1,
+        "date": "2024-01-17",
+        "conversation": [
+          {"speaker": "user", "text": "My focaccia came out flat. Any tips?", "turn_id": "t4"},
+          {"speaker": "assistant", "text": "Check your yeast is active and let it proof longer.", "turn_id": "t5"},
+          {"speaker": "user", "text": "Good idea. I'll also try adding more olive oil.", "turn_id": "t6"}
+        ]
+      },
+      {
+        "session_id": 2,
+        "date": "2024-01-24",
+        "conversation": [
+          {"speaker": "user", "text": "Second focaccia was perfect — rose beautifully!", "turn_id": "t7"},
+          {"speaker": "assistant", "text": "Awesome. Ready to try sourdough next?", "turn_id": "t8"},
+          {"speaker": "user", "text": "Maybe next month — I want to try ciabatta first.", "turn_id": "t9"}
+        ]
+      }
+    ],
+    "qa": [
+      {
+        "question_id": "q1",
+        "question": "What bread did the user bake in the first session?",
+        "answer": "focaccia",
+        "category": "single-hop",
+        "evidence": ["t3"]
+      },
+      {
+        "question_id": "q2",
+        "question": "What did the user plan to bake after improving their focaccia?",
+        "answer": "ciabatta",
+        "category": "multi-hop",
+        "evidence": ["t3", "t9"]
+      }
+    ]
+  }
+]
