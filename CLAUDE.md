@@ -106,9 +106,13 @@ The registered worktree is the security boundary: a claim with no worktree is st
 `branch_task` → `start_task` order IS the registration — nothing else to carry.
 
 Do the work inline only for genuinely trivial edits (a one-liner, a doc tweak, a config change).
-This is instruction-level in the desktop app (which runs no settings.json hooks); in the CLI a
-PreToolUse exit-2 gate (`hooks/orch-gate.sh` + `hooks/orch-gate-bash.sh`) hard-blocks **both**
-`Edit`/`Write` tools and `Bash` file-write commands — agents must claim a task before editing.
+Where the hooks are installed (`node bin/install.js`), a PreToolUse exit-2 gate hard-blocks **both**
+`Edit`/`Write` tools and `Bash` file-write commands — agents must claim a task before editing. For
+Claude Code the gate runs as Node (`hooks/orch-gate.js` + `hooks/orch-gate-bash.js`, invoked via
+`node` so it works on Windows/macOS/Linux); the Cursor/Codex adapters and the test suite drive the
+shell core (`hooks/orch-gate.sh` + `hooks/orch-gate-bash.sh`) — keep the two in sync. This gate fires
+in ANY harness that runs settings.json hooks — confirmed in both the Claude Code CLI **and** the
+desktop app — so it is instruction-level only where the hooks are not wired.
 Users opt out per-conversation with `orch off`.
 
 **Gate contract for subagents:** call `mcp__orchestrator-graph__branch_task(task_key)` **first**
