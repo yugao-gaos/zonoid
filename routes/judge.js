@@ -1,6 +1,7 @@
 'use strict';
 const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
+const graphStore = require('../lib/graph-store');
 
 const { JUDGE_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 
@@ -108,6 +109,19 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           return n ? { key: k, title: n.title, summary: String(n.summary || '').slice(0, 300), created_at: n.created_at || null } : { key: k, title: k, summary: '', created_at: null, missing: true };
         });
         return { kind: 'dup-cluster', id: it.id, keys: it.keys, notes, pending_dup: !!it.pending_dup };
+      }
+      if (it.kind === 'decay') {
+        const noteId = String(it.noteId || it.id).replace(/^note:/, '');
+        const n = state.overlay.note_nodes[noteId];
+        return {
+          kind: 'decay',
+          id: it.id,
+          noteId: it.noteId,
+          note: n ? { key: it.noteId, title: n.title, summary: String(n.summary || '').slice(0, 300), validFrom: n.validFrom || null } : { key: it.noteId, title: it.id, summary: '' },
+          winRate: it.winRate,
+          total: it.total,
+          action: it.action,
+        };
       }
       const note = byId.get(it.id) || { id: it.id, label: it.id, summary: '', vec: null };
       const candidates = noteRagCandidates(state.overlay, g, it.id, note.label, note.summary, note.vec, 8)
@@ -271,6 +285,28 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         for (const k of keys) overlayStore.clearPendingDup(T.ov, k);
         judge.stampCluster(T.ov.judgedClusters, keys, epoch);
         applied.stamped = (applied.stamped || 0) + 1; applied.clustersJudged++;
+      }
+      // retireNote: soft-retire a note that failed the decay gate (low win rate, age+opp gated).
+      // Appends note_superseded with validTo set, NO supersededBy — retire-without-replacement.
+      // Mirrors the retire-continuity-notes.js pattern exactly. Best-effort: skips notes that are
+      // already retired (validTo != null) or not found.
+      if (v && v.retireNote && v.retireNote.noteKey) {
+        const rId = String(v.retireNote.noteKey).replace(/^note:/, '');
+        const rNode = T.ov.note_nodes && T.ov.note_nodes[rId];
+        if (rNode && rNode.validTo == null) {
+          const retiredAt = new Date().toISOString();
+          rNode.validTo = retiredAt;
+          const store = graphStore.forWorkspace(T.ws);
+          graphStore.appendEvent(store, 'note:' + rId, {
+            evt: 'note_superseded',
+            id: rId,
+            validTo: retiredAt,
+            ts: retiredAt,
+            actor: 'judge:decay',
+          });
+          applied.retired = (applied.retired || 0) + 1;
+          judge.appendVerdict(T.ws, { epoch, verdict: 'retire', from: 'note:' + rId, to: null, edgeKind: 'note', cosine: null, by: 'judge:decay' });
+        }
       }
       const noteKey = v && (v.markJudged || (v.item && v.item.kind === 'orphan' ? v.item.id : null));
       if (noteKey) {
