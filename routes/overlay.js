@@ -535,6 +535,27 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // calls autowireNoteProvider to seed weight-0 candidate edges to relevant tasks/notes, then stamps
     // markEagerJudge so the heartbeat dispatches a judge immediately when edges were seeded.
     const ingestResult = await ctx.ingestNode(T.ov, buildGraph(T.ws), 'note:' + id, { title: b.title, summary: b.summary });
+    // FadeMem subsumption (Note-decay E): if the new note's embedding is available and it
+    // semantically subsumes an older current note (cosine >= SUBSUMPTION_THRESHOLD), soft-retire
+    // the older note by setting its validTo and supersededBy, then log a note_superseded event.
+    // Guard: skip if no vec (embedding sidecar unavailable → fail-open, consistent with dup guard).
+    if (b.vec) {
+      try {
+        const subsumed = judge.findSubsumedNotes(id, b.vec, T.ov);
+        if (subsumed.length) {
+          const newNoteKey = 'note:' + id;
+          const retiredAt = new Date().toISOString();
+          const gs2 = graphStore.forWorkspace(T.ws);
+          for (const { noteId } of subsumed) {
+            const oldNode = T.ov.note_nodes[noteId];
+            if (!oldNode) continue;
+            oldNode.validTo = retiredAt;
+            oldNode.supersededBy = id;
+            graphStore.appendEvent(gs2, 'note:' + noteId, { evt: 'note_superseded', id: noteId, supersededBy: newNoteKey, validTo: retiredAt, actor: 'subsumption', ts: retiredAt });
+          }
+        }
+      } catch { /* subsumption is best-effort — never block the note write */ }
+    }
     T.save(); notifyChange(T.ws);
     const resp = { ok: true, id, key: 'note:' + id, superseded, autowired: ingestResult.seeded, hint };
     if (pendingDupMatch) {
