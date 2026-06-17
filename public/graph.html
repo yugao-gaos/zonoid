@@ -4319,6 +4319,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;'
 let selected=null;
 let lastDetailFp='';
 let lastState=null; // most recent full /state payload, for re-render on view switch
+let liveAgentIds=new Set();
 let currentView=(v=>v==='cloud'?'cloud':'frontier')(localStorage.getItem('orchView'));  // Flow renamed → Frontier (stale 'flow' migrates; Frontier stays the default)
 let focusedId=null;            // Focus view target; survives view switches, NOT persisted
 let cloudSim=null;             // live d3 force simulation
@@ -4454,8 +4455,9 @@ function setDockVal(id, val, nonZeroColor){
   if(nonZeroColor && val!==0) el.style.color=nonZeroColor; else el.style.color='';
 }
 function updateDock(s, sc){
-  const wip=(sc.in_progress||0)+(sc.ready||0);
-  setDockVal('sdv-wip', sc.in_progress||0, '#58a6ff');
+  const localWip=sc.local_in_progress!=null?sc.local_in_progress:(sc.in_progress||0);
+  const wip=localWip+(sc.ready||0);
+  setDockVal('sdv-wip', localWip, '#58a6ff');
   setDockVal('sdv-agents', (s.agents.running||0)+'▶', s.agents.running>0?'#58a6ff':null);
   setDockVal('sdv-total', s.tasks_total||0, null);
   setDockVal('sdv-done', sc.done||0, '#3fb950');
@@ -4464,7 +4466,7 @@ function updateDock(s, sc){
   const notes=(s.notes||0);
   setDockVal('sdv-notes', notes, '#d29922');
   const wipEl=document.getElementById('sd-wip');
-  if(wipEl) wipEl.classList.toggle('wip-active', (sc.in_progress||0)>0);
+  if(wipEl) wipEl.classList.toggle('wip-active', localWip>0);
   // History button: show total not-in-frontier count if available
   const excl=_historyItems.length;
   const hbtn=document.getElementById('sd-history');
@@ -4473,6 +4475,7 @@ function updateDock(s, sc){
 async function tick(){
   let d; try{ d=await(await dfetch('/state')).json(); }catch{ return; }
   refreshCost(); refreshCronTok(); refreshInfraHero();
+  liveAgentIds=new Set((d.agents||[]).filter(a=>a&&a.state==='running').map(a=>a.agent_id));
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
 
   const cf=costCache, cfShare=cf&&cf.totals.total>0?Math.round(cf.totals.productive*100/cf.totals.total):null;
@@ -5241,9 +5244,9 @@ function renderDagSubset(view, nodes, links, byId){
   na.attr('opacity', t=>(t.kind==='note'&&t.validTo)?0.5:1);
   na.select('.fst').attr('fill',t=>taskDisplayStatus(t,byId).color).attr('y',t=>nodeLines(t).length>1?nodeH(t)/2-10:16).text(t=>taskStatusLine(t,byId));
   na.on('click',(ev,t)=>openDetail(t.id));
-  na.classed('wip', t=>t.status==='in_progress');   // left-to-right shine sweep
+  na.classed('wip', t=>t.status==='in_progress'&&t.agent_id&&liveAgentIds.has(t.agent_id));   // left-to-right shine sweep
   na.classed('focused', isFocus);                   // steady amber halo on the focused node
-  syncWipShineLoop(nodes.some(t=>t.status==='in_progress'));
+  syncWipShineLoop(nodes.some(t=>t.status==='in_progress'&&t.agent_id&&liveAgentIds.has(t.agent_id)));
 
   const vw=svgEl.clientWidth||800;
   const H=nodes.length?Math.min(gh+40, Math.max(320, window.innerHeight-260)):0;
