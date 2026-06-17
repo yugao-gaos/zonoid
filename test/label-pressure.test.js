@@ -44,7 +44,9 @@ function makeMockCtx(overlay, ws, terminalTaskIds, extraTasks) {
     readBody: async () => ({}),
     notifyChange: () => {},
     buildGraph: () => ({ tasks }),
-    targetOverlay: () => ({ ov: overlay, ws: null, save: () => {} }),
+    // P3: the route requires a resolved workspace (no daemon-global default). The mock binds the
+    // temp ws so /label/pressure computes the journal depth at `ws` instead of 400ing.
+    targetOverlay: () => ({ ov: overlay, ws, save: () => {} }),
   };
   function getLastSent() { return lastSent; }
   return { ctx, getLastSent };

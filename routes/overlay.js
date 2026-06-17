@@ -24,7 +24,7 @@ function isAdmissibleOverlayTaskKey(key) {
 }
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, sendOp, readBody, notifyChange, buildGraph, state, targetOverlay, nodeExistsInGraph,
+  const { send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, nodeExistsInGraph,
     embed, knowledgeText, snapshotNative, now, suggestToks, scoreNodeAgainstTokens,
     SUGGEST_DUP_THRESHOLD, DIMS, seedBlockingDepContext } = ctx;
   const graphHasKey = (ws, key) => {
@@ -53,6 +53,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.from || !b.to) { send(res, 400, { ok: false, error: 'from and to required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     // Reject unknown task keys: both endpoints must resolve to existing nodes.
     // Cross-workspace ghost edges carry fromWorkspace on `from` — skip the local-graph check for `from`
     // in that case (the foreign node lives in a different workspace and cannot be validated here).
@@ -82,6 +83,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.from || !b.to) { send(res, 400, { ok: false, error: 'from and to required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     // Reject unknown task keys — same cross-workspace carve-out as /overlay/edge.
     if (!b.fromWorkspace && !acceptsTaskKey(T, b.from)) {
       send(res, 404, { ok: false, error: `unknown task: ${b.from}` }); return true;
@@ -102,6 +104,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (ctx.opReplay(res, b)) return true;
     const T = targetOverlay(b, u);
     if (!ALL_STATUSES.includes(b.status)) { send(res, 400, { ok: false, error: 'invalid status', allowed: ALL_STATUSES }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     // Reject unknown task key — prevents phantom node creation (symmetry with READ ops).
     if (b.key) {
       if (!acceptsTaskKey(T, b.key)) {
@@ -325,7 +328,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const NATIVE_STATUS = { in_progress: 'in_progress', done: 'completed', tested: 'completed' };
     const ns = NATIVE_STATUS[b.status];
-    if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) snapshotNative(T.ov, b.key, ns);
+    if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) snapshotNative(T.ov, b.key, ns, T.ws);
     // RECALL-OUTCOME attribution: when a task reaches a terminal status, append a resolved row
     // joining the task_key to its outcome. Readers take the latest row per task_key — this
     // supersedes any prior 'pending' row written at context-assembly time (/search?task_key=).
@@ -372,14 +375,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     let verdictResults = null;
     if (b.status === 'done' && Array.isArray(b.verdicts) && b.verdicts.length) {
       verdictResults = verdicts.apply(T.ov, b.key, b.verdicts);
-      for (const r of verdictResults) if (r.action === 'cancel') snapshotNative(T.ov, r.task_key);
+      for (const r of verdictResults) if (r.action === 'cancel') snapshotNative(T.ov, r.task_key, null, T.ws);
       // AUTOMODE: auto-execute merge verdicts when config.automode is true.
       // When a judge task completes with {action:'merge', task_key:'<impl>'}, auto-call
       // git.mergeBranch so the attempt integrates without dispatcher intervention.
       if (T.ov.config && T.ov.config.automode) {
         for (const r of verdictResults) {
           if (r.action !== 'merge') continue;
-          const repo = ctx.resolveRepo(r.task_key, undefined, T.ov);
+          const repo = ctx.resolveRepo(r.task_key, undefined, T.ov, T.ws);
           if (!repo || !ctx.git.isRepo(repo)) continue;
           const mr = ctx.git.mergeBranch(repo, r.task_key, { message: `automode: merge attempt ${r.task_key} (${r.reason})` });
           if (mr.merged) {
@@ -436,6 +439,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       return true;
     }
     const T = targetOverlay(b, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     if (!T.ov.dispatcher_focus) T.ov.dispatcher_focus = {};
     T.ov.dispatcher_focus[b.session_id] = b.task_key;
     T.save();
@@ -448,6 +452,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.task_key || !b.session_id) { send(res, 400, { ok: false, error: 'task_key and session_id required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     if (!T.ov.claimSessions) T.ov.claimSessions = {};
     T.ov.claimSessions[b.task_key] = b.session_id;
     T.save();
@@ -459,6 +464,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (ctx.opReplay(res, b)) return true;
     const T = targetOverlay(b, u);
     if (!b.key || !b.item) { send(res, 400, { ok: false, error: 'key and item required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     if (!acceptsTaskKey(T, b.key)) {
       send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
     }
@@ -475,6 +481,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (ctx.opReplay(res, b)) return true;
     const T = targetOverlay(b, u);
     if (!b.title || !b.summary) { send(res, 400, { ok: false, error: 'title and summary required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     // Validate wires_to targets BEFORE creating the note — reject unknown task keys (phantom-node guard).
     if (Array.isArray(b.wires_to) && b.wires_to.length) {
       const _bad = b.wires_to.filter((k) => !acceptsTaskKey(T, k));
@@ -529,17 +536,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           const node = T.ov.note_nodes && T.ov.note_nodes[id];
           if (node && !node.vec) {
             node.vec = v;
-            const gs = (T.ws === state.workspace) ? state.graphStore : null;
+            // P3: resolve the graph-store per request workspace (no daemon-global state.graphStore).
+            const gs = T.ws ? graphStore.open(path.join(T.ws, '.graph')) : null;
             if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'note_vec_set', id, vec: v, actor: 'retry', ts: Date.now() });
           }
         } catch { /* best effort */ }
       }, 45000);
-    }
-    if (T.ws === state.workspace) {
-      if (!state.overlay.note_nodes[id]) state.overlay.note_nodes[id] = T.ov.note_nodes[id];
-      if (Array.isArray(b.knowledge) && b.knowledge.length > 0 && !state.overlay.knowledge[id]) {
-        state.overlay.knowledge[id] = b.knowledge;
-      }
     }
     overlayStore.bumpEpoch(T.ov);
     // PENDING-DUP: the guard fired (cosine >= DUP_THRESHOLD, no supersedes/force). The note was just
@@ -570,7 +572,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (Array.isArray(b.wires_to)) {
       for (const taskKey of b.wires_to) {
         overlayStore.addEdge(T.ov, 'note:' + id, taskKey, null, 'context', 1.0);
-        const gs = (T.ws === state.workspace) ? state.graphStore : null;
+        const gs = T.ws ? graphStore.open(path.join(T.ws, '.graph')) : null;
         if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, actor: b.actor || 'record-decision', ts: Date.now() });
       }
     }
@@ -598,6 +600,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.kind) { send(res, 400, { ok: false, error: 'kind required' }); return true; }
     if (!b.blocking_task_key) { send(res, 400, { ok: false, error: 'blocking_task_key required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     if (!acceptsTaskKey(T, b.blocking_task_key)) {
       return send(res, 404, { ok: false, error: `unknown task: ${b.blocking_task_key}` });
     }
@@ -626,6 +629,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const id = String(b.key).replace(/^note:/, '');
     const n = (T.ov.note_nodes || {})[id];
     if (!n) { send(res, 404, { ok: false, error: 'unknown note' }); return true; }
@@ -639,6 +643,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.old_key || !b.new_key) { send(res, 400, { ok: false, error: 'old_key and new_key required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const oldId = String(b.old_key).replace(/^note:/, '');
     const newId = String(b.new_key).replace(/^note:/, '');
     const r = overlayStore.supersedeNote(T.ov, oldId, newId, b.at, T.ws);
@@ -652,6 +657,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     if (!acceptsTaskKey(T, b.key)) {
       send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
     }
@@ -665,6 +671,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     if (!acceptsTaskKey(T, b.key)) {
       send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
     }
@@ -675,10 +682,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/overlay/backfill-embeddings' && m === 'POST') {
+    const b = await readBody(req).catch(() => ({}));
+    const T = targetOverlay(b, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     let notesEmbedded = 0, notesSkipped = 0, knEmbedded = 0, knSkipped = 0, failed = 0;
-    const gs = state.graphStore || graphStore.open(path.join(state.workspace, '.graph'));
+    // P3: resolve the graph-store per request workspace (no daemon-global state.graphStore).
+    const gs = graphStore.open(path.join(T.ws, '.graph'));
     const ts = new Date().toISOString();
-    for (const n of Object.values(state.overlay.note_nodes || {})) {
+    for (const n of Object.values(T.ov.note_nodes || {})) {
       // Upgrade a note that is missing EITHER the pooled `.vec` OR the field-level `.vecs` set.
       // (Previously only notes missing `.vec` were touched, so existing notes never gained `.vecs`.)
       const hasVec = Array.isArray(n.vec);
@@ -693,7 +704,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         } else failed++;
       }
       if (!hasVecs) {
-        const vecs = (await Promise.all(noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(state.overlay, n) }).map(embed))).filter(Boolean);
+        const vecs = (await Promise.all(noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }).map(embed))).filter(Boolean);
         if (vecs.length) {
           n.vecs = vecs; touched = true;
           graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs, actor: 'backfill', ts });
@@ -701,7 +712,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
       if (touched) notesEmbedded++;
     }
-    for (const items of Object.values(state.overlay.knowledge || {})) {
+    for (const items of Object.values(T.ov.knowledge || {})) {
       for (const it of (items || [])) {
         if (it && Array.isArray(it._vec)) { knSkipped++; continue; }
         const v = await embed(knowledgeText(it));
@@ -711,26 +722,29 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // TASK backfill (multi-vec schema): every real (non-note) task node that lacks a vec gets one
     // from its title+summary. buildGraph yields the authoritative label+summary per node.
     let tasksEmbedded = 0, tasksSkipped = 0;
-    const g = buildGraph(state.workspace);
+    const g = buildGraph(T.ws);
     for (const node of g.tasks) {
       if ((node.kind || 'task') === 'note') continue;
-      const existing = state.overlay.taskVecs && state.overlay.taskVecs[node.id];
+      const existing = T.ov.taskVecs && T.ov.taskVecs[node.id];
       if (Array.isArray(existing) && existing.length) { tasksSkipped++; continue; }
       const v = await embed(taskEmbedText({ title: node.label, summary: node.summary }));
-      if (v) { overlayStore.setTaskVec(state.overlay, node.id, v); tasksEmbedded++; } else failed++;
+      if (v) { overlayStore.setTaskVec(T.ov, node.id, v); tasksEmbedded++; } else failed++;
     }
-    overlayStore.save(state.workspace, state.overlay);
-    notifyChange();
+    overlayStore.save(T.ws, T.ov);
+    notifyChange(T.ws);
     send(res, 200, { ok: true, notes: { embedded: notesEmbedded, skipped: notesSkipped }, knowledge: { embedded: knEmbedded, skipped: knSkipped }, tasks: { embedded: tasksEmbedded, skipped: tasksSkipped }, failed }); return true;
   }
 
   if (p === '/overlay/reembed' && m === 'POST') {
     const body2 = await readBody(req).catch(() => ({}));
+    const T = targetOverlay(body2, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const force2 = body2 && body2.force;
     let embedded = 0, skipped = 0, failed = 0;
-    const gs2 = state.graphStore || graphStore.open(path.join(state.workspace, '.graph'));
+    // P3: resolve the graph-store per request workspace (no daemon-global state.graphStore).
+    const gs2 = graphStore.open(path.join(T.ws, '.graph'));
     const ts2 = new Date().toISOString();
-    for (const n of Object.values(state.overlay.note_nodes || {})) {
+    for (const n of Object.values(T.ov.note_nodes || {})) {
       // Skip only when BOTH the pooled `.vec` and the field-level `.vecs` set are already present at
       // full DIMS (and not forced) — so existing single-vec notes get upgraded to multivec.
       const vecOk = Array.isArray(n.vec) && n.vec.length === DIMS;
@@ -739,12 +753,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       let touched = false;
       const v = await embed(noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
       if (v) { n.vec = v; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'reembed', ts: ts2 }); } else failed++;
-      const vecs = (await Promise.all(noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(state.overlay, n) }).map(embed))).filter(Boolean);
+      const vecs = (await Promise.all(noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }).map(embed))).filter(Boolean);
       if (vecs.length) { n.vecs = vecs; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs, actor: 'reembed', ts: ts2 }); }
       if (touched) embedded++;
     }
-    overlayStore.save(state.workspace, state.overlay);
-    notifyChange();
+    overlayStore.save(T.ws, T.ov);
+    notifyChange(T.ws);
     send(res, 200, { ok: true, embedded, skipped, failed }); return true;
   }
 
@@ -752,6 +766,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.old_key || !b.new_key) { send(res, 400, { ok: false, error: 'old_key and new_key required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     // Reject unknown task keys — both old and new must exist (phantom-node guard).
     if (!acceptsTaskKey(T, b.old_key)) { send(res, 404, { ok: false, error: `unknown task: ${b.old_key}` }); return true; }
     if (!acceptsTaskKey(T, b.new_key)) { send(res, 404, { ok: false, error: `unknown task: ${b.new_key}` }); return true; }
@@ -760,7 +775,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const note = `superseded by ${b.new_key}${b.reason ? ': ' + b.reason : ''}`;
     overlayStore.setStatus(T.ov, b.old_key, 'canceled', note);
     overlayStore.markForRejudge(T.ov, b.old_key);
-    snapshotNative(T.ov, b.old_key);
+    snapshotNative(T.ov, b.old_key, null, T.ws);
     overlayStore.addEdge(T.ov, b.old_key, b.new_key, null, 'supersede');
     T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, old_key: b.old_key, new_key: b.new_key }); return true;

@@ -119,10 +119,18 @@ async function waitForPing(ms = 10000) {
     ok('/state?workspace=A agents includes worker-A1', stateA.body.agents.some((a) => a.agent_id === 'worker-A1'));
     ok('/state?workspace=A agents excludes worker-B1', !stateA.body.agents.some((a) => a.agent_id === 'worker-B1'));
 
-    // /state without ?workspace= (daemon-global = B) should include B's agents only
-    const stateB = await req('GET', '/state');
-    ok('/state (no ws param, global=B) agents only B workers', stateB.body.agents.every((a) => a.workspace === WS_B));
-    ok('/state (no ws param, global=B) no A workers', !stateB.body.agents.some((a) => a.workspace === WS_A));
+    // P3: there is NO daemon-global workspace anymore, so /state with no ?workspace= can no longer
+    // default to "the global" (formerly B). Per-request workspace selection is mandatory: /state
+    // 400s rather than silently picking a workspace. The per-repo scoping intent is fully covered by
+    // the explicit /state?workspace=A assertions above.
+    const stateNoWs = await req('GET', '/state');
+    ok('/state (no ws param) 400s — no daemon-global default', stateNoWs.status === 400);
+    ok('/state (no ws param) error names workspace requirement', /workspace required/i.test(stateNoWs.body.error || ''));
+
+    // Explicit /state?workspace=B still scopes to B's agents only (the per-request counterpart).
+    const stateB = await req('GET', `/state?workspace=${encodeURIComponent(WS_B)}`);
+    ok('/state?workspace=B agents only B workers', stateB.body.agents.every((a) => a.workspace === WS_B));
+    ok('/state?workspace=B no A workers', !stateB.body.agents.some((a) => a.workspace === WS_A));
 
     // ── #3: /ready?workspace=X targets X's graph, not daemon global ──────────────
     // Create a task in WS_A via the overlay
@@ -143,10 +151,9 @@ async function waitForPing(ms = 10000) {
     const readyA2 = await req('GET', `/ready?workspace=${encodeURIComponent(WS_A)}`);
     ok('/ready?workspace=A sees A tasks', readyA2.status === 200 && Array.isArray(readyA2.body.ready));
 
-    // /ready without ?workspace= hits B graph (daemon-global = B) — should not include A tasks
-    const readyB = await req('GET', '/ready');
-    ok('/ready (no param, global=B) does not include A tasks',
-      !readyB.body.ready.some((t) => t.key === 'sessA/ready1'));
+    // P3: /ready with no ?workspace= has no daemon-global to fall back to — it 400s.
+    const readyNoWs = await req('GET', '/ready');
+    ok('/ready (no param) 400s — no daemon-global default', readyNoWs.status === 400);
 
     // ── #6: show_dashboard MCP tool with workspace arg returns deep_link ─────────
     const mcpShowDash = await req('POST', '/mcp', {
@@ -190,8 +197,9 @@ async function waitForPing(ms = 10000) {
     overlayStore.save(WS_A, ovA);
     const judgeA = await req('GET', `/judge/pressure?workspace=${encodeURIComponent(WS_A)}`);
     ok('/judge/pressure?workspace=A sees A queue', judgeA.status === 200 && judgeA.body.workspace === WS_A && judgeA.body.depth >= 1);
-    const judgeB = await req('GET', '/judge/pressure');
-    ok('/judge/pressure without workspace stays on global B', judgeB.status === 200 && judgeB.body.workspace === WS_B && judgeB.body.depth === 0);
+    // P3: /judge/pressure with no workspace 400s — no daemon-global default to drain against.
+    const judgeNoWs = await req('GET', '/judge/pressure');
+    ok('/judge/pressure without workspace 400s — no daemon-global default', judgeNoWs.status === 400);
 
     await req('POST', '/mark-root', { workspace: WS_A, task_key: 'sessA/claim1', reason: 'claim fixture' });
     await req('POST', '/git/init', { workspace: WS_A, key: 'sessA/claim1', repo_path: WS_A });
@@ -202,8 +210,11 @@ async function waitForPing(ms = 10000) {
     ok('/active-claim?workspace=A sees A claim session', claimA.status === 200 && claimA.body.claimed === true && claimA.body.claims.some((c) => c.key === 'sessA/claim1'));
     const stopA = await req('GET', `/should-stop?session=${encodeURIComponent('claim-session-A')}&agent=${encodeURIComponent('claim-worker-A')}&workspace=${encodeURIComponent(WS_A)}`);
     ok('/should-stop?workspace=A sees A stop flag', stopA.status === 200 && stopA.body.stop === true && stopA.body.agent === 'claim-worker-A');
+    // P3: /should-stop with no workspace has no daemon-global overlay to read the stop flag from,
+    // so it resolves to {stop:false} (the flag lives in WS_A's overlay and is only seen with
+    // ?workspace=A above). No crash, no cross-workspace leakage.
     const stopB = await req('GET', `/should-stop?session=${encodeURIComponent('claim-session-A')}&agent=${encodeURIComponent('claim-worker-A')}`);
-    ok('/should-stop without workspace stays on global B', stopB.status === 200 && stopB.body.stop === false);
+    ok('/should-stop without workspace resolves stop:false (no global overlay)', stopB.status === 200 && stopB.body.stop === false);
 
   } catch (e) {
     console.error('TEST ERROR:', e);

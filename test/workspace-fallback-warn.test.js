@@ -1,16 +1,19 @@
 #!/usr/bin/env node
-// Phase-1 (observe-only) regression test for the daemon-global workspace-fallback warning.
-// The MCP client already stamps `workspace` into every request, so state.workspace should now
-// only be consulted as a SILENT FALLBACK. Before later phases remove that fallback, the daemon
-// emits a STRUCTURED, DEDUPED warning at every seam that still falls through to it — so we can see
-// which callers still rely on it. This test asserts the two halves of the contract:
-//   (a) the warning FIRES (once per distinct seam) when no explicit workspace is supplied;
-//   (b) it is COMPLETELY SILENT on the hot path (an explicit workspace IS supplied).
-// ZERO behavior change is expected beyond the stderr line.
+// P3 (no-global) regression test: the daemon-global workspace fallback is GONE.
 //
-// Unit-level: require()s daemon.js directly (it only binds ports under require.main === module),
-// drives the exported seams in-process, and captures process.stderr.write. No framework; matches
-// the style of test/workspace-write-target.test.js / workspace-read-target.test.js.
+// History: Phase 1 added an observe-only STRUCTURED WARNING (orch.workspace-fallback) at every seam
+// that still silently fell through to the daemon-global `state.workspace`, so we could see which
+// callers relied on it before removing it. Phase 3 REMOVED the global pointer entirely (grep-zero on
+// state.workspace/state.overlay/state.graphStore) — so the warn scaffold (and its
+// __resetWorkspaceFallbackSeamsForTest hook) is gone too, intentionally superseded by hard
+// no-fallback resolution: a seam with no explicit workspace now resolves to a NULL workspace, and
+// routes 400 rather than silently defaulting. This test asserts that P3 invariant directly:
+//   (a) targetOverlay() with NO explicit workspace resolves to ws=null (no global default);
+//   (b) targetOverlay() WITH an explicit workspace (body or ?workspace=) resolves to that ws.
+//
+// Unit-level: require()s daemon.js directly (it only binds ports under require.main === module) and
+// drives the exported targetOverlay seam in-process. No framework; matches the style of
+// test/workspace-write-target.test.js / workspace-read-target.test.js.
 // Run: node test/workspace-fallback-warn.test.js
 'use strict';
 const fs = require('fs');
@@ -29,73 +32,37 @@ const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-wsfallbac
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
 
-// Capture every line daemon.warnWorkspaceFallback writes to stderr without polluting test output.
-const origWrite = process.stderr.write.bind(process.stderr);
-let captured = [];
-function startCapture() {
-  captured = [];
-  process.stderr.write = (chunk, ...rest) => {
-    const s = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-    if (s.includes('orch.workspace-fallback')) { captured.push(s); return true; }
-    return origWrite(chunk, ...rest);
-  };
-}
-function stopCapture() { process.stderr.write = origWrite; return captured.slice(); }
-const sawSeam = (lines, seam) => lines.some((l) => l.includes(`seam=${seam}`));
-
 (async () => {
   try {
-    // Pin a workspace + a minimal overlay so the seams have something coherent to resolve against.
     const ov = overlayStore.load(WS);
-    daemon.__setWorkspaceForTest(WS);
-    daemon.__setOverlayForTest(ov);
 
-    // --- (a) FALLBACK fires when no explicit workspace is supplied -----------------------------
-    daemon.__resetWorkspaceFallbackSeamsForTest();
-    startCapture();
-    // targetOverlay with neither a body.workspace nor a ?workspace= query → falls through.
-    daemon.targetOverlay(null, { searchParams: new URLSearchParams() });
-    daemon.targetOverlay({}, null);
-    // A sweep invoked with NO ws arg → defaults to state.workspace (the legacy fallback path).
-    daemon.sweepFailedTasks();
-    let lines = stopCapture();
-    ok('targetOverlay fallback warned when workspace omitted', sawSeam(lines, 'targetOverlay'));
-    ok('sweepFailedTasks fallback warned when ws omitted', sawSeam(lines, 'sweepFailedTasks'));
+    // --- (a) NO global default: omitting the workspace resolves to ws=null ----------------------
+    // (No __setWorkspaceForTest pin here — that test alias is honored by overlayFor, but
+    // targetOverlay's contract is to read the explicit request workspace ONLY. With none supplied
+    // there is nothing to fall back to in P3.)
+    const fromNullQuery = daemon.targetOverlay(null, { searchParams: new URLSearchParams() });
+    ok('targetOverlay(null, empty-query) resolves to ws=null (no global fallback)', fromNullQuery.ws === null);
+    const fromEmptyBody = daemon.targetOverlay({}, null);
+    ok('targetOverlay({}, null) resolves to ws=null (no global fallback)', fromEmptyBody.ws === null);
 
-    // --- dedupe: the SAME seam warns only ONCE across repeated fallbacks -----------------------
-    startCapture();
-    daemon.targetOverlay(null, { searchParams: new URLSearchParams() });
-    daemon.targetOverlay(null, { searchParams: new URLSearchParams() });
-    daemon.targetOverlay(null, { searchParams: new URLSearchParams() });
-    lines = stopCapture();
-    ok('targetOverlay does NOT re-warn (deduped within the seen set)', !sawSeam(lines, 'targetOverlay'));
+    // The legacy reset hook is GONE — its absence is part of the P3 contract (no warn scaffold).
+    ok('__resetWorkspaceFallbackSeamsForTest hook removed (warn scaffold gone)',
+      typeof daemon.__resetWorkspaceFallbackSeamsForTest !== 'function');
 
-    // --- after reset, the seam warns again (proves the dedupe set is the gate, not a one-shot) -
-    daemon.__resetWorkspaceFallbackSeamsForTest();
-    startCapture();
-    daemon.targetOverlay(null, { searchParams: new URLSearchParams() });
-    lines = stopCapture();
-    ok('targetOverlay re-warns after the seen-set is reset', sawSeam(lines, 'targetOverlay'));
-
-    // --- (b) HOT PATH is completely SILENT when an explicit workspace IS supplied --------------
-    daemon.__resetWorkspaceFallbackSeamsForTest();
-    startCapture();
-    // explicit via body.workspace
-    daemon.targetOverlay({ workspace: WS }, null);
-    // explicit via ?workspace= query
+    // --- (b) explicit workspace resolves to that workspace (body or ?workspace=) ----------------
+    const fromBody = daemon.targetOverlay({ workspace: WS }, null);
+    ok('targetOverlay resolves explicit body.workspace', fromBody.ws === WS);
     const u = { searchParams: new URLSearchParams(`workspace=${encodeURIComponent(WS)}`) };
-    daemon.targetOverlay(null, u);
-    // sweep invoked WITH an explicit ws (the per-workspace hot path the loop tick uses)
-    daemon.sweepFailedTasks(WS, ov);
-    lines = stopCapture();
-    ok('targetOverlay SILENT when explicit workspace passed (body or query)', !sawSeam(lines, 'targetOverlay'));
-    ok('sweepFailedTasks SILENT when explicit ws passed', !sawSeam(lines, 'sweepFailedTasks'));
-    ok('no fallback warning at all on the explicit hot path', lines.length === 0);
+    const fromQuery = daemon.targetOverlay(null, u);
+    ok('targetOverlay resolves explicit ?workspace= query', fromQuery.ws === WS);
+
+    // The explicit overlay is a real (non-EMPTY) per-workspace overlay object.
+    ok('explicit-workspace overlay is a usable object', fromBody.ov && typeof fromBody.ov === 'object' && Array.isArray(fromBody.ov.edges));
+    void ov;
   } catch (e) {
     console.error('TEST ERROR:', e);
     fail++;
   } finally {
-    process.stderr.write = origWrite;
     for (const d of [SANDBOX, WS]) { try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* */ } }
   }
   console.log('-----');

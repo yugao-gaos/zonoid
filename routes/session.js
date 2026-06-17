@@ -30,8 +30,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/active-claim') {
     const sid = u.searchParams.get('session');
     const T = targetOverlay(null, u);
-    const g = buildGraph(T.ws);
-    let all = g.tasks.filter((t) => t.status === 'in_progress').map((t) => ({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id }));
+    // P3: there is no daemon-global workspace, and the gate queries /active-claim with only a
+    // session id (no ?workspace=). So when no explicit workspace is given, enumerate EVERY
+    // registered workspace and union their in_progress tasks — a claim lives in one workspace's
+    // overlay and the gate can't name which. With an explicit ?workspace= we honor it exactly.
+    const scanWorkspaces = T.ws ? [T.ws] : ctx.registeredWorkspaces();
+    let all = [];
+    for (const ws of scanWorkspaces) {
+      const g = buildGraph(ws);
+      for (const t of g.tasks) {
+        if (t.status === 'in_progress') all.push({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id });
+      }
+    }
     if (sid && !all.some((t) => t.session === sid)) {
       for (const t of ctx.harness.tasks.readSessionTasksRaw(sid)) {
         if (t.status === 'in_progress')
@@ -65,7 +75,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/dispatcher/children') {
     const sid = u.searchParams.get('session');
     if (!sid) { send(res, 400, { error: 'session required' }); return true; }
-    const meta = attributionMeta(sid, ctx);
+    const meta = attributionMeta(sid, ctx, { u });
     send(res, 200, { children: listDispatcherChildren(sid, ctx), ...meta }); return true;
   }
 
