@@ -182,13 +182,13 @@ echo "Claude Code installation complete"
                 score = s.get("ceScore") or s.get("score") or 0
                 if node_key and score > 0.2 and not s.get("duplicate"):
                     self._zonoid_post(host_url, "/overlay/edge", {
-                        "from": note_key, "to": node_key, "type": "context"
+                        "from": note_key, "to": node_key, "kind": "context"
                     })
                     self.logger.info(f"  Wired edge: {node_key} ({score:.3f})")
 
         return {"note_key": note_key, "context_deps": results}
 
-    def _build_agents_md(self, instance_id: str, agent_url: str, context_deps: list) -> str:
+    def _build_agents_md(self, instance_id: str, agent_url: str, context_deps: list, note_key: Optional[str] = None) -> str:
         """Build /testbed/AGENTS.md: pre-fetched context + live search instructions."""
         lines = [
             "# Zonoid Knowledge Base",
@@ -215,7 +215,6 @@ echo "Claude Code installation complete"
                     lines.append(f"- {summary}")
             lines.append("")
 
-        agent_url_q = agent_url.replace("&", "%26")
         lines += [
             "## Instructions",
             "",
@@ -225,24 +224,27 @@ echo "Claude Code installation complete"
             "",
             "### 2. Search for relevant knowledge as you work:",
             "```bash",
-            f'curl -s "{agent_url}/search?q=YOUR+QUERY+HERE&task_key={instance_id}"',
+            f'curl -s "{agent_url}/search?q=YOUR+QUERY+HERE"',
             "```",
             "",
             "### 3. Record discoveries for future tasks:",
             "```bash",
             f"curl -s -X POST {agent_url}/overlay/note \\",
             "  -H 'Content-Type: application/json' \\",
-            f"""  -d '{{"wires_to":["{instance_id}"],"title":"Finding title","summary":"What you discovered"}}'""",
-            "```",
-            "",
-            "### 4. Mark task complete when done:",
-            "```bash",
-            f"curl -s -X POST {agent_url}/overlay/status \\",
-            "  -H 'Content-Type: application/json' \\",
-            f"""  -d '{{"key":"{instance_id}","status":"done","summary":"One-line summary of what you implemented"}}'""",
+            f"""  -d '{{"title":"FB finding: {instance_id}","summary":"What you discovered","tags":["featurebench","{instance_id}"]}}'""",
             "```",
             "",
         ]
+        if note_key:
+            lines += [
+                "### 4. Link useful discoveries back to this benchmark note:",
+                "```bash",
+                f"curl -s -X POST {agent_url}/overlay/edge \\",
+                "  -H 'Content-Type: application/json' \\",
+                f"""  -d '{{"from":"note:NEW_NOTE_ID","to":"{note_key}","kind":"context"}}'""",
+                "```",
+                "",
+            ]
         return "\n".join(lines)
 
     # ── Lifecycle hooks ───────────────────────────────────────────────────────
@@ -275,7 +277,7 @@ echo "Claude Code installation complete"
 
             ctx = self._setup_zonoid_context(zonoid_url, instance_id, task_summary)
 
-            agents_md = self._build_agents_md(instance_id, agent_url, ctx["context_deps"])
+            agents_md = self._build_agents_md(instance_id, agent_url, ctx["context_deps"], ctx["note_key"])
 
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".md", delete=False, encoding="utf-8", newline="\n"

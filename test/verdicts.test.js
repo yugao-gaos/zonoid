@@ -3,13 +3,14 @@
 // (no framework; matches test/followups.test.js style). Run: node test/verdicts.test.js.
 //
 // Properties:
-//   - validate: rejects non-arrays, missing task_key/reason, unknown actions; accepts the three
-//     actions (release/hold/cancel).
+//   - validate: rejects non-arrays, missing task_key/reason, unknown actions; accepts the four
+//     actions (release/hold/cancel/merge).
 //   - apply (release): drops an explicit not_ready override (status re-derives), reason lands
 //     FIRST in the note with the prior note kept; a target with no hold is a no-op (released:false)
 //     and a non-not_ready override is never touched.
 //   - apply (hold): sets/refreshes a not_ready override with the reason as note.
 //   - apply (cancel): canceled override + cooperative cancel flag (existing cancel semantics).
+//   - apply (merge): records a non-destructive merge request; does not cancel or change status.
 //   - sweepStaleHolds: auto-releases a hold whose note references the completed task (full key, or
 //     same-session "/<id>" shorthand — the motivating incident's "gated behind (/14)"); flags
 //     unreferenced stale holds as severity-'review' guidance with action {kind:'stale-hold'};
@@ -33,10 +34,11 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ok('validate rejects missing task_key', vd.validate([{ action: 'release', reason: 'r' }]) != null);
   ok('validate rejects missing reason', vd.validate([{ task_key: 's/1', action: 'hold' }]) != null);
   ok('validate rejects unknown action', vd.validate([{ task_key: 's/1', action: 'approve', reason: 'r' }]) != null);
-  ok('validate accepts release/hold/cancel', vd.validate([
+  ok('validate accepts release/hold/cancel/merge', vd.validate([
     { task_key: 's/1', action: 'release', reason: 'gate satisfied' },
     { task_key: 's/2', action: 'hold', reason: 'regressed' },
     { task_key: 's/3', action: 'cancel', reason: 'moot' },
+    { task_key: 's/4', action: 'merge', reason: 'approved' },
   ]) === null);
 }
 
@@ -65,6 +67,16 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ]);
   ok('hold sets a not_ready override with the reason', o.status['s/5'] === 'not_ready' && o.notes['s/5'] === 'held by s/2: NO-GO: probe regressed');
   ok('cancel sets canceled + cooperative cancel flag', o.status['s/6'] === 'canceled' && !!o.cancel_requested['s/6'] && res[1].action === 'cancel');
+}
+
+// --- apply: merge --------------------------------------------------------------------------------
+{
+  const o = ov.EMPTY();
+  const res = vd.apply(o, 'judge/1', [
+    { task_key: 's/8', action: 'merge', reason: 'approved for feature branch' },
+  ]);
+  ok('merge records a merge request', res[0].action === 'merge' && /^merge requested by judge\/1: approved/.test(o.notes['s/8']));
+  ok('merge does not cancel or change task status', o.status['s/8'] === undefined && !o.cancel_requested['s/8']);
 }
 
 // --- sweepStaleHolds ---------------------------------------------------------------------------
