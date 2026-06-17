@@ -106,6 +106,24 @@ function aggregateCached(ws) {
   return v;
 }
 
+// --- workspace-fallback observability (Phase 1 of deprecating the daemon-global default) ----
+// The MCP client (lib/mcp-core makeCall) already stamps `workspace` into every POST body and every
+// GET as ?workspace=, so the daemon-global state.workspace should now only ever be consulted as a
+// SILENT FALLBACK when a caller forgot/omitted it. Before removing the fallback (later phases), we
+// must first SURFACE which seams still rely on it. This emits a STRUCTURED, DEDUPED warning — once
+// per distinct seam key — so it never spams per-request. The hot path (explicit workspace passed)
+// must stay COMPLETELY silent: callers only invoke this when they actually fell through to
+// state.workspace. ZERO behavior change — observe-only.
+const _seenWorkspaceFallbackSeams = new Set();
+function warnWorkspaceFallback(seam) {
+  if (_seenWorkspaceFallbackSeams.has(seam)) return;
+  _seenWorkspaceFallbackSeams.add(seam);
+  try { process.stderr.write(`orch.workspace-fallback seam=${seam} ws=${state.workspace || '<none>'}\n`); } catch { /* best effort */ }
+}
+// Test-only: reset the dedupe set so a test can assert the warning fires (and re-fires after reset)
+// without spawning a fresh process per assertion. Mirrors the other __*ForTest hooks below.
+function __resetWorkspaceFallbackSeamsForTest() { _seenWorkspaceFallbackSeams.clear(); }
+
 // Status write-through router: file-drop stub keys update the stub file's own `status` field
 // (atomic rewrite — filedrop.writeStatus returns false when no stub exists for the key, which
 // is the ownership test); everything else goes to the active harness adapter (Claude native
@@ -428,7 +446,11 @@ function resolveRepo(key, explicit, ov = state.overlay, ws = state.workspace) {
 // coherent (mirrors makeResolver's loadWs / the read routes' `ov[ws]` pattern); otherwise we load
 // that workspace's overlay fresh, mutate it, and save() persists to the RESOLVED workspace.
 function targetOverlay(b, u) {
-  const ws = (b && b.workspace) || (u && u.searchParams.get('workspace')) || state.workspace;
+  const explicit = (b && b.workspace) || (u && u.searchParams.get('workspace')) || null;
+  // Phase-1 observe-only: warn ONLY when no explicit workspace was supplied and we fall through to
+  // the daemon-global pointer. An explicit workspace (the hot path) stays completely silent.
+  if (!explicit) warnWorkspaceFallback('targetOverlay');
+  const ws = explicit || state.workspace;
   const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
   return { ws, ov, save: () => overlayStore.save(ws, ov) };
 }
@@ -605,7 +627,8 @@ function localInProgressCount(tasks, ov = state.overlay, agents = state.agents, 
 // Parameterized on (ws, ov) so the sweep operates on the REQUESTED workspace's overlay (buildGraph
 // passes its target — claims in a workspace the daemon-global state isn't pinned to still release);
 // defaults = old behavior.
-function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
+function sweepStaleClaims(ws, ov = state.overlay) {
+  if (ws === undefined) { warnWorkspaceFallback('sweepStaleClaims'); ws = state.workspace; }
   let dirty = false;
   let agentsDirty = false;
   const stWs = ws === state.workspace ? state : { ...state, overlay: ov };
@@ -631,7 +654,8 @@ function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
 }
 // Auto-retry failed tasks: flip ALL failed tasks back to ready with a note about the prior attempt.
 // Mirrors sweepStaleClaims in structure. Returns true if any task was retried.
-function sweepFailedTasks(ws = state.workspace, ov = state.overlay) {
+function sweepFailedTasks(ws, ov = state.overlay) {
+  if (ws === undefined) { warnWorkspaceFallback('sweepFailedTasks'); ws = state.workspace; }
   let dirty = false;
   const g = buildGraph(ws);
   for (const t of g.tasks) {
@@ -674,7 +698,8 @@ function staleVerdictKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
 // Reset stale verdict-pending hand-offs back to pending so the loop re-dispatches them.
 // The agent that picks them up can read the codebase and task description to determine current
 // state — no human escalation needed. Mirrors sweepStaleClaims in structure.
-function sweepStaleVerdicts(ws = state.workspace, ov = state.overlay) {
+function sweepStaleVerdicts(ws, ov = state.overlay) {
+  if (ws === undefined) { warnWorkspaceFallback('sweepStaleVerdicts'); ws = state.workspace; }
   const stale = staleVerdictKeys(ov, state.agents, Date.now());
   if (!stale.length) return false;
   let dirty = false;
@@ -721,7 +746,8 @@ function staleGuidanceReason(ov, g) {
 // triggering note superseded) — so the loop is not left paused on a question the world already
 // answered. Mirrors sweepStaleVerdicts in structure. Idempotent (resolved items are skipped). Only
 // blocking items are swept; 'review' housekeeping rows have their own settle path.
-function sweepStaleGuidance(ws = state.workspace, ov = state.overlay) {
+function sweepStaleGuidance(ws, ov = state.overlay) {
+  if (ws === undefined) { warnWorkspaceFallback('sweepStaleGuidance'); ws = state.workspace; }
   if (!Array.isArray(ov.guidance)) return false;
   let dirty = false;
   for (const g of ov.guidance) {
@@ -959,6 +985,7 @@ function decideOne(L, ctx) {
   // Workspace pin: ctx is built per-workspace by decideAll, so `ws`/`ov`/`ctx.graph` belong to THIS
   // loop's pinned workspace — not the daemon-global pointer, which another session may have flipped
   // mid-run. Legacy callers (tests) passing a bare ctx fall back to the global workspace/overlay.
+  if (ctx.ws === undefined) warnWorkspaceFallback('decideOne');
   const ws = ctx.ws || state.workspace;
   const ov = ctx.ov || state.overlay;
   // Cooperative self-stop (poll EVERY iteration, before anything else): honors a cancel on this
@@ -1577,7 +1604,8 @@ function noteRagCandidates(overlay, g, noteKey, title, summary, targetVec = null
 function sweepOrphanNotes() { return 0; }
 
 // Periodic file-drop stub GC: adopt missing snapshots, remove terminal stubs with snapshots.
-function sweepFiledropStubs(ws = state.workspace) {
+function sweepFiledropStubs(ws) {
+  if (ws === undefined) { warnWorkspaceFallback('sweepFiledropStubs'); ws = state.workspace; }
   const ov = overlayStore.load(ws);
   const result = filedropGc.sweepWorkspaceStubs(ws, ov, { dryRun: false });
   if (result.adopted.length || result.removed.length) {
@@ -2154,7 +2182,7 @@ function isPrimaryCheckout(root = __dirname) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, buildGraph, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
+  decideOne, buildGraph, targetOverlay, sweepFailedTasks, warnWorkspaceFallback, __resetWorkspaceFallbackSeamsForTest, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
