@@ -4328,9 +4328,15 @@ function stubFalse(){return false}module.exports=stubFalse},{}],279:[function(re
 // When served by the daemon use relative URLs; when opened as a file (e.g. the desktop
 // preview panel), hit the daemon absolutely.
 const BASE = (location.protocol === 'http:' || location.protocol === 'https:') ? '' : 'http://localhost:8787';
-// Workspace switcher: ?workspace= drives the view (defaults to current pinned workspace when absent).
+// Workspace switcher: ?workspace= drives the view. P2b: the dashboard MUST always carry an EXPLICIT
+// workspace — it no longer silently defaults to the daemon-global pinned workspace. When ?workspace=
+// is absent, resolveExplicitWorkspace() (run before the first data fetch) picks one explicitly from
+// the registered set (workspaces.json via GET /workspaces): the single registered ws if there's
+// exactly one, else a picker prompt the user must choose from. Until an explicit ws is chosen, data
+// fetches are GATED (gateOnExplicitWorkspace) so the view never falls back to the global pointer.
 // ?token= is threaded alongside workspace for token-gated deploys.
 let WS = new URLSearchParams(location.search).get('workspace') || '';
+let WS_RESOLVED = !!WS;   // false until an explicit workspace is chosen (gate for data fetches)
 const _TOKEN = new URLSearchParams(location.search).get('token') || '';
 // dfetch: wrapper that appends workspace= + token= to any per-repo fetch.
 // Leave /health and /cron/usage UNWRAPPED (global endpoints).
@@ -4362,15 +4368,60 @@ async function loadWorkspacePicker() {
   }
   wrap.style.display = '';
   sel.onchange = function() {
-    WS = this.value;
-    const u = new URL(location.href);
-    if (WS) u.searchParams.set('workspace', WS);
-    else u.searchParams.delete('workspace');
-    history.replaceState(null, '', u.toString());
-    // Repaint: clear caches and re-run tick + guidance + costflow
-    lastRenderFp = ''; lastDetailFp = ''; costAt = 0; guidSig = '';
-    tick(); renderGuidance(true); refreshCost();
+    selectWorkspace(this.value);
   };
+}
+// Commit an EXPLICIT workspace choice: pin WS, mark resolved, reflect in the URL (so a reload /
+// shared link carries it), and repaint. The single chokepoint every workspace selection routes
+// through (picker onchange, single-ws auto-select, prompt buttons) so WS is never set silently.
+function selectWorkspace(wsPath) {
+  WS = wsPath || '';
+  WS_RESOLVED = !!WS;
+  const u = new URL(location.href);
+  if (WS) u.searchParams.set('workspace', WS);
+  else u.searchParams.delete('workspace');
+  history.replaceState(null, '', u.toString());
+  const sel = document.getElementById('wsPicker');
+  if (sel && WS) sel.value = WS;
+  removeWorkspaceGate();
+  // Repaint: clear caches and re-run tick + guidance + costflow
+  lastRenderFp = ''; lastDetailFp = ''; costAt = 0; guidSig = '';
+  tick(); renderGuidance(true); refreshCost();
+}
+// P2b workspace gate: when no ?workspace= is present, resolve ONE explicit workspace from the
+// registered set BEFORE any data fetch — never fall back to the daemon-global pointer.
+//   0 registered  → prompt: no workspaces yet (POST /workspace first).
+//   1 registered  → auto-select it (an unambiguous explicit choice, not a global default).
+//   >1 registered → render a picker prompt; the user must choose. Data stays GATED until then.
+// Returns true once WS_RESOLVED (caller may proceed to tick); false while awaiting a choice.
+async function resolveExplicitWorkspace() {
+  if (WS_RESOLVED) return true;
+  let data;
+  try { data = await (await fetch(BASE + '/workspaces')).json(); } catch { return false; }
+  const list = (data && data.workspaces) || [];
+  if (list.length === 1) { selectWorkspace(list[0].path); return true; }
+  if (list.length === 0) {
+    showWorkspaceGate('No registered workspaces yet. Bind one (POST /workspace, or open the Claude app in a project) and reload.', []);
+    return false;
+  }
+  showWorkspaceGate('Pick a workspace to view — the dashboard no longer defaults to a global workspace.', list);
+  return false;
+}
+function removeWorkspaceGate() {
+  const el = document.getElementById('wsGate');
+  if (el) el.remove();
+}
+function showWorkspaceGate(message, list) {
+  removeWorkspaceGate();
+  const div = document.createElement('div');
+  div.id = 'wsGate';
+  div.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(13,17,23,0.92)';
+  const choices = (list || []).map((w) => `<button class="wsGateChoice" data-ws="${esc(w.path)}" style="display:block;width:100%;margin:4px 0;padding:8px 12px;background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;cursor:pointer;text-align:left;font:inherit">${esc(w.name)} <span style="color:#6e7681;font-size:11px">${esc(w.path)}</span></button>`).join('');
+  div.innerHTML = `<div style="max-width:520px;padding:24px;background:#0d1117;border:1px solid #30363d;border-radius:10px"><div style="font-size:15px;font-weight:600;color:#c9d1d9;margin-bottom:6px">Select a workspace</div><div style="font-size:13px;color:#8b949e;margin-bottom:14px">${esc(message)}</div>${choices}</div>`;
+  document.body.appendChild(div);
+  for (const b of div.querySelectorAll('.wsGateChoice')) {
+    b.onclick = () => selectWorkspace(b.getAttribute('data-ws'));
+  }
 }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let selected=null;
@@ -4536,6 +4587,10 @@ function updateDock(s, sc){
   if(hbtn && excl>0) hbtn.textContent='History ('+excl+') ▾';
 }
 async function tick(){
+  // P2b: never fetch workspace-scoped data until an EXPLICIT workspace is chosen. If unresolved,
+  // try to resolve one (auto-select single ws / show picker) and bail this tick — selectWorkspace
+  // re-ticks once a choice lands. This is what prevents a silent fall-through to the global pointer.
+  if (!WS_RESOLVED) { try { await resolveExplicitWorkspace(); } catch {} if (!WS_RESOLVED) return; }
   let d; try{ d=await(await dfetch('/state')).json(); }catch{ return; }
   refreshCost(); refreshCronTok(); refreshInfraHero();
   liveAgentIds=new Set((d.agents||[]).filter(a=>a&&a.state==='running').map(a=>a.agent_id));
@@ -5999,6 +6054,8 @@ setView(currentView);              // apply persisted view + toggle state on loa
   // with phase:'loading' — the sibling /state route returns that during boot.
   const _origTick = tick;
   window.tick = async function tick_resilient(){
+    // P2b: gate on an EXPLICIT workspace before any /state fetch — no silent global fallback.
+    if (!WS_RESOLVED) { try { await resolveExplicitWorkspace(); } catch {} if (!WS_RESOLVED) return; }
     try {
       const res = await dfetch('/state', { cache: 'no-store' });
       if (res.status === 503){

@@ -43,7 +43,8 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   // while pruneEdge deletes it. Until judged, the edge contributes ZERO relevance.
   if (p === '/judge/next') {
     const T = targetOverlay(null, u);
-    const ws = T.ws || state.workspace;
+    if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
+    const ws = T.ws;
     const cfg = T.ov.config.judge || {};
     const defBudget = Number(cfg.budgetPerRun) || 20;
     const budget = Math.max(1, Math.min(parseInt(u.searchParams.get('budget') || String(defBudget), 10) || defBudget, 50));
@@ -367,7 +368,8 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/judge/pressure' && m === 'GET') {
     // Ensure the standing harness task exists before we might nudge (idempotent, cheap).
     const T = targetOverlay(null, u);
-    const ws = T.ws || state.workspace;
+    if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
+    const ws = T.ws;
     ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(); });
     const queue = judge.buildQueue(T.ov);
     const depth = queue.length;

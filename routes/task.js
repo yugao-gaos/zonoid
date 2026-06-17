@@ -111,7 +111,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/task/suggest') {
-    const ws = u.searchParams.get('workspace') || state.workspace;
+    const ws = u.searchParams.get('workspace');
+    if (!ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const g = buildGraph(ws);
     const key = u.searchParams.get('key');
     const target = g.tasks.find((x) => x.id === key);
@@ -157,9 +158,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/task/detail') {
     const key = u.searchParams.get('key');
-    const T = targetOverlay(null, u);
-    const g = buildGraph(T.ws);
-    const t = g.tasks.find((x) => x.id === key);
+    let T = targetOverlay(null, u);
+    let g = buildGraph(T.ws);
+    let t = g.tasks.find((x) => x.id === key);
+    // P3: no daemon-global workspace. The write-gate queries /task/detail with only a task key
+    // (no ?workspace=) to read the claim's registered worktree for confinement. When no explicit
+    // workspace resolves, scan registered workspaces and bind to the one whose graph owns the key,
+    // so git.branch/git.worktree surface for the gate (mirrors /active-claim's cross-ws scan).
+    if (!t && !T.ws && typeof ctx.registeredWorkspaces === 'function') {
+      for (const ws of ctx.registeredWorkspaces()) {
+        const gw = buildGraph(ws);
+        const found = gw.tasks.find((x) => x.id === key);
+        if (found) { T = targetOverlay({ workspace: ws }, u); g = gw; t = found; break; }
+      }
+    }
     if (!t) { send(res, 404, { ok: false, error: 'unknown task' }); return true; }
     const assignee = T.ov.assignee[key] || null;
     const agent = assignee ? state.agents[assignee] : null;
@@ -176,14 +188,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       assignee,
       cancel_requested: T.ov.cancel_requested[key] || null,
       blocked: (T.ov.blocked && T.ov.blocked[key]) || null,
-      tokenUsage: (() => { const tp = taskTranscript(key, t.session, true); return tp ? usageCached(tp) : null; })(),
-      transcript: (() => { const tp = taskTranscript(key, t.session, true); return tp || null; })(),
+      // P3: taskTranscript reads assignee from st.overlay — there is no daemon-global state.overlay,
+      // so pass the request-resolved overlay (mirrors daemon.js buildGraph's `stWs`).
+      tokenUsage: (() => { const tp = taskTranscript(key, t.session, true, { ...state, overlay: T.ov }); return tp ? usageCached(tp) : null; })(),
+      transcript: (() => { const tp = taskTranscript(key, t.session, true, { ...state, overlay: T.ov }); return tp || null; })(),
     }); return true;
   }
 
   if (p === '/task/adjacent') {
     const key = u.searchParams.get('key');
-    const g = buildGraph(u.searchParams.get('workspace') || state.workspace);
+    const ws = u.searchParams.get('workspace');
+    if (!ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
+    const g = buildGraph(ws);
     const t = g.tasks.find((x) => x.id === key);
     if (!t) { send(res, 404, { ok: false, error: 'unknown task', key }); return true; }
     const deps = g.tasks.filter((x) => t.deps.includes(x.id));

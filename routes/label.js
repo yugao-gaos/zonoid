@@ -37,7 +37,8 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/label/pressure' && m === 'GET') {
     // Ensure the standing harness task exists before we might nudge (idempotent, cheap).
     const T = targetOverlay(null, u);
-    const targetWs = T.ws || state.workspace;
+    if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
+    const targetWs = T.ws;
     ensureHarnessLabelDrainTask(T.ov, () => { T.save(); notifyChange(); });
 
     // Compute gradable backlog: journal rows that (a) have a non-null task_key, (b) are not

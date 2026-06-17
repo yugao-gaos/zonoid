@@ -20,7 +20,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/git/init' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
-    const repo = resolveRepo(b.key, b.repo_path, T.ov);
+    const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
     if (!repo) { send(res, 400, { ok: false, error: 'no repo: set a workspace or pass repo_path' }); return true; }
     const r = git.initRepo(repo);
     notifyChange();
@@ -38,7 +38,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const repo = resolveRepo(b.key, b.repo_path, T.ov);
+    const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
     if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
     const info = git.createWorktree(repo, b.key, { base: b.base });
     overlayStore.setGit(T.ov, b.key, info);
@@ -50,7 +50,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const repo = resolveRepo(b.key, b.repo_path, T.ov);
+    const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
     if (repo) git.removeWorktree(repo, b.key);
     delete T.ov.git[b.key];
     T.save(); notifyChange();
@@ -61,7 +61,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const repo = resolveRepo(b.key, b.repo_path, T.ov);
+    const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
     if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
     const result = git.mergeBranch(repo, b.key, { message: b.message });
     if (result.merged) {
@@ -80,7 +80,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const repo = resolveRepo(b.key, b.repo_path, T.ov);
+    const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
     if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
     const info = git.createFeatureWorktree(repo, b.key, { base: b.base });
     overlayStore.setFeature(T.ov, b.key, { feature_branch: info.branch, feature_worktree: info.worktree, base: b.base || 'main' });
@@ -93,7 +93,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const repo = resolveRepo(b.key, b.repo_path, T.ov);
+    const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
     if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
     const result = git.mergeFeature(repo, b.key, { message: b.message });
     if (result.merged) {
@@ -108,7 +108,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
-    const repo = resolveRepo(b.key, b.repo_path, T.ov);
+    const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
     if (repo) git.removeFeatureWorktree(repo, b.key);
     if (T.ov.features) delete T.ov.features[b.key];
     T.save(); notifyChange();

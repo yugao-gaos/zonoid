@@ -11,15 +11,16 @@ const fs = require('fs');
 const recallJournal = require('../lib/recall-outcome-journal');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, buildGraph, state, targetOverlay,
+  const { send, readBody, buildGraph, state, targetOverlay, overlayFor,
     isTruthy, leanLearnings, digestRejected } = ctx;
 
   if (p === '/graph/delta' && m === 'GET') {
     const parsed = delta.parseSince(u.searchParams.get('since'));
     if (!parsed.ok) { send(res, 400, { ok: false, error: parsed.error }); return true; }
-    const ws = u.searchParams.get('workspace') || state.workspace;
+    const ws = u.searchParams.get('workspace');
+    if (!ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const g = buildGraph(ws);
-    const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+    const ov = overlayFor(ws);
     send(res, 200, delta.computeDelta(g.tasks, ov, parsed.ms)); return true;
   }
 
@@ -75,9 +76,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/learnings') {
-    const ws = u.searchParams.get('workspace') || state.workspace;
+    const ws = u.searchParams.get('workspace');
+    if (!ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const g = buildGraph(ws);
-    const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+    const ov = overlayFor(ws);
     const verdicts = [];
     for (const [key, items] of Object.entries(ov.knowledge || {})) {
       for (const it of (items || [])) {
@@ -119,7 +121,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     //   bitemporal query. Absent ⇒ behavior identical to before (back-compat). Fail-open on unparseable.
     const knownAsOf = u.searchParams.get('knownAsOf') || '';
     const history = isTruthy(u.searchParams.get('history'));
-    const ws = u.searchParams.get('workspace') || state.workspace;
+    const ws = u.searchParams.get('workspace');
+    if (!ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const task_key = u.searchParams.get('task_key') || '';
     // Iterative retrieval: `round` (1-based) + `exclude_keys` (comma-separated note keys already
     // injected in prior rounds). Excluded keys are dropped from RAG candidates before ranking.
@@ -133,7 +136,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // RETRIEVAL-INVISIBLE until the dup-judge clears it — that's what preserves the guard's purpose.
     // Invisibility is the PURE timeout derivation (judge.pendingDupState): pending AND not-yet-timed-out
     // ⇒ excluded; a TIMED-OUT pending note falls back to VISIBLE (provisional) without being de-queued.
-    const _ovDup = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+    const _ovDup = overlayFor(ws);
     const _dupTimeout = judge.judgingTimeoutMs(_ovDup);
     const _dupNow = Date.now();
     const dupInvisible = (node) => {
@@ -352,7 +355,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     // (b) per-task Tier-2 knowledge items (overlay.knowledge[key][]) — not graph nodes, but
     // semantically searchable. Scored with the same hybrid path over a synthetic lex node.
-    const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+    const ov = overlayFor(ws);
     for (const [tkey, items] of Object.entries(ov.knowledge || {})) {
       (items || []).forEach((it, i) => {
         const text = knowledgeText(it);
