@@ -133,7 +133,7 @@ function resolveTarget(t, wt) {
   const sinfo = await k.getJson(`/session-info?session=${encodeURIComponent(sid)}`, 600);
   const isSub = sinfo && sinfo.is_subagent;
   if (isSub === true) {
-    k.deny('orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use the native TaskCreate tool (not an MCP endpoint).');
+    k.deny('orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use Claude TaskCreate or an adapter file-drop create_task/task_create tool.');
   }
 
   // Main/driving session (or unknown): try 1 trivial patch/turn if workers are in flight.

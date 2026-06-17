@@ -42,10 +42,12 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   // (judged:true + a real weight off the preserved recall `score`) so it re-enters ranked retrieval,
   // while pruneEdge deletes it. Until judged, the edge contributes ZERO relevance.
   if (p === '/judge/next') {
-    const cfg = state.overlay.config.judge || {};
+    const T = targetOverlay(null, u);
+    const ws = T.ws || state.workspace;
+    const cfg = T.ov.config.judge || {};
     const defBudget = Number(cfg.budgetPerRun) || 20;
     const budget = Math.max(1, Math.min(parseInt(u.searchParams.get('budget') || String(defBudget), 10) || defBudget, 50));
-    const g = buildGraph(state.workspace);
+    const g = buildGraph(ws);
     const byId = new Map(g.tasks.map((t) => [t.id, t]));
     const detail = (key) => { const t = byId.get(key); return t ? { key, title: t.label, summary: String(t.summary || '').slice(0, 200), kind: t.kind || 'task', status: t.status } : { key, title: key, summary: '', missing: true }; };
     // EAGER MODE (task C): ?node=<key> serves THIS node's whole unjudged candidate edge-set in ONE
@@ -55,32 +57,32 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     // fresh node-add. Falls through to the normal cursor-walked queue when ?node is absent.
     const eagerNode = u.searchParams.get('node');
     if (eagerNode) {
-      const nodeItems = judge.buildQueueForNode(state.overlay, eagerNode);
-      if (overlayStore.clearEagerJudge(state.overlay, eagerNode)) {
-        overlayStore.clearEagerJudgeLease(state.overlay, eagerNode); // release dispatch lease (task 27)
-        overlayStore.save(state.workspace, state.overlay);
+      const nodeItems = judge.buildQueueForNode(T.ov, eagerNode);
+      if (overlayStore.clearEagerJudge(T.ov, eagerNode)) {
+        overlayStore.clearEagerJudgeLease(T.ov, eagerNode); // release dispatch lease (task 27)
+        T.save();
       }
-      const nbAdj = judge.buildContextAdjacency(state.overlay);
+      const nbAdj = judge.buildContextAdjacency(T.ov);
       const isNK = (k) => typeof k === 'string' && k.startsWith('note:');
       const nodeOfE = (key) => {
-        if (isNK(key)) { const n = state.overlay.note_nodes[key.replace(/^note:/, '')]; return n ? { title: n.title, summary: String(n.summary || '').slice(0, 200) } : { title: key, summary: '' }; }
+        if (isNK(key)) { const n = T.ov.note_nodes[key.replace(/^note:/, '')]; return n ? { title: n.title, summary: String(n.summary || '').slice(0, 200) } : { title: key, summary: '' }; }
         const t = byId.get(key); return t ? { title: t.label, summary: String(t.summary || '').slice(0, 200) } : { title: key, summary: '' };
       };
       const eagerItems = nodeItems.slice(0, budget).map((it) => {
-        const neighborhood = judge.expandNeighborhood(state.overlay, it.to, nodeOfE, { adjacency: nbAdj });
-        const supersedeChain = judge.supersedeChain(state.overlay, it.to);
+        const neighborhood = judge.expandNeighborhood(T.ov, it.to, nodeOfE, { adjacency: nbAdj });
+        const supersedeChain = judge.supersedeChain(T.ov, it.to);
         const taskTask = !isNK(it.from) && !isNK(it.to);
         return { kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to), neighborhood: neighborhood.nodes, neighborhoodTruncated: neighborhood.truncated, supersedeChain, taskTask };
       });
-      send(res, 200, { epoch: state.overlay.epoch || 0, budget, node: eagerNode, eager: true, idle: eagerItems.length === 0, total: nodeItems.length, items: eagerItems }); return true;
+      send(res, 200, { epoch: T.ov.epoch || 0, workspace: ws, budget, node: eagerNode, eager: true, idle: eagerItems.length === 0, total: nodeItems.length, items: eagerItems }); return true;
     }
-    const queue = judge.buildQueue(state.overlay);
-    const slice = judge.nextSlice(queue, state.overlay.judgeCursor || 0, budget);
+    const queue = judge.buildQueue(T.ov);
+    const slice = judge.nextSlice(queue, T.ov.judgeCursor || 0, budget);
     // Unified node resolver for the structural neighborhood walk: a key may be a note ('note:<id>')
     // or a task (graph id). The DAEMON only assembles + serves this context; the agent reasons.
     const nodeOf = (key) => {
       if (typeof key === 'string' && key.startsWith('note:')) {
-        const n = state.overlay.note_nodes[key.replace(/^note:/, '')];
+        const n = T.ov.note_nodes[key.replace(/^note:/, '')];
         return n ? { title: n.title, summary: String(n.summary || '').slice(0, 200) } : { title: key, summary: '' };
       }
       const t = byId.get(key);
@@ -88,14 +90,14 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     };
     const isNoteKey = (k) => typeof k === 'string' && k.startsWith('note:');
     // Reuse ONE adjacency build across all edge items in this slice (positive-weight context edges).
-    const nbAdjacency = judge.buildContextAdjacency(state.overlay);
+    const nbAdjacency = judge.buildContextAdjacency(T.ov);
     const items = slice.items.map((it) => {
       if (it.kind === 'edge') {
         // The candidate edge is anchor(from) → N(to). Adjudicate N WITH structure: expand N's
         // weighted neighborhood + its supersede chain so the agent reasons over context, not the
         // endpoint alone. task→task candidates additionally carry kind/dup classification flags.
-        const neighborhood = judge.expandNeighborhood(state.overlay, it.to, nodeOf, { adjacency: nbAdjacency });
-        const supersedeChain = judge.supersedeChain(state.overlay, it.to);
+        const neighborhood = judge.expandNeighborhood(T.ov, it.to, nodeOf, { adjacency: nbAdjacency });
+        const supersedeChain = judge.supersedeChain(T.ov, it.to);
         const taskTask = !isNoteKey(it.from) && !isNoteKey(it.to);
         return {
           kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to),
@@ -105,14 +107,14 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       }
       if (it.kind === 'dup-cluster') {
         const notes = it.keys.map((k) => {
-          const n = state.overlay.note_nodes[String(k).replace(/^note:/, '')];
+          const n = T.ov.note_nodes[String(k).replace(/^note:/, '')];
           return n ? { key: k, title: n.title, summary: String(n.summary || '').slice(0, 300), created_at: n.created_at || null } : { key: k, title: k, summary: '', created_at: null, missing: true };
         });
         return { kind: 'dup-cluster', id: it.id, keys: it.keys, notes, pending_dup: !!it.pending_dup };
       }
       if (it.kind === 'decay') {
         const noteId = String(it.noteId || it.id).replace(/^note:/, '');
-        const n = state.overlay.note_nodes[noteId];
+        const n = T.ov.note_nodes[noteId];
         return {
           kind: 'decay',
           id: it.id,
@@ -124,16 +126,17 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         };
       }
       const note = byId.get(it.id) || { id: it.id, label: it.id, summary: '', vec: null };
-      const candidates = noteRagCandidates(state.overlay, g, it.id, note.label, note.summary, note.vec, 8)
+      const candidates = noteRagCandidates(T.ov, g, it.id, note.label, note.summary, note.vec, 8)
         .map((c) => ({ key: c.key, title: c.title, summary: c.summary, score: c.score, status: c.status, via: c.via }));
       return { kind: 'orphan', id: it.id, note: detail(it.id), candidates };
     });
-    if (!slice.idle && slice.cursorAfter !== (state.overlay.judgeCursor || 0)) {
-      state.overlay.judgeCursor = slice.cursorAfter;
-      overlayStore.save(state.workspace, state.overlay);
+    if (!slice.idle && slice.cursorAfter !== (T.ov.judgeCursor || 0)) {
+      T.ov.judgeCursor = slice.cursorAfter;
+      T.save();
     }
     send(res, 200, {
-      epoch: state.overlay.epoch || 0,
+      epoch: T.ov.epoch || 0,
+      workspace: ws,
       budget, idle: slice.idle, total: slice.total,
       cursorBefore: slice.cursorBefore, cursorAfter: slice.cursorAfter,
       items,
@@ -364,21 +367,23 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/judge/pressure' && m === 'GET') {
     // Ensure the standing harness task exists before we might nudge (idempotent, cheap).
     const T = targetOverlay(null, u);
+    const ws = T.ws || state.workspace;
     ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(); });
-    const queue = judge.buildQueue(state.overlay);
+    const queue = judge.buildQueue(T.ov);
     const depth = queue.length;
     const dupClusters = queue.filter((i) => i.kind === 'dup-cluster').length;
     const gate = computePressureNudge({
       depth,
       depthThreshold: JUDGE_DEPTH,
       buildGraph,
-      ws: state.workspace,
-      overlay: state.overlay,
+      ws,
+      overlay: T.ov,
       harnessKey: HARNESS_JUDGE_DRAIN_KEY,
       // Demote periodic catch-up to fallback: suppress while eager dispatch (task C) is keeping up.
-      eagerActive: judge.eagerJudgePending(state.overlay),
+      eagerActive: judge.eagerJudgePending(T.ov),
     });
     send(res, 200, {
+      workspace: ws,
       depth, dupClusters, nudge: gate.nudge, harness_task_key: HARNESS_JUDGE_DRAIN_KEY,
       running: gate.running, capacity_ok: gate.capacity_ok, drain_in_progress: gate.drain_in_progress,
       eager_active: gate.eager_active,

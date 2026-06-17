@@ -13,7 +13,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/active-claim') {
     const sid = u.searchParams.get('session');
-    const g = buildGraph(state.workspace);
+    const T = targetOverlay(null, u);
+    const g = buildGraph(T.ws);
     let all = g.tasks.filter((t) => t.status === 'in_progress').map((t) => ({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id }));
     if (sid && !all.some((t) => t.session === sid)) {
       for (const t of ctx.harness.tasks.readSessionTasksRaw(sid)) {
@@ -33,7 +34,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     }
     if (sid) {
-      const T = targetOverlay(null, u);
       const cs = T.ov.claimSessions;
       if (cs) {
         for (const t of all.filter((t) => t.session !== sid)) {
@@ -69,7 +69,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/should-stop') {
     const sid = u.searchParams.get('session');
     const actor = u.searchParams.get('agent') || null;
-    const sig = stopSignalFor(sid, { actor, hook: true });
+    const T = targetOverlay(null, u);
+    const sig = stopSignalFor(sid, { actor, hook: true, graph: buildGraph(T.ws), ov: T.ov, ws: T.ws });
     send(res, 200, sig ? { stop: true, ...sig } : { stop: false }); return true;
   }
 

@@ -73,13 +73,14 @@ function writeReviewBundle(repoAbs, outDir, notes, rejected, injectCmd) {
     `${n.summary}\n\n` +
     `> evidence: \`${n.evidence || '?'}\`  ·  source: ${n.source || '?'}\n`).join('\n');
 
+  const dashboard = `http://localhost:${process.env.ORCH_PORT || '8787'}/graph?workspace=${encodeURIComponent(repoAbs)}`;
   const md = `# Onboarding Review — ${path.basename(repoAbs)}
 
 Candidate knowledge-base bootstrapped from \`${repoAbs}\` by \`scripts/onboard.js\`.
 **Nothing here has touched the live orchestrator graph.** This doc is the human review gate:
 read it, keep/drop notes, then run the inject command below to commit the approved set.
 
-📊 Dashboard: http://localhost:8787/graph
+📊 Dashboard: ${dashboard}
 
 ## 1. Counts
 

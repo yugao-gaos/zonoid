@@ -6,6 +6,7 @@ const os = require('os');
 const {
   parseInitArgs,
   mergeCursorHooks,
+  mergeCodexHooks,
   VALID_HARNESSES,
   scheduleWakeupScriptPath,
   opencodePluginHasScheduleWakeup,
@@ -13,12 +14,16 @@ const {
   dirHasLiveData,
   resolveInstallDir,
   linkSkill,
+  installRepoSkill,
   writeMcp,
   writeCodexMcp,
   orchestratorMcpEntry,
   stripCodexOrchTable,
   graphAutocommitHookScript,
   mergeGraphAutocommitFlag,
+  parseOnboardArgs,
+  dashboardUrl,
+  renderClaudeInstructions,
 } = require('../packages/cli/bin/zonoid.js');
 const fs = require('fs');
 
@@ -35,6 +40,25 @@ ok('cursor harness parsed', parseInitArgs(['node', 'zonoid', 'init', '--harness'
 ok('opencode harness parsed', parseInitArgs(['node', 'zonoid', 'init', '--harness', 'opencode']).harness === 'opencode');
 ok('--service flag parsed', parseInitArgs(['node', 'zonoid', 'init', '--service', '--harness', 'codex']).service === true);
 ok('invalid harness not in VALID_HARNESSES', !VALID_HARNESSES.has('invalid'));
+ok('onboard defaults repo to cwd', parseOnboardArgs(['node', 'zonoid', 'onboard']).repo === process.cwd());
+ok('onboard injects default --repo passthrough', parseOnboardArgs(['node', 'zonoid', 'onboard']).passThrough[0] === '--repo');
+ok('onboard parses explicit --repo', parseOnboardArgs(['node', 'zonoid', 'onboard', '--repo', '/tmp/x', '--force']).repo === '/tmp/x');
+ok('onboard preserves flags', parseOnboardArgs(['node', 'zonoid', 'onboard', '--repo', '/tmp/x', '--force']).passThrough.includes('--force'));
+
+const clientRepo = path.join(os.tmpdir(), 'client repo');
+const clientDash = dashboardUrl(clientRepo, '8787');
+ok('dashboardUrl pins and URL-encodes workspace path',
+  clientDash === `http://localhost:8787/graph?workspace=${encodeURIComponent(path.resolve(clientRepo))}`);
+{
+  const rendered = renderClaudeInstructions(
+    'A http://localhost:8787/graph\nB http://localhost:8787/graph?workspace=%2Fold%2Frepo',
+    clientRepo,
+    '8788'
+  );
+  const expected = `http://localhost:8788/graph?workspace=${encodeURIComponent(path.resolve(clientRepo))}`;
+  ok('renderClaudeInstructions rewrites generic dashboard URL', rendered.includes(`A ${expected}`));
+  ok('renderClaudeInstructions rewrites existing pinned dashboard URL', rendered.includes(`B ${expected}`));
+}
 
 // ── CDX-2: multi-harness --harness parsing (comma-separated and/or repeatable) ──
 ok('default harnesses is [claude]',
@@ -60,6 +84,31 @@ ok('merge adds sample hook', merged.hooks.preToolUse.some((e) => e.command === '
 ok('merge appends extra hook', merged.hooks.postToolUse.some((e) => e.command === '/new/todo.sh'));
 ok('merge skips duplicate command', merged.hooks.postToolUse.length === 2);
 
+const codexMerged = mergeCodexHooks(
+  { hooks: {
+    PreToolUse: [
+      { matcher: 'Bash', hooks: [{ type: 'command', command: '/old/adapters/codex/hooks/orch-gate-bash.sh' }] },
+      { matcher: 'Write', hooks: [{ type: 'command', command: 'C:\\old\\adapters\\codex\\hooks\\orch-gate.sh' }] },
+      { matcher: 'Bash', hooks: [{ type: 'command', command: '/user/custom-hook.sh' }] },
+    ],
+    Stop: [{ hooks: [{ type: 'command', command: '/user/stop-hook.sh' }] }],
+  } },
+  { hooks: {
+    PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: '/new/adapters/codex/hooks/orch-gate-bash.sh' }] }],
+    UserPromptSubmit: [{ hooks: [{ type: 'command', command: '/new/adapters/codex/hooks/classify-relay.sh' }] }],
+  } },
+);
+ok('mergeCodexHooks preserves user PreToolUse hook',
+  codexMerged.hooks.PreToolUse.some((e) => e.hooks.some((h) => h.command === '/user/custom-hook.sh')));
+ok('mergeCodexHooks preserves unrelated Stop hook',
+  codexMerged.hooks.Stop.some((e) => e.hooks.some((h) => h.command === '/user/stop-hook.sh')));
+ok('mergeCodexHooks replaces stale Codex hook',
+  !JSON.stringify(codexMerged).includes('/old/adapters/codex/hooks/orch-gate-bash.sh') &&
+  !JSON.stringify(codexMerged).includes('C:\\old\\adapters\\codex\\hooks\\orch-gate.sh') &&
+  JSON.stringify(codexMerged).includes('/new/adapters/codex/hooks/orch-gate-bash.sh'));
+ok('mergeCodexHooks adds missing sample event',
+  codexMerged.hooks.UserPromptSubmit.some((e) => e.hooks.some((h) => h.command.includes('classify-relay.sh'))));
+
 const bad = spawnSync(process.execPath, [zonoid, 'init', '--harness', 'invalid'], { encoding: 'utf8' });
 ok('invalid --harness exits non-zero', bad.status !== 0);
 ok('invalid --harness prints error', (bad.stderr || bad.stdout || '').includes('Unknown --harness'));
@@ -70,6 +119,7 @@ ok('usage lists cursor', usage.includes('cursor'));
 ok('usage lists opencode', usage.includes('opencode'));
 ok('usage lists codex', usage.includes('codex'));
 ok('usage lists --service', usage.includes('--service'));
+ok('usage lists onboard command', usage.includes('onboard'));
 
 const swScript = scheduleWakeupScriptPath();
 ok('scheduleWakeupScriptPath under adapters/common', swScript.replace(/\\/g, '/').endsWith('adapters/common/schedule-wakeup.sh'));
@@ -211,6 +261,28 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     ok('linkSkill happy path: dest exists after chain', fs.existsSync(dest));
     const resolvedDest = (result === 'copy') ? dest : fs.realpathSync(dest);
     ok('linkSkill happy path: skill.md readable via dest', fs.existsSync(path.join(resolvedDest, 'skill.md')));
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+// ── Client-repo skill install: Codex guidance belongs in target repo ─────────
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-repo-skill-'));
+  try {
+    const cwd = path.join(base, 'client-repo');
+    fs.mkdirSync(cwd, { recursive: true });
+    const installed = installRepoSkill(cwd, 'zonoid-orchestrator', 'codex');
+    const skillPath = path.join(cwd, '.codex', 'skills', 'zonoid-orchestrator', 'SKILL.md');
+    ok('installRepoSkill installs zonoid-orchestrator into client .codex/skills', installed && fs.existsSync(skillPath));
+    const text = fs.readFileSync(skillPath, 'utf8');
+    ok('repo skill documents create_task file-drop task minting',
+      text.includes('create_task') && text.includes('file-drop'));
+
+    const before = fs.readFileSync(skillPath, 'utf8');
+    const second = installRepoSkill(cwd, 'zonoid-orchestrator', 'codex');
+    const after = fs.readFileSync(skillPath, 'utf8');
+    ok('installRepoSkill is idempotent when repo skill already exists', second && before === after);
   } finally {
     fs.rmSync(base, { recursive: true, force: true });
   }

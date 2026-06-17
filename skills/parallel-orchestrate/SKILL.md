@@ -92,8 +92,8 @@ parallelizable work, with a token-efficient context handoff between dependent ta
 
 6. **Synthesize** the results into one coherent answer.
 
-Watch it live (with the per-task detail panel) at `http://localhost:8787/graph`.
+Watch it live (with the per-task detail panel) at `http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>`.
 
-**Always include the dashboard link** — `📊 http://localhost:8787/graph` — in your replies while
+**Always include the repo-pinned dashboard link** — `📊 http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>` — in your replies while
 orchestrating, so the user can open it whenever the panel isn't already up. It needs no HTTPS or
 browser setup (plain HTTP + SSE for live updates).

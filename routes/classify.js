@@ -37,8 +37,9 @@ function judgePressure(overlay, buildGraph, ws) {
   return { depth, dupClusters, nudge: gate.nudge, available: gate.available, harness_task_key: judgeRoute.HARNESS_JUDGE_DRAIN_KEY };
 }
 
-function labelPressure(state, buildGraph) {
-  const ws = state.workspace;
+function labelPressure(state, buildGraph, ws, ov) {
+  ws = ws || state.workspace;
+  ov = ov || state.overlay;
   if (!ws) return { depth: 0, nudge: false, harness_task_key: labelRoute.HARNESS_LABEL_DRAIN_KEY };
   const journalRows = readJsonl(journalPath(ws));
   const labeledRows = readJsonl(labeledPath(ws));
@@ -60,13 +61,13 @@ function labelPressure(state, buildGraph) {
     depthThreshold: LABEL_DEPTH,
     buildGraph,
     ws,
-    overlay: state.overlay,
+    overlay: ov,
     harnessKey: labelRoute.HARNESS_LABEL_DRAIN_KEY,
   });
   return { depth, nudge: gate.nudge, harness_task_key: labelRoute.HARNESS_LABEL_DRAIN_KEY };
 }
 
-function learnerPressure(ws, sessionId, ctx) {
+function learnerPressure(ws, sessionId, ctx, ov) {
   const onboardDir = require('path').join(__dirname, '..', 'bench', 'onboard');
   let best = null;
   try {
@@ -92,12 +93,13 @@ function learnerPressure(ws, sessionId, ctx) {
   if (!best) return { depth: 0, nudge: false, harness_task_key: HARNESS_LEARNER_DRAIN_KEY };
   const buildGraph = ctx.buildGraph;
   const state = ctx.state;
+  ov = ov || state.overlay;
   const gate = computePressureNudge({
     depth: best.depth,
     depthThreshold: 1,
     buildGraph: buildGraph,
     ws: ws,
-    overlay: state.overlay,
+    overlay: ov,
     harnessKey: HARNESS_LEARNER_DRAIN_KEY,
   });
   let nudge = gate.nudge;
@@ -109,28 +111,28 @@ function learnerPressure(ws, sessionId, ctx) {
   return Object.assign({}, best, { nudge: nudge });
 }
 
-function sessionHasMetricSpec(sessionId, ctx) {
+function sessionHasMetricSpec(sessionId, ctx, T) {
   if (!sessionId) return false;
   const { buildGraph, state, targetOverlay, harness } = ctx;
-  const g = buildGraph(state.workspace);
+  T = T || targetOverlay(null, { searchParams: new URLSearchParams() });
+  const g = buildGraph(T.ws);
   for (const t of g.tasks) {
     if (t.status === 'in_progress' && t.session === sessionId) {
-      const metric = state.overlay.metrics && state.overlay.metrics[t.id];
+      const metric = T.ov.metrics && T.ov.metrics[t.id];
       if (metric) return true;
     }
   }
   for (const t of harness.tasks.readSessionTasksRaw(sessionId)) {
     if (t.status !== 'in_progress') continue;
     const key = `${sessionId}/${t.id}`;
-    const metric = state.overlay.metrics && state.overlay.metrics[key];
+    const metric = T.ov.metrics && T.ov.metrics[key];
     if (metric) return true;
   }
-  const T = targetOverlay(null, { searchParams: new URLSearchParams() });
   const cs = T.ov.claimSessions;
   if (cs) {
     for (const [key, sid] of Object.entries(cs)) {
       if (sid !== sessionId) continue;
-      const metric = state.overlay.metrics && state.overlay.metrics[key];
+      const metric = T.ov.metrics && T.ov.metrics[key];
       if (metric) return true;
     }
   }
@@ -157,6 +159,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
   });
 
   const heuristic = classifyHeuristic(prompt);
+  const T = targetOverlay(b, u);
 
   state.routes.push({
     ts: now(),
@@ -166,10 +169,10 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
   });
   if (state.routes.length > MAX_ROUTES) state.routes.shift();
 
-  const cc = await contextClassify(prompt, ctx);
+  const cc = await contextClassify(prompt, ctx, T.ws);
 
   const readyEntry = refreshReadyFlag(sessionId, () => {
-    const g = buildGraph(state.workspace);
+    const g = buildGraph(T.ws);
     return g.tasks.filter((t) => t.status === 'ready').map((t) => ({ key: t.id, label: t.label }));
   });
 
@@ -178,27 +181,26 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
   // confirmation INSTEAD of the soft nudge. Opted-out sessions never reach here (classify.sh exits
   // before relaying). Starting a loop does not auto-merge (note:note-mq561rur).
   const autostartLine = maybeAutostartLoop({
-    ctx, sessionId, autoMode, hasReady: !!(readyEntry && readyEntry.count > 0),
+    ctx, sessionId, autoMode, hasReady: !!(readyEntry && readyEntry.count > 0), workspace: T.ws,
   });
   if (autostartLine) notifyChange();
 
-  const T = targetOverlay(b, u);
   judgeRoute.ensureHarnessJudgeDrainTask(T.ov, () => { T.save(); notifyChange(); });
   labelRoute.ensureHarnessLabelDrainTask(T.ov, () => { T.save(); notifyChange(); });
   ensureHarnessLearnerDrainTask(T.ov, () => { T.save(); notifyChange(); });
 
   const loopActive = hasActiveSessionLoop(ctx.loops, sessionId);
 
-  const jp = orchGateOff ? null : judgePressure(state.overlay, buildGraph, state.workspace);
-  const lp = orchGateOff ? null : labelPressure(state, buildGraph);
-  const lrp = orchGateOff ? null : learnerPressure(state.workspace, sessionId, ctx);
+  const jp = orchGateOff ? null : judgePressure(T.ov, buildGraph, T.ws);
+  const lp = orchGateOff ? null : labelPressure(state, buildGraph, T.ws, T.ov);
+  const lrp = orchGateOff ? null : learnerPressure(T.ws, sessionId, ctx, T.ov);
 
   const result = assembleClassifyResponse({
     prompt,
     sessionId,
     heuristic,
     contextClassify: cc,
-    hasMetricSpec: sessionHasMetricSpec(sessionId, ctx),
+    hasMetricSpec: sessionHasMetricSpec(sessionId, ctx, T),
     readyEntry,
     autostartLine,
     judgePressure: jp,

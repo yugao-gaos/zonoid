@@ -588,6 +588,18 @@ function staleClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
   }
   return out;
 }
+
+function localInProgressCount(tasks, ov = state.overlay, agents = state.agents, nowMs = Date.now(), bootMs = BOOT_MS) {
+  const mins = ov.config.stale_minutes ?? 10;
+  let count = 0;
+  for (const t of tasks || []) {
+    if (!t || t.kind === 'note' || t.status !== 'in_progress') continue;
+    const agentId = (ov.assignee && ov.assignee[t.id]) || t.agent_id;
+    if (!agentId || !vouchedLive(agents[agentId], mins, nowMs, bootMs)) continue;
+    count++;
+  }
+  return count;
+}
 // Sweep abandoned claims: release every staleClaimKeys() orphan back to ready. Authoritative
 // liveness — survives restart (overlay is persisted) and needs no stop hook. Returns true if any.
 // Parameterized on (ws, ov) so the sweep operates on the REQUESTED workspace's overlay (buildGraph
@@ -829,22 +841,22 @@ function sweepStaleLoops() {
 function stopSignalFor(session, opts = {}) {
   // `graph`/`ov` (loop path only): the PINNED workspace's graph/overlay, so a pinned loop's
   // cooperative-stop check scans ITS claims, not the daemon-global workspace's. Defaults unchanged.
-  const { actor = null, hook = false, graph = null, ov = state.overlay } = opts;
+  const { actor = null, hook = false, graph = null, ov = state.overlay, ws = state.workspace } = opts;
   if (hook) {
     // Agent-scoped stop: the calling worker is itself flagged → halt it (and nobody else). The driver
     // that requested the stop calls with a different/absent agent_id, so it falls through and runs on.
-    if (actor && state.overlay.stop_requested[actor]) {
-      const g = buildGraph(state.workspace);
-      const own = g.tasks.find((t) => t.status === 'in_progress' && (t.agent_id || state.overlay.assignee[t.id]) === actor);
-      return { task: own ? own.id : null, agent: actor, reason: 'stop_requested', cancel_requested: null, stop_requested: state.overlay.stop_requested[actor] };
+    if (actor && ov.stop_requested[actor]) {
+      const g = graph || buildGraph(ws);
+      const own = g.tasks.find((t) => t.status === 'in_progress' && (t.agent_id || ov.assignee[t.id]) === actor);
+      return { task: own ? own.id : null, agent: actor, reason: 'stop_requested', cancel_requested: null, stop_requested: ov.stop_requested[actor] };
     }
     // Session-scoped CANCEL still halts any actor working a canceled task in this session.
     if (!session) return null;
-    const g = buildGraph(state.workspace);
+    const g = graph || buildGraph(ws);
     for (const t of g.tasks) {
       if (t.status !== 'in_progress' || t.session !== session) continue;
-      const cr = state.overlay.cancel_requested[t.id] || null;
-      if (cr) return { task: t.id, agent: t.agent_id || state.overlay.assignee[t.id] || null, reason: 'cancel_requested', cancel_requested: cr, stop_requested: null };
+      const cr = ov.cancel_requested[t.id] || null;
+      if (cr) return { task: t.id, agent: t.agent_id || ov.assignee[t.id] || null, reason: 'cancel_requested', cancel_requested: cr, stop_requested: null };
     }
     return null;
   }
@@ -1858,6 +1870,7 @@ function summaryFor(tasks, ghosts, ov = state.overlay) {
   const notes = tasks.length - real.length;
   const c = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0]));
   for (const t of real) c[t.status] = (c[t.status] || 0) + 1;
+  c.local_in_progress = localInProgressCount(real, ov);
   const a = agentsArr();
   return {
     tasks_total: real.length,
@@ -2136,7 +2149,7 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, buildGraph, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };

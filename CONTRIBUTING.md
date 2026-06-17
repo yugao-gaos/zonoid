@@ -17,7 +17,7 @@ node daemon.js          # starts on :8787 by default
 # or: ORCH_PORT=9000 node daemon.js
 ```
 
-Open http://localhost:8787/graph to see the dashboard.
+Open http://localhost:8787/graph?workspace=<url-encoded absolute workspace path> to see the dashboard.
 
 ## Architecture
 

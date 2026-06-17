@@ -543,11 +543,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/note/chain') {
     const raw = u.searchParams.get('key') || u.searchParams.get('id') || '';
     const id = String(raw).replace(/^note:/, '');
-    const chain = overlayStore.noteChain(state.overlay, id).map((cid) => {
-      const n = state.overlay.note_nodes[cid];
+    const T = targetOverlay(null, u);
+    const chain = overlayStore.noteChain(T.ov, id).map((cid) => {
+      const n = T.ov.note_nodes[cid];
       return { key: 'note:' + cid, title: n.title, validFrom: n.validFrom || null, validTo: n.validTo || null, current: !n.validTo };
     });
-    send(res, 200, { key: 'note:' + id, chain }); return true;
+    send(res, 200, { key: 'note:' + id, workspace: T.ws, chain }); return true;
   }
 
   if (p === '/context-classify' && m === 'POST') {
@@ -555,7 +556,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const prompt = String(b.prompt || '').trim();
     if (!prompt) { send(res, 400, { ok: false, error: 'prompt required' }); return true; }
     const { contextClassify } = require('../lib/context-classify-core');
-    send(res, 200, await contextClassify(prompt, ctx)); return true;
+    const T = targetOverlay(b, u);
+    send(res, 200, await contextClassify(prompt, ctx, T.ws)); return true;
   }
 
   // ASK-vs-PREDICT preference gate (lib/ask-gate.js, the ask-by-default classifier). The dispatcher
@@ -571,7 +573,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const decision = String(b.decision || b.query || '').trim();
     if (!decision) { send(res, 400, { ok: false, error: 'decision (or query) required' }); return true; }
-    const ws = b.workspace || state.workspace;
+    const T = targetOverlay(b, u);
+    const ws = T.ws;
     const flags = {
       irreversible: !!b.irreversible, outward: !!(b.outward || b.outwardFacing),
       highImpact: !!b.highImpact, scopeExpansion: !!b.scopeExpansion, repeatedFailure: !!b.repeatedFailure,

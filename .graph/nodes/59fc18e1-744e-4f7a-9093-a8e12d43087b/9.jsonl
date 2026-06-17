@@ -5,3 +5,5 @@
 {"evt":"status_changed","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/9","workspace":"D:\\zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-16T19:07:15.536Z"}
 {"evt":"assignee_set","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/9","workspace":"D:\\zonoid","assignee":"harness-proberunner-judge-9d2f","actor":"overlay-sync","ts":"2026-06-16T19:07:15.536Z"}
 {"evt":"timestamps_set","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/9","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-16T18:40:03.883Z","lastChanged":"2026-06-16T19:07:14.411Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-16T19:09:29.256Z"}
+{"evt":"status_changed","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/9","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-16T20:37:22.207Z"}
+{"evt":"timestamps_set","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/9","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-16T18:40:03.883Z","lastChanged":"2026-06-16T20:44:08.668Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-16T20:52:41.365Z"}

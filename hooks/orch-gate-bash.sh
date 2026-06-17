@@ -113,6 +113,15 @@ normalize_path() {
   printf '%s' "$p"
 }
 
+resolve_target_against_wt() {
+  local t="$1" wt="$2" rt
+  case "$t" in
+    /*|[A-Za-z]:/*) rt="$t" ;;
+    *) rt="${wt%/}/$t" ;;
+  esac
+  normalize_path "$rt"
+}
+
 # Helper: is a given path under an exempt location?
 is_exempt() {
   local p
@@ -212,7 +221,8 @@ if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
         if [ -n "$TASK_WT" ]; then
           while IFS= read -r _t; do
             [ -z "$_t" ] && continue
-            case "$_t" in "$TASK_WT"/*|"$TASK_WT") _MATCH_FOUND=1; break ;; esac
+            _rt=$(resolve_target_against_wt "$_t" "$TASK_WT")
+            case "$_rt" in "$TASK_WT"/*|"$TASK_WT") _MATCH_FOUND=1; break ;; esac
           done <<TARGETEOF
 $TARGETS
 TARGETEOF
@@ -238,7 +248,7 @@ IS_SUB=$(printf '%s' "$SINFO" | jq -r '.is_subagent // "unknown"' 2>/dev/null)
 
 if [ "$IS_SUB" = "true" ]; then
   # Registered subagent with no claim — must file a task first.
-  printf 'orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use the native TaskCreate tool (not an MCP endpoint).\n' >&2
+  printf 'orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use Claude TaskCreate or an adapter file-drop create_task/task_create tool.\n' >&2
   exit 2
 fi
 

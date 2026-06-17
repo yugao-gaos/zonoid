@@ -3,9 +3,40 @@ const overlayStore = require('../lib/overlay');
 const measure = require('../lib/measure');
 const git = require('../lib/git');
 
+function isAdmissibleOverlayTaskKey(key) {
+  return typeof key === 'string'
+    && (/^[^/\s]+\/[^/\s]+$/.test(key) || /^[A-Za-z][A-Za-z0-9_.-]*$/.test(key));
+}
+
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, buildGraph, state, targetOverlay, nodeExistsInGraph,
     validateMetricSpec, validateBenchmark, resolveRepo, taskTranscript, usageCached } = ctx;
+  const graphHasKey = (ws, key) => {
+    if (typeof nodeExistsInGraph !== 'function') return true;
+    return nodeExistsInGraph(buildGraph(ws), key);
+  };
+  const acceptsTaskKey = (T, key) => graphHasKey(T.ws, key) || isAdmissibleOverlayTaskKey(key);
+  const ensureTaskSnapshot = (T, key) => {
+    if (!isAdmissibleOverlayTaskKey(key)) return;
+    if (T.ov.snapshots && T.ov.snapshots[key]) return;
+    overlayStore.setSnapshot(T.ov, key, {
+      subject: key,
+      description: '',
+      status: T.ov.status[key] || 'pending',
+      blockedBy: [],
+      owner: null,
+      metadata: { synthetic_overlay_task: true },
+    });
+    if (!T.ov.timestamps) T.ov.timestamps = {};
+    if (!T.ov.timestamps[key]) {
+      const ts = new Date().toISOString();
+      T.ov.timestamps[key] = { firstSeen: ts, lastChanged: ts, lastStatus: T.ov.status[key] || 'pending' };
+    }
+    if (ctx.cache) {
+      if (ctx.cache.agg) ctx.cache.agg.delete(T.ws);
+      if (ctx.cache.aggAt) ctx.cache.aggAt.delete(T.ws);
+    }
+  };
 
   if (p === '/task/metric' && m === 'POST') {
     const b = await readBody(req);
@@ -166,9 +197,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     const key = b.task_key || b.key;
     if (!key) { send(res, 400, { ok: false, error: 'task_key required' }); return true; }
-    if (!nodeExistsInGraph(buildGraph(T.ws), key)) {
+    if (!acceptsTaskKey(T, key)) {
       send(res, 404, { ok: false, error: `unknown task: ${key}` }); return true;
     }
+    ensureTaskSnapshot(T, key);
     const wasUnwired = !!(T.ov.unwired && T.ov.unwired[key]);
     if (T.ov.unwired) delete T.ov.unwired[key];
     T.ov.notes[key] = `root: ${b.reason || 'declared standalone root'}`.slice(0, 280);

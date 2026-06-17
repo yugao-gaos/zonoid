@@ -88,7 +88,7 @@ main_session_deny_message() {
       ;;
     focus) printf 'orch-gate: multiple in-flight workers — set dispatcher focus (POST /overlay/dispatcher-focus) before trivial edits.\n' ;;
     *)
-      printf 'orch-gate: no task claimed. Main/dispatcher sessions must NOT claim tasks directly. Use the native TaskCreate tool (not an MCP endpoint) to register a task, then spawn a background subagent (Agent tool, run_in_background:true) — the subagent calls branch_task then start_task before editing.\n'
+      printf 'orch-gate: no task claimed. Main/dispatcher sessions must NOT claim tasks directly. Register a task first (Claude TaskCreate, or adapter file-drop create_task/task_create), then spawn a background subagent (Agent tool, run_in_background:true) — the subagent calls branch_task then start_task before editing.\n'
       ;;
   esac
 }

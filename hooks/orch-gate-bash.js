@@ -26,6 +26,12 @@ function isExempt(p) {
   return false;
 }
 
+function resolveTarget(t, wt) {
+  const s = k.slash(t);
+  const isAbs = s.startsWith('/') || /^[A-Za-z]:\//.test(s);
+  return k.normalizePath(isAbs ? s : `${k.slash(wt).replace(/\/+$/, '')}/${s}`);
+}
+
 (async () => {
   if (k.gateOff()) k.allow();
   const input = await k.readInput();
@@ -88,7 +94,7 @@ function isExempt(p) {
       if (branch) {
         anyWorktree = true;
         mismatchBranch = branch;
-        if (!targets.length || targets.some((t) => k.isUnder(t, wt))) { matched = true; break; }
+        if (!targets.length || targets.some((t) => wt && k.isUnder(resolveTarget(t, wt), wt))) { matched = true; break; }
       }
     }
     if (anyWorktree && !matched) {
@@ -99,7 +105,7 @@ function isExempt(p) {
 
   const sinfo = await k.getJson(`/session-info?session=${encodeURIComponent(sid)}`, 600);
   if (sinfo && sinfo.is_subagent === true) {
-    k.deny('orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use the native TaskCreate tool (not an MCP endpoint).');
+    k.deny('orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use Claude TaskCreate or an adapter file-drop create_task/task_create tool.');
   }
 
   const t = await k.tryTrivialMainAllow(sid, cmd);

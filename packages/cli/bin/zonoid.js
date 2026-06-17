@@ -9,6 +9,7 @@ const http = require('http');
 
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
+const CODEX_REPO_SKILLS_DIR = path.join('.codex', 'skills');
 
 // ── Invariant 3: Resolve install dir — prefer local checkout ─────────────────
 
@@ -44,6 +45,15 @@ function section(title) { console.log(`\n── ${title} ───────�
 // Windows too) and keep the JSON/TOML config values free of backslash-escaping
 // noise. Same convention as bin/install.js `fwd`.
 const fwdSlash = (p) => String(p).replace(/\\/g, '/');
+function dashboardUrl(cwd = process.cwd(), port = ORCH_PORT) {
+  return `http://localhost:${port}/graph?workspace=${encodeURIComponent(path.resolve(cwd))}`;
+}
+function renderClaudeInstructions(content, cwd = process.cwd(), port = ORCH_PORT) {
+  const url = dashboardUrl(cwd, port);
+  return String(content)
+    .replace(/http:\/\/localhost:\d+\/graph\?workspace=[^\s`)>\]]+/g, url)
+    .replace(/http:\/\/localhost:\d+\/graph(?!\?workspace=)/g, url);
+}
 
 // ── individual checks & fixes ───────────────────────────────────────────────
 
@@ -314,7 +324,7 @@ function checkClaude(cwd) {
   const dest = path.join(cwd, 'CLAUDE.md');
   const src  = path.join(INSTALL_DIR, 'CLAUDE.md');
   if (!fs.existsSync(src)) { warn('Source CLAUDE.md not found in install dir'); return; }
-  const srcContent = fs.readFileSync(src, 'utf8');
+  const srcContent = renderClaudeInstructions(fs.readFileSync(src, 'utf8'), cwd);
   if (fs.existsSync(dest)) {
     const existing = fs.readFileSync(dest, 'utf8');
     if (existing.includes('Orchestrator dashboard')) { ok('CLAUDE.md already has orchestrator section'); return; }
@@ -413,6 +423,39 @@ function checkSkills() {
 
   if (skipped > 0)  ok(`${skipped} skill(s) already up to date`);
   if (repaired > 0) ok(`${repaired} skill(s) repaired`);
+}
+
+function installRepoSkill(cwd, skill, harness = 'codex') {
+  const src = path.join(INSTALL_DIR, 'skills', skill);
+  if (!fs.existsSync(path.join(src, 'SKILL.md')) && !fs.existsSync(path.join(src, 'skill.md'))) {
+    warn(`Repo skill '${skill}' missing in install dir — skipping`);
+    return false;
+  }
+
+  const destRoot = harness === 'codex'
+    ? path.join(cwd, CODEX_REPO_SKILLS_DIR)
+    : path.join(cwd, '.zonoid', 'skills');
+  const dest = path.join(destRoot, skill);
+  fs.mkdirSync(destRoot, { recursive: true });
+
+  if (fs.existsSync(dest)) {
+    const hasSkillMd = fs.existsSync(path.join(dest, 'SKILL.md')) ||
+                       fs.existsSync(path.join(dest, 'skill.md'));
+    if (hasSkillMd) {
+      ok(`Repo skill already present: ${path.relative(cwd, dest)}`);
+      return true;
+    }
+    warn(`Repo skill '${skill}' exists but is incomplete — reinstalling`);
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
+
+  fs.cpSync(src, dest, { recursive: true });
+  ok(`Repo skill installed: ${path.relative(cwd, dest)}`);
+  return true;
+}
+
+function installCodexRepoSkills(cwd) {
+  installRepoSkill(cwd, 'zonoid-orchestrator', 'codex');
 }
 
 function checkDaemon() {
@@ -731,6 +774,23 @@ function parseInitArgs(argv) {
   };
 }
 
+function parseOnboardArgs(argv) {
+  const rest = argv.slice(3);
+  const out = { repo: process.cwd(), passThrough: [] };
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if (a === '--repo' && rest[i + 1]) {
+      out.repo = rest[i + 1];
+      out.passThrough.push(a, rest[i + 1]);
+      i++;
+    } else {
+      out.passThrough.push(a);
+    }
+  }
+  if (!out.passThrough.includes('--repo')) out.passThrough.unshift('--repo', out.repo);
+  return out;
+}
+
 function mergeCursorHooks(existing, sample, extras = []) {
   const out = JSON.parse(JSON.stringify(existing));
   if (!out.version) out.version = sample.version || 1;
@@ -889,27 +949,68 @@ function checkOpencodePlugin(cwd) {
   log('OpenCode runs bun install in .opencode/ at startup.');
 }
 
+function codexHookCommands(sample) {
+  const out = new Set();
+  for (const entries of Object.values((sample && sample.hooks) || {})) {
+    for (const entry of entries || []) {
+      for (const h of (entry && entry.hooks) || []) {
+        if (h && h.command) out.add(h.command);
+      }
+    }
+  }
+  return out;
+}
+
+function isCodexHookCommand(command, sampleCommands) {
+  if (sampleCommands.has(command)) return true;
+  return typeof command === 'string' && command.replace(/\\/g, '/').includes('/adapters/codex/hooks/');
+}
+
+function mergeCodexHooks(existing, sample) {
+  const out = JSON.parse(JSON.stringify(existing || {}));
+  if (!out.hooks) out.hooks = {};
+  const sampleCommands = codexHookCommands(sample);
+  for (const [event, entries] of Object.entries(out.hooks)) {
+    out.hooks[event] = (entries || [])
+      .map((entry) => {
+        const hooks = ((entry && entry.hooks) || []).filter((h) => !isCodexHookCommand(h && h.command, sampleCommands));
+        return hooks.length ? { ...entry, hooks } : null;
+      })
+      .filter(Boolean);
+    if (out.hooks[event].length === 0) delete out.hooks[event];
+  }
+  for (const [event, entries] of Object.entries((sample && sample.hooks) || {})) {
+    out.hooks[event] = (out.hooks[event] || []).concat(JSON.parse(JSON.stringify(entries || [])));
+  }
+  return out;
+}
+
 function checkCodexHooks() {
   const sample = path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks.json.sample');
   const dest = path.join(os.homedir(), '.codex', 'hooks.json');
   if (!fs.existsSync(sample)) { warn(`Codex hook sample missing at ${sample}`); return; }
-  let content = fs.readFileSync(sample, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR);
+  const sampleJson = JSON.parse(fs.readFileSync(sample, 'utf8').replace(/__INSTALL_DIR__/g, INSTALL_DIR));
   chmodScripts(path.join(INSTALL_DIR, 'adapters', 'codex', 'hooks'));
   if (fs.existsSync(dest)) {
-    const existing = fs.readFileSync(dest, 'utf8');
-    if (existing.includes(INSTALL_DIR) && existing.includes('adapters/codex/hooks/')) {
+    let existing;
+    try { existing = JSON.parse(fs.readFileSync(dest, 'utf8')); }
+    catch (e) { warn('Cannot parse ~/.codex/hooks.json — leaving as-is'); return; }
+    const merged = mergeCodexHooks(existing, sampleJson);
+    if (JSON.stringify(existing) === JSON.stringify(merged)) {
       ok('~/.codex/hooks.json already references this install');
       return;
     }
     fix('Merging Codex hooks into ~/.codex/hooks.json...');
     fs.copyFileSync(dest, dest + '.bak');
     log('Backed up existing hooks.json to hooks.json.bak');
+    fs.writeFileSync(dest, JSON.stringify(merged, null, 2) + '\n');
+    ok(`Merged: ${dest}`);
   } else {
     fix('Writing ~/.codex/hooks.json from sample...');
     fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, JSON.stringify(sampleJson, null, 2) + '\n');
+    ok(`Written: ${dest}`);
   }
-  fs.writeFileSync(dest, content);
-  ok(`Written: ${dest}`);
   log('Open /hooks in Codex CLI to review and trust hook definitions.');
 }
 
@@ -1044,6 +1145,7 @@ function wireHarness(harness, cwd) {
     checkCodexHooks();
     // Codex reads MCP from ~/.codex/config.toml (TOML), NOT <cwd>/.mcp.json.
     writeCodexMcp();
+    installCodexRepoSkills(cwd);
     warn('Codex init skips Claude settings.json / CLAUDE.md — wire hooks via ~/.codex/hooks.json');
   } else if (harness === 'opencode') {
     checkOpencodePlugin(cwd);
@@ -1052,21 +1154,23 @@ function wireHarness(harness, cwd) {
   }
 }
 
-function printNextSteps(harness) {
+function printNextSteps(harness, cwd = process.cwd()) {
+  const dash = dashboardUrl(cwd);
   if (harness === 'codex') {
     console.log('  Next steps (codex):');
     console.log('    1. Open /hooks in Codex CLI and trust the Zonoid hook definitions');
     console.log('    2. Restart Codex in this directory');
-    console.log('    3. Open the dashboard: http://localhost:8787/graph');
-    console.log('    4. Mint tasks with MCP create_task, then start_task before editing');
+    console.log(`    3. Open the dashboard: ${dash}`);
+    console.log('    4. Mint tasks with Codex MCP create_task (file-drop stub + /sync), then start_task before editing');
     console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — run the returned');
     console.log('       tail command on the session .fire file; on ORCH_SCHEDULED_TASK, re-inject the prompt');
-    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
+    console.log('    6. Repo skill installed at .codex/skills/zonoid-orchestrator for task-mint workflow');
+    console.log('    7. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else if (harness === 'cursor') {
     console.log('  Next steps (cursor):');
     console.log('    1. Trust the workspace in Cursor so project hooks run');
     console.log('    2. Restart Cursor in this directory');
-    console.log('    3. Open the dashboard: http://localhost:8787/graph');
+    console.log(`    3. Open the dashboard: ${dash}`);
     console.log('    4. Mint tasks via todo adoption or MCP, then start_task before editing');
     console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — monitor stdout with');
     console.log('       the returned tail command (notify_pattern ORCH_SCHEDULED_TASK) and re-inject the prompt');
@@ -1075,18 +1179,19 @@ function printNextSteps(harness) {
     console.log('  Next steps (opencode):');
     console.log('    1. Wire orchestrator MCP in opencode.json (stdio transport)');
     console.log('    2. Restart OpenCode in this directory');
-    console.log('    3. Open the dashboard: http://localhost:8787/graph');
-    console.log('    4. Use task_create to mint, then start_task before editing');
+    console.log(`    3. Open the dashboard: ${dash}`);
+    console.log('    4. Use task_create (file-drop stub + /sync) to mint, then start_task before editing');
     console.log('    5. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
   } else {
     console.log('  Next steps (claude):');
     console.log('    1. Restart Claude Code in this directory');
-    console.log('    2. Open the dashboard: http://localhost:8787/graph');
+    console.log(`    2. Open the dashboard: ${dash}`);
     console.log('    3. Ask Claude to start working — it will create tasks automatically');
     console.log('');
     console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
     console.log('  Claude will create a task automatically before editing.');
   }
+  console.log('    Repo learning: run `npx @zonoid/cli onboard` to mine, validate, and review KB notes');
 }
 
 async function init(opts = {}) {
@@ -1153,7 +1258,7 @@ async function init(opts = {}) {
   console.log('\n✓ Done.\n');
   harnesses.forEach((h, i) => {
     if (i > 0) console.log('');
-    printNextSteps(h);
+    printNextSteps(h, cwd);
   });
 
   // Graph auto-commit hook tip — workspace-level (the hook is always installed
@@ -1168,12 +1273,39 @@ async function init(opts = {}) {
   console.log('');
 }
 
+function onboard(opts = {}) {
+  const repo = path.resolve(opts.repo || process.cwd());
+  checkInstallDir();
+  checkNodeModules();
+  const script = path.join(INSTALL_DIR, 'scripts', 'onboard.js');
+  if (!fs.existsSync(script)) {
+    console.error(`onboard script not found at ${script}`);
+    process.exit(1);
+  }
+  const args = [script, ...opts.passThrough];
+  const r = spawnSync(process.execPath, args, {
+    stdio: 'inherit',
+    cwd: repo,
+    env: process.env,
+    windowsHide: true,
+  });
+  process.exit(r.status == null ? 1 : r.status);
+}
+
 const cmd = process.argv[2];
 if (require.main === module) {
   if (cmd === 'init') {
     init(parseInitArgs(process.argv)).catch((err) => { console.error(err); process.exit(1); });
+  } else if (cmd === 'onboard') {
+    onboard(parseOnboardArgs(process.argv));
   } else {
-    console.log('Usage: npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service] [--graph-autocommit]');
+    console.log('Usage:');
+    console.log('  npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service] [--graph-autocommit]');
+    console.log('  npx @zonoid/cli onboard [--repo <path>] [--force] [--skip-learn] [--model opus] [--max-keep 20]');
+    console.log('');
+    console.log('Commands:');
+    console.log('  init      Wire daemon, hooks/plugins, MCP, skills, and dashboard for this workspace.');
+    console.log('  onboard   Mine + validate repo KB and stop at a human review gate before injection.');
     console.log('');
     console.log('  --harness  claude (default) | cursor | codex | opencode — adapter wiring.');
     console.log('             Accepts a comma-separated list and/or repeats, e.g.');
@@ -1190,6 +1322,7 @@ if (require.main === module) {
     // existing exports
     parseInitArgs,
     mergeCursorHooks,
+    mergeCodexHooks,
     VALID_HARNESSES,
     scheduleWakeupScriptPath,
     opencodePluginHasScheduleWakeup,
@@ -1199,6 +1332,8 @@ if (require.main === module) {
     resolveInstallDir,
     // C1: extracted link strategy helper — injectable stubs enable fallback branch coverage
     linkSkill,
+    installRepoSkill,
+    installCodexRepoSkills,
     // CDX-2: Claude+Codex coexistence — MCP store split + multi-harness init
     writeMcp,
     writeCodexMcp,
@@ -1208,5 +1343,8 @@ if (require.main === module) {
     // graph auto-commit hook helpers
     graphAutocommitHookScript,
     mergeGraphAutocommitFlag,
+    parseOnboardArgs,
+    dashboardUrl,
+    renderClaudeInstructions,
   };
 }
