@@ -203,6 +203,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const dagKeys = new Set(dagNotes.map(n => n.key));
 
+    // System tier: notes with category="system" — always injected, every query, no gate.
+    // These are workspace-level anchors (durable spec, standing constraints) that every
+    // agent should see regardless of what it is searching for.
+    const sysNotes = [];
+    for (const n of g.tasks) {
+      if ((n.kind || 'task') !== 'note') continue;
+      if (n.validTo) continue;           // superseded — show only current head
+      if (n.category !== 'system') continue;
+      if (dupInvisible(n)) continue;
+      sysNotes.push({ key: n.id, title: n.label, summary: String(n.summary || '').slice(0, 200), score: 1.0, kind: 'note', tier: 'system', inject: true, via: 'system', path: [] });
+    }
+    const sysKeys = new Set(sysNotes.map(n => n.key));
+
     // Build adjacency map for BFS path computation (undirected over deps + context_deps).
     const adjMap = new Map(); // key -> [{neighborKey, edgeType}]
     const ensureAdj = (k) => { if (!adjMap.has(k)) adjMap.set(k, []); };
@@ -277,7 +290,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const gateCands = [];
     let gateVia = 'lexical';
     for (const n of g.tasks) {
-      if ((n.kind || 'task') !== 'note' || n.validTo || dagKeys.has(n.id) || excludeKeys.has(n.id)) continue;
+      if ((n.kind || 'task') !== 'note' || n.validTo || dagKeys.has(n.id) || sysKeys.has(n.id) || excludeKeys.has(n.id)) continue;
       if (dupInvisible(n)) continue;   // pending-dup note: retrieval-invisible until the dup-judge clears it
       let rawScore = 0;
       if (qvec && nodeVecs(n).length > 0) { rawScore = maxCosine(qvec, n); gateVia = 'semantic'; }
@@ -320,6 +333,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const ragResults = [];
     // (a) graph nodes (tasks + note nodes).
     for (const node of g.tasks) {
+      if (sysKeys.has(node.id)) continue;  // skip system-tier notes (always injected above)
       if (dagKeys.has(node.id)) continue;  // skip DAG-injected notes
       if (excludeKeys.has(node.id)) continue;  // already injected in a prior round
       if (dupInvisible(node)) continue;    // pending-dup note: retrieval-invisible until the dup-judge clears it
@@ -463,8 +477,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // search_knowledge stays a fully-functional explicit tool: an ungated/no-task_key lookup, or a
     // provisional task, gets the full RAG bundle; only the fully-judged auto-claim context is pruned.
     const results = dagOnly
-      ? [...dagNotes]
-      : [...dagNotes, ...ragResults].slice(0, k + dagNotes.length);
+      ? [...sysNotes, ...dagNotes]
+      : [...sysNotes, ...dagNotes, ...ragResults].slice(0, k + dagNotes.length + sysNotes.length);
     const payload = { query: q, k, asOf: asOf || null, knownAsOf: knownAsOf || null, history, round, continue: plateauContinue(results), results };
     // RECALL-OUTCOME attribution: when a task_key is present, log which note keys made it into
     // the final injected bundle. Only note-kind results carry meaningful recall signal; tasks and
