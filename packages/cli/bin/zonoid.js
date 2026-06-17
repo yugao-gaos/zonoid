@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const http = require('http');
 
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
@@ -55,6 +55,21 @@ function renderClaudeInstructions(content, cwd = process.cwd(), port = ORCH_PORT
     .replace(/http:\/\/localhost:\d+\/graph(?!\?workspace=)/g, url);
 }
 
+function runChecked(cmd, args, opts = {}) {
+  const r = spawnSync(cmd, args, { stdio: 'inherit', windowsHide: true, ...opts });
+  if (r.status !== 0) {
+    const code = r.status == null ? `signal ${r.signal}` : `exit ${r.status}`;
+    throw new Error(`${cmd} ${args.join(' ')} failed (${code})`);
+  }
+  return r;
+}
+
+function runCapture(cmd, args, opts = {}) {
+  const r = spawnSync(cmd, args, { encoding: 'utf8', windowsHide: true, ...opts });
+  if (r.status !== 0) throw new Error(`${cmd} ${args.join(' ')} failed`);
+  return (r.stdout || '').trim();
+}
+
 // ── individual checks & fixes ───────────────────────────────────────────────
 
 // ── Invariant 1: detect live data so we NEVER rm -rf a data dir ─────────────
@@ -95,7 +110,7 @@ function checkInstallDir() {
       fix('Install dir has live data — cloning to temp, then copying source files in (data preserved)...');
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-clone-'));
       try {
-        execSync(`git clone ${REPO_URL} ${tmpDir}`, { stdio: 'inherit', windowsHide: true });
+        runChecked('git', ['clone', REPO_URL, tmpDir]);
         // Copy source files from the temp clone into INSTALL_DIR,
         // but skip the data subdirs so they are left untouched.
         // Runtime-state entries written by daemon.js + lib/* under CLAUDE_PLUGIN_DATA:
@@ -142,7 +157,7 @@ function checkInstallDir() {
     fix(`Cloning ${REPO_URL} ...`);
     fs.mkdirSync(path.dirname(INSTALL_DIR), { recursive: true });
   }
-  execSync(`git clone ${REPO_URL} ${INSTALL_DIR}`, { stdio: 'inherit', windowsHide: true });
+  runChecked('git', ['clone', REPO_URL, INSTALL_DIR]);
   ok('Cloned.');
 }
 
@@ -153,7 +168,7 @@ function checkNodeModules() {
     return;
   }
   fix('Running npm install — downloading ML model (~200 MB), takes 1–3 min...');
-  execSync('npm install', { cwd: INSTALL_DIR, stdio: 'inherit', windowsHide: true });
+  runChecked('npm', ['install'], { cwd: INSTALL_DIR });
   ok('npm install done.');
 }
 
@@ -506,8 +521,8 @@ function ask(question) {
 const PLACEHOLDER_NAMES = new Set(['orchestrator', 'root', 'admin', 'user']);
 
 async function checkGitIdentity() {
-  const gitName  = (() => { try { return execSync('git config user.name',  { encoding: 'utf8', windowsHide: true }).trim(); } catch { return ''; } })();
-  const gitEmail = (() => { try { return execSync('git config user.email', { encoding: 'utf8', windowsHide: true }).trim(); } catch { return ''; } })();
+  const gitName  = (() => { try { return runCapture('git', ['config', 'user.name']); } catch { return ''; } })();
+  const gitEmail = (() => { try { return runCapture('git', ['config', 'user.email']); } catch { return ''; } })();
 
   const nameMissing  = !gitName  || PLACEHOLDER_NAMES.has(gitName.toLowerCase());
   const emailMissing = !gitEmail || gitEmail.endsWith('@localhost');
@@ -521,8 +536,8 @@ async function checkGitIdentity() {
   const name  = nameMissing  ? await ask(`  Your name  [${gitName  || 'e.g. Jane Smith'}]: `) : gitName;
   const email = emailMissing ? await ask(`  Your email [${gitEmail || 'e.g. you@example.com'}]: `) : gitEmail;
 
-  if (name)  { execSync(`git config --global user.name  "${name.replace(/"/g, '\\"')}"`, { windowsHide: true });  ok(`set user.name  = ${name}`); }
-  if (email) { execSync(`git config --global user.email "${email.replace(/"/g, '\\"')}"`, { windowsHide: true }); ok(`set user.email = ${email}`); }
+  if (name)  { runChecked('git', ['config', '--global', 'user.name', name], { stdio: 'ignore' });  ok(`set user.name  = ${name}`); }
+  if (email) { runChecked('git', ['config', '--global', 'user.email', email], { stdio: 'ignore' }); ok(`set user.email = ${email}`); }
 }
 
 const ORCH_PORT = process.env.ORCH_PORT || '8787';
@@ -691,7 +706,7 @@ function checkGraphAutocommitHook(cwd, opts = {}) {
   // Resolve hooks dir via git (handles worktrees + core.hooksPath)
   let hooksDir;
   try {
-    const raw = execSync('git rev-parse --git-path hooks', { cwd, encoding: 'utf8', windowsHide: true }).trim();
+    const raw = runCapture('git', ['rev-parse', '--git-path', 'hooks'], { cwd });
     // May be relative — resolve relative to cwd
     hooksDir = path.isAbsolute(raw) ? raw : path.resolve(cwd, raw);
   } catch (_) {
