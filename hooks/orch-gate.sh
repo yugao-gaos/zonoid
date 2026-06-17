@@ -163,7 +163,7 @@ IS_SUB=$(printf '%s' "$SINFO" | jq -r '.is_subagent // "unknown"' 2>/dev/null)
 
 if [ "$IS_SUB" = "true" ]; then
   # Registered subagent with no claim — must file a task first.
-  printf 'orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use the native TaskCreate tool (not an MCP endpoint).\n' >&2
+  printf 'orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use Claude TaskCreate or an adapter file-drop create_task/task_create tool.\n' >&2
   exit 2
 fi
 

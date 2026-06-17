@@ -193,8 +193,9 @@ Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 | `get_learnings` | Aggregate the graph's accumulated learning: attempt verdicts, recent failures and completions |
 | `enqueue_kb` | Mine a repo and enqueue all KB candidates into the learner queue (no cap, no LLM) |
 | `drain_kb_batch` | Process one batch of queued KB candidates via LLM |
-| `drain_kb_queue` | Fire-and-forget background drain of the full KB queue; auto-injects on completion |
+| `drain_kb_queue` | Fire-and-forget background drain of the full KB queue; review output, then inject explicitly |
 | `drain_kb_queue_status` | Get the current status of a background drain job |
+| `inject_kb` | Explicitly inject reviewed onboarding KB notes into the graph |
 
 ### Loop & agent control
 

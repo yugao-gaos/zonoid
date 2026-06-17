@@ -9,6 +9,7 @@ const http = require('http');
 
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
+const CODEX_REPO_SKILLS_DIR = path.join('.codex', 'skills');
 
 // ── Invariant 3: Resolve install dir — prefer local checkout ─────────────────
 
@@ -415,6 +416,39 @@ function checkSkills() {
   if (repaired > 0) ok(`${repaired} skill(s) repaired`);
 }
 
+function installRepoSkill(cwd, skill, harness = 'codex') {
+  const src = path.join(INSTALL_DIR, 'skills', skill);
+  if (!fs.existsSync(path.join(src, 'SKILL.md')) && !fs.existsSync(path.join(src, 'skill.md'))) {
+    warn(`Repo skill '${skill}' missing in install dir — skipping`);
+    return false;
+  }
+
+  const destRoot = harness === 'codex'
+    ? path.join(cwd, CODEX_REPO_SKILLS_DIR)
+    : path.join(cwd, '.zonoid', 'skills');
+  const dest = path.join(destRoot, skill);
+  fs.mkdirSync(destRoot, { recursive: true });
+
+  if (fs.existsSync(dest)) {
+    const hasSkillMd = fs.existsSync(path.join(dest, 'SKILL.md')) ||
+                       fs.existsSync(path.join(dest, 'skill.md'));
+    if (hasSkillMd) {
+      ok(`Repo skill already present: ${path.relative(cwd, dest)}`);
+      return true;
+    }
+    warn(`Repo skill '${skill}' exists but is incomplete — reinstalling`);
+    fs.rmSync(dest, { recursive: true, force: true });
+  }
+
+  fs.cpSync(src, dest, { recursive: true });
+  ok(`Repo skill installed: ${path.relative(cwd, dest)}`);
+  return true;
+}
+
+function installCodexRepoSkills(cwd) {
+  installRepoSkill(cwd, 'zonoid-orchestrator', 'codex');
+}
+
 function checkDaemon() {
   return new Promise((resolve) => {
     const req = http.request(
@@ -729,6 +763,23 @@ function parseInitArgs(argv) {
     harness: harnesses[0],
     enableGraphAutocommit: rest.includes('--graph-autocommit'),
   };
+}
+
+function parseOnboardArgs(argv) {
+  const rest = argv.slice(3);
+  const out = { repo: process.cwd(), passThrough: [] };
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if (a === '--repo' && rest[i + 1]) {
+      out.repo = rest[i + 1];
+      out.passThrough.push(a, rest[i + 1]);
+      i++;
+    } else {
+      out.passThrough.push(a);
+    }
+  }
+  if (!out.passThrough.includes('--repo')) out.passThrough.unshift('--repo', out.repo);
+  return out;
 }
 
 function mergeCursorHooks(existing, sample, extras = []) {
@@ -1085,6 +1136,7 @@ function wireHarness(harness, cwd) {
     checkCodexHooks();
     // Codex reads MCP from ~/.codex/config.toml (TOML), NOT <cwd>/.mcp.json.
     writeCodexMcp();
+    installCodexRepoSkills(cwd);
     warn('Codex init skips Claude settings.json / CLAUDE.md — wire hooks via ~/.codex/hooks.json');
   } else if (harness === 'opencode') {
     checkOpencodePlugin(cwd);
@@ -1099,10 +1151,11 @@ function printNextSteps(harness) {
     console.log('    1. Open /hooks in Codex CLI and trust the Zonoid hook definitions');
     console.log('    2. Restart Codex in this directory');
     console.log('    3. Open the dashboard: http://localhost:8787/graph');
-    console.log('    4. Mint tasks with MCP create_task, then start_task before editing');
+    console.log('    4. Mint tasks with Codex MCP create_task (file-drop stub + /sync), then start_task before editing');
     console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — run the returned');
     console.log('       tail command on the session .fire file; on ORCH_SCHEDULED_TASK, re-inject the prompt');
-    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
+    console.log('    6. Repo skill installed at .codex/skills/zonoid-orchestrator for task-mint workflow');
+    console.log('    7. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else if (harness === 'cursor') {
     console.log('  Next steps (cursor):');
     console.log('    1. Trust the workspace in Cursor so project hooks run');
@@ -1117,7 +1170,7 @@ function printNextSteps(harness) {
     console.log('    1. Wire orchestrator MCP in opencode.json (stdio transport)');
     console.log('    2. Restart OpenCode in this directory');
     console.log('    3. Open the dashboard: http://localhost:8787/graph');
-    console.log('    4. Use task_create to mint, then start_task before editing');
+    console.log('    4. Use task_create (file-drop stub + /sync) to mint, then start_task before editing');
     console.log('    5. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
   } else {
     console.log('  Next steps (claude):');
@@ -1128,6 +1181,7 @@ function printNextSteps(harness) {
     console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
     console.log('  Claude will create a task automatically before editing.');
   }
+  console.log('    Repo learning: run `npx @zonoid/cli onboard` to mine, validate, and review KB notes');
 }
 
 async function init(opts = {}) {
@@ -1209,12 +1263,39 @@ async function init(opts = {}) {
   console.log('');
 }
 
+function onboard(opts = {}) {
+  const repo = path.resolve(opts.repo || process.cwd());
+  checkInstallDir();
+  checkNodeModules();
+  const script = path.join(INSTALL_DIR, 'scripts', 'onboard.js');
+  if (!fs.existsSync(script)) {
+    console.error(`onboard script not found at ${script}`);
+    process.exit(1);
+  }
+  const args = [script, ...opts.passThrough];
+  const r = spawnSync(process.execPath, args, {
+    stdio: 'inherit',
+    cwd: repo,
+    env: process.env,
+    windowsHide: true,
+  });
+  process.exit(r.status == null ? 1 : r.status);
+}
+
 const cmd = process.argv[2];
 if (require.main === module) {
   if (cmd === 'init') {
     init(parseInitArgs(process.argv)).catch((err) => { console.error(err); process.exit(1); });
+  } else if (cmd === 'onboard') {
+    onboard(parseOnboardArgs(process.argv));
   } else {
-    console.log('Usage: npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service] [--graph-autocommit]');
+    console.log('Usage:');
+    console.log('  npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service] [--graph-autocommit]');
+    console.log('  npx @zonoid/cli onboard [--repo <path>] [--force] [--skip-learn] [--model opus] [--max-keep 20]');
+    console.log('');
+    console.log('Commands:');
+    console.log('  init      Wire daemon, hooks/plugins, MCP, skills, and dashboard for this workspace.');
+    console.log('  onboard   Mine + validate repo KB and stop at a human review gate before injection.');
     console.log('');
     console.log('  --harness  claude (default) | cursor | codex | opencode — adapter wiring.');
     console.log('             Accepts a comma-separated list and/or repeats, e.g.');
@@ -1241,6 +1322,8 @@ if (require.main === module) {
     resolveInstallDir,
     // C1: extracted link strategy helper — injectable stubs enable fallback branch coverage
     linkSkill,
+    installRepoSkill,
+    installCodexRepoSkills,
     // CDX-2: Claude+Codex coexistence — MCP store split + multi-harness init
     writeMcp,
     writeCodexMcp,
@@ -1250,5 +1333,6 @@ if (require.main === module) {
     // graph auto-commit hook helpers
     graphAutocommitHookScript,
     mergeGraphAutocommitFlag,
+    parseOnboardArgs,
   };
 }

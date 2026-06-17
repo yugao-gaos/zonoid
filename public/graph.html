@@ -5813,7 +5813,8 @@ tick(); setInterval(tick, 2000);   // safety poll
 // any task-creation buttons.
 async function checkOnboardingState() {
   // Respect a per-workspace "dismissed" preference stored in localStorage.
-  const wsKey = 'onboard_dismissed_' + (location.hostname || 'local');
+  const workspace = currentOnboardWorkspace();
+  const wsKey = 'onboard_dismissed_' + (workspace || location.hostname || 'local');
   if (localStorage.getItem(wsKey) === '1') return;
 
   let notes = [];
@@ -5837,6 +5838,14 @@ async function checkOnboardingState() {
   showOnboardBanner(wsKey);
 }
 
+function currentOnboardWorkspace() {
+  return WS || (lastState && lastState.workspace) || '';
+}
+
+function onboardStoreKey(suffix) {
+  return 'onboard_' + suffix + '_' + (currentOnboardWorkspace() || location.hostname || 'local');
+}
+
 function showOnboardBanner(wsKey) {
   if (document.getElementById('onboard-banner')) return; // already shown
 
@@ -5853,9 +5862,11 @@ function showOnboardBanner(wsKey) {
     'position: relative',
   ].join(';');
 
+  const workspace = currentOnboardWorkspace();
+  const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
   banner.innerHTML = [
     '<div style="font-weight:600;font-size:14px;color:#79c0ff;margin-bottom:6px">Setup &amp; Learning in progress</div>',
-    '<div style="margin-bottom:10px;color:#adbac7">This workspace hasn\'t been onboarded yet. Run <code style="background:#0d1117;padding:1px 5px;border-radius:4px;color:#e6edf3">node scripts/onboard.js --repo &lt;path&gt;</code> to mine and validate KB notes, then inject them before using the orchestrator.</div>',
+    '<div style="margin-bottom:10px;color:#adbac7">This workspace has no injected onboarding notes yet. Run the gated learning flow here, or use <code style="background:#0d1117;padding:1px 5px;border-radius:4px;color:#e6edf3">npx @zonoid/cli onboard</code> for a review bundle.</div>',
     '<div style="display:flex;gap:0;align-items:center;flex-wrap:wrap">',
       '<div style="display:flex;align-items:center;gap:6px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:6px 12px;font-size:12px">',
         '<span style="color:#8b949e">Step 1</span>',
@@ -5871,6 +5882,11 @@ function showOnboardBanner(wsKey) {
         '<span style="color:#8b949e">Step 3</span>',
         '<span style="color:#e6edf3;font-weight:600">Review &amp; Inject</span>',
       '</div>',
+    '</div>',
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">',
+      '<button id="onboardStartBtn" onclick="startOnboardLearning()" style="background:#1f6feb33;border:1px solid #1f6feb55;color:#79c0ff;border-radius:6px;padding:5px 10px;cursor:pointer;font:inherit;font-size:12px">Start learning</button>',
+      '<button id="onboardInjectBtn" onclick="injectOnboardLearning()" style="background:#2ea04333;border:1px solid #2ea04388;color:#7ee787;border-radius:6px;padding:5px 10px;cursor:pointer;font:inherit;font-size:12px;display:none">Inject reviewed notes</button>',
+      '<span id="onboardStatus" style="font-size:12px;color:#8b949e"></span>',
     '</div>',
     '<button onclick="dismissOnboardBanner()" title="Hide for this session" style="',
       'position:absolute;top:10px;right:14px;',
@@ -5888,6 +5904,9 @@ function showOnboardBanner(wsKey) {
 
   // Store wsKey on the banner so dismiss can use it.
   banner.dataset.wsKey = wsKey;
+  banner.dataset.repo = workspace;
+  banner.dataset.outDir = storedOutDir;
+  if (storedOutDir) pollOnboardLearning();
 }
 
 function removeOnboardBanner() {
@@ -5918,6 +5937,89 @@ function setTaskCreationDisabled(disabled) {
       }
     }
   });
+}
+
+function setOnboardStatus(msg, isError) {
+  const el = document.getElementById('onboardStatus');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.color = isError ? '#f85149' : '#8b949e';
+}
+
+function setOnboardBusy(busy) {
+  const btn = document.getElementById('onboardStartBtn');
+  if (btn) btn.disabled = !!busy;
+}
+
+async function startOnboardLearning() {
+  const b = document.getElementById('onboard-banner');
+  const repo = currentOnboardWorkspace();
+  if (!b || !repo) { setOnboardStatus('No workspace path available yet.', true); return; }
+  try {
+    setOnboardBusy(true);
+    setOnboardStatus('Mining candidates...');
+    const enq = await (await dfetch('/onboard/enqueue', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo})
+    })).json();
+    if (!enq.ok) throw new Error(enq.error || 'enqueue failed');
+    b.dataset.repo = repo;
+    b.dataset.outDir = enq.outDir;
+    localStorage.setItem(onboardStoreKey('outdir'), enq.outDir);
+    setOnboardStatus('Learning queued...');
+    const dr = await (await dfetch('/onboard/drain-queue', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo, outDir: enq.outDir})
+    })).json();
+    if (!dr.ok) throw new Error(dr.error || 'drain failed');
+    pollOnboardLearning();
+  } catch (e) {
+    setOnboardStatus(String(e && e.message || e), true);
+    setOnboardBusy(false);
+  }
+}
+
+async function pollOnboardLearning() {
+  const b = document.getElementById('onboard-banner');
+  if (!b || !b.dataset.repo || !b.dataset.outDir) return;
+  try {
+    const st = await (await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(b.dataset.repo) + '&outDir=' + encodeURIComponent(b.dataset.outDir))).json();
+    if (!st.ok) throw new Error(st.error || 'status unavailable');
+    const s = st.status || {};
+    setOnboardStatus(s.error ? s.error : `Processed ${s.processed || 0}/${s.total || 0}`);
+    if (s.done) {
+      setOnboardBusy(false);
+      const inject = document.getElementById('onboardInjectBtn');
+      if (inject && !s.injected) inject.style.display = '';
+      if (s.injected) { setOnboardStatus('Injected. Refreshing graph...'); setTimeout(checkOnboardingState, 1000); }
+      return;
+    }
+    setTimeout(pollOnboardLearning, 3000);
+  } catch (e) {
+    setOnboardStatus(String(e && e.message || e), true);
+    setOnboardBusy(false);
+  }
+}
+
+async function injectOnboardLearning() {
+  const b = document.getElementById('onboard-banner');
+  if (!b || !b.dataset.repo || !b.dataset.outDir) return;
+  try {
+    setOnboardStatus('Injecting reviewed notes...');
+    const r = await (await dfetch('/onboard/inject', {
+      method: 'POST',
+      headers: {'content-type':'application/json'},
+      body: JSON.stringify({repo: b.dataset.repo, outDir: b.dataset.outDir})
+    })).json();
+    if (!r.ok) throw new Error(r.error || 'inject failed');
+    localStorage.removeItem(onboardStoreKey('outdir'));
+    removeOnboardBanner();
+    tick();
+  } catch (e) {
+    setOnboardStatus(String(e && e.message || e), true);
+  }
 }
 
 // Run the onboarding check once after the first tick has a chance to populate state.

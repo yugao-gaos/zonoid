@@ -4,13 +4,15 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 
 ## Install
 
-1. **Install Zonoid core** (daemon + reference hooks):
+1. **Install Zonoid for this client repo** (daemon + hooks + MCP + repo-local skill):
 
    ```sh
-   npx @zonoid/cli init
+   npx @zonoid/cli init --harness codex
    ```
 
-   Or clone to `~/.claude/orchestrator` manually and run `npm install`.
+   This writes global Codex hook/MCP config and installs the client-repo skill at
+   `.codex/skills/zonoid-orchestrator`, so future Codex sessions in this repo can load the
+   task-minting workflow. Or clone to `~/.claude/orchestrator` manually and run `npm install`.
 
 2. **Copy hook wiring** to Codex user config (replace `__INSTALL_DIR__` with your install path, usually `$HOME/.claude/orchestrator`):
 
@@ -76,6 +78,7 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 - **Partial interception:** not every shell path uses hooked tools (`unified_exec`, some reads). Treat hooks as defense-in-depth; daemon-side refusal still applies on MCP claims/merges.
 - **Session IDs:** if the Codex MCP server cannot infer the current session from the harness environment, pass `session_id` explicitly to session-bound MCP tools such as `start_task` and `ScheduleWakeup`.
 - **Task minting:** use MCP `create_task` (writes `codex/<id>.json` stub + `POST /sync`) or drop a stub file under the daemon file-drop folder manually.
+- **Repo-local skill:** `npx @zonoid/cli init --harness codex` installs `.codex/skills/zonoid-orchestrator/SKILL.md` into the client repo. Use that skill as the reusable instruction surface for task minting and dispatcher-vs-worker behavior.
 
 ## Workflow
 

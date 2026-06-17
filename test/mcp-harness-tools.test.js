@@ -72,6 +72,9 @@ async function waitForPing(ms = 8000) {
     { call: (method, path, body) => { if (path === '/overlay/status') harnessCaptured = body; return { ok: true }; }, session: 'harness-sess' },
   );
   ok('handleRpc injects ctx.session into start_task', harnessCaptured && harnessCaptured.session_id === 'harness-sess');
+  const drainTool = TOOLS.find((t) => t.name === 'drain_kb_queue');
+  ok('drain_kb_queue exposes opt-in autoInject', drainTool && drainTool.inputSchema.properties.autoInject && drainTool.description.includes('Default is human-gated'));
+  ok('inject_kb is on default MCP surface', TOOLS.some((t) => t.name === 'inject_kb'));
 
   const codexExtra = extraToolsForClient('codex', WS);
   ok('codex extraTools has create_task + ScheduleWakeup', codexExtra.length === 2 && codexExtra[0].name === 'create_task' && codexExtra[1].name === 'ScheduleWakeup');

@@ -11,10 +11,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const outDir = b.outDir || path.join(__dirname, '..', 'bench', 'onboard', path.basename(repo));
     const { spawnSync } = require('child_process');
     const SCRIPTS = path.join(__dirname, '..', 'scripts');
-    for (const s of ['onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-config.js']) {
+    for (const s of ['onboard-mine-structure.js', 'onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-assets.js', 'onboard-mine-config.js']) {
       spawnSync(process.execPath, [path.join(SCRIPTS, s), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
     }
-    spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-mine-structure.js'), '--repo', repo, '--out', outDir], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
     const enqR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--enqueue'], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
     if (enqR.status !== 0) { send(res, 500, { ok: false, error: `enqueue failed (exit ${enqR.status})` }); return true; }
     const statusR = spawnSync(process.execPath, [path.join(SCRIPTS, 'onboard-learn.js'), '--repo', repo, '--in', outDir, '--queue-status'], { stdio: ['ignore', 'pipe', 'pipe'], cwd: path.join(__dirname, '..'), encoding: 'utf8', windowsHide: true });
@@ -29,6 +28,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/onboard/drain-queue' && m === 'POST') {
     const b = await readBody(req);
     const { repo, outDir, batchSize } = b;
+    const autoInject = b.autoInject === true;
     if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
     const jobKey = `${repo}::${outDir}`;
     if (drainJobs.has(jobKey)) {
@@ -44,9 +44,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     try { initStatus = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
     const total = (initStatus && initStatus.total) || 0;
     const remaining = (initStatus && initStatus.remaining) || 0;
-    const job = { repo, outDir, total, processed: total - remaining, remaining, done: remaining === 0, error: null };
+    const job = { repo, outDir, total, processed: total - remaining, remaining, done: remaining === 0, error: null, autoInject, injected: false, needsReview: remaining === 0 };
     drainJobs.set(jobKey, job);
-    if (job.done) { send(res, 200, { ok: true, status: job, message: 'queue already empty' }); return true; }
+    if (job.done) {
+      if (autoInject) {
+        const inj = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm'], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
+        if (inj.status !== 0) { send(res, 500, { ok: false, error: `inject failed (exit ${inj.status})`, status: job }); return true; }
+        job.injected = true;
+        job.needsReview = false;
+      }
+      send(res, 200, { ok: true, status: job, message: 'queue already empty' }); return true;
+    }
     const bs = String(batchSize || 50);
     (async () => {
       try {
@@ -61,13 +69,36 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           if (st) { job.total = st.total || job.total; job.remaining = st.remaining || 0; job.processed = job.total - job.remaining; }
           if (!st || job.remaining === 0) break;
         }
-        spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm'], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
+        job.needsReview = true;
+        if (autoInject) {
+          const inj = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm'], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
+          if (inj.status !== 0) throw new Error(`inject exited ${inj.status}`);
+          job.injected = true;
+          job.needsReview = false;
+        }
         job.done = true; job.remaining = 0; job.processed = job.total;
       } catch (err) {
         job.error = String(err && err.message || err); job.done = true;
       }
     })();
     send(res, 200, { ok: true, status: job }); return true;
+  }
+
+  if (p === '/onboard/inject' && m === 'POST') {
+    const b = await readBody(req);
+    const { repo, outDir } = b;
+    if (!repo || !outDir) { send(res, 400, { ok: false, error: 'repo and outDir required' }); return true; }
+    const { spawnSync } = require('child_process');
+    const learnScript = path.join(__dirname, '..', 'scripts', 'onboard-learn.js');
+    const inj = spawnSync(process.execPath, [learnScript, '--repo', repo, '--in', outDir, '--inject', '--confirm'], { stdio: 'inherit', cwd: path.join(__dirname, '..'), windowsHide: true });
+    if (inj.status !== 0) { send(res, 500, { ok: false, error: `inject failed (exit ${inj.status})` }); return true; }
+    const jobKey = `${repo}::${outDir}`;
+    if (drainJobs.has(jobKey)) {
+      const job = drainJobs.get(jobKey);
+      job.injected = true;
+      job.needsReview = false;
+    }
+    send(res, 200, { ok: true, injected: true }); return true;
   }
 
   if (p === '/onboard/drain-queue' && m === 'GET') {

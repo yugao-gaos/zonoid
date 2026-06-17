@@ -105,7 +105,7 @@ function resolveTarget(t, wt) {
 
   const sinfo = await k.getJson(`/session-info?session=${encodeURIComponent(sid)}`, 600);
   if (sinfo && sinfo.is_subagent === true) {
-    k.deny('orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use the native TaskCreate tool (not an MCP endpoint).');
+    k.deny('orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use Claude TaskCreate or an adapter file-drop create_task/task_create tool.');
   }
 
   const t = await k.tryTrivialMainAllow(sid, cmd);

@@ -14,12 +14,14 @@ const {
   dirHasLiveData,
   resolveInstallDir,
   linkSkill,
+  installRepoSkill,
   writeMcp,
   writeCodexMcp,
   orchestratorMcpEntry,
   stripCodexOrchTable,
   graphAutocommitHookScript,
   mergeGraphAutocommitFlag,
+  parseOnboardArgs,
 } = require('../packages/cli/bin/zonoid.js');
 const fs = require('fs');
 
@@ -36,6 +38,10 @@ ok('cursor harness parsed', parseInitArgs(['node', 'zonoid', 'init', '--harness'
 ok('opencode harness parsed', parseInitArgs(['node', 'zonoid', 'init', '--harness', 'opencode']).harness === 'opencode');
 ok('--service flag parsed', parseInitArgs(['node', 'zonoid', 'init', '--service', '--harness', 'codex']).service === true);
 ok('invalid harness not in VALID_HARNESSES', !VALID_HARNESSES.has('invalid'));
+ok('onboard defaults repo to cwd', parseOnboardArgs(['node', 'zonoid', 'onboard']).repo === process.cwd());
+ok('onboard injects default --repo passthrough', parseOnboardArgs(['node', 'zonoid', 'onboard']).passThrough[0] === '--repo');
+ok('onboard parses explicit --repo', parseOnboardArgs(['node', 'zonoid', 'onboard', '--repo', '/tmp/x', '--force']).repo === '/tmp/x');
+ok('onboard preserves flags', parseOnboardArgs(['node', 'zonoid', 'onboard', '--repo', '/tmp/x', '--force']).passThrough.includes('--force'));
 
 // ── CDX-2: multi-harness --harness parsing (comma-separated and/or repeatable) ──
 ok('default harnesses is [claude]',
@@ -96,6 +102,7 @@ ok('usage lists cursor', usage.includes('cursor'));
 ok('usage lists opencode', usage.includes('opencode'));
 ok('usage lists codex', usage.includes('codex'));
 ok('usage lists --service', usage.includes('--service'));
+ok('usage lists onboard command', usage.includes('onboard'));
 
 const swScript = scheduleWakeupScriptPath();
 ok('scheduleWakeupScriptPath under adapters/common', swScript.replace(/\\/g, '/').endsWith('adapters/common/schedule-wakeup.sh'));
@@ -237,6 +244,28 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     ok('linkSkill happy path: dest exists after chain', fs.existsSync(dest));
     const resolvedDest = (result === 'copy') ? dest : fs.realpathSync(dest);
     ok('linkSkill happy path: skill.md readable via dest', fs.existsSync(path.join(resolvedDest, 'skill.md')));
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+// ── Client-repo skill install: Codex guidance belongs in target repo ─────────
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-repo-skill-'));
+  try {
+    const cwd = path.join(base, 'client-repo');
+    fs.mkdirSync(cwd, { recursive: true });
+    const installed = installRepoSkill(cwd, 'zonoid-orchestrator', 'codex');
+    const skillPath = path.join(cwd, '.codex', 'skills', 'zonoid-orchestrator', 'SKILL.md');
+    ok('installRepoSkill installs zonoid-orchestrator into client .codex/skills', installed && fs.existsSync(skillPath));
+    const text = fs.readFileSync(skillPath, 'utf8');
+    ok('repo skill documents create_task file-drop task minting',
+      text.includes('create_task') && text.includes('file-drop'));
+
+    const before = fs.readFileSync(skillPath, 'utf8');
+    const second = installRepoSkill(cwd, 'zonoid-orchestrator', 'codex');
+    const after = fs.readFileSync(skillPath, 'utf8');
+    ok('installRepoSkill is idempotent when repo skill already exists', second && before === after);
   } finally {
     fs.rmSync(base, { recursive: true, force: true });
   }
