@@ -85,12 +85,56 @@ function respCachePut(ws, key, payload) {
   respCache.set(key, { ts: Date.now(), payload, stamp: overlayStamp(ws) });
   return payload;
 }
+
+// --- per-workspace overlay cache (Phase 2a of deprecating the daemon-global default) ---------
+// Generalizes the old single-slot write-coalescing cache. Before P2a, ONLY the daemon-global
+// workspace had an in-memory, write-coalesced overlay (state.overlay); every OTHER workspace did a
+// fresh overlayStore.load(ws) on EVERY read/write — no coalescing, so concurrent writes to a
+// non-current workspace each loaded+saved a detached copy. Now EVERY workspace gets a cached,
+// write-coalesced overlay via overlayFor(ws). Separate Map entries per workspace ⇒ concurrent
+// writes to different workspaces mutate independent objects and never clobber each other.
+//
+// state.workspace stays SPECIAL: overlayFor(state.workspace) returns state.overlay directly, so the
+// current workspace's authoritative in-memory entry (seeded in setWorkspace / loadState, mutated by
+// every same-workspace write, read live by GET /state) is the single source of truth for it — and
+// state.overlay therefore stays consistent with "the cache entry for state.workspace" by definition
+// (we never store a second copy of it in the Map). The test hooks (__setOverlayForTest /
+// __setWorkspaceForTest) reassign state.overlay/state.workspace directly and this aliasing honors
+// them with zero extra wiring. P3 will remove state.workspace/state.overlay and fold the current
+// workspace into the Map like any other.
+//
+// CACHE COHERENCY: cache entries are mtime-stamped on the overlay file (reusing overlayStamp). A
+// lookup that finds the file mtime CHANGED reloads + recaches — so an out-of-band write (another
+// process / a test calling overlayStore.save directly) is picked up on the next lookup, exactly as
+// the old per-call load(ws) did. This is the SAME staleness guard already used by respCache; no NEW
+// staleness class is introduced (the current-workspace path is unchanged — state.overlay was, and
+// remains, an in-memory authoritative copy not mtime-invalidated). After the daemon's own write
+// through a cached non-current overlay, callers should call refreshOverlayStamp(ws) so the just-
+// saved content isn't needlessly reloaded next lookup (write-coalescing); targetOverlay's save()
+// does this. A missed refresh only costs a redundant reload of identical content — never incorrect.
+const overlayCache = new Map();   // ws -> { ov, stamp }
+function overlayFor(ws) {
+  // Current workspace: the authoritative in-memory entry IS state.overlay (never a second Map copy).
+  if (ws === state.workspace) return state.overlay;
+  const cached = overlayCache.get(ws);
+  if (cached && cached.stamp === overlayStamp(ws)) return cached.ov;
+  const ov = overlayStore.load(ws);
+  overlayCache.set(ws, { ov, stamp: overlayStamp(ws) });
+  return ov;
+}
+// Re-stamp a cached non-current overlay AFTER the daemon saved through it, so the next overlayFor
+// lookup keeps the in-memory (coalesced) object instead of treating the daemon's own mtime bump as
+// an out-of-band change and reloading. No-op for the current workspace (not in the Map). Idempotent.
+function refreshOverlayStamp(ws) {
+  const cached = overlayCache.get(ws);
+  if (cached) cached.stamp = overlayStamp(ws);
+}
 function aggregateCached(ws) {
   const now = Date.now();
   if (cache.agg.has(ws) && now - (cache.aggAt.get(ws) || 0) < AGG_TTL) return cache.agg.get(ws);
   // Pass the overlay's terminal-status snapshots so tasks whose native files were garbage-
   // collected by the cleanupPeriodDays retention sweep still appear in the aggregate.
-  const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+  const ov = overlayFor(ws);
   let v = claudeHarness.tasks.aggregateWorkspace(ws, ov.snapshots);
   // Union in file-drop stub tasks (designated-folder minting, '<harness>/<id>' keys — see
   // lib/filedrop-tasks.js). Same union point native tasks enter through, so stub tasks flow
@@ -451,8 +495,10 @@ function targetOverlay(b, u) {
   // the daemon-global pointer. An explicit workspace (the hot path) stays completely silent.
   if (!explicit) warnWorkspaceFallback('targetOverlay');
   const ws = explicit || state.workspace;
-  const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
-  return { ws, ov, save: () => overlayStore.save(ws, ov) };
+  const ov = overlayFor(ws);
+  // save() persists the mutated overlay to the RESOLVED workspace, then re-stamps the cache entry so
+  // the daemon's own write doesn't look out-of-band on the next overlayFor (preserves coalescing).
+  return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws); } };
 }
 
 // Reject-unknown-key guard: returns true if the key resolves to an EXISTING node in the
@@ -813,7 +859,7 @@ function sweepStaleLoops() {
     // Evaluate each loop against ITS OWN workspace config, not the daemon-global state.overlay.config.
     // A loop may be pinned to a workspace with different stale_minutes / loop_stale_minutes settings.
     const loopWs = L.workspace || state.workspace;
-    const loopOv = loopWs ? ((loopWs === state.workspace) ? state.overlay : overlayStore.load(loopWs)) : state.overlay;
+    const loopOv = loopWs ? overlayFor(loopWs) : state.overlay;
     const loopOvConfig = loopOv ? loopOv.config : state.overlay.config;
     const mins = loopOvConfig.loop_stale_minutes ?? STALE_PROGRESS_MIN_DEFAULT;
     const cutoff = Date.now() - mins * 60000;
@@ -1203,7 +1249,7 @@ function decideAll() {
   const activeWsSet = new Set(active.map((L) => L.workspace || state.workspace).filter(Boolean));
   if (state.workspace) activeWsSet.add(state.workspace);
   for (const ws of activeWsSet) {
-    const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+    const ov = overlayFor(ws);
     sweepStaleVerdicts(ws, ov);   // reset abandoned verdict-pending hand-offs per-workspace
     sweepStaleGuidance(ws, ov);   // auto-resolve stale blocking guidance per-workspace
     sweepFailedTasks(ws, ov);     // auto-retry: flip failed tasks back to pending (already (ws,ov)) per-workspace
@@ -1221,7 +1267,7 @@ function decideAll() {
   function ctxFor(ws) {
     let c = ctxByWs.get(ws);
     if (!c) {
-      const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+      const ov = overlayFor(ws);
       const pend = overlayStore.pendingGuidance(ov);
       c = {
         ws, ov,
@@ -1626,7 +1672,7 @@ function makeResolver() {
   function loadWs(ws) {
     if (!agg[ws]) {
       agg[ws] = Object.fromEntries(aggregateCached(ws).map((t) => [t.key, t]));
-      ov[ws] = (state.workspace === ws) ? state.overlay : overlayStore.load(ws);
+      ov[ws] = overlayFor(ws);
     }
     return { tasks: agg[ws], overlay: ov[ws] };
   }
@@ -1751,7 +1797,7 @@ function buildGraph(ws) {
   // coherence), else loaded fresh — so reads of another workspace serve THAT workspace's
   // notes/summaries/assignees instead of the daemon-global overlay's (the read-side gremlin fix).
   const own = ws === state.workspace;
-  const ovWs = own ? state.overlay : overlayStore.load(ws);
+  const ovWs = overlayFor(ws);   // current ws ⇒ state.overlay; else the per-workspace cached overlay
   // Release dead/abandoned claims BEFORE reading native, busting the aggregate cache so a reverted
   // native status is reflected in this same build (not one poll later). Sweeps the TARGET
   // workspace's overlay, so stale claims release wherever the read lands.
@@ -2182,7 +2228,7 @@ function isPrimaryCheckout(root = __dirname) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, buildGraph, targetOverlay, sweepFailedTasks, warnWorkspaceFallback, __resetWorkspaceFallbackSeamsForTest, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
+  decideOne, buildGraph, targetOverlay, sweepFailedTasks, warnWorkspaceFallback, __resetWorkspaceFallbackSeamsForTest, overlayFor, refreshOverlayStamp, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
@@ -2347,7 +2393,7 @@ if (require.main === module) {
       const wsSet = new Set([...loops.values()].filter((L) => L.active && L.workspace).map((L) => L.workspace));
       if (state.workspace) wsSet.add(state.workspace);
       for (const ws of wsSet) {
-        const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+        const ov = overlayFor(ws);
         sweepStaleClaims(ws, ov);
       }
     } catch { /* best effort */ }
