@@ -236,7 +236,10 @@ def _build_session_candidates(
             tid = t.get("turn_id")
             prefix = f"[{tid}] " if tid else ""
             lines.append(f"{prefix}{speaker}: {text}")
-        summary = "\n".join(lines)[:_SUMMARY_BUDGET]
+        # Do NOT clip here — notes are already chunked at ingest (NOTE_BUDGET=6000 chars);
+        # clipping to _SUMMARY_BUDGET would drop facts before they reach the embedded daemon
+        # and the answerer.  The ingest chunking already bounds the note size.
+        summary = "\n".join(lines)
         cands.append(_SessionCandidate(sid=sid, date=str(date), note_keys=note_keys, summary=summary))
     # Stable order by numeric session idx where possible.
     cands.sort(key=lambda c: (int(c.sid) if c.sid.isdigit() else 1_000_000, c.sid))

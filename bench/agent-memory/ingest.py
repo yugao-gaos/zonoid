@@ -210,15 +210,16 @@ class ConversationIngester:
             parts = _split_into_parts(formatted, self.note_budget)
 
             session_notes: list[dict[str, str]] = []
+            date_prefix = f"Session date: {date}\n"
             for part_idx, part_text in enumerate(parts):
                 if len(parts) > 1:
                     title = f"{base_title}.part{part_idx + 1}"
                     summary = (
-                        f"[part {part_idx + 1} of {len(parts)}]\n{part_text}"
+                        f"{date_prefix}[part {part_idx + 1} of {len(parts)}]\n{part_text}"
                     )
                 else:
                     title = base_title
-                    summary = part_text
+                    summary = f"{date_prefix}{part_text}"
 
                 try:
                     resp = post_note(
