@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 'use strict';
-// PreToolUse(Bash) GATE: refuse Bash commands that write files unless THIS conversation has a task
+// PreToolUse(Bash) GATE: refuse shell commands that write files unless THIS conversation has a task
 // claimed in_progress. Cross-platform Node port of orch-gate-bash.sh — closes the bypass path where
-// a shell command (redirect, tee, cp, python -c "open(...,'w')", sed -i, dd) writes outside a claim.
+// a shell command (redirect, tee, cp, PowerShell writes, python writes, sed -i, dd) writes outside a claim.
 // Exit 2 = deny; exit 0 = allow. Fail-open if the daemon is unreachable.
 const k = require('./lib/hookkit');
 
@@ -32,6 +32,119 @@ function resolveTarget(t, wt) {
   return k.normalizePath(isAbs ? s : `${k.slash(wt).replace(/\/+$/, '')}/${s}`);
 }
 
+function tokenizeCommand(s) {
+  const out = [];
+  let cur = '';
+  let quote = '';
+  const push = () => {
+    if (cur) {
+      out.push(cur);
+      cur = '';
+    }
+  };
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (quote) {
+      if (ch === quote) quote = '';
+      else cur += ch;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      push();
+      continue;
+    }
+    if (ch === ';') {
+      push();
+      out.push(ch);
+      continue;
+    }
+    if (ch === '|' || ch === '&') {
+      push();
+      if (s[i + 1] === ch) {
+        out.push(ch + ch);
+        i++;
+      } else {
+        out.push(ch);
+      }
+      continue;
+    }
+    cur += ch;
+  }
+  push();
+  return out;
+}
+
+function cleanToken(t) {
+  return String(t || '').replace(/^[({]+/, '').replace(/[),;]+$/, '');
+}
+
+function isCommandBoundary(t) {
+  return t === ';' || t === '|' || t === '&&' || t === '||' || t === '&';
+}
+
+const PS_PATH_OPTIONS = new Set(['-path', '-literalpath', '-filepath', '-destination']);
+const PS_SKIP_VALUE_OPTIONS = new Set([
+  '-value', '-itemtype', '-type', '-encoding', '-filter', '-include', '-exclude',
+  '-credential', '-stream', '-name',
+]);
+const PS_PATH_COMMANDS = new Set([
+  'set-content', 'add-content', 'out-file', 'new-item', 'remove-item', 'clear-content',
+  'sc', 'ac', 'ni', 'rm', 'del', 'erase', 'rd', 'ri', 'rmdir',
+]);
+const PS_DEST_COMMANDS = new Set(['copy-item', 'move-item', 'copy', 'cpi', 'move', 'mi']);
+const PS_WRITE_COMMANDS = new Set([...PS_PATH_COMMANDS, ...PS_DEST_COMMANDS]);
+
+function isPowerShellWriteCommand(t) {
+  return PS_WRITE_COMMANDS.has(cleanToken(t).toLowerCase());
+}
+
+function collectPowerShellTargets(cmdNoComment) {
+  const toks = tokenizeCommand(cmdNoComment);
+  const targets = [];
+  for (let i = 0; i < toks.length; i++) {
+    const cmd = cleanToken(toks[i]).toLowerCase();
+    if (!PS_WRITE_COMMANDS.has(cmd)) continue;
+
+    const positional = [];
+    for (let j = i + 1; j < toks.length; j++) {
+      const raw = toks[j];
+      if (isCommandBoundary(raw)) break;
+      const tok = cleanToken(raw);
+      const lower = tok.toLowerCase();
+      const colon = lower.match(/^(-[a-z]+):(.*)$/);
+      if (colon) {
+        if (PS_PATH_OPTIONS.has(colon[1])) {
+          const value = tok.slice(colon[1].length + 1);
+          if (value) targets.push(value);
+        }
+        continue;
+      }
+      if (PS_PATH_OPTIONS.has(lower)) {
+        if (j + 1 < toks.length && !isCommandBoundary(toks[j + 1])) {
+          targets.push(cleanToken(toks[++j]));
+        }
+        continue;
+      }
+      if (PS_SKIP_VALUE_OPTIONS.has(lower)) {
+        if (j + 1 < toks.length && !isCommandBoundary(toks[j + 1])) j++;
+        continue;
+      }
+      if (lower.startsWith('-') || /^[0-9]*>>?$/.test(lower)) continue;
+      positional.push(tok);
+    }
+    if (PS_DEST_COMMANDS.has(cmd)) {
+      if (positional.length >= 2) targets.push(positional[positional.length - 1]);
+    } else if (positional.length) {
+      targets.push(positional[0]);
+    }
+  }
+  return targets;
+}
+
 
 (async () => {
   if (k.gateOff()) k.allow();
@@ -59,6 +172,7 @@ function resolveTarget(t, wt) {
   if (/\b(cp|mv|rsync|install)\b/.test(cmd)) writePattern = true;
   if (/\bdd\b.*\bof=/.test(cmd)) writePattern = true;
   if (/\bsed\b.*-i/.test(cmd)) writePattern = true;
+  if (tokenizeCommand(cmd).some(isPowerShellWriteCommand)) writePattern = true;
   if (!writePattern) k.allow();               // no write pattern -> allow
 
   // ── Collect write targets, then allow only if EVERY extractable target is exempt. ──
@@ -71,6 +185,7 @@ function resolveTarget(t, wt) {
   }
   const dd = cmdNoComment.match(/\bof=(\S+)/);
   if (dd) targets.push(dd[1]);
+  targets.push(...collectPowerShellTargets(cmdNoComment));
 
   // tee / python writes / sed -i give no cheaply-extractable target -> fall through to claim check.
   if (targets.length && targets.every(isExempt)) k.allow();
@@ -85,7 +200,8 @@ function resolveTarget(t, wt) {
 
   if (resp.claimed === true) {
     const claims = Array.isArray(resp.claims) ? resp.claims : [];
-    let anyWorktree = false, matched = false, mismatchBranch = '';
+    let anyWorktree = false, mismatchBranch = '';
+    const worktrees = [];
     for (const c of claims) {
       const key = c && c.key;
       if (!key) continue;
@@ -95,11 +211,14 @@ function resolveTarget(t, wt) {
       if (branch) {
         anyWorktree = true;
         mismatchBranch = branch;
-        if (!targets.length || targets.some((t) => wt && k.isUnder(resolveTarget(t, wt), wt))) { matched = true; break; }
+        if (wt) worktrees.push({ wt, branch });
       }
     }
-    if (anyWorktree && !matched) {
-      k.deny(`orch-gate: task has a registered worktree (${mismatchBranch}) — Bash file writes must happen inside the worktree path, not at ${targets[0] || '(bash)'}. Use the path returned by branch_task.`);
+    if (anyWorktree && targets.length) {
+      const outside = targets.find((t) => !worktrees.some(({ wt }) => k.isUnder(resolveTarget(t, wt), wt)));
+      if (outside) {
+        k.deny(`orch-gate: task has a registered worktree (${mismatchBranch}) — shell file writes must happen inside the worktree path, not at ${outside}. Use the path returned by branch_task.`);
+      }
     }
     k.allow();
   }

@@ -457,6 +457,144 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
   ok('multi-claim: first claim no worktree, second has worktree, cp to second → exit 0', r.status === 0);
 }
 
+// 38. Multi-target: one redirect inside a claimed worktree and one outside → denied
+{
+  const stubMixedTargets = path.join(TMP, 'stub-mixed-targets');
+  makeMultiClaimStub(stubMixedTargets);
+  const r = runHook(
+    mkInput(`echo ok > ${WT_A}/inside.txt > /Users/x/outside.txt`),
+    { PATH: stubMixedTargets + ':' + process.env.PATH },
+  );
+  ok('claimed session: mixed inside/outside redirect targets → exit 2', r.status === 2);
+  ok('claimed session: mixed target message names outside path', r.stderr.includes('/Users/x/outside.txt'));
+}
+
+// 39. Multi-target: every redirect target is inside a claimed worktree → allowed
+{
+  const stubAllTargetsInside = path.join(TMP, 'stub-all-targets-inside');
+  makeMultiClaimStub(stubAllTargetsInside);
+  const r = runHook(
+    mkInput(`echo ok > ${WT_A}/inside-a.txt > ${WT_B}/inside-b.txt`),
+    { PATH: stubAllTargetsInside + ':' + process.env.PATH },
+  );
+  ok('claimed session: every redirect target inside claimed worktrees → exit 0', r.status === 0);
+}
+
+// ── PowerShell write-pattern regression tests ───────────────────────────────
+
+// 40. PowerShell Set-Content → blocked for unclaimed subagent
+{
+  const r = runBlocked('Set-Content -Path /Users/x/proj/main.txt -Value hi');
+  ok('PowerShell Set-Content to non-exempt path → exit 2', r.status === 2);
+}
+
+// 41. PowerShell Add-Content alias → blocked for unclaimed subagent
+{
+  const r = runBlocked('ac /Users/x/proj/main.txt hi');
+  ok('PowerShell ac alias to non-exempt path → exit 2', r.status === 2);
+}
+
+// 42. PowerShell Out-File positional target → blocked for unclaimed subagent
+{
+  const r = runBlocked("'hi' | Out-File /Users/x/proj/out.txt");
+  ok('PowerShell Out-File positional target → exit 2', r.status === 2);
+}
+
+// 43. PowerShell New-Item → blocked for unclaimed subagent
+{
+  const r = runBlocked('New-Item -Path /Users/x/proj/new.txt -ItemType File');
+  ok('PowerShell New-Item to non-exempt path → exit 2', r.status === 2);
+}
+
+// 44. PowerShell Copy-Item destination → blocked for unclaimed subagent
+{
+  const r = runBlocked('Copy-Item /tmp/src.txt /Users/x/proj/dest.txt');
+  ok('PowerShell Copy-Item destination → exit 2', r.status === 2);
+}
+
+// 45. PowerShell Move-Item -Destination → blocked for unclaimed subagent
+{
+  const r = runBlocked('Move-Item -Path /tmp/src.txt -Destination /Users/x/proj/dest.txt');
+  ok('PowerShell Move-Item -Destination → exit 2', r.status === 2);
+}
+
+// 46. PowerShell Remove-Item alias with switches → blocked for unclaimed subagent
+{
+  const r = runBlocked('rm -Recurse -Force /Users/x/proj/dead');
+  ok('PowerShell rm alias with switches → exit 2', r.status === 2);
+}
+
+// 47. PowerShell Set-Content inside a claimed worktree → allowed
+{
+  const stubPsInside = path.join(TMP, 'stub-ps-inside');
+  makeMultiClaimStub(stubPsInside);
+  const r = runHook(
+    mkInput(`Set-Content -Path ${WT_A}/ps.txt -Value ok`),
+    { PATH: stubPsInside + ':' + process.env.PATH },
+  );
+  ok('claimed session: PowerShell Set-Content inside worktree → exit 0', r.status === 0);
+}
+
+// 48. PowerShell mixed inside/outside targets separated by semicolon → denied
+{
+  const stubPsMixed = path.join(TMP, 'stub-ps-mixed-semi');
+  makeMultiClaimStub(stubPsMixed);
+  const r = runHook(
+    mkInput(`Set-Content -Path ${WT_A}/inside.txt -Value ok; Add-Content -Path /Users/x/outside.txt -Value no`),
+    { PATH: stubPsMixed + ':' + process.env.PATH },
+  );
+  ok('claimed session: PowerShell semicolon mixed targets → exit 2', r.status === 2);
+  ok('claimed session: PowerShell semicolon message names outside path', r.stderr.includes('/Users/x/outside.txt'));
+}
+
+// 49. PowerShell mixed inside/outside targets separated by && → denied
+{
+  const stubPsMixedAnd = path.join(TMP, 'stub-ps-mixed-and');
+  makeMultiClaimStub(stubPsMixedAnd);
+  const r = runHook(
+    mkInput(`Set-Content ${WT_A}/inside.txt ok && Add-Content /Users/x/outside-and.txt no`),
+    { PATH: stubPsMixedAnd + ':' + process.env.PATH },
+  );
+  ok('claimed session: PowerShell && mixed targets → exit 2', r.status === 2);
+  ok('claimed session: PowerShell && message names outside path', r.stderr.includes('/Users/x/outside-and.txt'));
+}
+
+// 50. PowerShell mixed inside/outside targets separated by || → denied
+{
+  const stubPsMixedOr = path.join(TMP, 'stub-ps-mixed-or');
+  makeMultiClaimStub(stubPsMixedOr);
+  const r = runHook(
+    mkInput(`Set-Content ${WT_A}/inside.txt ok || Add-Content /Users/x/outside-or.txt no`),
+    { PATH: stubPsMixedOr + ':' + process.env.PATH },
+  );
+  ok('claimed session: PowerShell || mixed targets → exit 2', r.status === 2);
+  ok('claimed session: PowerShell || message names outside path', r.stderr.includes('/Users/x/outside-or.txt'));
+}
+
+// 51. PowerShell mixed inside/outside targets separated by single & → denied
+{
+  const stubPsMixedAmp = path.join(TMP, 'stub-ps-mixed-amp');
+  makeMultiClaimStub(stubPsMixedAmp);
+  const r = runHook(
+    mkInput(`Set-Content ${WT_A}/inside.txt ok & Add-Content /Users/x/outside-amp.txt no`),
+    { PATH: stubPsMixedAmp + ':' + process.env.PATH },
+  );
+  ok('claimed session: PowerShell single & mixed targets → exit 2', r.status === 2);
+  ok('claimed session: PowerShell single & message names outside path', r.stderr.includes('/Users/x/outside-amp.txt'));
+}
+
+// 52. PowerShell Copy-Item compound command keeps each destination across && → denied
+{
+  const stubPsCopyMixed = path.join(TMP, 'stub-ps-copy-mixed');
+  makeMultiClaimStub(stubPsCopyMixed);
+  const r = runHook(
+    mkInput(`Copy-Item /tmp/a.txt /Users/x/outside-copy.txt && Copy-Item /tmp/b.txt ${WT_A}/inside.txt`),
+    { PATH: stubPsCopyMixed + ':' + process.env.PATH },
+  );
+  ok('claimed session: PowerShell Copy-Item && mixed destinations → exit 2', r.status === 2);
+  ok('claimed session: PowerShell Copy-Item && message names outside path', r.stderr.includes('/Users/x/outside-copy.txt'));
+}
+
 // ── Cleanup ─────────────────────────────────────────────────────────────────
 fs.rmSync(TMP, { recursive: true, force: true });
 
