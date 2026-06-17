@@ -148,7 +148,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       }
       if (it.kind === 'reinforce') {
         const noteId = String(it.noteId || it.id).replace(/^note:/, '');
-        const n = state.overlay.note_nodes[noteId];
+        const n = T.ov.note_nodes[noteId];
         return {
           kind: 'reinforce',
           id: it.id,
@@ -336,6 +336,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
             total: v.boostNote.total,
           });
           applied.reinforced = (applied.reinforced || 0) + 1;
+          bNode.reinforceStampedEpoch = T.ov.epoch || 0;
         }
       }
       // retireNote: soft-retire a note that failed the decay gate (low win rate, age+opp gated).
@@ -455,10 +456,10 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     const candidates = [];
     for (const n of Object.values(noteNodes)) {
       scanned++;
-      const stat = noteStats.get('note:' + n.id);
+      const stat = noteStats.get(n.id);
       const check = judge.isDecayCandidate(n, stat, nowMs);
       // Count notes that have stats but fail win-rate gate (regardless of age/opportunities).
-      if (stat && stat.winRate < WIN_RATE_THRESHOLD) belowThreshold++;
+      if (!check.candidate && stat && stat.winRate < WIN_RATE_THRESHOLD) belowThreshold++;
       if (!check.candidate) continue;
       const wins = stat ? stat.wins : 0;
       const losses = stat ? stat.losses : 0;
