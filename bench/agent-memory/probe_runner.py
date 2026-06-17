@@ -602,17 +602,41 @@ def run_our_way(
     return diag
 
 
+def _is_session_note_hit(hit: dict[str, Any]) -> bool:
+    """Return True iff *hit* is an ingested session NOTE, not a harness task stub.
+
+    The search index contains both ingested NOTE nodes and harness TASK STUB nodes (probe/*,
+    bench/*) minted during the same bench run.  Stubs are ANCHORS, not MEMORY; including them
+    injects garbage and drives rag-control accuracy to 0%.  Exclude by two independent signals:
+
+      1. kind != 'task'   — daemon-authoritative: notes are 'knowledge', stubs are 'task'.
+      2. key not prefixed 'probe/' or 'bench/'  — belt-and-suspenders harness namespaces.
+    """
+    key = hit.get("key") or ""
+    if hit.get("kind") == "task":
+        return False
+    if key.startswith("probe/") or key.startswith("bench/"):
+        return False
+    return True
+
+
 def run_search(base_url: str, workspace: str, probe: dict[str, Any]) -> dict[str, Any]:
-    """ARM search: GET /search?q=<question> -> top-k session summaries -> answer.
+    """ARM search: GET /search?q=<question> -> top-k session NOTE summaries -> answer.
 
     The retrieval-time control. Uses the SAME ingested graph; no probe task, no DAG read.
+
+    Bug fix (/30): raw /search results include harness TASK STUB nodes (probe/*, bench/*)
+    that ranked above session notes, producing 0% accuracy.  We now filter to NOTE-only hits
+    (kind!='task' AND key not prefixed probe/|bench/) before building the context.
     """
     question = probe["question"]
-    hits = kb_search(base_url, workspace, question, k=_SEARCH_K, gated=False)
-    context_blocks = [str(h.get("summary") or "") for h in hits]
+    # Request more hits than needed so that after stub filtering we still have _SEARCH_K notes.
+    raw_hits = kb_search(base_url, workspace, question, k=_SEARCH_K * 3, gated=False)
+    note_hits = [h for h in raw_hits if _is_session_note_hit(h)][:_SEARCH_K]
+    context_blocks = [str(h.get("summary") or "") for h in note_hits]
     return {
         "predicted": _answer_from_context(question, context_blocks),
-        "hit_keys": [h.get("key") for h in hits],
+        "hit_keys": [h.get("key") for h in note_hits],
     }
 
 

@@ -306,6 +306,26 @@ def _candidate_summary(item: dict[str, Any]) -> str:
     return str(frm.get("summary") or frm.get("title") or "")
 
 
+def _is_note_hit(hit: dict[str, Any]) -> bool:
+    """Return True iff *hit* is an ingested session NOTE, not a harness task stub.
+
+    The search index contains both ingested NOTE nodes (kind='knowledge') and harness TASK
+    STUB nodes (kind='task') — probe/bench stubs minted during the same bench run.  Stubs are
+    ANCHORS (autowire seeds edges FROM them to session notes), not MEMORY; including them as
+    retrieved context injects garbage and makes the rag_control arm score 0% (the stubs contain
+    task metadata, not session content).  We exclude them by checking two independent signals:
+
+      1. kind != 'task'  — daemon-authoritative: notes are 'knowledge', stubs are 'task'.
+      2. key prefix not in ('probe/', 'bench/')  — belt-and-suspenders: harness namespaces.
+    """
+    key = hit.get("key") or ""
+    if hit.get("kind") == "task":
+        return False
+    if key.startswith("probe/") or key.startswith("bench/"):
+        return False
+    return True
+
+
 def _judge_with_retry(
     ej: Any,
     anchor_key: str,
@@ -384,8 +404,10 @@ def run_canonical_wiring(
     result = WiringResult(task_key=node_key, node_kind="task")
 
     # ---- Step 2: /search bullets (agent_in_container AGENTS.md provenance ONLY) ----
-    hits = client.search(task_summary, k=CONTEXT_TOPK * 2, gated=False)
-    for h in hits[:CONTEXT_TOPK]:
+    # Over-fetch then filter stubs — same kind-filter as run_rag_control (_is_note_hit).
+    raw_hits = client.search(task_summary, k=CONTEXT_TOPK * 4, gated=False)
+    note_hits_step2 = [h for h in raw_hits if _is_note_hit(h)]
+    for h in note_hits_step2[:CONTEXT_TOPK]:
         summary = h.get("summary") or ""
         score = h.get("score") or 0
         label = h.get("label") or ""
@@ -414,6 +436,21 @@ def run_canonical_wiring(
     # Build the EdgeJudge candidate list: each /judge/next edge item is provider(from) -> probe(to);
     # the anchor we judge against is the PROBE (its summary == the question). is_dup is not exercised
     # here (autowire task-context candidates are never near-dup note clusters), so default False.
+    #
+    # DEFENSIVE: exclude harness task stub nodes from candidacy. autowireNewTaskWholeGraph also seeds
+    # task→task candidate edges (anchor→other-task), so other probe/bench stub nodes CAN appear as
+    # providers (from) in /judge/next results for this probe. Stubs are structural ANCHORS, not
+    # session MEMORY — including them wastes judge budget and risks a spurious keepEdge on a stub.
+    # Exclude by: (a) from-node kind=='task', (b) key prefixed 'probe/' or 'bench/'.
+    def _is_note_provider(it: dict[str, Any]) -> bool:
+        frm = it.get("from") or {}
+        key = frm.get("key") or ""
+        if frm.get("kind") == "task":
+            return False
+        if key.startswith("probe/") or key.startswith("bench/"):
+            return False
+        return bool(key)
+
     ej = judge if judge is not None else judge_mod.EdgeJudge()
     candidates = [
         {
@@ -423,8 +460,13 @@ def run_canonical_wiring(
             "is_dup": False,
         }
         for it in items
-        if (it.get("from") or {}).get("key")
+        if _is_note_provider(it)
     ]
+    # If ALL items were harness stubs (filtered away), treat as idle — nothing to judge.
+    if not candidates:
+        result.judge_idle = True
+        result.judge_idle_count = 1
+        return result
 
     # Production-faithful retry semantics: per-call timeout → retry up to JUDGE_MAX_RETRIES.
     # After retries exhausted → keep-provisional (NEVER prune, NEVER ceScore fallback).
@@ -680,14 +722,20 @@ def run_rag_control(
     The retrieval-time baseline ("normal RAG memory"): the SAME workspace/KB as the ON arm, but
     NO DAG wiring, NO probe task, NO suggest_links — just plain top-k semantic retrieval. Isolates
     the value the DAG wiring adds over vanilla RAG.
+
+    Bug fix (/30): the search index includes harness TASK STUB nodes (probe/*, bench/*) which
+    ranked above ingested session notes, producing 0% accuracy. We now filter to NOTE-only hits
+    via _is_note_hit (kind!='task' AND key not prefixed probe/|bench/).
     """
-    hits = client.search(question, k=k, gated=False)  # NB: no task_key — retrieval-time control.
-    context_blocks = [str(h.get("summary") or "") for h in hits]
+    # Request more hits than needed so that after stub filtering we still have k note hits.
+    raw_hits = client.search(question, k=k * 3, gated=False)  # NB: no task_key — retrieval-time control.
+    note_hits = [h for h in raw_hits if _is_note_hit(h)][:k]
+    context_blocks = [str(h.get("summary") or "") for h in note_hits]
     predicted = _answer_from_context(question, context_blocks, model)
     return ArmResult(
         arm="rag_control",
         predicted=predicted,
-        context_keys=[h.get("key") for h in hits if h.get("key")],
+        context_keys=[h.get("key") for h in note_hits if h.get("key")],
     )
 
 
