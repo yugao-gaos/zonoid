@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/fix-judging-claim-fastpath",
+  "agent_id": "worker-judging-claim-fastpath",
+  "session_id": "019ed6c8-466e-7420-8386-cf78a971fed1",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-fix-judging-claim-fastpath",
+  "status": "claimed",
+  "claimed_at": "2026-06-17T18:12:29.134Z",
+  "lease_until": "2026-06-17T19:12:29.134Z"
+}
