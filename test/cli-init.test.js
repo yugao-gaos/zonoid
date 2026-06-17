@@ -109,6 +109,20 @@ ok('mergeCodexHooks replaces stale Codex hook',
 ok('mergeCodexHooks adds missing sample event',
   codexMerged.hooks.UserPromptSubmit.some((e) => e.hooks.some((h) => h.command.includes('classify-relay.sh'))));
 
+const codexStartMatcher = 'mcp__orchestrator-graph__start_task|mcp__orchestrator_graph__start_task|start_task';
+const codexLifecycleMatcher = 'spawn_agents.*|mcp__orchestrator-graph__complete_task|mcp__orchestrator_graph__complete_task|complete_task|Agent|Task';
+const codexTomlSample = fs.readFileSync(path.join(__dirname, '..', 'adapters', 'codex', 'config.toml.sample'), 'utf8');
+const codexHooksSample = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'adapters', 'codex', 'hooks.json.sample'), 'utf8'));
+const codexPostMatchers = codexHooksSample.hooks.PostToolUse.map((h) => h.matcher);
+ok('codex config.toml sample start_task matcher includes legacy, Codex, and bare names',
+  codexTomlSample.includes(`matcher = "${codexStartMatcher}"`));
+ok('codex hooks.json sample start_task matcher includes legacy, Codex, and bare names',
+  codexPostMatchers.includes(codexStartMatcher));
+ok('codex config.toml sample lifecycle matcher includes spawn, complete_task, Agent, and Task names',
+  codexTomlSample.includes(`matcher = "${codexLifecycleMatcher}"`));
+ok('codex hooks.json sample lifecycle matcher includes spawn, complete_task, Agent, and Task names',
+  codexPostMatchers.includes(codexLifecycleMatcher));
+
 const bad = spawnSync(process.execPath, [zonoid, 'init', '--harness', 'invalid'], { encoding: 'utf8' });
 ok('invalid --harness exits non-zero', bad.status !== 0);
 ok('invalid --harness prints error', (bad.stderr || bad.stdout || '').includes('Unknown --harness'));

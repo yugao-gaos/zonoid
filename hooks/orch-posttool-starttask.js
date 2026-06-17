@@ -4,9 +4,15 @@
 // can find cross-session claims (gate Fix B). Node port of orch-posttool-starttask.sh.
 const k = require('./lib/hookkit');
 
+const START_TASK_TOOLS = new Set([
+  'mcp__orchestrator-graph__start_task',
+  'mcp__orchestrator_graph__start_task',
+  'start_task',
+]);
+
 (async () => {
   const input = await k.readInput();
-  if ((input.tool_name || '') !== 'mcp__orchestrator-graph__start_task') k.allow();
+  if (!START_TASK_TOOLS.has(input.tool_name || '')) k.allow();
   const sid = input.session_id || '';
   const taskKey = (input.tool_input && input.tool_input.task_key) || '';
   if (!sid || !taskKey) k.allow();
