@@ -2,7 +2,7 @@
 
 // Unit coverage for the [Loop] request-scoped directive added by assembleClassifyResponse.
 // Asserts: present for substantive prompts, absent for trivial ones, and that the existing
-// HEARTBEAT + judge/label/learner nudges are not regressed.
+// HEARTBEAT is not regressed and standing drain nudges are suppressed by default.
 
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -47,22 +47,52 @@ test('[Loop] directive ABSENT for a trivial prompt', () => {
   assert.ok(!ctx.includes('[Loop]'), 'trivial prompt must NOT get the loop directive');
 });
 
-test('HEARTBEAT and existing nudges are not regressed', () => {
+test('HEARTBEAT remains present and standing drain nudges are suppressed by default', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  delete process.env.ORCH_HEADLESS_DRAINS;
   const judgePressure = { nudge: true, depth: 5, dupClusters: 1, harness_task_key: 'followup/harness-judge-drain' };
   const labelPressure = { nudge: true, depth: 3, harness_task_key: 'followup/harness-label-drain' };
   const learnerPressure = {
     nudge: true, depth: 2, repoName: 'zonoid', repoPath: '/repo', outDir: '/out', harness_task_key: 'followup/harness-learner-drain',
   };
-  const ctx = assemble('refactor the auth subsystem to support OIDC', { complexity: 0.8 }, {
-    judgePressure, labelPressure, learnerPressure,
-  }).additional_context;
+  try {
+    const ctx = assemble('refactor the auth subsystem to support OIDC', { complexity: 0.8 }, {
+      judgePressure, labelPressure, learnerPressure,
+    }).additional_context;
 
-  assert.ok(ctx.includes(HEARTBEAT), 'HEARTBEAT must still be present');
-  assert.ok(ctx.includes(GATE_REMINDER), 'GATE_REMINDER must still be present');
-  assert.ok(ctx.includes('[Judge]'), 'judge nudge must still be present');
-  assert.ok(ctx.includes('[Grader]'), 'label nudge must still be present');
-  assert.ok(ctx.includes('[Learner]'), 'learner nudge must still be present');
-  assert.ok(ctx.includes('[Loop]'), 'loop directive coexists with the nudges (additive)');
+    assert.ok(ctx.includes(HEARTBEAT), 'HEARTBEAT must still be present');
+    assert.ok(ctx.includes(GATE_REMINDER), 'GATE_REMINDER must still be present');
+    assert.ok(!ctx.includes('[Judge]'), 'judge nudge must be suppressed when headless drains are enabled');
+    assert.ok(!ctx.includes('[Grader]'), 'label nudge must be suppressed when headless drains are enabled');
+    assert.ok(!ctx.includes('[Learner]'), 'learner nudge must be suppressed when headless drains are enabled');
+    assert.ok(ctx.includes('[Loop]'), 'loop directive should remain present');
+    assert.ok(ctx.includes('standing judge/label/learner drains are owned by the daemon headless drain runner'));
+  } finally {
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+test('standing drain nudges remain available when headless drains are explicitly disabled', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '0';
+  const judgePressure = { nudge: true, depth: 5, dupClusters: 1, harness_task_key: 'followup/harness-judge-drain' };
+  const labelPressure = { nudge: true, depth: 3, harness_task_key: 'followup/harness-label-drain' };
+  const learnerPressure = {
+    nudge: true, depth: 2, repoName: 'zonoid', repoPath: '/repo', outDir: '/out', harness_task_key: 'followup/harness-learner-drain',
+  };
+  try {
+    const ctx = assemble('refactor the auth subsystem to support OIDC', { complexity: 0.8 }, {
+      judgePressure, labelPressure, learnerPressure,
+    }).additional_context;
+
+    assert.ok(ctx.includes('[Judge]'), 'judge nudge should remain as an explicit opt-out fallback');
+    assert.ok(ctx.includes('[Grader]'), 'label nudge should remain as an explicit opt-out fallback');
+    assert.ok(ctx.includes('[Learner]'), 'learner nudge should remain as an explicit opt-out fallback');
+  } finally {
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
 });
 
 test('LOOP_DIRECTIVE export is the string pushed into parts', () => {

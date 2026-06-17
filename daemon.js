@@ -2293,15 +2293,15 @@ if (require.main === module) {
   // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepStaleLoops(); } catch { /* best effort */ } }, 60000).unref();
 
-  // Headless drain runner: when ORCH_HEADLESS_DRAINS is set, runs due background maintenance drains
+  // Headless drain runner: unless ORCH_HEADLESS_DRAINS explicitly opts out, runs due background maintenance drains
   // (learner, and later judge/label) via headless `node scripts/onboard-learn.js --drain` child
   // processes. This is the NO-SESSION path — real ready-task impl work remains session-dispatched.
-  // Default OFF (flag unset = no-op). Cadence: configurable (HEADLESS_DRAIN_INTERVAL_MS, default
-  // 15 min) + a small boot-time jitter so instances don't align; unref'd so it never holds the
+  // Default ON. Cadence: configurable (HEADLESS_DRAIN_INTERVAL_MS, default 2 min) + a small
+  // boot-time jitter so instances don't align; unref'd so it never holds the
   // process open. AUGMENTS the existing loop-based dispatch; does not replace or alter it. The
   // governor's rate-limit backoff (lib/headless-drain.js) additionally skips ticks under 429/529.
   const HEADLESS_DRAIN_INTERVAL_MS =
-    (Number(process.env.HEADLESS_DRAIN_INTERVAL_MS) || 15 * 60 * 1000) + Math.floor(Math.random() * 60 * 1000);
+    (Number(process.env.HEADLESS_DRAIN_INTERVAL_MS) || 2 * 60 * 1000) + Math.floor(Math.random() * 60 * 1000);
   setInterval(() => {
     // runDueDrains is async (spawns drain children via async child_process.spawn so the event loop
     // stays free during each child run — the deadlock fix). Fire-and-forget: do NOT await it inside
