@@ -328,7 +328,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const NATIVE_STATUS = { in_progress: 'in_progress', done: 'completed', tested: 'completed' };
     const ns = NATIVE_STATUS[b.status];
-    if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) snapshotNative(T.ov, b.key, ns);
+    if (['done', 'tested', 'failed', 'canceled'].includes(b.status)) snapshotNative(T.ov, b.key, ns, T.ws);
     // RECALL-OUTCOME attribution: when a task reaches a terminal status, append a resolved row
     // joining the task_key to its outcome. Readers take the latest row per task_key — this
     // supersedes any prior 'pending' row written at context-assembly time (/search?task_key=).
@@ -375,7 +375,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     let verdictResults = null;
     if (b.status === 'done' && Array.isArray(b.verdicts) && b.verdicts.length) {
       verdictResults = verdicts.apply(T.ov, b.key, b.verdicts);
-      for (const r of verdictResults) if (r.action === 'cancel') snapshotNative(T.ov, r.task_key);
+      for (const r of verdictResults) if (r.action === 'cancel') snapshotNative(T.ov, r.task_key, null, T.ws);
       // AUTOMODE: auto-execute merge verdicts when config.automode is true.
       // When a judge task completes with {action:'merge', task_key:'<impl>'}, auto-call
       // git.mergeBranch so the attempt integrates without dispatcher intervention.
@@ -775,7 +775,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const note = `superseded by ${b.new_key}${b.reason ? ': ' + b.reason : ''}`;
     overlayStore.setStatus(T.ov, b.old_key, 'canceled', note);
     overlayStore.markForRejudge(T.ov, b.old_key);
-    snapshotNative(T.ov, b.old_key);
+    snapshotNative(T.ov, b.old_key, null, T.ws);
     overlayStore.addEdge(T.ov, b.old_key, b.new_key, null, 'supersede');
     T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, old_key: b.old_key, new_key: b.new_key }); return true;
