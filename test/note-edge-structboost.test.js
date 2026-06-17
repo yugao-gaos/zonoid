@@ -105,11 +105,18 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-nesb-base-')));
 const WSB = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-nesb-ws-')));
 
+// P3: ops require an explicit workspace (no daemon-global default). Single-workspace layer ⇒
+// default WSB into POST bodies and GET query strings (skip /workspace, /ping, or explicit ws).
 async function post(p, body) {
-  const res = await fetch(`${BASE}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const payload = (p === '/workspace' || (body && body.workspace)) ? body : { ...(body || {}), workspace: WSB };
+  const res = await fetch(`${BASE}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   return { status: res.status, body: await res.json() };
 }
-async function get(p) { const res = await fetch(`${BASE}${p}`); return { status: res.status, body: await res.json() }; }
+function withWs(p) {
+  if (p.startsWith('/ping') || p.includes('workspace=')) return p;
+  return p + (p.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WSB);
+}
+async function get(p) { const res = await fetch(`${BASE}${withWs(p)}`); return { status: res.status, body: await res.json() }; }
 async function waitForPing(ms = 12000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
