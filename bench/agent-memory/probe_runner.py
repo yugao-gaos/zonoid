@@ -236,10 +236,15 @@ def _build_session_candidates(
             tid = t.get("turn_id")
             prefix = f"[{tid}] " if tid else ""
             lines.append(f"{prefix}{speaker}: {text}")
+        # Prepend the session date so the embedded daemon sees a date-in-body signal that
+        # matches what ConversationIngester.ingest() writes on the main-daemon path (the #33
+        # date-in-body fix).  Without this prefix the embedded-daemon search scores stay at
+        # zero for date-anchored queries and RAG stays empty for LoCoMo convs.
+        date_prefix = f"Session date: {date}\n"
         # Do NOT clip here — notes are already chunked at ingest (NOTE_BUDGET=6000 chars);
         # clipping to _SUMMARY_BUDGET would drop facts before they reach the embedded daemon
         # and the answerer.  The ingest chunking already bounds the note size.
-        summary = "\n".join(lines)
+        summary = date_prefix + "\n".join(lines)
         cands.append(_SessionCandidate(sid=sid, date=str(date), note_keys=note_keys, summary=summary))
     # Stable order by numeric session idx where possible.
     cands.sort(key=lambda c: (int(c.sid) if c.sid.isdigit() else 1_000_000, c.sid))
@@ -328,10 +333,34 @@ def _ingest_candidates_into_daemon(
 
     We use the candidate's already-rendered summary (budget-clipped session text) so the
     content the EdgeJudge ranks is semantically equivalent to what the ingester originally
-    wrote. The daemon's dup-guard prevents re-writes if a candidate was already ingested.
+    wrote.
 
-    A brief settle after each note lets the embedder index it before autowire runs.
+    WORKSPACE-SKIP: if the workspace already contains session notes (ingested by the
+    main-daemon path via ConversationIngester.ingest()), we skip re-ingest entirely.
+    Re-ingesting into a workspace that already has notes causes two problems:
+      1. The daemon's dup-guard (cosine >= 0.70 title similarity) marks the new notes
+         pending_dup=True, making them retrieval-invisible.
+      2. The subsumption gate (cosine >= 0.92 body similarity) retires the EXISTING notes
+         by setting their validTo — leaving ZERO searchable notes.
+    Skipping when the workspace already has notes preserves the main-daemon ingested notes
+    (which include the date-in-body fix from ConversationIngester.ingest()) and keeps them
+    visible for RAG fill.
+
+    A brief settle after each note lets the embedder index it before autowire seeds candidates.
     """
+    # Pre-check: if workspace already has session notes, skip re-ingest to avoid subsumption.
+    try:
+        pre_hits = client.search("session", k=3, gated=False)
+        if pre_hits:
+            print(
+                f"[probe_runner]   workspace already has {len(pre_hits)} notes — "
+                f"skipping re-ingest to preserve existing notes (dup/subsumption safety)",
+                file=sys.stderr,
+            )
+            return
+    except Exception as exc:  # noqa: BLE001
+        print(f"[probe_runner]   WARN: pre-check search failed ({exc}) — proceeding with re-ingest", file=sys.stderr)
+
     for c in candidates:
         if not c.summary.strip():
             continue
