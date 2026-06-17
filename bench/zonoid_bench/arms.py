@@ -133,6 +133,10 @@ ADOPT_TIMEOUT_S: float = float(os.environ.get("ZONOID_BENCH_ADOPT_TIMEOUT", "20"
 AUTOWIRE_SETTLE_S: float = float(os.environ.get("ZONOID_BENCH_AUTOWIRE_SETTLE", "6"))
 _POLL_INTERVAL_S: float = 0.75
 
+# Maximum number of claude_p retries on a per-call timeout (mirrors the production retry pattern
+# from lib/headless-drain.js). After JUDGE_MAX_RETRIES exhausted, the edge is kept PROVISIONAL.
+JUDGE_MAX_RETRIES: int = int(os.environ.get("ZONOID_BENCH_JUDGE_MAX_RETRIES", "2"))
+
 # Harness namespace for unit task/probe stubs (avoid "followup" and UUID-like names — see
 # workspace.drop_task_stub).
 UNIT_HARNESS: str = os.environ.get("ZONOID_BENCH_UNIT_HARNESS", "bench")
@@ -169,19 +173,29 @@ class WiringResult:
 
     Attributes
     ----------
-    task_key       : the probe TASK key in the graph (the node autowire seeds context edges INTO).
-    node_kind      : always "task" — the eager judge is task-centric (see module docstring).
-    context_deps   : pre-loaded /search bullets {label, summary, score} (agent_in_container AGENTS.md
-                     only — NOT how the DAG edges are chosen).
-    wired_edges    : the candidate PROVIDER keys the eager judge KEPT (keepEdge from=provider,
-                     to=probe) — i.e. the autowire candidates promoted into verified context.
-    candidates_seen: every autowire candidate the eager-judge pull returned, with its verdict
-                     {key, title, edge:"keep"|"prune"}.
-    pruned_edges   : the candidate PROVIDER keys the eager judge PRUNED (pruneEdge).
-    judge_idle     : True when /judge/next?node= returned no candidates (autowire seeded none — e.g.
-                     all evidence sub-0.55). Distinguishes "judged, kept nothing" from "nothing to
-                     judge", which matters for the honest sub-0.55 reporting.
-    search_hits    : raw /search hit keys (provenance).
+    task_key        : the probe TASK key in the graph (the node autowire seeds context edges INTO).
+    node_kind       : always "task" — the eager judge is task-centric (see module docstring).
+    context_deps    : pre-loaded /search bullets {label, summary, score} (agent_in_container AGENTS.md
+                      only — NOT how the DAG edges are chosen).
+    wired_edges     : the candidate PROVIDER keys the eager judge KEPT (keepEdge from=provider,
+                      to=probe) — i.e. the autowire candidates promoted into verified context.
+                      Does NOT include provisional edges (timeout fallback; those stay weight-0).
+    candidates_seen : every autowire candidate the eager-judge pull returned, with its verdict
+                      {key, title, edge:"keep"|"prune"}.
+    pruned_edges    : the candidate PROVIDER keys the eager judge PRUNED (pruneEdge).
+    judge_idle      : True when /judge/next?node= returned no candidates (autowire seeded none — e.g.
+                      all evidence sub-0.55). Distinguishes "judged, kept nothing" from "nothing to
+                      judge", which matters for the honest sub-0.55 reporting.
+    search_hits     : raw /search hit keys (provenance).
+    timeout_kills   : number of claude_p calls that hit the hard per-call timeout and were retried or
+                      fell back to keep-provisional. Mirrors the production retry/provisional path:
+                      daemon.js:1640-1646 keeps timed-out edges provisional rather than pruning them.
+    judge_idle_count: how many times judge_next returned no >=0.55 candidates for this wiring call.
+                      Currently 0 or 1 (one judge_next pull per run_canonical_wiring), but exposed
+                      as a count so callers can aggregate across a batch.
+    provisional_kept: number of candidate edges kept PROVISIONAL (not judged) because all retries
+                      timed out. Mirrors production: timed-out edges stay accessible in get_task_context
+                      as provisional (not pruned). A run with provisional_kept=0 is fully faithful.
     """
 
     task_key: str
@@ -192,6 +206,10 @@ class WiringResult:
     pruned_edges: list[str] = field(default_factory=list)
     judge_idle: bool = True
     search_hits: list[str] = field(default_factory=list)
+    # Production-faithful timeout/retry/provisional counters (Step 3 fidelity fix).
+    timeout_kills: int = 0
+    judge_idle_count: int = 0
+    provisional_kept: int = 0
 
 
 @dataclass
@@ -288,6 +306,47 @@ def _candidate_summary(item: dict[str, Any]) -> str:
     return str(frm.get("summary") or frm.get("title") or "")
 
 
+def _judge_with_retry(
+    ej: Any,
+    anchor_key: str,
+    anchor_summary: str,
+    candidates: list[dict[str, Any]],
+    result: "WiringResult",
+) -> Optional[dict[str, dict[str, Any]]]:
+    """Run EdgeJudge.judge with bounded retry on timeout/kill, recording counters on *result*.
+
+    Production behaviour (daemon.js:1640-1646, lib/headless-drain.js):
+    - A per-call claude_p timeout/kill is retried up to JUDGE_MAX_RETRIES times.
+    - After retries exhausted with no verdict, the candidates are kept PROVISIONAL:
+      they remain in get_task_context but are flagged (provisional_kept counter incremented).
+      Production NEVER ceScore→overlay_edge and NEVER prunes on timeout.
+
+    Returns the verdict dict on success, or None if retries exhausted (caller keeps provisional).
+    """
+    for attempt in range(JUDGE_MAX_RETRIES + 1):
+        raw = ej._llm_judge(anchor_key, anchor_summary, candidates)  # type: ignore[attr-defined]
+        if raw is not None:
+            return raw
+        # _llm_judge returned None — a claude_p timeout/kill.
+        result.timeout_kills += 1
+        if attempt < JUDGE_MAX_RETRIES:
+            print(
+                f"[arms] EdgeJudge timeout (attempt {attempt + 1}/{JUDGE_MAX_RETRIES + 1}); "
+                f"retrying ...",
+                file=sys.stderr,
+            )
+        else:
+            # Retries exhausted — keep candidates PROVISIONAL (never prune on timeout).
+            print(
+                f"[arms] EdgeJudge timeout_kills={result.timeout_kills}; "
+                f"retries exhausted — keeping {len(candidates)} candidate(s) PROVISIONAL "
+                f"(production-faithful: timed-out edges are never pruned).",
+                file=sys.stderr,
+            )
+            result.provisional_kept += len(candidates)
+    return None
+
+
 def run_canonical_wiring(
     client: ZonoidClient,
     unit_id: str,
@@ -341,11 +400,14 @@ def run_canonical_wiring(
     pull = client.judge_next(node_key, budget=judge_budget)
     items = [it for it in (pull.get("items") or []) if it.get("kind") == "edge"]
     result.judge_idle = bool(pull.get("idle")) or not items
-    if not items:
+    if result.judge_idle:
         # Autowire seeded NO candidate for this probe (e.g. every evidence note fell below the 0.55
         # seed threshold, or the probe genuinely has no relevant neighbour). Nothing for the eager
         # judge to keep — the probe goes ready with empty context. This is correct/expected, not an
         # error (see module docstring "Sub-0.55 evidence").
+        # NEVER fall back to ceScore→overlay_edge here — that inflates the score vs production
+        # (production wires nothing when idle). The bench reports this honestly.
+        result.judge_idle_count = 1
         return result
 
     # ---- Step 4: run the LLM eager-judge (keep/prune, DEFAULT prune) ----
@@ -363,22 +425,39 @@ def run_canonical_wiring(
         for it in items
         if (it.get("from") or {}).get("key")
     ]
-    verdicts = ej.judge(
-        anchor_key=node_key,
-        anchor_summary=task_summary,
-        candidates=candidates,
-    )
+
+    # Production-faithful retry semantics: per-call timeout → retry up to JUDGE_MAX_RETRIES.
+    # After retries exhausted → keep-provisional (NEVER prune, NEVER ceScore fallback).
+    # Mirrors daemon.js:1640-1646 + lib/headless-drain.js provisional handling.
+    verdicts_raw = _judge_with_retry(ej, node_key, task_summary, candidates, result)
+
+    if verdicts_raw is None:
+        # Retries exhausted — edges are kept PROVISIONAL (result.provisional_kept already set).
+        # No /judge/verdict call: provisional edges stay weight-0/judged:false in the daemon.
+        # They are NOT pruned (production-faithful: daemon.js:1640-1646 never drops timed-out edges).
+        # They stay in the eager-judge queue for a later drain.
+        # Record all as "provisional" in candidates_seen for provenance/counting.
+        # Do NOT add to wired_edges (they are NOT verified kept context — they are deferred).
+        # read_wired_context filters weight>0 so provisional weight-0 edges won't surface to the
+        # answerer this run — that is the production-faithful result (answerer sees honest empty ctx).
+        for c in candidates:
+            result.candidates_seen.append({
+                "key": c["key"], "title": c.get("title", ""), "edge": "provisional"
+            })
+        return result
+
+    # Normal path: verdicts returned — translate to /judge/verdict.
     # Translate per-candidate keep/prune verdicts into /judge/verdict wrapped items. EdgeJudge's
     # to_verdict_list orients edges provider(from) -> anchor(to) — exactly the autowire direction,
     # so keepEdge promotes the right weight-0 candidate in place.
-    verdict_items = ej.to_verdict_list(node_key, candidates, verdicts)
+    verdict_items = ej.to_verdict_list(node_key, candidates, verdicts_raw)
     if verdict_items:
         client.post_verdict(verdict_items)
 
     # Record provenance: which providers were kept (verified context) vs pruned.
     for c in candidates:
         key = c["key"]
-        edge = (verdicts.get(key) or {}).get("edge", "prune")
+        edge = (verdicts_raw.get(key) or {}).get("edge", "prune")
         result.candidates_seen.append({"key": key, "title": c.get("title", ""), "edge": edge})
         if edge == "keep":
             result.wired_edges.append(key)

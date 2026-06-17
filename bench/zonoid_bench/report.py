@@ -703,6 +703,79 @@ def scorecard_section(
 
 
 # ---------------------------------------------------------------------------
+# fidelity_counters_section() — production-faithful judge metrics
+# ---------------------------------------------------------------------------
+
+def fidelity_counters_section(
+    timeout_kills: int,
+    judge_idle: int,
+    provisional_kept: int,
+    n_units: int = 0,
+) -> str:
+    """Return a Markdown block reporting production-faithful judge fidelity counters.
+
+    These counters are exposed per WiringResult (arms.py) and aggregated across a batch run:
+      - timeout_kills    : total claude_p calls that hit the per-call timeout and were retried.
+      - judge_idle       : total probes where /judge/next returned no >=0.55 candidates (hollow).
+      - provisional_kept : total edges kept PROVISIONAL because all retries timed out.
+
+    A run with timeout_kills=0 and provisional_kept=0 is provably fully faithful to production
+    (no retry path or fallback was exercised). A run with judge_idle>0 honestly reports that
+    some evidence notes fell below the 0.55 autowire threshold.
+
+    Args:
+        timeout_kills    : aggregated count from WiringResult.timeout_kills across all units.
+        judge_idle       : aggregated count from WiringResult.judge_idle_count across all units.
+        provisional_kept : aggregated count from WiringResult.provisional_kept across all units.
+        n_units          : total number of bench units run (for context/rate calculation).
+
+    Returns a Markdown string (does not write to disk).
+    """
+    lines: list[str] = []
+    lines.append("## Production-faithful judge fidelity")
+    lines.append("")
+    lines.append("| Counter | Value | Meaning |")
+    lines.append("| --- | --- | --- |")
+    lines.append(
+        f"| `timeout_kills` | {timeout_kills} | "
+        f"claude_p calls that hit the per-call timeout (retried per production retry policy) |"
+    )
+    lines.append(
+        f"| `judge_idle` | {judge_idle} | "
+        f"probes where /judge/next returned no >=0.55 candidates "
+        f"(evidence sub-threshold; wired nothing, production-correct) |"
+    )
+    lines.append(
+        f"| `provisional_kept` | {provisional_kept} | "
+        f"edges kept provisional after retries exhausted (never pruned; production-faithful) |"
+    )
+    if n_units > 0:
+        lines.append(
+            f"| `n_units` | {n_units} | total bench units run |"
+        )
+    lines.append("")
+    if timeout_kills == 0 and provisional_kept == 0:
+        lines.append(
+            "> **Fidelity: CLEAN** — zero timeout_kills, zero provisional_kept. "
+            "All judge calls completed without retry or fallback."
+        )
+    else:
+        if provisional_kept > 0:
+            lines.append(
+                f"> **Warning:** {provisional_kept} edge(s) kept provisional (retries exhausted). "
+                f"These edges were NOT judged — they mirror the production timed-out-edge path "
+                f"(daemon.js:1640-1646). Re-run to re-judge, or investigate claude_p latency."
+            )
+        if timeout_kills > 0:
+            lines.append(
+                f"> **Info:** {timeout_kills} timeout_kill(s) occurred; retry succeeded for all "
+                f"except the {provisional_kept} provisional edge(s) above."
+            )
+    lines.append("")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
