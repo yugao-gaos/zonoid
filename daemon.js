@@ -588,6 +588,18 @@ function staleClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
   }
   return out;
 }
+
+function localInProgressCount(tasks, ov = state.overlay, agents = state.agents, nowMs = Date.now(), bootMs = BOOT_MS) {
+  const mins = ov.config.stale_minutes ?? 10;
+  let count = 0;
+  for (const t of tasks || []) {
+    if (!t || t.kind === 'note' || t.status !== 'in_progress') continue;
+    const agentId = (ov.assignee && ov.assignee[t.id]) || t.agent_id;
+    if (!agentId || !vouchedLive(agents[agentId], mins, nowMs, bootMs)) continue;
+    count++;
+  }
+  return count;
+}
 // Sweep abandoned claims: release every staleClaimKeys() orphan back to ready. Authoritative
 // liveness — survives restart (overlay is persisted) and needs no stop hook. Returns true if any.
 // Parameterized on (ws, ov) so the sweep operates on the REQUESTED workspace's overlay (buildGraph
@@ -1858,6 +1870,7 @@ function summaryFor(tasks, ghosts, ov = state.overlay) {
   const notes = tasks.length - real.length;
   const c = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0]));
   for (const t of real) c[t.status] = (c[t.status] || 0) + 1;
+  c.local_in_progress = localInProgressCount(real, ov);
   const a = agentsArr();
   return {
     tasks_total: real.length,
@@ -2135,7 +2148,7 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, buildGraph, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
