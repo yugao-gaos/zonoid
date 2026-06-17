@@ -4,7 +4,16 @@
 set -e
 
 VENV="${1:-.venv-fb}"
-FB="$VENV/Lib/site-packages/featurebench"
+if [ -d "$VENV/Lib/site-packages/featurebench" ]; then
+  FB="$VENV/Lib/site-packages/featurebench"
+else
+  FB="$(find "$VENV/lib" -path '*/site-packages/featurebench' -type d -print -quit 2>/dev/null || true)"
+fi
+
+if [ -z "$FB" ] || [ ! -d "$FB" ]; then
+  echo "Could not find featurebench package under $VENV" >&2
+  exit 1
+fi
 
 echo "Patching $FB ..."
 

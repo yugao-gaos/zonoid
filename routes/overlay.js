@@ -8,6 +8,7 @@ const { noteEmbedText, noteFieldTexts, taskEmbedText } = require('../lib/node-ta
 const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
 const recallJournal = require('../lib/recall-outcome-journal');
+const gitClaims = require('../lib/git-claims');
 
 // Resolve a note's knowledge[] for field-level embedding. addNoteNode stores it inline on the node
 // (n.knowledge), but the /overlay/note route also mirrors it into overlay.knowledge[id]; prefer the
@@ -229,6 +230,25 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         send(res, 409, { ok: false, error: 'self-learning mode: task has a metric spec — call branch_task first before editing' }); return true;
       }
     }
+    let gitClaim = null;
+    if (b.status === 'in_progress' && !b.force && gitClaims.claimModeEnabled(T.ov)) {
+      const repo = ctx.resolveRepo ? ctx.resolveRepo(b.key, b.repo_path, T.ov, T.ws) : T.ws;
+      if (!gitClaims.shouldAcquire(repo, T.ov)) {
+        gitClaim = null;
+      } else {
+        const gitInfo = T.ov.git && T.ov.git[b.key];
+        gitClaim = gitClaims.acquire(repo, b.key, {
+          agentId: b.agent_id || null,
+          sessionId: b.session_id || null,
+          workspace: T.ws,
+          branch: gitInfo && gitInfo.branch,
+          leaseMinutes: gitClaims.claimLeaseMinutes(T.ov),
+        });
+        if (!gitClaim.ok) {
+          send(res, gitClaim.conflict ? 409 : 503, { ok: false, error: gitClaim.error, git_claim: gitClaim }); return true;
+        }
+      }
+    }
     // HANDOFF VALIDATION (T2): refuse a terminal completion whose STRUCTURED task_result is
     // incomplete. Mirrors the metric-branch invariant 409 above — daemon-side refusal on the call
     // the daemon already mediates, no new mechanism, no hook. GATED two ways so the legacy
@@ -284,6 +304,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         start_ts: now(),
         end_ts: null,
       });
+      if (gitClaim && gitClaim.claim) {
+        if (!T.ov.claimSessions) T.ov.claimSessions = {};
+        T.ov.claimSessions[b.key] = {
+          mode: 'git',
+          agent_id: b.agent_id || null,
+          branch: gitClaim.claim.branch || null,
+          claimed_at: gitClaim.claim.claimed_at,
+          lease_until: gitClaim.claim.lease_until,
+        };
+      }
     } else {
       const sessions = T.ov.work_sessions && T.ov.work_sessions[b.key];
       if (sessions) {
@@ -292,6 +322,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
       if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && T.ov.claimSessions) {
         delete T.ov.claimSessions[b.key];
+      }
+      if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && gitClaims.claimModeEnabled(T.ov)) {
+        try {
+          const repo = ctx.resolveRepo ? ctx.resolveRepo(b.key, b.repo_path, T.ov, T.ws) : T.ws;
+          gitClaims.finalize(repo, b.key, { agentId: b.agent_id || null, status: b.status });
+        } catch { /* best effort: terminal graph status must not be blocked by claim cleanup */ }
       }
     }
     if (b.summary != null) T.ov.summaries[b.key] = String(b.summary).slice(0, 2000);
@@ -423,6 +459,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const FORCE_CAP = 3;
       statusResp.force_claims_remaining = Math.max(0, FORCE_CAP - ((T.ov.forceClaims && T.ov.forceClaims[b.key]) || 0));
     }
+    if (gitClaim) statusResp.git_claim = { ok: true, already_claimed: !!gitClaim.already_claimed, pushed: !!gitClaim.pushed };
     if (readyBefore) {
       statusResp.newly_ready = newlyReady.diffNewlyReady(readyBefore, newlyReady.readyKeys(buildGraph(T.ws)));
     }

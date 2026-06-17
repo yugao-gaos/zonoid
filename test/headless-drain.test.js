@@ -50,20 +50,20 @@ function makeCompletedQueueDir() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 1: flag OFF → no spawn
+// Test 1: default ON; explicit opt-out → no spawn
 // ---------------------------------------------------------------------------
 
-test('flag ORCH_HEADLESS_DRAINS unset → isHeadlessEnabled returns false, runDueDrains no-ops', async () => {
+test('flag ORCH_HEADLESS_DRAINS unset → isHeadlessEnabled returns true', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   delete process.env.ORCH_HEADLESS_DRAINS;
   try {
     const hd = freshModule();
-    assert.equal(hd.isHeadlessEnabled(), false, 'should be disabled when env var is unset');
+    assert.equal(hd.isHeadlessEnabled(), true, 'should be enabled when env var is unset');
 
-    // runDueDrains must return immediately with skipped=flag_off and ran=0
-    const result = await hd.runDueDrains(null);
-    assert.equal(result.ran, 0, 'ran should be 0 when flag is off');
-    assert.equal(result.skipped, 'flag_off', 'skipped reason should be flag_off');
+    // With no queue files and no judge/label work, runDueDrains is enabled but idle.
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() });
+    assert.equal(result.ran, 0, 'ran should be 0 when no drains are due');
+    assert.equal(result.skipped, 'no_due_drains', 'skipped reason should be no_due_drains');
     assert.deepEqual(result.drains, [], 'drains array should be empty');
   } finally {
     if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
@@ -88,6 +88,18 @@ test('flag ORCH_HEADLESS_DRAINS=0 → isHeadlessEnabled returns false', async ()
 test('flag ORCH_HEADLESS_DRAINS=false → isHeadlessEnabled returns false', () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = 'false';
+  try {
+    const hd = freshModule();
+    assert.equal(hd.isHeadlessEnabled(), false);
+  } finally {
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+test('flag ORCH_HEADLESS_DRAINS=no → isHeadlessEnabled returns false', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = 'no';
   try {
     const hd = freshModule();
     assert.equal(hd.isHeadlessEnabled(), false);
@@ -604,9 +616,9 @@ test('findDueJudgeWork swallows loader errors and returns no due work', () => {
 
 // ---- flag OFF: no judge spawn even when judge work is pending ------------------------
 
-test('flag OFF ⇒ NO judge spawn even when eager + periodic work is pending', async () => {
+test('explicit flag OFF ⇒ NO judge spawn even when eager + periodic work is pending', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
-  delete process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '0';
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   try {
     const result = await hd.runDueDrains({ workspace: os.tmpdir() }, undefined,
@@ -1091,9 +1103,9 @@ test('findDueLabelWork swallows loader errors and returns no due work', () => {
 
 // ---- flag OFF: no label spawn even when label work is pending ------------------------
 
-test('flag OFF ⇒ NO label spawn even when label work is pending', async () => {
+test('explicit flag OFF ⇒ NO label spawn even when label work is pending', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
-  delete process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '0';
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   try {
     const result = await hd.runDueDrains({ workspace: os.tmpdir() }, undefined, {

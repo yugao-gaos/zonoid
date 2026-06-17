@@ -37,7 +37,7 @@
   },
   "scripts": {
     "start": "node daemon.js",
-    "test": "ZONOID_SKIP_LIVE=1 node test/context-gate-regression.test.js",
+    "test": "node scripts/run-tests.js",
     "test:all": "node scripts/run-tests.js"
   },
   "optionalDependencies": {

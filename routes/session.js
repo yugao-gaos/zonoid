@@ -102,6 +102,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.self_plan != null) T.ov.config.self_plan = !!b.self_plan;
     if (b.cost_gate != null) T.ov.config.cost_gate = !!b.cost_gate;
     if (b.automode != null) T.ov.config.automode = !!b.automode;
+    if (b.claim_mode != null) {
+      const mode = String(b.claim_mode || '').toLowerCase();
+      if (mode && mode !== 'git' && mode !== 'local') { send(res, 400, { ok: false, error: 'claim_mode must be "git", "local", or empty' }); return true; }
+      if (mode === 'git') T.ov.config.claim_mode = 'git';
+      else if (mode === 'local') T.ov.config.claim_mode = 'local';
+      else delete T.ov.config.claim_mode;
+    }
+    if (b.claim_lease_minutes != null) T.ov.config.claim_lease_minutes = Number(b.claim_lease_minutes);
     if (b.stale_minutes != null) T.ov.config.stale_minutes = Number(b.stale_minutes);
     if (b.archive_after_days != null) T.ov.config.archive_after_days = Number(b.archive_after_days);
     if (b.escalation && typeof b.escalation === 'object') {

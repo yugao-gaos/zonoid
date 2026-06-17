@@ -8,7 +8,7 @@
 //       once, its status is NOT mutated, and a live owner / fresh timestamp suppresses surfacing.
 'use strict';
 const ov = require('../lib/overlay');
-const { staleClaimKeys, staleVerdictKeys } = require('../daemon');
+const { staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, staleVerdictKeys } = require('../daemon');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -45,6 +45,60 @@ const FRESH = 60000;        // 1m ago — within the window
   delete overlay.status['s/1'];
   const second = staleClaimKeys(overlay, agents, NOW);
   ok('reaper second pass is idempotent (released claim not re-selected)', !second.some((c) => c.key === 's/1'));
+}
+
+// --- (a2) REAPER: adopted snapshot in_progress orphan is released once ------------------------
+{
+  const overlay = ov.EMPTY();
+  ov.setSnapshot(overlay, 's/20', { subject: 'orphan snapshot', description: '', status: 'in_progress', blockedBy: [] });
+  overlay.timestamps['s/20'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
+  // Explicit overlay status still belongs to staleClaimKeys, not the snapshot fallback selector.
+  ov.setSnapshot(overlay, 's/21', { subject: 'explicit status wins', description: '', status: 'in_progress', blockedBy: [] });
+  overlay.status['s/21'] = 'in_progress';
+  overlay.timestamps['s/21'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
+  // A fresh adopted snapshot gets time before it is released.
+  ov.setSnapshot(overlay, 's/22', { subject: 'fresh snapshot', description: '', status: 'in_progress', blockedBy: [] });
+  overlay.timestamps['s/22'] = { firstSeen: ISO(FRESH), lastChanged: ISO(FRESH), lastStatus: 'in_progress' };
+  const agents = {};
+
+  const first = staleSnapshotClaimKeys(overlay, agents, NOW);
+  ok('snapshot reaper selects exactly one stale adopted orphan', first.length === 1);
+  ok('snapshot reaper selects the stale snapshot claim (s/20)', first[0] && first[0].key === 's/20');
+  ok('snapshot reaper ignores explicit overlay claims (s/21)', !first.some((c) => c.key === 's/21'));
+  ok('snapshot reaper ignores fresh snapshots (s/22)', !first.some((c) => c.key === 's/22'));
+
+  ok('snapshot release mutates status back to pending', releaseSnapshotClaim('s/20', 'test release', overlay, null, null) && overlay.snapshots['s/20'].status === 'pending');
+  const second = staleSnapshotClaimKeys(overlay, agents, NOW);
+  ok('snapshot reaper second pass is idempotent', !second.some((c) => c.key === 's/20'));
+}
+
+// --- (a3) REAPER: native in_progress echo is released once ------------------------
+{
+  const overlay = ov.EMPTY();
+  overlay.timestamps['s/30'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
+  overlay.timestamps['s/31'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
+  overlay.status['s/31'] = 'in_progress';
+  overlay.timestamps['s/32'] = { firstSeen: ISO(FRESH), lastChanged: ISO(FRESH), lastStatus: 'in_progress' };
+  ov.setSnapshot(overlay, 's/33', { subject: 'native plus snapshot', description: '', status: 'in_progress', blockedBy: [] });
+  overlay.timestamps['s/33'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
+  const tasks = [
+    { key: 's/30', session: 's', native_status: 'in_progress' },
+    { key: 's/31', session: 's', native_status: 'in_progress' },
+    { key: 's/32', session: 's', native_status: 'in_progress' },
+    { key: 's/33', session: 's', native_status: 'in_progress' },
+    { key: 's/34', session: 's', native_status: 'pending' },
+  ];
+  const agents = {};
+
+  const first = staleNativeClaimKeys(overlay, agents, tasks, NOW);
+  ok('native reaper selects stale native echoes', first.map((c) => c.key).sort().join(',') === 's/30,s/33');
+  ok('native reaper ignores explicit overlay claims (s/31)', !first.some((c) => c.key === 's/31'));
+  ok('native reaper ignores fresh native echoes (s/32)', !first.some((c) => c.key === 's/32'));
+  ok('native reaper ignores non-in_progress tasks (s/34)', !first.some((c) => c.key === 's/34'));
+
+  ok('native release can clear snapshot echo without native write-through', releaseNativeClaim('s/33', 'test release', overlay, null, null) && overlay.snapshots['s/33'].status === 'pending');
+  const second = staleNativeClaimKeys(overlay, agents, tasks.filter((t) => t.key !== 's/33'), NOW);
+  ok('native reaper second pass does not re-select released snapshot echo', !second.some((c) => c.key === 's/33'));
 }
 
 // --- (b) SURFACING: stale verdict node surfaced once, status never mutated --------------------

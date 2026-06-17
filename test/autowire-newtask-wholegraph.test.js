@@ -15,6 +15,7 @@
 // overlap — exactly what lets us assert wiring mechanics on a known scale. We thread an explicit
 // lexical-scale bar (0.25), since the function's own default is the higher semantic cosine bar.
 'use strict';
+process.env.ORCH_RERANK = '0';
 const ov = require('../lib/overlay');
 const { autowireNewTaskWholeGraph } = require('../daemon');
 const TH = 0.25; // lexical-scale bar for these vec-less fixtures

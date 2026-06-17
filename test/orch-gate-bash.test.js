@@ -127,16 +127,16 @@ function runMainBlocked(cmd, extra) {
   ok('cat foo.js → no write pattern → exit 0', r.status === 0);
 }
 
-// 2. Redirect to /tmp → exempt target → exit 0
+// 2. Redirect to /tmp → not exempt → exit 2
 {
   const r = runBlocked('echo hi > /tmp/scratch.txt');
-  ok('redirect to /tmp → exempt → exit 0', r.status === 0);
+  ok('redirect to /tmp → blocked for unclaimed subagent → exit 2', r.status === 2);
 }
 
-// 3. Redirect to /private/tmp → exempt → exit 0
+// 3. Redirect to /private/tmp → not exempt → exit 2
 {
   const r = runBlocked('echo hi > /private/tmp/scratch.txt');
-  ok('redirect to /private/tmp → exempt → exit 0', r.status === 0);
+  ok('redirect to /private/tmp → blocked for unclaimed subagent → exit 2', r.status === 2);
 }
 
 // 4. Redirect to non-exempt path → write detected, not exempt → subagent blocked → exit 2
@@ -157,10 +157,10 @@ function runMainBlocked(cmd, extra) {
   ok('cp /tmp/x.js file.js (relative dest) → write detected, not exempt → exit 2', r.status === 2);
 }
 
-// 7. cp to /tmp destination → exempt → exit 0
+// 7. cp to /tmp destination → not exempt → exit 2
 {
   const r = runBlocked('cp source.js /tmp/dest.js');
-  ok('cp to /tmp dest → exempt → exit 0', r.status === 0);
+  ok('cp to /tmp dest → blocked for unclaimed subagent → exit 2', r.status === 2);
 }
 
 // 8. mv to relative path → write detected, not exempt → exit 2
@@ -288,18 +288,18 @@ function runMainBlocked(cmd, extra) {
   ok('pathlib touch → write detected → exit 2 for unclaimed subagent', r.status === 2);
 }
 
-// ── Bypass regression tests (all should be allowed: exit 0) ─────────────────
+// ── Bypass regression tests for allowed and denied extracted targets ─────────
 
-// 26. Both source and dest in /tmp
+// 26. Both source and dest in /tmp still require a claim
 {
   const r = runBlocked('cp /tmp/x.js /tmp/out.js');
-  ok('cp /tmp → /tmp: both exempt → exit 0', r.status === 0);
+  ok('cp /tmp → /tmp: blocked for unclaimed subagent → exit 2', r.status === 2);
 }
 
-// 27. Dest in /private/tmp
+// 27. Dest in /private/tmp still requires a claim
 {
   const r = runBlocked('cp /tmp/x.js /private/tmp/out.js');
-  ok('cp /tmp → /private/tmp: exempt → exit 0', r.status === 0);
+  ok('cp /tmp → /private/tmp: blocked for unclaimed subagent → exit 2', r.status === 2);
 }
 
 // 28. .log file under logs/
