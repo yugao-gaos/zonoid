@@ -4,7 +4,8 @@
   "session_id": "019ed6c8-4363-7e93-96dd-e9bbd07053c6",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-fix-shell-write-gate-cross-shell",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-17T18:12:33.420Z",
-  "lease_until": "2026-06-17T19:12:33.420Z"
+  "lease_until": "2026-06-17T19:12:33.420Z",
+  "completed_at": "2026-06-17T18:21:55.610Z"
 }
