@@ -177,6 +177,19 @@ the summary empirically and project-locally (the reason + the observation it res
 a strong KB note reads — a vague topical note will not clear the gate. General decisions/findings
 stay un-categorized (they still join the recall pool as generic decision notes).
 
+## Durable spec (system nodes)
+
+Notes created with `category:"system"` are **always injected** into every `search_knowledge`
+call at tier `"system"` (score 1.0, before DAG and RAG results) — every agent sees them
+regardless of query. Use `record_decision(category:"system")` to write workspace-level anchors:
+standing goals, hard constraints, interfaces, invariants, and known bugs.
+
+The `/spec` skill manages the canonical workspace spec note. To read the current spec:
+`search_knowledge(q:"SPEC: zonoid", k:1)`.
+
+Do NOT store task-specific context or ephemeral decisions as system nodes — they pollute every
+agent's context. One spec note per project; supersede it when updating.
+
 ## KB note authoring
 
 **Override signal:** When a note contradicts the spec or existing code — e.g. "spec says return null here, but you must also check byWindow" — the note title MUST start with `OVERRIDE:` or the summary must start with `SPEC IS INCOMPLETE:`. This prefix signals to consuming agents that the note takes priority over what the spec or code says, and they must not dismiss the discrepancy as a note error.
