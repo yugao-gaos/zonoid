@@ -135,12 +135,12 @@ function mkOff(sid) { fs.mkdirSync(SESS, { recursive: true }); fs.writeFileSync(
     check('opt-out marker allows', runHook('orch-gate.js', { session_id: 'e2e-goff', tool_input: { file_path: '/x/src/app.js', new_string: 'z' } }).code === 0);
     check('ORCH_GATE_OFF=1 allows', runHook('orch-gate.js', { session_id: 'e2e-g3', tool_input: { file_path: '/x/src/app.js', new_string: 'z' } }, { ORCH_GATE_OFF: '1' }).code === 0); }
 
-  // ── orch-gate-bash (read allow / write deny / git + daemon + /tmp exempt) ────
+  // ── orch-gate-bash (read allow / write deny / git + daemon exemptions) ───────
   console.log('orch-gate-bash.js');
   { check('read-only cmd allowed', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: 'ls -la' } }).code === 0);
     check('git commit exempt', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: 'git commit -m wip' } }).code === 0);
     check('daemon curl exempt', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: `curl -s localhost:${PORT}/ping` } }).code === 0);
-    check('/tmp redirect exempt', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: 'echo hi > /tmp/x.txt' } }).code === 0);
+    check('/tmp redirect denied without claim', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: 'echo hi > /tmp/x.txt' } }).code === 2);
     check('no-claim redirect write denied (exit 2)', runHook('orch-gate-bash.js', { session_id: 'e2e-b2', tool_input: { command: 'echo hi > /x/out.txt' } }).code === 2);
     check('no-claim cp-to-source denied (exit 2)', runHook('orch-gate-bash.js', { session_id: 'e2e-b2', tool_input: { command: 'cp a.js /x/main.js' } }).code === 2); }
 

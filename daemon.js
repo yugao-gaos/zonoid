@@ -494,6 +494,9 @@ function releaseClaim(key, reason, ov = state.overlay, ctx = null, ws = state.wo
   if (ov.status[key] !== 'in_progress') return false;
   delete ov.status[key];
   ov.notes[key] = String(reason).slice(0, 280);
+  if (ov.snapshots && ov.snapshots[key]) {
+    overlayStore.setSnapshot(ov, key, { ...ov.snapshots[key], status: 'pending' });
+  }
   // Also revert the native status (start_task wrote it to in_progress via write-through); otherwise
   // the task would still derive as in_progress from its native/stub file. 'pending' = available to retry.
   try { writeTaskStatus(ws, key, 'pending'); } catch { /* best effort */ }
@@ -589,6 +592,103 @@ function staleClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
   return out;
 }
 
+// Adopted snapshots are the fallback source when the original native task file has disappeared.
+// A claim release used to clear only overlay.status; if the adopted snapshot still said
+// in_progress, the task kept deriving as "ongoing" forever with no agent to reap. Select those
+// orphan snapshot claims separately so the sweep can reset their snapshot/native echo to pending.
+function staleSnapshotClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
+  const mins = overlay.config.stale_minutes ?? 10;
+  const cutoff = nowMs - mins * 60000;
+  const out = [];
+  for (const [key, snap] of Object.entries(overlay.snapshots || {})) {
+    if (!snap || snap.status !== 'in_progress') continue;
+    if ((overlay.status || {})[key] != null) continue; // normal staleClaimKeys owns explicit overrides
+    const agentId = overlay.assignee[key];
+    const agent = agentId ? agents[agentId] : null;
+    if (vouchedLive(agent, mins, nowMs, bootMs)) continue;
+    const ts = overlay.timestamps[key];
+    if (ts && Date.parse(ts.lastChanged) > cutoff) continue;
+    out.push({ key, status: 'in_progress', agentId: agentId || null, mins });
+  }
+  return out;
+}
+
+function releaseSnapshotClaim(key, reason, ov = state.overlay, ctx = null, ws = state.workspace) {
+  const snap = ov.snapshots && ov.snapshots[key];
+  if (!snap || snap.status !== 'in_progress') return false;
+  overlayStore.setSnapshot(ov, key, { ...snap, status: 'pending' });
+  ov.notes[key] = String(reason).slice(0, 280);
+  try { writeTaskStatus(ws, key, 'pending'); } catch { /* best effort */ }
+  if (ctx) {
+    const { agentId, mins, tokenUsage } = ctx;
+    try {
+      const costLogPath = path.join(__dirname, 'logs', 'cron-token-usage.jsonl');
+      const entry = JSON.stringify({
+        ts: new Date().toISOString(),
+        event: 'stale_snapshot_claim_release',
+        task: key,
+        agent_id: agentId || null,
+        stale_mins: mins,
+        input_tokens: tokenUsage && tokenUsage.input_tokens || 0,
+        output_tokens: tokenUsage && tokenUsage.output_tokens || 0,
+        cache_read_tokens: tokenUsage && tokenUsage.cache_read_input_tokens || 0,
+        total_tokens: tokenUsage && tokenUsage.total || 0,
+      });
+      fs.mkdirSync(path.dirname(costLogPath), { recursive: true });
+      fs.appendFileSync(costLogPath, entry + '\n');
+    } catch { /* best effort */ }
+  }
+  return true;
+}
+
+function staleNativeClaimKeys(overlay, agents, tasks, nowMs, bootMs = BOOT_MS) {
+  const mins = overlay.config.stale_minutes ?? 10;
+  const cutoff = nowMs - mins * 60000;
+  const out = [];
+  for (const t of tasks || []) {
+    if (!t || t.native_status !== 'in_progress') continue;
+    const key = t.key;
+    if ((overlay.status || {})[key] != null) continue; // explicit overlay claims are handled first
+    const agentId = overlay.assignee[key];
+    const agent = agentId ? agents[agentId] : null;
+    if (vouchedLive(agent, mins, nowMs, bootMs)) continue;
+    const ts = overlay.timestamps[key];
+    if (ts && Date.parse(ts.lastChanged) > cutoff) continue;
+    out.push({ key, status: 'in_progress', agentId: agentId || null, mins });
+  }
+  return out;
+}
+
+function releaseNativeClaim(key, reason, ov = state.overlay, ctx = null, ws = state.workspace) {
+  const wrote = writeTaskStatus(ws, key, 'pending');
+  const snap = ov.snapshots && ov.snapshots[key];
+  if (snap && snap.status === 'in_progress') {
+    overlayStore.setSnapshot(ov, key, { ...snap, status: 'pending' });
+  }
+  if (!wrote && !(snap && snap.status === 'in_progress')) return false;
+  ov.notes[key] = String(reason).slice(0, 280);
+  if (ctx) {
+    const { agentId, mins, tokenUsage } = ctx;
+    try {
+      const costLogPath = path.join(__dirname, 'logs', 'cron-token-usage.jsonl');
+      const entry = JSON.stringify({
+        ts: new Date().toISOString(),
+        event: 'stale_native_claim_release',
+        task: key,
+        agent_id: agentId || null,
+        stale_mins: mins,
+        input_tokens: tokenUsage && tokenUsage.input_tokens || 0,
+        output_tokens: tokenUsage && tokenUsage.output_tokens || 0,
+        cache_read_tokens: tokenUsage && tokenUsage.cache_read_input_tokens || 0,
+        total_tokens: tokenUsage && tokenUsage.total || 0,
+      });
+      fs.mkdirSync(path.dirname(costLogPath), { recursive: true });
+      fs.appendFileSync(costLogPath, entry + '\n');
+    } catch { /* best effort */ }
+  }
+  return true;
+}
+
 function localInProgressCount(tasks, ov = state.overlay, agents = state.agents, nowMs = Date.now(), bootMs = BOOT_MS) {
   const mins = ov.config.stale_minutes ?? 10;
   let count = 0;
@@ -622,6 +722,32 @@ function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
       // counting it. Coupling the reap to the release (not just the independent sweepStaleAgents
       // pass) guarantees the count drops the instant a claim is swept. Same trust basis: we only
       // reach here for keys staleClaimKeys returned, i.e. the agent already failed vouchedLive.
+      if (reapAgent(agentId)) agentsDirty = true;
+    }
+  }
+  for (const { key, agentId, mins } of staleSnapshotClaimKeys(ov, state.agents, Date.now())) {
+    const tp = taskTranscript(key, null, true, stWs);
+    const tokenUsage = tp ? usageCached(tp) : null;
+    if (releaseSnapshotClaim(key, `auto-released: orphan in_progress snapshot '${agentId || '?'}' not running (stale >${mins}m)`, ov, { agentId, mins, tokenUsage }, ws)) {
+      dirty = true;
+      if (reapAgent(agentId)) agentsDirty = true;
+    }
+  }
+  if (agentsDirty) saveAgents();
+  if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
+  return dirty;
+}
+
+function sweepStaleNativeClaims(ws, ov, tasks) {
+  let dirty = false;
+  let agentsDirty = false;
+  const stWs = ws === state.workspace ? state : { ...state, overlay: ov };
+  for (const { key, agentId, mins } of staleNativeClaimKeys(ov, state.agents, tasks, Date.now())) {
+    const native = (tasks || []).find((t) => t.key === key);
+    const tp = taskTranscript(key, native && native.session, true, stWs);
+    const tokenUsage = tp ? usageCached(tp) : null;
+    if (releaseNativeClaim(key, `auto-released: native in_progress '${agentId || '?'}' not running (stale >${mins}m)`, ov, { agentId, mins, tokenUsage }, ws)) {
+      dirty = true;
       if (reapAgent(agentId)) agentsDirty = true;
     }
   }
@@ -1729,7 +1855,11 @@ function buildGraph(ws) {
   // workspace's overlay, so stale claims release wherever the read lands.
   if (sweepStaleClaims(ws, ovWs)) { cache.agg.delete(ws); cache.aggAt.delete(ws); }
   const R = makeResolver();
-  const native = aggregateCached(ws);
+  let native = aggregateCached(ws);
+  if (sweepStaleNativeClaims(ws, ovWs, native)) {
+    cache.agg.delete(ws); cache.aggAt.delete(ws);
+    native = aggregateCached(ws);
+  }
   const ghostMap = {}; // "ws|key" -> ghost stub
   const sessionCount = {}; for (const t of native) sessionCount[t.session] = (sessionCount[t.session] || 0) + 1;
   const stWs = own ? state : { ...state, overlay: ovWs };   // taskTokens reads assignee from the target overlay
@@ -2151,7 +2281,7 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, buildGraph, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
