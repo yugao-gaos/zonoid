@@ -463,6 +463,53 @@ function judgeDeps({ depth = 0, eagerNodes = [] } = {}) {
 }
 
 /**
+ * Stub backendDeps so the JUDGE drain's backend resolution is driven entirely by the test (no real
+ * lib/llm-backend, no ambient ANTHROPIC_API_KEY needed). Returns a fake provider whose buildInvocation
+ * yields a recognizable spawn argv. Defaults: an AVAILABLE + AUTHED agentic-cli provider (so the judge
+ * spawns); flip `available`/`authed` to exercise the HARD-BLOCK, or `kind:'api'` for the api-skip path.
+ * `buildInvocation` mirrors the historical judge argv (keeps the existing -p/--model/stream-json
+ * prompt assertions valid) but stamps a `--backend-id <id>` marker so a test can prove the spawn was
+ * driven by THIS provider's invocation, not a hardcoded claude path.
+ *
+ * For an api-kind provider, `runJudgeLoop` is the IN-PROCESS judge seam: by default it records each
+ * call (with the args it received) and resolves a clean drain-result shape (exit 0) WITHOUT spawning —
+ * so a test can assert the drain used runJudgeLoop, not spawn. Pass `judgeLoopResult` to tailor the
+ * resolved result (e.g. a throttle), or `judgeLoopThrows` to make it throw (proving the drain degrades
+ * a misbehaving adapter to a clean failure rather than crashing).
+ */
+function mockBackendDeps({ id = 'mock-cli', kind = 'agentic-cli', available = true, authed = true, model = 'mock-model', bin = '/mock/bin/agent', judgeLoopResult = null, judgeLoopThrows = false } = {}) {
+  const calls = { buildInvocation: 0, runJudgeLoop: 0, runJudgeLoopArgs: [] };
+  const provider = {
+    id,
+    displayName: `Mock ${id}`,
+    kind,
+    isAvailable: () => available,
+    isAuthed: () => authed,
+    buildInvocation(opts = {}) {
+      calls.buildInvocation++;
+      const args = ['-p', opts.prompt, '--model', opts.model || model, '--output-format', 'stream-json', '--verbose', '--dangerously-skip-permissions', '--backend-id', id];
+      if (opts.mcpConfig) args.push('--mcp-config', opts.mcpConfig, '--strict-mcp-config');
+      if (opts.addDir) args.push('--add-dir', opts.addDir);
+      return { bin, args, env: { MOCK_ENV: '1' } };
+    },
+    // api-kind IN-PROCESS judge seam. Records the call (proving NO spawn was used) and resolves a
+    // drain-result-shaped object the drain consumes exactly like a spawn result.
+    async runJudgeLoop(args) {
+      calls.runJudgeLoop++;
+      calls.runJudgeLoopArgs.push(args);
+      if (judgeLoopThrows) throw new Error('runJudgeLoop boom');
+      return judgeLoopResult || { exitCode: 0, stdout: 'judge: adjudicated 1 item(s)', stderr: '', timedOut: false, spawnError: null };
+    },
+  };
+  const backendLib = {
+    getActiveBackend: () => ({ provider, providerId: id, model, config: { provider: id, model } }),
+    getProvider: (q) => (q === id ? provider : null),
+    listProviders: () => [provider],
+  };
+  return { deps: { backendDeps: { backendLib } }, provider, calls, bin, id };
+}
+
+/**
  * Stub labelDeps so findDueLabelWork is driven entirely by the test (no real journal file touched).
  * `journal` is an array of synthetic journal rows; `labeledKeys` is the set of already-labeled
  * rowKeys. The stub rowKey is the row's own `_k` field so tests control dedup precisely.
@@ -587,7 +634,7 @@ test('flag ON: runDueDrains spawns judge for each eager node + one periodic batc
   const tmpDir = makeCompletedQueueDir();
   try {
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
-      judgeDeps({ depth: 3, eagerNodes: ['note:a', 'note:b'] }));
+      { ...judgeDeps({ depth: 3, eagerNodes: ['note:a', 'note:b'] }), ...mockBackendDeps().deps });
     // 2 eager + 1 periodic = 3 judge spawns
     assert.equal(calls.length, 3, 'should spawn 2 eager + 1 periodic');
     assert.equal(result.ran, 3, 'ran should count all 3 judge drains');
@@ -627,7 +674,7 @@ test('flag ON: judge fan-out is bounded by the iteration cap', async () => {
   try {
     // 3 eager nodes + periodic, but cap is 2 → only 2 spawns happen.
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
-      judgeDeps({ depth: 3, eagerNodes: ['note:a', 'note:b', 'note:c'] }));
+      { ...judgeDeps({ depth: 3, eagerNodes: ['note:a', 'note:b', 'note:c'] }), ...mockBackendDeps().deps });
     assert.equal(calls.length, 2, 'iteration cap must bound spawns to 2');
     assert.equal(result.ran, 2);
   } finally {
@@ -652,6 +699,283 @@ test('flag ON but no judge work due ⇒ no judge spawn (no_due_drains)', async (
       judgeDeps({ depth: 0, eagerNodes: [] }));
     assert.equal(calls.length, 0, 'no judge work ⇒ no spawn');
     assert.equal(result.skipped, 'no_due_drains');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+// ===========================================================================
+// SELECTABLE BACKEND routing (pluggable-backend task /16)
+// ===========================================================================
+//
+// The judge drain (the only AGENTIC drain) routes through the configured backend:
+// getActiveBackend(overlay).buildInvocation(...) drives the spawn {bin,args,env}, NOT a hardcoded
+// `claude` binary. These tests prove: (c) the spawn comes from the active provider's invocation,
+// (d) a HARD-BLOCK (no available/authed backend) no-ops the judge with skipped:'no_backend', and
+// (e) an api-kind active backend skips cleanly WITHOUT calling its throwing runJudgeLoop stub.
+
+// ---- resolveJudgeBackend: pure resolution paths --------------------------------------
+
+test('resolveJudgeBackend: agentic-cli available+authed ⇒ returns a spawnable invocation', () => {
+  const hd = freshModule();
+  const mb = mockBackendDeps({ id: 'mock-cli', available: true, authed: true });
+  const r = hd.resolveJudgeBackend({}, { addDir: '/ws' }, mb.deps.backendDeps);
+  assert.equal(r.skip, undefined, 'no skip for a ready agentic-cli backend');
+  assert.equal(r.providerId, 'mock-cli');
+  assert.equal(r.invocation.bin, mb.bin, 'invocation.bin comes from the provider');
+  assert.ok(r.invocation.args.includes('--backend-id'), 'invocation argv is the PROVIDER\'s, not a hardcoded claude argv');
+  assert.deepEqual(r.invocation.env, { MOCK_ENV: '1' }, 'invocation.env comes from the provider');
+});
+
+test('resolveJudgeBackend: agentic-cli NOT authed ⇒ skip:no_backend (hard-block)', () => {
+  const hd = freshModule();
+  const mb = mockBackendDeps({ available: true, authed: false });
+  const r = hd.resolveJudgeBackend({}, {}, mb.deps.backendDeps);
+  assert.equal(r.skip, 'no_backend', 'unauthed backend hard-blocks');
+  assert.equal(mb.calls.buildInvocation, 0, 'must NOT build an invocation when hard-blocked');
+});
+
+test('resolveJudgeBackend: agentic-cli NOT available ⇒ skip:no_backend (hard-block)', () => {
+  const hd = freshModule();
+  const mb = mockBackendDeps({ available: false, authed: true });
+  const r = hd.resolveJudgeBackend({}, {}, mb.deps.backendDeps);
+  assert.equal(r.skip, 'no_backend', 'unavailable backend hard-blocks');
+});
+
+test('resolveJudgeBackend: api-kind active backend (authed) ⇒ in-process api resolution, no invocation built', () => {
+  const hd = freshModule();
+  const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: true });
+  const r = hd.resolveJudgeBackend({}, {}, mb.deps.backendDeps);
+  assert.equal(r.skip, undefined, 'an authed api backend does NOT skip — it runs in-process');
+  assert.equal(r.kind, 'api', 'resolution is marked api-kind so the drain calls runJudgeLoop, not spawn');
+  assert.equal(r.providerId, 'mock-api');
+  assert.equal(r.provider, mb.provider, 'carries the api provider for the in-process call');
+  assert.equal(r.invocation, undefined, 'no spawnable invocation is built for an api backend');
+  assert.equal(mb.calls.buildInvocation, 0, 'resolveJudgeBackend builds nothing for api');
+  assert.equal(mb.calls.runJudgeLoop, 0, 'resolveJudgeBackend is pure — it does NOT call runJudgeLoop itself');
+});
+
+test('resolveJudgeBackend: api-kind active backend with NO key ⇒ skip:no_backend (hard-block, not crash)', () => {
+  const hd = freshModule();
+  const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: false });
+  const r = hd.resolveJudgeBackend({}, {}, mb.deps.backendDeps);
+  assert.equal(r.skip, 'no_backend', 'an unauthed api backend hard-blocks like an unusable CLI');
+  assert.equal(mb.calls.runJudgeLoop, 0, 'no in-process call attempted when hard-blocked');
+});
+
+// ---- (c) the judge drain SPAWN is driven by the active provider's invocation ---------
+
+test('flag ON: judge spawn argv is built by getActiveBackend().buildInvocation (mocked provider)', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const mb = mockBackendDeps({ id: 'mock-cli', bin: '/mock/bin/agent' });
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: ['note:a'] }),
+      ...mb.deps,
+    });
+    assert.equal(calls.length, 1, 'one judge spawn');
+    // The spawned bin + argv come from the PROVIDER's buildInvocation, not a hardcoded claude path.
+    assert.equal(calls[0].bin, '/mock/bin/agent', 'spawn bin is the provider-resolved binary');
+    assert.ok(calls[0].args.includes('--backend-id'), 'spawn argv carries the provider marker');
+    assert.equal(calls[0].args[calls[0].args.indexOf('--backend-id') + 1], 'mock-cli', 'argv was built by THIS provider');
+    assert.equal(calls[0].opts.env.MOCK_ENV, '1', 'spawn env comes from the provider invocation');
+    assert.ok(mb.calls.buildInvocation >= 1, 'provider.buildInvocation was invoked for the spawn');
+    assert.equal(result.ran, 1);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+  }
+});
+
+// ---- (d) HARD-BLOCK: no valid backend ⇒ judge no-ops with skipped:no_backend ----------
+
+test('flag ON: judge due but NO valid backend ⇒ no spawn, skipped:no_backend (hard-block, not crash)', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const mb = mockBackendDeps({ available: true, authed: false }); // unauthed ⇒ hard-block
+  const tmpDir = makeCompletedQueueDir(); // learner NOT due; label deps empty below
+  try {
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 5, eagerNodes: ['note:a', 'note:b'] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mb.deps,
+    });
+    assert.equal(calls.length, 0, 'hard-block must spawn nothing');
+    assert.equal(result.skipped, 'no_backend', 'judge hard-block surfaces skipped:no_backend');
+    assert.equal(result.ran, 0);
+    assert.equal(mb.calls.buildInvocation, 0, 'no invocation built when hard-blocked');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+test('flag ON: hard-block judge does NOT suppress a due LABEL drain (label still runs)', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const mb = mockBackendDeps({ available: true, authed: false }); // judge hard-blocks…
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 5, eagerNodes: ['note:a'] }),
+      ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }), // …but label IS due
+      ...mb.deps,
+    });
+    // The judge skip is non-fatal: the label drain still spawns, so skipped is null (a drain ran).
+    assert.equal(calls.length, 1, 'only the label drain spawns (judge hard-blocked)');
+    assert.equal(result.ran, 1);
+    assert.equal(result.skipped, null, 'a drain ran ⇒ skipped is null despite the judge hard-block');
+    assert.equal(result.drains.filter((d) => d.drain === hd.LABEL_DRAIN_KEY).length, 1, 'the label drain ran');
+    assert.equal(result.drains.filter((d) => d.drain === hd.JUDGE_DRAIN_KEY).length, 0, 'no judge drain ran');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+  }
+});
+
+// ---- (e) api-kind active backend ⇒ judge runs IN-PROCESS via runJudgeLoop, NO child process ----
+
+test('flag ON: api-kind active backend ⇒ judge runs IN-PROCESS via runJudgeLoop, NO spawn', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: true });
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 3, eagerNodes: ['note:a', 'note:b'] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mb.deps,
+    });
+    // THE NO-SPAWN GUARANTEE: spawn is never called for the api path. The judge ran IN-PROCESS.
+    assert.equal(calls.length, 0, 'api backend must spawn NO child process (AV-clean path)');
+    // 2 eager + 1 periodic = 3 in-process runJudgeLoop calls, all counted as drains.
+    assert.equal(mb.calls.runJudgeLoop, 3, 'runJudgeLoop drove all 3 judge runs in-process');
+    assert.equal(mb.calls.buildInvocation, 0, 'no spawnable invocation built for an api backend');
+    assert.equal(result.ran, 3, 'in-process judge runs count as drains, same as spawns');
+    assert.equal(result.drains.filter((d) => d.drain === hd.JUDGE_DRAIN_KEY).length, 3);
+    assert.equal(result.skipped, null, 'judge ran ⇒ not skipped');
+    // runJudgeLoop received the daemonUrl + the per-run node (eager) / null (periodic).
+    const nodes = mb.calls.runJudgeLoopArgs.map((a) => a.node || null);
+    assert.ok(mb.calls.runJudgeLoopArgs.every((a) => /^http:\/\//.test(a.daemonUrl)), 'each call carries the daemon URL');
+    assert.ok(nodes.includes('note:a') && nodes.includes('note:b'), 'eager runs are node-scoped');
+    assert.ok(nodes.includes(null), 'one periodic (node-less) run');
+    // governor accounted the 3 in-process runs exactly like spawns; concurrency restored.
+    assert.equal(hd._governor.iterationsUsed, 3, 'three iterations consumed by the in-process judge');
+    assert.equal(hd._governor.concurrentRunning, 0, 'concurrency restored after the in-process runs');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+  }
+});
+
+test('flag ON: api-kind backend with NO key ⇒ judge hard-blocks (skipped:no_backend), no spawn, no in-process call', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: false }); // no key ⇒ hard-block
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 3, eagerNodes: ['note:a'] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mb.deps,
+    });
+    assert.equal(calls.length, 0, 'no spawn (api path never spawns anyway)');
+    assert.equal(mb.calls.runJudgeLoop, 0, 'unauthed api backend must NOT attempt the in-process call');
+    assert.equal(result.skipped, 'no_backend', 'unauthed api backend hard-blocks rather than crashing');
+    assert.equal(result.ran, 0);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+test('flag ON: api runJudgeLoop that THROWS degrades to a clean failure drain (no crash), feeds backoff', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: true, judgeLoopThrows: true });
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: ['note:a'] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mb.deps,
+    });
+    assert.equal(calls.length, 0, 'still no spawn');
+    assert.equal(mb.calls.runJudgeLoop, 1, 'the in-process call was attempted');
+    // A throwing adapter does not crash the pass; the judge run is recorded as a failed drain.
+    assert.equal(result.ran, 1, 'the run is still counted (as a failed drain)');
+    const judge = result.drains.find((d) => d.drain === hd.JUDGE_DRAIN_KEY);
+    assert.ok(judge && judge.exitCode === 1, 'a throwing runJudgeLoop becomes an exitCode:1 drain result');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+test('flag ON: api runJudgeLoop returning a throttle result feeds the backoff governor (recordDrainOutcome)', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  // runJudgeLoop resolves a throttle-shaped failure (stderr carries 429) — the SAME signal a spawned
+  // child would print. recordDrainOutcome must fold it into the backoff window just like the spawn path.
+  const mb = mockBackendDeps({
+    id: 'mock-api', kind: 'api', authed: true,
+    judgeLoopResult: { exitCode: 1, stdout: '', stderr: '429 rate limit / overloaded', timedOut: false, spawnError: null },
+  });
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    assert.equal(hd._governor.backoffUntil, 0, 'no backoff before the run');
+    await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: ['note:a'] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mb.deps,
+    });
+    assert.equal(calls.length, 0, 'no spawn on the api path');
+    assert.ok(hd._governor.backoffUntil > Date.now(), 'an api throttle set the backoff window (governor fed)');
+    assert.equal(hd._governor.consecutiveThrottles, 1, 'one consecutive throttle recorded');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
@@ -946,6 +1270,7 @@ test('flag ON: judge spawns are capped per tick (HEADLESS_DRAIN_MAX_PER_TICK) de
     await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
       ...judgeDeps({ depth: 0, eagerNodes: ['n1', 'n2', 'n3', 'n4', 'n5'] }),
       ...labelDeps({ journal: [], labeledKeys: [] }), // label NOT due
+      ...mockBackendDeps().deps,
     });
     assert.equal(calls.length, 2, 'per-tick cap bounds judge spawns to 2, not the 5 eager nodes');
   } finally {
@@ -973,6 +1298,7 @@ test('flag ON: label iteration is suppressed when the iteration cap is exhausted
     const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
       ...judgeDeps({ depth: 0, eagerNodes: ['note:a'] }),
       ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
+      ...mockBackendDeps().deps,
     });
     assert.equal(calls.length, 1, 'iteration cap bounds total spawns to 1 (judge wins the slot)');
     assert.equal(result.ran, 1);
@@ -1030,7 +1356,7 @@ test('every runDueDrains spawn (judge fan-out) carries windowsHide:true', async 
   const tmpDir = makeCompletedQueueDir();
   try {
     await hd.runDueDrains({ workspace: tmpDir }, noopHttp(),
-      judgeDeps({ depth: 2, eagerNodes: ['note:a', 'note:b'] }));
+      { ...judgeDeps({ depth: 2, eagerNodes: ['note:a', 'note:b'] }), ...mockBackendDeps().deps });
     assert.ok(calls.length >= 1, 'at least one drain should have spawned');
     for (const c of calls) {
       assert.equal(c.opts.windowsHide, true, 'every drain spawn must set windowsHide:true');

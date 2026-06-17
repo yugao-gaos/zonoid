@@ -33,6 +33,27 @@
   .spstatus .dot.err { background: #f85149; }
   .spsave { background: #1f6feb33; border: 1px solid #1f6feb55; color: #79c0ff; border-radius: 6px; padding: 5px 14px; cursor: pointer; font: inherit; font-size: 12px; width: 100%; margin-top: 4px; }
   .spsave:hover { background: #1f6feb55; }
+  /* backend selector (pluggable-backend) — lives in the settings popup */
+  #settingsPopup { max-height: calc(100vh - var(--hdr-h) - 24px); overflow-y: auto; }
+  .bk-list { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+  .bk-prov { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid #30363d; border-radius: 7px; cursor: pointer; background: #0d1117; }
+  .bk-prov:hover { border-color: #3d444d; }
+  .bk-prov.active { border-color: #1f6feb88; background: #1f6feb14; }
+  .bk-prov input { margin: 0; flex-shrink: 0; accent-color: #58a6ff; }
+  .bk-prov .bk-main { flex: 1; min-width: 0; }
+  .bk-prov .bk-name { color: #e6edf3; font-size: 12px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .bk-prov .bk-kind { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: #8b949e; border: 1px solid #30363d; border-radius: 8px; padding: 0 5px; }
+  .bk-prov .bk-detail { font-size: 10px; color: #6e7681; margin-top: 2px; }
+  .bk-badge { font-size: 10px; padding: 0 6px; border-radius: 8px; white-space: nowrap; border: 1px solid #30363d; }
+  .bk-badge.ok { color: #3fb950; border-color: #2ea04355; background: #2ea04314; }
+  .bk-badge.bad { color: #e3b341; border-color: #bb800955; background: #bb800914; }
+  .bk-active-tag { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: #79c0ff; border: 1px solid #1f6feb55; border-radius: 8px; padding: 0 5px; }
+  #bk-avnotice { display: none; margin-top: 10px; padding: 8px 10px; border: 1px solid #bb800955; background: #bb800914; border-radius: 7px; font-size: 11px; line-height: 1.5; color: #f0d77a; }
+  #bk-avnotice.show { display: block; }
+  #bk-avnotice code { background: #00000033; padding: 0 3px; border-radius: 3px; color: #ffd97a; }
+  #bk-avnotice .bk-avtitle { font-weight: 700; display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+  #bk-status { font-size: 11px; margin-top: 6px; min-height: 14px; }
+  #bk-status.ok { color: #3fb950; } #bk-status.err { color: #f85149; }
   .sum span { color: #8b949e; } .sum b { color: #e6edf3; }
   /* hero metrics */
   .hero { display: inline-flex; flex-direction: column; align-items: center; padding: 0 clamp(8px, 1.4vw, 20px); cursor: pointer; border-right: 1px solid #21262d; position: relative; }
@@ -360,6 +381,20 @@
     <input class="spinput" id="sp-interval" type="number" min="1" max="60" placeholder="3" />
   </div>
   <button class="spsave" onclick="saveSettings()">Save</button>
+  <div class="sprow" style="margin-top:14px;border-top:1px solid #21262d;padding-top:14px">
+    <div class="splabel">LLM backend</div>
+    <div class="spdesc">Which engine drives background judging/learning. Claude is the default.</div>
+    <div class="bk-list" id="bk-list"><div class="empty" style="font-size:11px">loading…</div></div>
+    <div class="splabel" style="margin-top:12px">Model (optional)</div>
+    <input class="spinput" id="bk-model" type="text" placeholder="default for provider" />
+    <div class="spdesc">Leave blank to use the provider's default model.</div>
+    <div id="bk-avnotice">
+      <div class="bk-avtitle">⚠ Antivirus note</div>
+      <div id="bk-avnotice-body"></div>
+    </div>
+    <button class="spsave" style="margin-top:10px" onclick="saveBackend()">Save backend</button>
+    <div id="bk-status"></div>
+  </div>
 </div>
 <div id="guidance"></div>
 <div id="statusDock">
@@ -5343,6 +5378,7 @@ function toggleSettingsPopup(){
     document.getElementById('sp-url').value=saved.daemonUrl||'';
     document.getElementById('sp-interval').value=saved.refreshInterval||'';
     checkSettingsConn();
+    loadBackendConfig();
   }
 }
 async function checkSettingsConn(){
@@ -5360,6 +5396,101 @@ function saveSettings(){
   localStorage.setItem('zonoid-settings',JSON.stringify(s));
   document.getElementById('settingsPopup').classList.remove('show');
   if(interval>0) clearInterval(window._pollInterval), window._pollInterval=setInterval(loadData, interval*1000);
+}
+// ===== Backend selector (pluggable-backend) ==========================================
+// GET /config/backend → render the provider list with per-provider readiness; POST on save.
+// The three pure helpers below are byte-identical to lib/backend-ui.js (the tested source of
+// truth) — the browser can't require() a Node module and this codebase has no bundler, so the
+// tiny predicate/mapper is duplicated inline. Keep the two copies in sync.
+const BK_AGENTIC_CLI_KIND='agentic-cli';
+function bkShouldShowAvNotice(kind){ return kind===BK_AGENTIC_CLI_KIND; }
+function bkAvNoticeText(){
+  return 'This backend runs your local CLI by spawning hidden background processes (e.g. `claude -p`). '
+    +'Some antivirus software (e.g. Kaspersky) flags or intercepts hidden child processes as '
+    +'suspicious, which can stall background judging/learning. If you hit this: add an antivirus '
+    +'exclusion for your CLI binary and Node, or switch to the API backend (runs in-process, no '
+    +'child process — not subject to AV interception).';
+}
+function bkProviderReadiness(provider){
+  const p=provider||{}; const authed=!!p.isAuthed;
+  if(p.kind===BK_AGENTIC_CLI_KIND){
+    const installed=p.isAvailable===true;
+    if(!installed) return {label:'not installed',ok:false,detail:'CLI binary not found on this host'};
+    if(!authed)    return {label:'not authed',ok:false,detail:'installed, but no credentials detected'};
+    return {label:'ready',ok:true,detail:'installed and authed'};
+  }
+  if(!authed) return {label:'not authed',ok:false,detail:'hosted, no install — but no API key detected'};
+  return {label:'ready',ok:true,detail:'hosted, no install — API key detected'};
+}
+let _bkData=null;      // last GET /config/backend payload
+let _bkSelected=null;  // provider id currently selected in the UI (may differ from active until saved)
+async function loadBackendConfig(){
+  const list=document.getElementById('bk-list');
+  const status=document.getElementById('bk-status'); status.textContent=''; status.className='';
+  let d;
+  try{ d=await(await dfetch('/config/backend')).json(); }
+  catch{ list.innerHTML='<div class="empty" style="font-size:11px">backend config unreachable</div>'; return; }
+  if(!d||!d.ok||!Array.isArray(d.providers)){ list.innerHTML='<div class="empty" style="font-size:11px">no backend providers</div>'; return; }
+  _bkData=d;
+  _bkSelected=(d.active&&d.active.provider)||null;
+  document.getElementById('bk-model').value=(d.active&&d.active.model)||'';
+  renderBackendPanel();
+}
+function renderBackendPanel(){
+  const d=_bkData; if(!d) return;
+  const list=document.getElementById('bk-list');
+  const activeId=d.active&&d.active.provider;
+  list.innerHTML=d.providers.map(prov=>{
+    const r=bkProviderReadiness(prov);
+    const isSel=prov.id===_bkSelected;
+    const isActive=prov.id===activeId;
+    return `<label class="bk-prov${isSel?' active':''}">`
+      +`<input type="radio" name="bk-prov" value="${esc(prov.id)}" ${isSel?'checked':''} onchange="selectBackendProvider('${esc(prov.id)}')" />`
+      +`<span class="bk-main"><span class="bk-name">${esc(prov.displayName||prov.id)}`
+      +`<span class="bk-kind">${esc(prov.kind||'?')}</span>`
+      +(isActive?'<span class="bk-active-tag">active</span>':'')
+      +`</span><span class="bk-detail">${esc(r.detail)}</span></span>`
+      +`<span class="bk-badge ${r.ok?'ok':'bad'}">${esc(r.label)}</span>`
+      +`</label>`;
+  }).join('');
+  updateAvNotice();
+}
+function selectBackendProvider(id){ _bkSelected=id; renderBackendPanel(); }
+// Show/hide the AV notice based on the SELECTED provider's kind (agentic-cli ⇒ show, api ⇒ hide).
+function updateAvNotice(){
+  const box=document.getElementById('bk-avnotice');
+  const prov=_bkData&&_bkData.providers.find(p=>p.id===_bkSelected);
+  const kind=prov&&prov.kind;
+  if(bkShouldShowAvNotice(kind)){
+    // Render `code` spans for the inline command/binary names; rest is escaped text.
+    document.getElementById('bk-avnotice-body').innerHTML=
+      esc(bkAvNoticeText()).replace(/`([^`]+)`/g,'<code>$1</code>');
+    box.classList.add('show');
+  } else {
+    box.classList.remove('show');
+  }
+}
+async function saveBackend(){
+  const status=document.getElementById('bk-status');
+  const provider=_bkSelected||'';
+  const model=document.getElementById('bk-model').value.trim();
+  const body={provider}; if(model) body.model=model;
+  status.className=''; status.textContent='saving…';
+  let res,d;
+  try{
+    res=await dfetch('/config/backend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    d=await res.json();
+  }catch{ status.className='err'; status.textContent='save failed (unreachable)'; return; }
+  if(!res.ok||!d||!d.ok){
+    status.className='err'; status.textContent=(d&&d.error)?d.error:('save failed ('+res.status+')'); return;
+  }
+  // Reflect the server-resolved active backend: re-fetch first (refreshes per-provider readiness +
+  // the active tag), THEN stamp the success line (loadBackendConfig clears the status, so it must
+  // run before we write the confirmation).
+  const active=d.active||{};
+  await loadBackendConfig();
+  status.className='ok';
+  status.textContent='saved — active: '+(active.provider||'?')+(active.model?(' / '+active.model):'');
 }
 // Cost-flow popup: fetch /costflow on open (it walks every transcript — too heavy for tick()).
 async function toggleCostPopup(){
