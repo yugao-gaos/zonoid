@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/judge-fix-shell-write-gate-cross-shell",
+  "agent_id": "judge-shell-write-gate-cross-shell",
+  "session_id": "judge-shell-write-gate-cross-shell",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-judge-fix-shell-write-gate-cross-shell",
+  "status": "claimed",
+  "claimed_at": "2026-06-17T18:27:48.151Z",
+  "lease_until": "2026-06-17T19:27:48.151Z"
+}
