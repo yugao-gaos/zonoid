@@ -1814,8 +1814,10 @@ function buildGraph(ws) {
   }
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
-  for (const n of Object.values(ovWs.note_nodes || {})) {
-    tasks.push({ id: 'note:' + n.id, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptNoteCtxDeps['note:' + n.id] || [], note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null,
+  for (const [noteId, n] of Object.entries(ovWs.note_nodes || {})) {
+    const bareNoteId = n.id || noteId;
+    const noteKey = 'note:' + bareNoteId;
+    tasks.push({ id: noteKey, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptNoteCtxDeps[noteKey] || [], note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null,
       // Temporal/state-change fields (null on pre-temporal notes — back-compat): validFrom/validTo
       // bound when the fact was true; supersedes/supersededBy chain it to the note it replaced / was
       // replaced by. The dashboard reads these for the superseded indicator; /search for as-of.
@@ -1826,8 +1828,8 @@ function buildGraph(ws) {
       // pending_dup: this note was admitted PROVISIONAL on a write-time dup-guard fire and is awaiting
       // the dup-judge. While set it is RETRIEVAL-INVISIBLE (the /search recall path excludes it). Derived
       // from the local overlay.pendingDup map (round-trips via save's LOCAL_FIELDS) — NOT a note_node field.
-      pending_dup: !!(ovWs.pendingDup && ovWs.pendingDup['note:' + n.id]),
-      dup_match: (ovWs.pendingDup && ovWs.pendingDup['note:' + n.id] && ovWs.pendingDup['note:' + n.id].match) || null,
+      pending_dup: !!(ovWs.pendingDup && ovWs.pendingDup[noteKey]),
+      dup_match: (ovWs.pendingDup && ovWs.pendingDup[noteKey] && ovWs.pendingDup[noteKey].match) || null,
       category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [] });
   }
   // A node was first seen THIS build ⇒ bump the graph-change epoch so the edge-judge re-pulls notes
@@ -2121,12 +2123,11 @@ const handler = async (req, res) => {
       return res.end(JSON.stringify({ ok: false, phase: bootState.phase, step: bootState.step, progress: bootState.progress }));
     }
 
-    // Auth gate: /mcp + destructive/write endpoints require the token (when one is configured).
-    // Default-deny for writes, workspace-targeting, and agent/file-read endpoints (review H1).
+    // Auth gate: when a token is configured, all mutating routes require it.
     // Public reads of the CURRENT workspace + the dashboard stay open; any ?workspace= read is gated too.
-    const protectedPath = p === '/mcp' || p === '/reset' || p.startsWith('/overlay/') || p === '/loop/start' || p === '/loop/stop'
-      || p === '/workspace' || p === '/usage/reconcile' || p === '/usage/dispatcher-edit' || p === '/peek' || p.startsWith('/config') || p === '/route' || p.startsWith('/agent/') || p.startsWith('/git/')
-      || p.startsWith('/guidance') || p === '/supersede' || p === '/judge/verdict' || p === '/analytics/tool-call' || p === '/sync';
+    const mutatingRequest = !['GET', 'HEAD', 'OPTIONS'].includes(m);
+    const sensitiveRead = p === '/peek' || p.startsWith('/agent/') || p.startsWith('/guidance') || p.startsWith('/git/');
+    const protectedPath = p === '/mcp' || mutatingRequest || sensitiveRead;
     if ((protectedPath || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 
     // Route modules handle all extracted endpoint groups.

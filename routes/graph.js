@@ -459,7 +459,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // pollute context before they have been independently corroborated. DAG-tier notes always
     // bypass this (they are injected from explicit context_deps, not from RAG). Knowledge items
     // (kind==='knowledge') are task-attached and are also exempt — only free KB notes are gated.
-    {
+    if (task_key) {
       const _corrStats = recallJournal.computeNoteStats(ws);
       const _corrMin = recallJournal.CORROBORATION_MIN;
       for (let _ci = ragResults.length - 1; _ci >= 0; _ci--) {

@@ -82,7 +82,9 @@ function withEnv(overrides) {
     'ZONOID_CLAUDE_BIN', 'CLAUDE_BIN',
     // Codex/Cursor agentic-cli provider env (bin overrides + auth keys).
     'CODEX_BIN', 'CODEX_API_KEY', 'OPENAI_API_KEY', 'CODEX_HOME',
-    'CURSOR_BIN', 'CURSOR_API_KEY', 'CURSOR_AUTH_TOKEN'];
+    'CURSOR_BIN', 'CURSOR_API_KEY', 'CURSOR_AUTH_TOKEN',
+    // Availability tests must not depend on whether the runner has codex/cursor-agent installed.
+    'PATH'];
   const saved = {};
   for (const k of keys) saved[k] = process.env[k];
   for (const k of keys) delete process.env[k];
