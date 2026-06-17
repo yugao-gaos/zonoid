@@ -85,12 +85,54 @@ function respCachePut(ws, key, payload) {
   respCache.set(key, { ts: Date.now(), payload, stamp: overlayStamp(ws) });
   return payload;
 }
+
+// --- per-workspace overlay cache (P3: the ONLY overlay store — no global default) ------------
+// Every workspace gets a cached, write-coalesced overlay via overlayFor(ws), keyed by absolute
+// path. Separate Map entries per workspace ⇒ concurrent writes to different workspaces mutate
+// independent objects and never clobber each other. After P3 there is no special "current"
+// workspace: the Map IS the authoritative in-memory store for ALL workspaces (the global
+// state.overlay alias is gone).
+//
+// CACHE COHERENCY: cache entries are mtime-stamped on the overlay file (reusing overlayStamp). A
+// lookup that finds the file mtime CHANGED reloads + recaches — so an out-of-band write (another
+// process / a test calling overlayStore.save directly) is picked up on the next lookup. This is the
+// SAME staleness guard already used by respCache. After the daemon's own write through a cached
+// overlay, callers should call refreshOverlayStamp(ws) so the just-saved content isn't needlessly
+// reloaded next lookup (write-coalescing); targetOverlay's save() does this. A missed refresh only
+// costs a redundant reload of identical content — never incorrect.
+const overlayCache = new Map();   // ws -> { ov, stamp }
+// Test-only fallback holder. Production code NEVER reads these — every route/sweep resolves an
+// explicit workspace and 400s when it can't. But legacy unit tests drive decideOne with a bare ctx
+// (no ctx.ws) after calling __setOverlayForTest(o) / __setWorkspaceForTest(w); those hooks record
+// here AND seed the Map (so overlayFor(testWs) === the test overlay), and decideOne's bare-ctx path
+// falls back to them. This is NOT a daemon-global default — it is inert outside the test hooks.
+let __testWs = null;
+let __testOv = null;
+function overlayFor(ws) {
+  // Test-only alias: when a unit test pinned (__testWs, __testOv) via the __*ForTest hooks, return
+  // that exact in-memory overlay for the pinned ws (mirrors how state.overlay used to alias the
+  // current workspace) so the test's authoritative object is honored across cache clears. __testWs
+  // is null in production, so this branch is inert outside tests.
+  if (__testWs !== null && ws === __testWs && __testOv) return __testOv;
+  const cached = overlayCache.get(ws);
+  if (cached && cached.stamp === overlayStamp(ws)) return cached.ov;
+  const ov = overlayStore.load(ws);
+  overlayCache.set(ws, { ov, stamp: overlayStamp(ws) });
+  return ov;
+}
+// Re-stamp a cached overlay AFTER the daemon saved through it, so the next overlayFor lookup keeps
+// the in-memory (coalesced) object instead of treating the daemon's own mtime bump as an
+// out-of-band change and reloading. Idempotent; no-op when the ws isn't cached.
+function refreshOverlayStamp(ws) {
+  const cached = overlayCache.get(ws);
+  if (cached) cached.stamp = overlayStamp(ws);
+}
 function aggregateCached(ws) {
   const now = Date.now();
   if (cache.agg.has(ws) && now - (cache.aggAt.get(ws) || 0) < AGG_TTL) return cache.agg.get(ws);
   // Pass the overlay's terminal-status snapshots so tasks whose native files were garbage-
   // collected by the cleanupPeriodDays retention sweep still appear in the aggregate.
-  const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+  const ov = overlayFor(ws);
   let v = claudeHarness.tasks.aggregateWorkspace(ws, ov.snapshots);
   // Union in file-drop stub tasks (designated-folder minting, '<harness>/<id>' keys — see
   // lib/filedrop-tasks.js). Same union point native tasks enter through, so stub tasks flow
@@ -105,6 +147,10 @@ function aggregateCached(ws) {
   cache.agg.set(ws, v); cache.aggAt.set(ws, now);
   return v;
 }
+
+// (P3) The Phase-1 workspace-fallback observability seam (warnWorkspaceFallback) has been REMOVED:
+// it instrumented the silent fall-through to the daemon-global pointer, and that pointer no longer
+// exists — every seam that used to fall through now either receives an explicit workspace or 400s.
 
 // Status write-through router: file-drop stub keys update the stub file's own `status` field
 // (atomic rewrite — filedrop.writeStatus returns false when no stub exists for the key, which
@@ -131,10 +177,10 @@ function writeTaskStatus(ws, key, status) {
 //   isUnverifiedEdge() in judge.js requires kind==='context' && judged===false — blocking edges
 //   are NEVER queued for re-adjudication regardless of any other field. addEdge dedupes so
 //   re-adoption of the same key is a no-op at the edge layer.
-function adoptNativeTask(ov, key) {
+function adoptNativeTask(ov, key, ws) {
   if (ov.snapshots && ov.snapshots[key]) return false;
   const k = String(key);
-  const fd = filedrop.readTask(state.workspace, k);
+  const fd = filedrop.readTask(ws, k);
   if (fd) {
     const parts = filedrop.splitKey(k);
     const deps = filedrop.normalizeDeps(parts ? parts.harness : '', fd.blockedBy);
@@ -172,9 +218,9 @@ function adoptNativeTask(ov, key) {
 // Terminal-status snapshot — back-compat ONLY for tasks seen before adopt-on-first-sight (no
 // adoption snapshot yet). Adopted tasks update status on the existing snapshot only.
 // `nativeStatus` (optional): the status the write-through is about to stamp on the native file.
-function snapshotNative(ov, key, nativeStatus) {
+function snapshotNative(ov, key, nativeStatus, ws) {
   const k = String(key);
-  const t = readNativeTask(state.workspace, k);
+  const t = readNativeTask(ws, k);
   if (!t) return;
   const existing = ov.snapshots && ov.snapshots[k];
   if (existing) {
@@ -217,10 +263,14 @@ const CATCHALL_ESCALATE_TOKENS = 1e6;
 // existing tokenBudget — no separate knob.) Defaults live in lib/optimize.js.
 const OPTIMIZE_DEFAULTS = () => ({ ...optimize.DEFAULTS });
 
-let state = { workspace: null, overlay: overlayStore.EMPTY(), routes: [], agents: {}, sessions: {}, graphStore: null };
-// Persist + restore the workspace, so a daemon respawn (e.g. after a crash/kill) keeps serving
-// the same project instead of coming back with no workspace.
-const WS_FILE = path.join(BASE, 'workspace');
+// P3: the daemon-global workspace/overlay default is GONE. There is no `state.workspace` /
+// `state.overlay` anymore — every op carries an explicit workspace (POST body `workspace` or
+// GET ?workspace=), resolved per-request, and a missing one is a hard 400. `state` now holds only
+// the genuinely process-global registries: per-session bindings, agent records, routes.
+let state = { routes: [], agents: {}, sessions: {} };
+// The workspace REGISTRY (not a global default pointer): every bind / POST /workspace appends the
+// path here so the maintenance sweeps + loop tick (registeredWorkspaces()) and the dashboard
+// switcher know which workspaces exist. This is NOT the removed global-default pointer.
 const WORKSPACES_FILE = path.join(BASE, 'workspaces.json');
 // One-time migration for the edge-judge rework: tag every BLIND note-provider similarity edge
 // (kind:context, from a note node, written by the old autowireNoteProvider pass) as UNVERIFIED
@@ -232,6 +282,24 @@ function migrateBlindEdges(workspace, overlay) {
   const tagged = judge.tagBlindEdges(overlay);
   if (tagged > 0) { try { overlayStore.save(workspace, overlay); } catch { /* best effort */ } }
   return tagged;
+}
+
+// The REAL set of workspaces the daemon knows about — the registry persisted by setWorkspace
+// (every bind / POST /workspace appends to workspaces.json). This is the authoritative enumeration
+// the maintenance sweeps + loop tick iterate over, REPLACING reliance on the single daemon-global
+// state.workspace pointer (Phase 2b of deprecating the global default). We UNION in any active-loop
+// workspaces defensively (a loop pinned to a ws that somehow never hit setWorkspace still gets
+// swept) — but the registry, not state.workspace, is the source of truth. Pure read; best-effort
+// (a missing/garbage registry yields the active-loop set alone, never throws).
+function registeredWorkspaces() {
+  const set = new Set();
+  try {
+    const known = JSON.parse(fs.readFileSync(WORKSPACES_FILE, 'utf8'));
+    if (Array.isArray(known)) for (const p of known) { if (p) set.add(p); }
+  } catch { /* no registry yet / unreadable — fall through to active-loop set */ }
+  // Defensive union: a loop pinned to a workspace that isn't (yet) in the registry still needs sweeping.
+  for (const L of loops.values()) { if (L.active && L.workspace) set.add(L.workspace); }
+  return set;
 }
 
 // Boot phase tracker — set to 'loading' immediately; advanced through real init milestones;
@@ -333,19 +401,21 @@ function restoreLoops() {
 // report live progress while the synchronous per-phase loads run.
 const yieldLoop = () => new Promise((r) => setImmediate(r));
 async function loadState() {
-  // Phase 1: workspace + overlay restore
+  // Phase 1: workspace registry warm-up. P3 removed the daemon-global default pointer, so there is
+  // NO single workspace to restore on boot. Instead we lazily warm every REGISTERED workspace's
+  // overlay into the per-workspace cache (and run the one-time blind-edge migration on each), so the
+  // maintenance sweeps / loop tick have a hot overlay without a global. Best-effort per workspace —
+  // a missing/garbage registry simply warms nothing.
   advanceBoot('workspace');
   await yieldLoop();
-  try {
-    const w = fs.readFileSync(WS_FILE, 'utf8').trim();
-    if (w) {
-      state.workspace = w;
-      state.overlay = overlayStore.load(w);
-      migrateBlindEdges(w, state.overlay);
-      state.graphStore = graphStore.open(path.join(state.workspace, '.graph'));
-      graphStore.initGitAttributes(state.workspace);
-    }
-  } catch { /* none yet */ }
+  for (const ws of registeredWorkspaces()) {
+    try {
+      const ov = overlayFor(ws);
+      migrateBlindEdges(ws, ov);
+      graphStore.open(path.join(ws, '.graph'));
+      graphStore.initGitAttributes(ws);
+    } catch { /* skip an unreadable/relocated workspace */ }
+  }
 
   // Phase 2: agent records restore
   advanceBoot('agents');
@@ -359,17 +429,21 @@ async function loadState() {
 
   // Fully operational
   advanceBoot('ready');
-  if (state.workspace && state.overlay) {
-    try {
-      const followups = require('./lib/followups');
-      const ack = followups.acknowledgeDaemonRestartOnBoot(state.overlay, { bootedAt: BOOTED_AT });
-      if (ack) {
-        overlayStore.save(state.workspace, state.overlay);
-        notifyChange();
-        process.stdout.write(`orchestrator: acknowledged restart bucket ${ack.key}\n`);
-      }
-    } catch (e) { process.stderr.write(`restart-bucket boot ack failed: ${e.message}\n`); }
-  }
+  // Daemon-restart acknowledgement, per registered workspace (no global current workspace anymore).
+  try {
+    const followups = require('./lib/followups');
+    for (const ws of registeredWorkspaces()) {
+      try {
+        const ov = overlayFor(ws);
+        const ack = followups.acknowledgeDaemonRestartOnBoot(ov, { bootedAt: BOOTED_AT });
+        if (ack) {
+          overlayStore.save(ws, ov); refreshOverlayStamp(ws);
+          notifyChange();
+          process.stdout.write(`orchestrator: acknowledged restart bucket ${ack.key} (${ws})\n`);
+        }
+      } catch (e) { process.stderr.write(`restart-bucket boot ack failed (${ws}): ${e.message}\n`); }
+    }
+  } catch (e) { process.stderr.write(`restart-bucket boot ack failed: ${e.message}\n`); }
   process.stdout.write(`orchestrator boot complete (phase:ready)\n`);
 }
 function saveLoops() { try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(LOOPS_FILE, JSON.stringify(Object.fromEntries(loops))); } catch { /* best effort */ } }
@@ -401,7 +475,7 @@ function touchAgent(agentId, patch = {}) {
     task: patch.task !== undefined ? patch.task : (patch.task_key !== undefined ? patch.task_key : (prev.task ?? null)),
     session: patch.session !== undefined ? patch.session : (prev.session ?? null),
     subagent_session: subagentSession,
-    workspace: patch.workspace !== undefined ? patch.workspace : (prev.workspace ?? state.workspace ?? null),
+    workspace: patch.workspace !== undefined ? patch.workspace : (prev.workspace ?? null),
     startedAt: prev.startedAt || ts,
     lastSeen: ts,
     endedAt,
@@ -413,24 +487,27 @@ function touchAgent(agentId, patch = {}) {
   saveAgents();
 }
 
-// Resolve the TARGET git repo for a task's git op. Precedence (back-compat default = workspace):
-//   explicit (request body repo_path) > task's overlay repo field > daemon workspace.
-// Lets the loop branch/merge/measure on a repo distinct from the daemon's own workspace.
-function resolveRepo(key, explicit, ov = state.overlay, ws = state.workspace) {
-  return explicit || (key && ov.repos && ov.repos[key]) || ws;
+// Resolve the TARGET git repo for a task's git op. Precedence:
+//   explicit (request body repo_path) > task's overlay repo field > the resolved workspace `ws`.
+// Lets the loop branch/merge/measure on a repo distinct from the workspace. `ws` is the
+// per-request resolved workspace (no global default — callers pass the resolved value).
+function resolveRepo(key, explicit, ov, ws) {
+  return explicit || (key && ov && ov.repos && ov.repos[key]) || ws;
 }
 
-// Per-request workspace targeting for graph-MUTATING routes (the workspace-gremlin fix): a write
-// from session A must land in A's pinned workspace even when the daemon-global state.workspace was
-// last flipped by session B's SessionStart hook. Resolves the target from the request body's
-// `workspace` (or ?workspace= query); absent => state.workspace (back-compat fallback). When the
-// target IS the current workspace we hand back state.overlay itself so the in-memory state stays
-// coherent (mirrors makeResolver's loadWs / the read routes' `ov[ws]` pattern); otherwise we load
-// that workspace's overlay fresh, mutate it, and save() persists to the RESOLVED workspace.
+// Per-request workspace targeting for graph routes. P3: there is NO daemon-global default — the
+// target MUST come from the request body's `workspace` or the ?workspace= query. When neither is
+// supplied, `ws` is null and the route MUST 400 (`if (!T.ws) return 400 {error:"workspace required"}`)
+// rather than defaulting. The overlay is the per-workspace cache entry (overlayFor); save() persists
+// to the RESOLVED workspace and re-stamps the cache so the daemon's own write doesn't look
+// out-of-band on the next overlayFor (preserves write-coalescing). With a null ws, ov is the EMPTY
+// overlay and save() is a no-op — the route should have 400'd before touching it.
 function targetOverlay(b, u) {
-  const ws = (b && b.workspace) || (u && u.searchParams.get('workspace')) || state.workspace;
-  const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
-  return { ws, ov, save: () => overlayStore.save(ws, ov) };
+  const explicit = (b && b.workspace) || (u && u.searchParams.get('workspace')) || null;
+  if (!explicit) return { ws: null, ov: overlayStore.EMPTY(), save: () => {} };
+  const ws = explicit;
+  const ov = overlayFor(ws);
+  return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws); } };
 }
 
 // Reject-unknown-key guard: returns true if the key resolves to an EXISTING node in the
@@ -483,14 +560,14 @@ function validateBenchmark(b) {
 // --- agent liveness: never leave a phantom in_progress claim ---------------------------------
 // releaseClaim clears a task's status OVERRIDE (not a terminal state) so it re-derives to
 // ready/not_ready, recording why. Returns true if it actually released an in_progress claim.
-// `ov` = the overlay holding the claim (defaults to the current workspace's — callers targeting
-// another workspace pass that workspace's overlay; the native write-through is workspace-agnostic).
+// `ov` = the overlay holding the claim (REQUIRED — P3 removed the daemon-global default; callers
+// pass the target workspace's overlay; the native write-through is workspace-agnostic).
 // Continuity for the next claimer rides on `ov.notes[key]` (the reason), surfaced via
 // get_task_detail → task.note. Optional `ctx` = { agentId, mins, tokenUsage } drives cost-log
 // accounting: when provided, the release event (with any token counts) is appended to the cost log.
 // `ws` = the workspace `ov` belongs to — needed to route the status write-through for file-drop
-// stub keys (the stub folders are per-workspace); callers passing a non-current `ov` pass its ws.
-function releaseClaim(key, reason, ov = state.overlay, ctx = null, ws = state.workspace) {
+// stub keys (the stub folders are per-workspace).
+function releaseClaim(key, reason, ov, ctx = null, ws) {
   if (ov.status[key] !== 'in_progress') return false;
   delete ov.status[key];
   ov.notes[key] = String(reason).slice(0, 280);
@@ -613,7 +690,7 @@ function staleSnapshotClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
   return out;
 }
 
-function releaseSnapshotClaim(key, reason, ov = state.overlay, ctx = null, ws = state.workspace) {
+function releaseSnapshotClaim(key, reason, ov, ctx = null, ws) {
   const snap = ov.snapshots && ov.snapshots[key];
   if (!snap || snap.status !== 'in_progress') return false;
   overlayStore.setSnapshot(ov, key, { ...snap, status: 'pending' });
@@ -659,7 +736,7 @@ function staleNativeClaimKeys(overlay, agents, tasks, nowMs, bootMs = BOOT_MS) {
   return out;
 }
 
-function releaseNativeClaim(key, reason, ov = state.overlay, ctx = null, ws = state.workspace) {
+function releaseNativeClaim(key, reason, ov, ctx = null, ws) {
   const wrote = writeTaskStatus(ws, key, 'pending');
   const snap = ov.snapshots && ov.snapshots[key];
   if (snap && snap.status === 'in_progress') {
@@ -689,7 +766,7 @@ function releaseNativeClaim(key, reason, ov = state.overlay, ctx = null, ws = st
   return true;
 }
 
-function localInProgressCount(tasks, ov = state.overlay, agents = state.agents, nowMs = Date.now(), bootMs = BOOT_MS) {
+function localInProgressCount(tasks, ov, agents = state.agents, nowMs = Date.now(), bootMs = BOOT_MS) {
   const mins = ov.config.stale_minutes ?? 10;
   let count = 0;
   for (const t of tasks || []) {
@@ -702,13 +779,12 @@ function localInProgressCount(tasks, ov = state.overlay, agents = state.agents, 
 }
 // Sweep abandoned claims: release every staleClaimKeys() orphan back to ready. Authoritative
 // liveness — survives restart (overlay is persisted) and needs no stop hook. Returns true if any.
-// Parameterized on (ws, ov) so the sweep operates on the REQUESTED workspace's overlay (buildGraph
-// passes its target — claims in a workspace the daemon-global state isn't pinned to still release);
-// defaults = old behavior.
-function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
+// Parameterized on (ws, ov) — REQUIRED (no global default): the sweep operates on the given
+// workspace's overlay (buildGraph / the loop tick / the periodic sweep all pass an explicit target).
+function sweepStaleClaims(ws, ov) {
   let dirty = false;
   let agentsDirty = false;
-  const stWs = ws === state.workspace ? state : { ...state, overlay: ov };
+  const stWs = { ...state, overlay: ov };
   for (const { key, agentId, mins } of staleClaimKeys(ov, state.agents, Date.now())) {
     // Snapshot token usage BEFORE clearing the claim so we can finalize it in the cost log
     // and include it in the continuity note for the next agent.
@@ -741,7 +817,7 @@ function sweepStaleClaims(ws = state.workspace, ov = state.overlay) {
 function sweepStaleNativeClaims(ws, ov, tasks) {
   let dirty = false;
   let agentsDirty = false;
-  const stWs = ws === state.workspace ? state : { ...state, overlay: ov };
+  const stWs = { ...state, overlay: ov };
   for (const { key, agentId, mins } of staleNativeClaimKeys(ov, state.agents, tasks, Date.now())) {
     const native = (tasks || []).find((t) => t.key === key);
     const tp = taskTranscript(key, native && native.session, true, stWs);
@@ -757,7 +833,7 @@ function sweepStaleNativeClaims(ws, ov, tasks) {
 }
 // Auto-retry failed tasks: flip ALL failed tasks back to ready with a note about the prior attempt.
 // Mirrors sweepStaleClaims in structure. Returns true if any task was retried.
-function sweepFailedTasks(ws = state.workspace, ov = state.overlay) {
+function sweepFailedTasks(ws, ov) {
   let dirty = false;
   const g = buildGraph(ws);
   for (const t of g.tasks) {
@@ -800,7 +876,7 @@ function staleVerdictKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
 // Reset stale verdict-pending hand-offs back to pending so the loop re-dispatches them.
 // The agent that picks them up can read the codebase and task description to determine current
 // state — no human escalation needed. Mirrors sweepStaleClaims in structure.
-function sweepStaleVerdicts(ws = state.workspace, ov = state.overlay) {
+function sweepStaleVerdicts(ws, ov) {
   const stale = staleVerdictKeys(ov, state.agents, Date.now());
   if (!stale.length) return false;
   let dirty = false;
@@ -847,7 +923,7 @@ function staleGuidanceReason(ov, g) {
 // triggering note superseded) — so the loop is not left paused on a question the world already
 // answered. Mirrors sweepStaleVerdicts in structure. Idempotent (resolved items are skipped). Only
 // blocking items are swept; 'review' housekeeping rows have their own settle path.
-function sweepStaleGuidance(ws = state.workspace, ov = state.overlay) {
+function sweepStaleGuidance(ws, ov) {
   if (!Array.isArray(ov.guidance)) return false;
   let dirty = false;
   for (const g of ov.guidance) {
@@ -864,7 +940,11 @@ function sweepStaleGuidance(ws = state.workspace, ov = state.overlay) {
 
 // Sweep the agent registry: mark 'running' entries as 'dead' when not vouched live.
 function sweepStaleAgents() {
-  const mins = state.overlay?.config?.stale_minutes ?? 10;
+  // Agent liveness is workspace-AGNOSTIC (an agent may serve tasks across workspaces), and P3
+  // removed the daemon-global overlay that this used to read stale_minutes from. Use the default
+  // (10m) — per-workspace stale_minutes tuning applies to claim/loop sweeps, not the global agent sweep.
+  const STALE_MINUTES_DEFAULT = 10;
+  const mins = STALE_MINUTES_DEFAULT;
   const now = Date.now();
   for (const [id, a] of Object.entries(state.agents)) {
     if (!a || a.state !== 'running') continue;
@@ -878,25 +958,29 @@ function sweepStaleAgents() {
 // live iff it has a RUNNING agent, OR an in_progress claim that changed within stale_minutes. A
 // session with neither is dead (closed conversation / killed driver). Empty session ⇒ treat as live
 // (a manually-started loop with no bound conversation isn't a zombie by this signal alone).
-function sessionIsLive(session) {
+// `ov` (the loop's PINNED workspace overlay) + `mins` are passed by the caller (sweepStaleLoops);
+// P3 removed the daemon-global overlay this used to read claims/config from. The agent scan is
+// workspace-agnostic (state.agents is global); the claim scan reads the pinned overlay's status.
+function sessionIsLive(session, ov, mins = 10) {
   if (!session) return true;
   // A running agent in this session, OR a recently-touched in_progress claim owned by an agent in
   // this session, both prove the conversation is still driving work. Same vouchedLive trust basis
   // as the claim sweep — a restored-from-disk 'running' record must not keep a dead session's
   // zombie loop alive forever after a daemon restart.
-  const mins = state.overlay.config.stale_minutes ?? 10;
   const cutoff = Date.now() - mins * 60000;
   for (const a of Object.values(state.agents)) {
     if (!a || a.session !== session) continue;
     if (vouchedLive(a, mins, Date.now(), BOOT_MS)) return true;
   }
-  for (const [key, st] of Object.entries(state.overlay.status)) {
-    if (st !== 'in_progress') continue;
-    const ts = state.overlay.timestamps[key];
-    if (!ts || Date.parse(ts.lastChanged) <= cutoff) continue;
-    const agentId = state.overlay.assignee[key];
-    const agent = agentId ? state.agents[agentId] : null;
-    if (agent && agent.session === session) return true;
+  if (ov) {
+    for (const [key, st] of Object.entries(ov.status)) {
+      if (st !== 'in_progress') continue;
+      const ts = ov.timestamps[key];
+      if (!ts || Date.parse(ts.lastChanged) <= cutoff) continue;
+      const agentId = ov.assignee[key];
+      const agent = agentId ? state.agents[agentId] : null;
+      if (agent && agent.session === session) return true;
+    }
   }
   return false;
 }
@@ -910,22 +994,24 @@ function sweepStaleLoops() {
   let dirty = false;
   for (const L of loops.values()) {
     if (!L.active) continue;
-    // Evaluate each loop against ITS OWN workspace config, not the daemon-global state.overlay.config.
-    // A loop may be pinned to a workspace with different stale_minutes / loop_stale_minutes settings.
-    const loopWs = L.workspace || state.workspace;
-    const loopOv = loopWs ? ((loopWs === state.workspace) ? state.overlay : overlayStore.load(loopWs)) : state.overlay;
-    const loopOvConfig = loopOv ? loopOv.config : state.overlay.config;
+    // Evaluate each loop against ITS OWN pinned workspace config (P3: no daemon-global default).
+    // A loop may be pinned to a workspace with different stale_minutes / loop_stale_minutes settings;
+    // an UNPINNED loop (L.workspace null) has no overlay to read, so config defaults apply.
+    const loopWs = L.workspace || null;
+    const loopOv = loopWs ? overlayFor(loopWs) : null;
+    const loopOvConfig = loopOv ? loopOv.config : {};
     const mins = loopOvConfig.loop_stale_minutes ?? STALE_PROGRESS_MIN_DEFAULT;
+    const sessionStaleMins = loopOvConfig.stale_minutes ?? 10;
     const cutoff = Date.now() - mins * 60000;
     let reason = null;
     if (L.iterations > L.config.maxIterations) reason = 'iteration cap reached';
     else if (L.spent > L.config.tokenBudget) reason = 'token budget exhausted';
-    else if (!sessionIsLive(L.session)) {
+    else if (!sessionIsLive(L.session, loopOv, sessionStaleMins)) {
       // Bootstrap grace: a freshly-started session-bound loop has no RUNNING agent and no touched
       // claim until its FIRST spawn, so sessionIsLive reads false on the loop's very first tick.
       // Skip the session-dead demotion while the loop itself is fresh (within the same
       // stale_minutes window sessionIsLive uses); the other demotion reasons still apply.
-      const grace = Date.now() - (loopOvConfig.stale_minutes ?? 10) * 60000;
+      const grace = Date.now() - sessionStaleMins * 60000;
       const last = Date.parse(L.lastProgress || L.startedAt || 0);
       if (!last || last < grace) reason = `driving session '${L.session}' dead`;
     }
@@ -965,9 +1051,11 @@ function sweepStaleLoops() {
 //     the driver. A human task-CANCEL stays session-scoped under both paths (it halts everyone
 //     touching the canceled work, driver included).
 function stopSignalFor(session, opts = {}) {
-  // `graph`/`ov` (loop path only): the PINNED workspace's graph/overlay, so a pinned loop's
-  // cooperative-stop check scans ITS claims, not the daemon-global workspace's. Defaults unchanged.
-  const { actor = null, hook = false, graph = null, ov = state.overlay, ws = state.workspace } = opts;
+  // `graph`/`ov`/`ws` (REQUIRED — P3 removed the daemon-global default): the PINNED workspace's
+  // graph/overlay, so the cooperative-stop check scans ITS claims. Both callers (the loop tick and
+  // the /should-stop hook route) pass an explicit overlay + graph; ov defaults to EMPTY only as a
+  // defensive no-match guard for a malformed call.
+  const { actor = null, hook = false, graph = null, ov = overlayStore.EMPTY(), ws = null } = opts;
   if (hook) {
     // Agent-scoped stop: the calling worker is itself flagged → halt it (and nobody else). The driver
     // that requested the stop calls with a different/absent agent_id, so it falls through and runs on.
@@ -988,7 +1076,7 @@ function stopSignalFor(session, opts = {}) {
   }
   // In-process loop path: session-scoped — a cancel on a claimed task OR a stop on its agent halts it.
   if (!session) return null;
-  const g = graph || buildGraph(state.workspace);
+  const g = graph || buildGraph(ws);
   const claims = g.tasks.filter((t) => t.status === 'in_progress' && t.session === session);
   for (const t of claims) {
     const agent = t.agent_id || ov.assignee[t.id] || null;
@@ -1004,7 +1092,7 @@ function stopSignalFor(session, opts = {}) {
 // convention the /learnings route uses). Order follows insertion order (attach_knowledge appends),
 // which is the round order. Returns [] when the key has none. Pure read of the given overlay
 // (defaults to the current workspace's — pinned loops pass their own).
-function verdictsFor(key, ov = state.overlay) {
+function verdictsFor(key, ov) {
   const items = (ov.knowledge && ov.knowledge[key]) || [];
   const out = [];
   for (const it of items) {
@@ -1019,7 +1107,7 @@ function verdictsFor(key, ov = state.overlay) {
 // task that carries a metric spec AND has at least one judge verdict AND is not optimize-closed AND
 // has a NEW verdict since the last 'iterate' decision (so an iterate can't tight-loop on a stale
 // round). Returns { task, verdicts } or null. Caller passes the already-built graph (+ its overlay).
-function pendingOptimizeProblem(g, ov = state.overlay) {
+function pendingOptimizeProblem(g, ov) {
   for (const t of g.tasks) {
     if (t.kind === 'note' || t.status !== 'done' || !t.metric) continue;
     const rec = (ov.optimize && ov.optimize[t.id]) || {};
@@ -1043,7 +1131,7 @@ function pendingOptimizeProblem(g, ov = state.overlay) {
 // Returns a loop-action object to return from decideOne(L), or null to fall through. Operates on the
 // given loop entry L (per-loop config/active); the caller persists the registry once after the pass.
 // `ws`/`ov` = the loop's PINNED workspace + its overlay (defaults = daemon-global, back-compat).
-function applyOptimize(prob, base, L, ws = state.workspace, ov = state.overlay) {
+function applyOptimize(prob, base, L, ws, ov) {
   const P = prob.task;
   const last = prob.verdicts[prob.verdicts.length - 1];
   const d = optimize.decideOptimize({
@@ -1083,10 +1171,11 @@ function applyOptimize(prob, base, L, ws = state.workspace, ov = state.overlay) 
 // configured batch total in a single heartbeat. Returns the loop's decision object (no loopId yet).
 function decideOne(L, ctx) {
   // Workspace pin: ctx is built per-workspace by decideAll, so `ws`/`ov`/`ctx.graph` belong to THIS
-  // loop's pinned workspace — not the daemon-global pointer, which another session may have flipped
-  // mid-run. Legacy callers (tests) passing a bare ctx fall back to the global workspace/overlay.
-  const ws = ctx.ws || state.workspace;
-  const ov = ctx.ov || state.overlay;
+  // loop's pinned workspace (P3: no daemon-global pointer to fall back to). Legacy unit tests drive
+  // decideOne with a bare ctx after __setOverlayForTest/__setWorkspaceForTest — those resolve to the
+  // test-only holder (__testWs/__testOv), which is inert in production.
+  const ws = ctx.ws || __testWs;
+  const ov = ctx.ov || __testOv;
   // Cooperative self-stop (poll EVERY iteration, before anything else): honors a cancel on this
   // loop's claimed task OR a stop on its agent. Self-exits within one tick; registry persisted by caller.
   if (L.active && L.session) {
@@ -1296,13 +1385,13 @@ function decideOne(L, ctx) {
 // batch settings — generous but bounded). Inactive loops are skipped. Caller persists the registry.
 function decideAll() {
   sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
-  // Collect the DISTINCT set of active-loop workspaces UNION state.workspace so sweeps run once
-  // per workspace that actually has live work — not only the daemon-global pointer.
+  // Sweep across the REAL set of registered workspaces (workspaces.json), not the single daemon-
+  // global state.workspace pointer (P2b). registeredWorkspaces() already unions in active-loop
+  // workspaces defensively, so a loop pinned to a not-yet-registered ws is still swept.
   const active = [...loops.values()].filter((L) => L.active);
-  const activeWsSet = new Set(active.map((L) => L.workspace || state.workspace).filter(Boolean));
-  if (state.workspace) activeWsSet.add(state.workspace);
-  for (const ws of activeWsSet) {
-    const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+  const sweepWsSet = registeredWorkspaces();
+  for (const ws of sweepWsSet) {
+    const ov = overlayFor(ws);
     sweepStaleVerdicts(ws, ov);   // reset abandoned verdict-pending hand-offs per-workspace
     sweepStaleGuidance(ws, ov);   // auto-resolve stale blocking guidance per-workspace
     sweepFailedTasks(ws, ov);     // auto-retry: flip failed tasks back to pending (already (ws,ov)) per-workspace
@@ -1315,12 +1404,15 @@ function decideAll() {
   // Per-WORKSPACE evaluation contexts (the loop-workspace-pin fix): each loop is decided against ITS
   // pinned workspace's graph/overlay/guidance — never the daemon-global pointer, which another
   // session's SessionStart hook may have flipped mid-run (that demoted live loops with "DAG drained").
-  // Unpinned/legacy entries (workspace null) keep the old behavior: follow state.workspace.
+  // P3: there is no daemon-global pointer to fall back to for an unpinned loop. Production loops are
+  // always pinned (exec.js sets L.workspace on /loop). The test-only holder (__testWs) supplies the
+  // workspace when a unit test drives decideAll with an unpinned loop; if neither exists, overlayFor
+  // / buildGraph handle the null ws as an empty graph (the loop simply finds nothing to do).
   const ctxByWs = new Map();
   function ctxFor(ws) {
     let c = ctxByWs.get(ws);
     if (!c) {
-      const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+      const ov = ws ? overlayFor(ws) : overlayStore.EMPTY();
       const pend = overlayStore.pendingGuidance(ov);
       c = {
         ws, ov,
@@ -1335,7 +1427,7 @@ function decideAll() {
   }
   const out = [];
   for (const L of active) {
-    const ctx = ctxFor(L.workspace || state.workspace);
+    const ctx = ctxFor(L.workspace || __testWs);
     const d = decideOne(L, ctx);
     const entry = { loopId: L.id, ...d };
     if (ctx.reviewPending > 0) {
@@ -1703,11 +1795,12 @@ function noteRagCandidates(overlay, g, noteKey, title, summary, targetVec = null
 function sweepOrphanNotes() { return 0; }
 
 // Periodic file-drop stub GC: adopt missing snapshots, remove terminal stubs with snapshots.
-function sweepFiledropStubs(ws = state.workspace) {
-  const ov = overlayStore.load(ws);
+function sweepFiledropStubs(ws) {
+  if (!ws) return { adopted: [], removed: [] };
+  const ov = overlayFor(ws);
   const result = filedropGc.sweepWorkspaceStubs(ws, ov, { dryRun: false });
   if (result.adopted.length || result.removed.length) {
-    overlayStore.save(ws, ov);
+    overlayStore.save(ws, ov); refreshOverlayStamp(ws);
     cache.agg.delete(ws); cache.aggAt.delete(ws);
   }
   return result;
@@ -1724,7 +1817,7 @@ function makeResolver() {
   function loadWs(ws) {
     if (!agg[ws]) {
       agg[ws] = Object.fromEntries(aggregateCached(ws).map((t) => [t.key, t]));
-      ov[ws] = (state.workspace === ws) ? state.overlay : overlayStore.load(ws);
+      ov[ws] = overlayFor(ws);
     }
     return { tasks: agg[ws], overlay: ov[ws] };
   }
@@ -1812,7 +1905,11 @@ function harnessTranscriptForTask(st, key, session) {
 // never paints the same conversation-wide total across many tasks); /costflow always allows it
 // because splitSessionTokens divides a shared total honestly. null = unknown.
 function taskTranscript(key, session, anySession, st = state) {
-  const assignee = st.overlay.assignee[key];
+  // P3: there is no daemon-global state.overlay — callers pass st={...state, overlay:<resolved ov>}.
+  // Guard the lookup so a st without an overlay (or the bare `state` default) degrades to no-assignee
+  // resolution instead of crashing (mirrors taskTokens' `st.overlay || EMPTY`).
+  const ov = st.overlay || overlayStore.EMPTY();
+  const assignee = ov.assignee[key];
   const agent = assignee ? st.agents[assignee] : null;
   let tp = agent && agent.transcript_path;
   if (!tp && agent && agent.session) {                                   // derive from per-session binding
@@ -1844,12 +1941,13 @@ function taskTokens(key, session, dedicated, st = state) {
 
 // Build the graph for one workspace: its task nodes + any ghost stubs they reference.
 function buildGraph(ws) {
-  if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], []) };
-  // The TARGET workspace's overlay: state.overlay when ws IS the current workspace (in-memory
-  // coherence), else loaded fresh — so reads of another workspace serve THAT workspace's
-  // notes/summaries/assignees instead of the daemon-global overlay's (the read-side gremlin fix).
-  const own = ws === state.workspace;
-  const ovWs = own ? state.overlay : overlayStore.load(ws);
+  if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], [], overlayStore.EMPTY()) };
+  // P3: every workspace's overlay is the per-workspace cache entry (overlayFor) — there is no
+  // special "current" workspace. The cache entry is the authoritative, write-coalesced in-memory
+  // store for ANY workspace, so the lifecycle mutations below (timestamp stamping, adoption, birth
+  // ingest) run for every valid ws — `own` is simply "we have a real, writable overlay".
+  const own = true;
+  const ovWs = overlayFor(ws);
   // Release dead/abandoned claims BEFORE reading native, busting the aggregate cache so a reverted
   // native status is reflected in this same build (not one poll later). Sweeps the TARGET
   // workspace's overlay, so stale claims release wherever the read lands.
@@ -1862,9 +1960,9 @@ function buildGraph(ws) {
   }
   const ghostMap = {}; // "ws|key" -> ghost stub
   const sessionCount = {}; for (const t of native) sessionCount[t.session] = (sessionCount[t.session] || 0) + 1;
-  const stWs = own ? state : { ...state, overlay: ovWs };   // taskTokens reads assignee from the target overlay
+  const stWs = { ...state, overlay: ovWs };   // taskTokens reads assignee from the target overlay
 
-  // Stamp lifecycle timestamps in OUR own overlay (current workspace only — the writable store).
+  // Stamp lifecycle timestamps in the target workspace's (writable, cached) overlay.
   // firstSeen: set once, never overwritten. lastChanged: set on first sight + whenever the
   // effective status changes. lastStatus tracks the value used to detect changes. Not backfilled.
   let tsDirty = false, adoptDirty = false;
@@ -1888,26 +1986,26 @@ function buildGraph(ws) {
       }
     }
     const status = R.effective(ws, t.key);
-    let ts = ovWs.timestamps[t.key] || null;   // read from the target overlay; stamping stays own-only below
+    let ts = ovWs.timestamps[t.key] || null;   // read+stamp the target workspace's (writable) overlay
     if (own) {
       if (!ts) {
-        ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; state.overlay.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key);
-        if (adoptNativeTask(state.overlay, t.key)) {
+        ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; ovWs.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key);
+        if (adoptNativeTask(ovWs, t.key, ws)) {
           adoptDirty = true; newlyAdopted.push({ key: t.key, title: t.label, summary: ovWs.summaries[t.key] || '' });
           // ADOPT-HOLD: stamp judgingSince synchronously so the judging→ready gate fires on THIS build's
           // projection (status already computed by R.effective before we knew the node was newly adopted,
           // so we override status/judging below for keys in newlyAdoptedSet). Without this, the async
           // ingestNode path stamped the mark too late — the node reached ready/dispatch unjudged.
-          overlayStore.markEagerJudge(state.overlay, t.key);
+          overlayStore.markEagerJudge(ovWs, t.key);
           newlyAdoptedSet.add(t.key);
         }
         // Unwired quarantine: a task FIRST SEEN with no edges in either direction is stamped
         // unwired — /overlay/status refuses an in_progress claim until the creator wires it
         // (add_dependency clears the flag) or declares it a root (POST /mark-root). Tasks that
         // existed before this feature already carry firstSeen and are NEVER stamped (back-compat).
-        if (!deps.length && !context_deps.length && !state.overlay.edges.some((e) => e.from === t.key || e.to === t.key)) {
-          if (!state.overlay.unwired) state.overlay.unwired = {};
-          state.overlay.unwired[t.key] = true;
+        if (!deps.length && !context_deps.length && !ovWs.edges.some((e) => e.from === t.key || e.to === t.key)) {
+          if (!ovWs.unwired) ovWs.unwired = {};
+          ovWs.unwired[t.key] = true;
         }
       }
       else if (ts.lastStatus !== status) { ts.lastChanged = now(); ts.lastStatus = status; tsDirty = true; }
@@ -1970,25 +2068,25 @@ function buildGraph(ws) {
   // task->task wiring with agent judgment.)
   let edgesDirty = false;
   if (own && newlySeen.length) {
-    overlayStore.bumpEpoch(state.overlay); edgesDirty = true;
+    overlayStore.bumpEpoch(ovWs); edgesDirty = true;
   }
-  if (tsDirty || edgesDirty || adoptDirty) { overlayStore.save(state.workspace, state.overlay, { deferred: true }); notifyChange(); }
+  if (tsDirty || edgesDirty || adoptDirty) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(); }
   // INGEST-AT-BIRTH (BUILD1): native tasks adopted THIS build pass through the unified ingestNode funnel
   // (embed → setTaskVec → autowire → markEagerJudge) so they carry a vec + candidate edges + an eager mark
   // BEFORE they can reach `ready`/dispatch — closing the bypass where the native lane was only ingested at
   // its in_progress claim. Fire-and-forget so buildGraph stays synchronous: each ingest mutates the live
-  // overlay and saves on its own. `own` only (state.overlay is the writable store). The recall graph is
-  // rebuilt per node so each sees prior siblings ingested this batch.
+  // overlay and saves on its own (the per-workspace cached overlay is the writable store). The recall
+  // graph is rebuilt per node so each sees prior siblings ingested this batch.
   if (own && newlyAdopted.length) {
     (async () => {
       for (const n of newlyAdopted) {
         try {
-          const r = await ingestNode(state.overlay, buildGraph(ws), n.key, { title: n.title, summary: n.summary }, ws);
+          const r = await ingestNode(ovWs, buildGraph(ws), n.key, { title: n.title, summary: n.summary }, ws);
           // If ingest found no edges to seed (embed disabled, isolated node, etc.), the ADOPT-HOLD
           // judgingSince stamp we set synchronously above would keep the node in not_ready forever.
           // Clear it so the node can progress to ready without waiting for a judge that will never come.
-          if (r.seeded === 0) { overlayStore.clearJudgingSince(state.overlay, n.key); }
-          if (r.vec || r.seeded === 0) { overlayStore.save(state.workspace, state.overlay, { deferred: true }); notifyChange(); }
+          if (r.seeded === 0) { overlayStore.clearJudgingSince(ovWs, n.key); }
+          if (r.vec || r.seeded === 0) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(); }
         } catch { /* best-effort birth ingest */ }
       }
     })();
@@ -1997,7 +2095,7 @@ function buildGraph(ws) {
   return { tasks, ghosts, summary: summaryFor(tasks, ghosts, ovWs) };
 }
 
-function summaryFor(tasks, ghosts, ov = state.overlay) {
+function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
   const real = tasks.filter((t) => t.kind !== 'note'); // note nodes aren't tasks — keep counts honest
   const notes = tasks.length - real.length;
   const c = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0]));
@@ -2165,16 +2263,19 @@ const uiRoute = require('./routes/ui');
 const usageRoute = require('./routes/usage');
 
 // ctx: live access to daemon state + helpers. State fields use getters so reassignment
-// (state = {...} at /reset; state.workspace = ... at /workspace) is always visible.
+// (state = {...} at /reset) is always visible. P3: there is no daemon-global workspace/overlay.
 const ctx = {
   get state() { return state; },
   setState(s) { state = s; },
+  // setWorkspace REGISTERS a workspace (into workspaces.json) + BINDS it to this session/SSE client
+  // + WARMS its overlay into the per-workspace cache. It sets NO daemon-global default — P3 removed
+  // that. Per-session binding (state.sessions) survives: the dashboard + change events rely on
+  // knowing a client's workspace; only the single global pointer is gone.
   setWorkspace(p, bind = {}) {
     const opts = typeof bind === 'string' ? { transcript: bind } : (bind || {});
-    state.workspace = p;
-    state.overlay = overlayStore.load(p);
-    migrateBlindEdges(p, state.overlay);
-    state.graphStore = graphStore.open(require('path').join(p, '.graph'));
+    const ov = overlayFor(p);                 // warm + cache this workspace's overlay (no global)
+    migrateBlindEdges(p, ov); refreshOverlayStamp(p);
+    graphStore.open(require('path').join(p, '.graph'));
     graphStore.initGitAttributes(p);
     git.ensureMergeDriver(p);   // register `ours` driver so `.graph/** merge=ours` takes effect (FU-2 desync guard)
     const transcript = opts.transcript || null;
@@ -2184,13 +2285,16 @@ const ctx = {
         transcript, workspace: p, harness: opts.harness,
       });
     }
-    try { fs.mkdirSync(BASE, { recursive: true }); fs.writeFileSync(WS_FILE, p); } catch { /* best effort */ }
+    // Append to the workspace REGISTRY (workspaces.json) — the source of truth for sweeps + the
+    // dashboard switcher. This is registration, NOT a global-default write (the old `workspace` file
+    // is gone).
     try {
+      fs.mkdirSync(BASE, { recursive: true });
       let known = [];
       try { known = JSON.parse(fs.readFileSync(WORKSPACES_FILE, 'utf8')); } catch { /* first write */ }
       if (!Array.isArray(known)) known = [];
       if (!known.includes(p)) { known.push(p); fs.writeFileSync(WORKSPACES_FILE, JSON.stringify(known)); }
-    } catch { /* best effort — same as WS_FILE */ }
+    } catch { /* best effort */ }
     const harnessName = opts.harness || (sessionId && state.sessions[sessionId] && state.sessions[sessionId].harness) || 'claude';
     try {
       runUsageReconcile(ctx, { harness: harnessName, workspace: p, session: sessionId || opts.session_id || null });
@@ -2206,7 +2310,7 @@ const ctx = {
     if (!sessionId) return;
     state.sessions = sessionBindings.bindSession(state.sessions, sessionId, patch);
   },
-  send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, resolveRepo, nodeExistsInGraph,
+  send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, overlayFor, resolveRepo, nodeExistsInGraph, registeredWorkspaces,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
@@ -2284,7 +2388,7 @@ function isPrimaryCheckout(root = __dirname) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, buildGraph, __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
+  decideOne, decideAll, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
@@ -2297,16 +2401,22 @@ if (require.main === module) {
   const PORT_BASE = PORT;
   const MAX_PORT_ATTEMPTS = 10;
 
+  // P3: no single global workspace — write/remove the daemon.port discovery file in EVERY
+  // registered workspace's .graph so any client (whatever workspace it pins) can find this daemon.
   function writeDaemonPort(port) {
-    if (!state.workspace) return; // workspace not yet set; skip (clients fall back to default)
-    const graphDir = path.join(state.workspace, '.graph');
-    try { fs.mkdirSync(graphDir, { recursive: true }); } catch { /* exists */ }
-    fs.writeFileSync(path.join(graphDir, 'daemon.port'), String(port));
+    for (const ws of registeredWorkspaces()) {
+      try {
+        const graphDir = path.join(ws, '.graph');
+        fs.mkdirSync(graphDir, { recursive: true });
+        fs.writeFileSync(path.join(graphDir, 'daemon.port'), String(port));
+      } catch { /* skip an unwritable/relocated workspace */ }
+    }
   }
 
   function removeDaemonPort() {
-    if (!state.workspace) return;
-    try { fs.unlinkSync(path.join(state.workspace, '.graph', 'daemon.port')); } catch { /* already gone */ }
+    for (const ws of registeredWorkspaces()) {
+      try { fs.unlinkSync(path.join(ws, '.graph', 'daemon.port')); } catch { /* already gone */ }
+    }
   }
 
   let httpsServer = null; // assigned in the listen callback when certs exist; closed on signal
@@ -2385,7 +2495,7 @@ if (require.main === module) {
 
       // BIND-EARLY: the port is now held; load state asynchronously so /health (whitelisted
       // through the 503 gate) reports boot progress while everything else gets an honest 503.
-      // writeDaemonPort needs state.workspace, so it runs after loadState resolves.
+      // writeDaemonPort iterates the registered workspaces, so it runs after loadState resolves.
       loadState().then(() => writeDaemonPort(port))
         .catch((e) => { process.stderr.write(`loadState failed: ${(e && e.stack) || e}\n`); process.exit(1); });
 
@@ -2442,14 +2552,13 @@ if (require.main === module) {
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command
   // yet but old agent claims are blocking work. Matches the loop-sweep cadence (60s).
-  // Iterates ALL distinct active-loop workspaces + state.workspace so per-repo loops don't miss
-  // stale claims just because no route is being served for that workspace.
+  // Iterates the REAL set of registered workspaces (workspaces.json, P2b) so per-repo loops don't
+  // miss stale claims just because no route is being served for that workspace — never the single
+  // daemon-global state.workspace pointer.
   setInterval(() => {
     try {
-      const wsSet = new Set([...loops.values()].filter((L) => L.active && L.workspace).map((L) => L.workspace));
-      if (state.workspace) wsSet.add(state.workspace);
-      for (const ws of wsSet) {
-        const ov = (ws === state.workspace) ? state.overlay : overlayStore.load(ws);
+      for (const ws of registeredWorkspaces()) {
+        const ov = overlayFor(ws);
         sweepStaleClaims(ws, ov);
       }
     } catch { /* best effort */ }
@@ -2464,13 +2573,12 @@ if (require.main === module) {
   // (a zero-match note at creation can gain a real neighbor later). Re-check is side-effect-free —
   // no match ⇒ no edge, no write. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepOrphanNotes(); } catch { /* best effort */ } }, 300000).unref();
-  // sweepFiledropStubs iterates ALL active-loop workspaces + state.workspace so stub GC covers
-  // per-repo loops that target non-default workspaces.
+  // sweepFiledropStubs iterates the REAL set of registered workspaces (workspaces.json, P2b) so
+  // stub GC covers per-repo loops that target non-default workspaces — never the single daemon-
+  // global state.workspace pointer.
   setInterval(() => {
     try {
-      const wsSet = new Set([...loops.values()].filter((L) => L.active && L.workspace).map((L) => L.workspace));
-      if (state.workspace) wsSet.add(state.workspace);
-      for (const ws of wsSet) sweepFiledropStubs(ws);
+      for (const ws of registeredWorkspaces()) sweepFiledropStubs(ws);
     } catch { /* best effort */ }
   }, 300000).unref();
 
@@ -2480,12 +2588,11 @@ if (require.main === module) {
   setInterval(() => { embedPing().catch(() => {}); }, 60000).unref();
 
   // Graph-store compaction: fold terminal-status nodes' JSONL event files into checkpoint.json
-  // so .graph/ stops growing without bound. Covers every workspace store this process has
-  // loaded (graphStore.forWorkspace registry) plus the primary store, deduped by dir. One pass
-  // ~5 min after boot, then daily. Cheap; unref'd so it never holds the process open.
+  // so .graph/ stops growing without bound. Covers every workspace store this process has loaded
+  // (graphStore.allStores() — P3 removed the single state.graphStore; loadState/setWorkspace open a
+  // store per registered workspace). Deduped by dir. One pass ~5 min after boot, then daily.
   function compactGraphStores() {
     const stores = new Map();
-    if (state.graphStore) stores.set(state.graphStore.dir, state.graphStore);
     for (const s of graphStore.allStores()) stores.set(s.dir, s);
     for (const s of stores.values()) {
       try {

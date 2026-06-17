@@ -23,7 +23,8 @@ function makeMockCtx(overlay, tasks, ws) {
     readBody: async () => ({}),
     notifyChange: () => {},
     buildGraph: makeBuildGraph(taskList),
-    targetOverlay: () => ({ ov: overlay, ws: null, save: () => {} }),
+    // P3: the route requires a resolved workspace (no daemon-global default), so bind one.
+    targetOverlay: () => ({ ov: overlay, ws: ws || '/tmp/ws', save: () => {} }),
     noteRagCandidates: () => [],
   };
   function getLastSent() { return lastSent; }

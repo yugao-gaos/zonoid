@@ -1,5 +1,5 @@
 #!/bin/bash
-# preToolUse(Write) → shared write gate (exit 2 deny, mirrors orch-gate.sh).
+# preToolUse(Write) → normalize Cursor payload, then delegate to the shared write gate.
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$DIR/lib.sh"

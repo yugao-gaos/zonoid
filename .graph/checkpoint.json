@@ -85986,6 +85986,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -91618,6 +91619,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -91705,6 +91707,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -92555,6 +92558,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -93826,6 +93830,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -93927,6 +93932,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -93992,6 +93998,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -94021,6 +94028,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -96753,6 +96761,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -103729,66 +103738,6 @@
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
-    "5926e9e3-79fa-43b5-8680-7f84d4ffeebc/1": {
-      "id": "5926e9e3-79fa-43b5-8680-7f84d4ffeebc/1",
-      "label": null,
-      "kind": null,
-      "workspace": "D:\\zonoid",
-      "status": "done",
-      "summary": "Automode implemented across 6 files: merge verdict action in verdicts.js + auto-merge in overlay.js (already staged); Opus CLI escalation resolver in session.js (resolveViaOpusCli, no --dangerously-skip-permissions needed for plain Q&A); automode config flag in POST /config (session.js); config surfaced in GET /state response (meta.js); Full Automode toggle (CSS + HTML + JS) in graph.html settings popup with loadAutomodeState/saveAutomode functions; CLAUDE.md updated with automode judge instructions and new Full Automode section.",
-      "knowledge": [],
-      "note": null,
-      "snapshot": {
-        "subject": "Implement full automode: Opus escalation + judge merge verdict + dashboard toggle",
-        "description": "Add automode to the orchestrator: (1) ov.config.automode flag, (2) POST /guidance auto-resolves blocking escalations via Opus CLI instead of pausing the loop, (3) new 'merge' verdict action in verdicts.js that route handler executes as git merge in automode, (4) config included in GET /state response, (5) automode toggle in graph.html settings popup, (6) CLAUDE.md updated with automode instructions for judges.",
-        "status": "completed",
-        "blockedBy": [],
-        "owner": null,
-        "metadata": null,
-        "snapshotted_at": "2026-06-17T02:39:52.399Z"
-      },
-      "assignee": "claude-sonnet-4-6",
-      "timestamps": {
-        "firstSeen": "2026-06-17T02:20:03.011Z",
-        "lastChanged": "2026-06-17T02:39:52.363Z",
-        "lastStatus": "done"
-      },
-      "metrics": null,
-      "measurements": null,
-      "usage_records": null,
-      "last_actor": "overlay-sync",
-      "last_agent_id": null
-    },
-    "59fc18e1-744e-4f7a-9093-a8e12d43087b/21": {
-      "id": "59fc18e1-744e-4f7a-9093-a8e12d43087b/21",
-      "label": null,
-      "kind": null,
-      "workspace": "D:\\zonoid",
-      "status": "done",
-      "summary": "Built bench/zonoid_bench/smoke.py (integration smoke gate), README.md, and APPLY.md on attempt branch orch/attempt/59fc18e1-744e-4f7a-9093-a8e12d43087b-21 (commit 308f00f, 850 insertions). All 3 assertions PASS: A1 ON answer contains planted fact (runtime-generated SMK-... token via os.urandom, defeating model hallucination); A2 canonical wiring surfaced 2 context edges (overlay_edge from note to unit, kind=context); A3 cold says I don't know (runtime token unknown to model). Daemon ran on isolated port (57702, not 8787). Key fixes: (1) daemon.js is resolved via git-worktree-list to find the main repo's node_modules/@xenova so embed sidecar loads correctly; (2) planted token generated at runtime via os.urandom so the outer claude session cannot leak it to the cold arm. Score: ON F1=1.0, cold F1=0.0, rag_control F1=0.0. Report written to temp dir. README covers 7-module surface, daemon isolation, snapshot produce/load, two executor modes, canonical ON-arm wiring, two FB bug-fixes (kind=context fix + direction from=note/to=unit). APPLY.md is the operator quickstart runbook.",
-      "knowledge": [],
-      "note": null,
-      "snapshot": {
-        "subject": "Bench SDK S7: integration smoke + README/APPLY (merge gate)",
-        "description": "bench/zonoid_bench/{smoke.py,README.md,APPLY.md} — the feature merge gate. smoke.py: full end-to-end against an SDK-spawned embedded daemon (S3) — start daemon → load a tiny pre-learnt snapshot (S4) → run ON (canonical wiring, retrieve-and-answer) / OFF-cold / RAG-control (S5) on a toy unit → score + report (S6) → assert ON beats cold, wiring used suggest_links, daemon torn down. README/APPLY: what the SDK is, the module surface, embedded-daemon usage, snapshot produce/load, the two executor modes, and how a new bench plugs in. Runs via embeddable py312embed full path + Node. Depends on S4+S5+S6. Commit on the attempt branch.",
-        "status": "completed",
-        "blockedBy": [],
-        "owner": null,
-        "metadata": null,
-        "snapshotted_at": "2026-06-17T02:22:52.533Z"
-      },
-      "assignee": "sdk-smoke-21a",
-      "timestamps": {
-        "firstSeen": "2026-06-17T02:05:01.206Z",
-        "lastChanged": "2026-06-17T02:22:52.303Z",
-        "lastStatus": "done"
-      },
-      "metrics": null,
-      "measurements": null,
-      "usage_records": null,
-      "last_actor": "overlay-sync",
-      "last_agent_id": null
-    },
     "59fc18e1-744e-4f7a-9093-a8e12d43087b/8": {
       "id": "59fc18e1-744e-4f7a-9093-a8e12d43087b/8",
       "label": null,
@@ -103841,6 +103790,66 @@
       "timestamps": {
         "firstSeen": "2026-06-16T20:52:41.161Z",
         "lastChanged": "2026-06-16T21:00:58.251Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-featurebench-verdict-review-issues": {
+      "id": "codex/fix-featurebench-verdict-review-issues",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Fixed review findings: merge verdicts now record non-destructive merge requests instead of canceling, MCP schema includes merge, FeatureBench edges use kind:context, generated AGENTS.md avoids invalid FeatureBench instance task-key writes, and apply-fb-patches.sh supports Windows/POSIX venv layouts. Verification: node test/verdicts.test.js, python3 -m py_compile patch files, bash -n patch script, git diff --check. Full npm run test:all was 158/163 passing; remaining failures were existing retrieval/provider-availability tests outside this change.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix pulled FeatureBench/verdict review issues",
+        "description": "Fix review findings from commit 224a5fe: merge verdict must not cancel tasks, FeatureBench patch must create context edges with the daemon's kind field, generated AGENTS.md must not instruct agents to use FeatureBench instance IDs as task keys for wires_to/status, and apply-fb-patches.sh should support POSIX and Windows venv site-packages paths.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T02:51:55.154Z"
+      },
+      "assignee": "codex-main",
+      "timestamps": {
+        "firstSeen": "2026-06-17T02:46:52.734Z",
+        "lastChanged": "2026-06-17T02:51:55.152Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-review-findings": {
+      "id": "codex/fix-review-findings",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Fixed audit findings on attempt branch orch/attempt/codex-fix-review-findings: default auth now gates all mutating requests plus sensitive reads when ORCH_TOKEN is configured; overlay note projection handles note_nodes missing id; explicit /search no longer applies corroboration filtering meant for task context; embed sidecar stderr no longer inherits test/CLI pipes; npm test runs the real suite; installer shell-string execSync calls were replaced with argv-based spawnSync helpers; backend/autowire tests were isolated from host PATH/rerank state; added auth-gate regression. Verified npm test: 164/164 files passed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix review findings from system audit",
+        "description": "Fix the concrete review findings: close auth gaps on mutating routes including metric measurement, make npm test meaningful, repair failing search/retrieval tests, remove fragile installer shell-string calls, and verify with targeted/full tests.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T03:48:51.012Z"
+      },
+      "assignee": "codex-main",
+      "timestamps": {
+        "firstSeen": "2026-06-17T03:35:58.194Z",
+        "lastChanged": "2026-06-17T03:48:50.697Z",
         "lastStatus": "done"
       },
       "metrics": null,
@@ -104059,28 +104068,28 @@
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
-    "59fc18e1-744e-4f7a-9093-a8e12d43087b/26": {
-      "id": "59fc18e1-744e-4f7a-9093-a8e12d43087b/26",
+    "codex/headless-drains-default-often": {
+      "id": "codex/headless-drains-default-often",
       "label": null,
       "kind": null,
-      "workspace": "D:\\zonoid",
+      "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
-      "summary": "Fixed schedule-wakeup process leak. Added global registry (.graph/scheduled-wakeups.json, KEY→{pid,fireAt,session}). armWakeup now kills prior sleeper for same session before spawning (dedup). Sleeper script self-reaps its registry entry after firing. sweepOrphanWakeups() kills dead or stale-past-fireAt pids on boot. Cross-platform kill (taskkill on Windows, SIGTERM on POSIX). New test: arm same key 5× → exactly 1 live sleeper, 4 prior pids dead, registry has 1 entry. Also tests boot sweep. All 25 new + 15 existing + 17 contract tests pass. Commit: 61c103b. .mcp.json ORCH_HEADLESS_DRAINS was already 0.",
+      "summary": "Implemented headless drains as default-on with explicit ORCH_HEADLESS_DRAINS=0/false/no opt-out, changed daemon drain cadence default from 15 minutes to 2 minutes plus jitter, and suppressed in-session judge/label/learner Agent drain nudges while headless drains are enabled. Updated focused headless-drain and classify assembly tests. Tests: node --test test/headless-drain.test.js test/classify-loop-directive.test.js (passed; rerun with sandbox escalation because the deadlock regression binds 127.0.0.1). Commit: 0110d12 Make headless drains default and frequent.",
       "knowledge": [],
       "note": null,
       "snapshot": {
-        "subject": "Fix schedule-wakeup leak: dedup + reap detached node sleepers (no more accumulation)",
-        "description": "lib/schedule-wakeup.js spawns a detached `node -e setTimeout` sleeper per scheduled wakeup/task and never reaps/dedups them — 187 stale node processes accumulated over a day (see the prevention note). FIX: (1) maintain a registry (e.g. .graph/scheduled-wakeups.json) of {key → pid, fireAt}; (2) on re-schedule of the same logical wakeup key, kill the prior sleeper PID before spawning the new one (dedup); (3) reap on fire (the child should exit after firing) and on cancel; (4) on daemon boot, sweep + kill orphaned ORCH_SCHEDULED_TASK node processes (or sleepers whose registry entry is stale). Add a unit/integration test that re-scheduling the same key N times leaves exactly ONE live sleeper, not N. Keep it cross-platform (Windows + posix).",
+        "subject": "Make headless CLI drains default and frequent",
+        "description": "Change zonoid so standing learner/judge/label drains use the daemon headless CLI path by default, run on a short cadence, and suppress in-session Agent drain nudges when headless drains are active. Keep an explicit opt-out for constrained environments and add focused tests.",
         "status": "completed",
         "blockedBy": [],
         "owner": null,
         "metadata": null,
-        "snapshotted_at": "2026-06-17T14:30:19.360Z"
+        "snapshotted_at": "2026-06-17T14:43:28.700Z"
       },
-      "assignee": "sched-wakeup-fix-26a",
+      "assignee": "headless-drains-default-often-worker",
       "timestamps": {
-        "firstSeen": "2026-06-17T13:55:11.086Z",
-        "lastChanged": "2026-06-17T14:30:19.004Z",
+        "firstSeen": "2026-06-17T14:36:45.145Z",
+        "lastChanged": "2026-06-17T14:43:28.683Z",
         "lastStatus": "done"
       },
       "metrics": null,
@@ -104089,28 +104098,28 @@
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
-    "59fc18e1-744e-4f7a-9093-a8e12d43087b/27": {
-      "id": "59fc18e1-744e-4f7a-9093-a8e12d43087b/27",
+    "codex/architecture-seam-audit-adapters": {
+      "id": "codex/architecture-seam-audit-adapters",
       "label": null,
       "kind": null,
-      "workspace": "D:\\zonoid",
+      "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
-      "summary": "Delivered scripts/gc-stale-spawns.js (cross-platform GC reaper) + test/gc-stale-spawns.test.js (18 unit tests, all pass). Script enumerates node processes via Get-CimInstance (Windows) or ps -eo etimes (POSIX), classifies ORCH_SCHEDULED_TASK sleepers and headless drain claude children, kills stale ones past declared delay+grace or max-lifetime fallback. Daemon.js and non-orchestrator processes are hard-excluded. CLI: --dry-run (default) / --apply. Commit: 9c570b6 on orch/attempt/59fc18e1-744e-4f7a-9093-a8e12d43087b-27. Daemon integration notes are in the script header comment.",
+      "summary": "Read-only adapter/MCP/CLI seam audit completed. Mapped harness adapters, hook relays, MCP core/extra tools, file-drop task minting, installer ownership, and enforcement paths. Main weak seams: stale claim-registration contract docs vs hookless self-register implementation; session_id inference omits Codex thread env; Bash gate only requires any target under worktree and has /tmp policy drift; OpenCode plugin gate lacks apply_patch path extraction and worktree confinement; usage pricing API is not uniformly implemented across adapters.",
       "knowledge": [],
       "note": null,
       "snapshot": {
-        "subject": "GC reaper for orphaned orchestrator child processes (scripts/gc-stale-spawns.js + boot hook)",
-        "description": "Durable backstop for the process-leak class (ScheduleWakeup sleepers, hung headless-drain claude/node children, stale subagent helpers). Add scripts/gc-stale-spawns.js (mirroring scripts/gc-worktrees.js + gc-filedrop-stubs.js): enumerate orchestrator-spawned node/claude children (match ORCH_SCHEDULED_TASK marker, headless-drain signatures, or a tagged env var), and kill those older than a max-lifetime (e.g. > their declared delay, or > 24h), sparing the live daemon.js + non-orchestrator processes. Wire it to run on daemon boot and on a periodic interval. Cross-platform process enumeration (Win32_Process / ps). Also: spawn ALL orchestrator children with a hard max-lifetime timeout + a discoverable tag so the reaper can find them. Consider surfacing an orphaned-process count on the dashboard.",
+        "subject": "Audit harness adapter hook and package seams",
+        "description": "Read-only subtask for codex/architecture-seam-audit. Inspect hooks/, adapters/, packages/cli, packages/opencode-plugin, mcp-graph.js, lib/mcp-core.js, and docs/adapter-contract.md. Return: module map, intended seams/contracts, and unclear/leaky boundaries with concrete file references. Do not edit files.",
         "status": "completed",
         "blockedBy": [],
         "owner": null,
         "metadata": null,
-        "snapshotted_at": "2026-06-17T14:30:17.093Z"
+        "snapshotted_at": "2026-06-17T17:38:17.530Z"
       },
-      "assignee": "gc-reaper-27a",
+      "assignee": "arch-adapters-explorer",
       "timestamps": {
-        "firstSeen": "2026-06-17T13:55:11.979Z",
-        "lastChanged": "2026-06-17T14:30:17.037Z",
+        "firstSeen": "2026-06-17T17:32:12.519Z",
+        "lastChanged": "2026-06-17T17:38:17.527Z",
         "lastStatus": "done"
       },
       "metrics": null,
@@ -104119,28 +104128,118 @@
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
-    "main/system-node-feature": {
-      "id": "main/system-node-feature",
+    "codex/architecture-seam-audit-core": {
+      "id": "codex/architecture-seam-audit-core",
       "label": null,
       "kind": null,
-      "workspace": "D:\\zonoid",
+      "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
-      "summary": "Added system node tier to search_knowledge. Notes with category=\"system\" are now always injected at tier=\"system\" (score 1.0, inject:true) before DAG and RAG results on every /search call — no gate, no query dependency. Changes: (1) routes/graph.js: sysNotes/sysKeys collection block after dagKeys, gateCands excludes sysKeys, RAG loop skips sysKeys, results assembly prepends sysNotes in both dagOnly and normal paths. (2) skills/spec/SKILL.md created with /spec skill spec (§G/§C/§I/§V/§B caveman format, record_decision with category:system, supersede pattern). (3) CLAUDE.md and AGENTS.md: added \"## Durable spec (system nodes)\" section before \"## KB note authoring\".",
+      "summary": "Read-only architecture audit completed. Mapped daemon shell, route modules, overlay graph store, lifecycle/judge, MCP, harness, and git seams. Main weak seams found: broad ctx service-locator surface, side-effectful buildGraph reads, stale lifecycle docs for note ingest, duplicated task-key admission helpers, inconsistent workspace targeting in admin embedding routes, and oversized /search and /overlay/status endpoints. No files changed.",
       "knowledge": [],
       "note": null,
       "snapshot": {
-        "subject": "Add system node tier to search_knowledge",
-        "description": "Add category:\"system\" always-inject tier to /search in routes/graph.js. System notes appear before DAG+RAG regardless of query. Also create skills/spec/SKILL.md and update CLAUDE.md to document system nodes.",
+        "subject": "Audit daemon core graph and lifecycle seams",
+        "description": "Read-only subtask for codex/architecture-seam-audit. Inspect daemon.js, routes/, and lib/ modules. Return: module map, intended seams/contracts, and unclear/leaky boundaries with concrete file references. Do not edit files.",
         "status": "completed",
         "blockedBy": [],
         "owner": null,
         "metadata": null,
-        "snapshotted_at": "2026-06-17T03:04:08.412Z"
+        "snapshotted_at": "2026-06-17T17:39:26.451Z"
       },
-      "assignee": "claude-sonnet-4-6-worker",
+      "assignee": "arch-core-explorer",
       "timestamps": {
-        "firstSeen": "2026-06-17T02:53:48.614Z",
-        "lastChanged": "2026-06-17T03:04:08.400Z",
+        "firstSeen": "2026-06-17T17:32:08.975Z",
+        "lastChanged": "2026-06-17T17:39:26.449Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/trace-codex-hooks-gates": {
+      "id": "codex/trace-codex-hooks-gates",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Read-only Codex hook/gate audit completed. Claimed task using explicit CODEX_THREAD_ID as session_id after branch_task. Traced Codex install/config, relays, shared Claude gate scripts/Node ports, lifecycle hooks, and selected tests. Ran codex-hooks, orch-gate, orch-gate-bash, and apply-patch-confinement; all passed after rerunning the sandbox-blocked apply_patch fixture with approval. Key risks: Codex session inference lacks CODEX_THREAD_ID fallback, post-start alias mismatch, post-lifecycle matcher/script mismatch, shell relay dependency/fail-open surface, and compound Bash target parsing/confinement gaps.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Trace Codex hook and gate execution path",
+        "description": "Read-only audit. Trace the Codex adapter hooks from install/config through session-start, classify, gate, post-start-task, agent-done/subagent-stop, and shell write gate. Identify fragility compared with Claude Code. Return step-by-step flow, concrete file/line evidence, missing tests, and prioritized risks. Do not edit files.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T17:40:09.236Z"
+      },
+      "assignee": "codex-trace-hooks-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-17T17:29:30.199Z",
+        "lastChanged": "2026-06-17T17:40:20.824Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/trace-codex-session-claims": {
+      "id": "codex/trace-codex-session-claims",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Read-only audit traced Codex session/claim flow. branch_task and start_task succeeded when CODEX_THREAD_ID was passed explicitly as session_id. Key fragilities: Codex MCP auto-session fallback omits CODEX_THREAD_ID; hookless self-register allows any agent_id plus registered worktree, so dispatcher denial depends on no worktree; session-info does not classify hookless agent_tool_spawn sessions as subagents after/without an active claim; Bash gate accepts any detected target inside worktree rather than every target. No files edited; no tests executed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Trace Codex session, agent registration, and claim path",
+        "description": "Read-only audit. Trace Codex session identity, worker registration, branch_task/start_task claim flow, hookless/background worker handling, and differences from Claude Code. Identify failure modes where Codex tasks cannot claim or are misattributed. Return evidence with file/line references and tests/docs gaps. Do not edit files.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T17:40:23.183Z"
+      },
+      "assignee": "codex-trace-session-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-17T17:29:34.412Z",
+        "lastChanged": "2026-06-17T17:40:23.181Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/trace-codex-tests-docs": {
+      "id": "codex/trace-codex-tests-docs",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Read-only audit completed. Codex coverage is strongest for hook wiring, MCP extras, usage pricing, apply_patch confinement, shared gate logic, and ScheduleWakeup. Gaps remain around captured Codex Desktop hook/session envelopes, Codex-specific self-register live coverage, Bash multi-target all-target confinement, docs staleness in top-level README tool count/Claude-centric framing, and docs overclaiming hook-based Codex task minting. No files changed; focused tests passed after rerunning sandbox-blocked live-daemon tests with escalation.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Audit Codex tests and docs coverage against actual behavior",
+        "description": "Read-only audit. Review Codex-specific tests, adapter docs, sample configs, and recent task history. Identify cases where tests encode old contracts, miss real Codex desktop behavior, or docs overclaim. Return concrete failing/weak coverage points and recommended test scenarios. Do not edit files.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T17:39:14.452Z"
+      },
+      "assignee": "codex-trace-tests-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-17T17:29:44.206Z",
+        "lastChanged": "2026-06-17T17:39:14.449Z",
         "lastStatus": "done"
       },
       "metrics": null,
@@ -121360,9 +121459,9 @@
       "from": "note:note-mqeln4edrjs",
       "to": "note:note-mqe5sbyj4uq",
       "kind": "context",
-      "weight": 0.687,
-      "by": "judge",
-      "judged": true,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
       "score": 0.687,
       "origin": "autowire-semantic"
     },
@@ -121400,9 +121499,9 @@
       "from": "note:note-mqeln4edrjs",
       "to": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/10",
       "kind": "context",
-      "weight": 0.681,
-      "by": "judge",
-      "judged": true,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
       "score": 0.681,
       "origin": "autowire-semantic"
     },
@@ -126230,10 +126329,9 @@
       "from": "note:note-mqfl5llz4rj",
       "to": "10343c8a-3686-4427-bcf6-debb4213de73/1",
       "kind": "context",
-      "by": "judge",
-      "judged": true,
-      "origin": "asserted",
-      "weight": 0.5
+      "by": "autowire",
+      "judged": false,
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqfl8pb1gu0",
@@ -129878,9 +129976,9 @@
       "from": "note:note-mqb0kr66rg9",
       "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15",
       "kind": "context",
-      "weight": 0.579,
-      "by": "judge",
-      "judged": true,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
       "score": 0.579,
       "origin": "autowire-semantic"
     },
@@ -130163,9 +130261,9 @@
       "from": "note:note-mqgtiljwcn2",
       "to": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/6",
       "kind": "context",
-      "weight": 0.555,
-      "by": "judge",
-      "judged": true,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
       "score": 0.555,
       "origin": "autowire-semantic"
     },
@@ -130180,9 +130278,9 @@
       "from": "note:note-mqgtr6a9s6c",
       "to": "note:note-mqgtiljwcn2",
       "kind": "context",
-      "weight": 0.572,
-      "by": "judge",
-      "judged": true,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
       "score": 0.572,
       "origin": "autowire-semantic"
     },
@@ -130422,9 +130520,9 @@
       "from": "note:note-mqgudrqpuzc",
       "to": "note:note-mqgu63huoyl",
       "kind": "context",
-      "weight": 0.758,
-      "by": "judge",
-      "judged": true,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
       "score": 0.758,
       "origin": "autowire-semantic"
     },
@@ -130932,9 +131030,9 @@
       "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/2",
       "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/1",
       "kind": "context",
-      "weight": 0.644,
-      "by": "judge",
-      "judged": true,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
       "score": 0.644,
       "origin": "autowire-semantic"
     },
@@ -131146,9 +131244,9 @@
       "from": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/5",
       "to": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/6",
       "kind": "context",
-      "weight": 0.63,
-      "by": "judge",
-      "judged": true,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
       "score": 0.63,
       "origin": "autowire-semantic"
     },
@@ -131387,11 +131485,8 @@
       "from": "note:note-mqgwagrdguj",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/7",
       "kind": "context",
-      "weight": 0,
-      "judged": false,
-      "by": "autowire",
-      "score": 0.625,
-      "origin": "autowire-semantic"
+      "weight": 1,
+      "judged": true
     },
     {
       "from": "note:note-mqgwagrdguj",
@@ -131410,7 +131505,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.822,
+      "score": 0.769,
       "origin": "autowire-semantic"
     },
     {
@@ -131420,7 +131515,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.661,
+      "score": 0.732,
       "origin": "autowire-semantic"
     },
     {
@@ -131430,7 +131525,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.778,
+      "score": 0.705,
       "origin": "autowire-semantic"
     },
     {
@@ -131706,7 +131801,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.857,
+      "score": 0.846,
       "origin": "autowire-semantic"
     },
     {
@@ -132667,7 +132762,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.723,
+      "score": 0.738,
       "origin": "autowire-semantic"
     },
     {
@@ -132687,7 +132782,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.589,
+      "score": 0.636,
       "origin": "autowire-semantic"
     },
     {
@@ -134971,7 +135066,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.73,
+      "score": 0.713,
       "origin": "autowire-semantic"
     },
     {
@@ -135438,52 +135533,12 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqawaybb608",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/17",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.617,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzmvnkaqy",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/15",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.563,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzmvnkaqy",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/22",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.574,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgztj9lza0",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/9",
       "kind": "context",
       "by": "autowire",
       "judged": false,
       "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqgztj9lza0",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/12",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.566,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqh0gwz1mxc",
@@ -135612,200 +135667,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqhg00za1ld",
-      "to": "note:note-mqfh9nmj87j",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.606,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhg00za1ld",
-      "to": "note:note-mqfgcwu5yqi",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.571,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhg00za1ld",
-      "to": "note:note-mqegb6tzty3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.554,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhg3r9l5iv",
-      "to": "5926e9e3-79fa-43b5-8680-7f84d4ffeebc/1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.752,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhg3r9l5iv",
-      "to": "note:note-mqfcbjui4zk",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.621,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhg3r9l5iv",
-      "to": "note:note-mqf9al6pjvv",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.619,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhg3r9l5iv",
-      "to": "note:note-mqf9plgeajc",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.612,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhg3r9l5iv",
-      "to": "note:note-mqfsyl39pz2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.608,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhgkkxsv3o",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/22",
-      "kind": "context",
-      "weight": 1,
-      "judged": true
-    },
-    {
-      "from": "note:note-mqhgkkxsv3o",
-      "to": "note:note-mqh0gwz1mxc",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.686,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhgkkxsv3o",
-      "to": "note:note-mqgtihmabbs",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.665,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhgkkxsv3o",
-      "to": "note:note-mqgrel2bjak",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.636,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhgkkxsv3o",
-      "to": "note:note-mqd8r0dulaw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.635,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhgkkxsv3o",
-      "to": "note:note-mqd6hrlnbhp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.632,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhha58fz9k",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/19",
-      "kind": "context",
-      "weight": 1,
-      "judged": true
-    },
-    {
-      "from": "note:note-mqhha58fz9k",
-      "to": "note:note-mqh0gwz1mxc",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.762,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhha58fz9k",
-      "to": "note:note-mqgwrh5a63x",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.761,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhha58fz9k",
-      "to": "note:note-mqeapqae6jf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.753,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhha58fz9k",
-      "to": "note:note-mqe1cey1lux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.733,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhha58fz9k",
-      "to": "note:note-mqfmkwytf2n",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.727,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "200e8c1e-f491-462e-aa2b-7174b4468475/3",
       "to": "codex/install-orchestrator-skill-client-repos",
       "kind": "context",
@@ -135830,438 +135691,12 @@
       "origin": "asserted"
     },
     {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/12",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/13",
+      "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5",
+      "to": "codex/fix-featurebench-verdict-review-issues",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.864,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/13",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/12",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.864,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/14",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/15",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.607,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/15",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/14",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.875,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/17",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/19",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.584,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/17",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/16",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.551,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/18",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/19",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.619,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/18",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.58,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/19",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/18",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.723,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/19",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/17",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.636,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/19",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.567,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/20",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/21",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.577,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/21",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/20",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.595,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/22",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/23",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.638,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/23",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/22",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.692,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/11",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/10",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.679,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/11",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/9",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.573,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/12",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/21",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.705,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/13",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/12",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.657,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/13",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/9",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.62,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/14",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/22",
-      "kind": "context",
-      "weight": 0.7,
+      "weight": 0.3,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/15",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/14",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.559,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/16",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/23",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.713,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/16",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/20",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.597,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/17",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/15",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.605,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/17",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/14",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.584,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/18",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/14",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.605,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/18",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/17",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.59,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/19",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/17",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.579,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/19",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/14",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.563,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/19",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/16",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.555,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/19",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/22",
-      "kind": "context",
-      "weight": 0.95,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/20",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/10",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.667,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/20",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/16",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.57,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/21",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/12",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.705,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/21",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/22",
-      "kind": "context",
-      "weight": 0.8,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/23",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/16",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.824,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/23",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/24",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.555,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/23",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/17",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.55,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/24",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/16",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.719,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/24",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/19",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.69,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/24",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/23",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.644,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/24",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/14",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.591,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/25",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/19",
-      "kind": "context",
-      "weight": 0.557,
-      "by": "judge",
-      "judged": true,
-      "score": 0.557,
-      "origin": "autowire-semantic"
     },
     {
       "from": "af585417-07f3-4b6f-8c96-d9b784271d32/12",
@@ -136286,6 +135721,16 @@
       "weight": 0.5,
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-featurebench-verdict-review-issues",
+      "to": "followup/restart-orchestrator-daemon-to-pick-up-v-6x5p",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.554,
+      "origin": "autowire-semantic"
     },
     {
       "from": "codex/investigate-note-dup-guard-test",
@@ -136358,71 +135803,1060 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mqgw7oy7b8z",
-      "to": "note:note-mqgwagrdguj",
+      "from": "note:note-mqgtvw168ex",
+      "to": "codex/headless-drains-default-often",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.576,
+      "score": 0.575,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgwagrdguj",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/3",
-      "kind": "context",
-      "weight": 1,
-      "judged": true
-    },
-    {
-      "from": "note:note-mqgwagrdguj",
-      "to": "note:note-mqgtgbdm0mh",
+      "from": "note:note-mqhopcw5kjd",
+      "to": "note:note-mqg9mzarifw",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.749,
+      "score": 0.855,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgwagrdguj",
+      "from": "note:note-mqhopcw5kjd",
+      "to": "note:note-mqetzhodzyt",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.821,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqhopcw5kjd",
       "to": "note:note-mqgt2bjvle5",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.745,
+      "score": 0.736,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgwagrdguj",
+      "from": "note:note-mqhopcw5kjd",
       "to": "note:note-mqflqx78zk2",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.619,
+      "score": 0.7,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgwagrdguj",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/10",
+      "from": "note:note-mqhopcw5kjd",
+      "to": "note:note-mqgwh4xhfa0",
       "kind": "context",
+      "weight": 0,
       "by": "autowire",
       "judged": false,
+      "score": 0.691,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqi6mvx3gip",
+      "to": "codex/headless-drains-default-often",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqicfdkrknk",
+      "to": "note:note-mqgyht6nop3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.742,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicfdkrknk",
+      "to": "note:note-mqgyk5n50yj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.715,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicfdkrknk",
+      "to": "note:note-mqgzpkrm8rj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.715,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicfdkrknk",
+      "to": "followup/harness-label-drain",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.702,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicfdkrknk",
+      "to": "note:note-mqgzl63hrlf",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.69,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/1",
+      "to": "codex/headless-drains-default-often",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
       "origin": "asserted"
     },
     {
-      "from": "note:note-mqgwagrdguj",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/11",
+      "from": "note:note-mqatxdyv38f",
+      "to": "codex/architecture-seam-audit",
       "kind": "context",
-      "by": "autowire",
-      "judged": false,
+      "weight": 1,
+      "judged": true,
       "origin": "asserted"
     },
     {
-      "from": "note:note-mqgycs0dynf",
-      "to": "note:note-mqgsfzw9rnh",
+      "from": "note:note-mqatxdyv38f",
+      "to": "codex/architecture-seam-audit-core",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqe2awxnjjf",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqeai9sgzr1",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqeai9sgzr1",
+      "to": "codex/architecture-seam-audit-core",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqeh1zs40t4",
+      "to": "codex/trace-daemon-lifecycle-codex",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqfatdr2s67",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqftffo7f2b",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqgtdsl1abm",
+      "to": "codex/trace-daemon-lifecycle-codex",
+      "kind": "context",
+      "weight": 0.75,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqgu63huoyl",
+      "to": "codex/trace-codex-hooks-gates",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqgudrqpuzc",
+      "to": "codex/trace-codex-hooks-gates",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqh44bouyi0",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqh44bouyi0",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicijw0l9x",
+      "to": "note:note-mqicfdkrknk",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.981,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicijw0l9x",
+      "to": "note:note-mqgyht6nop3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.748,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicijw0l9x",
+      "to": "note:note-mqgzpkrm8rj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.722,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicijw0l9x",
+      "to": "note:note-mqgyk5n50yj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.717,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicijw0l9x",
+      "to": "note:note-mqgzl63hrlf",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.698,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicls7n9n1",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicls7n9n1",
+      "to": "note:note-mqicfdkrknk",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.981,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicls7n9n1",
+      "to": "note:note-mqgyht6nop3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.748,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicls7n9n1",
+      "to": "note:note-mqgzpkrm8rj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.722,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicls7n9n1",
+      "to": "note:note-mqgyk5n50yj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.717,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicoygj16r",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicoygj16r",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicoygj16r",
+      "to": "note:note-mqicfdkrknk",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.981,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicoygj16r",
+      "to": "note:note-mqgyht6nop3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.748,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicoygj16r",
+      "to": "note:note-mqgzpkrm8rj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.722,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/trace-codex-hooks-gates",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/trace-daemon-lifecycle-codex",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/judge-fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/judge-fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/judge-fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/judge-fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqid4xtqc1z",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid4xtqc1z",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid4xtqc1z",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid4xtqc1z",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid4xtqc1z",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid84r6rvb",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid84r6rvb",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid84r6rvb",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid84r6rvb",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid84r6rvb",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidbbuz98d",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidbbuz98d",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidbbuz98d",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidbbuz98d",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidbbuz98d",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidej47qls",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidej47qls",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidej47qls",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidej47qls",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidej47qls",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidhq0wrjw",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidhq0wrjw",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidhq0wrjw",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidhq0wrjw",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidhq0wrjw",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidkx5akmy",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidkx5akmy",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidkx5akmy",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidkx5akmy",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidkx5akmy",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqido4u5hs3",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqido4u5hs3",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqido4u5hs3",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqido4u5hs3",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqido4u5hs3",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidwfahf07",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidwfahf07",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidwfahf07",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidwfahf07",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidwfahf07",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "091a4bf1-b671-4ff9-854d-993775faa5ee/17",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "091a4bf1-b671-4ff9-854d-993775faa5ee/28",
+      "to": "codex/trace-daemon-lifecycle-codex",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "091a4bf1-b671-4ff9-854d-993775faa5ee/28",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "0b5a907e-b58e-41cd-892b-4c0ca8d27099/5",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/1",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32",
+      "to": "codex/fix-tmp-hook-policy",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "c9d0372b-830c-42b8-a22b-4e4bea7a823e/5",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "c9d0372b-830c-42b8-a22b-4e4bea7a823e/5",
+      "to": "codex/architecture-seam-audit-core",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/architecture-seam-audit-adapters",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/architecture-seam-audit-adapters",
+      "to": "codex/fix-tmp-hook-policy",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/architecture-seam-audit-core",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/fix-codex-session-info-hooks",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.691,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-codex-session-info-hooks",
+      "to": "codex/judge-fix-codex-session-info-hooks",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/fix-codex-session-info-hooks",
+      "to": "codex/judge-fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/fix-codex-session-propagation",
+      "to": "codex/judge-fix-codex-session-propagation",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/fix-codex-support",
+      "to": "codex/trace-codex-hooks-gates",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-support",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-support",
+      "to": "codex/architecture-seam-audit-adapters",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-support",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-support",
+      "to": "codex/fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-judging-claim-fastpath",
+      "to": "followup/fix-orch-gate-to-pick-matching-claim-for-cl90",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.62,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-judging-claim-fastpath",
+      "to": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.608,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-judging-claim-fastpath",
+      "to": "followup/add-multi-claim-gate-tests-33-34-qjr3",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -136431,2741 +136865,275 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgycs0dynf",
-      "to": "note:note-mqgw6i429p1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.565,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgyk5n50yj",
-      "to": "note:note-mqgylv30tux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.858,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgylv30tux",
-      "to": "followup/harness-judge-drain",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.597,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgylv30tux",
-      "to": "note:note-mqgt2bjvle5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.596,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgylv30tux",
-      "to": "note:note-mqgyngxbfj2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.98,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgyngxbfj2",
-      "to": "note:note-mqgyht6nop3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.883,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgyngxbfj2",
-      "to": "note:note-mqgyk5n50yj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.848,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgyqmxmv9g",
-      "to": "note:note-mqgyd0nrpot",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.978,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgyuvp2xfd",
-      "to": "note:note-mqgylv30tux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.976,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgyyzakx7a",
-      "to": "note:note-mqgylv30tux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.901,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgz28seei5",
-      "to": "note:note-mqgyjy2fvx4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.901,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgz28seei5",
-      "to": "note:note-mqgylv30tux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.901,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgz3pggkx1",
-      "to": "note:note-mqgylv30tux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.976,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgz3pggkx1",
-      "to": "note:note-mqgyngxbfj2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.976,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgz86a56vp",
-      "to": "note:note-mqgysopw9sl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.983,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgz8dh869b",
-      "to": "note:note-mqgyqmxmv9g",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.955,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgza6j6wk5",
-      "to": "note:note-mqgylv30tux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.987,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzcg0kveh",
-      "to": "note:note-mqgysopw9sl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.978,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzgj6gxbk",
-      "to": "note:note-mqgz8dh869b",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.939,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzjevdcdt",
-      "to": "note:note-mqgylv30tux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.94,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzn27f3je",
-      "to": "note:note-mqgzoc481qw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.993,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzoc481qw",
-      "to": "note:note-mqgz28seei5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.97,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzoc481qw",
-      "to": "note:note-mqgzjevdcdt",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.958,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzpkrm8rj",
-      "to": "note:note-mqgz86a56vp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.928,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzriz7dkj",
-      "to": "note:note-mqgzcg0kveh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.975,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzt47ufy7",
-      "to": "note:note-mqgysopw9sl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.978,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzuj8z98m",
-      "to": "note:note-mqgyqmxmv9g",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.985,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgzvmv2f1u",
-      "to": "note:note-mqgzoc481qw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.963,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhhwxojrn1",
-      "to": "note:note-mqgzvmv2f1u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.972,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhhwxojrn1",
-      "to": "note:note-mqgzwzulqql",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.971,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhhwxojrn1",
-      "to": "note:note-mqgzjevdcdt",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.969,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhhwxojrn1",
-      "to": "note:note-mqgzn27f3je",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.958,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhhwxojrn1",
-      "to": "note:note-mqgzda5rpnu",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.957,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhhwxojrn1",
-      "to": "note:note-mqgzgj6gxbk",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.957,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhhy8f3gd3",
-      "to": "note:note-mqhhwxojrn1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.993,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhhy8f3gd3",
-      "to": "note:note-mqgzvmv2f1u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.974,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhhy8f3gd3",
-      "to": "note:note-mqgzjevdcdt",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.973,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhhy8f3gd3",
-      "to": "note:note-mqgzwzulqql",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.973,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhhy8f3gd3",
-      "to": "note:note-mqgzm0teiaq",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.962,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi19cytlm",
-      "to": "note:note-mqgzpkrm8rj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.806,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi19cytlm",
-      "to": "note:note-mqgyht6nop3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.782,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi19cytlm",
-      "to": "note:note-mqgyk5n50yj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.764,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi19cytlm",
-      "to": "note:note-mqgzvmv2f1u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.757,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi19cytlm",
-      "to": "note:note-mqgzw25vnm4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.756,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi1c6qwvr",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.785,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi1c6qwvr",
-      "to": "note:note-mqgyht6nop3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.741,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi1c6qwvr",
-      "to": "note:note-mqgzpkrm8rj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.712,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi1c6qwvr",
-      "to": "note:note-mqgyk5n50yj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.705,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi1c6qwvr",
-      "to": "note:note-mqgzl63hrlf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.69,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi1c6qwvr",
-      "to": "note:note-mqgzoc481qw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.69,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi1c6qwvr",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.785,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi1c6qwvr",
-      "to": "note:note-mqhojh4ew7l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.785,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi1c6qwvr",
-      "to": "note:note-mqhu5cygufj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.785,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhi1c6qwvr",
-      "to": "note:note-mqi293oh28r",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.785,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj0byf4tu",
-      "to": "note:note-mqgza6j6wk5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.988,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj0byf4tu",
-      "to": "note:note-mqgz46bnvcy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.987,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj0byf4tu",
-      "to": "note:note-mqgz86a56vp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.987,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj0byf4tu",
-      "to": "note:note-mqgysopw9sl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj0byf4tu",
-      "to": "note:note-mqgzig6lem2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj1dd26rl",
-      "to": "note:note-mqhhwxojrn1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.995,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj1dd26rl",
-      "to": "note:note-mqhhy8f3gd3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.994,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj1dd26rl",
-      "to": "note:note-mqgzjevdcdt",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.972,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj1dd26rl",
-      "to": "note:note-mqgzvmv2f1u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.971,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj1dd26rl",
-      "to": "note:note-mqgzwzulqql",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.971,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3frdre1",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3frdre1",
-      "to": "note:note-mqgzpkrm8rj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.806,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3frdre1",
-      "to": "note:note-mqhi1c6qwvr",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.785,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3frdre1",
-      "to": "note:note-mqgyht6nop3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.782,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3frdre1",
-      "to": "note:note-mqgyk5n50yj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.764,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3frdre1",
-      "to": "note:note-mqgzvmv2f1u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.757,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3frdre1",
-      "to": "note:note-mqgzw25vnm4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.756,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3gvycjh",
-      "to": "note:note-mqhi1c6qwvr",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.985,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3gvycjh",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3gvycjh",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3gvycjh",
-      "to": "note:note-mqgyht6nop3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.741,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3gvycjh",
-      "to": "note:note-mqgzpkrm8rj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.713,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3gvycjh",
-      "to": "note:note-mqhojh4ew7l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3gvycjh",
-      "to": "note:note-mqhu5cygufj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhj3gvycjh",
-      "to": "note:note-mqi293oh28r",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlqe8k6tq",
-      "to": "note:note-mqgyjy2fvx4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.98,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlqe8k6tq",
-      "to": "note:note-mqgylv30tux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.98,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlqe8k6tq",
-      "to": "note:note-mqgz0jg7t7d",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.98,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlqe8k6tq",
-      "to": "note:note-mqgz3pggkx1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.98,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlqe8k6tq",
-      "to": "note:note-mqgz5ggbmaw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.98,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlqx1wczm",
-      "to": "note:note-mqgyjy2fvx4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.989,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlqx1wczm",
-      "to": "note:note-mqgylv30tux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.989,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlqx1wczm",
-      "to": "note:note-mqgysopw9sl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlqx1wczm",
-      "to": "note:note-mqgz46bnvcy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlqx1wczm",
-      "to": "note:note-mqgz86a56vp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu0qxqq8",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu0qxqq8",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu0qxqq8",
-      "to": "note:note-mqgzpkrm8rj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.806,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu0qxqq8",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu0qxqq8",
-      "to": "note:note-mqhi1c6qwvr",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.785,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu1zneqz",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu1zneqz",
-      "to": "note:note-mqhi1c6qwvr",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.985,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu1zneqz",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu1zneqz",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu1zneqz",
-      "to": "note:note-mqhlu0qxqq8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu1zneqz",
-      "to": "note:note-mqhojh4ew7l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu1zneqz",
-      "to": "note:note-mqhu5cygufj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhlu1zneqz",
-      "to": "note:note-mqi293oh28r",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhogq83f80",
-      "to": "note:note-mqgzvmv2f1u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.978,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhogq83f80",
-      "to": "note:note-mqgzjevdcdt",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.976,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhogq83f80",
-      "to": "note:note-mqgzn27f3je",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.976,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhogq83f80",
-      "to": "note:note-mqgzwzulqql",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.975,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhogq83f80",
-      "to": "note:note-mqgzl63hrlf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.973,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoh59983j",
-      "to": "note:note-mqhogq83f80",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.991,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoh59983j",
-      "to": "note:note-mqgzvmv2f1u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.975,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoh59983j",
-      "to": "note:note-mqgzn27f3je",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.974,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoh59983j",
-      "to": "note:note-mqgzwzulqql",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.974,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoh59983j",
-      "to": "note:note-mqgzjevdcdt",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.971,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhojh4ew7l",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhojh4ew7l",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhojh4ew7l",
-      "to": "note:note-mqhlu0qxqq8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhojh4ew7l",
-      "to": "note:note-mqgzpkrm8rj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.806,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhojh4ew7l",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhojh4ew7l",
-      "to": "note:note-mqhi1c6qwvr",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.785,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhojh4ew7l",
-      "to": "note:note-mqgyht6nop3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.782,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhojh4ew7l",
-      "to": "note:note-mqgyk5n50yj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.764,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhojh4ew7l",
-      "to": "note:note-mqgzvmv2f1u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.757,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhojh4ew7l",
-      "to": "note:note-mqgzw25vnm4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.756,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoji9ck1f",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoji9ck1f",
-      "to": "note:note-mqhlu1zneqz",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoji9ck1f",
-      "to": "note:note-mqhi1c6qwvr",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.985,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoji9ck1f",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoji9ck1f",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoji9ck1f",
-      "to": "note:note-mqhojh4ew7l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoji9ck1f",
-      "to": "note:note-mqhu5cygufj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhoji9ck1f",
-      "to": "note:note-mqi293oh28r",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhr905am5d",
-      "to": "note:note-mqgyp5rfbol",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhr905am5d",
-      "to": "note:note-mqgyqmxmv9g",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhr905am5d",
-      "to": "note:note-mqgz46bnvcy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhr905am5d",
-      "to": "note:note-mqgz86a56vp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhr905am5d",
-      "to": "note:note-mqgza6j6wk5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrarq0ov0",
-      "to": "note:note-mqhlqx1wczm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.988,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrarq0ov0",
-      "to": "note:note-mqgyjy2fvx4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.987,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrarq0ov0",
-      "to": "note:note-mqgylv30tux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.987,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrarq0ov0",
-      "to": "note:note-mqgyp5rfbol",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.987,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrarq0ov0",
-      "to": "note:note-mqgyqmxmv9g",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.987,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrcs7rywb",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrcs7rywb",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrcs7rywb",
-      "to": "note:note-mqhlu0qxqq8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrcs7rywb",
-      "to": "note:note-mqhojh4ew7l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrcs7rywb",
-      "to": "note:note-mqgzpkrm8rj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.806,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrcthemzp",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrcthemzp",
-      "to": "note:note-mqhlu1zneqz",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrcthemzp",
-      "to": "note:note-mqhoji9ck1f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrcthemzp",
-      "to": "note:note-mqhi1c6qwvr",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.985,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhrcthemzp",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu239fdv0",
-      "to": "note:note-mqgyp5rfbol",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.989,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu239fdv0",
-      "to": "note:note-mqgyqmxmv9g",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.989,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu239fdv0",
-      "to": "note:note-mqgz46bnvcy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.989,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu239fdv0",
-      "to": "note:note-mqgz86a56vp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.989,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu239fdv0",
-      "to": "note:note-mqgza6j6wk5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.988,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu3cjrav5",
-      "to": "note:note-mqhu239fdv0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.989,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu3cjrav5",
-      "to": "note:note-mqgyp5rfbol",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu3cjrav5",
-      "to": "note:note-mqgyqmxmv9g",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu3cjrav5",
-      "to": "note:note-mqgz46bnvcy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu3cjrav5",
-      "to": "note:note-mqgz86a56vp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.986,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqhlu0qxqq8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqhojh4ew7l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqhrcs7rywb",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqgzpkrm8rj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.806,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqhi1c6qwvr",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.785,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqgyht6nop3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.782,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqgyk5n50yj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.764,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqgzvmv2f1u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.757,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5cygufj",
-      "to": "note:note-mqgzw25vnm4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.756,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5eawfw2",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5eawfw2",
-      "to": "note:note-mqhlu1zneqz",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5eawfw2",
-      "to": "note:note-mqhoji9ck1f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5eawfw2",
-      "to": "note:note-mqhrcthemzp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhu5eawfw2",
-      "to": "note:note-mqhi1c6qwvr",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.985,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwnke69wf",
-      "to": "note:note-mqgzwzulqql",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.975,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwnke69wf",
-      "to": "note:note-mqgzvmv2f1u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.974,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwnke69wf",
-      "to": "note:note-mqgzjevdcdt",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.971,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwnke69wf",
-      "to": "note:note-mqhogq83f80",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.968,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwnke69wf",
-      "to": "note:note-mqhoh59983j",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.966,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwp1a6ay9",
-      "to": "note:note-mqgz0jg7t7d",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.98,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwp1a6ay9",
-      "to": "note:note-mqgz3pggkx1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.98,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwp1a6ay9",
-      "to": "note:note-mqgzpi7x6iu",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.98,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwp1a6ay9",
-      "to": "note:note-mqgzt47ufy7",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.98,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwp1a6ay9",
-      "to": "note:note-mqgyb4r4wev",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.978,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwr0iit8h",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwr0iit8h",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwr0iit8h",
-      "to": "note:note-mqhlu0qxqq8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwr0iit8h",
-      "to": "note:note-mqhojh4ew7l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwr0iit8h",
-      "to": "note:note-mqhrcs7rywb",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwr1u6ayx",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwr1u6ayx",
-      "to": "note:note-mqhlu1zneqz",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwr1u6ayx",
-      "to": "note:note-mqhoji9ck1f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwr1u6ayx",
-      "to": "note:note-mqhrcthemzp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhwr1u6ayx",
-      "to": "note:note-mqhu5eawfw2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzea5d6ez",
-      "to": "note:note-mqgzda5rpnu",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.995,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzea5d6ez",
-      "to": "note:note-mqgzgj6gxbk",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.995,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzea5d6ez",
-      "to": "note:note-mqgzl63hrlf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.993,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzea5d6ez",
-      "to": "note:note-mqgzoc481qw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.993,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzea5d6ez",
-      "to": "note:note-mqgzn27f3je",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.992,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzfj5kto8",
-      "to": "note:note-mqgzda5rpnu",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.995,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzfj5kto8",
-      "to": "note:note-mqgzgj6gxbk",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.995,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzfj5kto8",
-      "to": "note:note-mqgzn27f3je",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.995,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzfj5kto8",
-      "to": "note:note-mqgzl63hrlf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.994,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzfj5kto8",
-      "to": "note:note-mqgzoc481qw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.994,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzhfwohi5",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzhfwohi5",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzhfwohi5",
-      "to": "note:note-mqhlu0qxqq8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzhfwohi5",
-      "to": "note:note-mqhojh4ew7l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzhfwohi5",
-      "to": "note:note-mqhrcs7rywb",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzhh4cxtt",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzhh4cxtt",
-      "to": "note:note-mqhlu1zneqz",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzhh4cxtt",
-      "to": "note:note-mqhoji9ck1f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzhh4cxtt",
-      "to": "note:note-mqhrcthemzp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhzhh4cxtt",
-      "to": "note:note-mqhu5eawfw2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi24zji49r",
-      "to": "note:note-mqgzl63hrlf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.995,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi24zji49r",
-      "to": "note:note-mqgzoc481qw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.995,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi24zji49r",
-      "to": "note:note-mqhzfj5kto8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.995,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi24zji49r",
-      "to": "note:note-mqgzn27f3je",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.994,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi24zji49r",
-      "to": "note:note-mqgzda5rpnu",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.993,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi26dgchpn",
-      "to": "note:note-mqgz46bnvcy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.99,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi26dgchpn",
-      "to": "note:note-mqgz86a56vp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.99,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi26dgchpn",
-      "to": "note:note-mqgyp5rfbol",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.989,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi26dgchpn",
-      "to": "note:note-mqgyqmxmv9g",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.989,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi26dgchpn",
-      "to": "note:note-mqgza6j6wk5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.989,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqhlu0qxqq8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqhojh4ew7l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqhrcs7rywb",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqgzpkrm8rj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.806,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.788,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqhi1c6qwvr",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.785,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqgyht6nop3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.782,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqgyk5n50yj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.764,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqgzvmv2f1u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.757,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi293oh28r",
-      "to": "note:note-mqgzw25vnm4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.756,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi294rr2kl",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi294rr2kl",
-      "to": "note:note-mqhlu1zneqz",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi294rr2kl",
-      "to": "note:note-mqhoji9ck1f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi294rr2kl",
-      "to": "note:note-mqhrcthemzp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi294rr2kl",
-      "to": "note:note-mqhu5eawfw2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4uvwuwo8",
-      "to": "note:note-mqgwagrdguj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.758,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4uvwuwo8",
-      "to": "note:note-mqgwhrs2aom",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.741,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4uvwuwo8",
-      "to": "note:note-mqbc3zun3l4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.712,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4uvwuwo8",
-      "to": "note:note-mqgsb1mcnid",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.711,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4uvwuwo8",
-      "to": "note:note-mqgvjghmn2z",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.701,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4uvwuwo8",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/26",
-      "kind": "context",
-      "weight": 0.603,
-      "by": "judge",
-      "judged": true,
-      "score": 0.603,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4vh6dkys",
-      "to": "note:note-mqhrarq0ov0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.985,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4vh6dkys",
-      "to": "note:note-mqgyp5rfbol",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.981,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4vh6dkys",
-      "to": "note:note-mqgyqmxmv9g",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.981,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4vh6dkys",
-      "to": "note:note-mqgz5ggbmaw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.981,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4vh6dkys",
-      "to": "note:note-mqgylfs4d4e",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.98,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4xlwat04",
-      "to": "note:note-mqgzneqm0nv",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.946,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4xlwat04",
-      "to": "note:note-mqgzriz7dkj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.946,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4xlwat04",
-      "to": "note:note-mqhlqe8k6tq",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.943,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4xlwat04",
-      "to": "note:note-mqgzalmhdzf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.939,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4xlwat04",
-      "to": "note:note-mqgzcg0kveh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.939,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4zmqea5r",
-      "to": "note:note-mqhi19cytlm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4zmqea5r",
-      "to": "note:note-mqhj3frdre1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4zmqea5r",
-      "to": "note:note-mqhlu0qxqq8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4zmqea5r",
-      "to": "note:note-mqhojh4ew7l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4zmqea5r",
-      "to": "note:note-mqhrcs7rywb",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4zo18679",
-      "to": "note:note-mqhj3gvycjh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4zo18679",
-      "to": "note:note-mqhlu1zneqz",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4zo18679",
-      "to": "note:note-mqhoji9ck1f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4zo18679",
-      "to": "note:note-mqhrcthemzp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi4zo18679",
-      "to": "note:note-mqhu5eawfw2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "3d98f672-2b47-4ef5-8282-f4db45cf1808/6",
-      "to": "3d98f672-2b47-4ef5-8282-f4db45cf1808/5",
+      "from": "codex/fix-judging-claim-fastpath",
+      "to": "codex/judge-fix-judging-claim-fastpath",
       "kind": "blocking",
-      "by": "judge",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/fix-judging-claim-fastpath",
+      "to": "codex/judge-fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/fix-review-findings",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.85,
       "judged": true,
-      "score": 0.624,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-shell-write-gate-cross-shell",
+      "to": "af585417-07f3-4b6f-8c96-d9b784271d32/1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.562,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15",
+      "from": "codex/fix-shell-write-gate-cross-shell",
+      "to": "codex/judge-fix-shell-write-gate-cross-shell",
       "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.588,
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/fix-shell-write-gate-cross-shell",
+      "to": "codex/judge-fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/judge-fix-codex-session-info-hooks",
+      "to": "codex/fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.761,
       "origin": "autowire-semantic"
     },
     {
-      "from": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/4",
-      "to": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/3",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.642,
+      "from": "codex/judge-fix-codex-session-info-hooks",
+      "to": "codex/judge-fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.676,
       "origin": "autowire-semantic"
     },
     {
-      "from": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/6",
-      "to": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/5",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.756,
+      "from": "codex/judge-fix-codex-session-info-hooks",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.55,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-judging-claim-fastpath",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.604,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-shell-write-gate-cross-shell",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.616,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-shell-write-gate-cross-shell",
+      "to": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.554,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-codex-support",
+      "to": "codex/trace-codex-hooks-gates",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/review-codex-support",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/review-codex-support",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-codex-hooks-gates",
+      "to": "codex/fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-codex-hooks-gates",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-codex-session-claims",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-codex-session-claims",
+      "to": "codex/fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-codex-tests-docs",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-daemon-lifecycle-codex",
+      "to": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.559,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/trace-daemon-lifecycle-codex",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/8",
+      "to": "codex/trace-daemon-lifecycle-codex",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/8",
+      "to": "codex/fix-tmp-hook-policy",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/1",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "followup/fix-session-js-active-claim-t-agent-id-t-aoov",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/dg1",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/hb4",
+      "to": "codex/architecture-seam-audit-adapters",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/i1",
+      "to": "codex/architecture-seam-audit-adapters",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/j2",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/j3",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "unify/ready-only-via-judged",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
     }
   ],
-  "compacted_at": "2026-06-17T14:44:44.243Z"
+  "compacted_at": "2026-06-17T18:10:18.585Z"
 }

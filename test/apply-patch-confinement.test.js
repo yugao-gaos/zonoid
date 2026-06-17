@@ -116,10 +116,11 @@ function runGateSh(payload) {
     ok('daemon came up', await waitForPing());
     ok('workspace pinned', (await req('POST', '/workspace', { path: WS })).status === 200);
     await req('GET', '/state');
-    ok('root declared', (await req('POST', '/mark-root', { task_key: K(1) })).status === 200);
+    ok('root declared', (await req('POST', '/mark-root', { task_key: K(1), workspace: WS })).status === 200);
 
     // Branch an attempt worktree (registers it in overlay.git) then self-register-on-claim.
-    const wt = await req('POST', '/git/worktree', { key: K(1) });
+    // P3: no daemon-global workspace — repo resolution requires an explicit workspace per request.
+    const wt = await req('POST', '/git/worktree', { key: K(1), workspace: WS });
     ok('attempt worktree created', wt.status === 200 && String(wt.body.branch).startsWith('orch/attempt/'));
     const WT = fs.realpathSync(wt.body.worktree);
     const claim = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'cdx-worker', session_id: SESSION, workspace: WS });

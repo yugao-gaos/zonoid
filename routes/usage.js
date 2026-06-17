@@ -13,12 +13,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 400, { ok: false, error: 'parent_session required' });
       return true;
     }
-    const resolved = resolveDispatcherAttribution(parentSession, ctx, b.task_key || null);
+    const resolved = resolveDispatcherAttribution(parentSession, ctx, b.task_key || null, { b, u });
     if (!resolved.ok) {
       send(res, 409, { ok: false, ...resolved });
       return true;
     }
-    const T = targetOverlay(b, u);
+    // P3: the gate POSTs this with no workspace (it can't name it). Fall back to the workspace that
+    // owns the attributed task (resolved from the registered-workspace scan) so the usage slice
+    // lands in that workspace's overlay, not the empty default.
+    const T = targetOverlay({ ...b, workspace: (b && b.workspace) || resolved.workspace }, u);
     const slice = usageAccounting.recordDispatcherEdit(T.ov, {
       agent_id: resolved.agent_id,
       task_key: resolved.task_key,

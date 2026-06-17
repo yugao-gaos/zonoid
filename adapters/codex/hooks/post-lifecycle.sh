@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 INPUT=$(cat)
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')
 case "$TOOL" in
-  spawn_agents*|mcp__orchestrator-graph__complete_task|Agent|Task) ;;
+  spawn_agents*|mcp__orchestrator-graph__complete_task|mcp__orchestrator_graph__complete_task|complete_task|Agent|Task) ;;
   *) exit 0 ;;
 esac
 # post-agent.sh matcher is Agent|Task; reuse its ready-nudge logic when a dispatch completes.

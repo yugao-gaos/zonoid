@@ -50,17 +50,29 @@ const TASKS_B = path.join(os.homedir(), '.claude', 'tasks', SID_B);
 const KEY_A = `${SID_A}/1`;
 const KEY_B = `${SID_B}/1`;
 
+// P3: ops require an explicit workspace (no daemon-global default). This suite uses a single
+// sandbox workspace WS; default it into POST bodies and GET query strings. The `raw` body path
+// (malformed-JSON tests) is left untouched, as is /workspace, /ping, and any explicit workspace.
 async function post(p, body, raw) {
+  let payload;
+  if (raw !== undefined) payload = raw;
+  else if (p === '/workspace' || (body && body.workspace)) payload = JSON.stringify(body);
+  else payload = JSON.stringify({ ...(body || {}), workspace: WS });
   const res = await fetch(`${BASE}${p}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: raw !== undefined ? raw : JSON.stringify(body),
+    body: payload,
   });
   return { status: res.status, body: await res.json() };
 }
 
+function withWs(p) {
+  if (p.startsWith('/ping') || p.includes('workspace=')) return p;
+  return p + (p.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WS);
+}
+
 async function get(p) {
-  const res = await fetch(`${BASE}${p}`);
+  const res = await fetch(`${BASE}${withWs(p)}`);
   return { status: res.status, body: await res.json() };
 }
 

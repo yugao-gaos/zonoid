@@ -64,8 +64,8 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 | `SessionStart` | `session-start.sh` | `/ping`, `/workspace` |
 | `UserPromptSubmit` | `classify-relay.sh` | `/classify` |
 | `PreToolUse` `*` | `orch-stop.sh` | `/should-stop` → `permissionDecision: deny` |
-| `PreToolUse` `apply_patch\|Write\|Edit` | `orch-gate.sh` | `/active-claim`, `/task/detail`, `/session-info`, `/dispatcher/children` |
-| `PreToolUse` `Bash` | `orch-gate-bash.sh` | `/active-claim` |
+| `PreToolUse` `apply_patch\|Write\|Edit` | `orch-gate.sh` | shared gate policy, `/active-claim`, `/task/detail`, `/session-info`, `/dispatcher/children` |
+| `PreToolUse` `Bash` | `orch-gate-bash.sh` | shared gate policy, `/active-claim`, `/task/detail` |
 | `SubagentStart` | `subagent-start.sh` | `/agent/start` |
 | `SubagentStop` | `subagent-stop.sh` | `/agent/done` |
 | `PostToolUse` `mcp__orchestrator-graph__start_task` | `post-start-task.sh` | `/overlay/claim-session` |
@@ -76,7 +76,7 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 
 - **Fail-closed PreToolUse:** relays emit only supported fields (`permissionDecision`, `permissionDecisionReason`, `hookEventName`). Unsupported fields (`continue`, `stopReason`, `updatedInput` without allow) cause Codex to fail the hook and **continue the tool call**.
 - **Partial interception:** not every shell path uses hooked tools (`unified_exec`, some reads). Treat hooks as defense-in-depth; daemon-side refusal still applies on MCP claims/merges.
-- **Session IDs:** if the Codex MCP server cannot infer the current session from the harness environment, pass `session_id` explicitly to session-bound MCP tools such as `start_task` and `ScheduleWakeup`.
+- **Session IDs:** the Codex MCP server infers the current session from `ORCH_SESSION`, `ZONOID_SESSION`, or `CODEX_THREAD_ID`; if it cannot infer one, pass `session_id` explicitly to session-bound MCP tools such as `start_task` and `ScheduleWakeup`.
 - **Task minting:** use MCP `create_task` (writes `codex/<id>.json` stub + `POST /sync`) or drop a stub file under the daemon file-drop folder manually.
 - **Repo-local skill:** `npx @zonoid/cli init --harness codex` installs `.codex/skills/zonoid-orchestrator/SKILL.md` into the client repo. Use that skill as the reusable instruction surface for task minting and dispatcher-vs-worker behavior.
 
@@ -84,7 +84,7 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 
 1. `create_task` or file-drop stub → task appears in graph
 2. MCP `branch_task(task_key)` → create an isolated attempt worktree
-3. MCP `start_task(task_key, agent_id, session_id)` → claim before edits
+3. MCP `start_task(task_key, agent_id[, session_id])` → claim before edits
 4. Edit via `apply_patch` / `Bash` inside the returned worktree — gates allow while claimed
 5. MCP `complete_task` → release claim
 

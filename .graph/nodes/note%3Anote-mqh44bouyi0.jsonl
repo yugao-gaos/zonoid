@@ -5,3 +5,6 @@
 {"evt":"edge_promoted","from":"note:note-mqh44bouyi0","to":"codex/review-codex-support","kind":"context","actor":"overlay-sync","ts":"2026-06-16T20:52:41.365Z","weight":1}
 {"evt":"knowledge_added","id":"note-mqh44bouyi0","workspace":"/Users/imyu/Desktop/zonoid","item":"Fix order: session propagation, harness=codex SessionStart, portable rollout sweep, relative Bash target resolution, real hook merge, create_task id validation, doc/package cleanup.","actor":"overlay-sync","ts":"2026-06-16T20:52:41.365Z"}
 {"evt":"edge_added","from":"note:note-mqh44bouyi0","to":"codex/fix-codex-support","kind":"context","actor":"overlay-sync","ts":"2026-06-16T20:52:46.434Z","weight":1,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mqh44bouyi0","to":"codex/trace-codex-session-claims","kind":"context","actor":"overlay-sync","ts":"2026-06-17T17:31:00.637Z","weight":1,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mqh44bouyi0","to":"codex/trace-codex-session-claims","kind":"context","actor":"overlay-sync","ts":"2026-06-17T17:31:51.986Z","weight":1,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mqh44bouyi0","to":"codex/trace-codex-tests-docs","kind":"context","actor":"overlay-sync","ts":"2026-06-17T17:32:14.852Z","weight":0.8,"origin":"asserted"}

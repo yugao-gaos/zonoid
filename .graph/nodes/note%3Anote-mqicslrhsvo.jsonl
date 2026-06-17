@@ -1,0 +1,5 @@
+{"evt":"knowledge_added","id":"note-mqicslrhsvo","workspace":"/Users/imyu/Desktop/zonoid","item":"drain:followup/harness-label-drain","actor":"overlay-sync","ts":"2026-06-17T17:37:12.174Z"}
+{"evt":"knowledge_added","id":"note-mqicslrhsvo","workspace":"/Users/imyu/Desktop/zonoid","item":"exit:0","actor":"overlay-sync","ts":"2026-06-17T17:37:12.174Z"}
+{"evt":"note_created","id":"note-mqicslrhsvo","workspace":"/Users/imyu/Desktop/zonoid","title":"headless-drain: LABEL completed for pending=3","summary":"drain=followup/harness-label-drain target=pending=3 exit=0 timedOut=false","created_by":"headless-drain","valid_from":"2026-06-17T17:37:11.981Z","vec":null,"vecs":null,"actor":"overlay-sync","ts":"2026-06-17T17:37:12.174Z"}
+{"evt":"knowledge_added","id":"note-mqicslrhsvo","workspace":"/Users/imyu/Desktop/zonoid","item":"drain:followup/harness-label-drain","actor":"overlay-sync","ts":"2026-06-17T17:39:26.515Z"}
+{"evt":"knowledge_added","id":"note-mqicslrhsvo","workspace":"/Users/imyu/Desktop/zonoid","item":"exit:0","actor":"overlay-sync","ts":"2026-06-17T17:39:26.515Z"}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse(apply_patch|Write|Edit) → GET /active-claim gate; Codex permissionDecision deny.
+# PreToolUse(apply_patch|Write|Edit) → shared write gate; Codex permissionDecision deny.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 # shellcheck source=adapters/codex/hooks/_lib.sh
