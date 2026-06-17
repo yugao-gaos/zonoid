@@ -370,6 +370,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         ragResults.push({ key, title: text.slice(0, 80), summary: text.slice(0, 200), score: Math.round(score * 1000) / 1000, kind: 'knowledge', tier: 'rag', via, path: kPath });
       });
     }
+    // CONFIDENCE FLOOR: filter out note-kind RAG candidates whose recall-outcome confidence
+    // falls below CONFIDENCE_FLOOR. Notes with no journal history are treated as confidence = 1.0
+    // (new notes must not be penalised — that is corroboration's job). Only note-kind items
+    // with a recorded history below the floor are excluded. Knowledge items always pass through.
+    {
+      const confMap = recallJournal.noteConfidenceMap(ws);
+      const floor = recallJournal.CONFIDENCE_FLOOR;
+      for (let i = ragResults.length - 1; i >= 0; i--) {
+        const r = ragResults[i];
+        if ((r.kind || 'task') !== 'note') continue;  // only filter note-kind items
+        const conf = confMap.has(r.key) ? confMap.get(r.key) : 1.0;  // no history → pass through
+        if (conf < floor) ragResults.splice(i, 1);
+      }
+    }
     ragResults.sort((a, b) => b.score - a.score);
     // CROSS-ENCODER RERANK (opt-in via ORCH_RERANK / ?rerank=1) — runs BETWEEN the cosine sort and
     // the structBoost block, so the cross-encoder supplies precision and structBoost stays the

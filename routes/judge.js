@@ -2,6 +2,7 @@
 const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
+const { computeNoteStats, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-journal');
 
 const { JUDGE_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 
@@ -140,6 +141,20 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           id: it.id,
           noteId: it.noteId,
           note: n ? { key: it.noteId, title: n.title, summary: String(n.summary || '').slice(0, 300), validFrom: n.validFrom || null } : { key: it.noteId, title: it.id, summary: '' },
+          winRate: it.winRate,
+          total: it.total,
+          action: it.action,
+        };
+      }
+      if (it.kind === 'reinforce') {
+        const noteId = String(it.noteId || it.id).replace(/^note:/, '');
+        const n = state.overlay.note_nodes[noteId];
+        return {
+          kind: 'reinforce',
+          id: it.id,
+          noteId: it.noteId,
+          note: n ? { key: it.noteId, title: n.title, summary: String(n.summary || '').slice(0, 300), validFrom: n.validFrom || null } : { key: it.noteId, title: it.id, summary: '' },
+          boost: it.boost,
           winRate: it.winRate,
           total: it.total,
           action: it.action,
@@ -305,6 +320,24 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         applied.stamped = (applied.stamped || 0) + 1; applied.clustersJudged++;
         judge.appendVerdict(T.ws, { epoch, verdict: 'distinct', from: keys[0] || null, to: keys.slice(1).join(',') || null, edgeKind: 'note', cosine: clusterMaxCosine(T.ov, keys), by: 'judge' });
       }
+      // boostNote: record a reinforce boost on a note that has a high win rate.
+      // Appends note_reinforced event carrying the boost amount, winRate, and observation count.
+      // Best-effort: skips notes not found or already retired.
+      if (v && v.boostNote && v.boostNote.noteKey) {
+        const bId = String(v.boostNote.noteKey).replace(/^note:/, '');
+        const bNode = T.ov.note_nodes && T.ov.note_nodes[bId];
+        if (bNode && bNode.validTo == null) {
+          const store = graphStore.forWorkspace(T.ws);
+          graphStore.appendEvent(store, 'note:' + bId, {
+            evt: 'note_reinforced',
+            actor: 'judge:reinforce',
+            boost: typeof v.boostNote.boost === 'number' ? v.boostNote.boost : 0,
+            winRate: v.boostNote.winRate,
+            total: v.boostNote.total,
+          });
+          applied.reinforced = (applied.reinforced || 0) + 1;
+        }
+      }
       // retireNote: soft-retire a note that failed the decay gate (low win rate, age+opp gated).
       // Appends note_superseded with validTo set, NO supersededBy — retire-without-replacement.
       // Mirrors the retire-continuity-notes.js pattern exactly. Best-effort: skips notes that are
@@ -404,6 +437,45 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       running: gate.running, capacity_ok: gate.capacity_ok, drain_in_progress: gate.drain_in_progress,
       eager_active: gate.eager_active,
     }); return true;
+  }
+
+  // GET /judge/decay-preview
+  // Read-only diagnostic endpoint. Runs the same decay gate logic as buildQueue pass (4) and returns
+  // which notes WOULD be soft-retired WITHOUT writing any note_superseded event.
+  // Response: { candidates: [{noteId, label, winRate, wins, losses, total, ageDays, validFrom}],
+  //             scanned, belowThreshold }
+  if (p === '/judge/decay-preview' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    const ws = T.ws;
+    const noteNodes = T.ov.note_nodes || {};
+    const noteStats = computeNoteStats(ws);
+    const nowMs = Date.now();
+    let scanned = 0;
+    let belowThreshold = 0;
+    const candidates = [];
+    for (const n of Object.values(noteNodes)) {
+      scanned++;
+      const stat = noteStats.get('note:' + n.id);
+      const check = judge.isDecayCandidate(n, stat, nowMs);
+      // Count notes that have stats but fail win-rate gate (regardless of age/opportunities).
+      if (stat && stat.winRate < WIN_RATE_THRESHOLD) belowThreshold++;
+      if (!check.candidate) continue;
+      const wins = stat ? stat.wins : 0;
+      const losses = stat ? stat.losses : 0;
+      candidates.push({
+        noteId: 'note:' + n.id,
+        label: n.title || n.id,
+        winRate: check.winRate,
+        wins,
+        losses,
+        total: check.total,
+        ageDays: check.ageDays,
+        validFrom: n.validFrom || null,
+      });
+    }
+    // Stable ordering: ascending by noteId so output is deterministic
+    candidates.sort((a, b) => (a.noteId < b.noteId ? -1 : a.noteId > b.noteId ? 1 : 0));
+    send(res, 200, { candidates, scanned, belowThreshold }); return true;
   }
 
   return false;

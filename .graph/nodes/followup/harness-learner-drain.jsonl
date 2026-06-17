@@ -210,3 +210,11 @@
 {"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-16T19:04:54.128Z"}
 {"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-16T19:09:29.256Z"}
 {"evt":"timestamps_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-14T06:29:14.527Z","lastChanged":1781636694117,"lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-16T19:09:29.256Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-16T19:14:21.359Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-16T20:01:48.161Z"}
+{"evt":"assignee_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","assignee":"learner-drain-auto-1","actor":"overlay-sync","ts":"2026-06-16T20:01:48.161Z"}
+{"evt":"timestamps_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-14T06:29:14.527Z","lastChanged":"2026-06-16T20:01:48.080Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-16T20:01:48.161Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-16T20:06:04.476Z"}
+{"evt":"summary_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","summary":"Ran onboard-learn.js --drain --batch 20 for repo zonoid. Processed candidates 170–189 of 1691 (batch=20). Agent finished in 216s. Cursor advanced to 190/1691, remaining=1501, kept_so_far=85. Next run should start at cursor=190.","actor":"overlay-sync","ts":"2026-06-16T20:06:04.476Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-16T20:06:04.722Z"}
+{"evt":"timestamps_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-14T06:29:14.527Z","lastChanged":"2026-06-16T20:07:09.548Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-16T20:09:24.271Z"}
