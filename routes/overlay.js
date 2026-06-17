@@ -595,7 +595,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
             if (!oldNode) continue;
             oldNode.validTo = retiredAt;
             oldNode.supersededBy = id;
-            graphStore.appendEvent(gs2, 'note:' + noteId, { evt: 'note_superseded', id: noteId, supersededBy: newNoteKey, validTo: retiredAt, actor: 'subsumption', ts: retiredAt });
+            graphStore.appendEvent(gs2, 'note:' + noteId, { evt: 'note_superseded', id: noteId, supersededBy: id, validTo: retiredAt, actor: 'subsumption', ts: retiredAt });
           }
         }
       } catch { /* subsumption is best-effort — never block the note write */ }
