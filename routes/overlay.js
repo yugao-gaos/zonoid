@@ -373,6 +373,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.status === 'done' && Array.isArray(b.verdicts) && b.verdicts.length) {
       verdictResults = verdicts.apply(T.ov, b.key, b.verdicts);
       for (const r of verdictResults) if (r.action === 'cancel') snapshotNative(T.ov, r.task_key);
+      // AUTOMODE: auto-execute merge verdicts when config.automode is true.
+      // When a judge task completes with {action:'merge', task_key:'<impl>'}, auto-call
+      // git.mergeBranch so the attempt integrates without dispatcher intervention.
+      if (T.ov.config && T.ov.config.automode) {
+        for (const r of verdictResults) {
+          if (r.action !== 'merge') continue;
+          const repo = ctx.resolveRepo(r.task_key, undefined, T.ov);
+          if (!repo || !ctx.git.isRepo(repo)) continue;
+          const mr = ctx.git.mergeBranch(repo, r.task_key, { message: `automode: merge attempt ${r.task_key} (${r.reason})` });
+          if (mr.merged) {
+            ctx.overlayStore.setGit(T.ov, r.task_key, { merged: true, merge_sha: mr.head || null, merged_at: ctx.now() });
+            r.auto_merged = true; r.merge_sha = mr.head || null;
+          } else if (mr.conflict) {
+            r.merge_conflict = true;
+          }
+        }
+      }
     }
     let staleHolds = null;
     let harnessRequeued = false;
