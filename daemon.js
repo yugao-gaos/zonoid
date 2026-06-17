@@ -296,6 +296,24 @@ function migrateBlindEdges(workspace, overlay) {
   return tagged;
 }
 
+// The REAL set of workspaces the daemon knows about — the registry persisted by setWorkspace
+// (every bind / POST /workspace appends to workspaces.json). This is the authoritative enumeration
+// the maintenance sweeps + loop tick iterate over, REPLACING reliance on the single daemon-global
+// state.workspace pointer (Phase 2b of deprecating the global default). We UNION in any active-loop
+// workspaces defensively (a loop pinned to a ws that somehow never hit setWorkspace still gets
+// swept) — but the registry, not state.workspace, is the source of truth. Pure read; best-effort
+// (a missing/garbage registry yields the active-loop set alone, never throws).
+function registeredWorkspaces() {
+  const set = new Set();
+  try {
+    const known = JSON.parse(fs.readFileSync(WORKSPACES_FILE, 'utf8'));
+    if (Array.isArray(known)) for (const p of known) { if (p) set.add(p); }
+  } catch { /* no registry yet / unreadable — fall through to active-loop set */ }
+  // Defensive union: a loop pinned to a workspace that isn't (yet) in the registry still needs sweeping.
+  for (const L of loops.values()) { if (L.active && L.workspace) set.add(L.workspace); }
+  return set;
+}
+
 // Boot phase tracker — set to 'loading' immediately; advanced through real init milestones;
 // set to 'ready' once the daemon is fully operational. Exposed via GET /health (always 200).
 // Steps: bind -> workspace -> agents -> loops -> ready (4 steps after bind).
@@ -1243,12 +1261,12 @@ function decideOne(L, ctx) {
 // batch settings — generous but bounded). Inactive loops are skipped. Caller persists the registry.
 function decideAll() {
   sweepStaleLoops();   // central liveness sweep (same pass): demote dead/exhausted/stalled loops first
-  // Collect the DISTINCT set of active-loop workspaces UNION state.workspace so sweeps run once
-  // per workspace that actually has live work — not only the daemon-global pointer.
+  // Sweep across the REAL set of registered workspaces (workspaces.json), not the single daemon-
+  // global state.workspace pointer (P2b). registeredWorkspaces() already unions in active-loop
+  // workspaces defensively, so a loop pinned to a not-yet-registered ws is still swept.
   const active = [...loops.values()].filter((L) => L.active);
-  const activeWsSet = new Set(active.map((L) => L.workspace || state.workspace).filter(Boolean));
-  if (state.workspace) activeWsSet.add(state.workspace);
-  for (const ws of activeWsSet) {
+  const sweepWsSet = registeredWorkspaces();
+  for (const ws of sweepWsSet) {
     const ov = overlayFor(ws);
     sweepStaleVerdicts(ws, ov);   // reset abandoned verdict-pending hand-offs per-workspace
     sweepStaleGuidance(ws, ov);   // auto-resolve stale blocking guidance per-workspace
@@ -2228,7 +2246,7 @@ function isPrimaryCheckout(root = __dirname) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, buildGraph, targetOverlay, sweepFailedTasks, warnWorkspaceFallback, __resetWorkspaceFallbackSeamsForTest, overlayFor, refreshOverlayStamp, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents };
+  decideOne, decideAll, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, warnWorkspaceFallback, __resetWorkspaceFallbackSeamsForTest, overlayFor, refreshOverlayStamp, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { state.overlay = o; }, __setWorkspaceForTest: (w) => { state.workspace = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
@@ -2386,13 +2404,12 @@ if (require.main === module) {
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command
   // yet but old agent claims are blocking work. Matches the loop-sweep cadence (60s).
-  // Iterates ALL distinct active-loop workspaces + state.workspace so per-repo loops don't miss
-  // stale claims just because no route is being served for that workspace.
+  // Iterates the REAL set of registered workspaces (workspaces.json, P2b) so per-repo loops don't
+  // miss stale claims just because no route is being served for that workspace — never the single
+  // daemon-global state.workspace pointer.
   setInterval(() => {
     try {
-      const wsSet = new Set([...loops.values()].filter((L) => L.active && L.workspace).map((L) => L.workspace));
-      if (state.workspace) wsSet.add(state.workspace);
-      for (const ws of wsSet) {
+      for (const ws of registeredWorkspaces()) {
         const ov = overlayFor(ws);
         sweepStaleClaims(ws, ov);
       }
@@ -2408,13 +2425,12 @@ if (require.main === module) {
   // (a zero-match note at creation can gain a real neighbor later). Re-check is side-effect-free —
   // no match ⇒ no edge, no write. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepOrphanNotes(); } catch { /* best effort */ } }, 300000).unref();
-  // sweepFiledropStubs iterates ALL active-loop workspaces + state.workspace so stub GC covers
-  // per-repo loops that target non-default workspaces.
+  // sweepFiledropStubs iterates the REAL set of registered workspaces (workspaces.json, P2b) so
+  // stub GC covers per-repo loops that target non-default workspaces — never the single daemon-
+  // global state.workspace pointer.
   setInterval(() => {
     try {
-      const wsSet = new Set([...loops.values()].filter((L) => L.active && L.workspace).map((L) => L.workspace));
-      if (state.workspace) wsSet.add(state.workspace);
-      for (const ws of wsSet) sweepFiledropStubs(ws);
+      for (const ws of registeredWorkspaces()) sweepFiledropStubs(ws);
     } catch { /* best effort */ }
   }, 300000).unref();
 
