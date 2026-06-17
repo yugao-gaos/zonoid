@@ -3,16 +3,16 @@
 // Run: node test/orch-gate-bash.test.js  — exits non-zero on any failed assertion.
 //
 // Strategy: pipe synthetic PreToolUse JSON into the hook and check exit codes.
-//   - ORCH_PORT=1 makes curl time out immediately → daemon unreachable → fail-open (exit 0)
+//   - ORCH_PORT=1 makes the daemon unreachable → fail-open (exit 0)
 //     for anything that reaches the claim check.
-//   - A stub `curl` on PATH returns a "subagent, no claim" response to drive exit-2 paths.
-//   - ORCH_GATE_OFF=1 must short-circuit to exit 0 before any curl.
+//   - A child-process HTTP stub returns daemon-shaped responses to drive exit-2 paths.
+//   - ORCH_GATE_OFF=1 must short-circuit to exit 0 before daemon lookup.
 'use strict';
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const crypto = require('crypto');
+const { withHookStub } = require('./support/hook-http-stub');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'orch-gate-bash.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-gate-test-'));
@@ -39,48 +39,30 @@ function runHook(input, extraEnv) {
   return { status: r.status, stderr: r.stderr || '' };
 }
 
-// ── Stub curl dir: returns a subagent-no-claim response so the gate blocks ──
-// We prepend a dir containing a `curl` stub to PATH.
-const stubDir = path.join(TMP, 'stub-blocked');
-fs.mkdirSync(stubDir, { recursive: true });
-fs.writeFileSync(
-  path.join(stubDir, 'curl'),
-  '#!/bin/bash\n# URL is $@ — extract the path to decide what to return\nU="${@: -1}"\nif [[ "$U" == *"/active-claim"* ]]; then\n  echo \'{"claimed":false}\'\nelif [[ "$U" == *"/session-info"* ]]; then\n  echo \'{"is_subagent":"true"}\'\nfi\nexit 0\n',
-  { mode: 0o755 },
-);
+const BLOCKED = { activeClaim: { claimed: false }, sessionInfo: { is_subagent: true } };
+const CLAIMED = {
+  activeClaim: { claimed: true, claims: [{ key: '42' }] },
+  defaultTaskDetail: { task: { metric: null } },
+};
+const MAIN_BLOCKED = { activeClaim: { claimed: false }, sessionInfo: { is_subagent: false } };
 
-// Stub curl that returns a claimed session
-const stubDirClaimed = path.join(TMP, 'stub-claimed');
-fs.mkdirSync(stubDirClaimed, { recursive: true });
-fs.writeFileSync(
-  path.join(stubDirClaimed, 'curl'),
-  '#!/bin/bash\nU="${@: -1}"\nif [[ "$U" == *"/active-claim"* ]]; then\n  echo \'{"claimed":true,"claims":[{"key":"42"}]}\'\nelif [[ "$U" == *"/task/detail"* ]]; then\n  echo \'{"task":{"metric":null}}\'\nfi\nexit 0\n',
-  { mode: 0o755 },
-);
-
-// ── Helper: run with stub-blocked curl (subagent, no claim → exit 2 if write detected) ──
+// ── Helper: run with daemon-shaped responses (subagent, no claim → exit 2 if write detected) ──
+function runWithConfig(input, config, extra) {
+  return withHookStub(config, (stub) => runHook(input, { ...stub.env(), ...extra }));
+}
 function runBlocked(cmd, extra) {
-  return runHook(mkInput(cmd), { PATH: stubDir + ':' + process.env.PATH, ...extra });
+  return runWithConfig(mkInput(cmd), BLOCKED, extra);
 }
 function runClaimed(cmd, extra) {
-  return runHook(mkInput(cmd), { PATH: stubDirClaimed + ':' + process.env.PATH, ...extra });
+  return runWithConfig(mkInput(cmd), CLAIMED, extra);
 }
 // Run with daemon unreachable (ORCH_PORT=1, no stub override) → fail-open = exit 0
 function runFailOpen(cmd, extra) {
   return runHook(mkInput(cmd), { ORCH_PORT: '1', ...extra });
 }
 
-// Stub curl: main session with no claim
-const stubDirMain = path.join(TMP, 'stub-main');
-fs.mkdirSync(stubDirMain, { recursive: true });
-fs.writeFileSync(
-  path.join(stubDirMain, 'curl'),
-  '#!/bin/bash\nU="${@: -1}"\nif [[ "$U" == *"/active-claim"* ]]; then\n  echo \'{"claimed":false}\'\nelif [[ "$U" == *"/session-info"* ]]; then\n  echo \'{"is_subagent":false}\'\nfi\nexit 0\n',
-  { mode: 0o755 },
-);
-
 function runMainBlocked(cmd, extra) {
-  return runHook(mkInput(cmd), { PATH: stubDirMain + ':' + process.env.PATH, ...extra });
+  return runWithConfig(mkInput(cmd), MAIN_BLOCKED, extra);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -95,25 +77,30 @@ function runMainBlocked(cmd, extra) {
 
 // Main session trivial bash write with workers → exit 0
 {
-  const stubDirTrivial = path.join(TMP, 'stub-main-trivial');
-  fs.mkdirSync(stubDirTrivial, { recursive: true });
-  fs.writeFileSync(path.join(stubDirTrivial, 'curl'), "#!/bin/bash\nU=\"${@: -1}\"\nif [[ \"$U\" == *\"/active-claim\"* ]]; then\n  echo '{\"claimed\":false}'\nelif [[ \"$U\" == *\"/session-info\"* ]]; then\n  echo '{\"is_subagent\":false}'\nelif [[ \"$U\" == *\"/dispatcher/children\"* ]]; then\n  echo '{\"children\":[{\"task_key\":\"local/w1\",\"label\":\"worker\",\"agent_id\":\"w1\",\"worker_session\":\"ws1\"}],\"attribution\":\"local/w1\",\"needs_focus\":false}'\nfi\nexit 0\n", { mode: 0o755 });
-  const r = runHook(
+  const r = runWithConfig(
     mkInput('cp /tmp/x.js /Users/x/proj/lib.js', 'main-disp'),
-    { PATH: stubDirTrivial + ':' + process.env.PATH, CLAUDE_PLUGIN_DATA: TMP },
+    {
+      activeClaim: { claimed: false },
+      sessionInfo: { is_subagent: false },
+      dispatcherChildren: { children: [{ task_key: 'local/w1', label: 'worker', agent_id: 'w1', worker_session: 'ws1' }], attribution: 'local/w1', needs_focus: false },
+    },
+    { CLAUDE_PLUGIN_DATA: TMP },
   );
   ok('main trivial cp with workers → exit 0', r.status === 0);
 }
 
 // Main session trivial budget exhausted for bash
 {
-  const stubDirTrivial = path.join(TMP, 'stub-main-budget');
-  fs.mkdirSync(stubDirTrivial, { recursive: true });
-  fs.writeFileSync(path.join(stubDirTrivial, 'curl'), "#!/bin/bash\nU=\"${@: -1}\"\nif [[ \"$U\" == *\"/active-claim\"* ]]; then\n  echo '{\"claimed\":false}'\nelif [[ \"$U\" == *\"/session-info\"* ]]; then\n  echo '{\"is_subagent\":false}'\nelif [[ \"$U\" == *\"/dispatcher/children\"* ]]; then\n  echo '{\"children\":[{\"task_key\":\"local/w1\",\"label\":\"worker\",\"agent_id\":\"w1\",\"worker_session\":\"ws1\"}],\"attribution\":\"local/w1\",\"needs_focus\":false}'\nfi\nexit 0\n", { mode: 0o755 });
-  const env = { PATH: stubDirTrivial + ':' + process.env.PATH, CLAUDE_PLUGIN_DATA: TMP };
+  const config = {
+    activeClaim: { claimed: false },
+    sessionInfo: { is_subagent: false },
+    dispatcherChildren: { children: [{ task_key: 'local/w1', label: 'worker', agent_id: 'w1', worker_session: 'ws1' }], attribution: 'local/w1', needs_focus: false },
+  };
   const cmd = 'cp /tmp/x.js /Users/x/proj/lib.js';
-  const first = runHook(mkInput(cmd, 'main-bash-budget'), env);
-  const second = runHook(mkInput(cmd, 'main-bash-budget'), env);
+  const [first, second] = withHookStub(config, (stub) => {
+    const env = { ...stub.env(), CLAUDE_PLUGIN_DATA: TMP };
+    return [runHook(mkInput(cmd, 'main-bash-budget'), env), runHook(mkInput(cmd, 'main-bash-budget'), env)];
+  });
   ok('bash first trivial write allowed', first.status === 0);
   ok('bash second trivial write blocked', second.status === 2);
   ok('bash budget exhausted message', second.stderr.includes('trivial patch budget exhausted'));
@@ -127,16 +114,16 @@ function runMainBlocked(cmd, extra) {
   ok('cat foo.js → no write pattern → exit 0', r.status === 0);
 }
 
-// 2. Redirect to /tmp → exempt target → exit 0
+// 2. Redirect to /tmp → not exempt → exit 2
 {
   const r = runBlocked('echo hi > /tmp/scratch.txt');
-  ok('redirect to /tmp → exempt → exit 0', r.status === 0);
+  ok('redirect to /tmp → blocked for unclaimed subagent → exit 2', r.status === 2);
 }
 
-// 3. Redirect to /private/tmp → exempt → exit 0
+// 3. Redirect to /private/tmp → not exempt → exit 2
 {
   const r = runBlocked('echo hi > /private/tmp/scratch.txt');
-  ok('redirect to /private/tmp → exempt → exit 0', r.status === 0);
+  ok('redirect to /private/tmp → blocked for unclaimed subagent → exit 2', r.status === 2);
 }
 
 // 4. Redirect to non-exempt path → write detected, not exempt → subagent blocked → exit 2
@@ -157,10 +144,10 @@ function runMainBlocked(cmd, extra) {
   ok('cp /tmp/x.js file.js (relative dest) → write detected, not exempt → exit 2', r.status === 2);
 }
 
-// 7. cp to /tmp destination → exempt → exit 0
+// 7. cp to /tmp destination → not exempt → exit 2
 {
   const r = runBlocked('cp source.js /tmp/dest.js');
-  ok('cp to /tmp dest → exempt → exit 0', r.status === 0);
+  ok('cp to /tmp dest → blocked for unclaimed subagent → exit 2', r.status === 2);
 }
 
 // 8. mv to relative path → write detected, not exempt → exit 2
@@ -171,10 +158,9 @@ function runMainBlocked(cmd, extra) {
 
 // 9. ORCH_GATE_OFF=1 with a write command → exit 0 (short-circuit)
 {
-  // Use the blocked stub — it would return exit 2 if reached, but ORCH_GATE_OFF must short-circuit
   const r = runHook(
     mkInput('cp /tmp/evil.js /Users/x/proj/main.js'),
-    { PATH: stubDir + ':' + process.env.PATH, ORCH_GATE_OFF: '1' },
+    { ORCH_GATE_OFF: '1' },
   );
   ok('ORCH_GATE_OFF=1 with cp write → exit 0 (short-circuit)', r.status === 0);
 }
@@ -183,7 +169,7 @@ function runMainBlocked(cmd, extra) {
 {
   const r = runHook(
     mkInput('echo x > /Users/x/proj/main.js'),
-    { PATH: stubDir + ':' + process.env.PATH, ORCH_GATE_OFF: '1' },
+    { ORCH_GATE_OFF: '1' },
   );
   ok('ORCH_GATE_OFF=1 with redirect write → exit 0', r.status === 0);
 }
@@ -288,18 +274,18 @@ function runMainBlocked(cmd, extra) {
   ok('pathlib touch → write detected → exit 2 for unclaimed subagent', r.status === 2);
 }
 
-// ── Bypass regression tests (all should be allowed: exit 0) ─────────────────
+// ── Bypass regression tests for allowed and denied extracted targets ─────────
 
-// 26. Both source and dest in /tmp
+// 26. Both source and dest in /tmp still require a claim
 {
   const r = runBlocked('cp /tmp/x.js /tmp/out.js');
-  ok('cp /tmp → /tmp: both exempt → exit 0', r.status === 0);
+  ok('cp /tmp → /tmp: blocked for unclaimed subagent → exit 2', r.status === 2);
 }
 
-// 27. Dest in /private/tmp
+// 27. Dest in /private/tmp still requires a claim
 {
   const r = runBlocked('cp /tmp/x.js /private/tmp/out.js');
-  ok('cp /tmp → /private/tmp: exempt → exit 0', r.status === 0);
+  ok('cp /tmp → /private/tmp: blocked for unclaimed subagent → exit 2', r.status === 2);
 }
 
 // 28. .log file under logs/
@@ -322,41 +308,30 @@ function runMainBlocked(cmd, extra) {
   ok('cp to native task path → exempt → exit 0', r.status === 0);
 }
 
-// 31. Claimed non-metric task WITH registered worktree branch → must be on orch/attempt/* branch
-//     Simulates: branch_task was called, task has git.branch set, but session is writing on main.
+// 31. Claimed non-metric task WITH registered worktree branch → writes must land in the worktree.
 {
-  const stubWorktreeEnforce = path.join(TMP, 'stub-worktree-enforce');
-  fs.mkdirSync(stubWorktreeEnforce, { recursive: true });
-  // Return a task with git.branch set (worktree registered), no metric
-  fs.writeFileSync(
-    path.join(stubWorktreeEnforce, 'curl'),
-    '#!/bin/bash\nU="${@: -1}"\nif [[ "$U" == *"/active-claim"* ]]; then\n  echo \'{"claimed":true,"claims":[{"key":"local/test-task"}]}\'\nelif [[ "$U" == *"/task/detail"* ]]; then\n  echo \'{"task":{"metric":null,"git":{"branch":"orch/attempt/local-test-task","worktree":"/some/path"}}}\'\nfi\nexit 0\n',
-    { mode: 0o755 },
-  );
-  // git stub that returns a non-worktree branch (main)
-  const stubGit = path.join(stubWorktreeEnforce, 'git');
-  fs.writeFileSync(stubGit, '#!/bin/bash\necho "main"\n', { mode: 0o755 });
-  const r = runHook(
+  const r = runWithConfig(
     mkInput('cp /tmp/x.js /Users/x/proj/main.js'),
-    { PATH: stubWorktreeEnforce + ':' + process.env.PATH },
+    {
+      activeClaim: { claimed: true, claims: [{ key: 'local/test-task' }] },
+      taskDetails: {
+        'local/test-task': { task: { metric: null, git: { branch: 'orch/attempt/local-test-task', worktree: '/some/path' } } },
+      },
+    },
   );
-  ok('claimed non-metric task with worktree branch on main → exit 2', r.status === 2);
+  ok('claimed non-metric task with worktree branch outside worktree → exit 2', r.status === 2);
   ok('worktree branch error message mentions task branch', r.stderr.includes('orch/attempt/local-test-task'));
 }
 
 // 32. Claimed non-metric task WITHOUT registered worktree branch → exit 0 (no isolation required)
 //     Simulates: branch_task was NOT called, task.git is null.
 {
-  const stubNoWorktree = path.join(TMP, 'stub-no-worktree');
-  fs.mkdirSync(stubNoWorktree, { recursive: true });
-  fs.writeFileSync(
-    path.join(stubNoWorktree, 'curl'),
-    '#!/bin/bash\nU="${@: -1}"\nif [[ "$U" == *"/active-claim"* ]]; then\n  echo \'{"claimed":true,"claims":[{"key":"local/test-task"}]}\'\nelif [[ "$U" == *"/task/detail"* ]]; then\n  echo \'{"task":{"metric":null,"git":null}}\'\nfi\nexit 0\n',
-    { mode: 0o755 },
-  );
-  const r = runHook(
+  const r = runWithConfig(
     mkInput('cp /tmp/x.js /Users/x/proj/main.js'),
-    { PATH: stubNoWorktree + ':' + process.env.PATH },
+    {
+      activeClaim: { claimed: true, claims: [{ key: 'local/test-task' }] },
+      taskDetails: { 'local/test-task': { task: { metric: null, git: null } } },
+    },
   );
   ok('claimed task without worktree branch → exit 0 (no isolation enforced)', r.status === 0);
 }
@@ -364,82 +339,60 @@ function runMainBlocked(cmd, extra) {
 // ── Multi-claim gate tests ───────────────────────────────────────────────────
 // Two synthetic worktree paths under TMP. The bash gate does a string prefix
 // check on the extracted write target — these directories need not be real git repos.
-// Forward-slash paths: git emits forward-slash worktree paths even on Windows, so this mirrors
-// what the daemon actually stores. A raw backslash path embedded in the stub's JSON below would be
-// an invalid JSON escape (jq parse error → empty worktree → the gate's prefix glob degrades to '/*'
-// and matches ANY absolute path, falsely allowing out-of-worktree writes).
+// Forward-slash paths mirror what the daemon stores for git worktrees.
 const WT_A = path.join(TMP, 'wt-a').replace(/\\/g, '/');
 const WT_B = path.join(TMP, 'wt-b').replace(/\\/g, '/');
 fs.mkdirSync(WT_A, { recursive: true });
 fs.mkdirSync(WT_B, { recursive: true });
 
-// Builds a curl stub that returns two claims with configurable worktrees.
-function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
-  fs.mkdirSync(dir, { recursive: true });
+// Builds a daemon-stub config that returns two claims with configurable worktrees.
+function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   const detailA = noWtA
-    ? '{"task":{"metric":null,"git":null}}'
-    : `{"task":{"metric":null,"git":{"branch":"orch/attempt/task-a","worktree":"${WT_A}"}}}`;
+    ? { task: { metric: null, git: null } }
+    : { task: { metric: null, git: { branch: 'orch/attempt/task-a', worktree: WT_A } } };
   const detailB = noWtB
-    ? '{"task":{"metric":null,"git":null}}'
-    : `{"task":{"metric":null,"git":{"branch":"orch/attempt/task-b","worktree":"${WT_B}"}}}`;
-  const script = [
-    '#!/bin/bash',
-    'U="${@: -1}"',
-    'if [[ "$U" == *"/active-claim"* ]]; then',
-    '  echo \'{"claimed":true,"claims":[{"key":"task-a"},{"key":"task-b"}]}\'',
-    'elif [[ "$U" == *"key=task-a"* ]]; then',
-    `  echo '${detailA}'`,
-    'elif [[ "$U" == *"key=task-b"* ]]; then',
-    `  echo '${detailB}'`,
-    'fi',
-    'exit 0',
-    '',
-  ].join('\n');
-  fs.writeFileSync(path.join(dir, 'curl'), script, { mode: 0o755 });
+    ? { task: { metric: null, git: null } }
+    : { task: { metric: null, git: { branch: 'orch/attempt/task-b', worktree: WT_B } } };
+  return {
+    activeClaim: { claimed: true, claims: [{ key: 'task-a' }, { key: 'task-b' }] },
+    taskDetails: { 'task-a': detailA, 'task-b': detailB },
+  };
 }
 
 // 33. Multi-claim: cp dest inside FIRST claim's worktree → allowed
 {
-  const stubMultiA = path.join(TMP, 'stub-multi-claim-a');
-  makeMultiClaimStub(stubMultiA);
   const destInA = `${WT_A}/src.js`;
-  const r = runHook(
+  const r = runWithConfig(
     mkInput(`cp /tmp/src.js ${destInA}`),
-    { PATH: stubMultiA + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('multi-claim: cp dest in first claim worktree → exit 0', r.status === 0);
 }
 
 // 34. Multi-claim: cp dest inside SECOND claim's worktree → allowed (fixed bug)
 {
-  const stubMultiB = path.join(TMP, 'stub-multi-claim-b');
-  makeMultiClaimStub(stubMultiB);
   const destInB = `${WT_B}/lib.js`;
-  const r = runHook(
+  const r = runWithConfig(
     mkInput(`cp /tmp/lib.js ${destInB}`),
-    { PATH: stubMultiB + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('multi-claim: cp dest in second claim worktree → exit 0 (fixed bug)', r.status === 0);
 }
 
 // 35. Multi-claim: relative cp dest resolves against a claimed worktree → allowed
 {
-  const stubMultiRel = path.join(TMP, 'stub-multi-claim-relative');
-  makeMultiClaimStub(stubMultiRel);
-  const r = runHook(
+  const r = runWithConfig(
     mkInput('cp /tmp/src.js src.js'),
-    { PATH: stubMultiRel + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('multi-claim: relative cp dest resolves inside a worktree → exit 0', r.status === 0);
 }
 
 // 36. Multi-claim: cp dest outside BOTH worktrees → denied
 {
-  const stubMultiOut = path.join(TMP, 'stub-multi-claim-out');
-  makeMultiClaimStub(stubMultiOut);
-  const r = runHook(
+  const r = runWithConfig(
     mkInput('cp /tmp/x.js /Users/x/other-project/main.js'),
-    { PATH: stubMultiOut + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('multi-claim: cp dest outside both worktrees → exit 2', r.status === 2);
   ok('multi-claim: cp dest outside both worktrees → worktree path message', r.stderr.includes('worktree path'));
@@ -447,23 +400,19 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 
 // 37. Multi-claim: first claim has NO worktree, second does → cp to second's worktree → allowed
 {
-  const stubFirstNoWt = path.join(TMP, 'stub-multi-first-no-wt');
-  makeMultiClaimStub(stubFirstNoWt, { noWtA: true });
   const destInB = `${WT_B}/index.js`;
-  const r = runHook(
+  const r = runWithConfig(
     mkInput(`cp /tmp/index.js ${destInB}`),
-    { PATH: stubFirstNoWt + ':' + process.env.PATH },
+    makeMultiClaimConfig({ noWtA: true }),
   );
   ok('multi-claim: first claim no worktree, second has worktree, cp to second → exit 0', r.status === 0);
 }
 
 // 38. Multi-target: one redirect inside a claimed worktree and one outside → denied
 {
-  const stubMixedTargets = path.join(TMP, 'stub-mixed-targets');
-  makeMultiClaimStub(stubMixedTargets);
-  const r = runHook(
+  const r = runWithConfig(
     mkInput(`echo ok > ${WT_A}/inside.txt > /Users/x/outside.txt`),
-    { PATH: stubMixedTargets + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('claimed session: mixed inside/outside redirect targets → exit 2', r.status === 2);
   ok('claimed session: mixed target message names outside path', r.stderr.includes('/Users/x/outside.txt'));
@@ -471,11 +420,9 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 
 // 39. Multi-target: every redirect target is inside a claimed worktree → allowed
 {
-  const stubAllTargetsInside = path.join(TMP, 'stub-all-targets-inside');
-  makeMultiClaimStub(stubAllTargetsInside);
-  const r = runHook(
+  const r = runWithConfig(
     mkInput(`echo ok > ${WT_A}/inside-a.txt > ${WT_B}/inside-b.txt`),
-    { PATH: stubAllTargetsInside + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('claimed session: every redirect target inside claimed worktrees → exit 0', r.status === 0);
 }
@@ -526,22 +473,18 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 
 // 47. PowerShell Set-Content inside a claimed worktree → allowed
 {
-  const stubPsInside = path.join(TMP, 'stub-ps-inside');
-  makeMultiClaimStub(stubPsInside);
-  const r = runHook(
+  const r = runWithConfig(
     mkInput(`Set-Content -Path ${WT_A}/ps.txt -Value ok`),
-    { PATH: stubPsInside + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('claimed session: PowerShell Set-Content inside worktree → exit 0', r.status === 0);
 }
 
 // 48. PowerShell mixed inside/outside targets separated by semicolon → denied
 {
-  const stubPsMixed = path.join(TMP, 'stub-ps-mixed-semi');
-  makeMultiClaimStub(stubPsMixed);
-  const r = runHook(
+  const r = runWithConfig(
     mkInput(`Set-Content -Path ${WT_A}/inside.txt -Value ok; Add-Content -Path /Users/x/outside.txt -Value no`),
-    { PATH: stubPsMixed + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('claimed session: PowerShell semicolon mixed targets → exit 2', r.status === 2);
   ok('claimed session: PowerShell semicolon message names outside path', r.stderr.includes('/Users/x/outside.txt'));
@@ -549,11 +492,9 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 
 // 49. PowerShell mixed inside/outside targets separated by && → denied
 {
-  const stubPsMixedAnd = path.join(TMP, 'stub-ps-mixed-and');
-  makeMultiClaimStub(stubPsMixedAnd);
-  const r = runHook(
+  const r = runWithConfig(
     mkInput(`Set-Content ${WT_A}/inside.txt ok && Add-Content /Users/x/outside-and.txt no`),
-    { PATH: stubPsMixedAnd + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('claimed session: PowerShell && mixed targets → exit 2', r.status === 2);
   ok('claimed session: PowerShell && message names outside path', r.stderr.includes('/Users/x/outside-and.txt'));
@@ -561,11 +502,9 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 
 // 50. PowerShell mixed inside/outside targets separated by || → denied
 {
-  const stubPsMixedOr = path.join(TMP, 'stub-ps-mixed-or');
-  makeMultiClaimStub(stubPsMixedOr);
-  const r = runHook(
+  const r = runWithConfig(
     mkInput(`Set-Content ${WT_A}/inside.txt ok || Add-Content /Users/x/outside-or.txt no`),
-    { PATH: stubPsMixedOr + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('claimed session: PowerShell || mixed targets → exit 2', r.status === 2);
   ok('claimed session: PowerShell || message names outside path', r.stderr.includes('/Users/x/outside-or.txt'));
@@ -573,11 +512,9 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 
 // 51. PowerShell mixed inside/outside targets separated by single & → denied
 {
-  const stubPsMixedAmp = path.join(TMP, 'stub-ps-mixed-amp');
-  makeMultiClaimStub(stubPsMixedAmp);
-  const r = runHook(
+  const r = runWithConfig(
     mkInput(`Set-Content ${WT_A}/inside.txt ok & Add-Content /Users/x/outside-amp.txt no`),
-    { PATH: stubPsMixedAmp + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('claimed session: PowerShell single & mixed targets → exit 2', r.status === 2);
   ok('claimed session: PowerShell single & message names outside path', r.stderr.includes('/Users/x/outside-amp.txt'));
@@ -585,14 +522,37 @@ function makeMultiClaimStub(dir, { noWtA = false, noWtB = false } = {}) {
 
 // 52. PowerShell Copy-Item compound command keeps each destination across && → denied
 {
-  const stubPsCopyMixed = path.join(TMP, 'stub-ps-copy-mixed');
-  makeMultiClaimStub(stubPsCopyMixed);
-  const r = runHook(
+  const r = runWithConfig(
     mkInput(`Copy-Item /tmp/a.txt /Users/x/outside-copy.txt && Copy-Item /tmp/b.txt ${WT_A}/inside.txt`),
-    { PATH: stubPsCopyMixed + ':' + process.env.PATH },
+    makeMultiClaimConfig(),
   );
   ok('claimed session: PowerShell Copy-Item && mixed destinations → exit 2', r.status === 2);
   ok('claimed session: PowerShell Copy-Item && message names outside path', r.stderr.includes('/Users/x/outside-copy.txt'));
+}
+
+// 53. PowerShell all-stream redirect target → blocked for unclaimed subagent
+{
+  const r = runBlocked('Write-Output hi *> /Users/x/proj/ps-redirect.txt');
+  ok('PowerShell *> redirect to non-exempt path → exit 2', r.status === 2);
+}
+
+// 54. PowerShell redirect inside a claimed worktree → allowed
+{
+  const r = runWithConfig(
+    mkInput(`Write-Output ok *> ${WT_A}/ps-redirect.txt`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: PowerShell redirect inside worktree → exit 0', r.status === 0);
+}
+
+// 55. PowerShell pipe boundary keeps mixed targets separate → denied
+{
+  const r = runWithConfig(
+    mkInput(`Set-Content ${WT_A}/inside.txt ok | Add-Content /Users/x/outside-pipe.txt no`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: PowerShell pipe mixed targets → exit 2', r.status === 2);
+  ok('claimed session: PowerShell pipe message names outside path', r.stderr.includes('/Users/x/outside-pipe.txt'));
 }
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────
