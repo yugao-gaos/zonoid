@@ -4,7 +4,8 @@
   "session_id": "019ed6a1-9c33-7ef0-a506-1829494f11b7",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-complete-hook-enforcement-parity",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-17T19:16:51.854Z",
-  "lease_until": "2026-06-17T20:16:51.854Z"
+  "lease_until": "2026-06-17T20:16:51.854Z",
+  "completed_at": "2026-06-17T19:34:15.574Z"
 }
