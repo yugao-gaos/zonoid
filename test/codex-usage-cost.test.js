@@ -8,6 +8,7 @@
 //   - unknown model -> cost.usd stays 0, model noted in cost.unpriced_models (no crash)
 //   - codex adapter normalizes BOTH usage shapes (token_count.total_token_usage + exec usage)
 //   - codex.usage.normalizeReported on a hook-shaped reported_usage yields a priced slice
+//   - every registered adapter exposes usage.price(slice) and prices normalizeReported outputs
 //   - codex.usage.estimateFromChars stamps cost.source:'estimated'
 //   - sumUsageRecords: mixed real + estimated slices roll up to source:'estimated' (weakest-wins)
 //   - recordTaskCost: per-task rollup accumulates cost_usd and degrades cost_source to 'estimated'
@@ -17,6 +18,8 @@ const path = require('path');
 const usageAccounting = require('../lib/usage-accounting');
 const codex = require('../lib/adapters/codex');
 const claude = require('../lib/adapters/claude');
+const cursor = require('../lib/adapters/cursor');
+const stub = require('../lib/adapters/stub');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -95,7 +98,21 @@ const models = pricing.models;
   ok('codex estimate: still priced (cost.usd > 0)', slice.cost.usd > 0);
 }
 
-// --- 6) sumUsageRecords: mixed real + estimated → weakest-source 'estimated' --------------------
+// --- 6) every adapter exposes usage.price and prices normalizeReported --------------------------
+{
+  for (const adapter of [claude, codex, cursor, stub]) {
+    ok(`${adapter.name} adapter exposes usage.price`, typeof adapter.usage.price === 'function');
+    const slice = adapter.usage.normalizeReported({
+      input_tokens: 1000,
+      output_tokens: 2000,
+      model: 'gpt-5-codex',
+    });
+    ok(`${adapter.name} normalizeReported prices known model`, slice.cost.usd > 0);
+    ok(`${adapter.name} normalizeReported keeps cost by_model`, !!slice.cost.by_model['gpt-5-codex']);
+  }
+}
+
+// --- 7) sumUsageRecords: mixed real + estimated → weakest-source 'estimated' --------------------
 {
   const realSlice = claude.usage.normalizeReported({ input_tokens: 1e6, output_tokens: 1e6, by_model: { 'claude-sonnet-4-6': { input_tokens: 1e6, output_tokens: 1e6 } } });
   ok('rollup setup: real slice source real', realSlice.cost.source === 'real');
@@ -109,7 +126,7 @@ const models = pricing.models;
   ok('rollup: all-real stays real', usageAccounting.sumUsageRecords(ovReal).cost.source === 'real');
 }
 
-// --- 7) recordTaskCost: per-task rollup accumulates cost_usd + degrades source ------------------
+// --- 8) recordTaskCost: per-task rollup accumulates cost_usd + degrades source ------------------
 {
   const ov = {};
   const s1 = claude.usage.normalizeReported({ output_tokens: 1e6, by_model: { 'claude-opus-4-8': { output_tokens: 1e6 } } });
@@ -127,7 +144,7 @@ const models = pricing.models;
   ok('recordTaskCost: duplicate finish not re-added', usageAccounting.taskCost(ov, 'T1').attempts === 2);
 }
 
-// --- 8) emptySlice carries the cost block ------------------------------------------------------
+// --- 9) emptySlice carries the cost block ------------------------------------------------------
 {
   const s = usageAccounting.emptySlice('codex', {});
   ok('emptySlice: has cost block', s.cost && s.cost.usd === 0 && s.cost.source === 'real' && typeof s.cost.by_model === 'object');

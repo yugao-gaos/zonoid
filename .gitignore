@@ -19,6 +19,7 @@ tool-analytics.json
 # OS / deps
 node_modules/
 .DS_Store
+__pycache__/
 agents.json
 .venv-fb/
 runs/

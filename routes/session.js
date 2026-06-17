@@ -84,10 +84,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!sid) { send(res, 400, { error: 'session required' }); return true; }
     const agents = agentsArr();
     const isSubagent = agents.some((a) =>
-      a.state === 'running' &&
-      a.subagent_session &&
-      a.subagent_session === sid &&
-      a.subagent_session !== a.session
+      a.state === 'running' && (
+        (a.subagent_session && a.subagent_session === sid && a.subagent_session !== a.session) ||
+        (a.agent_tool_spawn === true && a.session === sid)
+      )
     );
     send(res, 200, { session: sid, is_subagent: isSubagent }); return true;
   }
@@ -112,6 +112,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.self_plan != null) T.ov.config.self_plan = !!b.self_plan;
     if (b.cost_gate != null) T.ov.config.cost_gate = !!b.cost_gate;
     if (b.automode != null) T.ov.config.automode = !!b.automode;
+    if (b.claim_mode != null) {
+      const mode = String(b.claim_mode || '').toLowerCase();
+      if (mode && mode !== 'git' && mode !== 'local') { send(res, 400, { ok: false, error: 'claim_mode must be "git", "local", or empty' }); return true; }
+      if (mode === 'git') T.ov.config.claim_mode = 'git';
+      else if (mode === 'local') T.ov.config.claim_mode = 'local';
+      else delete T.ov.config.claim_mode;
+    }
+    if (b.claim_lease_minutes != null) T.ov.config.claim_lease_minutes = Number(b.claim_lease_minutes);
     if (b.stale_minutes != null) T.ov.config.stale_minutes = Number(b.stale_minutes);
     if (b.archive_after_days != null) T.ov.config.archive_after_days = Number(b.archive_after_days);
     if (b.escalation && typeof b.escalation === 'object') {
@@ -222,7 +230,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/guidance' && m === 'GET') {
     const T = targetOverlay(null, u);  // honors ?workspace= via targetOverlay
     const settled = judge.resolveSettledClusterGuidance(T.ov);
-    if (settled.length) { T.save(); notifyChange(); }
+    const ambiguous = judge.resolveAmbiguousClusterGuidance(T.ov);
+    if (settled.length || ambiguous.length) { T.save(); notifyChange(); }
     const all = overlayStore.pendingGuidance(T.ov);
     send(res, 200, { pending: all.filter((g) => g.severity !== 'review'), review: all.filter((g) => g.severity === 'review') }); return true;
   }

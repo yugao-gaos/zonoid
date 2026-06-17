@@ -8,7 +8,7 @@ const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
 const { TOOLS, handleRpc, makeCall, formatToolsList } = require('../lib/mcp-core');
-const { extraToolsForClient } = require('../lib/mcp-harness-tools');
+const { extraToolsForClient, resolveSession } = require('../lib/mcp-harness-tools');
 const filedrop = require('../lib/filedrop-tasks');
 const scheduleWakeup = require('../lib/schedule-wakeup');
 
@@ -19,6 +19,22 @@ const PORT = 19720 + Math.floor(Math.random() * 100);
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
+
+async function withEnv(overrides, fn) {
+  const old = {};
+  for (const k of Object.keys(overrides)) {
+    old[k] = process.env[k];
+    if (overrides[k] == null) delete process.env[k];
+    else process.env[k] = overrides[k];
+  }
+  try { return await fn(); }
+  finally {
+    for (const k of Object.keys(overrides)) {
+      if (old[k] == null) delete process.env[k];
+      else process.env[k] = old[k];
+    }
+  }
+}
 
 function req(method, p, body) {
   return new Promise((resolve, reject) => {
@@ -72,6 +88,47 @@ async function waitForPing(ms = 8000) {
     { call: (method, path, body) => { if (path === '/overlay/status') harnessCaptured = body; return { ok: true }; }, session: 'harness-sess' },
   );
   ok('handleRpc injects ctx.session into start_task', harnessCaptured && harnessCaptured.session_id === 'harness-sess');
+  await withEnv({
+    ORCH_SESSION: null,
+    ZONOID_SESSION: null,
+    CLAUDE_CODE_SESSION_ID: null,
+    CODEX_THREAD_ID: 'codex-thread-only',
+  }, async () => {
+    let codexCaptured = null;
+    await handleRpc(
+      { jsonrpc: '2.0', id: 100, method: 'tools/call', params: { name: 'start_task', arguments: { task_key: 'local/codex', agent_id: 'w3' } } },
+      { call: (method, path, body) => { if (path === '/overlay/status') codexCaptured = body; return { ok: true }; }, session: resolveSession({ client: 'codex' }) },
+    );
+    ok('resolveSession reads CODEX_THREAD_ID-only env for codex', resolveSession({ client: 'codex' }) === 'codex-thread-only');
+    ok('resolveSession does not leak CODEX_THREAD_ID to cursor', resolveSession({ client: 'cursor' }) === '');
+    ok('handleRpc injects CODEX_THREAD_ID-only session into start_task', codexCaptured && codexCaptured.session_id === 'codex-thread-only');
+  });
+
+  const judgeNextTool = TOOLS.find((t) => t.name === 'get_judge_next');
+  ok('get_judge_next is on default MCP surface', !!judgeNextTool);
+  ok('get_judge_next schema exposes node+budget', judgeNextTool && judgeNextTool.inputSchema.properties.node && judgeNextTool.inputSchema.properties.budget);
+  ok('get_judge_next description names start_task hold', judgeNextTool && /start_task/.test(judgeNextTool.description));
+  let capturedJudgeNext = null;
+  await judgeNextTool.run({ node: 'local/y', budget: 7 }, (method, path, body) => {
+    capturedJudgeNext = { method, path, body };
+    return { ok: true };
+  });
+  ok('get_judge_next runs GET /judge/next?node=', capturedJudgeNext && capturedJudgeNext.method === 'GET' && capturedJudgeNext.path === '/judge/next?node=local%2Fy&budget=7');
+
+  const judgeVerdictTool = TOOLS.find((t) => t.name === 'submit_judge_verdict');
+  ok('submit_judge_verdict is on default MCP surface', !!judgeVerdictTool);
+  ok('submit_judge_verdict schema exposes verdicts and edge actions',
+    judgeVerdictTool && judgeVerdictTool.inputSchema.properties.verdicts && judgeVerdictTool.inputSchema.properties.keepEdge && judgeVerdictTool.inputSchema.properties.pruneEdge);
+  let capturedJudgeVerdict = null;
+  await judgeVerdictTool.run({ verdicts: [{ pruneEdge: { from: 'note:a', to: 'local/y' } }] }, (method, path, body) => {
+    capturedJudgeVerdict = { method, path, body };
+    return { ok: true };
+  });
+  ok('submit_judge_verdict runs POST /judge/verdict', capturedJudgeVerdict && capturedJudgeVerdict.method === 'POST' && capturedJudgeVerdict.path === '/judge/verdict');
+  ok('submit_judge_verdict passes explicit verdict body', capturedJudgeVerdict && capturedJudgeVerdict.body.verdicts[0].pruneEdge.to === 'local/y');
+  const emptyVerdict = await judgeVerdictTool.run({}, () => ({ ok: true }));
+  ok('submit_judge_verdict rejects empty calls', /at least one/.test(emptyVerdict.error || ''));
+
   const drainTool = TOOLS.find((t) => t.name === 'drain_kb_queue');
   ok('drain_kb_queue exposes opt-in autoInject', drainTool && drainTool.inputSchema.properties.autoInject && drainTool.description.includes('Default is human-gated'));
   ok('inject_kb is on default MCP surface', TOOLS.some((t) => t.name === 'inject_kb'));

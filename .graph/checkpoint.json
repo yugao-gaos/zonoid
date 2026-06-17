@@ -85986,6 +85986,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -91618,6 +91619,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -91705,6 +91707,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -92555,6 +92558,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -93826,6 +93830,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -93927,6 +93932,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -93992,6 +93998,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -94021,6 +94028,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -96753,6 +96761,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -104051,6 +104060,186 @@
       "timestamps": {
         "firstSeen": "2026-06-16T15:29:22.015Z",
         "lastChanged": "2026-06-16T19:08:35.893Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/headless-drains-default-often": {
+      "id": "codex/headless-drains-default-often",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented headless drains as default-on with explicit ORCH_HEADLESS_DRAINS=0/false/no opt-out, changed daemon drain cadence default from 15 minutes to 2 minutes plus jitter, and suppressed in-session judge/label/learner Agent drain nudges while headless drains are enabled. Updated focused headless-drain and classify assembly tests. Tests: node --test test/headless-drain.test.js test/classify-loop-directive.test.js (passed; rerun with sandbox escalation because the deadlock regression binds 127.0.0.1). Commit: 0110d12 Make headless drains default and frequent.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Make headless CLI drains default and frequent",
+        "description": "Change zonoid so standing learner/judge/label drains use the daemon headless CLI path by default, run on a short cadence, and suppress in-session Agent drain nudges when headless drains are active. Keep an explicit opt-out for constrained environments and add focused tests.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T14:43:28.700Z"
+      },
+      "assignee": "headless-drains-default-often-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-17T14:36:45.145Z",
+        "lastChanged": "2026-06-17T14:43:28.683Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/architecture-seam-audit-adapters": {
+      "id": "codex/architecture-seam-audit-adapters",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Read-only adapter/MCP/CLI seam audit completed. Mapped harness adapters, hook relays, MCP core/extra tools, file-drop task minting, installer ownership, and enforcement paths. Main weak seams: stale claim-registration contract docs vs hookless self-register implementation; session_id inference omits Codex thread env; Bash gate only requires any target under worktree and has /tmp policy drift; OpenCode plugin gate lacks apply_patch path extraction and worktree confinement; usage pricing API is not uniformly implemented across adapters.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Audit harness adapter hook and package seams",
+        "description": "Read-only subtask for codex/architecture-seam-audit. Inspect hooks/, adapters/, packages/cli, packages/opencode-plugin, mcp-graph.js, lib/mcp-core.js, and docs/adapter-contract.md. Return: module map, intended seams/contracts, and unclear/leaky boundaries with concrete file references. Do not edit files.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T17:38:17.530Z"
+      },
+      "assignee": "arch-adapters-explorer",
+      "timestamps": {
+        "firstSeen": "2026-06-17T17:32:12.519Z",
+        "lastChanged": "2026-06-17T17:38:17.527Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/architecture-seam-audit-core": {
+      "id": "codex/architecture-seam-audit-core",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Read-only architecture audit completed. Mapped daemon shell, route modules, overlay graph store, lifecycle/judge, MCP, harness, and git seams. Main weak seams found: broad ctx service-locator surface, side-effectful buildGraph reads, stale lifecycle docs for note ingest, duplicated task-key admission helpers, inconsistent workspace targeting in admin embedding routes, and oversized /search and /overlay/status endpoints. No files changed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Audit daemon core graph and lifecycle seams",
+        "description": "Read-only subtask for codex/architecture-seam-audit. Inspect daemon.js, routes/, and lib/ modules. Return: module map, intended seams/contracts, and unclear/leaky boundaries with concrete file references. Do not edit files.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T17:39:26.451Z"
+      },
+      "assignee": "arch-core-explorer",
+      "timestamps": {
+        "firstSeen": "2026-06-17T17:32:08.975Z",
+        "lastChanged": "2026-06-17T17:39:26.449Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/trace-codex-hooks-gates": {
+      "id": "codex/trace-codex-hooks-gates",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Read-only Codex hook/gate audit completed. Claimed task using explicit CODEX_THREAD_ID as session_id after branch_task. Traced Codex install/config, relays, shared Claude gate scripts/Node ports, lifecycle hooks, and selected tests. Ran codex-hooks, orch-gate, orch-gate-bash, and apply-patch-confinement; all passed after rerunning the sandbox-blocked apply_patch fixture with approval. Key risks: Codex session inference lacks CODEX_THREAD_ID fallback, post-start alias mismatch, post-lifecycle matcher/script mismatch, shell relay dependency/fail-open surface, and compound Bash target parsing/confinement gaps.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Trace Codex hook and gate execution path",
+        "description": "Read-only audit. Trace the Codex adapter hooks from install/config through session-start, classify, gate, post-start-task, agent-done/subagent-stop, and shell write gate. Identify fragility compared with Claude Code. Return step-by-step flow, concrete file/line evidence, missing tests, and prioritized risks. Do not edit files.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T17:40:09.236Z"
+      },
+      "assignee": "codex-trace-hooks-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-17T17:29:30.199Z",
+        "lastChanged": "2026-06-17T17:40:20.824Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/trace-codex-session-claims": {
+      "id": "codex/trace-codex-session-claims",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Read-only audit traced Codex session/claim flow. branch_task and start_task succeeded when CODEX_THREAD_ID was passed explicitly as session_id. Key fragilities: Codex MCP auto-session fallback omits CODEX_THREAD_ID; hookless self-register allows any agent_id plus registered worktree, so dispatcher denial depends on no worktree; session-info does not classify hookless agent_tool_spawn sessions as subagents after/without an active claim; Bash gate accepts any detected target inside worktree rather than every target. No files edited; no tests executed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Trace Codex session, agent registration, and claim path",
+        "description": "Read-only audit. Trace Codex session identity, worker registration, branch_task/start_task claim flow, hookless/background worker handling, and differences from Claude Code. Identify failure modes where Codex tasks cannot claim or are misattributed. Return evidence with file/line references and tests/docs gaps. Do not edit files.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T17:40:23.183Z"
+      },
+      "assignee": "codex-trace-session-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-17T17:29:34.412Z",
+        "lastChanged": "2026-06-17T17:40:23.181Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/trace-codex-tests-docs": {
+      "id": "codex/trace-codex-tests-docs",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Read-only audit completed. Codex coverage is strongest for hook wiring, MCP extras, usage pricing, apply_patch confinement, shared gate logic, and ScheduleWakeup. Gaps remain around captured Codex Desktop hook/session envelopes, Codex-specific self-register live coverage, Bash multi-target all-target confinement, docs staleness in top-level README tool count/Claude-centric framing, and docs overclaiming hook-based Codex task minting. No files changed; focused tests passed after rerunning sandbox-blocked live-daemon tests with escalation.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Audit Codex tests and docs coverage against actual behavior",
+        "description": "Read-only audit. Review Codex-specific tests, adapter docs, sample configs, and recent task history. Identify cases where tests encode old contracts, miss real Codex desktop behavior, or docs overclaim. Return concrete failing/weak coverage points and recommended test scenarios. Do not edit files.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T17:39:14.452Z"
+      },
+      "assignee": "codex-trace-tests-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-17T17:29:44.206Z",
+        "lastChanged": "2026-06-17T17:39:14.449Z",
         "lastStatus": "done"
       },
       "metrics": null,
@@ -135347,9 +135536,9 @@
       "from": "note:note-mqgztj9lza0",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/9",
       "kind": "context",
-      "origin": "asserted",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqh0gwz1mxc",
@@ -135612,7 +135801,1339 @@
       "weight": 0.7,
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqgtvw168ex",
+      "to": "codex/headless-drains-default-often",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.575,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqhopcw5kjd",
+      "to": "note:note-mqg9mzarifw",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.855,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqhopcw5kjd",
+      "to": "note:note-mqetzhodzyt",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.821,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqhopcw5kjd",
+      "to": "note:note-mqgt2bjvle5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.736,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqhopcw5kjd",
+      "to": "note:note-mqflqx78zk2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.7,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqhopcw5kjd",
+      "to": "note:note-mqgwh4xhfa0",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.691,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqi6mvx3gip",
+      "to": "codex/headless-drains-default-often",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqicfdkrknk",
+      "to": "note:note-mqgyht6nop3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.742,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicfdkrknk",
+      "to": "note:note-mqgyk5n50yj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.715,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicfdkrknk",
+      "to": "note:note-mqgzpkrm8rj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.715,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicfdkrknk",
+      "to": "followup/harness-label-drain",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.702,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicfdkrknk",
+      "to": "note:note-mqgzl63hrlf",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.69,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/1",
+      "to": "codex/headless-drains-default-often",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqatxdyv38f",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqatxdyv38f",
+      "to": "codex/architecture-seam-audit-core",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqe2awxnjjf",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqeai9sgzr1",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqeai9sgzr1",
+      "to": "codex/architecture-seam-audit-core",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqeh1zs40t4",
+      "to": "codex/trace-daemon-lifecycle-codex",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqfatdr2s67",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqftffo7f2b",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqgtdsl1abm",
+      "to": "codex/trace-daemon-lifecycle-codex",
+      "kind": "context",
+      "weight": 0.75,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqgu63huoyl",
+      "to": "codex/trace-codex-hooks-gates",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqgudrqpuzc",
+      "to": "codex/trace-codex-hooks-gates",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqh44bouyi0",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqh44bouyi0",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicijw0l9x",
+      "to": "note:note-mqicfdkrknk",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.981,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicijw0l9x",
+      "to": "note:note-mqgyht6nop3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.748,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicijw0l9x",
+      "to": "note:note-mqgzpkrm8rj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.722,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicijw0l9x",
+      "to": "note:note-mqgyk5n50yj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.717,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicijw0l9x",
+      "to": "note:note-mqgzl63hrlf",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.698,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicls7n9n1",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicls7n9n1",
+      "to": "note:note-mqicfdkrknk",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.981,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicls7n9n1",
+      "to": "note:note-mqgyht6nop3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.748,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicls7n9n1",
+      "to": "note:note-mqgzpkrm8rj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.722,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicls7n9n1",
+      "to": "note:note-mqgyk5n50yj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.717,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicoygj16r",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicoygj16r",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicoygj16r",
+      "to": "note:note-mqicfdkrknk",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.981,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicoygj16r",
+      "to": "note:note-mqgyht6nop3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.748,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicoygj16r",
+      "to": "note:note-mqgzpkrm8rj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.722,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/trace-codex-hooks-gates",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/trace-daemon-lifecycle-codex",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/judge-fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/judge-fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/judge-fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/judge-fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqid4xtqc1z",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid4xtqc1z",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid4xtqc1z",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid4xtqc1z",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid4xtqc1z",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid84r6rvb",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid84r6rvb",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid84r6rvb",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid84r6rvb",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqid84r6rvb",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidbbuz98d",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidbbuz98d",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidbbuz98d",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidbbuz98d",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidbbuz98d",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidej47qls",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidej47qls",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidej47qls",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidej47qls",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidej47qls",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidhq0wrjw",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidhq0wrjw",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidhq0wrjw",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidhq0wrjw",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidhq0wrjw",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidkx5akmy",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidkx5akmy",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidkx5akmy",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidkx5akmy",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidkx5akmy",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqido4u5hs3",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqido4u5hs3",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqido4u5hs3",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqido4u5hs3",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqido4u5hs3",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidwfahf07",
+      "to": "note:note-mqicijw0l9x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidwfahf07",
+      "to": "note:note-mqicls7n9n1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidwfahf07",
+      "to": "note:note-mqicoygj16r",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidwfahf07",
+      "to": "note:note-mqicslrhsvo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqidwfahf07",
+      "to": "note:note-mqicvksarfr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "091a4bf1-b671-4ff9-854d-993775faa5ee/17",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "091a4bf1-b671-4ff9-854d-993775faa5ee/28",
+      "to": "codex/trace-daemon-lifecycle-codex",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "091a4bf1-b671-4ff9-854d-993775faa5ee/28",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "0b5a907e-b58e-41cd-892b-4c0ca8d27099/5",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/1",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32",
+      "to": "codex/fix-tmp-hook-policy",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "c9d0372b-830c-42b8-a22b-4e4bea7a823e/5",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "c9d0372b-830c-42b8-a22b-4e4bea7a823e/5",
+      "to": "codex/architecture-seam-audit-core",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/architecture-seam-audit-adapters",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/architecture-seam-audit-adapters",
+      "to": "codex/fix-tmp-hook-policy",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/architecture-seam-audit-core",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/fix-codex-session-info-hooks",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.691,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-codex-session-info-hooks",
+      "to": "codex/judge-fix-codex-session-info-hooks",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/fix-codex-session-info-hooks",
+      "to": "codex/judge-fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/fix-codex-session-propagation",
+      "to": "codex/judge-fix-codex-session-propagation",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/fix-codex-support",
+      "to": "codex/trace-codex-hooks-gates",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-support",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-support",
+      "to": "codex/architecture-seam-audit-adapters",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-support",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-support",
+      "to": "codex/fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-judging-claim-fastpath",
+      "to": "followup/fix-orch-gate-to-pick-matching-claim-for-cl90",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.62,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-judging-claim-fastpath",
+      "to": "8d6d6263-3492-4317-906e-01b44f9219e6/1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.608,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-judging-claim-fastpath",
+      "to": "followup/add-multi-claim-gate-tests-33-34-qjr3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.583,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-judging-claim-fastpath",
+      "to": "codex/judge-fix-judging-claim-fastpath",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/fix-judging-claim-fastpath",
+      "to": "codex/judge-fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/fix-review-findings",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-shell-write-gate-cross-shell",
+      "to": "af585417-07f3-4b6f-8c96-d9b784271d32/1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.562,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-shell-write-gate-cross-shell",
+      "to": "codex/judge-fix-shell-write-gate-cross-shell",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/fix-shell-write-gate-cross-shell",
+      "to": "codex/judge-fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/judge-fix-codex-session-info-hooks",
+      "to": "codex/fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.761,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-codex-session-info-hooks",
+      "to": "codex/judge-fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.676,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-codex-session-info-hooks",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.55,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-judging-claim-fastpath",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.604,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-shell-write-gate-cross-shell",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.616,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-shell-write-gate-cross-shell",
+      "to": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.554,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-codex-support",
+      "to": "codex/trace-codex-hooks-gates",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/review-codex-support",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/review-codex-support",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-codex-hooks-gates",
+      "to": "codex/fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-codex-hooks-gates",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-codex-session-claims",
+      "to": "codex/fix-codex-session-propagation",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-codex-session-claims",
+      "to": "codex/fix-codex-session-info-hooks",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-codex-tests-docs",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-daemon-lifecycle-codex",
+      "to": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.559,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/trace-daemon-lifecycle-codex",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/8",
+      "to": "codex/trace-daemon-lifecycle-codex",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/8",
+      "to": "codex/fix-tmp-hook-policy",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/1",
+      "to": "codex/trace-codex-tests-docs",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "followup/fix-session-js-active-claim-t-agent-id-t-aoov",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/dg1",
+      "to": "codex/trace-codex-session-claims",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/hb4",
+      "to": "codex/architecture-seam-audit-adapters",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/i1",
+      "to": "codex/architecture-seam-audit-adapters",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/j2",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/j3",
+      "to": "codex/fix-shell-write-gate-cross-shell",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "unify/ready-only-via-judged",
+      "to": "codex/fix-judging-claim-fastpath",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
     }
   ],
-  "compacted_at": "2026-06-17T04:53:14.818Z"
+  "compacted_at": "2026-06-17T18:10:18.585Z"
 }

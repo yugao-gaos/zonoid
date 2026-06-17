@@ -11,8 +11,7 @@
 //   - out-of-worktree   → exit 2 (deny, confinement reason)
 //   - multi-file, one outside → exit 2 (any-outside blocks)
 //   - relative in-worktree path (resolved against the worktree cwd) → exit 0
-// The .sh core is behaviorally identical (enforced dual-track); it is exercised too when bash is on
-// PATH, otherwise that leg is skipped (the e2e harness convention is to drive the .js ports).
+// The .sh entrypoint delegates to the Node hook; it is exercised too when bash is on PATH.
 // Run: node test/apply-patch-confinement.test.js
 'use strict';
 const fs = require('fs');
@@ -92,7 +91,7 @@ function runGateJs(payload) {
 }
 
 function bashAvailable() {
-  try { return spawnSync('bash', ['-c', 'command -v jq >/dev/null && command -v curl >/dev/null'], { timeout: 5000 }).status === 0; }
+  try { return spawnSync('bash', ['-c', 'command -v bash >/dev/null'], { timeout: 5000 }).status === 0; }
   catch { return false; }
 }
 function runGateSh(payload) {
@@ -160,31 +159,21 @@ function runGateSh(payload) {
       ok('JS: apply_patch under .patch field still confine-checked (exit 2)', r.code === 2, `code=${r.code}`);
     }
 
-    // ── .sh core (enforced dual-track) ─────────────────────────────────────────
-    // The .sh is the POSIX track (Codex/Cursor/CI run it; Claude runs the .js). It prefix-matches
-    // paths with raw bash `case` and does NOT slash-normalize the daemon worktree, so on win32 —
-    // where the daemon returns BACKSLASH worktree paths but apply_patch headers are forward-slash —
-    // the in-worktree/relative comparisons can't reconcile separators. That is a Windows-only
-    // harness artifact; the .js leg above fully covers Windows. So: run the full INSIDE/relative
-    // E2E only on POSIX, but assert the OUTSIDE-deny on EVERY bash host using an absolute POSIX
-    // target (`/etc/passwd`) that is unambiguously outside a C:\… or /…/worktree regardless of
-    // separator — this exercises the REAL orch-gate.sh extraction + confinement + exit-2 deny.
+    // ── .sh compatibility entrypoint ───────────────────────────────────────────
+    // The shell path now delegates to the same Node policy as orch-gate.js, so it should match the
+    // JS assertions exactly anywhere bash is available.
     if (bashAvailable()) {
       const rAbs = runGateSh(patchEnvelope(['/etc/passwd']));
       ok('SH: apply_patch to absolute OUTSIDE path denied (exit 2)', rAbs.code === 2, `code=${rAbs.code}`);
       ok('SH: deny carries confinement reason', /registered worktree/.test(rAbs.stderr), rAbs.stderr.slice(0, 120));
       const rMulti = runGateSh(patchEnvelope(['/etc/passwd', 'src/app.js']));
       ok('SH: multi-file apply_patch with one absolute OUTSIDE denied (exit 2)', rMulti.code === 2, `code=${rMulti.code}`);
-      if (process.platform !== 'win32') {
-        ok('SH: apply_patch INSIDE worktree allowed (exit 0)', runGateSh(patchEnvelope([inside])).code === 0);
-        const rOut = runGateSh(patchEnvelope([outside]));
-        ok('SH: apply_patch OUTSIDE (sibling repo) denied (exit 2)', rOut.code === 2, `code=${rOut.code}`);
-        ok('SH: relative in-worktree apply_patch allowed (exit 0)', runGateSh(patchEnvelope(['src/app.js'])).code === 0);
-      } else {
-        console.log('SKIP  SH INSIDE/relative E2E (win32 path-separator skew; JS leg covers Windows)');
-      }
+      ok('SH: apply_patch INSIDE worktree allowed (exit 0)', runGateSh(patchEnvelope([inside])).code === 0);
+      const rOut = runGateSh(patchEnvelope([outside]));
+      ok('SH: apply_patch OUTSIDE (sibling repo) denied (exit 2)', rOut.code === 2, `code=${rOut.code}`);
+      ok('SH: relative in-worktree apply_patch allowed (exit 0)', runGateSh(patchEnvelope(['src/app.js'])).code === 0);
     } else {
-      console.log('SKIP  SH core (bash/jq/curl not on PATH)');
+      console.log('SKIP  SH compatibility entrypoint (bash not on PATH)');
     }
   } finally {
     try { child.kill(); } catch { /* already gone */ }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // E2E: /overlay/status (start_task) refuses in_progress claims on metric-spec tasks unless the
-// claim workspace is on an orch/attempt/* branch — mirrors hooks/orch-gate.sh lines 47-61.
+// Claim workspace is on an orch/attempt/* branch — mirrors hook worktree-confinement behavior.
 // Run: node test/metric-branch-claim.test.js
 'use strict';
 const fs = require('fs');

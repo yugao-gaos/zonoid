@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse(Bash) → write-pattern gate; Codex permissionDecision deny.
+# PreToolUse(Bash) → shared bash write gate; Codex permissionDecision deny.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 # shellcheck source=adapters/codex/hooks/_lib.sh
