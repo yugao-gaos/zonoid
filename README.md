@@ -140,7 +140,7 @@ the accumulated findings of every prior session rather than a blank slate.
 ## Dashboard
 
 ```
-http://localhost:8787/graph
+http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>
 ```
 
 ## MCP tools

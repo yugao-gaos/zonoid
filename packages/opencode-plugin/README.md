@@ -69,4 +69,4 @@ Copy the same files to `~/.config/opencode/plugins/` for all projects.
 4. Orchestrator MCP `complete_task` — finish and release claim.
 5. `schedule_wakeup(delaySeconds, reason, prompt)` — heartbeat / idle polling (same contract as Claude native `ScheduleWakeup`). Re-arming replaces any prior wake for the session. Response includes `notify_pattern: "ORCH_SCHEDULED_TASK"` when a harness monitors stdout for the fire line.
 
-Dashboard: http://localhost:8787/graph
+Dashboard: http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>

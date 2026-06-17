@@ -41,6 +41,7 @@ const SETTINGS_FILE = USER_SCOPE
 const fwd = (p) => p.replace(/\\/g, '/');
 const INSTALL_FWD = fwd(INSTALL_DIR);
 const hookCmd = (name) => `node "${INSTALL_FWD}/hooks/${name}.js"`;
+const dashboardUrl = (workspace = WORKSPACE) => `http://localhost:${PORT}/graph?workspace=${encodeURIComponent(path.resolve(workspace))}`;
 
 // ── the complete hook wiring (one source of truth) ───────────────────────────
 const HOOKS = {
@@ -148,5 +149,5 @@ if (!DRY) {
   console.log('\nDone. Notes:');
   console.log('  • Start a NEW Claude Code CLI session so it reloads .mcp.json + settings.json.');
   console.log('  • Hooks (the gate) run in the CLI only — the desktop app does not execute settings.json hooks.');
-  console.log(`  • Dashboard: http://localhost:${PORT}/graph`);
+  console.log(`  • Dashboard: ${dashboardUrl()}`);
 }

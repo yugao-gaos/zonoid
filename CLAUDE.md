@@ -7,7 +7,7 @@ This workspace uses the Orchestrator (task-graph daemon on `http://localhost:878
 **Always surface the dashboard link in your replies** when doing orchestrator/multi-task work,
 so the user can open it whenever the panel isn't already up:
 
-> 📊 Dashboard: http://localhost:8787/graph
+> 📊 Dashboard: http://localhost:8787/graph?workspace=%2FUsers%2Fimyu%2FDesktop%2Fzonoid
 
 The link is cheap to include and harmless if the dashboard is already open — prefer including it
 over guessing whether it's open (the agent can't reliably detect the panel state). Drop it only

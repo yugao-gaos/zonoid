@@ -31,7 +31,7 @@ Run `npx @zonoid/cli onboard` inside a repo to mine static candidates, run the l
 
 ## Next steps by harness
 
-- **claude** — Restart Claude Code; dashboard at `http://localhost:8787/graph`
+- **claude** — Restart Claude Code; open the repo-pinned dashboard URL printed by `zonoid init`
 - **cursor** — Trust project hooks in Cursor, restart; MCP `ScheduleWakeup` + `.fire` tail monitor; see `adapters/cursor/README.md`
 - **codex** — Trust hooks via `/hooks` in Codex CLI, restart; repo skill lives at `.codex/skills/zonoid-orchestrator`; MCP `create_task` writes `codex/<id>.json` file-drop stubs and calls `/sync`; see `adapters/codex/README.md`
 - **opencode** — Wire orchestrator MCP in `opencode.json`, restart; `task_create` writes file-drop stubs and calls `/sync`; see `packages/opencode-plugin/README.md`

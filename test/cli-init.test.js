@@ -22,6 +22,8 @@ const {
   graphAutocommitHookScript,
   mergeGraphAutocommitFlag,
   parseOnboardArgs,
+  dashboardUrl,
+  renderClaudeInstructions,
 } = require('../packages/cli/bin/zonoid.js');
 const fs = require('fs');
 
@@ -42,6 +44,21 @@ ok('onboard defaults repo to cwd', parseOnboardArgs(['node', 'zonoid', 'onboard'
 ok('onboard injects default --repo passthrough', parseOnboardArgs(['node', 'zonoid', 'onboard']).passThrough[0] === '--repo');
 ok('onboard parses explicit --repo', parseOnboardArgs(['node', 'zonoid', 'onboard', '--repo', '/tmp/x', '--force']).repo === '/tmp/x');
 ok('onboard preserves flags', parseOnboardArgs(['node', 'zonoid', 'onboard', '--repo', '/tmp/x', '--force']).passThrough.includes('--force'));
+
+const clientRepo = path.join(os.tmpdir(), 'client repo');
+const clientDash = dashboardUrl(clientRepo, '8787');
+ok('dashboardUrl pins and URL-encodes workspace path',
+  clientDash === `http://localhost:8787/graph?workspace=${encodeURIComponent(path.resolve(clientRepo))}`);
+{
+  const rendered = renderClaudeInstructions(
+    'A http://localhost:8787/graph\nB http://localhost:8787/graph?workspace=%2Fold%2Frepo',
+    clientRepo,
+    '8788'
+  );
+  const expected = `http://localhost:8788/graph?workspace=${encodeURIComponent(path.resolve(clientRepo))}`;
+  ok('renderClaudeInstructions rewrites generic dashboard URL', rendered.includes(`A ${expected}`));
+  ok('renderClaudeInstructions rewrites existing pinned dashboard URL', rendered.includes(`B ${expected}`));
+}
 
 // ── CDX-2: multi-harness --harness parsing (comma-separated and/or repeatable) ──
 ok('default harnesses is [claude]',

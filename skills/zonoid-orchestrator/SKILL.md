@@ -23,4 +23,4 @@ Inline work is only acceptable for trivial one-liners, docs-only tweaks, read-on
 
 Always surface the dashboard during orchestrator work:
 
-`http://localhost:8787/graph`
+`http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>`

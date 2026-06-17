@@ -45,6 +45,15 @@ function section(title) { console.log(`\n── ${title} ───────�
 // Windows too) and keep the JSON/TOML config values free of backslash-escaping
 // noise. Same convention as bin/install.js `fwd`.
 const fwdSlash = (p) => String(p).replace(/\\/g, '/');
+function dashboardUrl(cwd = process.cwd(), port = ORCH_PORT) {
+  return `http://localhost:${port}/graph?workspace=${encodeURIComponent(path.resolve(cwd))}`;
+}
+function renderClaudeInstructions(content, cwd = process.cwd(), port = ORCH_PORT) {
+  const url = dashboardUrl(cwd, port);
+  return String(content)
+    .replace(/http:\/\/localhost:\d+\/graph\?workspace=[^\s`)>\]]+/g, url)
+    .replace(/http:\/\/localhost:\d+\/graph(?!\?workspace=)/g, url);
+}
 
 // ── individual checks & fixes ───────────────────────────────────────────────
 
@@ -315,7 +324,7 @@ function checkClaude(cwd) {
   const dest = path.join(cwd, 'CLAUDE.md');
   const src  = path.join(INSTALL_DIR, 'CLAUDE.md');
   if (!fs.existsSync(src)) { warn('Source CLAUDE.md not found in install dir'); return; }
-  const srcContent = fs.readFileSync(src, 'utf8');
+  const srcContent = renderClaudeInstructions(fs.readFileSync(src, 'utf8'), cwd);
   if (fs.existsSync(dest)) {
     const existing = fs.readFileSync(dest, 'utf8');
     if (existing.includes('Orchestrator dashboard')) { ok('CLAUDE.md already has orchestrator section'); return; }
@@ -1145,12 +1154,13 @@ function wireHarness(harness, cwd) {
   }
 }
 
-function printNextSteps(harness) {
+function printNextSteps(harness, cwd = process.cwd()) {
+  const dash = dashboardUrl(cwd);
   if (harness === 'codex') {
     console.log('  Next steps (codex):');
     console.log('    1. Open /hooks in Codex CLI and trust the Zonoid hook definitions');
     console.log('    2. Restart Codex in this directory');
-    console.log('    3. Open the dashboard: http://localhost:8787/graph');
+    console.log(`    3. Open the dashboard: ${dash}`);
     console.log('    4. Mint tasks with Codex MCP create_task (file-drop stub + /sync), then start_task before editing');
     console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — run the returned');
     console.log('       tail command on the session .fire file; on ORCH_SCHEDULED_TASK, re-inject the prompt');
@@ -1160,7 +1170,7 @@ function printNextSteps(harness) {
     console.log('  Next steps (cursor):');
     console.log('    1. Trust the workspace in Cursor so project hooks run');
     console.log('    2. Restart Cursor in this directory');
-    console.log('    3. Open the dashboard: http://localhost:8787/graph');
+    console.log(`    3. Open the dashboard: ${dash}`);
     console.log('    4. Mint tasks via todo adoption or MCP, then start_task before editing');
     console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — monitor stdout with');
     console.log('       the returned tail command (notify_pattern ORCH_SCHEDULED_TASK) and re-inject the prompt');
@@ -1169,13 +1179,13 @@ function printNextSteps(harness) {
     console.log('  Next steps (opencode):');
     console.log('    1. Wire orchestrator MCP in opencode.json (stdio transport)');
     console.log('    2. Restart OpenCode in this directory');
-    console.log('    3. Open the dashboard: http://localhost:8787/graph');
+    console.log(`    3. Open the dashboard: ${dash}`);
     console.log('    4. Use task_create (file-drop stub + /sync) to mint, then start_task before editing');
     console.log('    5. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
   } else {
     console.log('  Next steps (claude):');
     console.log('    1. Restart Claude Code in this directory');
-    console.log('    2. Open the dashboard: http://localhost:8787/graph');
+    console.log(`    2. Open the dashboard: ${dash}`);
     console.log('    3. Ask Claude to start working — it will create tasks automatically');
     console.log('');
     console.log('  Tip: if Claude says "no task claimed", that\'s the gate working —');
@@ -1248,7 +1258,7 @@ async function init(opts = {}) {
   console.log('\n✓ Done.\n');
   harnesses.forEach((h, i) => {
     if (i > 0) console.log('');
-    printNextSteps(h);
+    printNextSteps(h, cwd);
   });
 
   // Graph auto-commit hook tip — workspace-level (the hook is always installed
@@ -1334,5 +1344,7 @@ if (require.main === module) {
     graphAutocommitHookScript,
     mergeGraphAutocommitFlag,
     parseOnboardArgs,
+    dashboardUrl,
+    renderClaudeInstructions,
   };
 }

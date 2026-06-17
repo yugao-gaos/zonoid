@@ -88,4 +88,4 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 4. Edit via `apply_patch` / `Bash` inside the returned worktree — gates allow while claimed
 5. MCP `complete_task` → release claim
 
-Dashboard: http://localhost:8787/graph
+Dashboard: http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>
