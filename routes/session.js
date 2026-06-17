@@ -1,11 +1,27 @@
 'use strict';
 const path = require('path');
+const { resolveClaudeBin, needsShell } = require('../lib/claude-cli');
+const { runDrain } = require('../lib/headless-drain');
 const overlayStore = require('../lib/overlay');
 const followups = require('../lib/followups');
 const verdicts = require('../lib/verdicts');
 const judge = require('../lib/judge');
 const { listDispatcherChildren } = require('../lib/dispatcher-children');
 const { attributionMeta } = require('../lib/dispatcher-attribution');
+
+// Auto-resolve a guidance escalation by spawning an Opus CLI process.
+// Returns the trimmed answer string, or null if Opus is unavailable or fails.
+// No --dangerously-skip-permissions: this is a plain Q&A call, no tools needed.
+async function resolveViaOpusCli({ question, context, workspace }) {
+  const bin = resolveClaudeBin();
+  if (!bin) return null;
+  const prompt = `You are the autonomous decision-maker for the Zonoid orchestrator. An agent needs a decision to proceed.\n\nQUESTION: ${question}${context ? `\n\nCONTEXT: ${context}` : ''}\n\nProvide a concise, actionable answer the agent can use directly.`;
+  try {
+    const result = await runDrain({ bin, args: ['-p', prompt, '--model', 'claude-opus-4-8', '--output-format', 'text'], cwd: workspace || process.cwd(), timeoutMs: 120000 });
+    if (result.spawnError || result.timedOut || result.exitCode !== 0) return null;
+    return result.stdout.trim() || null;
+  } catch { return null; }
+}
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, buildGraph, state, targetOverlay,
@@ -85,6 +101,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.require_review != null) T.ov.config.require_review = !!b.require_review;
     if (b.self_plan != null) T.ov.config.self_plan = !!b.self_plan;
     if (b.cost_gate != null) T.ov.config.cost_gate = !!b.cost_gate;
+    if (b.automode != null) T.ov.config.automode = !!b.automode;
     if (b.stale_minutes != null) T.ov.config.stale_minutes = Number(b.stale_minutes);
     if (b.archive_after_days != null) T.ov.config.archive_after_days = Number(b.archive_after_days);
     if (b.escalation && typeof b.escalation === 'object') {
@@ -169,8 +186,24 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       // r.decision === 'ask' AND no downstream answer → fall through to the normal escalation below.
     }
 
-    const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
+    // AUTOMODE: auto-resolve blocking escalations via Opus CLI instead of pausing the loop.
+    // The HTTP handler awaits Opus (~30-60s) before returning — the requesting agent's tool call
+    // blocks briefly but gets back a real answer without ever pausing the loop.
+    // Review-severity items still queue for the dashboard (non-blocking anyway).
     const effectiveSeverity = b.severity === 'review' ? 'review' : 'blocking';
+    if (effectiveSeverity !== 'review' && T.ov.config && T.ov.config.automode) {
+      const opusAnswer = await resolveViaOpusCli({ question: b.question, context: b.context, workspace: T.ws });
+      if (opusAnswer) {
+        const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
+        overlayStore.annotateGuidance(T.ov, id, { predicted: true, predictedFrom: { title: 'Opus CLI (automode)' }, gateReason: 'automode: escalated to Opus CLI for autonomous decision' });
+        overlayStore.resolveGuidance(T.ov, id, opusAnswer);
+        T.save(); notifyChange();
+        send(res, 200, { ok: true, id, predicted: true, answer: opusAnswer }); return true;
+      }
+      // Opus failed (unavailable, timeout) → fall through to normal blocking escalation.
+    }
+
+    const id = overlayStore.addGuidance(T.ov, { question: b.question, context: b.context, trigger: b.trigger, severity: b.severity, origin_task: originTask, origin_notes: recalledNotes });
     if (effectiveSeverity !== 'review') { for (const L of loops.values()) L.active = false; saveLoops(); }
     T.save(); notifyChange();
     send(res, 200, { ok: true, id }); return true;

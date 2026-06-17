@@ -33,6 +33,15 @@
   .spstatus .dot.err { background: #f85149; }
   .spsave { background: #1f6feb33; border: 1px solid #1f6feb55; color: #79c0ff; border-radius: 6px; padding: 5px 14px; cursor: pointer; font: inherit; font-size: 12px; width: 100%; margin-top: 4px; }
   .spsave:hover { background: #1f6feb55; }
+  .sp-toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .sp-toggle-label { font-size: 12px; color: #c9d1d9; }
+  .sp-toggle-sublabel { font-size: 11px; color: #6e7681; margin-top: 1px; }
+  .sp-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+  .sp-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .sp-slider { position: absolute; inset: 0; background: #30363d; border-radius: 20px; cursor: pointer; transition: background .2s; }
+  .sp-slider:before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform .2s; }
+  .sp-switch input:checked + .sp-slider { background: #238636; }
+  .sp-switch input:checked + .sp-slider:before { transform: translateX(16px); }
   /* backend selector (pluggable-backend) — lives in the settings popup */
   #settingsPopup { max-height: calc(100vh - var(--hdr-h) - 24px); overflow-y: auto; }
   .bk-list { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
@@ -379,6 +388,19 @@
   <div class="sprow">
     <div class="splabel">Refresh interval (seconds)</div>
     <input class="spinput" id="sp-interval" type="number" min="1" max="60" placeholder="3" />
+  </div>
+  <div class="sprow" style="border-top:1px solid #21262d;padding-top:14px;margin-top:4px">
+    <div class="splabel">Workspace</div>
+    <div class="sp-toggle-row" style="margin-top:8px">
+      <div>
+        <div class="sp-toggle-label">Full Automode</div>
+        <div class="sp-toggle-sublabel">Escalations answered by Opus · Judges merge on approve</div>
+      </div>
+      <label class="sp-switch">
+        <input type="checkbox" id="sp-automode" onchange="saveAutomode(this.checked)">
+        <span class="sp-slider"></span>
+      </label>
+    </div>
   </div>
   <button class="spsave" onclick="saveSettings()">Save</button>
   <div class="sprow" style="margin-top:14px;border-top:1px solid #21262d;padding-top:14px">
@@ -5379,6 +5401,7 @@ function toggleSettingsPopup(){
     document.getElementById('sp-interval').value=saved.refreshInterval||'';
     checkSettingsConn();
     loadBackendConfig();
+    loadAutomodeState();
   }
 }
 async function checkSettingsConn(){
@@ -5386,6 +5409,17 @@ async function checkSettingsConn(){
   const dot=document.querySelector('#sp-conn .dot'), lbl=document.getElementById('sp-conn-label');
   try{ await fetch(url,{signal:AbortSignal.timeout(1500)}); dot.className='dot'; lbl.textContent='Connected'; }
   catch{ dot.className='dot err'; lbl.textContent='Unreachable'; }
+}
+async function loadAutomodeState(){
+  try{
+    const s=await(await dfetch('/state')).json();
+    const on=!!(s&&s.config&&s.config.automode);
+    document.getElementById('sp-automode').checked=on;
+  }catch{}
+}
+async function saveAutomode(on){
+  try{ await dfetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({automode:on})}); }
+  catch{}
 }
 function saveSettings(){
   const url=document.getElementById('sp-url').value.trim();
