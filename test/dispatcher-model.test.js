@@ -30,16 +30,21 @@ const PORT = 19650 + Math.floor(Math.random() * 100);
 const BASE = `http://127.0.0.1:${PORT}`;
 
 async function post(p, body) {
+  // Mirror the real MCP client (lib/mcp-core makeCall): inject the session's workspace into every
+  // POST body so workspace-required routes resolve it (the daemon-global default was removed).
+  const payload = (body && body.workspace) ? body : { workspace: WS, ...body };
   const res = await fetch(`${BASE}${p}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
   return { status: res.status, body: await res.json() };
 }
 
 async function get(p) {
-  const res = await fetch(`${BASE}${p}`);
+  // Mirror makeCall: append ?workspace= unless the path already carries one.
+  const u = /[?&]workspace=/.test(p) ? p : `${p}${p.includes('?') ? '&' : '?'}workspace=${encodeURIComponent(WS)}`;
+  const res = await fetch(`${BASE}${u}`);
   return { status: res.status, body: await res.json() };
 }
 
