@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 'use strict';
-// PreToolUse(Bash) GATE: refuse Bash commands that write files unless THIS conversation has a task
+// PreToolUse(Bash) GATE: refuse shell commands that write files unless THIS conversation has a task
 // claimed in_progress. Canonical cross-platform policy path — closes the bypass path where
-// a shell command (redirect, tee, cp, python -c "open(...,'w')", sed -i, dd) writes outside a claim.
+// a shell command (redirect, tee, cp, PowerShell writes, python -c "open(...,'w')", sed -i, dd)
+// writes outside a claim.
 // Exit 2 = deny; exit 0 = allow. Fail-open if the daemon is unreachable.
 const k = require('./lib/hookkit');
 const policy = require('./lib/gate-policy');
@@ -41,7 +42,8 @@ const PORT = k.PORT;
 
   if (resp.claimed === true) {
     const claims = Array.isArray(resp.claims) ? resp.claims : [];
-    let anyWorktree = false, matched = false, mismatchBranch = '', offending = '';
+    let anyWorktree = false, mismatchBranch = '';
+    const worktrees = [];
     for (const c of claims) {
       const key = c && c.key;
       if (!key) continue;
@@ -51,13 +53,14 @@ const PORT = k.PORT;
       if (branch) {
         anyWorktree = true;
         mismatchBranch = branch;
-        const outside = policy.firstOutsideWorktree(targets, wt);
-        if (!targets.length || !outside) { matched = true; break; }
-        offending = outside;
+        if (wt) worktrees.push(wt);
       }
     }
-    if (anyWorktree && !matched) {
-      k.deny(`orch-gate: task has a registered worktree (${mismatchBranch}) — Bash file writes must happen inside the worktree path, not at ${offending || targets[0] || '(bash)'}. Use the path returned by branch_task.`);
+    if (anyWorktree && targets.length) {
+      const outside = policy.firstOutsideAnyWorktree(targets, worktrees);
+      if (outside) {
+        k.deny(`orch-gate: task has a registered worktree (${mismatchBranch}) — shell file writes must happen inside the worktree path, not at ${outside}. Use the path returned by branch_task.`);
+      }
     }
     k.allow();
   }

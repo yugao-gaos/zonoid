@@ -91,6 +91,19 @@ test('hook-style /agent/start (agent_tool_spawn:true, no parent_session_id) regi
     const claim = await post('/overlay/status', { key: KEY, status: 'in_progress', agent_id: 'hook-worker', session_id: SID });
     assert.equal(claim.body.ok, true, 'isSubagent check accepts the hook-registered worker — claim lands');
 
+    const HOOKLESS_SID = crypto.randomUUID();
+    const HOOKLESS_KEY = `${crypto.randomUUID()}/hookless`;
+    await post('/mark-root', { task_key: HOOKLESS_KEY, reason: 'ats hookless root' });
+    assert.equal((await post('/git/worktree', { key: HOOKLESS_KEY, repo_path: WS })).status, 200,
+      'hookless worktree registered (branch_task precondition)');
+    const hooklessClaim = await post('/overlay/status', {
+      key: HOOKLESS_KEY, status: 'in_progress', agent_id: 'hookless-worker', session_id: HOOKLESS_SID,
+    });
+    assert.equal(hooklessClaim.body.ok, true, 'worktree-backed hookless claim self-registers');
+    const hooklessInfo = await get(`/session-info?session=${encodeURIComponent(HOOKLESS_SID)}`);
+    assert.equal(hooklessInfo.body.is_subagent, true,
+      '/session-info classifies hookless same-session agent_tool_spawn workers as subagents');
+
     // ── (3) negative control: no flag + no matching parent_session_id => agent_tool_spawn===false ──
     // This is the exec.js half of the gate: registration without the explicit flag and without a
     // matching parent_session_id must persist agent_tool_spawn===false. The claim-side boundary
@@ -102,6 +115,9 @@ test('hook-style /agent/start (agent_tool_spawn:true, no parent_session_id) regi
     })).body.ok, true, 'dispatcher-like /agent/start accepted (registration always ok)');
     assert.equal(readAgent('dispatcher-like').agent_tool_spawn, false,
       'no flag + mismatched parent => agent_tool_spawn===false (gate not loosened)');
+    const dispatcherInfo = await get(`/session-info?session=${encodeURIComponent(SID2)}`);
+    assert.equal(dispatcherInfo.body.is_subagent, false,
+      '/session-info does not classify dispatcher-like registrations as subagents');
   } finally {
     child.kill('SIGKILL');
     try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch { /* best effort */ }

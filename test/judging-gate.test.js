@@ -143,10 +143,27 @@ const flagged = (o, key, now, timeout) => { const j = judge.judgingState(o, key,
   judge.keepEdge(o, 's/t', 'note:n');
   ok('LIFECYCLE judged: edge now verified', o.edges[0].judged === true);
   ok('LIFECYCLE judged: gate RELEASES (no longer judging)', held(o, 's/t', now, HOUR) === false);
+  ok('LIFECYCLE judged: start_task rejection path clears after keep', held(o, 's/t', now, HOUR) === false);
   ok('LIFECYCLE judged: not flagged provisional', flagged(o, 's/t', now, HOUR) === false);
   // anchor cleanup mirrors routes/judge.js drain sweep
   if (judge.unverifiedEdgesForNode(o, 's/t').length === 0) ov.clearJudgingSince(o, 's/t');
   ok('LIFECYCLE judged: anchor pruned on drain', !('s/t' in o.judgingSince));
+}
+{
+  const o = ov.EMPTY();
+  o.epoch = 1;
+  const now = 2_000_000_000_000;
+  o.edges.push({ from: 's/prune', to: 'note:n', kind: 'context', weight: 0, by: 'autowire', judged: false, score: 0.4 });
+  ov.markEagerJudge(o, 's/prune');
+  o.judgingSince['s/prune'] = now - 30_000;
+  ok('LIFECYCLE prune seed: start_task rejection path HOLDS before verdict', held(o, 's/prune', now, HOUR) === true);
+
+  // PRUNE the edge via the same primitive routes/judge.js uses for pruneEdge verdicts.
+  ov.removeEdge(o, 's/prune', 'note:n', null, 'context');
+  if (judge.unverifiedEdgesForNode(o, 's/prune').length === 0) ov.clearJudgingSince(o, 's/prune');
+  ok('LIFECYCLE pruned: edge gone', o.edges.length === 0);
+  ok('LIFECYCLE pruned: start_task rejection path clears after prune', held(o, 's/prune', now, HOUR) === false);
+  ok('LIFECYCLE pruned: anchor pruned on drain', !('s/prune' in o.judgingSince));
 }
 {
   // TIMEOUT FALLBACK: a node whose judgment STALLS (edge never judged) past the timeout falls back —

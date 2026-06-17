@@ -16,7 +16,9 @@ const os = require('os');
 const path = require('path');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
-const HOOKS = path.join(__dirname, '..', 'hooks');
+const ROOT = path.join(__dirname, '..');
+const HOOKS = path.join(ROOT, 'hooks');
+const CODEX_HOOKS = path.join(ROOT, 'adapters', 'codex', 'hooks');
 const SESS = path.join(process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'orchestrator'), 'sessions');
 
 let pass = 0, fail = 0; const fails = [];
@@ -43,6 +45,56 @@ function runHook(name, payload, env) {
     env: { ...process.env, ...(env || {}) },
   });
   return { code: res.status, stdout: (res.stdout || '').trim(), stderr: (res.stderr || '').trim() };
+}
+function runScript(scriptPath, payload, env) {
+  const res = spawnSync('bash', [scriptPath], {
+    input: payload === undefined ? '' : JSON.stringify(payload), encoding: 'utf8', timeout: 8000,
+    env: { ...process.env, ...(env || {}) },
+  });
+  return { code: res.status, stdout: (res.stdout || '').trim(), stderr: (res.stderr || '').trim() };
+}
+function curlHits(logPath) {
+  try { return fs.readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean); }
+  catch { return []; }
+}
+function makeShellHookEnv() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-hook-stubs-'));
+  const dataDir = path.join(dir, 'data');
+  const logPath = path.join(dir, 'curl.log');
+  const jq = `#!/usr/bin/env node
+const fs = require('fs');
+const args = process.argv.slice(2);
+const input = fs.readFileSync(0, 'utf8');
+if (args.includes('-Rs')) { process.stdout.write(JSON.stringify(input)); process.exit(0); }
+const filter = args.filter((a) => a !== '-r').join(' ');
+let json = {};
+try { json = JSON.parse(input || '{}'); } catch {}
+let out = '';
+if (filter.includes('.tool_name')) out = json.tool_name || '';
+else if (filter.includes('.session_id')) out = json.session_id || '';
+else if (filter.includes('.tool_input.task_key')) out = json.tool_input && json.tool_input.task_key || '';
+else if (filter.includes('[.ready')) out = Array.isArray(json.ready) ? json.ready.map((x) => x && x.label).filter(Boolean).join(', ') : '';
+process.stdout.write(String(out));
+`;
+  const curl = `#!/usr/bin/env node
+const fs = require('fs');
+const args = process.argv.slice(2);
+const line = args.join(' ');
+fs.appendFileSync(process.env.CURL_LOG, line + '\\n');
+if (line.includes('/ready')) process.stdout.write(JSON.stringify({ ready: [{ label: 'stub-ready' }] }));
+`;
+  fs.writeFileSync(path.join(dir, 'jq'), jq, { mode: 0o755 });
+  fs.writeFileSync(path.join(dir, 'curl'), curl, { mode: 0o755 });
+  return {
+    env: {
+      PATH: `${dir}:${process.env.PATH || ''}`,
+      CLAUDE_PLUGIN_DATA: dataDir,
+      CURL_LOG: logPath,
+      ORCH_PORT: '19999',
+    },
+    logPath,
+    cleanup: () => fs.rmSync(dir, { recursive: true, force: true }),
+  };
 }
 function jsonOut(r) { try { return JSON.parse(r.stdout); } catch { return null; } }
 function ctxOf(r) { const j = jsonOut(r); return (j && j.hookSpecificOutput && j.hookSpecificOutput.additionalContext) || ''; }
@@ -141,6 +193,37 @@ function mkOff(sid) { fs.mkdirSync(SESS, { recursive: true }); fs.writeFileSync(
     check('start_task -> exit 0 (claim-session posted)', r.code === 0, `code=${r.code}`);
     const claim = await daemon('GET', '/active-claim?session=e2e-pt');
     info('/active-claim after claim-session', claim.text.slice(0, 80)); }
+
+  // ── Codex adapter post hooks (actual Codex + legacy matcher names) ─────────
+  console.log('codex adapter post hooks');
+  { const stub = makeShellHookEnv();
+    try {
+      const startScript = path.join(CODEX_HOOKS, 'post-start-task.sh');
+      for (const toolName of ['mcp__orchestrator-graph__start_task', 'mcp__orchestrator_graph__start_task', 'start_task']) {
+        const before = curlHits(stub.logPath).length;
+        const r = runScript(startScript, { session_id: `e2e-cdx-start-${before}`, tool_name: toolName, tool_input: { task_key: `e2e/${before}` } }, stub.env);
+        const hits = curlHits(stub.logPath);
+        const last = hits[hits.length - 1] || '';
+        check(`post-start accepts ${toolName}`, r.code === 0 && hits.length === before + 1 && last.includes('/overlay/claim-session'), `code=${r.code} hits=${hits.length} last=${last}`);
+      }
+      { const before = curlHits(stub.logPath).length;
+        const r = runScript(startScript, { session_id: 'e2e-cdx-start-noop', tool_name: 'Bash', tool_input: { command: 'ls' } }, stub.env);
+        check('post-start ignores non-start tool', r.code === 0 && curlHits(stub.logPath).length === before, `code=${r.code}`); }
+
+      const lifecycleScript = path.join(CODEX_HOOKS, 'post-lifecycle.sh');
+      for (const toolName of ['spawn_agents.background', 'mcp__orchestrator-graph__complete_task', 'mcp__orchestrator_graph__complete_task', 'complete_task', 'Agent', 'Task']) {
+        const before = curlHits(stub.logPath).length;
+        const r = runScript(lifecycleScript, { session_id: `e2e-cdx-life-${before}`, tool_name: toolName }, stub.env);
+        const hits = curlHits(stub.logPath);
+        const last = hits[hits.length - 1] || '';
+        check(`post-lifecycle accepts ${toolName}`, r.code === 0 && hits.length === before + 1 && last.includes('/ready?session='), `code=${r.code} hits=${hits.length} last=${last}`);
+      }
+      { const before = curlHits(stub.logPath).length;
+        const r = runScript(lifecycleScript, { session_id: 'e2e-cdx-life-noop', tool_name: 'Bash' }, stub.env);
+        check('post-lifecycle ignores unrelated tool', r.code === 0 && curlHits(stub.logPath).length === before, `code=${r.code}`); }
+    } finally {
+      stub.cleanup();
+    } }
 
   // ── start-daemon (re-register workspace; daemon stays healthy) ───────────────
   console.log('start-daemon.js');
