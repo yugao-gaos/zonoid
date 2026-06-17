@@ -64,8 +64,8 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 | `SessionStart` | `session-start.sh` | `/ping`, `/workspace` |
 | `UserPromptSubmit` | `classify-relay.sh` | `/classify` |
 | `PreToolUse` `*` | `orch-stop.sh` | `/should-stop` → `permissionDecision: deny` |
-| `PreToolUse` `apply_patch\|Write\|Edit` | `orch-gate.sh` | `/active-claim`, `/task/detail`, `/session-info`, `/dispatcher/children` |
-| `PreToolUse` `Bash` | `orch-gate-bash.sh` | `/active-claim` |
+| `PreToolUse` `apply_patch\|Write\|Edit` | `orch-gate.sh` | shared gate policy, `/active-claim`, `/task/detail`, `/session-info`, `/dispatcher/children` |
+| `PreToolUse` `Bash` | `orch-gate-bash.sh` | shared gate policy, `/active-claim`, `/task/detail` |
 | `SubagentStart` | `subagent-start.sh` | `/agent/start` |
 | `SubagentStop` | `subagent-stop.sh` | `/agent/done` |
 | `PostToolUse` `mcp__orchestrator-graph__start_task` | `post-start-task.sh` | `/overlay/claim-session` |

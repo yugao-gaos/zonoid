@@ -41,8 +41,17 @@ function startHookStub(config = {}) {
 
 function withHookStub(config, fn) {
   const stub = startHookStub(config);
-  try { return fn(stub); }
-  finally { stub.stop(); }
+  try {
+    const result = fn(stub);
+    if (result && typeof result.then === 'function') {
+      return result.finally(() => stub.stop());
+    }
+    stub.stop();
+    return result;
+  } catch (e) {
+    stub.stop();
+    throw e;
+  }
 }
 
 module.exports = { startHookStub, withHookStub };
