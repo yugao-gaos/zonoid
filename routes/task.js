@@ -111,7 +111,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/task/suggest') {
-    const ws = u.searchParams.get('workspace') || state.workspace;
+    const ws = u.searchParams.get('workspace');
+    if (!ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const g = buildGraph(ws);
     const key = u.searchParams.get('key');
     const target = g.tasks.find((x) => x.id === key);
@@ -183,7 +184,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/task/adjacent') {
     const key = u.searchParams.get('key');
-    const g = buildGraph(u.searchParams.get('workspace') || state.workspace);
+    const ws = u.searchParams.get('workspace');
+    if (!ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
+    const g = buildGraph(ws);
     const t = g.tasks.find((x) => x.id === key);
     if (!t) { send(res, 404, { ok: false, error: 'unknown task', key }); return true; }
     const deps = g.tasks.filter((x) => t.deps.includes(x.id));

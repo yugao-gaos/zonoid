@@ -379,7 +379,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (T.ov.config && T.ov.config.automode) {
         for (const r of verdictResults) {
           if (r.action !== 'merge') continue;
-          const repo = ctx.resolveRepo(r.task_key, undefined, T.ov);
+          const repo = ctx.resolveRepo(r.task_key, undefined, T.ov, T.ws);
           if (!repo || !ctx.git.isRepo(repo)) continue;
           const mr = ctx.git.mergeBranch(repo, r.task_key, { message: `automode: merge attempt ${r.task_key} (${r.reason})` });
           if (mr.merged) {

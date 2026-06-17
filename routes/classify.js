@@ -38,8 +38,8 @@ function judgePressure(overlay, buildGraph, ws) {
 }
 
 function labelPressure(state, buildGraph, ws, ov) {
-  ws = ws || state.workspace;
-  ov = ov || state.overlay;
+  // P3: ws/ov come from the resolved request (T.ws/T.ov) — no daemon-global fallback. A null ws
+  // (the caller couldn't resolve a workspace) yields zero pressure, the graceful hook-probe no-op.
   if (!ws) return { depth: 0, nudge: false, harness_task_key: labelRoute.HARNESS_LABEL_DRAIN_KEY };
   const journalRows = readJsonl(journalPath(ws));
   const labeledRows = readJsonl(labeledPath(ws));

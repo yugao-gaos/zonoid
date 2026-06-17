@@ -11,7 +11,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     embedStatus, respCacheGet, respCachePut, isTruthy, frontier, agentsArr, sessionCount,
     WORKSPACES_FILE, graphStore } = ctx;
 
-  if (p === '/ping') { send(res, 200, { ok: true, workspace: state.workspace, sessions: sessionCount() }); return true; }
+  if (p === '/ping') { send(res, 200, { ok: true, sessions: sessionCount() }); return true; }
 
   if (p === '/version') { send(res, 200, { head: GIT_HEAD, bootedAt: BOOTED_AT, features: FEATURES }); return true; }
 
@@ -45,13 +45,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/reset' && m === 'POST') {
-    setState({ workspace: state.workspace, overlay: state.workspace ? overlayStore.load(state.workspace) : overlayStore.EMPTY(), routes: [], agents: {}, sessions: state.sessions || {} });
+    // P3: state no longer holds a global workspace/overlay — reset only the genuinely global
+    // registries (agents/routes), preserving per-session bindings. Overlays live in the per-
+    // workspace cache, untouched here.
+    setState({ routes: [], agents: {}, sessions: state.sessions || {} });
     send(res, 200, { ok: true }); return true;
   }
 
   if (p === '/sweep' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const ws = T.ws;
     const ovWs = T.ov;
     const staleMins = b.stale_minutes != null ? Number(b.stale_minutes) : 1;
@@ -59,7 +63,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const cutoff = nowMs - staleMins * 60000;
     let released = 0;
     let agentsDirty = false;
-    const stWsSweep = ws === state.workspace ? state : { ...state, overlay: ovWs };
+    const stWsSweep = { ...state, overlay: ovWs };
     if (b.force) {
       for (const [key, st] of Object.entries(ovWs.status)) {
         if (st !== 'in_progress') continue;
@@ -96,17 +100,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/workspace' && m === 'POST') {
     const b = await readBody(req);
     if (!b.path) { send(res, 400, { ok: false, error: 'path required' }); return true; }
-    if (!b.force && state.workspace && state.workspace !== b.path) {
-      send(res, 200, { ok: true, workspace: state.workspace, skipped: true }); return true;
-    }
+    // P3: setWorkspace REGISTERS + BINDS the workspace (no global default to flip), so the old
+    // "skip when a different workspace is already pinned" guard is gone — each call just registers
+    // and binds its own path.
     setWorkspace(b.path, b);
-    send(res, 200, { ok: true, workspace: state.workspace }); return true;
+    send(res, 200, { ok: true, workspace: b.path }); return true;
   }
 
   if (p === '/analytics/tool-call' && m === 'POST') {
     const b = await readBody(req);
     if (!b.tool || typeof b.tool !== 'string') { send(res, 400, { ok: false, error: 'tool required' }); return true; }
-    analytics.record(analyticsState, b.tool, !!b.error, b.workspace || state.workspace || null);
+    analytics.record(analyticsState, b.tool, !!b.error, b.workspace || null);
     analyticsFlush.soon();
     send(res, 200, { ok: true }); return true;
   }
@@ -122,11 +126,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const boot = ctx.bootState || { phase: 'ready', step: 'ready', progress: 1 };
     const allLoops = [...loops.values()];
     const loopHealth = { count: allLoops.length, active: allLoops.filter((L) => L.active).length, iterations: allLoops.reduce((s, L) => s + L.iterations, 0), spent: allLoops.reduce((s, L) => s + L.spent, 0) };
-    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: state.workspace, sessions: sessionCount(), loops: loopHealth, embedding: embedStatus(), native_format: state.workspace ? harness.tasks.formatHealth(state.workspace) : null }); return true;
+    // P3: no global current workspace. `workspace`/`native_format` reflect the OPTIONAL ?workspace=
+    // the dashboard passes (null when absent — health is otherwise workspace-agnostic).
+    const hwWs = u.searchParams.get('workspace') || null;
+    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: hwWs, sessions: sessionCount(), loops: loopHealth, embedding: embedStatus(), native_format: hwWs ? harness.tasks.formatHealth(hwWs) : null }); return true;
   }
 
   if (p === '/ready') {
-    const ws = u.searchParams.get('workspace') || state.workspace;
+    const ws = u.searchParams.get('workspace');
+    if (!ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const g = buildGraph(ws);
     const sessionParam = u.searchParams.get('session');
     const rootsParam = u.searchParams.get('roots');
@@ -146,7 +154,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/state') {
-    const stWs = u.searchParams.get('workspace') || state.workspace;
+    const stWs = u.searchParams.get('workspace');
+    if (!stWs) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const stKey = `state|${stWs}|${u.searchParams.get('scope') || ''}|${u.searchParams.get('compact') || ''}|${u.searchParams.get('include_archived') || ''}|arch1`;
     const stHit = respCacheGet(stWs, stKey);
     if (stHit !== undefined) { send(res, 200, stHit); return true; }
@@ -186,7 +195,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/workspaces' && m === 'GET') {
     // Build the union of all known workspaces for the dashboard workspace switcher.
-    // Sources (all deduped): workspaces.json registry + state.workspace + sessions + agents + graphStore known dirs.
+    // Sources (all deduped): workspaces.json registry + sessions + agents + graphStore known dirs.
+    // (P3: there is no daemon-global current workspace to seed from anymore.)
     // Cheap: NO buildGraph per workspace — just path enumeration + basename.
     const seenPaths = new Set();
     // Normalize to the OS-native separator and resolve any trailing sep — so Windows paths with
@@ -200,8 +210,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (Array.isArray(stored)) stored.forEach(addPath);
     } catch { /* file may not exist yet */ }
 
-    // 2. Current pinned workspace
-    addPath(state.workspace);
+    // 2. (P3) No daemon-global current workspace — sessions/agents/registry are the sources.
 
     // 3. Distinct session workspaces
     for (const s of Object.values(state.sessions || {})) addPath(s.workspace);
@@ -216,7 +225,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       else if (dir && dir.endsWith('/.graph')) addPath(dir.slice(0, -7));
     }
 
-    const current = state.workspace;
+    // P3: no daemon-global current workspace; the dashboard tracks its own selected workspace
+    // client-side. Reflect back the OPTIONAL ?workspace= the caller passed (else null).
+    const current = u.searchParams.get('workspace') || null;
     // Filter: keep only paths that still exist on disk AND have a .graph dir (are real workspaces),
     // AND are not git worktrees (orchestrator attempt/feature branches where .git is a FILE, not a
     // directory — a gitdir-pointer file written by `git worktree add`). Worktrees accumulate in
