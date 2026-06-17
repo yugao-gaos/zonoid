@@ -1,7 +1,7 @@
 #!/bin/bash
-# PreToolUse(Bash) GATE: refuse Bash commands that write files unless THIS conversation has a task
+# PreToolUse(Bash) GATE: refuse shell commands that write files unless THIS conversation has a task
 # claimed in_progress in the orchestrator graph. Mirrors orch-gate.sh but works on Bash commands
-# to close the bypass path (e.g. `python3 -c "open('file','w').write(...)"`, tee, cp, redirects).
+# to close the bypass path (e.g. PowerShell writes, `python3 -c "open('file','w').write(...)"`, tee, cp, redirects).
 # Exit 2 = deny; exit 0 = allow.
 #
 # Subagents: zero-tolerance — require a valid active claim before any non-exempt Bash file-write.
@@ -88,6 +88,10 @@ fi
 if printf '%s' "$CMD" | grep -qE '\bsed\b.*-i' 2>/dev/null; then
   WRITE_PATTERN=1
 fi
+PS_WRITE_RE='(Set-Content|Add-Content|Out-File|New-Item|Copy-Item|Move-Item|Remove-Item|Clear-Content|sc|ac|ni|copy|cpi|move|mi|rm|del|erase|rd|ri|rmdir)'
+if printf '%s' "$CMD" | grep -qiE '(^|[;&|[:space:]])'"$PS_WRITE_RE"'([[:space:];&|]|$)' 2>/dev/null; then
+  WRITE_PATTERN=1
+fi
 
 [ "$WRITE_PATTERN" = "0" ] && exit 0   # no write pattern detected -> allow
 
@@ -150,23 +154,175 @@ CMD_NOCOMMENT=$(printf '%s' "$CMD" | sed 's/ #.*//' | sed 's/	#.*//')
 # Collect ALL write targets
 TARGETS=""
 
-# All redirect targets
-while IFS= read -r t; do
+unquote_target() {
+  local t="$1"
+  t="${t%;}"
+  case "$t" in
+    \"*\") t="${t#\"}"; t="${t%\"}" ;;
+    \'*\') t="${t#\'}"; t="${t%\'}" ;;
+  esac
+  printf '%s' "$t"
+}
+
+append_target() {
+  local t
+  t=$(unquote_target "$1")
   [ -n "$t" ] && TARGETS="${TARGETS}${t}
 "
+}
+
+# All redirect targets
+while IFS= read -r t; do
+  [ -n "$t" ] && append_target "$t"
 done < <(printf '%s' "$CMD_NOCOMMENT" | grep -oE '(>>?)\s*\S+' | sed 's/^>*[[:space:]]*//')
 
 # cp/mv/rsync/install: last non-flag token (comment-stripped)
 if printf '%s' "$CMD_NOCOMMENT" | grep -qE '\b(cp|mv|rsync|install)\b'; then
   LAST_TOKEN=$(printf '%s' "$CMD_NOCOMMENT" | tr -s ' \t' '\n' | grep -v '^-' | tail -1)
-  [ -n "$LAST_TOKEN" ] && TARGETS="${TARGETS}${LAST_TOKEN}
-"
+  [ -n "$LAST_TOKEN" ] && append_target "$LAST_TOKEN"
 fi
 
 # dd of= target
 DD_DEST=$(printf '%s' "$CMD_NOCOMMENT" | grep -oE '\bof=\S+' | sed 's/^of=//')
-[ -n "$DD_DEST" ] && TARGETS="${TARGETS}${DD_DEST}
-"
+[ -n "$DD_DEST" ] && append_target "$DD_DEST"
+
+clean_ps_token() {
+  printf '%s' "$1" | sed 's/^[({]*//; s/[),;]*$//'
+}
+
+is_ps_boundary() {
+  case "$1" in
+    ';'|'|'|'&&'|'||'|'&') return 0 ;;
+  esac
+  return 1
+}
+
+is_ps_path_opt() {
+  case "$1" in
+    -path|-literalpath|-filepath|-destination) return 0 ;;
+  esac
+  return 1
+}
+
+is_ps_skip_value_opt() {
+  case "$1" in
+    -value|-itemtype|-type|-encoding|-filter|-include|-exclude|-credential|-stream|-name) return 0 ;;
+  esac
+  return 1
+}
+
+is_ps_path_cmd() {
+  case "$1" in
+    set-content|add-content|out-file|new-item|remove-item|clear-content|sc|ac|ni|rm|del|erase|rd|ri|rmdir) return 0 ;;
+  esac
+  return 1
+}
+
+is_ps_dest_cmd() {
+  case "$1" in
+    copy-item|move-item|copy|cpi|move|mi) return 0 ;;
+  esac
+  return 1
+}
+
+is_ps_redir_token() {
+  case "$1" in
+    '>'|'>>'|[0-9]'>'|[0-9]'>>'|[0-9][0-9]'>'|[0-9][0-9]'>>') return 0 ;;
+  esac
+  return 1
+}
+
+ps_token_stream() {
+  printf '%s' "$CMD_NOCOMMENT" \
+    | sed -E 's/&&/ __PS_ANDAND__ /g; s/\|\|/ __PS_OROR__ /g; s/([;|&])/ \1 /g; s/__PS_ANDAND__/ \&\& /g; s/__PS_OROR__/ \|\| /g' \
+    | tr -s ' \t' '\n'
+}
+
+collect_ps_targets() {
+  local -a toks positional
+  local raw token lower cmd cmd_kind value i j
+  toks=()
+  while IFS= read -r raw || [ -n "$raw" ]; do
+    [ -n "$raw" ] && toks+=("$raw")
+  done < <(ps_token_stream)
+
+  i=0
+  while [ "$i" -lt "${#toks[@]}" ]; do
+    cmd=$(clean_ps_token "${toks[$i]}")
+    lower=$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')
+    cmd_kind=""
+    if is_ps_dest_cmd "$lower"; then
+      cmd_kind="dest"
+    elif is_ps_path_cmd "$lower"; then
+      cmd_kind="path"
+    fi
+    if [ -z "$cmd_kind" ]; then
+      i=$((i + 1))
+      continue
+    fi
+
+    positional=()
+    j=$((i + 1))
+    while [ "$j" -lt "${#toks[@]}" ]; do
+      raw="${toks[$j]}"
+      if is_ps_boundary "$raw"; then
+        break
+      fi
+      token=$(clean_ps_token "$raw")
+      lower=$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')
+      [ -z "$token" ] && { j=$((j + 1)); continue; }
+
+      case "$lower" in
+        -path:*|-literalpath:*|-filepath:*|-destination:*)
+          value="${token#*:}"
+          [ -n "$value" ] && append_target "$value"
+          j=$((j + 1))
+          continue
+          ;;
+      esac
+      if is_ps_path_opt "$lower"; then
+        j=$((j + 1))
+        if [ "$j" -lt "${#toks[@]}" ] && ! is_ps_boundary "${toks[$j]}"; then
+          append_target "$(clean_ps_token "${toks[$j]}")"
+        fi
+        j=$((j + 1))
+        continue
+      fi
+      if is_ps_skip_value_opt "$lower"; then
+        j=$((j + 1))
+        if [ "$j" -lt "${#toks[@]}" ] && ! is_ps_boundary "${toks[$j]}"; then
+          j=$((j + 1))
+        fi
+        continue
+      fi
+      if is_ps_redir_token "$lower"; then
+        j=$((j + 1))
+        continue
+      fi
+      case "$lower" in
+        -*)
+          j=$((j + 1))
+          continue
+          ;;
+      esac
+      positional+=("$token")
+      j=$((j + 1))
+    done
+
+    if [ "$cmd_kind" = "dest" ]; then
+      if [ "${#positional[@]}" -ge 2 ]; then
+        append_target "${positional[$((${#positional[@]} - 1))]}"
+      fi
+    elif [ "${#positional[@]}" -gt 0 ]; then
+      append_target "${positional[0]}"
+    fi
+    i=$((j + 1))
+  done
+}
+
+if printf '%s' "$CMD_NOCOMMENT" | grep -qiE '(^|[;&|[:space:]])'"$PS_WRITE_RE"'([[:space:];&|]|$)' 2>/dev/null; then
+  collect_ps_targets
+fi
 
 # Only exit 0 if targets found AND every one is exempt
 if [ -n "$TARGETS" ]; then
@@ -195,13 +351,13 @@ RESP=$(curl -s --max-time 0.6 "localhost:$PORT/active-claim?session=$SID" 2>/dev
 [ -z "$RESP" ] && exit 0               # daemon unreachable -> fail open
 
 if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
-  # Check if any claimed task has a registered worktree that covers the target file path.
-  # With multiple active claims a session may legitimately write to different worktrees;
-  # we must iterate ALL claims and allow if ANY claim's worktree is an ancestor of the target.
+  # Check that every extractable target is covered by a claimed task's registered worktree.
+  # With multiple active claims a session may legitimately write to different worktrees, but
+  # a mixed inside/outside command must not pass just because one target matched.
   CLAIM_COUNT=$(printf '%s' "$RESP" | jq -r '.claims | length' 2>/dev/null)
   CLAIM_COUNT="${CLAIM_COUNT:-0}"
   ANY_WORKTREE=0   # did we find at least one claim with a registered worktree?
-  MATCHED=0        # did any target fall inside one of those worktrees?
+  WORKTREES=""     # newline-delimited registered worktrees for this session
   MISMATCH_BRANCH=""
   i=0
   while [ "$i" -lt "$CLAIM_COUNT" ]; do
@@ -213,31 +369,39 @@ if printf '%s' "$RESP" | jq -e '.claimed == true' >/dev/null 2>&1; then
       if [ -n "$TASK_BRANCH" ]; then
         ANY_WORKTREE=1
         MISMATCH_BRANCH="$TASK_BRANCH"
-        # Allow if target is inside this claim's worktree, or if TARGETS is empty.
-        # Guard on non-empty TASK_WT: an empty worktree (e.g. malformed daemon JSON) would make the
-        # prefix glob "$TASK_WT"/* degrade to /* and falsely match ANY absolute path — silently
-        # allowing out-of-worktree writes. Empty worktree → no match → fall through to block.
-        _MATCH_FOUND=0
-        if [ -n "$TASK_WT" ]; then
-          while IFS= read -r _t; do
-            [ -z "$_t" ] && continue
-            _rt=$(resolve_target_against_wt "$_t" "$TASK_WT")
-            case "$_rt" in "$TASK_WT"/*|"$TASK_WT") _MATCH_FOUND=1; break ;; esac
-          done <<TARGETEOF
-$TARGETS
-TARGETEOF
-        fi
-        if [ "$_MATCH_FOUND" = "1" ] || [ -z "$TARGETS" ]; then
-          MATCHED=1
-          break
-        fi
+        # Guard on non-empty TASK_WT: an empty worktree (e.g. malformed daemon JSON) would make
+        # prefix checks degrade to /* and falsely match ANY absolute path.
+        [ -n "$TASK_WT" ] && WORKTREES="${WORKTREES}${TASK_WT}
+"
       fi
     fi
     i=$((i + 1))
   done
-  if [ "$ANY_WORKTREE" = "1" ] && [ "$MATCHED" = "0" ]; then
-    printf 'orch-gate: task has a registered worktree (%s) — Bash file writes must happen inside the worktree path, not at %s. Use the path returned by branch_task.\n' "$MISMATCH_BRANCH" "$(printf '%s' "$TARGETS" | sed '/^$/d' | head -1)" >&2
-    exit 2
+  if [ "$ANY_WORKTREE" = "1" ] && [ -n "$TARGETS" ]; then
+    ALL_MATCHED=1
+    FIRST_UNMATCHED=""
+    while IFS= read -r _t; do
+      [ -z "$_t" ] && continue
+      TARGET_MATCHED=0
+      while IFS= read -r _wt; do
+        [ -z "$_wt" ] && continue
+        _rt=$(resolve_target_against_wt "$_t" "$_wt")
+        case "$_rt" in "$_wt"/*|"$_wt") TARGET_MATCHED=1; break ;; esac
+      done <<WTEOF
+$WORKTREES
+WTEOF
+      if [ "$TARGET_MATCHED" = "0" ]; then
+        ALL_MATCHED=0
+        FIRST_UNMATCHED="$_t"
+        break
+      fi
+    done <<TARGETEOF
+$TARGETS
+TARGETEOF
+    if [ "$ALL_MATCHED" = "0" ]; then
+      printf 'orch-gate: task has a registered worktree (%s) — shell file writes must happen inside the worktree path, not at %s. Use the path returned by branch_task.\n' "$MISMATCH_BRANCH" "$FIRST_UNMATCHED" >&2
+      exit 2
+    fi
   fi
   exit 0                               # claimed in_progress -> allow
 fi
