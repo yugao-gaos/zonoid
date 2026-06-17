@@ -25,8 +25,9 @@ relay_claude_gate() {
   if printf '%s' "$input" | bash "$script" 2>"$err" >/dev/null; then
     rm -f "$err"
     return 0
+  else
+    local code=$?
   fi
-  local code=$?
   if [ "$code" -eq 2 ]; then
     local reason
     reason=$(tr -d '\0' <"$err" | sed '/^$/d' | tail -1)

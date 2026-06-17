@@ -1,5 +1,28 @@
 'use strict';
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+function loadGatePolicy() {
+  const candidates = [
+    process.env.ZONOID_ROOT && path.join(process.env.ZONOID_ROOT, 'hooks', 'lib', 'gate-policy.js'),
+    path.resolve(__dirname, '../../../hooks/lib/gate-policy.js'),
+    path.resolve(process.cwd(), 'hooks/lib/gate-policy.js'),
+    path.join(os.homedir(), '.claude', 'orchestrator', 'hooks', 'lib', 'gate-policy.js'),
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return require(candidate);
+    } catch {
+      // Try the next install location.
+    }
+  }
+  return null;
+}
+
+const policy = loadGatePolicy();
+
 const WRITE_TOOLS = new Set(['write', 'edit', 'apply_patch', 'patch']);
 
 function orchPort() {
@@ -27,29 +50,63 @@ async function orchPost(path, body) {
   return res.json();
 }
 
-function isGateExemptPath(filePath) {
-  if (!filePath) return true;
-  const fp = String(filePath);
-  if (/\/\.claude\/projects\/[^/]+\/memory\//.test(fp)) return true;
-  if (/\/\.claude\/settings(\.local)?\.json$/.test(fp)) return true;
-  if (/\/\.claude\/(keybindings|launch)\.json$/.test(fp)) return true;
-  if (/\/\.mcp\.json$/.test(fp)) return true;
-  if (/\/CLAUDE\.md$/.test(fp)) return true;
-  if (/\/scratch\//.test(fp)) return true;
-  if (/\.log$/.test(fp) || /\/logs\//.test(fp)) return true;
-  if (/\/\.claude\/orchestrator\/tasks\//.test(fp)) return true;
-  if (/\/\.claude\/tasks\//.test(fp)) return true;
-  return false;
+function hookInputFromToolArgs(tool, args) {
+  const input = (args && typeof args === 'object') ? { ...args } : {};
+  if (input.file_path == null) {
+    input.file_path = input.filePath ?? input.path ?? input.file ?? '';
+  }
+  return {
+    tool_name: String(tool || '').toLowerCase(),
+    tool_input: input,
+  };
 }
 
-function filePathFromArgs(args) {
-  if (!args || typeof args !== 'object') return '';
-  return String(args.filePath ?? args.file_path ?? args.path ?? args.file ?? '');
+async function taskDetail(key) {
+  try {
+    return await orchGet(`/task/detail?key=${encodeURIComponent(key)}`);
+  } catch {
+    return null;
+  }
+}
+
+function claimWorktree(detail) {
+  const git = detail && detail.task && detail.task.git;
+  if (!git || !git.branch) return null;
+  return { branch: git.branch, worktree: git.worktree || '' };
+}
+
+async function claimedWorktreeMatch(claim, targets) {
+  const claims = Array.isArray(claim && claim.claims) ? claim.claims : [];
+  let anyWorktree = false;
+  let mismatchBranch = '';
+  let offending = '';
+
+  for (const c of claims) {
+    if (!c || !c.key) continue;
+    const wtInfo = claimWorktree(await taskDetail(c.key));
+    if (!wtInfo) continue;
+    anyWorktree = true;
+    mismatchBranch = wtInfo.branch;
+    if (!targets.length) return { matched: true, anyWorktree };
+    const outside = policy.firstOutsideWorktree(targets, wtInfo.worktree);
+    if (!outside) return { matched: true, anyWorktree };
+    offending = outside;
+  }
+
+  return { matched: !anyWorktree, anyWorktree, mismatchBranch, offending };
 }
 
 async function gateWriteTool(sessionID, tool, args) {
-  if (!WRITE_TOOLS.has(tool)) return;
-  if (isGateExemptPath(filePathFromArgs(args))) return;
+  const normalizedTool = String(tool || '').toLowerCase();
+  if (!WRITE_TOOLS.has(normalizedTool)) return;
+  if (!policy) {
+    throw new Error('orch-gate: shared gate policy not found. Set ZONOID_ROOT to the Zonoid install root or install the OpenCode plugin via npx @zonoid/cli init --harness opencode.');
+  }
+
+  const hookInput = hookInputFromToolArgs(normalizedTool, args);
+  const targets = policy.writeEditTargets(hookInput);
+  if (policy.allTargetsExempt(targets)) return;
+  if (!sessionID) return;
 
   let claim;
   try {
@@ -57,7 +114,12 @@ async function gateWriteTool(sessionID, tool, args) {
   } catch {
     return;
   }
-  if (!claim || claim.claimed === true) return;
+  if (!claim) return;
+  if (claim.claimed === true) {
+    const match = await claimedWorktreeMatch(claim, targets);
+    if (match.matched) return;
+    throw new Error(`orch-gate: task has a registered worktree (${match.mismatchBranch}) - writes must happen inside the worktree path, not at ${match.offending || targets[0] || '(tool)'}. Use the path returned by branch_task.`);
+  }
 
   let isSub = false;
   try {

@@ -37,8 +37,8 @@ Native hooks cover **all** H1 events including `subagentStart` (not available vi
 | `sessionStart` | `session-start.sh` | `GET /ping`, `POST /workspace` | No |
 | `beforeSubmitPrompt` | `classify.sh` | `POST /classify` | No |
 | `preToolUse` `*` | `orch-stop.sh` | `GET /should-stop` | Yes (exit 2) |
-| `preToolUse` `Write` | `orch-gate.sh` | `GET /active-claim` | Yes (exit 2) |
-| `preToolUse` `Shell` | `shell-gate.sh` | `GET /active-claim` (bash writes) | Yes (exit 2) |
+| `preToolUse` `Write` | `orch-gate.sh` | shared gate policy, `GET /active-claim`, `GET /task/detail` | Yes (exit 2) |
+| `preToolUse` `Shell` | `shell-gate.sh` | shared gate policy, `GET /active-claim`, `GET /task/detail` (bash writes) | Yes (exit 2) |
 | `beforeShellExecution` | `before-shell-gate.sh` | same as Shell gate | Yes (exit 2) |
 | `subagentStart` | `subagent-start.sh` | `POST /agent/start` | No |
 | `subagentStop` | `subagent-stop.sh` | `POST /agent/done` | No |
