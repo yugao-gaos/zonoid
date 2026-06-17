@@ -10,9 +10,11 @@ Covered endpoints
 -----------------
 POST /overlay/note      — write a note (no ``force``; lets autowire + dup-guard run)
 GET  /search            — semantic/lexical search, workspace-scoped, tiered results
+GET  /judge/next        — eager-judge: pull a node's unjudged autowire candidate edge-set
 POST /judge/verdict     — post edge/dup verdicts; body MUST be wrapped {workspace, verdicts:[...]}
 GET  /task/context      — read frozen DAG context for a node
 POST /overlay/status    — update a node's status
+POST /workspace         — bind the daemon's LIVE state.workspace (eager-judge prerequisite)
 GET  /task/suggest      — suggest_links (cross-encoder ceScore ranked candidates)
 POST /overlay/edge      — create/upsert a DAG edge (createEdge workaround; see §6 note)
 warm_up                 — pre-pay embedding-model cold start
@@ -299,6 +301,69 @@ def task_suggest(
     return _http_get(f"{_base(base_url)}/task/suggest", params, timeout)
 
 
+def judge_next(
+    base_url: str,
+    node: str,
+    budget: int = 20,
+    workspace: str | None = None,
+    timeout: int = 120,
+) -> dict[str, Any]:
+    """GET /judge/next?node=&budget=&workspace= — the EAGER-JUDGE candidate set for *node*.
+
+    This is the production eager-judge pull: ``?node=<key>`` serves THIS node's whole unjudged
+    autowire candidate edge-set in one slice (routes/judge.js EAGER MODE). Each item is an edge
+    ``{kind:"edge", id, from:{key,...}, to:{key,...}, neighborhood, ...}`` where ``from`` is the
+    candidate PROVIDER and ``to`` is *node* (the consumer). These are the weight-0, judged:false
+    edges autowire seeded at cosine >= SEMANTIC_AUTOWIRE_THRESHOLD (0.55); until a keepEdge verdict
+    promotes them they contribute ZERO retrieval relevance.
+
+    CRITICAL (note-mqgwrh5a63x): /judge/next is hard-bound to the daemon's LIVE ``state.workspace``
+    (routes/judge.js:48,58 — it does NOT honour an isolated ``?workspace=`` for the candidate read).
+    So *node* must live in the daemon's live workspace for this to return its candidates. The bench
+    runs ONE embedded daemon per unit whose live workspace IS the unit dir (daemon.start(workspace=))
+    so this read resolves to the right overlay. The ``workspace`` param here is still forwarded for
+    parity with the rest of the client, but it does not override the live binding for the eager read.
+
+    Returns the raw daemon response dict:
+      {"epoch", "budget", "node", "eager": true, "idle": bool, "total": int, "items": [...]}
+    On error returns {"items": [], "idle": True, "error": "..."} so callers never crash.
+    """
+    params: dict[str, Any] = {"node": node, "budget": budget}
+    if workspace is not None:
+        params["workspace"] = workspace
+    try:
+        return _http_get(f"{_base(base_url)}/judge/next", params, timeout)
+    except Exception as exc:  # noqa: BLE001
+        return {"items": [], "idle": True, "total": 0, "error": str(exc)}
+
+
+def set_workspace(
+    base_url: str,
+    path: str,
+    force: bool = True,
+    timeout: int = 120,
+) -> dict[str, Any]:
+    """POST /workspace {path, force} — bind the daemon's LIVE ``state.workspace`` to *path*.
+
+    This is the lever that makes the eager-judge read (/judge/next?node=) resolve to a bench unit's
+    isolated workspace: set the embedded daemon's live workspace to the unit dir, and the whole
+    eager pipeline (autowire seed → markEagerJudge → /judge/next → keepEdge save → /task/context)
+    operates on ONE consistent in-memory + persisted overlay.
+
+    Finding #1: *path* MUST be an absolute filesystem path.
+    force=True (default): routes/meta.js skips a re-bind to a different path unless force is set;
+    we always force so a reused data_dir with a stale workspace file is overridden cleanly.
+
+    Returns the raw daemon response dict: {"ok": True, "workspace": "<path>"}.
+    """
+    if not (path.startswith("/") or (len(path) >= 2 and path[1] == ":")):
+        raise ValueError(
+            f"workspace path must be an absolute filesystem path (finding #1), got: {path!r}"
+        )
+    body: dict[str, Any] = {"path": path, "force": bool(force)}
+    return _http_post(f"{_base(base_url)}/workspace", body, timeout)
+
+
 def overlay_edge(
     base_url: str,
     from_key: str,
@@ -493,6 +558,36 @@ class ZonoidClient:
             self.base_url,
             task_key,
             workspace=workspace or self.workspace,
+            timeout=timeout or self.timeout,
+        )
+
+    def judge_next(
+        self,
+        node: str,
+        budget: int = 20,
+        workspace: str | None = None,
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
+        """GET /judge/next?node= — the eager-judge autowire candidate set for *node*."""
+        return judge_next(
+            self.base_url,
+            node,
+            budget=budget,
+            workspace=workspace or self.workspace,
+            timeout=timeout or self.timeout,
+        )
+
+    def set_workspace(
+        self,
+        path: str,
+        force: bool = True,
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
+        """POST /workspace — bind the daemon's live workspace to *path* (eager-judge prerequisite)."""
+        return set_workspace(
+            self.base_url,
+            path,
+            force=force,
             timeout=timeout or self.timeout,
         )
 

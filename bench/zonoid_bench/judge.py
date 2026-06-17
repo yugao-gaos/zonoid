@@ -31,8 +31,11 @@ from typing import Any
 # Model alias used for every judge call; override with ZONOID_BENCH_MODEL.
 _JUDGE_MODEL: str = os.environ.get("ZONOID_BENCH_MODEL", "sonnet")
 
-# Per-call wall-clock budget (seconds).
-_JUDGE_TIMEOUT: int = int(os.environ.get("ZONOID_BENCH_CLAUDE_TIMEOUT", "180"))
+# Per-call wall-clock budget (seconds). Hard cap ≤ 120 s per call to prevent
+# hung bench processes (the 9.5-hour hang post-mortem: no timeout on claude_p).
+# Override with ZONOID_BENCH_CLAUDE_TIMEOUT; the default is clamped to 120 so
+# an accidental large value does not re-introduce the hang class.
+_JUDGE_TIMEOUT: int = min(120, int(os.environ.get("ZONOID_BENCH_CLAUDE_TIMEOUT", "120")))
 
 # Resolved claude CLI path (computed once at import time).
 # Windows: `claude` is a .cmd shim; shutil.which honours PATHEXT and returns it.

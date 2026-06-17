@@ -11,7 +11,8 @@ data, no external service, no shared state.
 Assertions
 ----------
 A1  ON (retrieve_and_answer) answer CONTAINS the planted fact.
-A2  Canonical wiring surfaced >= 1 context edge (overlay_edge / suggest_links used).
+A2  The eager-judge keepEdge surfaced the planted note in /task/context (came from a keepEdge
+    verdict, NOT idle) — the production-faithful canonical ON arm.
 A3  cold answer does NOT contain the planted fact (rigging guard).
 
 Usage (embeddable Python full path, from the repo root):
@@ -193,9 +194,13 @@ def main() -> int:
         daemon_mod.stop(handle)
         return 1
 
-    # Isolated workspace for this smoke run.
+    # Isolated workspace for this smoke run. Bind it as the daemon's LIVE workspace so the
+    # eager-judge read (/judge/next?node=) + keepEdge persistence resolve to it (note-mqgwrh5a63x).
     workspace = os.path.abspath(tempfile.mkdtemp(prefix="zonoid-smoke-ws-"))
     client = ZonoidClient(base_url, workspace=workspace, timeout=120)
+    print(f"  binding live workspace -> {workspace!r} ...")
+    bind = client.set_workspace(workspace, force=True)
+    print(f"  /workspace bind: {bind}")
 
     try:
         return _run_smoke(client, data_dir, port)
@@ -244,20 +249,21 @@ def _run_smoke(client: ZonoidClient, data_dir: str, port: int) -> int:
     print("  sleeping 5 s for embedder to index ...")
     time.sleep(5)
 
-    # ── PHASE 3: ON arm — canonical wiring (run_canonical_wiring) ──────────────
-    print("\n[Phase 3] Canonical ON-arm wiring (run_canonical_wiring) ...")
+    # ── PHASE 3: ON arm — canonical eager-judge wiring (run_canonical_wiring) ──
+    print("\n[Phase 3] Canonical ON-arm eager-judge wiring (run_canonical_wiring) ...")
     unit_id = f"smoke-unit-{int(time.time()) % 100000}"
     wiring = arms_mod.run_canonical_wiring(
         client,
         unit_id=unit_id,
         task_summary=_PROBE_QUESTION,
-        as_task=False,   # note path (FB default)
-        tags=["smoke", "integration"],
+        data_dir=data_dir,
     )
-    print(f"  unit note key  : {wiring.task_key!r}")
+    print(f"  probe task key : {wiring.task_key!r}")
     print(f"  search hits    : {wiring.search_hits}")
-    print(f"  suggest seen   : {[(s.get('key'), s.get('ceScore'), s.get('score')) for s in wiring.suggest_seen]}")
-    print(f"  wired edges    : {wiring.wired_edges}")
+    print(f"  judge idle     : {wiring.judge_idle}  (True = autowire seeded NO candidate)")
+    print(f"  candidates     : {[(c.get('key'), c.get('edge')) for c in wiring.candidates_seen]}")
+    print(f"  KEPT (keepEdge): {wiring.wired_edges}")
+    print(f"  PRUNED         : {wiring.pruned_edges}")
     print(f"  context deps   : {[d.get('label') for d in wiring.context_deps]}")
 
     # ── PHASE 4: retrieve-and-answer ON arm ────────────────────────────────────
@@ -348,17 +354,19 @@ def _run_smoke(client: ZonoidClient, data_dir: str, port: int) -> int:
         f"planted={PLANTED_FACT_TOKEN!r}  predicted={on_result.predicted!r}",
     ) and ok
 
-    # A2: Canonical wiring surfaced >= 1 context edge.
-    #     Either wired_edges from run_canonical_wiring or context_keys from
-    #     run_retrieve_and_answer must be non-empty.
-    wired_from_canonical = wiring.wired_edges
-    wired_from_ra = on_result.context_keys
-    a2_ok = bool(wired_from_canonical or wired_from_ra)
+    # A2: the eager-judge keepEdge PERSISTED — run_retrieve_and_answer's probe surfaced >= 1 KEPT
+    #     context edge in /task/context (context_keys non-empty) AND that came from a keepEdge
+    #     verdict (its wiring kept >= 1 edge and was NOT idle). This is the spike's old failure mode
+    #     (empty context_keys) guarded explicitly.
+    ra_wiring = on_result.wiring
+    kept_from_keep = bool(ra_wiring and ra_wiring.wired_edges and not ra_wiring.judge_idle)
+    surfaced_in_ctx = bool(on_result.context_keys)
+    a2_ok = kept_from_keep and surfaced_in_ctx
     ok = _assert(
-        "A2  canonical wiring surfaced >= 1 context edge",
+        "A2  eager-judge keepEdge persisted in /task/context",
         a2_ok,
-        f"canonical.wired_edges={wired_from_canonical}  "
-        f"retrieve_and_answer.context_keys={wired_from_ra}",
+        f"kept_from_keepEdge={kept_from_keep} (wired={ra_wiring.wired_edges if ra_wiring else None}, "
+        f"idle={ra_wiring.judge_idle if ra_wiring else None})  context_keys={on_result.context_keys}",
     ) and ok
 
     # A3: cold answer does NOT contain the planted fact (rigging guard).

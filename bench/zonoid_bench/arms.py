@@ -8,34 +8,50 @@ per-bench implementations called out in docs/bench-sdk-design.md §1:
   - FeatureBench used suggest_links + a real agent (claude_code.ClaudeCodeAgent) — the closest
     to canonical, and the reference this module PORTS.
 
-Canonical ON-arm wiring (design §5) — port of FeatureBench
-``.venv-fb/Lib/site-packages/featurebench/infer/agents/claude_code.py``
-(``_setup_zonoid_context`` + ``_build_agents_md``):
+Canonical ON-arm wiring (design §5) — PRODUCTION-FAITHFUL eager-judge pipeline
+(OVERRIDE note-mqhha58fz9k corrects the earlier FeatureBench port: the canonical arm must run the
+REAL LLM eager-judge over autowire candidates, NOT a ceScore threshold):
 
-  1. register the unit as a note  ............ client.post_note  (POST /overlay/note, NO force)
-  2. semantic search for relevant KB  ........ client.search(q=task_summary)
-  3. suggest_links → ceScore  ................ client.task_suggest(task_key) (GET /task/suggest)
-  4. WIRE the verified DAG  .................. for ceScore>0.2 & non-dup:
-                                               client.overlay_edge(from=note, to=node, kind="context")
-  5. read = frozen DAG context  ............. client.get_task_context  (GET /task/context)
-                                               + the OPTION of live client.search(task_key=...).
+  1. mint the unit as a TASK PROBE  ......... workspace.drop_task_stub + client.post_status
+                                              (status="not_ready", summary=question). The status
+                                              write drives the daemon ingest funnel
+                                              (embed → setTaskVec → autowireNewTaskWholeGraph →
+                                              markEagerJudge): autowire SEEDS weight-0 candidate
+                                              context edges from relevant NOTE providers INTO the
+                                              probe at cosine >= SEMANTIC_AUTOWIRE_THRESHOLD (0.55),
+                                              and stamps the probe `judging` (judgingSince).
+  2. semantic search for pre-loaded context  client.search(q=task_summary) (provenance + the
+                                              agent_in_container AGENTS.md bullets only — NOT how
+                                              the DAG edges are chosen).
+  3. PULL the autowire candidate set  ....... client.judge_next(node=<probe>) — the production
+                                              eager-judge read (/judge/next?node=). Returns THIS
+                                              probe's whole unjudged candidate edge-set in one slice.
+  4. RUN the LLM eager-judge  ............... judge.EdgeJudge over the candidates with the keep/prune
+                                              rubric (DEFAULT prune: similarity is necessary, not
+                                              sufficient). keepEdge promotes the weight-0 autowire
+                                              candidate IN PLACE (judged:true + real weight off the
+                                              recall score) so it re-enters ranked retrieval;
+                                              pruneEdge deletes it. Posted via client.post_verdict.
+  5. read = frozen judged DAG context  ...... client.get_task_context (GET /task/context) — the
+                                              kept context_deps (weight>0) are now the probe's frozen
+                                              context, exactly as a production task reads them once
+                                              the eager judge has run BEFORE the task goes ready.
 
-OVERRIDE / SPEC FIX (the FeatureBench reference carries TWO latent bugs — do NOT copy them):
-  (1) KIND: ``claude_code._setup_zonoid_context`` POSTs ``/overlay/edge`` with
-      ``{"type": "context"}``. The daemon (routes/overlay.js:43,51) reads ``b.kind`` — NOT
-      ``b.type`` — so ``type:"context"`` is ignored and the edge is created as the back-compat
-      default **blocking** kind. A blocking edge also auto-seeds a low-weight context edge
-      (seedBlockingDepContext), so FB's wiring "works" by accident, but the asserted edge has the
-      wrong kind + an unintended blocking semantic. This SDK asserts ``kind="context"`` via
-      ``client.overlay_edge`` (the canonical createEdge contract, client.py finding #6).
-  (2) DIRECTION: FB wires ``from=note, to=node`` (note CONSUMES the candidate). For a unit whose
-      ``/task/context`` is later READ (the retrieve_and_answer executor), the KB note must be the
-      context PROVIDER, and the daemon collects a task's context_deps as the edges where
-      ``e.to === task`` (depRefs, daemon.js:1599-1600). So this SDK orients the edge
-      ``from=candidate(KB note), to=node(unit)`` — the candidate provides context INTO the unit.
-      Same orientation as probe_runner's createEdge ({"from": note, "to": probe}). FB never reads
-      /task/context (it builds AGENTS.md from /search), so its reversed direction is invisible
-      there — but it is wrong for any DAG read and is fixed here.
+WHY a TASK probe + a LIVE-bound daemon (note-mqgwrh5a63x, note-mqh0gwz1mxc):
+  - The eager judge is task-centric: /judge/next?node=, markEagerJudge, and the judging→ready gate
+    all key off a TASK node, and autowire seeds NOTE→TASK candidate edges. So the unit is minted as
+    a task PROBE (the question is its summary), not a note. A note is a context PROVIDER, never the
+    consumer that reads /task/context.
+  - keepEdge promotes a PRE-EXISTING weight-0 autowire candidate edge in place (lib/judge.js). It
+    only fires for a candidate autowire actually seeded — i.e. a NOTE whose cosine to the probe was
+    >= 0.55. A sub-0.55 evidence note is NEVER an autowire candidate, so keepEdge no-ops on it
+    (note-mqh0gwz1mxc) — that miss is CORRECT/EXPECTED behaviour for the production pipeline, not a
+    bug to paper over with createEdge.
+  - /judge/next and the keepEdge save are HARD-BOUND to the daemon's live state.workspace
+    (routes/judge.js): a keepEdge on a non-live (isolated) workspace does not surface in
+    /task/context (note-mqgwrh5a63x). So the bench runs ONE embedded daemon per unit whose LIVE
+    workspace IS the unit dir (daemon.start(workspace=)); the whole pipeline then operates on one
+    consistent in-memory + persisted overlay and the kept edge surfaces in /task/context.
 
 Pluggable executor (design §5):
   - ``agent_in_container``   : build the AGENTS.md (mirror ``_build_agents_md`` — pre-loaded verified
@@ -52,15 +68,15 @@ Contrast arms (design §5):
   - ``rag_control``          : client.search WITHOUT task_key — retrieval-time baseline ("normal RAG
                                memory"), no DAG wiring, no probe task.
 
-§10 task→note wiring nuance (encoded, not fixed)
-------------------------------------------------
-note↔note kept edges are retrieval-inert over the isolated-workspace HTTP surface (the structBoost
-daemon gap, note-mqfm5mvl8zw). For a TASK/PROBE node we therefore wire with createEdge
-(client.overlay_edge), which UPSERTS an asserted context edge into the DAG adjacency — promoting a
-pre-existing weight-0 autowire candidate AND creating one that autowire never seeded (a kept node
-whose cosine fell below the 0.55 seed threshold). The read surface (GET /task/context) filters
-weight-0 edges out client-side, so only wired context surfaces. This is the same createEdge / KEEP-
-ONLY discipline proven in bench/agent-memory/probe_runner.py; it is the workaround the SDK encodes.
+Sub-0.55 evidence (honest limitation)
+-------------------------------------
+Because the kept edge MUST be a real autowire candidate (keepEdge promotes in place — it cannot
+manufacture an edge autowire never seeded), an evidence note whose cosine to the probe is below
+SEMANTIC_AUTOWIRE_THRESHOLD (0.55) is simply not a candidate and the ON arm MISSES it. This is the
+production pipeline's actual behaviour and is reported honestly by the smoke (it does NOT fall back
+to createEdge to rescue the miss — that would diverge from production and inflate the arm). The
+contrast is the earlier, now-superseded ceScore-threshold + overlay_edge approach which would wire
+ANY cosine-similar note regardless of the eager judge; this module deliberately abandons that.
 
 Runtime: stdlib ONLY (urllib/json/subprocess via client.py + judge.py). Runs on the embeddable
 Python 3.12 at C:\\Users\\Imyu\\AppData\\Local\\py312embed\\python.exe as well as Mac/Linux CPython.
@@ -93,28 +109,20 @@ from zonoid_bench.workspace import drop_task_stub  # noqa: E402
 # Tunables (env-overridable, same convention as the rest of the SDK)
 # ---------------------------------------------------------------------------
 
-# ceScore threshold above which a suggest_links candidate is wired as verified context.
-# Matches the FeatureBench canonical ON arm (claude_code._setup_zonoid_context) and the
-# documented convention in client.task_suggest.
-CE_SCORE_THRESHOLD: float = float(os.environ.get("ZONOID_BENCH_CE_THRESHOLD", "0.2"))
+# Budget for the eager-judge candidate pull (GET /judge/next?node=&budget=). The daemon clamps
+# this to [1, 50]; the per-node candidate set is small so 20 is ample headroom.
+JUDGE_BUDGET: int = int(os.environ.get("ZONOID_BENCH_JUDGE_BUDGET", "20"))
 
 # Minimum plain-cosine score for a /search hit to be treated as relevant pre-loaded context
-# (FB uses score > 0.1 in _setup_zonoid_context).
+# (FB uses score > 0.1 in _setup_zonoid_context). Used ONLY for the agent_in_container AGENTS.md
+# bullets — NOT for the DAG edge selection, which is the eager judge's job.
 SEARCH_SCORE_FLOOR: float = float(os.environ.get("ZONOID_BENCH_SEARCH_FLOOR", "0.1"))
 
-# How many /search hits to keep as pre-loaded context bullets.
+# How many /search hits to keep as pre-loaded context bullets (agent_in_container only).
 CONTEXT_TOPK: int = int(os.environ.get("ZONOID_BENCH_CONTEXT_TOPK", "6"))
-
-# How many suggest_links candidates to consider for wiring.
-SUGGEST_TOPK: int = int(os.environ.get("ZONOID_BENCH_SUGGEST_TOPK", "5"))
 
 # top-k for the rag_control arm's /search.
 RAG_CONTROL_K: int = int(os.environ.get("ZONOID_BENCH_SEARCH_K", "5"))
-
-# Weight asserted on a kept context edge. Must be > 0 so the edge is retrieval-visible
-# (the graph builder filters weight-0 context edges out of the /task/context read).
-# 0.5 matches the daemon DEFAULT_CONTEXT_WEIGHT and probe_runner's _KEEP_EDGE_WEIGHT.
-KEEP_EDGE_WEIGHT: float = float(os.environ.get("ZONOID_BENCH_KEEP_WEIGHT", "0.5"))
 
 # Char budget per pre-loaded context summary (keeps the answerer/AGENTS.md prompt bounded).
 SUMMARY_BUDGET: int = int(os.environ.get("ZONOID_BENCH_SUMMARY_BUDGET", "2000"))
@@ -157,16 +165,22 @@ _COLD_TEMPLATE = (
 
 @dataclass
 class WiringResult:
-    """The outcome of the canonical ON-arm DAG wiring for one unit.
+    """The outcome of the canonical ON-arm eager-judge wiring for one unit.
 
     Attributes
     ----------
-    task_key       : the unit's task/note key in the graph (the node we wired context INTO).
-    node_kind      : "note" (post_note) or "task" (drop_task_stub) — how the unit was registered.
-    context_deps   : pre-loaded verified context bullets {label, summary, score} from /search.
-    wired_edges    : the candidate KB-note keys wired as context PROVIDERS into the unit
-                     (overlay_edge from=candidate, to=task_key; ceScore>0.2, non-dup).
-    suggest_seen   : every suggest_links candidate considered {key, label, ceScore, duplicate}.
+    task_key       : the probe TASK key in the graph (the node autowire seeds context edges INTO).
+    node_kind      : always "task" — the eager judge is task-centric (see module docstring).
+    context_deps   : pre-loaded /search bullets {label, summary, score} (agent_in_container AGENTS.md
+                     only — NOT how the DAG edges are chosen).
+    wired_edges    : the candidate PROVIDER keys the eager judge KEPT (keepEdge from=provider,
+                     to=probe) — i.e. the autowire candidates promoted into verified context.
+    candidates_seen: every autowire candidate the eager-judge pull returned, with its verdict
+                     {key, title, edge:"keep"|"prune"}.
+    pruned_edges   : the candidate PROVIDER keys the eager judge PRUNED (pruneEdge).
+    judge_idle     : True when /judge/next?node= returned no candidates (autowire seeded none — e.g.
+                     all evidence sub-0.55). Distinguishes "judged, kept nothing" from "nothing to
+                     judge", which matters for the honest sub-0.55 reporting.
     search_hits    : raw /search hit keys (provenance).
     """
 
@@ -174,7 +188,9 @@ class WiringResult:
     node_kind: str
     context_deps: list[dict[str, Any]] = field(default_factory=list)
     wired_edges: list[str] = field(default_factory=list)
-    suggest_seen: list[dict[str, Any]] = field(default_factory=list)
+    candidates_seen: list[dict[str, Any]] = field(default_factory=list)
+    pruned_edges: list[str] = field(default_factory=list)
+    judge_idle: bool = True
     search_hits: list[str] = field(default_factory=list)
 
 
@@ -208,57 +224,38 @@ def _clip(text: str, n: int = SUMMARY_BUDGET) -> str:
     return (text or "")[:n]
 
 
-def _register_unit(
+def _mint_probe_task(
     client: ZonoidClient,
     unit_id: str,
     task_summary: str,
     *,
-    as_task: bool,
     data_dir: Optional[str],
-    tags: Optional[list[str]] = None,
-) -> tuple[str, str]:
-    """Register the bench unit in the graph and return (node_key, node_kind).
+) -> str:
+    """Mint the bench unit as a TASK PROBE and drive the autowire ingest funnel; return its key.
 
-    Two registration shapes, both feeding the daemon's autowire/ingest funnel:
+    The eager judge is task-centric (see module docstring), so the unit is ALWAYS a task node:
 
-    - as_task=False (default, mirrors FB): POST /overlay/note. The note becomes a provenance
-      anchor + a suggest_links source. node_kind="note".
-    - as_task=True: drop a file-drop task stub (workspace.drop_task_stub) so the unit is a TASK
-      node, then POST /overlay/status {summary} to fire the first-vec ingest funnel
-      (embed → autowireNewTaskWholeGraph → markEagerJudge). node_kind="task". Used by
-      retrieve_and_answer's probe path (a task node reads cleanly off /task/context).
+      1. drop a file-drop task stub (workspace.drop_task_stub) so the unit is a TASK node.
+      2. wait for the daemon to adopt the stub (it becomes visible in buildGraph).
+      3. POST /overlay/status {status:"not_ready", summary} to fire the first-vec ingest funnel
+         (embed → setTaskVec → autowireNewTaskWholeGraph (seed weight-0 NOTE→probe candidate edges
+         at cosine >= 0.55) → markEagerJudge (stamp judgingSince)). status:not_ready — NOT
+         in_progress, which would trip the unwired-claim + judging-gate.
+      4. settle so the embed + autowire complete before the eager-judge pull reads the candidates.
     """
-    if as_task:
-        if not data_dir:
-            raise ValueError("as_task=True requires data_dir (where the file-drop stub is written)")
-        ws = client.workspace
-        if not ws:
-            raise ValueError("client.workspace must be set to register a task stub")
-        task_key = drop_task_stub(
-            data_dir, ws, unit_id, task_summary, harness=UNIT_HARNESS,
-            agent_id="zonoid_bench_arms",
-        )
-        # Wait for the daemon to adopt the stub, then drive the ingest funnel with a status write
-        # carrying the summary (status:not_ready — NOT in_progress, which trips the unwired-claim
-        # gate). This is the probe_runner funnel discipline.
-        _wait_for_adoption(client, task_key, ADOPT_TIMEOUT_S)
-        client.post_status(task_key, "not_ready", summary=task_summary)
-        time.sleep(min(AUTOWIRE_SETTLE_S, 6.0))
-        return task_key, "task"
-
-    # Note path (FB default).
-    resp = client.post_note(
-        title=f"bench unit: {unit_id}",
-        summary=task_summary,
-        category="bench-unit",
-        tags=tags or [unit_id.split(".")[0], "bench"],
+    if not data_dir:
+        raise ValueError("run_canonical_wiring requires data_dir (where the file-drop stub is written)")
+    ws = client.workspace
+    if not ws:
+        raise ValueError("client.workspace must be set to register a probe task stub")
+    task_key = drop_task_stub(
+        data_dir, ws, unit_id, task_summary, harness=UNIT_HARNESS,
+        agent_id="zonoid_bench_arms",
     )
-    note_key = resp.get("key") or resp.get("note_key") or ""
-    if not note_key:
-        raise RuntimeError(f"post_note did not return a key: {resp}")
-    # Give the embedder a moment to index the new note before suggest_links/search (FB sleeps 2 s).
-    time.sleep(2)
-    return note_key, "note"
+    _wait_for_adoption(client, task_key, ADOPT_TIMEOUT_S)
+    client.post_status(task_key, "not_ready", summary=task_summary)
+    time.sleep(min(AUTOWIRE_SETTLE_S, 6.0))
+    return task_key
 
 
 def _wait_for_adoption(client: ZonoidClient, task_key: str, timeout_s: float) -> bool:
@@ -281,36 +278,53 @@ def _wait_for_adoption(client: ZonoidClient, task_key: str, timeout_s: float) ->
     return False
 
 
+def _candidate_summary(item: dict[str, Any]) -> str:
+    """Best-effort summary text for an eager-judge candidate edge item.
+
+    /judge/next returns each candidate's `from` endpoint as {key, title, summary} (summary clipped
+    to 200 chars by the daemon). Fall back to the title when the summary is empty.
+    """
+    frm = item.get("from") or {}
+    return str(frm.get("summary") or frm.get("title") or "")
+
+
 def run_canonical_wiring(
     client: ZonoidClient,
     unit_id: str,
     task_summary: str,
     *,
-    as_task: bool = False,
     data_dir: Optional[str] = None,
-    tags: Optional[list[str]] = None,
+    judge: Optional[Any] = None,
+    judge_budget: int = JUDGE_BUDGET,
+    # Accepted for back-compat with older callers; the eager judge is always task-based so these
+    # are advisory only (the unit is ALWAYS minted as a task probe).
+    as_task: bool = True,  # noqa: ARG001 — kept for signature stability
+    tags: Optional[list[str]] = None,  # noqa: ARG001 — unused in the task-probe path
 ) -> WiringResult:
-    """Run the canonical ON-arm DAG wiring for one unit (design §5).
+    """Run the PRODUCTION-FAITHFUL canonical ON-arm eager-judge wiring for one unit.
 
-    The five steps, ported faithfully from FeatureBench ``_setup_zonoid_context`` with the
-    ``kind="context"`` correctness fix:
+    Steps (see module docstring for the full rationale + note provenance):
 
-      1. register the unit (note or task — see _register_unit)
-      2. client.search(q=task_summary) → relevant KB hits (score > SEARCH_SCORE_FLOOR)
-      3. client.task_suggest(node_key) → ceScore-ranked candidates
-      4. for ceScore > CE_SCORE_THRESHOLD and not duplicate:
-         client.overlay_edge(from=node_key, to=candidate, kind="context", weight=KEEP_EDGE_WEIGHT)
-      5. (read is the caller's job — get_task_context for the frozen DAG, optional live search)
+      1. mint the unit as a TASK PROBE → drive autowire (seed weight-0 NOTE→probe candidate edges
+         at cosine >= 0.55) + markEagerJudge.  (_mint_probe_task)
+      2. client.search(q=task_summary) → pre-loaded /search bullets (agent_in_container AGENTS.md
+         provenance ONLY — NOT how the DAG edges are chosen).
+      3. client.judge_next(node=<probe>) → pull the autowire candidate edge-set (the eager-judge read).
+      4. judge.EdgeJudge over the candidates (keep/prune, DEFAULT prune) → client.post_verdict with
+         keepEdge for kept (promotes the weight-0 autowire candidate in place) / pruneEdge for pruned.
+      5. (read is the caller's job — read_wired_context / get_task_context for the frozen judged DAG.)
 
-    Returns a WiringResult capturing the node key, pre-loaded context, and the wired edges.
+    `judge` is an optional pre-built judge.EdgeJudge (so a batch run can share one instance + model
+    config); a fresh one is created when None. `judge_budget` is forwarded to /judge/next.
+
+    Returns a WiringResult capturing the probe key, pre-loaded /search bullets, the KEPT provider
+    keys (verified context), the pruned keys, and judge_idle (autowire seeded no candidate at all).
     """
-    node_key, node_kind = _register_unit(
-        client, unit_id, task_summary, as_task=as_task, data_dir=data_dir, tags=tags
-    )
+    node_key = _mint_probe_task(client, unit_id, task_summary, data_dir=data_dir)
 
-    result = WiringResult(task_key=node_key, node_kind=node_kind)
+    result = WiringResult(task_key=node_key, node_kind="task")
 
-    # ---- Step 2: semantic search for relevant KB notes ----
+    # ---- Step 2: /search bullets (agent_in_container AGENTS.md provenance ONLY) ----
     hits = client.search(task_summary, k=CONTEXT_TOPK * 2, gated=False)
     for h in hits[:CONTEXT_TOPK]:
         summary = h.get("summary") or ""
@@ -323,44 +337,53 @@ def run_canonical_wiring(
         if h.get("key"):
             result.search_hits.append(h["key"])
 
-    # ---- Step 3 + 4: suggest_links → ceScore → WIRE verified context edges ----
-    suggest = client.task_suggest(node_key)
-    suggestions = (suggest or {}).get("suggestions", []) or []
-    dup_keys = {d.get("key") for d in (suggest.get("duplicates") or []) if d.get("key")}
-    for s in suggestions[:SUGGEST_TOPK]:
-        cand_key = s.get("key")
-        ce = s.get("ceScore")
-        # Fall back to plain cosine score when the cross-encoder sidecar is unavailable
-        # (ceScore absent), matching FB's `s.get("ceScore") or s.get("score")`.
-        score = ce if ce is not None else (s.get("score") or 0)
-        is_dup = bool(s.get("duplicate")) or (cand_key in dup_keys)
-        result.suggest_seen.append(
-            {"key": cand_key, "label": s.get("label"), "ceScore": ce,
-             "score": s.get("score"), "duplicate": is_dup}
-        )
-        if not cand_key or cand_key == node_key:
-            continue
-        if score > CE_SCORE_THRESHOLD and not is_dup:
-            # createEdge / overlay_edge: assert a context edge candidate -> node, i.e.
-            # from=candidate (the KB note that PROVIDES context), to=node_key (the unit that
-            # CONSUMES it). This direction is load-bearing: the daemon's depRefs(ws, key)
-            # collects edges where `e.to === key` (daemon.js:1599-1600), so the candidate only
-            # appears in the unit's /task/context context_deps when the unit is the edge's `to`.
-            # Same direction as probe_runner's createEdge ({"from": note, "to": probe}).
-            #
-            # Two correctness fixes over the FeatureBench reference
-            # (claude_code._setup_zonoid_context):
-            #   (1) kind="context" — FB POSTs type:"context", which the daemon ignores
-            #       (routes/overlay.js reads b.kind), silently creating a BLOCKING edge.
-            #   (2) from/to orientation — FB wires from=note, to=node; for a node whose
-            #       /task/context is later READ, the provider must be `from`, so we orient the
-            #       KB note as the provider.
-            # weight>0 makes it retrieval-visible (the §10 structBoost-gap workaround: the graph
-            # builder excludes weight-0 context edges from the context_deps payload).
-            client.overlay_edge(
-                cand_key, node_key, kind="context", weight=KEEP_EDGE_WEIGHT
-            )
-            result.wired_edges.append(cand_key)
+    # ---- Step 3: pull the eager-judge autowire candidate set (production read) ----
+    pull = client.judge_next(node_key, budget=judge_budget)
+    items = [it for it in (pull.get("items") or []) if it.get("kind") == "edge"]
+    result.judge_idle = bool(pull.get("idle")) or not items
+    if not items:
+        # Autowire seeded NO candidate for this probe (e.g. every evidence note fell below the 0.55
+        # seed threshold, or the probe genuinely has no relevant neighbour). Nothing for the eager
+        # judge to keep — the probe goes ready with empty context. This is correct/expected, not an
+        # error (see module docstring "Sub-0.55 evidence").
+        return result
+
+    # ---- Step 4: run the LLM eager-judge (keep/prune, DEFAULT prune) ----
+    # Build the EdgeJudge candidate list: each /judge/next edge item is provider(from) -> probe(to);
+    # the anchor we judge against is the PROBE (its summary == the question). is_dup is not exercised
+    # here (autowire task-context candidates are never near-dup note clusters), so default False.
+    ej = judge if judge is not None else judge_mod.EdgeJudge()
+    candidates = [
+        {
+            "key": (it.get("from") or {}).get("key"),
+            "title": (it.get("from") or {}).get("title", ""),
+            "summary": _candidate_summary(it),
+            "is_dup": False,
+        }
+        for it in items
+        if (it.get("from") or {}).get("key")
+    ]
+    verdicts = ej.judge(
+        anchor_key=node_key,
+        anchor_summary=task_summary,
+        candidates=candidates,
+    )
+    # Translate per-candidate keep/prune verdicts into /judge/verdict wrapped items. EdgeJudge's
+    # to_verdict_list orients edges provider(from) -> anchor(to) — exactly the autowire direction,
+    # so keepEdge promotes the right weight-0 candidate in place.
+    verdict_items = ej.to_verdict_list(node_key, candidates, verdicts)
+    if verdict_items:
+        client.post_verdict(verdict_items)
+
+    # Record provenance: which providers were kept (verified context) vs pruned.
+    for c in candidates:
+        key = c["key"]
+        edge = (verdicts.get(key) or {}).get("edge", "prune")
+        result.candidates_seen.append({"key": key, "title": c.get("title", ""), "edge": edge})
+        if edge == "keep":
+            result.wired_edges.append(key)
+        else:
+            result.pruned_edges.append(key)
 
     return result
 
@@ -468,19 +491,22 @@ def run_agent_in_container(
     data_dir: Optional[str] = None,
     tags: Optional[list[str]] = None,
 ) -> ArmResult:
-    """ON arm, executor (a): wire the DAG, then build the AGENTS.md for a REAL agent.
+    """ON arm, executor (a): run the eager-judge DAG wiring, then build the AGENTS.md for a REAL agent.
 
     The bench (FeatureBench) runs the real Claude Code agent against this AGENTS.md and grades by
-    the repo's tests; this function does NOT spawn the agent or call any LLM. It returns the
-    AGENTS.md text + the verified context so the bench's container runner can inject it (the
-    division of labour in claude_code.pre_run_hook / _build_agents_md).
+    the repo's tests; this function does NOT spawn the agent or call any LLM beyond the eager judge.
+    It returns the AGENTS.md text + the pre-loaded /search context so the bench's container runner
+    can inject it (the division of labour in claude_code.pre_run_hook / _build_agents_md).
 
     *agent_url* is the URL the in-container agent uses to reach the daemon (e.g. the docker host
     gateway). Defaults to the client's base_url when not crossing a container boundary.
+    *data_dir* is the file-drop stub destination (required by the task-probe path); defaults to
+    CLAUDE_PLUGIN_DATA or the standard orchestrator data dir.
     """
-    wiring = run_canonical_wiring(
-        client, unit_id, task_summary, as_task=as_task, data_dir=data_dir, tags=tags
+    dd = data_dir or os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.join(
+        os.path.expanduser("~"), ".claude", "orchestrator"
     )
+    wiring = run_canonical_wiring(client, unit_id, task_summary, data_dir=dd)
     url = agent_url or client.base_url
     agents_md = build_agents_md(unit_id, url, wiring.context_deps)
     return ArmResult(
@@ -521,10 +547,11 @@ def run_retrieve_and_answer(
 ) -> ArmResult:
     """ON arm, executor (b): wire the DAG for the unit, read the wired context, answer via claude_p.
 
-    For QA benches that can't spawn a real agent per probe (500+ units). The unit is registered as
-    a TASK node (as_task=True) so the read comes cleanly off GET /task/context; the question itself
-    is the task summary (so autowire + suggest_links rank against the question's embedding). The
-    answer is then produced by a tool-less ``claude -p`` over ONLY the wired context summaries.
+    For QA benches that can't spawn a real agent per probe (500+ units). The unit is minted as a
+    TASK PROBE so the read comes cleanly off GET /task/context; the question itself is the task
+    summary (so autowire ranks NOTE providers against the question's embedding and the eager judge
+    keeps/prunes them). The answer is then produced by a tool-less ``claude -p`` over ONLY the
+    eager-judge-KEPT context summaries.
 
     *task_summary* defaults to *question* (the FB convention — embed against the unit's text).
     *data_dir* is required (the file-drop stub destination); defaults to CLAUDE_PLUGIN_DATA or the
@@ -534,9 +561,7 @@ def run_retrieve_and_answer(
     dd = data_dir or os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.join(
         os.path.expanduser("~"), ".claude", "orchestrator"
     )
-    wiring = run_canonical_wiring(
-        client, unit_id, summary, as_task=True, data_dir=dd
-    )
+    wiring = run_canonical_wiring(client, unit_id, summary, data_dir=dd)
     ctx_deps = read_wired_context(client, wiring.task_key)
     context_blocks = [str(d.get("summary") or "") for d in ctx_deps]
     predicted = _answer_from_context(question, context_blocks, model)
@@ -588,33 +613,40 @@ def run_rag_control(
 
 
 # ---------------------------------------------------------------------------
-# Smoke / verify (run directly against a live daemon)
+# Smoke / verify — proves the eager-judge keepEdge PERSISTS in /task/context
 # ---------------------------------------------------------------------------
 
-def _smoke(daemon: str = "http://localhost:8787") -> int:
-    """End-to-end smoke against the live daemon (design verify spec).
+def _smoke(daemon: Optional[str] = None) -> int:
+    """End-to-end smoke for the production-faithful eager-judge ON arm.
+
+    Spawns an EMBEDDED daemon bound LIVE to the unit workspace (so /judge/next?node= + keepEdge
+    resolve to the unit dir — note-mqgwrh5a63x) unless *daemon* is an explicit base URL, in which
+    case it binds that daemon's live workspace to the unit dir via POST /workspace.
 
     Steps:
       1. warm_up the embedder.
-      2. Ingest ONE toy note carrying a planted fact into an isolated absolute workspace.
-      3. Register a probe TASK for a question about that fact + run the canonical wiring
-         (post_note/stub → search → suggest_links → overlay_edge).
-      4. read_wired_context (GET /task/context) — assert it returns ≥0 entries without error.
-      5. retrieve_and_answer on the planted fact — assert the answer CONTAINS the fact.
-      6. cold on the same question — assert the answer does NOT contain the fact (rigging guard).
-    Prints PASS/FAIL. If the daemon is down, says so and returns 1.
+      2. Ingest a planted note (cosine to the question >= 0.55 → an autowire candidate) + an
+         off-topic distractor note (cosine < 0.55 → NOT a candidate).
+      3. run_retrieve_and_answer on the planted fact: mint probe → autowire seeds the candidate →
+         EAGER JUDGE keeps it (keepEdge promotes in place) → read /task/context.
+    Assertions:
+      A1  ON answer CONTAINS the planted fact.
+      A2  the eager-judge keepEdge PERSISTED — the planted note surfaces in /task/context
+          (on.context_keys), and wiring.wired_edges came from a keepEdge verdict (NOT idle).
+      A3  cold answer does NOT contain the fact (rigging guard).
+    Also runs an HONEST sub-0.55 probe and REPORTS (does not assert) whether the evidence was
+    missed — that miss is correct/expected for the production pipeline.
+
+    Returns 0 on PASS, 1 on FAIL/daemon-down.
     """
     import tempfile
 
-    # The embeddable Python console is cp1252; force utf-8 so diagnostic glyphs never crash the
-    # smoke (best-effort — reconfigure exists on 3.7+; ignore if the stream lacks it).
+    # The embeddable Python console is cp1252; force utf-8 so diagnostic glyphs never crash.
     for _stream in (sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
         except Exception:  # noqa: BLE001
             pass
-
-    print(f"[arms.smoke] daemon={daemon}")
 
     # The planted fact: a deliberately non-world-knowledge token so cold cannot know it.
     secret = "Zorblax-7741"
@@ -624,88 +656,168 @@ def _smoke(daemon: str = "http://localhost:8787") -> int:
         f"in no public source."
     )
     question = "What is the internal codename for the Zonoid bench arms calibration unit?"
+    # An off-topic note (no lexical/semantic overlap with the calibration question) — expected to
+    # fall BELOW the 0.55 autowire seed threshold and therefore never become a candidate.
+    distractor = (
+        "The cafeteria on the third floor serves lunch between 11:30 and 14:00 on weekdays; the "
+        "espresso machine in the north break room was replaced last quarter."
+    )
 
     ws = os.path.abspath(tempfile.mkdtemp(prefix="zonoid-arms-smoke-"))
-    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.join(
-        os.path.expanduser("~"), ".claude", "orchestrator"
-    )
-    client = ZonoidClient(daemon, workspace=ws, timeout=120)
 
-    # ---- 1. warm_up ----
-    print("  warm_up()... ", end="", flush=True)
+    handle = None
+    own_daemon = daemon is None
     try:
-        client.warm_up()
-        # A real reachability probe (warm_up swallows errors): a bare /search must round-trip.
-        client.search("warmup probe", k=1)
-        print("OK")
-    except Exception as e:  # noqa: BLE001
-        print(f"FAILED - daemon may be DOWN: {e}")
-        return 1
+        if own_daemon:
+            from zonoid_bench import daemon as daemon_mod
+            print("[arms.smoke] starting EMBEDDED daemon (live-bound to unit ws) ...")
+            # The local worktree may lack node_modules (no @xenova for the embed sidecar). Reuse the
+            # integration smoke's resolver to find a daemon.js whose sibling node_modules is installed
+            # (typically the main worktree), so the embedded daemon can embed + rerank.
+            daemon_js = None
+            try:
+                from zonoid_bench.smoke import _find_daemon_js
+                daemon_js = _find_daemon_js()
+                print(f"  using daemon.js: {daemon_js}")
+            except Exception as e:  # noqa: BLE001
+                print(f"  (daemon.js resolver fell back to default: {e})")
+            handle = daemon_mod.start(daemon_js=daemon_js, workspace=ws)
+            base_url = handle.base_url
+            data_dir = handle.data_dir
+            print(f"  embedded daemon ready: {base_url}  data_dir={data_dir!r}")
+        else:
+            base_url = daemon
+            data_dir = os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.join(
+                os.path.expanduser("~"), ".claude", "orchestrator"
+            )
+            print(f"[arms.smoke] using daemon={base_url}; binding its live workspace to the unit ws ...")
 
-    # ---- 2. ingest one toy note with the planted fact ----
-    print(f"  ingest toy note (ws={ws})... ", end="", flush=True)
-    try:
-        note = client.post_note(
-            title="Zonoid bench arms calibration codename",
-            summary=fact,
-            category="bench-smoke",
-            tags=["zonoid-bench", "smoke"],
-        )
-        note_key = note.get("key") or note.get("note_key")
-        assert note_key, f"post_note returned no key: {note}"
-        print(f"OK (note={note_key})")
-    except Exception as e:  # noqa: BLE001
-        print(f"FAILED: {e}")
-        return 1
-    # Let the embedder index the planted note before we search/suggest against it.
-    time.sleep(3)
+        client = ZonoidClient(base_url, workspace=ws, timeout=120)
 
-    # ---- 3. register probe task + run canonical wiring ----
-    print("  retrieve_and_answer (register -> wire -> read -> answer)... ", flush=True)
-    try:
-        on = run_retrieve_and_answer(
-            client, unit_id=f"arms-smoke-{int(time.time())%100000}", question=question,
-            task_summary=question, data_dir=data_dir,
-        )
-    except Exception as e:  # noqa: BLE001
-        print(f"  FAILED during ON arm: {e}")
-        return 1
-    w = on.wiring
-    print(f"    probe task key : {w.task_key if w else '?'}")
-    print(f"    search hits    : {w.search_hits if w else '?'}")
-    print(f"    suggest seen   : {[ (s['key'], s['ceScore'], s['score'], s['duplicate']) for s in (w.suggest_seen if w else []) ]}")
-    print(f"    wired edges    : {w.wired_edges if w else '?'}")
-    print(f"    context keys   : {on.context_keys}")
-    print(f"    ON answer      : {on.predicted!r}")
+        # When pointing at an external daemon, bind its live workspace to the unit dir so the
+        # eager-judge read resolves (the embedded path already bound it in daemon.start).
+        if not own_daemon:
+            try:
+                bind = client.set_workspace(ws, force=True)
+                print(f"  /workspace bind: {bind}")
+            except Exception as e:  # noqa: BLE001
+                print(f"  FAILED to bind live workspace (eager judge cannot resolve): {e}")
+                return 1
 
-    # ---- 5/6. cold contrast ----
-    print("  cold (no memory)... ", flush=True)
-    try:
-        cold = run_cold(question)
-    except Exception as e:  # noqa: BLE001
-        print(f"  FAILED during cold arm: {e}")
-        return 1
-    print(f"    cold answer    : {cold.predicted!r}")
+        # ---- 1. warm_up ----
+        print("  warm_up()... ", end="", flush=True)
+        try:
+            client.warm_up()
+            client.search("warmup probe", k=1)
+            print("OK")
+        except Exception as e:  # noqa: BLE001
+            print(f"FAILED - daemon may be DOWN: {e}")
+            return 1
 
-    # ---- assertions ----
-    print("\n[arms.smoke] === assertions ===")
-    ok = True
+        # ---- 2. ingest planted + distractor notes ----
+        print(f"  ingest planted + distractor notes (ws={ws})... ", end="", flush=True)
+        try:
+            note = client.post_note(
+                title="Zonoid bench arms calibration codename",
+                summary=fact, category="bench-smoke", tags=["zonoid-bench", "smoke"],
+            )
+            note_key = note.get("key") or note.get("note_key")
+            assert note_key, f"post_note returned no key: {note}"
+            dist = client.post_note(
+                title="Cafeteria and break-room logistics",
+                summary=distractor, category="bench-smoke", tags=["zonoid-bench", "smoke"],
+            )
+            dist_key = dist.get("key") or dist.get("note_key")
+            print(f"OK (planted={note_key}, distractor={dist_key})")
+        except Exception as e:  # noqa: BLE001
+            print(f"FAILED: {e}")
+            return 1
+        time.sleep(3)  # let the embedder index both notes before autowire runs
 
-    on_has = secret.lower() in (on.predicted or "").lower()
-    print(f"  [{'PASS' if on_has else 'FAIL'}] ON (retrieve_and_answer) answer CONTAINS planted fact {secret!r}")
-    ok = ok and on_has
+        # ---- 3. ON arm: mint probe -> autowire -> EAGER JUDGE -> read ----
+        print("  retrieve_and_answer (mint probe -> autowire -> eager judge -> read)... ", flush=True)
+        try:
+            on = run_retrieve_and_answer(
+                client, unit_id=f"arms-smoke-{int(time.time())%100000}", question=question,
+                task_summary=question, data_dir=data_dir,
+            )
+        except Exception as e:  # noqa: BLE001
+            print(f"  FAILED during ON arm: {e}")
+            return 1
+        w = on.wiring
+        print(f"    probe task key : {w.task_key if w else '?'}")
+        print(f"    judge idle     : {w.judge_idle if w else '?'}  (True = autowire seeded NO candidate)")
+        print(f"    candidates     : {[(c['key'], c['edge']) for c in (w.candidates_seen if w else [])]}")
+        print(f"    KEPT (keepEdge): {w.wired_edges if w else '?'}")
+        print(f"    PRUNED         : {w.pruned_edges if w else '?'}")
+        print(f"    /task/context  : {on.context_keys}")
+        print(f"    ON answer      : {on.predicted!r}")
 
-    # The wiring must have surfaced the planted note as verified context (the whole point).
-    wired_ok = bool(w and (w.wired_edges or on.context_keys))
-    print(f"  [{'PASS' if wired_ok else 'FAIL'}] canonical wiring surfaced >=1 verified context edge")
-    ok = ok and wired_ok
+        # ---- cold contrast ----
+        print("  cold (no memory)... ", flush=True)
+        try:
+            cold = run_cold(question)
+        except Exception as e:  # noqa: BLE001
+            print(f"  FAILED during cold arm: {e}")
+            return 1
+        print(f"    cold answer    : {cold.predicted!r}")
 
-    cold_has = secret.lower() in (cold.predicted or "").lower()
-    print(f"  [{'PASS' if not cold_has else 'FAIL'}] cold answer does NOT contain {secret!r} (rigging guard)")
-    ok = ok and (not cold_has)
+        # ---- HONEST sub-0.55 probe (report-only) ----
+        # Ask about the distractor's content. The distractor note is off-topic to the calibration
+        # corpus; whether it clears 0.55 to THIS new probe is an empirical fact we REPORT, not rig.
+        print("  [honest] sub-0.55 probe on the off-topic distractor (report-only)... ", flush=True)
+        sub_missed = None
+        try:
+            sub_q = "What time does the third-floor cafeteria stop serving lunch on weekdays?"
+            sub = run_retrieve_and_answer(
+                client, unit_id=f"arms-smoke-sub-{int(time.time())%100000}", question=sub_q,
+                task_summary=sub_q, data_dir=data_dir,
+            )
+            sw = sub.wiring
+            sub_missed = bool(sw and sw.judge_idle) or not (sub.context_keys)
+            print(f"    sub probe key  : {sw.task_key if sw else '?'}")
+            print(f"    judge idle     : {sw.judge_idle if sw else '?'}")
+            print(f"    candidates     : {[(c['key'], c['edge']) for c in (sw.candidates_seen if sw else [])]}")
+            print(f"    /task/context  : {sub.context_keys}")
+            print(f"    => evidence {'MISSED (sub-0.55, expected/correct)' if sub_missed else 'surfaced (>=0.55 candidate)'}")
+        except Exception as e:  # noqa: BLE001
+            print(f"    (sub-0.55 probe errored, non-fatal: {e})")
 
-    print("\n" + ("PASS" if ok else "FAIL"))
-    return 0 if ok else 1
+        # ---- assertions ----
+        print("\n[arms.smoke] === assertions ===")
+        ok = True
+
+        on_has = secret.lower() in (on.predicted or "").lower()
+        print(f"  [{'PASS' if on_has else 'FAIL'}] A1 ON answer CONTAINS planted fact {secret!r}")
+        ok = ok and on_has
+
+        # A2: the eager-judge keepEdge PERSISTED — the planted note is in /task/context AND it was
+        # KEPT by the judge (came via keepEdge, not idle). This is the spike's old failure mode
+        # (empty context_keys) being explicitly guarded.
+        kept_planted = bool(note_key and note_key in (on.context_keys or []))
+        from_keep = bool(w and w.wired_edges and not w.judge_idle)
+        a2 = kept_planted and from_keep
+        print(f"  [{'PASS' if a2 else 'FAIL'}] A2 eager-judge keepEdge PERSISTED in /task/context "
+              f"(planted in ctx={kept_planted}, from keepEdge={from_keep})")
+        ok = ok and a2
+
+        cold_has = secret.lower() in (cold.predicted or "").lower()
+        print(f"  [{'PASS' if not cold_has else 'FAIL'}] A3 cold answer does NOT contain {secret!r} (rigging guard)")
+        ok = ok and (not cold_has)
+
+        if sub_missed is not None:
+            print(f"  [INFO] sub-0.55 evidence behavior: "
+                  f"{'MISSED (correct/expected)' if sub_missed else 'surfaced'} — report-only, not asserted")
+
+        print("\n" + ("PASS" if ok else "FAIL"))
+        return 0 if ok else 1
+    finally:
+        if handle is not None:
+            try:
+                from zonoid_bench import daemon as daemon_mod
+                daemon_mod.stop(handle)
+            except Exception:  # noqa: BLE001
+                pass
 
 
 if __name__ == "__main__":
@@ -714,8 +826,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Zonoid Bench SDK arms — canonical ON arm (+pluggable executor) + contrast arms."
     )
-    parser.add_argument("--smoke", action="store_true", help="Run the live-daemon smoke test.")
-    parser.add_argument("--daemon", default="http://localhost:8787", help="Daemon base URL.")
+    parser.add_argument("--smoke", action="store_true",
+                        help="Run the eager-judge smoke (embedded daemon by default).")
+    parser.add_argument("--daemon", default=None,
+                        help="Use an EXISTING daemon at this base URL (binds its live workspace to "
+                             "the unit dir). Omit to spawn an embedded daemon.")
     args = parser.parse_args()
 
     if args.smoke:
