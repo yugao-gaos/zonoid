@@ -286,19 +286,14 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           applied.clustersJudged++;
           continue;
         }
-        const notesMeta = keys.map((k) => {
-          const n = T.ov.note_nodes[String(k).replace(/^note:/, '')];
-          return { key: k, title: (n && n.title) || k, created_at: (n && n.created_at) || null };
-        });
-        overlayStore.addGuidance(T.ov, {
-          question: `Ambiguous duplicate cluster (${keys.length} notes): are these the SAME fact to consolidate, or distinct? Notes: ${keys.join(', ')}`,
-          context: `judge surfaced a node-dedup cluster it could not confidently consolidate. ${v.surfaceCluster.why || ''}`.slice(0, 2000),
-          trigger: 'ambiguous_intent', severity: 'review',
-          action: { kind: 'dup-cluster', keys, signature: judge.clusterSignature(keys), notes: notesMeta },
-        });
+        // The judge prompt is CONSERVATIVE by default: two notes must be the SAME fact to consolidate.
+        // Failure to consolidate (surfaceCluster) IS the distinct verdict — auto-resolve as DISTINCT
+        // rather than escalating to the user via an AMBIGUOUS_INTENT guidance item.
+        overlayStore.markClusterDistinct(T.ov, keys);
+        for (const k of keys) overlayStore.clearPendingDup(T.ov, k);
         judge.stampCluster(T.ov.judgedClusters, keys, epoch);
-        applied.surfaced++; applied.clustersJudged++;
-        judge.appendVerdict(T.ws, { epoch, verdict: 'surface', from: keys[0] || null, to: keys.slice(1).join(',') || null, edgeKind: 'note', cosine: clusterMaxCosine(T.ov, keys), by: 'judge' });
+        applied.stamped = (applied.stamped || 0) + 1; applied.clustersJudged++;
+        judge.appendVerdict(T.ws, { epoch, verdict: 'distinct', from: keys[0] || null, to: keys.slice(1).join(',') || null, edgeKind: 'note', cosine: clusterMaxCosine(T.ov, keys), by: 'judge' });
       }
       if (v && v.markDistinct && Array.isArray(v.markDistinct.keys) && v.markDistinct.keys.length) {
         const keys = v.markDistinct.keys.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
