@@ -177,8 +177,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       assignee,
       cancel_requested: T.ov.cancel_requested[key] || null,
       blocked: (T.ov.blocked && T.ov.blocked[key]) || null,
-      tokenUsage: (() => { const tp = taskTranscript(key, t.session, true); return tp ? usageCached(tp) : null; })(),
-      transcript: (() => { const tp = taskTranscript(key, t.session, true); return tp || null; })(),
+      // P3: taskTranscript reads assignee from st.overlay — there is no daemon-global state.overlay,
+      // so pass the request-resolved overlay (mirrors daemon.js buildGraph's `stWs`).
+      tokenUsage: (() => { const tp = taskTranscript(key, t.session, true, { ...state, overlay: T.ov }); return tp ? usageCached(tp) : null; })(),
+      transcript: (() => { const tp = taskTranscript(key, t.session, true, { ...state, overlay: T.ov }); return tp || null; })(),
     }); return true;
   }
 

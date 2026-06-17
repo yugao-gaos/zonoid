@@ -1779,7 +1779,11 @@ function harnessTranscriptForTask(st, key, session) {
 // never paints the same conversation-wide total across many tasks); /costflow always allows it
 // because splitSessionTokens divides a shared total honestly. null = unknown.
 function taskTranscript(key, session, anySession, st = state) {
-  const assignee = st.overlay.assignee[key];
+  // P3: there is no daemon-global state.overlay — callers pass st={...state, overlay:<resolved ov>}.
+  // Guard the lookup so a st without an overlay (or the bare `state` default) degrades to no-assignee
+  // resolution instead of crashing (mirrors taskTokens' `st.overlay || EMPTY`).
+  const ov = st.overlay || overlayStore.EMPTY();
+  const assignee = ov.assignee[key];
   const agent = assignee ? st.agents[assignee] : null;
   let tp = agent && agent.transcript_path;
   if (!tp && agent && agent.session) {                                   // derive from per-session binding
@@ -2176,7 +2180,7 @@ const ctx = {
     if (!sessionId) return;
     state.sessions = sessionBindings.bindSession(state.sessions, sessionId, patch);
   },
-  send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, resolveRepo, nodeExistsInGraph,
+  send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, overlayFor, resolveRepo, nodeExistsInGraph,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,

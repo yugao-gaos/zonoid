@@ -29,9 +29,16 @@ let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
 
 function req(method, p, body) {
+  // P3: ops require an explicit workspace (no daemon-global default). Single-workspace suite =>
+  // default WS into POST bodies and GET query strings (skip /workspace, /ping, explicit workspace).
+  let _p = p, _b = body;
+  if (p !== '/workspace' && !p.startsWith('/ping') && !p.includes('workspace=')) {
+    if (_b && typeof _b === 'object' && _b.workspace === undefined) _b = { ..._b, workspace: WS };
+    else if (!_b) _p = p + (p.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WS);
+  }
   return new Promise((resolve, reject) => {
-    const data = body ? JSON.stringify(body) : null;
-    const r = http.request({ host: '127.0.0.1', port: PORT, path: p, method, headers: data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {} }, (res) => {
+    const data = _b ? JSON.stringify(_b) : null;
+    const r = http.request({ host: '127.0.0.1', port: PORT, path: _p, method, headers: data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {} }, (res) => {
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => { try { resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') }); } catch { resolve({ status: res.statusCode, body: {} }); } });

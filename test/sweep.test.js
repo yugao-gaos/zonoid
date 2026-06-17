@@ -29,10 +29,18 @@ function dropStub(harness, id, extra = {}) {
 }
 
 function req(method, p, body) {
+  // P3: ops require an explicit workspace (no daemon-global default). Single-workspace suite ⇒
+  // default WS into POST bodies and GET query strings (skip /workspace, /ping, explicit workspace).
+  let path = p;
+  let b = body;
+  if (p !== '/workspace' && !p.startsWith('/ping') && !p.includes('workspace=')) {
+    if (b && typeof b === 'object' && b.workspace === undefined) b = { ...b, workspace: WS };
+    else if (!b) path = p + (p.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WS);
+  }
   return new Promise((resolve, reject) => {
-    const data = body ? JSON.stringify(body) : null;
+    const data = b ? JSON.stringify(b) : null;
     const r = http.request({
-      host: '127.0.0.1', port: PORT, path: p, method,
+      host: '127.0.0.1', port: PORT, path, method,
       headers: data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {},
     }, (res) => {
       const chunks = [];

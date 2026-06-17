@@ -13,7 +13,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 400, { ok: false, error: 'parent_session required' });
       return true;
     }
-    const resolved = resolveDispatcherAttribution(parentSession, ctx, b.task_key || null);
+    const resolved = resolveDispatcherAttribution(parentSession, ctx, b.task_key || null, { b, u });
     if (!resolved.ok) {
       send(res, 409, { ok: false, ...resolved });
       return true;

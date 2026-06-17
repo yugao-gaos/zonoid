@@ -6,6 +6,9 @@
 //    pinned elsewhere).
 // 2) Daemon read routes (/state, /task/detail, /guidance, /agents, /agent/stop-requested) must
 //    honor ?workspace= for their overlay-backed fields, not just buildGraph.
+// P3 (deprecate-global-workspace): the daemon-global default is GONE. Reads that REQUIRE a
+//    workspace (/state, /search) 400 when none is resolvable; workspace-agnostic reads
+//    (/task/detail, /guidance, /agent/stop-requested) degrade to the EMPTY overlay, never B.
 // 3) Claim-release must operate on the TARGET workspace's overlay: the stale-claim sweep fires
 //    for a ?workspace= read, and /agent/done cascades into the agent's recorded workspace.
 //
@@ -97,9 +100,9 @@ async function testMakeCall() {
   try {
     ok('daemon came up on the test port', await waitForPing());
 
-    // Pin the DAEMON-GLOBAL workspace to B (the "restart/other session pinned it elsewhere" precondition).
+    // Register workspace B (P3: setWorkspace registers + binds, it sets NO daemon-global default).
     const pin = await req('POST', '/workspace', { path: WS_B });
-    ok('workspace pinned to B', pin.status === 200 && pin.body.workspace === WS_B);
+    ok('workspace B registered', pin.status === 200 && pin.body.workspace === WS_B);
 
     // Seed workspace A via the (already-fixed) write routes: a note node, an edge, knowledge, guidance.
     const note = await req('POST', '/overlay/note', { workspace: WS_A, title: 'A-side decision', summary: 'read-gremlin fixture summary' });
@@ -113,8 +116,12 @@ async function testMakeCall() {
     ok('/state?workspace=A serves A edges', stA.body.edges.some((e) => e.from === 'sessA/1' && e.to === 'sessA/2'));
     ok('/state?workspace=A serves A note node', stA.body.tasks.some((t) => t.kind === 'note' && t.label === 'A-side decision'));
     ok('/state?workspace=A summary counts A edges', stA.body.summary.edges === 1);
-    const stB = await req('GET', '/state');
-    ok('fallback /state still serves B (no A leakage)', !stB.body.tasks.some((t) => t.label === 'A-side decision') && stB.body.edges.length === 0);
+    // P3: /state with NO ?workspace= 400s (the daemon-global default is gone) instead of serving B.
+    const stNoWs = await req('GET', '/state');
+    ok('/state without workspace returns 400 (no global default)', stNoWs.status === 400 && stNoWs.body.ok === false);
+    // B is still independently readable via its explicit ?workspace= and never shows A's writes.
+    const stB = await req('GET', `/state?workspace=${encodeURIComponent(WS_B)}`);
+    ok('/state?workspace=B serves B (no A leakage)', !stB.body.tasks.some((t) => t.label === 'A-side decision') && stB.body.edges.length === 0);
 
     // /task/detail — THE live symptom: without workspace ⇒ unknown task; with ⇒ found.
     const noteKey = note.body.key;
@@ -136,8 +143,9 @@ async function testMakeCall() {
     // /search — A's knowledge item is only findable when the read targets A.
     const sA = await req('GET', `/search?q=${encodeURIComponent('gremlin-knowledge-marker')}&workspace=${encodeURIComponent(WS_A)}`);
     ok('/search?workspace=A finds A knowledge', sA.body.results.some((r) => r.kind === 'knowledge' && r.title.includes('gremlin-knowledge-marker')));
+    // P3: /search with no ?workspace= 400s (no global default to fall back onto).
     const sB = await req('GET', `/search?q=${encodeURIComponent('gremlin-knowledge-marker')}`);
-    ok('fallback /search does not see A knowledge', !sB.body.results.some((r) => r.kind === 'knowledge' && r.title.includes('gremlin-knowledge-marker')));
+    ok('/search without workspace returns 400 (no global default)', sB.status === 400 && sB.body.ok === false);
 
     // --- claim-release: stale-claim sweep fires on the TARGET workspace ----------------------
     const ovA = overlayStore.load(WS_A);

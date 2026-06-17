@@ -21,17 +21,25 @@ const TASK = 'local/stop-adv';
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
 
+// P3: ops require an explicit workspace (no daemon-global default). Single-workspace suite ⇒
+// default WS into POST bodies and GET query strings (skip /workspace, /ping, explicit workspace).
 async function post(p, body) {
+  const payload = (p === '/workspace' || (body && body.workspace)) ? body : { ...(body || {}), workspace: WS };
   const res = await fetch(`${BASE}${p}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
   return { status: res.status, body: await res.json() };
 }
 
+function withWs(p) {
+  if (p.startsWith('/ping') || p.includes('workspace=')) return p;
+  return p + (p.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WS);
+}
+
 async function get(p) {
-  const res = await fetch(`${BASE}${p}`);
+  const res = await fetch(`${BASE}${withWs(p)}`);
   return { status: res.status, body: await res.json() };
 }
 

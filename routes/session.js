@@ -65,7 +65,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/dispatcher/children') {
     const sid = u.searchParams.get('session');
     if (!sid) { send(res, 400, { error: 'session required' }); return true; }
-    const meta = attributionMeta(sid, ctx);
+    const meta = attributionMeta(sid, ctx, { u });
     send(res, 200, { children: listDispatcherChildren(sid, ctx), ...meta }); return true;
   }
 
