@@ -83,6 +83,9 @@ class DaemonHandle:
     base_url: str
     proc: subprocess.Popen
     data_dir: str
+    # The live workspace this daemon was bound to (POST /workspace), if any. The eager-judge
+    # candidate read + keepEdge persistence are bound to this workspace (note-mqgwrh5a63x).
+    workspace: Optional[str] = None
     # Retain symlink/copy target so stop() can clean it up if needed.
     _model_link: Optional[str] = field(default=None, repr=False)
 
@@ -203,6 +206,7 @@ def start(
     data_dir: Optional[str] = None,
     model_source: Optional[str] = None,
     ready_timeout: float = DEFAULT_READY_TIMEOUT,
+    workspace: Optional[str] = None,
 ) -> DaemonHandle:
     """Spawn an isolated Zonoid daemon and wait until it is ready.
 
@@ -225,11 +229,21 @@ def start(
         ~/.claude/orchestrator/models.
     ready_timeout:
         How long (seconds) to wait for phase:ready before raising.
+    workspace:
+        If set (absolute path), bind the daemon's LIVE ``state.workspace`` to it
+        once ready (POST /workspace {path, force:true}).  This is the lever the
+        canonical ON-arm needs: the eager-judge read (/judge/next?node=) and the
+        keepEdge promotion are hard-bound to ``state.workspace`` (routes/judge.js),
+        so for an autowire candidate to surface + a keepEdge to persist for a bench
+        UNIT, the unit's workspace dir must BE the daemon's live workspace
+        (note-mqgwrh5a63x: keepEdge on a non-live/isolated workspace does not
+        surface in /task/context).  One embedded daemon per unit, live-bound to that
+        unit's dir, makes the whole pipeline operate on one consistent overlay.
 
     Returns
     -------
     DaemonHandle
-        Contains .port, .base_url, .proc, .data_dir.
+        Contains .port, .base_url, .proc, .data_dir, .workspace.
     """
     # ---- resolve daemon.js -----------------------------------------------
     if daemon_js is None:
@@ -272,6 +286,10 @@ def start(
         **os.environ,
         "ORCH_PORT":          str(port),
         "CLAUDE_PLUGIN_DATA": data_dir,
+        # Disable drain-loop in headless bench processes (hang-protection).
+        # Without this, the embedded daemon's drain loop blocks indefinitely
+        # when there are no tasks — observed to hang bench runs for hours.
+        "ORCH_HEADLESS_DRAINS": "0",
     }
 
     # node must be on PATH; this is a hard requirement (see §3 of design doc).
@@ -312,13 +330,53 @@ def start(
         raise
 
     print(f"[daemon.py] daemon ready at {base_url}", file=sys.stderr)
+
+    # ---- bind live workspace (eager-judge prerequisite) ------------------
+    # POST /workspace {path, force:true} so state.workspace == the unit dir. The eager-judge read
+    # (/judge/next?node=) and keepEdge save are hard-bound to state.workspace (routes/judge.js);
+    # this bind is what makes an autowire candidate surface + a keepEdge persist for a bench unit.
+    if workspace is not None:
+        if not (workspace.startswith("/") or (len(workspace) >= 2 and workspace[1] == ":")):
+            proc.terminate()
+            try:
+                proc.wait(timeout=TERMINATE_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+            raise ValueError(
+                f"workspace must be an absolute filesystem path, got: {workspace!r}"
+            )
+        os.makedirs(workspace, exist_ok=True)
+        _bind_workspace(base_url, workspace)
+        print(f"[daemon.py] live workspace bound to {workspace!r}", file=sys.stderr)
+
     return DaemonHandle(
         port=port,
         base_url=base_url,
         proc=proc,
         data_dir=data_dir,
+        workspace=workspace,
         _model_link=model_link,
     )
+
+
+def _bind_workspace(base_url: str, workspace: str, timeout: float = 15.0) -> None:
+    """POST /workspace {path, force:true} to bind the daemon's live state.workspace.
+
+    Raises RuntimeError if the daemon does not confirm the bind (the canonical ON-arm depends on
+    state.workspace == workspace, so a silent failure here would make the eager-judge read miss).
+    """
+    body = json.dumps({"path": workspace, "force": True}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{base_url}/workspace", data=body, method="POST",
+    )
+    req.add_header("Content-Type", "application/json")
+    req.add_header("Accept", "application/json")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read())
+    if not data.get("ok") or data.get("workspace") != workspace:
+        raise RuntimeError(
+            f"failed to bind live workspace to {workspace!r}: daemon returned {data!r}"
+        )
 
 
 def stop(handle: DaemonHandle, timeout: float = TERMINATE_TIMEOUT) -> int:
