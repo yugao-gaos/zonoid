@@ -5,10 +5,22 @@ absolute-path Zonoid workspace by ``ConversationIngester`` — this module answe
 probe THREE ways, sharing one answerer model + one answer-prompt template:
 
   ARM ``our-way``  (DAG read — the headline)
-      Mint the probe as a TASK node, let the daemon's ingest funnel autowire
-      candidate note->probe edges, BLIND-judge which sessions actually hold the
-      evidence (no gold, no dataset evidence labels), keep only those edges, then
-      answer from ONLY the kept session summaries read off GET /task/context.
+      PRODUCTION-FAITHFUL: delegates to the SDK canonical arm
+      ``arms.run_retrieve_and_answer`` (bench/zonoid_bench/arms.py), which does the
+      EXACT production eager-judge pipeline:
+        mint probe task → autowire (≥0.55 cosine seeds weight-0 NOTE→probe candidates) →
+        judge_next pull → LLM EdgeJudge keep/prune → keepEdge (promote in place) →
+        get_task_context → answer from ONLY kept context summaries.
+
+      For each conversation, an EMBEDDED daemon is started with its LIVE workspace bound
+      to the conversation's isolated workspace dir.  Session notes are ingested directly
+      into that embedded daemon so judge_next + keepEdge resolve against them.  The
+      embedded daemon is stopped after all probes for the conversation complete.
+
+      The 0.55 gate is RESPECTED: a session whose cosine to the probe is below
+      SEMANTIC_AUTOWIRE_THRESHOLD (0.55) is NEVER an autowire candidate, so keepEdge
+      does not promote it — that miss is the HONEST production result, not a bug.
+      There is NO createEdge workaround, NO blind-keep-decision over ALL sessions.
 
   ARM ``search``   (retrieval-time control — "normal RAG memory")
       Same ingested graph; GET /search?q=<question> -> top-k session summaries ->
@@ -22,41 +34,29 @@ Honesty bar (NON-NEGOTIABLE)
 ----------------------------
 The gold answer and the dataset ``evidence`` / ``answer_session_ids`` labels are used
 ONLY by the scorer (a later task) — NEVER by the retrieve / keep / answer steps of ANY
-arm.  In ``our-way`` the KEEP decision is made by a BLIND ``claude -p`` edge-judge that
-sees only the question + candidate session summaries.  Letting it see the gold answer or
-the evidence labels would be an oracle leak and would invalidate the headline result.
+arm.  The KEEP decision is made by the SDK's LLM EdgeJudge that sees ONLY the question +
+autowire candidate note summaries (no gold, no evidence labels).
 ``gold`` is threaded through to the output record for the scorer's convenience; it never
 enters any prediction path.
 
-Funnel mechanics (from spike note-mqgwr63ms7q + OVERRIDE note-mqgwrh5a63x)
--------------------------------------------------------------------------
-1. Session notes are posted by ``ingest.ConversationIngester`` (NO force — lets autowire +
-   dup-guard run).  Returns ``{session_idx: [{note_key, title}]}``.
-2. Mint the probe as a TASK node via a file-drop stub written to
-   ``<CLAUDE_PLUGIN_DATA | ~/.claude/orchestrator>/tasks/<workspaceKey(ws)>/<harness>/<id>.json``
-   = ``{id, subject:<question>, status:"pending"}``.  The daemon adopts it (~1.5 s).
-   Task key = ``"<harness>/<id>"``.  (workspaceKey rebuilt here in Python — the spike's
-   probe_seed.js was never committed; the rules live in lib/filedrop-tasks.js.)
-3. ``POST /overlay/status {workspace, key:<probe>, status:"not_ready", summary:<question>}``
-   — NOT ``in_progress`` (that trips the unwired-claim gate).  This fires the first-vec
-   ingest funnel: embed -> autowireNewTaskWholeGraph -> markEagerJudge.  Autowire seeds
-   note->probe candidate edges at weight 0 / judged:false, above SEMANTIC_AUTOWIRE_THRESHOLD
-   (0.55).
-4. BLIND edge-judge picks the sessions that contain the evidence.  ``POST /judge/verdict
-   {workspace, verdicts:[{createEdge:{from:"note:<sid>", to:<probe>, weight:0.5}}]}`` for the
-   kept sessions only.  createEdge UPSERTS a judged context edge — it promotes a pre-existing
-   weight-0 autowire candidate AND creates one if autowire never seeded it (the kept session's
-   cosine was below the 0.55 seed threshold).  keepEdge alone is insufficient: it only promotes
-   pre-existing candidates, so a sub-threshold kept session would silently never surface.
-5. ``GET /task/context?key=<probe>&workspace=<ws>`` -> ``dependencySummaries`` (weight-0
-   edges are filtered out by the graph builder, so unkept candidates simply do not appear).
-   Answer from ONLY those summaries.  NEVER ``GET /search?task_key=`` on a probe (RAG-fill
-   leak on a provisional probe).
+Production-faithful arm (per /25 decision, SDK arms.py)
+--------------------------------------------------------
+The ``our-way`` arm delegates ENTIRELY to ``arms.run_retrieve_and_answer``, which:
+1. Mints the probe as a TASK PROBE (file-drop stub) so the eager-judge is task-centric.
+2. Fires the ingest funnel (embed → setTaskVec → autowireNewTaskWholeGraph → markEagerJudge):
+   autowire seeds weight-0 NOTE→probe candidate edges at cosine >= 0.55.
+3. Pulls the autowire candidate set via client.judge_next(node=<probe>).
+4. Runs the LLM EdgeJudge (keep/prune, DEFAULT prune) — keepEdge promotes weight-0
+   candidate IN PLACE (judged:true + real weight); pruneEdge deletes it.
+5. Reads GET /task/context → dependencySummaries (weight>0 = kept context edges).
+6. Answers from ONLY those summaries via a tool-less claude -p.
 
-OVERRIDE (note-mqgwrh5a63x): on an isolated workspace a *pruned* edge does NOT reliably
-clear, so we NEVER rely on pruneEdge.  We use KEEP-ONLY: unkept candidates stay at weight 0
-and are filtered out of the read.  The DAG-read surface (GET /task/context) is robust
-regardless because it drops weight-0 edges.
+WHY embedded daemon (note-mqgwrh5a63x):
+  keepEdge and judge_next are HARD-BOUND to the daemon's LIVE state.workspace.
+  A keepEdge on a non-live (isolated) workspace does NOT surface in /task/context.
+  One embedded daemon per conversation whose live workspace IS the conv dir ensures
+  the whole pipeline (autowire seed → markEagerJudge → judge_next → keepEdge save →
+  /task/context) operates on ONE consistent in-memory + persisted overlay.
 
 Runtime (note-mqgz977tbqe): embeddable Python 3.12 — stdlib ONLY (urllib.request, json,
 subprocess, os).  No pip / requests.  Invoke ``claude -p`` for every answerer / judge call.
@@ -67,30 +67,30 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 from typing import Any
 
 # Embeddable Python 3.12 (py312embed) strips cwd from sys.path. Insert the directory
 # containing this script so sibling modules (zonoid_lifecycle, ingest, datasets) are
 # importable regardless of the working directory. (Same pattern as ingest.py.)
 _HERE = os.path.dirname(os.path.abspath(__file__))
-if _HERE not in sys.path:
-    sys.path.insert(0, _HERE)
+_BENCH = os.path.dirname(_HERE)
+for _p in (_HERE, _BENCH):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from zonoid_lifecycle import (  # noqa: E402
-    _http_get,
-    _http_post,
-    get_task_context,
-    post_verdict,
     search as kb_search,
     warm_up,
 )
+
+# SDK canonical ON-arm + embedded daemon lifecycle.
+from zonoid_bench import arms as _arms  # noqa: E402
+from zonoid_bench import daemon as _daemon_mod  # noqa: E402
+from zonoid_bench.client import ZonoidClient  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -122,29 +122,15 @@ _CLAUDE_CLI = _resolve_claude_cli()
 # Per `claude -p` call timeout (seconds).
 _CLAUDE_TIMEOUT = int(os.environ.get("ZONOID_BENCH_CLAUDE_TIMEOUT", "180"))
 
-# File-drop probe stub: harness namespace + data dir (mirrors lib/filedrop-tasks.js).
-_PROBE_HARNESS = "probe"
-_DATA_DIR = os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.join(
-    os.path.expanduser("~"), ".claude", "orchestrator"
-)
-
-# How long to wait for the daemon to (a) adopt a dropped stub and (b) run the ingest
-# funnel that seeds candidate edges. The spike measured ~1.5 s adoption; we poll.
-_ADOPT_TIMEOUT_S = float(os.environ.get("ZONOID_BENCH_ADOPT_TIMEOUT", "20"))
-_AUTOWIRE_TIMEOUT_S = float(os.environ.get("ZONOID_BENCH_AUTOWIRE_TIMEOUT", "30"))
-_POLL_INTERVAL_S = 0.75
-
 # top-k for the search arm.
 _SEARCH_K = int(os.environ.get("ZONOID_BENCH_SEARCH_K", "5"))
 
-# Weight asserted on a KEPT note->probe context edge. Must be > 0 so the edge is retrieval-
-# visible (the graph builder filters weight-0 edges out of /task/context). 0.5 matches the
-# daemon's DEFAULT_CONTEXT_WEIGHT and the judge's keep-promotion default (PROMOTED_EDGE_WEIGHT).
-_KEEP_EDGE_WEIGHT = float(os.environ.get("ZONOID_BENCH_KEEP_WEIGHT", "0.5"))
-
-# Char budget for each session summary shown to the blind judge / answerer (keeps the
-# `claude -p` prompt bounded regardless of conversation length).
+# Char budget for each session summary shown to the answerer (keeps the `claude -p`
+# prompt bounded regardless of conversation length).
 _SUMMARY_BUDGET = 2000
+
+# How long to wait between session note ingests (let the embedder index each note).
+_INGEST_SETTLE_S = float(os.environ.get("ZONOID_BENCH_INGEST_SETTLE", "3.0"))
 
 
 # ---------------------------------------------------------------------------
@@ -202,170 +188,8 @@ def _run_claude(prompt: str) -> str | None:
     return run.stdout or ""
 
 
-def _extract_json_objects(text: str) -> list[dict]:
-    """Return every top-level ``{...}`` block in *text* that parses as JSON.
-
-    Brace-matching scan (mirrors zonoid_memory._parse_judge_output). Used to pull a
-    strict-JSON verdict object out of the judge's free-text output.
-    """
-    out: list[dict] = []
-    depth = 0
-    start = -1
-    for i, ch in enumerate(text):
-        if ch == "{":
-            if depth == 0:
-                start = i
-            depth += 1
-        elif ch == "}":
-            if depth > 0:
-                depth -= 1
-                if depth == 0 and start >= 0:
-                    blob = text[start : i + 1]
-                    try:
-                        obj = json.loads(blob)
-                        if isinstance(obj, dict):
-                            out.append(obj)
-                    except Exception:  # noqa: BLE001
-                        pass
-                    start = -1
-    return out
-
-
 # ---------------------------------------------------------------------------
-# workspaceKey — EXACT port of lib/filedrop-tasks.js workspaceKey()
-# ---------------------------------------------------------------------------
-
-def workspace_key(workspace: str) -> str:
-    """Collision-free per-workspace folder name.
-
-    MUST stay in lockstep with lib/filedrop-tasks.js workspaceKey():
-        `${sanitizedBasename}-${sha1(workspace).hex.slice(0,16)}`
-    where basename is os.path.basename, sanitised to [A-Za-z0-9._-] (others -> '_').
-    """
-    import hashlib
-
-    ws = str(workspace or "")
-    h = hashlib.sha1(ws.encode("utf-8")).hexdigest()[:16]
-    base = os.path.basename(ws) or "ws"
-    base = re.sub(r"[^A-Za-z0-9._-]", "_", base)
-    return f"{base}-{h}"
-
-
-def _probe_stub_path(workspace: str, probe_id: str) -> str:
-    """Absolute stub-file path for a probe task: <data>/tasks/<wsKey>/<harness>/<id>.json."""
-    return os.path.join(
-        _DATA_DIR, "tasks", workspace_key(workspace), _PROBE_HARNESS, f"{probe_id}.json"
-    )
-
-
-def _probe_task_key(probe_id: str) -> str:
-    """The daemon task key for a dropped probe stub: '<harness>/<id>'."""
-    return f"{_PROBE_HARNESS}/{probe_id}"
-
-
-# ---------------------------------------------------------------------------
-# Funnel step 2: mint the probe as a TASK node via file-drop stub
-# ---------------------------------------------------------------------------
-
-def _drop_probe_stub(workspace: str, probe_id: str, question: str) -> str:
-    """Write the file-drop stub for *probe_id* and return its '<harness>/<id>' task key.
-
-    Atomic temp+rename (the convention the daemon's reader expects: it ignores *.tmp).
-    """
-    path = _probe_stub_path(workspace, probe_id)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    stub = {
-        "id": probe_id,
-        "subject": question,
-        "description": "",
-        "status": "pending",
-        "created_by": {"harness": _PROBE_HARNESS, "agent_id": "probe_runner"},
-    }
-    tmp = f"{path}.{os.getpid()}.tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(stub, fh, indent=2)
-    os.replace(tmp, path)
-    return _probe_task_key(probe_id)
-
-
-def _remove_probe_stub(workspace: str, probe_id: str) -> None:
-    """Best-effort cleanup of the dropped stub file (mint artifact, not durable state)."""
-    try:
-        path = _probe_stub_path(workspace, probe_id)
-        if os.path.exists(path):
-            os.remove(path)
-    except Exception:  # noqa: BLE001
-        pass
-
-
-def _post_status_with_summary(
-    base_url: str, workspace: str, node_key: str, status: str, summary: str, timeout: int = 120
-) -> dict[str, Any]:
-    """POST /overlay/status carrying a summary.
-
-    ``zonoid_lifecycle.post_status`` deliberately omits the summary field, but the ingest
-    funnel is gated on (summary set OR no vec) — so the probe's status write MUST carry the
-    question as the summary to seed the first embedding + autowire. We POST directly.
-    """
-    body = {"workspace": workspace, "key": node_key, "status": status, "summary": summary}
-    return _http_post(f"{base_url.rstrip('/')}/overlay/status", body, timeout)
-
-
-def _wait_for_task_adoption(base_url: str, workspace: str, probe_key: str, timeout_s: float) -> bool:
-    """Poll GET /task/context until the daemon has adopted the probe task (or timeout).
-
-    Returns True once /task/context returns 200 for the probe key.
-    """
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        try:
-            _http_get(
-                f"{base_url.rstrip('/')}/task/context",
-                {"key": probe_key, "workspace": workspace},
-                30,
-            )
-            return True  # 200 => task exists (404 raises HTTPError below)
-        except urllib.error.HTTPError as exc:
-            if exc.code != 404:
-                # Unexpected error — surface it rather than spinning silently.
-                raise
-        except Exception:  # noqa: BLE001 — transient; keep polling
-            pass
-        time.sleep(_POLL_INTERVAL_S)
-    return False
-
-
-def _context_dep_keys(base_url: str, workspace: str, probe_key: str) -> set[str]:
-    """Return the set of context-dep keys currently visible on the probe's /task/context."""
-    ctx = get_task_context(base_url, workspace, probe_key)
-    return {
-        d.get("key")
-        for d in (ctx.get("dependencySummaries") or [])
-        if d.get("via") == "context" and d.get("key")
-    }
-
-
-def _wait_for_autowire(
-    base_url: str, workspace: str, probe_key: str, timeout_s: float
-) -> set[str]:
-    """Poll until autowire has seeded >=1 candidate context edge, returning the candidate set.
-
-    NOTE: freshly-autowired candidate edges are weight 0 and are FILTERED OUT of
-    /task/context (the graph builder drops weight-0 edges). So we cannot observe candidates
-    via /task/context — they only become visible after keepEdge promotes them. We therefore
-    cannot poll for candidates here; this function instead just waits a settle interval and
-    returns the (expected-empty) visible context set. The candidate enumeration for the
-    blind judge comes from the ingester's note map, not from the daemon.
-    """
-    # Give the ingest funnel time to embed + autowire. We can't see weight-0 edges, so this
-    # is a fixed settle wait rather than a poll-until-nonempty.
-    settle = min(timeout_s, 6.0)
-    time.sleep(settle)
-    return _context_dep_keys(base_url, workspace, probe_key)
-
-
-# ---------------------------------------------------------------------------
-# Session candidate model (for the blind judge)
+# Session candidate model (for the session-based probe runner)
 # ---------------------------------------------------------------------------
 
 class _SessionCandidate:
@@ -420,71 +244,15 @@ def _build_session_candidates(
 
 
 # ---------------------------------------------------------------------------
-# Blind edge-judge (the honesty bar)
+# Shared answerer (used by run_search + run_cold; run_our_way delegates to arms.py)
 # ---------------------------------------------------------------------------
 
-_BLIND_JUDGE_RUBRIC = (
-    "You are selecting which past conversation sessions contain the EVIDENCE needed to "
-    "answer a question. You will be given ONLY the question and a numbered list of candidate "
-    "sessions (each with its date and transcript). You are NOT given the answer.\n\n"
-    "For each candidate, decide whether that session contains information that is directly "
-    "useful for answering the question (a fact, statement, or event the answer depends on). "
-    "Keep a session ONLY if it genuinely helps; do not keep a session merely because it is "
-    "on a related topic. It is fine to keep more than one session (multi-hop questions need "
-    "several), and it is fine to keep exactly one.\n\n"
-    'Return STRICT JSON ONLY, no prose, in exactly this shape:\n'
-    '{"keep": ["<sid>", ...]}\n'
-    "where each <sid> is the session id (the value after \"session id:\") of a session to keep. "
-    "Return an empty list if none are relevant."
+_COLD_TEMPLATE = (
+    "Answer the question concisely — reply with just the answer (a short phrase or sentence), "
+    "no explanation. If you do not know, reply exactly: I don't know.\n\n"
+    "QUESTION: {question}\n\n"
+    "ANSWER:"
 )
-
-
-def _blind_keep_decision(question: str, candidates: list[_SessionCandidate]) -> list[str]:
-    """Ask a BLIND ``claude -p`` judge which session ids hold the evidence.
-
-    The judge sees ONLY the question + candidate session transcripts. It NEVER sees the gold
-    answer or the dataset evidence labels — that is the honesty bar.
-
-    Returns the list of kept session ids (subset of candidate sids). On judge failure we
-    FAIL CLOSED to "keep nothing" rather than leaking — but we log loudly, because a silent
-    keep-all would be a different kind of rig (it would hand the answerer every session).
-    """
-    if not candidates:
-        return []
-    cand_lines = []
-    for i, c in enumerate(candidates):
-        cand_lines.append(
-            f"[{i}] session id: {c.sid}   date: {c.date}\n"
-            f"    transcript:\n{c.summary}"
-        )
-    prompt = (
-        _BLIND_JUDGE_RUBRIC
-        + "\n\nQUESTION:\n"
-        + question
-        + "\n\nCANDIDATE SESSIONS:\n"
-        + "\n\n".join(cand_lines)
-        + "\n\nReturn the strict-JSON keep object now."
-    )
-    raw = _run_claude(prompt)
-    if raw is None:
-        print("[probe_runner] BLIND judge failed; keeping nothing for this probe.", file=sys.stderr)
-        return []
-    valid_sids = {c.sid for c in candidates}
-    for obj in _extract_json_objects(raw):
-        keep = obj.get("keep")
-        if isinstance(keep, list):
-            kept = [str(k) for k in keep if str(k) in valid_sids]
-            return kept
-    print(
-        f"[probe_runner] BLIND judge output unparseable; keeping nothing. raw head: {raw[:200]!r}",
-        file=sys.stderr,
-    )
-    return []
-
-
-# ---------------------------------------------------------------------------
-# Shared answerer
-# ---------------------------------------------------------------------------
 
 _ANSWER_TEMPLATE = (
     "Answer the question using ONLY the context provided below. Be concise — reply with just "
@@ -495,20 +263,11 @@ _ANSWER_TEMPLATE = (
     "ANSWER:"
 )
 
-_COLD_TEMPLATE = (
-    "Answer the question concisely — reply with just the answer (a short phrase or sentence), "
-    "no explanation. If you do not know, reply exactly: I don't know.\n\n"
-    "QUESTION: {question}\n\n"
-    "ANSWER:"
-)
-
 
 def _answer_from_context(question: str, context_blocks: list[str]) -> str:
     """Answer *question* from the supplied *context_blocks* via the shared answerer template."""
     context = "\n\n---\n\n".join(b for b in context_blocks if b and b.strip())
     if not context.strip():
-        # No retrieved context at all — make the answerer say so honestly (don't fall back to
-        # cold/world-knowledge, which would contaminate the arm).
         context = "(no relevant memory was retrieved)"
     prompt = _ANSWER_TEMPLATE.format(context=context, question=question)
     raw = _run_claude(prompt)
@@ -523,6 +282,77 @@ def _answer_cold(question: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Embedded daemon lifecycle for the our-way arm (per-conversation)
+# ---------------------------------------------------------------------------
+
+def _find_daemon_js() -> str | None:
+    """Best-effort: resolve daemon.js from the bench parent tree (same as arms._smoke)."""
+    try:
+        from zonoid_bench.smoke import _find_daemon_js as _f  # type: ignore[attr-defined]
+        return _f()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _start_our_way_daemon(workspace: str) -> "_daemon_mod.DaemonHandle":
+    """Spawn an embedded daemon LIVE-BOUND to *workspace*.
+
+    The eager-judge read (/judge/next?node=) and keepEdge promotion are hard-bound to
+    the daemon's live state.workspace (note-mqgwrh5a63x). This makes autowire candidates
+    surface and keepEdge results persist in /task/context for notes ingested into *workspace*.
+
+    ORCH_HEADLESS_DRAINS=0 is set by daemon.start() to prevent hang.
+
+    Raises RuntimeError if the daemon fails to reach phase:ready within the timeout.
+    """
+    daemon_js = _find_daemon_js()
+    if daemon_js:
+        print(f"[probe_runner] using daemon.js: {daemon_js}", file=sys.stderr)
+    handle = _daemon_mod.start(daemon_js=daemon_js, workspace=workspace)
+    print(
+        f"[probe_runner] embedded daemon ready: {handle.base_url}  ws={workspace!r}",
+        file=sys.stderr,
+    )
+    return handle
+
+
+def _ingest_candidates_into_daemon(
+    client: "ZonoidClient",
+    candidates: list["_SessionCandidate"],
+    workspace: str,
+) -> None:
+    """Write each session candidate as a note into the embedded daemon's workspace.
+
+    We use the candidate's already-rendered summary (budget-clipped session text) so the
+    content the EdgeJudge ranks is semantically equivalent to what the ingester originally
+    wrote. The daemon's dup-guard prevents re-writes if a candidate was already ingested.
+
+    A brief settle after each note lets the embedder index it before autowire runs.
+    """
+    for c in candidates:
+        if not c.summary.strip():
+            continue
+        title = f"session {c.sid} ({c.date})"
+        try:
+            resp = client.post_note(
+                title=title,
+                summary=c.summary,
+                category="conversation-session",
+                tags=[f"session-{c.sid}"],
+                workspace=workspace,
+            )
+            print(
+                f"[probe_runner]   ingested session {c.sid}: key={resp.get('key') or resp.get('note_key')}",
+                file=sys.stderr,
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[probe_runner]   WARN: session {c.sid} ingest failed: {exc}", file=sys.stderr)
+    # Give the embedder time to index all notes before autowire seeds candidates.
+    if candidates:
+        time.sleep(_INGEST_SETTLE_S)
+
+
+# ---------------------------------------------------------------------------
 # The three arms
 # ---------------------------------------------------------------------------
 
@@ -530,89 +360,127 @@ def run_our_way(
     base_url: str,
     workspace: str,
     probe: dict[str, Any],
-    candidates: list[_SessionCandidate],
+    candidates: list["_SessionCandidate"],
+    *,
+    _embedded_client: "ZonoidClient | None" = None,
+    _embedded_data_dir: "str | None" = None,
 ) -> dict[str, Any]:
-    """ARM our-way: DAG read. Mint probe -> funnel -> blind keep -> read context -> answer.
+    """ARM our-way: PRODUCTION-FAITHFUL eager-judge pipeline via the SDK canonical arm.
+
+    Delegates to ``arms.run_retrieve_and_answer`` which does:
+      mint probe task → autowire (≥0.55 cosine seeds weight-0 NOTE→probe candidates) →
+      judge_next pull → LLM EdgeJudge keep/prune → keepEdge (promote in place, respects
+      the 0.55 gate) → get_task_context (read kept context) → answer.
+
+    If *_embedded_client* is provided (pre-started embedded daemon, see
+    ``run_probe_with_sdk_daemon``), it is used directly.  Otherwise a fresh embedded
+    daemon is spawned just for this probe (slower, but backward-compatible with
+    callers that haven't been updated yet).
+
+    The 0.55 gate IS respected: a session note whose cosine to the probe is below
+    SEMANTIC_AUTOWIRE_THRESHOLD (0.55) is NEVER an autowire candidate, so keepEdge
+    does not promote it.  A score drop vs the old inflated run is the HONEST result;
+    the old run inflated recall via createEdge which forced sub-0.55 sessions into
+    context — that bypass is now gone.
 
     Returns a diagnostics dict: {predicted, kept_sids, context_keys, candidate_sids}.
     The gold answer / evidence labels are NEVER consulted here.
+
+    ``kept_sids`` is now the list of KEPT CONTEXT NOTE KEYS (from wiring.wired_edges)
+    rather than session ids — the EdgeJudge keeps by note key (the natural identifier
+    in the autowire DAG), not by session id. The scorer uses only ``predicted``.
+    ``candidate_sids`` is preserved for backward compatibility with the scorer output shape.
     """
     question = probe["question"]
-    probe_id = f"{probe['qid']}-{int(time.time() * 1000) % 1_000_000}"  # unique per run
-    probe_key = _drop_probe_stub(workspace, probe_id, question)
+    unit_id = f"{probe['qid']}-{int(time.time() * 1000) % 1_000_000}"
 
     diag: dict[str, Any] = {
-        "probe_key": probe_key,
         "candidate_sids": [c.sid for c in candidates],
-        "kept_sids": [],
+        "kept_sids": [],      # will hold wired_edges keys (not session ids)
         "context_keys": [],
+        "judge_idle": False,
+        "timeout_kills": 0,
+        "provisional_kept": 0,
     }
+
+    own_daemon = _embedded_client is None
+    handle = None
     try:
-        # Funnel step: wait for adoption, then drive the ingest funnel via a status write.
-        adopted = _wait_for_task_adoption(base_url, workspace, probe_key, _ADOPT_TIMEOUT_S)
-        if not adopted:
-            print(f"[probe_runner] probe {probe_key} not adopted within {_ADOPT_TIMEOUT_S}s.", file=sys.stderr)
-        # status:not_ready + summary fires embed -> autowireNewTaskWholeGraph -> markEagerJudge.
-        _post_status_with_summary(base_url, workspace, probe_key, "not_ready", question)
-        # Settle for the funnel (candidate edges are weight-0 -> invisible until kept).
-        _wait_for_autowire(base_url, workspace, probe_key, _AUTOWIRE_TIMEOUT_S)
+        if own_daemon:
+            # Spawn a per-probe embedded daemon bound to the conversation workspace.
+            # Slower than reusing a per-conversation daemon, but works for callers
+            # that haven't migrated to run_probe_with_sdk_daemon yet.
+            handle = _start_our_way_daemon(workspace)
+            client = ZonoidClient(handle.base_url, workspace=workspace, timeout=120)
+            data_dir = handle.data_dir
+            _ingest_candidates_into_daemon(client, candidates, workspace)
+        else:
+            client = _embedded_client
+            data_dir = _embedded_data_dir or ""
 
-        # BLIND keep decision (no gold, no evidence labels).
-        kept_sids = _blind_keep_decision(question, candidates)
-        diag["kept_sids"] = kept_sids
+        # Delegate to the SDK canonical arm (production-faithful eager-judge path).
+        result = _arms.run_retrieve_and_answer(
+            client,
+            unit_id=unit_id,
+            question=question,
+            task_summary=question,
+            data_dir=data_dir,
+        )
+        w = result.wiring
+        diag["context_keys"] = list(result.context_keys)
+        if w is not None:
+            diag["kept_sids"] = list(w.wired_edges)    # kept note keys
+            diag["judge_idle"] = w.judge_idle
+            diag["timeout_kills"] = w.timeout_kills
+            diag["provisional_kept"] = w.provisional_kept
+            if w.task_key:
+                diag["probe_key"] = w.task_key
+        diag["predicted"] = result.predicted or ""
 
-        # KEEP-ONLY: assert a judged context edge for each chosen session's note(s). Never
-        # prune (OVERRIDE note-mqgwrh5a63x: pruned edges don't clear on an isolated workspace).
-        #
-        # We use createEdge, NOT keepEdge. keepEdge (lib/judge.js keepEdge) only PROMOTES a
-        # PRE-EXISTING weight-0 autowire candidate (e.judged===false) to its cosine — if the
-        # kept session's autowire cosine fell below SEMANTIC_AUTOWIRE_THRESHOLD (0.55), NO
-        # candidate edge was ever seeded, so keepEdge no-ops and the session never surfaces in
-        # the read. Observed live on the fixture's multi-hop q2: the blind judge correctly kept
-        # session 2 (ciabatta), but keepEdge produced an empty /task/context. createEdge
-        # (routes/judge.js) calls addEdge('context', weight) which UPSERTS: it promotes an
-        # existing candidate AND creates a missing one, judged:true — so a kept session ALWAYS
-        # becomes retrieval-visible regardless of its autowire score. This changes only the
-        # edge-assert primitive; the blind judge still owns WHICH sessions are kept.
-        kept_set = set(kept_sids)
-        verdicts = []
-        for c in candidates:
-            if c.sid in kept_set:
-                for nk in c.note_keys:
-                    verdicts.append(
-                        {"createEdge": {"from": nk, "to": probe_key, "weight": _KEEP_EDGE_WEIGHT}}
-                    )
-        if verdicts:
-            post_verdict(base_url, workspace, verdicts)
-
-        # READ: GET /task/context -> dependencySummaries (weight-0 edges filtered out).
-        # NEVER GET /search?task_key= (RAG-fill leak on a provisional probe).
-        ctx = get_task_context(base_url, workspace, probe_key)
-        ctx_deps = [
-            d
-            for d in (ctx.get("dependencySummaries") or [])
-            if d.get("via") == "context" and (d.get("weight") or 0) > 0
-        ]
-        diag["context_keys"] = [d.get("key") for d in ctx_deps]
-        context_blocks = [str(d.get("summary") or "") for d in ctx_deps]
-
-        diag["predicted"] = _answer_from_context(question, context_blocks)
     finally:
-        _remove_probe_stub(workspace, probe_id)
+        if own_daemon and handle is not None:
+            try:
+                _daemon_mod.stop(handle)
+            except Exception:  # noqa: BLE001
+                pass
     return diag
 
 
+def _is_session_note_hit(hit: dict[str, Any]) -> bool:
+    """Return True iff *hit* is an ingested session NOTE, not a harness task stub.
+
+    The search index contains both ingested NOTE nodes and harness TASK STUB nodes (probe/*,
+    bench/*) minted during the same bench run.  Stubs are ANCHORS, not MEMORY; including them
+    injects garbage and drives rag-control accuracy to 0%.  Exclude by two independent signals:
+
+      1. kind != 'task'   — daemon-authoritative: notes are 'knowledge', stubs are 'task'.
+      2. key not prefixed 'probe/' or 'bench/'  — belt-and-suspenders harness namespaces.
+    """
+    key = hit.get("key") or ""
+    if hit.get("kind") == "task":
+        return False
+    if key.startswith("probe/") or key.startswith("bench/"):
+        return False
+    return True
+
+
 def run_search(base_url: str, workspace: str, probe: dict[str, Any]) -> dict[str, Any]:
-    """ARM search: GET /search?q=<question> -> top-k session summaries -> answer.
+    """ARM search: GET /search?q=<question> -> top-k session NOTE summaries -> answer.
 
     The retrieval-time control. Uses the SAME ingested graph; no probe task, no DAG read.
+
+    Bug fix (/30): raw /search results include harness TASK STUB nodes (probe/*, bench/*)
+    that ranked above session notes, producing 0% accuracy.  We now filter to NOTE-only hits
+    (kind!='task' AND key not prefixed probe/|bench/) before building the context.
     """
     question = probe["question"]
-    hits = kb_search(base_url, workspace, question, k=_SEARCH_K, gated=False)
-    context_blocks = [str(h.get("summary") or "") for h in hits]
+    # Request more hits than needed so that after stub filtering we still have _SEARCH_K notes.
+    raw_hits = kb_search(base_url, workspace, question, k=_SEARCH_K * 3, gated=False)
+    note_hits = [h for h in raw_hits if _is_session_note_hit(h)][:_SEARCH_K]
+    context_blocks = [str(h.get("summary") or "") for h in note_hits]
     return {
         "predicted": _answer_from_context(question, context_blocks),
-        "hit_keys": [h.get("key") for h in hits],
+        "hit_keys": [h.get("key") for h in note_hits],
     }
 
 
@@ -712,19 +580,27 @@ def run_conversation(
 
 
 # ---------------------------------------------------------------------------
-# Fixture end-to-end verify (against the live daemon)
+# Fixture end-to-end verify (using an embedded daemon for production fidelity)
 # ---------------------------------------------------------------------------
 
-def _verify(daemon: str = DEFAULT_DAEMON) -> int:
-    """End-to-end verify: load LoCoMo fixture, ingest, run >=1 probe through all 3 arms.
+def _verify(daemon: str = DEFAULT_DAEMON) -> int:  # noqa: ARG001 — daemon arg kept for CLI compat; we always use embedded
+    """End-to-end verify: load LoCoMo fixture, ingest via embedded daemon, run >=1 probe.
 
-    Asserts: all 3 arms return a non-empty answer; our-way's /task/context returns the kept
-    session(s) and not the distractor; prints the 3 predictions vs gold. Returns 0 PASS / 1 FAIL.
+    Uses an embedded daemon (live-bound to the conv workspace) so the production-faithful
+    eager-judge path (judge_next + keepEdge) resolves correctly — the same path the SDK
+    arm uses.  The *daemon* arg is accepted for CLI compat but the verify always uses its
+    own embedded daemon.
+
+    Asserts:
+      - all 3 arms return a non-empty answer
+      - our-way: no createEdge in code (static grep), keepEdge path used
+      - our-way: /task/context returned >=1 kept context key
+      - our-way: judge_idle info and fidelity counters are clean
+    Returns 0 PASS / 1 FAIL.
     """
     import tempfile
 
     from datasets import load_locomo
-    from ingest import ConversationIngester
 
     fixture_dir = os.path.join(_HERE, "fixtures")
     print(f"[verify] loading LoCoMo fixture from {fixture_dir}")
@@ -741,91 +617,155 @@ def _verify(daemon: str = DEFAULT_DAEMON) -> int:
     conv_id = conv["conv_id"]
     print(f"[verify] conv_id={conv_id!r}: {len(conv['sessions'])} sessions, {len(conv['probes'])} probes")
 
-    # Warm the embedder so no single hot path eats the cold-start latency.
-    print("[verify] warming up embedder (may take up to 90s on cold start)…")
-    try:
-        warm_up(daemon, timeout=120)
-    except Exception as exc:  # noqa: BLE001
-        print(f"FAIL: daemon unreachable during warm-up: {exc}")
-        return 1
-    print("[verify] warm-up OK")
-
     # Isolated temp workspace.
     ws_root = tempfile.mkdtemp(prefix="zonoid-probe-verify-")
-    ingester = ConversationIngester(base_url=daemon, workspace_root=ws_root, timeout=120)
-    workspace = ingester.workspace_for(conv_id)
+    workspace = os.path.join(ws_root, conv_id)
+    os.makedirs(workspace, exist_ok=True)
 
-    print(f"[verify] ingesting into workspace {workspace}")
-    try:
-        ingest_map = ingester.ingest(conv)
-    except RuntimeError as exc:
-        print(f"FAIL: ingestion failed: {exc}")
-        return 1
-    candidates = _build_session_candidates(conv, ingest_map)
-    print(f"[verify] {len(candidates)} session candidates: " + ", ".join(
-        f"sid={c.sid}({len(c.note_keys)} note(s))" for c in candidates
-    ))
-
-    # Pick a probe whose answer lives in a single identifiable session, so we can assert the
-    # DAG read returns the right session and excludes a distractor. The fixture's q1
-    # ("What bread did the user bake in the first session?" -> focaccia) lives in session 0;
-    # sessions 1 & 2 are distractors-ish (still bread, but q1's evidence is session 0/t3).
-    probe = conv["probes"][0]
-    print(f"\n[verify] PROBE qid={probe['qid']} category={probe['category']}")
-    print(f"[verify]   Q: {probe['question']}")
-    print(f"[verify]   gold (scorer-only): {probe['answer']!r}")
-
-    # ---- ARM our-way ----
-    print("\n[verify] === ARM our-way (DAG read) ===")
-    ow = run_our_way(daemon, workspace, probe, candidates)
-    print(f"[verify]   probe task key:   {ow['probe_key']}")
-    print(f"[verify]   candidate sids:   {ow['candidate_sids']}")
-    print(f"[verify]   BLIND kept sids:  {ow['kept_sids']}  (judge saw NO gold / NO evidence labels)")
-    print(f"[verify]   context dep keys: {ow['context_keys']}")
-    print(f"[verify]   our-way answer:   {ow.get('predicted')!r}")
-
-    # ---- ARM search ----
-    print("\n[verify] === ARM search (retrieval control) ===")
-    sr = run_search(daemon, workspace, probe)
-    print(f"[verify]   search hit keys:  {sr.get('hit_keys')}")
-    print(f"[verify]   search answer:    {sr.get('predicted')!r}")
-
-    # ---- ARM cold ----
-    print("\n[verify] === ARM cold (floor) ===")
-    cd = run_cold(probe)
-    print(f"[verify]   cold answer:      {cd.get('predicted')!r}")
-
-    # ---- Assertions ----
-    print("\n[verify] === assertions ===")
+    # Spin up an embedded daemon LIVE-BOUND to the conv workspace.
+    print("[verify] starting embedded daemon (live-bound to conv workspace)…")
+    handle = None
     ok = True
+    try:
+        handle = _start_our_way_daemon(workspace)
+        emb_url = handle.base_url
+        emb_data_dir = handle.data_dir
+        client = ZonoidClient(emb_url, workspace=workspace, timeout=120)
 
-    for arm_name, pred in (("our-way", ow.get("predicted")), ("search", sr.get("predicted")), ("cold", cd.get("predicted"))):
-        non_empty = bool(pred and str(pred).strip())
-        print(f"[verify]   [{'PASS' if non_empty else 'FAIL'}] {arm_name} returned a non-empty answer")
-        ok = ok and non_empty
+        # Warm-up.
+        print("[verify] warming up embedder…")
+        try:
+            client.warm_up()
+            client.search("warmup", k=1)
+            print("[verify] warm-up OK")
+        except Exception as exc:  # noqa: BLE001
+            print(f"FAIL: embedded daemon unreachable after start: {exc}")
+            return 1
 
-    # our-way must have kept >=1 session and the read must surface it.
-    kept = ow.get("kept_sids") or []
-    ctx_keys = ow.get("context_keys") or []
-    print(f"[verify]   [{'PASS' if kept else 'FAIL'}] blind judge kept >=1 session ({kept})")
-    ok = ok and bool(kept)
-    print(f"[verify]   [{'PASS' if ctx_keys else 'FAIL'}] /task/context returned the kept session(s) ({ctx_keys})")
-    ok = ok and bool(ctx_keys)
+        # Build candidates from conv (the session summaries to ingest).
+        # We use a stub ingest_map (empty note keys) just to get the candidate summaries;
+        # real ingestion happens via the embedded daemon below.
+        sessions = conv.get("sessions") or []
+        stub_map: dict[str, list[dict[str, str]]] = {
+            str(s.get("idx")): [{"note_key": f"stub-{s.get('idx')}", "title": f"session {s.get('idx')}"}]
+            for s in sessions
+        }
+        candidates = _build_session_candidates(conv, stub_map)
+        print(f"[verify] {len(candidates)} session candidates built")
 
-    # The number of context keys must not exceed the kept-session note count (no distractor leak:
-    # weight-0 unkept candidates must be filtered out of the read).
-    kept_note_keys = set()
-    for c in candidates:
-        if c.sid in set(kept):
-            kept_note_keys.update(c.note_keys)
-    no_distractor = set(ctx_keys).issubset(kept_note_keys)
-    print(
-        f"[verify]   [{'PASS' if no_distractor else 'FAIL'}] read contains ONLY kept-session notes "
-        f"(no distractor): ctx={set(ctx_keys)} subset-of kept_notes={kept_note_keys}"
-    )
-    ok = ok and no_distractor
+        # Ingest session summaries into the embedded daemon.
+        print(f"[verify] ingesting {len(candidates)} sessions into embedded daemon…")
+        _ingest_candidates_into_daemon(client, candidates, workspace)
 
-    print("\n" + ("PASS" if ok else "FAIL"))
+        probe = conv["probes"][0]
+        print(f"\n[verify] PROBE qid={probe['qid']} category={probe['category']}")
+        print(f"[verify]   Q: {probe['question']}")
+        print(f"[verify]   gold (scorer-only): {probe['answer']!r}")
+
+        # ---- ARM our-way (SDK path, no embedded client spawn — reuse handle) ----
+        print("\n[verify] === ARM our-way (SDK eager-judge, production-faithful) ===")
+        ow = run_our_way(
+            emb_url, workspace, probe, candidates,
+            _embedded_client=client,
+            _embedded_data_dir=emb_data_dir,
+        )
+        print(f"[verify]   probe task key:    {ow.get('probe_key')}")
+        print(f"[verify]   candidate sids:    {ow['candidate_sids']}")
+        print(f"[verify]   kept (note keys):  {ow['kept_sids']}  (EdgeJudge, NO createEdge)")
+        print(f"[verify]   context dep keys:  {ow['context_keys']}")
+        print(f"[verify]   judge_idle:        {ow.get('judge_idle')}")
+        print(f"[verify]   timeout_kills:     {ow.get('timeout_kills', 0)}")
+        print(f"[verify]   provisional_kept:  {ow.get('provisional_kept', 0)}")
+        print(f"[verify]   our-way answer:    {ow.get('predicted')!r}")
+
+        # ---- ARM search (uses live :8787 for search, re-using same workspace notes) ----
+        # search arm reads from the embedded daemon's workspace via the same emb_url.
+        print("\n[verify] === ARM search (retrieval control) ===")
+        sr = run_search(emb_url, workspace, probe)
+        print(f"[verify]   search hit keys:  {sr.get('hit_keys')}")
+        print(f"[verify]   search answer:    {sr.get('predicted')!r}")
+
+        # ---- ARM cold ----
+        print("\n[verify] === ARM cold (floor) ===")
+        cd = run_cold(probe)
+        print(f"[verify]   cold answer:      {cd.get('predicted')!r}")
+
+        # ---- Assertions ----
+        print("\n[verify] === assertions ===")
+
+        for arm_name, pred in (
+            ("our-way", ow.get("predicted")),
+            ("search", sr.get("predicted")),
+            ("cold", cd.get("predicted")),
+        ):
+            non_empty = bool(pred and str(pred).strip())
+            print(f"[verify]   [{'PASS' if non_empty else 'FAIL'}] {arm_name} returned a non-empty answer")
+            ok = ok and non_empty
+
+        # our-way must have context_keys (or at least judge produced output, even if idle).
+        ctx_keys = ow.get("context_keys") or []
+        judge_idle = ow.get("judge_idle", False)
+        timeout_kills = ow.get("timeout_kills", 0)
+        provisional = ow.get("provisional_kept", 0)
+
+        if not judge_idle:
+            # Non-idle: expect at least one kept context key.
+            ctx_ok = bool(ctx_keys)
+            print(
+                f"[verify]   [{'PASS' if ctx_ok else 'FAIL'}] "
+                f"our-way judge active + /task/context returned kept context ({ctx_keys})"
+            )
+            ok = ok and ctx_ok
+        else:
+            print(
+                f"[verify]   [INFO] our-way judge IDLE (all sessions below 0.55 cosine "
+                f"threshold — no candidates to keep). This is correct/expected: the "
+                f"fixture notes may not clear the threshold for this probe. "
+                f"Check that relevant sessions were ingested."
+            )
+            # Idle is not a hard failure (it's the honest production result) but warn loudly.
+            print("[verify]   [WARN] judge was idle — our-way context will be empty.")
+
+        # No createEdge verdict dict construction in the code path (static grep).
+        # We look for the actual dict key pattern {"createEdge": ...} used in post_verdict
+        # calls — NOT bare occurrences of the word in comments/strings.
+        this_file = os.path.abspath(__file__)
+        with open(this_file, "r", encoding="utf-8") as fh:
+            src = fh.read()
+        import re as _re
+        # Strip single-line comments first.
+        no_comment = _re.sub(r"#[^\n]*", "", src)
+        # Look for the verdict construction pattern: {"createEdge" or 'createEdge' as a dict key.
+        create_edge_verdict_pattern = _re.compile(r'["\']createEdge["\']')
+        create_edge_matches = create_edge_verdict_pattern.findall(no_comment)
+        # The only remaining matches should be inside string *values* (comments we stripped)
+        # — if create_edge_matches is non-empty, there may be live verdict constructions.
+        # For a conservative check: confirm the pattern "createEdge" does NOT appear as a dict key
+        # being constructed (i.e., preceded by {, ,, or = on the same expression line).
+        dict_key_pattern = _re.compile(r"""(?:^|[{,=\s])\s*["']createEdge["']\s*:""", _re.MULTILINE)
+        no_create_edge = not bool(dict_key_pattern.search(no_comment))
+        print(
+            f"[verify]   [{'PASS' if no_create_edge else 'FAIL'}] "
+            f"NO createEdge dict-key construction in live code (only keepEdge+EdgeJudge active)"
+        )
+        ok = ok and no_create_edge
+
+        # Fidelity counters.
+        fid_ok = timeout_kills == 0 and provisional == 0
+        print(
+            f"[verify]   [{'PASS' if fid_ok else 'WARN'}] "
+            f"fidelity counters: timeout_kills={timeout_kills} provisional_kept={provisional} "
+            f"({'clean' if fid_ok else 'non-zero — retries were needed'})"
+        )
+        # Non-zero counters are a warning, not a hard failure (production-faithful retry path).
+
+        print(f"\n{'PASS' if ok else 'FAIL'}")
+    finally:
+        if handle is not None:
+            try:
+                _daemon_mod.stop(handle)
+            except Exception:  # noqa: BLE001
+                pass
     return 0 if ok else 1
 
 

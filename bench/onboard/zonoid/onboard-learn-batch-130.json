@@ -1,0 +1,61 @@
+{
+  "kept": [
+    {
+      "title": "context-gate and ask-gate are twin abstain/ask-by-default gates with identical shipped thresholds",
+      "summary": "lib/context-gate.js (inject-vs-abstain) and lib/ask-gate.js (predict-vs-ask) share the SAME four-guard shape and calibrated DEFAULTS: cosThreshold 0.50, gapThreshold 0.25 (external-gap), marginThreshold 0.08, localityThreshold 2 (of 4 project-locality categories), requireEmpirical true. Both default to the safe action (abstain / ask) and only fire on a high-confidence, specific, project-local, empirical note match. Change one set of thresholds and you almost certainly want to change the other.",
+      "evidence": "lib/ask-gate.js:43-51 DEFAULTS; lib/context-gate.js:48-56 DEFAULTS",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "external-gap, not cosine/margin, is the load-bearing discriminator; cosine floor was lowered 0.55->0.50",
+      "summary": "MiniLM pulls a tight cluster of topically-adjacent orchestrator notes into a 0.50-0.55 cosine band, so neither a raw cosine cut nor a top1-top2 margin cut separates a true positive from useless-but-topical matches. The discriminating signal is external-gap (fraction of the note's content tokens recurring in the task text): the one real positive measured externalGap 0.34 vs every topical negative <=0.17. The cosine floor was dropped from 0.55 to 0.50 because the only positive label (resolveOwner / note-mq7kyiir6sx) sat at top1=0.548, margin=0.017 and the old gate abstained and MISSED the win. Thresholds are calibrated on n=1 positive — provisional.",
+      "evidence": "lib/context-gate.js:27-43 (header rationale + DEFAULTS comment)",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Only EMPIRICAL project-local notes can fire the gates; general principles/best-practices are rejected by design",
+      "summary": "requireEmpirical and the projectLocality guard mean a note must be concrete project-local scar-tissue (a gotcha, a decision-with-reason, a root cause) to be injected or to predict a user preference. General PRINCIPLES ('always prefer X', 'best practice') deliberately do NOT qualify — the base model already knows them, so injecting them is pure overhead. A vague topical note will never clear the gate, which is why KB authoring guidance insists notes be written empirically and project-locally.",
+      "evidence": "lib/context-gate.js:14-24; lib/ask-gate.js DEFAULTS requireEmpirical/localityThreshold",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Learned ask/edge classifiers run in SHADOW; live source flips heuristic->learned only via a one-way promotion",
+      "summary": "The hand-tuned heuristic is the live decider by default. A separately-trained logistic classifier (scripts/ask-clf-*) runs ALONGSIDE in shadow, writing shadow_decision/shadow_conf to .graph/ask-journal.jsonl as training signal WITHOUT deciding. lib/ask-promote.js runs a comparator each cycle and only flips .graph/ask-clf/mode.json from 'heuristic' to 'learned' (one-way, shadow->enforce) once the model beats the heuristic by a margin over a stable window. A missing model/mode file degrades to pure heuristic, so the gate stays usable offline. Same pattern mirrors edge-clf/mode.json.",
+      "evidence": "lib/ask-gate.js:33-46; lib/ask-promote.js:6-19",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Abstain-by-default exists to avoid the 'over-deliberation tax' measured in bench/report-v2..v7",
+      "summary": "The gates default to abstain because the benchmark found that on self-solvable tasks every orchestrator-ON arm did MORE work than OFF — injecting context the model didn't need is not free: it pays consult-overhead C (cache cost to hold the graph) AND nudges the model into extra deliberation. The whole point of the context-need gate is to suppress that tax by injecting only on a confident empirical match. This is why 'predict by default / inject only when confident' is a hard project stance, not mere caution.",
+      "evidence": "lib/context-gate.js:3-8 (header, refs bench/report-v2..v7)",
+      "kind": "decision",
+      "source": "discovered"
+    }
+  ],
+  "rejected": [
+    { "candidate": "0: G4 legacy-id needs both retrieval+note-text fix", "reason": "unverifiable" },
+    { "candidate": "1: cron-next abstain is correct, no applicable note", "reason": "restatement" },
+    { "candidate": "2: fix requires updating the note text", "reason": "unverifiable" },
+    { "candidate": "3: adjustments require a new note from observation", "reason": "generic" },
+    { "candidate": "4: en-US/de-DE sumAmounts locale gotcha", "reason": "restatement" },
+    { "candidate": "5: retrieval miss (winner ranks 3rd) re-embed", "reason": "unverifiable" },
+    { "candidate": "6: must be checked against regression suite", "reason": "generic" },
+    { "candidate": "7: winner note not #1 so gate never evaluates", "reason": "restatement" },
+    { "candidate": "8: KB fixes for dedup/re-embedding", "reason": "unverifiable" },
+    { "candidate": "9: an event object must have (task-transcript spec)", "reason": "restatement" },
+    { "candidate": "10: protocol must be reproducible and publishable", "reason": "generic" },
+    { "candidate": "11: must produce a valid signal", "reason": "generic" },
+    { "candidate": "12: accounts for overhead so it doesn't confound quality", "reason": "generic" },
+    { "candidate": "13: do not write implementation code", "reason": "generic" },
+    { "candidate": "14: return null when denominator is 0 (computeRatio spec)", "reason": "restatement" },
+    { "candidate": "15: large cache_read_input_tokens inflate gross/net (bench-metric spec)", "reason": "restatement" },
+    { "candidate": "16: mutate store.tasks[taskId] only on success (claim-task spec)", "reason": "restatement" },
+    { "candidate": "17: if only one of DOM/DOW restricted it must match (cron spec)", "reason": "generic" },
+    { "candidate": "18: Feb 30/Apr 31 never match, continue search (cron spec)", "reason": "generic" },
+    { "candidate": "19: rows with non-finite tokens are skipped (compute-ratio spec)", "reason": "restatement" }
+  ]
+}

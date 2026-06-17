@@ -220,7 +220,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/guidance' && m === 'GET') {
     const T = targetOverlay(null, u);  // honors ?workspace= via targetOverlay
     const settled = judge.resolveSettledClusterGuidance(T.ov);
-    if (settled.length) { T.save(); notifyChange(); }
+    const ambiguous = judge.resolveAmbiguousClusterGuidance(T.ov);
+    if (settled.length || ambiguous.length) { T.save(); notifyChange(); }
     const all = overlayStore.pendingGuidance(T.ov);
     send(res, 200, { pending: all.filter((g) => g.severity !== 'review'), review: all.filter((g) => g.severity === 'review') }); return true;
   }
