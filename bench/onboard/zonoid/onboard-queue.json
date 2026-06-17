@@ -1,6 +1,6 @@
 {
   "total": 1691,
-  "cursor": 150,
+  "cursor": 190,
   "kept": [
     {
       "title": "Five escalation triggers ship default-ON; catch-all burns at 1e6 tokens",
@@ -456,6 +456,146 @@
       "evidence": "lib/context-gate.js:3-8 (header, refs bench/report-v2..v7)",
       "kind": "decision",
       "source": "discovered"
+    },
+    {
+      "title": "Overlay snapshot is authoritative for task structure; the native file is a live echo",
+      "summary": "When buildGraph first sees a Claude native task it adopts a frozen snapshot ({subject, description, status, blockedBy, owner, metadata, snapshotted_at}) into overlay.snapshots; that snapshot — not the native .json file — is authoritative for structure. When the native file is later removed by the cleanupPeriodDays retention sweep, aggregateWorkspace falls back to the snapshot, so tasks don't vanish from the graph. Editing only the native file won't necessarily win.",
+      "evidence": "lib/overlay.js:56-61 (snapshots field doc)",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "status:'ready' is a SENTINEL in overlay sync meaning 'override cleared', not a real status",
+      "summary": "emitDiff writes status_changed -> 'ready' for any task whose status override is ABSENT in the new overlay but present in prev (i.e. the override was deleted, e.g. on releaseClaim). On rehydrate the code explicitly skips node.status === 'ready' so the sentinel is never persisted back as a real status. Treating 'ready' as a stored status value will corrupt the diff logic.",
+      "evidence": "lib/overlay.js:120-124, 299-309",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Incremental edge-judge gates on epoch / judgedAtEpoch / judgeCursor — not on cosine alone",
+      "summary": "overlay.epoch is a monotonic counter bumped on every note/task ADD. A note is re-pullable by the edge-judge only when judgedAtEpoch[key] < epoch; a 'no edge' verdict stamps judgedAtEpoch[key]=epoch so it stays out of the queue until the graph actually changes. judgeCursor persists the judge's queue position across daemon restarts so it never re-walks the whole graph. judgedClusters is the node-dedup analogue keyed by cluster signature.",
+      "evidence": "lib/overlay.js (epoch/judgedAtEpoch/judgeCursor/judgedClusters field docs); lib/judge.js",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Shipped default heartbeat loop controls: 5M token budget, 6250 iters, 30-300s poll, batch 4, conc 6; idle wakeup 7200s",
+      "summary": "When no loop is active the system tells the agent to call loop_control({action:'start', tokenBudget:5000000, maxIterations:6250, minPoll:30, maxPoll:300, batch:4, maxConcurrency:6}). The idle heartbeat ScheduleWakeup uses delaySeconds=7200 (2h). These exact defaults govern autonomous-loop cost/cadence and can't be guessed off-repo.",
+      "evidence": "lib/ready-flag-cache.js:53; lib/classify-assemble.js:9 / lib/classify-compose.js:13",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Heldout bench fixtures encode A/B arms in the directory name: <challenge>-<off|on>-<gated|search|iterative>-<N>",
+      "summary": "bench/heldout/frozen holds frozen attempt dirs named like api-contract-off-0, claim-task-on-gated-0, bench-metric-on-search-1 — the suffix is the experiment arm (orchestrator off vs on, and the on-mode: gated/search/iterative) plus an index, paired with a per-challenge grader in bench/heldout/graders/<challenge>.grader.js. This is how the self-learn benchmark compares conditions; the naming is the contract.",
+      "evidence": "bench/heldout/frozen/* dir names; bench/heldout/graders/*.grader.js",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Cross-session task IDs must be namespaced {session}/{id}",
+      "summary": "Native Claude Code task IDs are local to a session; any cross-session/workspace reference must be the namespaced key `{session-uuid}/{id}`. native-tasks.js unions all session task files into one workspace list keyed this way (deps are intra-session blockedBy, namespaced to the same session).",
+      "evidence": "lib/native-tasks.js:60-63",
+      "kind": "invariant",
+      "source": "8"
+    },
+    {
+      "title": "native-tasks.js is the SOLE adapter for the undocumented on-disk task layout",
+      "summary": "The `~/.claude/tasks/{session}/{id}.json` layout (and the projects-dir encoding) is UNDOCUMENTED / internal to Claude Code. native-tasks.js is deliberately the single adapter for it — if a Claude Code version changes the format, only this file should need updating. Don't read those files anywhere else.",
+      "evidence": "lib/native-tasks.js:1-6",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "mkcert is required because TLS validates the cert issuer, not localhost",
+      "summary": "A self-signed cert can't shortcut local HTTPS: TLS checks the issuer against the trust store regardless of locality, so `mkcert -install` (adds a locally-trusted CA) is mandatory to serve the daemon's /mcp over HTTPS. This is the only reason the setup wizard insists on mkcert over a hand-rolled cert.",
+      "evidence": "skills/setup/SKILL.md:28-42; bench/ingest/CANDIDATE-KB.md:75-76",
+      "kind": "gotcha",
+      "source": "5"
+    },
+    {
+      "title": "Daemon ports: HTTP 8787, HTTPS 8788; inline UI only via custom connector",
+      "summary": "Shipped defaults: PORT=8787 (dashboard/graph), HTTPS_PORT=8788 (/mcp over locally-trusted HTTPS). The HTTPS custom-connector path is the ONLY surface that renders inline MCP Apps UI in the desktop app — local stdio MCP servers do not render it; otherwise you fall back to the preview panel.",
+      "evidence": "skills/setup/SKILL.md:12,28-31,50-52",
+      "kind": "decision",
+      "source": "2"
+    },
+    {
+      "title": "The PreToolUse write-gate FAILS OPEN when the daemon is unreachable",
+      "summary": "orch-gate.js denies a Write/Edit/Bash-write ONLY on a definitive 'no claim for this session'; if the daemon is unreachable, or the hook itself throws, it allows the edit (fail-open by design — never brick edits). So the gate is a guardrail, not a hard security boundary against a down daemon.",
+      "evidence": "hooks/orch-gate.js:8-9,95,147",
+      "kind": "gotcha",
+      "source": "5"
+    },
+    {
+      "title": "Gate enforces writes happen INSIDE the registered worktree, but can't verify task legitimacy",
+      "summary": "Once a task has a registered worktree, the gate denies writes outside that worktree path (use the path from branch_task). Honest limit: it checks for a claimed in_progress task + worktree existence, not status truth — a rubber-stamp claim still passes it.",
+      "evidence": "hooks/orch-gate.js:104-127; bench/ingest/CANDIDATE-KB.md:78",
+      "kind": "gotcha",
+      "source": "5"
+    },
+    {
+      "title": "The self-learn planner is ADDITIVE-ONLY — it caused a runaway once",
+      "summary": "Hard rules born from a real runaway: the planner NEVER cancels/supersedes/replans an in-flight task (that's the user's call), NEVER duplicates an open task (suggest_links + dedup BEFORE TaskCreate), caps output at 1-3 initiatives, and STOPs rather than fabricate busywork — graph bloat is failure.",
+      "evidence": "scripts/ingest-docs.js:197-199; skills/self-learn-planner/SKILL.md",
+      "kind": "decision",
+      "source": "10"
+    },
+    {
+      "title": "A stuck optimization ESCALATES to a human, never self-drops or auto-replans",
+      "summary": "decideOptimize returns 'stuck' (→ request_guidance) when the last K rounds produced no real win (no winner, or guardrail regression). 'stuck' deliberately outranks the silent stop reasons (diminishing/budget) because a problem failing every round needs human judgement, not a quiet drop. The only human-in-loop path is escalate — NEVER auto-cancel/replan.",
+      "evidence": "lib/optimize.js:6-9,72-80",
+      "kind": "invariant",
+      "source": "12"
+    },
+    {
+      "title": "Optimize-loop defaults: epsilon=0.01, diminishing_rounds(K)=3, fixed precedence",
+      "summary": "DEFAULTS = { epsilon: 0.01, diminishing_rounds: 3 }; mis-set (negative/NaN) knobs fall back to defaults so a bad knob can't silently disable the control. Decision precedence (first match wins): target-converged → stuck → diminishing-converged → budget → iterate.",
+      "evidence": "lib/optimize.js:12,53,63",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "ORCH_WORKSPACE overrides cwd-as-workspace (dogfood-finding #1)",
+      "summary": "mcp-graph.js used to post process.cwd() as the daemon workspace on startup, so any process loading the orchestrator MCP (e.g. a headless agent in a git worktree) hijacked the GLOBAL workspace pointer — repointing the live graph and blinding agents to the real workspace's learnings. Now honors ORCH_WORKSPACE when set (else cwd).",
+      "evidence": "commit a7166b05 (git-note); lib/mcp-core.js, mcp-graph.js",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Bench PLUMBING under-counts the always-resident MCP schema tax",
+      "summary": "MCP tool-schema tokens are cached into the system prompt and amortized across the session, NOT attributable per-message. So PLUMBING captures only tool_use/tool_result round-trips and under-counts the always-resident schema overhead. Read NET as an upper bound on work-only cost and PLUMBING as a lower bound on true orchestration overhead.",
+      "evidence": "bench/report-v2.md:29-36",
+      "kind": "gotcha",
+      "source": "17"
+    },
+    {
+      "title": "Bench WIN requires all four guards to PASS; METRIC=(H_off−H_on)×5 − C",
+      "summary": "The v4 benchmark decomposes each arm into W (real work=diffTokens), H (hardness=output−W), C (consult overhead=ON−OFF cache cost). A WIN needs all four guards: precondition H_off≥2×W_off, fairness both-solve≥0.8, margin METRIC>0 and >pooled stdev, corroboration W_on/W_off≤1.1. Any guard failing → NO-WIN.",
+      "evidence": "commit 7f329ec (git-note); bench/report-v4.md:80",
+      "kind": "convention",
+      "source": "18"
+    },
+    {
+      "title": "Cross-workspace ghost edges store on the CONSUMER, foreign status resolved lazily",
+      "summary": "A dependency on a node in another workspace is a 'ghost edge': it lives in the consumer's overlay (fromWorkspace set means the provider lives elsewhere), and the foreign status is resolved on demand (cached, cycle-guarded) rather than stored. Don't look for it in the provider's graph.",
+      "evidence": "lib/overlay.js:393",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Heartbeat-loop code work is hold-merge: completes as MERGE PENDING, never merges to main",
+      "summary": "Under the autonomous orch-loop, every spawned code task works in an isolated orch/attempt/<slug> worktree, commits there, and completes as 'MERGE PENDING' — it never edits the live checkout and never merges to main. The self-learn-judge picks a winner but (in hold-merge mode) does NOT merge; merge is a deliberate human/dispatcher step.",
+      "evidence": "commit d2fbfd7 (git-note)",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "/agent/done CASCADES to release the task an agent held (fixes phantom in_progress)",
+      "summary": "Agent liveness fix #11: /agent/done releases the in_progress task the agent held; a staleness sweep releases abandoned claims (kill/crash/idle/cross-session) before reading native and busts the agg cache so reverted status shows same-build; releaseClaim also reverts native status to keep write-through in sync.",
+      "evidence": "commit a02a3e8 (git-note)",
+      "kind": "gotcha",
+      "source": "discovered"
     }
   ],
   "rejected": [
@@ -714,6 +854,118 @@
     {
       "candidate": "19: rows with non-finite tokens are skipped (compute-ratio spec)",
       "reason": "restatement"
+    },
+    {
+      "candidate": "0: no lastHeartbeatMs counts as stale",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "1: pure function deterministic",
+      "reason": "generic"
+    },
+    {
+      "candidate": "2: touching intervals overlap/merge",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "3: do not use any libraries",
+      "reason": "generic"
+    },
+    {
+      "candidate": "4: function must be pure no I/O",
+      "reason": "generic"
+    },
+    {
+      "candidate": "5: amount rendered as string",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "6: skip bad row, no NaN poison",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "7: always return Number never NaN, empty=0",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "8: read the layered view of statuses",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "9: getTask(id) -> {id,title,status}",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "10: never run the daemon before in this repo",
+      "reason": "generic"
+    },
+    {
+      "candidate": "11: implementation must not rely (truncated)",
+      "reason": "unverifiable"
+    },
+    {
+      "candidate": "12: wire into the overlay lifecycle",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "13: setDiagnostics/getDiagnostics must be exported",
+      "reason": "stale"
+    },
+    {
+      "candidate": "14: paragraph 2 of the README writeup",
+      "reason": "generic"
+    },
+    {
+      "candidate": "15: const batch = require('./batch.js')",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "16: processAll must process every item",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "17: use batch.submit, no own processing path",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "18: truncate sub-second, do not round",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "19: input is always a non-negative integer",
+      "reason": "generic"
+    },
+    {
+      "candidate": "0: handle all of the following correctly",
+      "reason": "generic"
+    },
+    {
+      "candidate": "1: Always return a non-empty string",
+      "reason": "generic"
+    },
+    {
+      "candidate": "3: Do not actually delete anything",
+      "reason": "generic"
+    },
+    {
+      "candidate": "6: 9 kept git-notes",
+      "reason": "generic"
+    },
+    {
+      "candidate": "7: snapshots are coarse / provenance anchors",
+      "reason": "generic"
+    },
+    {
+      "candidate": "14: rigging criterion, no warm-vs-cold differential",
+      "reason": "stale"
+    },
+    {
+      "candidate": "15: mkcert-install-ca / dont-clobber / GC retention list",
+      "reason": "generic"
+    },
+    {
+      "candidate": "16: corpus — self-similarity caveat",
+      "reason": "generic"
     }
   ],
   "pending": [
