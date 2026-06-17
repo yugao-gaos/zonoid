@@ -55,6 +55,10 @@ async function waitForPing(ms = 10000) {
 async function mcpTool(name, args, session) {
   const headers = { 'Content-Type': 'application/json' };
   if (session) headers['mcp-session-id'] = session;
+  // P3: no daemon-global workspace — the /mcp route resolves the target workspace from the
+  // x-orch-workspace header (or ?workspace=, or rpc args.workspace). Stamp it the way a real MCP
+  // client does so the underlying graph WRITE/READ ops land on THIS workspace.
+  headers['x-orch-workspace'] = WS;
   const res = await fetch(`${BASE}/mcp`, {
     method: 'POST',
     headers,
