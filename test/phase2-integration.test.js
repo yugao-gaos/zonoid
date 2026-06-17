@@ -123,8 +123,10 @@ function spawnDaemon() {
     // ------------------------------------------------------------------
     // (B) writeStatus routing per namespace via /overlay/status
     // ------------------------------------------------------------------
-    const rootLocal = await req('POST', '/mark-root', { task_key: `local/${SHARED_ID}`, reason: 'test root' });
-    const rootCursor = await req('POST', '/mark-root', { task_key: `cursor/${SHARED_ID}`, reason: 'test root' });
+    // P3: no daemon-global workspace — mark-root must name the workspace so it clears the
+    // unwired flag on the RIGHT overlay (else the subsequent in_progress claim 409s as unwired).
+    const rootLocal = await req('POST', '/mark-root', { task_key: `local/${SHARED_ID}`, reason: 'test root', workspace: WS });
+    const rootCursor = await req('POST', '/mark-root', { task_key: `cursor/${SHARED_ID}`, reason: 'test root', workspace: WS });
     ok('(B) mark-root local accepted', rootLocal.status === 200);
     ok('(B) mark-root cursor accepted', rootCursor.status === 200);
     // DG1/DG2 claim gate: register a worktree per claimed key + supply session_id.
