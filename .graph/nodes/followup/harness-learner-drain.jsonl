@@ -210,3 +210,8 @@
 {"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-16T19:04:54.128Z"}
 {"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-16T19:09:29.256Z"}
 {"evt":"timestamps_set","id":"followup/harness-learner-drain","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-14T06:29:14.527Z","lastChanged":1781636694117,"lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-16T19:09:29.256Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-17T14:10:48.449Z"}
+{"evt":"assignee_set","id":"followup/harness-learner-drain","workspace":"/Users/imyu/Desktop/zonoid","assignee":"learner-drain-05d846b3","actor":"overlay-sync","ts":"2026-06-17T14:10:48.449Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-17T14:11:08.307Z"}
+{"evt":"summary_set","id":"followup/harness-learner-drain","workspace":"/Users/imyu/Desktop/zonoid","summary":"Ran exact requested learner drain command in /Users/imyu/Desktop/zonoid. It exited with code 2 and printed usage because --repo expects an absolute repo path; no remaining candidate count was reported.","actor":"overlay-sync","ts":"2026-06-17T14:11:08.307Z"}
+{"evt":"status_changed","id":"followup/harness-learner-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-17T14:11:08.496Z"}
