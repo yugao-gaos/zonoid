@@ -12,7 +12,6 @@ const PORT = k.PORT;
 function isExempt(p) {
   const s = k.normalizePath(p);
   if (!s) return false;
-  if (s.startsWith('/tmp/') || s.startsWith('/private/tmp/')) return true;
   if (s === '/dev/null' || s === '/dev/stderr' || s === '/dev/stdout') return true;
   if (/\/\.claude\/projects\/.*\/memory\//.test(s)) return true;
   if (s.endsWith('/.claude/settings.json') || s.endsWith('/.claude/settings.local.json')) return true;

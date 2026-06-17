@@ -128,14 +128,12 @@ is_exempt() {
   p=$(normalize_path "$1")
   [ -z "$p" ] && return 1
   case "$p" in
-    /tmp/*|/private/tmp/*)                             return 0 ;;
     /dev/null|/dev/stderr|/dev/stdout)                 return 0 ;;
     */.claude/projects/*/memory/*)                     return 0 ;;
     */.claude/settings.json|*/.claude/settings.local.json) return 0 ;;
     */.claude/keybindings.json|*/.claude/launch.json)  return 0 ;;
     */.mcp.json)                                       return 0 ;;
     */CLAUDE.md)                                       return 0 ;;
-    /tmp/*.log|/private/tmp/*.log)                     return 0 ;;
     */logs/*.log)                                      return 0 ;;
     */scratch/*)                                       return 0 ;;
     */.claude/orchestrator/tasks/*)                  return 0 ;;
