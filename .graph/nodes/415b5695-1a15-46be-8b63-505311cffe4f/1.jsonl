@@ -1,2 +1,0 @@
-{"evt":"edge_added","from":"415b5695-1a15-46be-8b63-505311cffe4f/1","to":"codex/local-wip-status","kind":"context","actor":"overlay-sync","ts":"2026-06-17T00:35:09.074Z","weight":0.6,"origin":"asserted"}
-{"evt":"edge_promoted","from":"415b5695-1a15-46be-8b63-505311cffe4f/1","to":"codex/local-wip-status","kind":"context","actor":"overlay-sync","ts":"2026-06-17T00:39:35.245Z","weight":0.6,"origin":"asserted"}

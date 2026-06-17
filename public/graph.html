@@ -4384,6 +4384,12 @@ const cloudPos={};             // id -> {x,y} preserved across ticks so it doesn
 let cloudArchiveOpen=false;    // whether the server-archive bundle is expanded
 let cloudSig='';               // signature of node/link set; only reheat sim when it changes
 let cloudSearchText='';        // current force-cloud search query
+let cloudSearchKeys=new Set(); // ids returned by /search for the current force-cloud query
+let cloudSearchResolvedText='';
+let cloudSearchPending=false;
+let cloudSearchError=false;
+let cloudSearchSeq=0;
+let cloudSearchTimer=null;
 let flowZoom=null;             // shared d3.zoom on the dagre svg (Frontier + Focus)
 const dagState={frontier:{init:false,tf:null}, focus:{init:false,tf:null}};  // per-view pan/zoom, so switching doesn't lose it
 function truncate(s,n){ s=String(s||''); return s.length>n?s.slice(0,n)+'…':s; }
@@ -4949,7 +4955,17 @@ function setView(v){
   if(v!=='focus') localStorage.setItem('orchView',v);   // focus is never persisted
   document.getElementById('cloud').classList.toggle('show', v==='cloud');
   document.getElementById('cloudSearchWrap').classList.toggle('show', v==='cloud');
-  if(v!=='cloud'){ cloudSearchText=''; const si=document.getElementById('cloudSearchInput'); if(si) si.value=''; }
+  if(v!=='cloud'){
+    cloudSearchText='';
+    cloudSearchKeys=new Set();
+    cloudSearchResolvedText='';
+    cloudSearchPending=false;
+    cloudSearchError=false;
+    if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
+    const si=document.getElementById('cloudSearchInput'); if(si) si.value='';
+  } else if(cloudSearchText.trim()) {
+    scheduleCloudSearch();
+  }
   document.getElementById('flow').classList.toggle('show', v!=='cloud');     // Frontier + Focus share the dagre pane
   document.querySelectorAll('#viewToggle button').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
   if(v!=='cloud' && cloudSim) cloudSim.stop();
@@ -4975,7 +4991,61 @@ function updateFocusBtn(){
   btn.style.borderColor=active?'#f85149':'#30363d';
 }
 document.querySelectorAll('#viewToggle button').forEach(b=> b.addEventListener('click', ()=>setView(b.dataset.view)) );
-document.getElementById('cloudSearchInput').addEventListener('input', e=>{ cloudSearchText=e.target.value; if(lastState) renderCloud(lastState); });
+function scheduleCloudSearch(){
+  const query=cloudSearchText.trim();
+  const q=query.toLowerCase();
+  if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
+  if(!query){
+    cloudSearchSeq++;
+    cloudSearchKeys=new Set();
+    cloudSearchResolvedText='';
+    cloudSearchPending=false;
+    cloudSearchError=false;
+    if(lastState) renderCloud(lastState);
+    return;
+  }
+  cloudSearchPending=true;
+  cloudSearchError=false;
+  if(lastState) renderCloud(lastState);
+  const seq=++cloudSearchSeq;
+  cloudSearchTimer=setTimeout(async()=>{
+    cloudSearchTimer=null;
+    let items=[];
+    const ctl=new AbortController();
+    const timeout=setTimeout(()=>ctl.abort(),10000);
+    try{
+      const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50',{ signal:ctl.signal });
+      const data=await res.json();
+      items=Array.isArray(data)?data:(data.results||[]);
+      if(seq!==cloudSearchSeq) return;
+      const keys=new Set();
+      for(const item of items){
+        const key=String(item&&item.key||'');
+        if(!key) continue;
+        keys.add(key);
+        const parent=key.split('#')[0];
+        if(parent&&parent!==key) keys.add(parent);
+      }
+      cloudSearchKeys=keys;
+      cloudSearchResolvedText=q;
+      cloudSearchPending=false;
+      cloudSearchError=false;
+    }catch(e){
+      if(seq!==cloudSearchSeq) return;
+      cloudSearchKeys=new Set();
+      cloudSearchResolvedText=q;
+      cloudSearchPending=false;
+      cloudSearchError=true;
+    }finally{
+      clearTimeout(timeout);
+    }
+    if(currentView==='cloud'&&lastState) renderCloud(lastState);
+  },180);
+}
+document.getElementById('cloudSearchInput').addEventListener('input', e=>{
+  cloudSearchText=e.target.value;
+  scheduleCloudSearch();
+});
 
 const STATUS_COLOR={not_ready:'#6e7681',ready:'#e3b341',in_progress:'#58a6ff',tested:'#2dd4bf',done:'#3fb950',failed:'#ff7b72',canceled:'#484f58',note:'#d29922'};
 function renderCloud(d){
@@ -4988,7 +5058,10 @@ function renderCloud(d){
   const byId=Object.fromEntries(tasks.map(t=>[t.id,t]));
   for(const t of archivedList) byId[t.id]=t;
   const q=cloudSearchText.trim().toLowerCase();
-  const matchSearch=n=>!q||n.archive||(n.t&&((n.t.label||'').toLowerCase().includes(q)||(n.t.description||'').toLowerCase().includes(q)));
+  const remoteFresh=q&&cloudSearchResolvedText===q&&!cloudSearchError;
+  const localMatch=n=>n.t&&((n.t.label||'').toLowerCase().includes(q)||(n.t.description||'').toLowerCase().includes(q));
+  const remoteMatch=n=>remoteFresh&&cloudSearchKeys.has(n.id);
+  const matchSearch=n=>!q||n.archive||localMatch(n)||remoteMatch(n);
 
   // links from blocking deps, context deps, and overlay edges (skip ghosts/cross-ws)
   const linkSet=[];
@@ -5071,7 +5144,7 @@ function renderCloud(d){
     .attr('stroke', n=>(!n.archive && n.id===selected)?'#58a6ff':'none').attr('stroke-width',2);
   const matchCount=q?simNodes.filter(n=>!n.archive&&matchSearch(n)).length:0;
   const countEl=document.getElementById('cloudMatchCount');
-  if(countEl) countEl.textContent=q?(matchCount+' match'+(matchCount===1?'':'es')):'';
+  if(countEl) countEl.textContent=q?(cloudSearchPending?'searching...':(matchCount+' match'+(matchCount===1?'':'es'))):'';
   nodeAll.select('title')
     .text(n=> n.archive?'Archived — stale done/canceled and superseded notes':'');
   nodeAll.select('text')

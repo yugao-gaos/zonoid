@@ -85956,6 +85956,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -88605,6 +88606,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -103686,6 +103688,369 @@
       "timestamps": {
         "firstSeen": "2026-06-16T17:43:35.281Z",
         "lastChanged": "2026-06-16T18:05:37.702Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "4b12fe1f-4bef-4c82-908d-0f07f56f3638/9": {
+      "id": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/9",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": "Added windowsHide:true to every production child_process launch (spawn/spawnSync/exec/execSync/execFile/execFileSync) across lib/, scripts/, hooks/, routes/, daemon.js, bin/, mcp-graph.js, packages/cli, bench/ (non-archive). Cosmetic-only: hides the Windows console-window popup, zero flag/gate/behavior change. Excluded test/* and bench/heldout/frozen/**; left ~30 RegExp.exec() matches untouched. Verified via a comment-stripping scanner — PASS, every in-scope launch carries the flag (0 misses); diff is purely additive (102 added lines, all contain windowsHide; 0 touch .exec). Extended test/headless-drain.test.js with 2 windowsHide assertions on the runDrain spawn seam; node --test green at 44/44. Committed 31bab35 on orch/attempt/4b12fe1f-4bef-4c82-908d-0f07f56f3638-9 (39 files). Note: a graph post-commit hook printed a benign '.git/GRAPH_CHECKPOINT: Not a directory' warning (worktree .git is a file) — did not block the commit.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Suppress Windows console popups: add windowsHide:true to headless-drain + onboard-learn spawns",
+        "description": "The headless drains spawn child processes every 5-min tick; on Windows each opens a visible console window because NO spawn in the repo sets windowsHide:true (confirmed: zero occurrences). User reports the popups as very distracting.\n\nFIX (cosmetic only — do NOT change the ORCH_HEADLESS_DRAINS flag/gate or any drain behavior):\n- lib/headless-drain.js ~L128: add `windowsHide: true` to the `spawn(bin, args, {...})` options in runDrain. This covers the judge (claude.exe) and the node wrappers for learner/label.\n- scripts/onboard-learn.js ~L205: add `windowsHide: true` to the `spawnSync(CLAUDE, args, {...})` options in runLearner (the learner's inner claude -p).\n- Sweep for any OTHER child_process spawn/spawnSync in the drain or daemon-launch path and add windowsHide:true (e.g. hooks/start-daemon.js's `spawn(process.execPath, [daemon], {detached, stdio:'ignore'})` so the daemon boot doesn't pop a window either).\n- Add/extend a test asserting runDrain passes windowsHide:true in its spawn options (mock spawn, assert opts.windowsHide===true). Keep existing tests green.\n\nwindowsHide:true is a boolean that only hides the Windows console window; it has no functional effect on the spawn, so this is low-risk. Branch off main; flat task. ACCEPTANCE: windowsHide:true on all drain/daemon-launch spawns; tests green; no flag/gate/behavior changes.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "feature": "headless-drains",
+          "kind": "polish"
+        },
+        "snapshotted_at": "2026-06-16T19:09:49.925Z"
+      },
+      "assignee": "windowshide-all-d9a2",
+      "timestamps": {
+        "firstSeen": "2026-06-16T18:14:30.092Z",
+        "lastChanged": "2026-06-16T20:44:08.668Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "59fc18e1-744e-4f7a-9093-a8e12d43087b/8": {
+      "id": "59fc18e1-744e-4f7a-9093-a8e12d43087b/8",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": "Built bench/agent-memory/probe_runner.py (+ mcp-off.json) on attempt branch, commit 126b633. Answers QA probes 3 ways over an already-ingested isolated workspace, sharing one claude -p answerer + one answer template. our-way (DAG read): mint probe as file-drop task stub -> status:not_ready+summary fires ingest funnel (embed+autowire) -> BLIND claude -p edge-judge (sees ONLY question+candidate session transcripts, never gold/evidence labels) picks evidence sessions -> assert judged context edges (createEdge) for kept sessions -> read dependencySummaries off GET /task/context (weight-0 filtered) -> answer from those only; never /search?task_key=. search: GET /search top-k -> answer. cold: no memory. Output: one JSONL record/(probe,arm) {arm,conv_id,qid,category,question,gold,predicted}+diagnostics; gold recorded for scorer only, never in any prediction path. Honesty bar confirmed blind. VERIFIED live (locomo10 fixture, daemon up): --verify PASSes all 6 assertions; full run answers single-hop q1 (focaccia) AND multi-hop q2 (ciabatta) correctly via our-way while plain search retrieves wrong session for q2 and answers \"I don't know\" — the headline win. KEY FIX recorded as note-mqh0gwz1mxc: keep uses createEdge not keepEdge (keepEdge only promotes pre-existing autowire candidates, silently no-ops on sessions whose autowire cosine <0.55 — broke multi-hop). Windows quirks recorded as note-mqh0h2hktq7: claude -p prompt MUST go via stdin (positional long args mangled by .cmd shim) + resolve CLI via shutil.which + force utf-8. Scorer/scorecard NOT built (out of scope).",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Harness T4: probe runner — 3 arms (our-way DAG read · search-RAG control · cold floor)",
+        "description": "Python, stdlib-only (embeddable py312embed, FULL PATH; per note-mqgz977tbqe). Build bench/agent-memory/probe_runner.py using T3's ConversationIngester (ingest.py) + zonoid_lifecycle.py. For each conversation+probe, run 3 arms and emit per-probe records to results.jsonl {arm, conv_id, qid, category, question, gold, predicted}.\n\nARM our-way (DAG read): mint the probe as a TASK node via the file-drop stub (spike note-mqgwr63ms7q step 2: drop {id,subject,status:\"pending\"} JSON under <CLAUDE_PLUGIN_DATA|~/.claude/orchestrator>/tasks/<workspaceKey(ws)>/<harness>/<id>.json; key=\"<harness>/<id>\"); drive ingest via POST /overlay/status status:\"not_ready\" (NOT in_progress — trips the claim gate) so autowire seeds note→probe candidate edges; run the REAL LLM edge-judge (claude -p) to choose which candidate session notes to KEEP — **BLIND, WITHOUT the gold answer or evidence labels** (this is the honesty bar — the keep decision must not see gold, or it is an oracle leak); keepEdge the chosen sessions via POST /judge/verdict {verdicts:[{keepEdge}]}; READ GET /task/context?key=<probe>&workspace=<ws> (returns ONLY kept weight>0 sessions; unkept/pruned are weight-0 filtered — robust per override note-mqgwrh5a63x); answer from ONLY those summaries via claude -p. Do NOT use /search?task_key= (RAG-fill leak on provisional/isolated ws).\n\nARM search (retrieval-time control): same ingested graph; answer from GET /search?q=<question>&workspace=<ws> top-k session summaries via claude -p. The apples-to-apples 'normal RAG memory' arm.\n\nARM cold (floor / rigging guard): answer with NO memory (or only the latest session) via claude -p.\n\nAll arms share the same answerer model + answer-prompt template + k. The gold answer + evidence labels are used ONLY by the scorer (T5) later — NEVER by the runner's retrieve/keep/answer steps. Scope: probe_runner.py ONLY (not scorer/scorecard). Verify against the live daemon on the fixture (≥1 probe; all 3 arms produce an answer; our-way's /task/context returns the kept evidence session). Commit on the attempt branch before complete_task.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T19:04:49.472Z"
+      },
+      "assignee": "harness-proberunner-8e1a",
+      "timestamps": {
+        "firstSeen": "2026-06-16T18:40:01.006Z",
+        "lastChanged": "2026-06-16T19:04:49.413Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-codex-support": {
+      "id": "codex/fix-codex-support",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Fixed Codex support gaps and merged attempt to main. Changes: explicit session_id support for ScheduleWakeup, create_task id validation, Codex SessionStart forces harness=codex, agent-done rollout fallback uses portable Node filesystem walk instead of GNU find -printf, Bash gates resolve relative write targets against claimed worktrees in shell and Node, Codex hook installer now merges/replaces Zonoid-owned entries while preserving user hooks, docs/package metadata updated, and focused regressions added. Verification passed: mcp-harness-tools (rerun with localhost escalation after sandbox EPERM), cli-init, codex-hooks, codex-usage-cost, orch-gate-bash, schedule-wakeup-contract, mcp-schedule-wakeup, orch-gate, bash -n session-start/agent-done, node --check orch-gate-bash.js, git diff --check.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix Codex support audit gaps",
+        "description": "Implement the Codex support audit fixes: session propagation for Codex MCP/ScheduleWakeup/start_task where possible, force harness=codex on Codex SessionStart, make agent-done rollout fallback portable on macOS, resolve relative Bash write targets against worktrees in shell and Node gates, merge Codex hooks instead of overwriting, validate Codex create_task ids, and update stale docs/package assets. Include focused tests for shared/core and multiplatform behavior.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T21:00:58.472Z"
+      },
+      "assignee": "codex-main-fix-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-16T20:52:41.161Z",
+        "lastChanged": "2026-06-16T21:00:58.251Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-featurebench-verdict-review-issues": {
+      "id": "codex/fix-featurebench-verdict-review-issues",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Fixed review findings: merge verdicts now record non-destructive merge requests instead of canceling, MCP schema includes merge, FeatureBench edges use kind:context, generated AGENTS.md avoids invalid FeatureBench instance task-key writes, and apply-fb-patches.sh supports Windows/POSIX venv layouts. Verification: node test/verdicts.test.js, python3 -m py_compile patch files, bash -n patch script, git diff --check. Full npm run test:all was 158/163 passing; remaining failures were existing retrieval/provider-availability tests outside this change.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix pulled FeatureBench/verdict review issues",
+        "description": "Fix review findings from commit 224a5fe: merge verdict must not cancel tasks, FeatureBench patch must create context edges with the daemon's kind field, generated AGENTS.md must not instruct agents to use FeatureBench instance IDs as task keys for wires_to/status, and apply-fb-patches.sh should support POSIX and Windows venv site-packages paths.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T02:51:55.154Z"
+      },
+      "assignee": "codex-main",
+      "timestamps": {
+        "firstSeen": "2026-06-17T02:46:52.734Z",
+        "lastChanged": "2026-06-17T02:51:55.152Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-review-findings": {
+      "id": "codex/fix-review-findings",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Fixed audit findings on attempt branch orch/attempt/codex-fix-review-findings: default auth now gates all mutating requests plus sensitive reads when ORCH_TOKEN is configured; overlay note projection handles note_nodes missing id; explicit /search no longer applies corroboration filtering meant for task context; embed sidecar stderr no longer inherits test/CLI pipes; npm test runs the real suite; installer shell-string execSync calls were replaced with argv-based spawnSync helpers; backend/autowire tests were isolated from host PATH/rerank state; added auth-gate regression. Verified npm test: 164/164 files passed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix review findings from system audit",
+        "description": "Fix the concrete review findings: close auth gaps on mutating routes including metric measurement, make npm test meaningful, repair failing search/retrieval tests, remove fragile installer shell-string calls, and verify with targeted/full tests.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T03:48:51.012Z"
+      },
+      "assignee": "codex-main",
+      "timestamps": {
+        "firstSeen": "2026-06-17T03:35:58.194Z",
+        "lastChanged": "2026-06-17T03:48:50.697Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-testall-regressions": {
+      "id": "codex/fix-testall-regressions",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Fixed full-suite regressions by allowing validated overlay-only task keys while preserving bare numeric phantom rejection, materializing synthetic snapshots for overlay routes, making mark-root durable against first-seen unwired quarantine, and restoring classify judge/label/learner nudges. Verified npm run test:all: 158/158 files passed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix full test suite regressions",
+        "description": "Fix the current npm run test:all failures after Codex support changes. Focus on the broad graph/overlay/workspace failures reported by test:all: nodeExistsInGraph missing in routes/overlay.js, root marking/claim acceptance failures, workspace read/write target failures, recall outcome terminal status failures, and related overlay/daemon regressions. Verify by rerunning failing tests and npm run test:all if feasible.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T21:18:41.287Z"
+      },
+      "assignee": "codex-main-test-fix",
+      "timestamps": {
+        "firstSeen": "2026-06-16T21:09:05.623Z",
+        "lastChanged": "2026-06-16T21:18:41.283Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/install-orchestrator-skill-client-repos": {
+      "id": "codex/install-orchestrator-skill-client-repos",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented client-repo Codex skill installation on attempt branch orch/attempt/codex-install-orchestrator-skill-client-repos commit b227cc6. Added skills/zonoid-orchestrator/SKILL.md, wired init --harness codex to copy it into .codex/skills/zonoid-orchestrator in the target repo, updated Codex/CLI docs, and added cli-init coverage for install/idempotency. Verified node -c packages/cli/bin/zonoid.js and node test/cli-init.test.js.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Install orchestrator skill into client repos",
+        "description": "Update Zonoid installation/onboarding so the orchestrator/Codex workflow skill or equivalent reusable guidance is installed into the target client repository, not only into the user's global Codex skill directory. Cover Codex adapter setup, repo-local guidance, docs, and tests. Ensure it explains task minting via file-drop create_task and daemon sync.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T00:21:30.418Z"
+      },
+      "assignee": "codex-main",
+      "timestamps": {
+        "firstSeen": "2026-06-17T00:17:56.544Z",
+        "lastChanged": "2026-06-17T00:34:33.540Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/local-wip-status": {
+      "id": "codex/local-wip-status",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Changed dashboard WIP to be local-only: /state now exposes statuses.local_in_progress using the existing vouchedLive agent liveness check, while global in_progress remains unchanged. The graph UI uses local_in_progress for the WIP dock and only applies WIP shine to in-progress nodes assigned to a currently running local agent. Added test/local-wip-status.test.js covering inherited in-progress status without a local agent and stale local agent records.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Keep WIP status local to real local workers",
+        "description": "Investigate and fix WIP status inheritance where tasks in progress elsewhere appear as local WIP without a local agent backing them. Success: local WIP indicators are derived only from local registered workers/worktrees/session evidence, with a focused test or existing test coverage updated.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T00:39:35.201Z"
+      },
+      "assignee": "codex-main",
+      "timestamps": {
+        "firstSeen": "2026-06-17T00:34:57.234Z",
+        "lastChanged": "2026-06-17T00:39:35.199Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/repo-pinned-dashboard-link": {
+      "id": "codex/repo-pinned-dashboard-link",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Updated dashboard links to be repo-pinned. bin/install.js now prints /graph?workspace=<encoded target workspace>. packages/cli/bin/zonoid.js now computes dashboardUrl(cwd), rewrites copied CLAUDE.md dashboard URLs to the client repo path, and prints pinned next-step URLs for all harnesses. Local AGENTS.md/CLAUDE.md now point at the pinned zonoid workspace. Actionable skills/adapter docs and onboarding review output use repo-pinned or parameterized dashboard links. Added cli-init tests for URL encoding and CLAUDE.md rewrite behavior; tests and syntax checks pass.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Generate repo-pinned dashboard links in client instructions",
+        "description": "Update Zonoid's installer/generated instructions so dashboard links include the current/client repo workspace query parameter instead of only the generic /graph URL. Ensure local AGENTS/CLAUDE guidance and install output point agents to the repo-pinned link for the target workspace.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-17T01:10:09.159Z"
+      },
+      "assignee": "codex-main",
+      "timestamps": {
+        "firstSeen": "2026-06-17T01:05:26.080Z",
+        "lastChanged": "2026-06-17T01:10:09.083Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/review-codex-support": {
+      "id": "codex/review-codex-support",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Reviewed Codex support surfaces with a background read-only auditor plus local source/test checks. Main improvement areas: Codex MCP session propagation, forcing harness=codex in SessionStart usage reconcile, portable macOS-safe usage fallback in agent-done.sh, relative Bash write target resolution inside worktrees, true merge behavior for ~/.codex/hooks.json, create_task id validation/path confinement, and stale Codex docs/package asset cleanup.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Review Codex support surfaces",
+        "description": "Audit the repository's Codex support: locate Codex-specific hooks, adapters, settings, docs, tests, and compatibility paths; identify correctness, maintainability, and coverage gaps; return prioritized improvement recommendations without making code changes.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T20:45:35.006Z"
+      },
+      "assignee": "codex-main",
+      "timestamps": {
+        "firstSeen": "2026-06-16T20:41:27.176Z",
+        "lastChanged": "2026-06-16T20:45:34.992Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "d42ebe37-ee9f-46b6-ae21-f6f82464d482/13": {
+      "id": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/13",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": "Fix A: Restored notifyChange(T.ws) on all 13 handler-scoped calls in routes/overlay.js that the phantom-node guard commit had inadvertently stripped to bare notifyChange() — backfill-embeddings and reembed legitimately stay bare (no T context). Fix B: Added nodeExistsInGraph guard to /overlay/gate POST handler before addEdge, rejecting unknown blocking_task_key with 404 and preventing phantom gate nodes. Also added 5 new test cases (Section 15) covering both the rejection and the happy path for /overlay/gate. All 57 tests pass.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix orchestrator footgun: graph WRITE ops must reject unknown task keys (no phantom nodes) + close born-ready bypass",
+        "description": "Root cause of the note-decay mis-wire (see note-mqgs5b1nrec). Two compounding defects:\n(D1) configure_task / block_task / add_dependency / record_decision.wires_to accept a BARE native index ('1') and FABRICATE a phantom node instead of resolving to the canonical '<session-uuid>/N' or rejecting — while READ ops (get_task_detail / suggest_links) correctly reject 'unknown task'. Asymmetric.\n(D2) The real task then sits status:ready, deps:[], blocked:null — a born-ready bypass: a wiring-write failure yields a READY (spawnable) task instead of a stuck one.\n\nSCOPE:\n1. All graph WRITE ops VALIDATE task_key against existing nodes and REJECT unknown keys ('unknown task: <key>'), symmetric with reads — eliminates phantom-node fabrication. (Optional convenience: resolve a bare native index to the CURRENT session's '<uuid>/N', else reject; reject-first is the safety floor.)\n2. Born-ready guard: a task whose wiring write failed must NOT auto-enter 'ready'. Fold into the unified ingestion→embed→wire→judge→ready lifecycle (task 091a4bf1.../28) behind the judging→ready gate (task .../17). This is a NEW born-path bypass — add it to the inventory in note-mqeapqae6jf.\n3. Cheap invariant/detector: flag nodes carrying edges/blocks/config but NO label/kind/native backing (phantoms); surface, never dispatch.\n4. Cleanup/migration: soft-retire the existing phantom nodes '1'..'12'.\n5. Tests: reject-unknown-key on EVERY write op; phantom detector; born-blocked-on-failed-wire.\n\nFlat task — forks off main (no feature branch). Commit onto orch/attempt/<key> before complete_task.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T18:58:45.608Z"
+      },
+      "assignee": "worker-keyfix-13-b4",
+      "timestamps": {
+        "firstSeen": "2026-06-16T15:29:22.014Z",
+        "lastChanged": "2026-06-16T18:42:16.643Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "d42ebe37-ee9f-46b6-ae21-f6f82464d482/14": {
+      "id": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/14",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": "APPROVE: Both fixes verified — 13 handler-scoped notifyChange(T.ws) calls restored in overlay.js (2 intentionally bare calls for backfill-embeddings/reembed confirmed correct), /overlay/gate guarded before all side effects, 57/57 tests pass including 5 new Section 15 gate endpoint tests.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge: review orchestrator key-validation / phantom-node fix (self-learn-judge, single-attempt)",
+        "description": "self-learn-judge SINGLE-ATTEMPT review against the fix attempt branch. Rubric + gates: (1) EVERY graph write op rejects unknown keys (test each: configure_task, block_task, add_dependency, record_decision wires_to, set_status, etc.); (2) no phantom-node creation path remains; (3) born-ready bypass closed / wired into the #17 judging→ready gate; (4) phantom '1'..'12' cleanup is SOFT-retire, not hard delete; (5) tests cover each write op + the born-blocked case. APPROVE → merge to main; KICK BACK → set_status failed + wired record_decision. Never force-merge.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T19:08:37.683Z"
+      },
+      "assignee": "judge-keyfix-14-b2",
+      "timestamps": {
+        "firstSeen": "2026-06-16T15:29:22.015Z",
+        "lastChanged": "2026-06-16T19:08:35.893Z",
         "lastStatus": "done"
       },
       "metrics": null,
@@ -128144,19 +128509,19 @@
       "from": "note:note-mqgqkxlboi0",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/3",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "weight": 0.5
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqgqkxlboi0",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/4",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "weight": 0.5
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqgqkxlboi0",
@@ -132000,34 +132365,34 @@
       "from": "note:note-mqd5cck16d4",
       "to": "ae0d4490-d7c7-4efd-be15-3916d9e059bf/1",
       "kind": "context",
-      "origin": "asserted",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqgqkxlboi0",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/10",
       "kind": "context",
-      "origin": "asserted",
+      "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "weight": 0.5
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqgvjghmn2z",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/10",
       "kind": "context",
-      "origin": "asserted",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqgvjghmn2z",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/11",
       "kind": "context",
-      "origin": "asserted",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqgvsc4wtct",
@@ -134967,7 +135332,287 @@
       "judged": true,
       "score": 0.611,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq85codzzzj",
+      "to": "codex/install-orchestrator-skill-client-repos",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.623,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgztj9lza0",
+      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/9",
+      "kind": "context",
+      "origin": "asserted",
+      "by": "autowire",
+      "judged": false
+    },
+    {
+      "from": "note:note-mqh0gwz1mxc",
+      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/8",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqh0gwz1mxc",
+      "to": "note:note-mqgwrh5a63x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.755,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh0gwz1mxc",
+      "to": "note:note-mqe0szihwix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.714,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh0gwz1mxc",
+      "to": "note:note-mqfn8l1hpiw",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.689,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh0gwz1mxc",
+      "to": "note:note-mqgwr63ms7q",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.689,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh0gwz1mxc",
+      "to": "note:note-mqd5cck16d4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.684,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh0h2hktq7",
+      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/8",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqh0h2hktq7",
+      "to": "note:note-mqgz977tbqe",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.665,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh0h2hktq7",
+      "to": "note:note-mqfla5ogbhw",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.587,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh44bouyi0",
+      "to": "codex/review-codex-support",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqh44bouyi0",
+      "to": "codex/fix-codex-support",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqh5j4p7moe",
+      "to": "codex/fix-testall-regressions",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqh5j4p7moe",
+      "to": "note:note-mqgw1hhxxss",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.622,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh5j4p7moe",
+      "to": "note:note-mqgrzywzw0q",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.618,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "200e8c1e-f491-462e-aa2b-7174b4468475/3",
+      "to": "codex/install-orchestrator-skill-client-repos",
+      "kind": "context",
+      "weight": 0.2,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/3",
+      "to": "codex/repo-pinned-dashboard-link",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "415b5695-1a15-46be-8b63-505311cffe4f/1",
+      "to": "codex/local-wip-status",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5",
+      "to": "codex/fix-featurebench-verdict-review-issues",
+      "kind": "context",
+      "weight": 0.3,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/12",
+      "to": "codex/repo-pinned-dashboard-link",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/3",
+      "to": "codex/local-wip-status",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/30",
+      "to": "codex/local-wip-status",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-featurebench-verdict-review-issues",
+      "to": "followup/restart-orchestrator-daemon-to-pick-up-v-6x5p",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.554,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/investigate-note-dup-guard-test",
+      "to": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/9",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.641,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/investigate-note-dup-guard-test",
+      "to": "followup/restart-daemon-to-activate-note-dup-guar-i3j2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.605,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/investigate-note-dup-guard-test",
+      "to": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/10",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.589,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "dc3ec43f-f1a8-4a77-9403-14c5a43e2e17/13",
+      "to": "codex/install-orchestrator-skill-client-repos",
+      "kind": "context",
+      "weight": 0.2,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "df63dcd1-69b2-48ae-926b-1f360ad2fc0c/4",
+      "to": "codex/install-orchestrator-skill-client-repos",
+      "kind": "context",
+      "weight": 0.205,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "eb25339f-1c71-4fc9-a316-ea83fb6a25d3/1",
+      "to": "codex/repo-pinned-dashboard-link",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "eb25339f-1c71-4fc9-a316-ea83fb6a25d3/3",
+      "to": "codex/install-orchestrator-skill-client-repos",
+      "kind": "context",
+      "weight": 0.2,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/6",
+      "to": "codex/review-codex-support",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
     }
   ],
-  "compacted_at": "2026-06-16T18:54:20.469Z"
+  "compacted_at": "2026-06-17T04:53:14.818Z"
 }
