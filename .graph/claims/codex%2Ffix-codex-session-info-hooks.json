@@ -1,0 +1,11 @@
+{
+  "task_key": "codex/fix-codex-session-info-hooks",
+  "agent_id": "worker-codex-session-info-hooks",
+  "session_id": "019ed6c7-a6b5-7cd1-bcb9-94b9265e7a6f",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-fix-codex-session-info-hooks",
+  "status": "done",
+  "claimed_at": "2026-06-17T18:12:08.506Z",
+  "lease_until": "2026-06-17T19:12:08.506Z",
+  "completed_at": "2026-06-17T18:20:31.537Z"
+}

@@ -52,7 +52,7 @@ Each row is one **harness lifecycle moment** and the daemon endpoint the adapter
 |---|---|---|---|
 | **Session / workspace bind** | `POST /workspace` | Register cwd + main transcript so graph, overlay, and file-drop folders resolve. | Advisory (non-blocking relay) |
 | **Prompt submit** | `POST /classify` *(target)*; today also `POST /context-classify`, `GET /ready`, `POST /route` via `classify.sh` | Route steer, model hint, KB inject/scaffold, ready-task nudge, gate reminders. | Advisory |
-| **Pre-tool write gate** | `GET /active-claim?session=` (+ `GET /session-info`, `GET /task/detail` for metric-branch) | Deny substantive edits without a claim; enforce self-learning worktree branch. | **Blocking** |
+| **Pre-tool write gate** | Shared hook policy + `GET /active-claim?session=` (+ `GET /session-info`, `GET /task/detail` for registered worktree confinement) | Deny substantive edits without a claim; enforce writes inside a claimed task's registered attempt worktree. | **Blocking** |
 | **Pre-tool cooperative stop** | `GET /should-stop?session=&agent=` | Halt worker when cancel/stop flag raised. | **Blocking** |
 | **Agent start** | `POST /agent/start` | Observability, subagent session alias for claim lookup, workspace pin per worker. | Advisory |
 | **Agent stop** | `POST /agent/done` | Mark worker done; **primary usage accounting** (`usage.sample` → `usage_records`); release phantom claims when worker exits without `complete_task`. | Advisory |
@@ -77,7 +77,7 @@ harness guarantees interception.
 | **Hook / plugin install** | `.claude/settings.json` → `hooks/*.sh` | Try `.claude/settings.json` compat first; else `.cursor/hooks.json` | `~/.codex/hooks.json` or `[hooks]` in `config.toml` | `.opencode/plugins/zonoid.ts` (or package) |
 | **Workspace bind** | `SessionStart` → `start-daemon.sh` → `POST /workspace` | `sessionStart` → relay | `SessionStart` → relay | Plugin init / session hook → relay |
 | **Prompt submit** | `UserPromptSubmit` → `classify.sh` → `/classify` *(target)*; today `/context-classify`, `/ready`, `/route` | `beforeSubmitPrompt` or mapped `UserPromptSubmit` → relay | `UserPromptSubmit` → relay | `chat.message` / `event` → relay |
-| **Write gate** | `PreToolUse` `Write\|Edit` → `orch-gate.sh` → `/active-claim` (exit 2) | `preToolUse` → same scripts/relay (exit 2) | `PreToolUse` → `permissionDecision: deny` (fail-closed on unsupported fields) | `tool.execute.before` → **throw** to block (never rely on arg rewrite) |
+| **Write gate** | `PreToolUse` `Write\|Edit` → shared policy in `hooks/lib/gate-policy.js` via `orch-gate.*` (exit 2) | `preToolUse` → normalize payload, then same shared gate (exit 2) | `PreToolUse` → same shared gate, translated to `permissionDecision: deny` | `tool.execute.before` → same shared policy, then **throw** to block (never rely on arg rewrite) |
 | **Cooperative stop** | `PreToolUse` `*` → `orch-stop.sh` → `/should-stop` (exit 2) | `preToolUse` → relay (exit 2) | `PreToolUse` / `Stop` → relay | `tool.execute.before` throw or `event` handler |
 | **Agent start** | `SubagentStart` → `subagent-start.sh` → `/agent/start` | `subagentStart` → relay | hook lifecycle → relay | `event` subscription → relay |
 | **Agent stop** | `SubagentStop` → `subagent-stop.sh` → `/agent/done` | `subagentStop` → relay | `Stop` / lifecycle hook → relay | `event` subscription → relay |
@@ -238,24 +238,29 @@ The orchestrator distinguishes two agent roles in a conversation:
 | Role | Session | May `start_task`? | May edit substantively? |
 |---|---|---|---|
 | **Dispatcher** (main thread) | Parent `session` from `/agent/start` | **No** — daemon returns 409 | Only via trivial patch gate (below) or by dispatching workers |
-| **Worker** (subagent) | Distinct `subagent_session` registered via `/agent/start` | **Yes** — after wiring/`mark_root` | Yes, once claimed (`GET /active-claim` unlocks hooks) |
+| **Worker** (subagent) | Distinct worker/session identity, usually registered by lifecycle hooks or by `start_task` on a registered worktree | **Yes** — after wiring/`mark_root` and `branch_task` | Yes, once claimed and writing inside the registered worktree |
 
 **Dispatcher duties:** decompose work into graph tasks, wire dependencies (`suggest_links` +
 `add_dependency`), dispatch background subagents, orchestrate — keep the main thread free.
-Workers carry exactly two graph duties: `start_task` before any write, `complete_task` with a
-summary at the end.
+Workers carry three graph duties: `branch_task` before `start_task`, `start_task` before any
+write, and `complete_task` with a summary at the end.
 
 ### Claim gate contract
 
-`POST /overlay/status` with `status: in_progress` (MCP `start_task`) checks whether
-`session_id` belongs to a **running subagent** — an agent record where
-`subagent_session === session_id` and `subagent_session !== session`. Parent/dispatcher sessions
-and unregistered `session_id` values are **refused with 409** (`dispatcher sessions cannot claim
-tasks`). `force: true` does not bypass this gate.
+`branch_task` creates the attempt branch/worktree and records it on the task. `POST
+/overlay/status` with `status: in_progress` (MCP `start_task`) then claims the task. The daemon
+refuses claims that do not have a registered worktree, so the enforced order is:
 
-Subagent workers must register first (`POST /agent/start` with `subagent_session`), then claim.
-The write gate (`PreToolUse` → `orch-gate.sh`) trusts `GET /active-claim?session=` for workers
-(zero-tolerance: no claim → exit 2).
+1. `branch_task(task_key)` -> records `git.branch` and `git.worktree`.
+2. `start_task(task_key, agent_id, session_id?)` -> claims the task and self-registers hookless
+   workers when the claim carries `agent_id` and the task has a registered worktree.
+3. Write gates call `GET /active-claim?session=` and `GET /task/detail?key=`; if the task has a
+   registered worktree, non-exempt Write/Edit/apply_patch/Bash file writes must land inside it.
+
+Parent/dispatcher sessions and unregistered sessions are still refused by the daemon. `force: true`
+does not bypass the gate. Lifecycle hooks (`/agent/start`) remain useful for observability and
+session aliasing, but they are no longer the sole source of worker registration for background
+workers whose harness does not fire start hooks.
 
 ### Trivial patch gate (Option A)
 

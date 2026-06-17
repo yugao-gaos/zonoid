@@ -2,8 +2,29 @@
 const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
+const { computeNoteStats, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-journal');
 
 const { JUDGE_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
+
+// Compute the max pairwise cosine similarity among a set of note keys, using their stored vectors.
+// Returns null if fewer than 2 vectors are available or on any error.
+function clusterMaxCosine(overlay, keys) {
+  try {
+    const judgeLib = require('../lib/judge');
+    const vecs = keys.map(k => {
+      const n = overlay.note_nodes && overlay.note_nodes[String(k).replace(/^note:/, '')];
+      return n && Array.isArray(n.vec) && n.vec.length ? n.vec : null;
+    }).filter(Boolean);
+    if (vecs.length < 2) return null;
+    let max = -1;
+    for (let i = 0; i < vecs.length; i++)
+      for (let j = i + 1; j < vecs.length; j++) {
+        const s = judgeLib.cosine(vecs[i], vecs[j]);
+        if (s > max) max = s;
+      }
+    return max >= 0 ? max : null;
+  } catch { return null; }
+}
 
 // Stable key for the standing "harness: judge drain" task. Fixed slug so it is findable by label
 // prefix across daemon restarts; the snapshot substrate keeps it in the graph indefinitely.
@@ -121,6 +142,20 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           id: it.id,
           noteId: it.noteId,
           note: n ? { key: it.noteId, title: n.title, summary: String(n.summary || '').slice(0, 300), validFrom: n.validFrom || null } : { key: it.noteId, title: it.id, summary: '' },
+          winRate: it.winRate,
+          total: it.total,
+          action: it.action,
+        };
+      }
+      if (it.kind === 'reinforce') {
+        const noteId = String(it.noteId || it.id).replace(/^note:/, '');
+        const n = T.ov.note_nodes[noteId];
+        return {
+          kind: 'reinforce',
+          id: it.id,
+          noteId: it.noteId,
+          note: n ? { key: it.noteId, title: n.title, summary: String(n.summary || '').slice(0, 300), validFrom: n.validFrom || null } : { key: it.noteId, title: it.id, summary: '' },
+          boost: it.boost,
           winRate: it.winRate,
           total: it.total,
           action: it.action,
@@ -256,7 +291,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         for (const sk of supersededNow) overlayStore.clearPendingDup(T.ov, sk);
         judge.stampCluster(T.ov.judgedClusters, [keepKey, ...v.consolidate.supersede.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k)], epoch);
         applied.consolidated++; applied.clustersJudged++;
-        judge.appendVerdict(T.ws, { epoch, verdict: 'consolidate', from: keepKey, to: supersededNow.join(',') || null, edgeKind: 'note', cosine: null, by: 'judge' });
+        judge.appendVerdict(T.ws, { epoch, verdict: 'consolidate', from: keepKey, to: supersededNow.join(',') || null, edgeKind: 'note', cosine: clusterMaxCosine(T.ov, [keepKey, ...v.consolidate.supersede.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k)]), by: 'judge' });
       }
       if (v && v.surfaceCluster && Array.isArray(v.surfaceCluster.keys) && v.surfaceCluster.keys.length) {
         const keys = v.surfaceCluster.keys.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
@@ -267,19 +302,14 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           applied.clustersJudged++;
           continue;
         }
-        const notesMeta = keys.map((k) => {
-          const n = T.ov.note_nodes[String(k).replace(/^note:/, '')];
-          return { key: k, title: (n && n.title) || k, created_at: (n && n.created_at) || null };
-        });
-        overlayStore.addGuidance(T.ov, {
-          question: `Ambiguous duplicate cluster (${keys.length} notes): are these the SAME fact to consolidate, or distinct? Notes: ${keys.join(', ')}`,
-          context: `judge surfaced a node-dedup cluster it could not confidently consolidate. ${v.surfaceCluster.why || ''}`.slice(0, 2000),
-          trigger: 'ambiguous_intent', severity: 'review',
-          action: { kind: 'dup-cluster', keys, signature: judge.clusterSignature(keys), notes: notesMeta },
-        });
+        // The judge prompt is CONSERVATIVE by default: two notes must be the SAME fact to consolidate.
+        // Failure to consolidate (surfaceCluster) IS the distinct verdict — auto-resolve as DISTINCT
+        // rather than escalating to the user via an AMBIGUOUS_INTENT guidance item.
+        overlayStore.markClusterDistinct(T.ov, keys);
+        for (const k of keys) overlayStore.clearPendingDup(T.ov, k);
         judge.stampCluster(T.ov.judgedClusters, keys, epoch);
-        applied.surfaced++; applied.clustersJudged++;
-        judge.appendVerdict(T.ws, { epoch, verdict: 'surface', from: keys[0] || null, to: keys.slice(1).join(',') || null, edgeKind: 'note', cosine: null, by: 'judge' });
+        applied.stamped = (applied.stamped || 0) + 1; applied.clustersJudged++;
+        judge.appendVerdict(T.ws, { epoch, verdict: 'distinct', from: keys[0] || null, to: keys.slice(1).join(',') || null, edgeKind: 'note', cosine: clusterMaxCosine(T.ov, keys), by: 'judge' });
       }
       if (v && v.markDistinct && Array.isArray(v.markDistinct.keys) && v.markDistinct.keys.length) {
         const keys = v.markDistinct.keys.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
@@ -289,6 +319,26 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         for (const k of keys) overlayStore.clearPendingDup(T.ov, k);
         judge.stampCluster(T.ov.judgedClusters, keys, epoch);
         applied.stamped = (applied.stamped || 0) + 1; applied.clustersJudged++;
+        judge.appendVerdict(T.ws, { epoch, verdict: 'distinct', from: keys[0] || null, to: keys.slice(1).join(',') || null, edgeKind: 'note', cosine: clusterMaxCosine(T.ov, keys), by: 'judge' });
+      }
+      // boostNote: record a reinforce boost on a note that has a high win rate.
+      // Appends note_reinforced event carrying the boost amount, winRate, and observation count.
+      // Best-effort: skips notes not found or already retired.
+      if (v && v.boostNote && v.boostNote.noteKey) {
+        const bId = String(v.boostNote.noteKey).replace(/^note:/, '');
+        const bNode = T.ov.note_nodes && T.ov.note_nodes[bId];
+        if (bNode && bNode.validTo == null) {
+          const store = graphStore.forWorkspace(T.ws);
+          graphStore.appendEvent(store, 'note:' + bId, {
+            evt: 'note_reinforced',
+            actor: 'judge:reinforce',
+            boost: typeof v.boostNote.boost === 'number' ? v.boostNote.boost : 0,
+            winRate: v.boostNote.winRate,
+            total: v.boostNote.total,
+          });
+          applied.reinforced = (applied.reinforced || 0) + 1;
+          bNode.reinforceStampedEpoch = T.ov.epoch || 0;
+        }
       }
       // retireNote: soft-retire a note that failed the decay gate (low win rate, age+opp gated).
       // Appends note_superseded with validTo set, NO supersededBy — retire-without-replacement.
@@ -390,6 +440,45 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       running: gate.running, capacity_ok: gate.capacity_ok, drain_in_progress: gate.drain_in_progress,
       eager_active: gate.eager_active,
     }); return true;
+  }
+
+  // GET /judge/decay-preview
+  // Read-only diagnostic endpoint. Runs the same decay gate logic as buildQueue pass (4) and returns
+  // which notes WOULD be soft-retired WITHOUT writing any note_superseded event.
+  // Response: { candidates: [{noteId, label, winRate, wins, losses, total, ageDays, validFrom}],
+  //             scanned, belowThreshold }
+  if (p === '/judge/decay-preview' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    const ws = T.ws;
+    const noteNodes = T.ov.note_nodes || {};
+    const noteStats = computeNoteStats(ws);
+    const nowMs = Date.now();
+    let scanned = 0;
+    let belowThreshold = 0;
+    const candidates = [];
+    for (const n of Object.values(noteNodes)) {
+      scanned++;
+      const stat = noteStats.get(n.id);
+      const check = judge.isDecayCandidate(n, stat, nowMs);
+      // Count notes that have stats but fail win-rate gate (regardless of age/opportunities).
+      if (!check.candidate && stat && stat.winRate < WIN_RATE_THRESHOLD) belowThreshold++;
+      if (!check.candidate) continue;
+      const wins = stat ? stat.wins : 0;
+      const losses = stat ? stat.losses : 0;
+      candidates.push({
+        noteId: 'note:' + n.id,
+        label: n.title || n.id,
+        winRate: check.winRate,
+        wins,
+        losses,
+        total: check.total,
+        ageDays: check.ageDays,
+        validFrom: n.validFrom || null,
+      });
+    }
+    // Stable ordering: ascending by noteId so output is deterministic
+    candidates.sort((a, b) => (a.noteId < b.noteId ? -1 : a.noteId > b.noteId ? 1 : 0));
+    send(res, 200, { candidates, scanned, belowThreshold }); return true;
   }
 
   return false;

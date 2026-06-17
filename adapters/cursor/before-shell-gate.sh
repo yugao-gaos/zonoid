@@ -1,5 +1,5 @@
 #!/bin/bash
-# beforeShellExecution → bash write-pattern gate (native Cursor shell hook).
+# beforeShellExecution → normalize Cursor payload, then delegate to the shared bash write gate.
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$DIR/lib.sh"

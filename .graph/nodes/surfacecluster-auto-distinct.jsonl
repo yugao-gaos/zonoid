@@ -1,0 +1,6 @@
+{"evt":"status_changed","id":"surfacecluster-auto-distinct","workspace":"D:\\zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-17T16:04:45.393Z"}
+{"evt":"snapshot_stored","id":"surfacecluster-auto-distinct","workspace":"D:\\zonoid","subject":"surfacecluster-auto-distinct","description":"","status":"pending","blockedBy":[],"owner":null,"metadata":{"synthetic_overlay_task":true},"snapshotted_at":"2026-06-17T16:04:44.976Z","actor":"overlay-sync","ts":"2026-06-17T16:04:45.393Z"}
+{"evt":"assignee_set","id":"surfacecluster-auto-distinct","workspace":"D:\\zonoid","assignee":"surfacecluster-worker","actor":"overlay-sync","ts":"2026-06-17T16:04:45.393Z"}
+{"evt":"timestamps_set","id":"surfacecluster-auto-distinct","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-17T16:04:44.978Z","lastChanged":"2026-06-17T16:04:44.978Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-17T16:04:45.393Z"}
+{"evt":"timestamps_set","id":"surfacecluster-auto-distinct","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-17T16:04:44.978Z","lastChanged":"2026-06-17T16:15:02.029Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-17T16:15:02.128Z"}
+{"evt":"status_changed","id":"surfacecluster-auto-distinct","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-17T16:25:34.763Z"}

@@ -1,0 +1,11 @@
+{
+  "task_key": "codex/unify-hook-enforcement-policy",
+  "agent_id": "codex-main-unify-hook-policy",
+  "session_id": "019ed6a1-9c33-7ef0-a506-1829494f11b7",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-unify-hook-enforcement-policy",
+  "status": "done",
+  "claimed_at": "2026-06-17T18:29:18.185Z",
+  "lease_until": "2026-06-17T19:29:18.185Z",
+  "completed_at": "2026-06-17T18:41:16.979Z"
+}

@@ -1,5 +1,5 @@
 #!/bin/bash
-# preToolUse(Shell) → bash write-pattern gate (mirrors orch-gate-bash.sh).
+# preToolUse(Shell) → normalize Cursor payload, then delegate to the shared bash write gate.
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$DIR/lib.sh"
