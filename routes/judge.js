@@ -5,6 +5,26 @@ const graphStore = require('../lib/graph-store');
 
 const { JUDGE_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 
+// Compute the max pairwise cosine similarity among a set of note keys, using their stored vectors.
+// Returns null if fewer than 2 vectors are available or on any error.
+function clusterMaxCosine(overlay, keys) {
+  try {
+    const judgeLib = require('../lib/judge');
+    const vecs = keys.map(k => {
+      const n = overlay.note_nodes && overlay.note_nodes[String(k).replace(/^note:/, '')];
+      return n && Array.isArray(n.vec) && n.vec.length ? n.vec : null;
+    }).filter(Boolean);
+    if (vecs.length < 2) return null;
+    let max = -1;
+    for (let i = 0; i < vecs.length; i++)
+      for (let j = i + 1; j < vecs.length; j++) {
+        const s = judgeLib.cosine(vecs[i], vecs[j]);
+        if (s > max) max = s;
+      }
+    return max >= 0 ? max : null;
+  } catch { return null; }
+}
+
 // Stable key for the standing "harness: judge drain" task. Fixed slug so it is findable by label
 // prefix across daemon restarts; the snapshot substrate keeps it in the graph indefinitely.
 // Workers call start_task with this key before judging, complete_task after. Standing harness
@@ -255,7 +275,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         for (const sk of supersededNow) overlayStore.clearPendingDup(T.ov, sk);
         judge.stampCluster(T.ov.judgedClusters, [keepKey, ...v.consolidate.supersede.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k)], epoch);
         applied.consolidated++; applied.clustersJudged++;
-        judge.appendVerdict(T.ws, { epoch, verdict: 'consolidate', from: keepKey, to: supersededNow.join(',') || null, edgeKind: 'note', cosine: null, by: 'judge' });
+        judge.appendVerdict(T.ws, { epoch, verdict: 'consolidate', from: keepKey, to: supersededNow.join(',') || null, edgeKind: 'note', cosine: clusterMaxCosine(T.ov, [keepKey, ...v.consolidate.supersede.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k)]), by: 'judge' });
       }
       if (v && v.surfaceCluster && Array.isArray(v.surfaceCluster.keys) && v.surfaceCluster.keys.length) {
         const keys = v.surfaceCluster.keys.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
@@ -278,7 +298,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         });
         judge.stampCluster(T.ov.judgedClusters, keys, epoch);
         applied.surfaced++; applied.clustersJudged++;
-        judge.appendVerdict(T.ws, { epoch, verdict: 'surface', from: keys[0] || null, to: keys.slice(1).join(',') || null, edgeKind: 'note', cosine: null, by: 'judge' });
+        judge.appendVerdict(T.ws, { epoch, verdict: 'surface', from: keys[0] || null, to: keys.slice(1).join(',') || null, edgeKind: 'note', cosine: clusterMaxCosine(T.ov, keys), by: 'judge' });
       }
       if (v && v.markDistinct && Array.isArray(v.markDistinct.keys) && v.markDistinct.keys.length) {
         const keys = v.markDistinct.keys.map((k) => String(k).startsWith('note:') ? String(k) : 'note:' + k);
@@ -288,6 +308,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         for (const k of keys) overlayStore.clearPendingDup(T.ov, k);
         judge.stampCluster(T.ov.judgedClusters, keys, epoch);
         applied.stamped = (applied.stamped || 0) + 1; applied.clustersJudged++;
+        judge.appendVerdict(T.ws, { epoch, verdict: 'distinct', from: keys[0] || null, to: keys.slice(1).join(',') || null, edgeKind: 'note', cosine: clusterMaxCosine(T.ov, keys), by: 'judge' });
       }
       // retireNote: soft-retire a note that failed the decay gate (low win rate, age+opp gated).
       // Appends note_superseded with validTo set, NO supersededBy — retire-without-replacement.
