@@ -40,7 +40,7 @@ exactly like impl workers: the judge worker invokes **`self-learn-judge` in sing
 mode** against the impl's attempt branch (`orch/attempt/<impl-key>`). In that mode the review IS the
 verdict — it fetches the attempt diff (`get_attempt_diff`), applies the code-review rubric
 (correctness, scope discipline, dead/redundant code, test presence/quality, style) and either
-APPROVES (hold-merge verdict — the loop records but does not merge by default) or KICKS BACK
+APPROVES (hold-merge by default — records the verdict without merging; in **automode** (`config.automode=true`) include `{action:"merge", task_key:"<impl_key>", reason:"APPROVE"}` in the `complete_task` verdicts array so the daemon auto-merges the attempt) or KICKS BACK
 (`set_status` failed + a wired `record_decision`). The judge **NEVER force-merges**: merge is
 `git merge --no-ff` and auto-aborts on conflict, escalating rather than forcing. **Complexity
 gate:** this auto-judge applies to substantive multi-file work only — genuinely trivial edits (a
@@ -184,3 +184,17 @@ stay un-categorized (they still join the recall pool as generic decision notes).
 **Standalone tokens in title:** Note titles must use isolated vocabulary that matches how agents query — NOT camelCase compounds or hyphenated phrases. Write "task transcript" not "taskTranscript", "time window overlap" not "time-window-overlap". Word boundaries matter for the embedding tokenizer; fused tokens produce poor retrieval recall and the note may never surface for the queries it was written to answer.
 
 **Provenance wiring:** Agents creating notes MUST pass `wires_to=[current_task_key]` in `record_decision` so the DAG edge is created at note-creation time. Do not rely on cosine autowire — semantic similarity is best-effort and misses structurally important edges. Example: if working task #17, pass `wires_to=["17"]`.
+
+## Full Automode (`config.automode`)
+
+Set via dashboard Settings → "Full Automode" toggle, or `POST /config { automode: true }`.
+
+**Effect 1 — Autonomous escalation:** `request_guidance` blocking questions are auto-answered by an Opus CLI subprocess instead of pausing the loop. The requesting agent's tool call blocks ~30–60s while Opus decides, then returns `{ predicted: true, answer: "..." }`. Falls back to normal blocking escalation if Opus is unavailable.
+
+**Effect 2 — Auto-merge on judge APPROVE:** When a judge completes with a `merge` verdict action (`{ action: "merge", task_key: "<impl_key>", reason: "APPROVE: ..." }`), the daemon calls `git.mergeBranch` immediately — no dispatcher step needed. Without automode, the `merge` verdict is recorded but not executed.
+
+**Judge workers in automode** must include the merge verdict on APPROVE:
+```json
+{ "action": "merge", "task_key": "<impl_task_key>", "reason": "APPROVE: <one-line rationale>" }
+```
+On KICK BACK: call `set_status(impl_task_key, "failed")` — no merge verdict.
