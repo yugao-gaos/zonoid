@@ -32,6 +32,7 @@ function resolveTarget(t, wt) {
   return k.normalizePath(isAbs ? s : `${k.slash(wt).replace(/\/+$/, '')}/${s}`);
 }
 
+
 (async () => {
   if (k.gateOff()) k.allow();
   const input = await k.readInput();
