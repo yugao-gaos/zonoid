@@ -74,10 +74,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!sid) { send(res, 400, { error: 'session required' }); return true; }
     const agents = agentsArr();
     const isSubagent = agents.some((a) =>
-      a.state === 'running' &&
-      a.subagent_session &&
-      a.subagent_session === sid &&
-      a.subagent_session !== a.session
+      a.state === 'running' && (
+        (a.subagent_session && a.subagent_session === sid && a.subagent_session !== a.session) ||
+        (a.agent_tool_spawn === true && a.session === sid)
+      )
     );
     send(res, 200, { session: sid, is_subagent: isSubagent }); return true;
   }

@@ -5,7 +5,10 @@ set -euo pipefail
 
 INPUT=$(cat)
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')
-[[ "$TOOL" == "mcp__orchestrator-graph__start_task" ]] || exit 0
+case "$TOOL" in
+  mcp__orchestrator-graph__start_task|mcp__orchestrator_graph__start_task|start_task) ;;
+  *) exit 0 ;;
+esac
 
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
 TASK_KEY=$(printf '%s' "$INPUT" | jq -r '.tool_input.task_key // empty')
