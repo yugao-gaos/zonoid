@@ -495,9 +495,18 @@ function checkDaemon() {
   });
 }
 
-function registerWorkspace(cwd) {
+function registerWorkspace(cwd, workspace) {
   return new Promise((resolve) => {
-    const body = JSON.stringify({ path: cwd });
+    // Resolve cwd -> its containing repo root (nearest ancestor with .graph/.git); fall back to the
+    // cwd itself when no marker is found so the daemon still gets a path to register.
+    let repoPath = cwd;
+    try {
+      const { repoRoot } = require(path.join(INSTALL_DIR, 'lib', 'workspace-registry.js'));
+      repoPath = repoRoot(cwd) || cwd;
+    } catch { /* lib unavailable (older install) — register the cwd verbatim */ }
+    const payload = { path: repoPath };
+    if (workspace) payload.workspace = workspace;
+    const body = JSON.stringify(payload);
     const req = http.request(
       { hostname: 'localhost', port: 8787, path: '/workspace', method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
@@ -771,12 +780,16 @@ function checkGraphAutocommitHook(cwd, opts = {}) {
 function parseInitArgs(argv) {
   const rest = argv.slice(3);
   const harnesses = [];
+  let workspace;
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === '--harness' && rest[i + 1]) {
       for (const h of rest[i + 1].split(',')) {
         const name = h.trim();
         if (name && !harnesses.includes(name)) harnesses.push(name);
       }
+      i++; // consume the value
+    } else if (rest[i] === '--workspace' && rest[i + 1]) {
+      workspace = rest[i + 1].trim();
       i++; // consume the value
     }
   }
@@ -786,6 +799,7 @@ function parseInitArgs(argv) {
     harnesses,
     harness: harnesses[0],
     enableGraphAutocommit: rest.includes('--graph-autocommit'),
+    workspace,
   };
 }
 
@@ -1256,7 +1270,7 @@ async function init(opts = {}) {
   section('5. Daemon');
   if (opts.service) installService();
   await checkDaemon();
-  await registerWorkspace(cwd);
+  await registerWorkspace(cwd, opts.workspace);
 
   section('6. Graph auto-commit hook');
   checkGraphAutocommitHook(cwd, { enable: opts.enableGraphAutocommit });
@@ -1315,7 +1329,7 @@ if (require.main === module) {
     onboard(parseOnboardArgs(process.argv));
   } else {
     console.log('Usage:');
-    console.log('  npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service] [--graph-autocommit]');
+    console.log('  npx @zonoid/cli init [--harness claude|cursor|codex|opencode] [--service] [--graph-autocommit] [--workspace <name>]');
     console.log('  npx @zonoid/cli onboard [--repo <path>] [--force] [--skip-learn] [--model opus] [--max-keep 20]');
     console.log('');
     console.log('Commands:');
@@ -1330,6 +1344,8 @@ if (require.main === module) {
     console.log('  --graph-autocommit  Set ORCH_GRAPH_AUTOCOMMIT=1 in ~/.claude/settings.json env');
     console.log('             to enable automatic graph snapshot commits after each git commit.');
     console.log('             Without this flag the hook is installed but disabled (flag is "0").');
+    console.log('  --workspace <name>  Register this repo under a NAMED workspace group (a workspace');
+    console.log('             groups many repos). Defaults to a single-repo workspace keyed by repo name.');
     process.exit(cmd ? 1 : 0);
   }
 } else {

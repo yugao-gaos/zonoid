@@ -19,6 +19,8 @@
 //
 // Usage: node bin/backfill-merged.js [--dry-run] [--workspace <path>] [--repo <path>]...
 //                                    [--port <daemon port>] [--no-reload]
+// --workspace defaults to the repo containing the cwd (resolved via lib/workspace-registry repoRoot);
+// candidate repos are drawn from the workspace registry (workspaces.json) rather than a global pointer.
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -28,8 +30,10 @@ const { execFileSync } = require('child_process');
 const overlayStore = require('../lib/overlay');
 const nt = require('../lib/native-tasks');
 const mcpCore = require('../lib/mcp-core');
+const wsRegistry = require('../lib/workspace-registry');
 
 const BASE = process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'orchestrator');
+const WORKSPACES_FILE = path.join(BASE, 'workspaces.json');
 
 // --- args ---------------------------------------------------------------------------------------
 const argv = process.argv.slice(2);
@@ -93,8 +97,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // --- main ---------------------------------------------------------------------------------------
 (async () => {
-  const ws = opt('--workspace') || (() => { try { return fs.readFileSync(path.join(BASE, 'workspace'), 'utf8').trim(); } catch { return null; } })();
-  if (!ws) { console.error('no workspace (pass --workspace or set one via the daemon)'); process.exit(1); }
+  // Workspace = the repo whose overlay/tasks we backfill. The old single global pointer
+  // (BASE/'workspace') is gone (note:note-mqj0wcabtxh): take --workspace verbatim, else resolve
+  // cwd -> its containing repo root via the registry's repoRoot.
+  const ws = opt('--workspace') || wsRegistry.repoRoot(process.cwd());
+  if (!ws) { console.error('no workspace (pass --workspace, or run from inside a repo)'); process.exit(1); }
   const ov = overlayStore.load(ws);
 
   // Done task keys (native 'completed' or an overlay 'done' override — overlay wins when present).
@@ -120,9 +127,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return [...doneByKey.values()].filter((t) => { const n = normLabel(t.label); return n === slug || n.startsWith(slug + '-'); }).map((t) => t.key);
   }
 
-  // Candidate repos: explicit --repo, else overlay task repos + the orchestrator repo + the workspace.
+  // Candidate repos: explicit --repo, else overlay task repos + every registered repo
+  // (lib/workspace-registry allRepos) + the orchestrator repo + the workspace.
   const repoArgs = opts('--repo');
-  const candidates = repoArgs.length ? repoArgs : [...new Set([...Object.values(ov.repos || {}), BASE, ws])];
+  const registeredRepos = (() => { try { return wsRegistry.allRepos(wsRegistry.loadRegistry(WORKSPACES_FILE)); } catch { return []; } })();
+  const candidates = repoArgs.length
+    ? repoArgs
+    : [...new Set([...Object.values(ov.repos || {}), ...registeredRepos, BASE, ws])];
   const repos = candidates.filter((r) => isRepo(r) && hasMain(r));
   if (!repos.length) { console.error('no candidate git repos with a main branch'); process.exit(1); }
 
