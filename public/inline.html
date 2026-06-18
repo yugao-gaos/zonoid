@@ -69,8 +69,8 @@ function handshake(){
 async function getState(){
   // 1) direct fetch (works if connectDomains allows localhost — proven in the preview panel)
   try { const r = await fetch(DAEMON + scoped('/state'), { cache:'no-store' }); if (r.ok) { useBridge=false; return await r.json(); } } catch(e){}
-  // 2) fallback: ask the host to call our get_full_graph tool
-  try { const out = await bridgeCall('get_full_graph'); const t = out && out.content && out.content[0] && out.content[0].text; if (t) { useBridge=true; return JSON.parse(t); } } catch(e){}
+  // 2) fallback: ask the host to call our get_graph tool
+  try { const out = await bridgeCall('get_graph'); const t = out && out.content && out.content[0] && out.content[0].text; if (t) { useBridge=true; return JSON.parse(t); } } catch(e){}
   return null;
 }
 function levelize(tasks){

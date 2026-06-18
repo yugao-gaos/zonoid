@@ -55,12 +55,12 @@ const ORCH_WORKSPACE = process.env.ZONOID_WORKSPACE || process.cwd();
 // keep the graph strictly READ-ONLY. OFF arm gets no preamble in either mode.
 const ON_PREAMBLE_PERMISSIVE =
   'You have the orchestrator-graph MCP. You MAY consult get_learnings / get_task_detail / ' +
-  'get_full_graph for relevant prior context, but treat the graph as READ-ONLY — do NOT create, ' +
+  'get_graph for relevant prior context, but treat the graph as READ-ONLY — do NOT create, ' +
   'modify, claim, or complete any tasks/nodes.\n\n';
 const ON_PREAMBLE_MANDATORY =
   'You have the orchestrator-graph MCP. Before writing any code you MUST call get_learnings and ' +
   'apply what it says about prior verdicts / rejected approaches for this problem (you may also ' +
-  'consult get_task_detail / get_full_graph). The graph is strictly READ-ONLY — do NOT create, ' +
+  'consult get_task_detail / get_graph). The graph is strictly READ-ONLY — do NOT create, ' +
   'modify, claim, or complete any tasks/nodes.\n\n';
 // Lean (--consult=lean): mandatory consult, but call get_learnings with compact:true (the lean
 // index, ~1k tokens vs ~25k) and expand a specific entry via get_task_detail only if needed.

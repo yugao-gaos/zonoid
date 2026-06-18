@@ -71,7 +71,7 @@ const HOOKS = {
 };
 const STATUSLINE = { type: 'command', command: hookCmd('statusline'), refreshInterval: 2 };
 const MCP_ALLOW = [
-  'mcp__orchestrator-graph__next_action', 'mcp__orchestrator-graph__get_full_graph',
+  'mcp__orchestrator-graph__next_action', 'mcp__orchestrator-graph__get_graph',
   'mcp__orchestrator-graph__set_status', 'mcp__orchestrator-graph__loop_control',
   'mcp__orchestrator-graph__get_task_detail', 'mcp__orchestrator-graph__start_task',
   'mcp__orchestrator-graph__complete_task', 'mcp__orchestrator-graph__branch_task',
