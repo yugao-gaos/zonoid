@@ -57,6 +57,12 @@ function loadJSON(p) { return JSON.parse(fs.readFileSync(path.resolve(p), 'utf8'
 // can't reach the repo. (Belt-and-suspenders alongside `--tools ""`.)
 const NO_REPO_CWD = fs.mkdtempSync(path.join(require('os').tmpdir(), 'onboard-noaccess-'));
 
+// Empty MCP config so each headless arm runs with NO orchestrator tools. Generated in an OS temp
+// file at runtime — NOT read from a repo path. The old source was `bench/mcp-off.json`, a dev-only
+// benchmark fixture the npm package excludes, so production onboarding must not depend on it.
+const MCP_OFF = path.join(require('os').tmpdir(), `zonoid-mcp-off-${process.pid}.json`);
+fs.writeFileSync(MCP_OFF, '{"mcpServers":{}}');
+
 // One headless `claude -p` call, MCP off, sandbox-friendly alarm timeout. Returns trimmed stdout.
 // opts.noRepo (used by the ANSWER arms): deny ALL built-in tools (`--tools ""`, no Read/Grep/Glob/
 // Bash) and run from an empty scratch cwd. This isolates the KB as the ONLY project-specific source —
@@ -65,7 +71,7 @@ const NO_REPO_CWD = fs.mkdtempSync(path.join(require('os').tmpdir(), 'onboard-no
 // delta collapses to a FLOOR rather than the ceiling.)
 function claude(prompt, model, opts = {}) {
   const sessionId = crypto.randomUUID();
-  const mcpConfig = path.join(SELF_REPO, 'bench', 'mcp-off.json');
+  const mcpConfig = MCP_OFF;
   const args = [
     '-e', `alarm ${TIMEOUT_S}; exec @ARGV`, '--',
     CLAUDE, '-p', prompt,

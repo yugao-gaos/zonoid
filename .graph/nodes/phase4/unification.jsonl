@@ -4,3 +4,5 @@
 {"evt":"status_changed","id":"phase4/unification","workspace":"D:/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T07:11:00.570Z"}
 {"evt":"edge_added","from":"phase4/unification","to":"judge/phase4-unification","kind":"context","actor":"overlay-sync","ts":"2026-06-18T07:11:11.153Z","weight":0,"by":"autowire-blockdep","judged":false,"origin":"blocking-dep-seed"}
 {"evt":"status_changed","id":"phase4/unification","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T07:27:48.504Z"}
+{"evt":"timestamps_set","id":"phase4/unification","workspace":"D:\\PersonalProject\\zonoid","timestamps":{"firstSeen":"2026-06-18T04:42:59.860Z","lastChanged":"2026-06-18T14:21:29.459Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-18T14:21:29.566Z"}
+{"evt":"timestamps_set","id":"phase4/unification","workspace":"D:\\PersonalProject\\zonoid","timestamps":{"firstSeen":"2026-06-18T04:42:59.860Z","lastChanged":"2026-06-18T14:21:29.715Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-18T14:21:30.270Z"}

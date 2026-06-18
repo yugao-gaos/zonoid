@@ -39,6 +39,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
+const os = require('os');
 
 const SELF_REPO = path.resolve(__dirname, '..');
 // Shared Claude CLI helpers (binary resolver + .env loader) — extracted to lib/claude-cli.js so
@@ -49,6 +50,16 @@ const { resolveClaudeBin, loadEnvForClaude, needsShell: _needsShell } = require(
 // ANTHROPIC_API_KEY (the key never lives in source). In Docker, inject the same vars at run time.
 try { loadEnvForClaude(SELF_REPO); } catch { /* optional */ }
 const CLAUDE = resolveClaudeBin();
+
+// Empty MCP config so the spawned learner has NO orchestrator tools (it only writes a JSON file).
+// Generated in an OS temp file at runtime — NOT read from a repo path. The old source was
+// `bench/mcp-off.json`, a dev-only benchmark fixture the npm package excludes (files-whitelist +
+// .npmignore), so depending on it broke onboarding in installed copies. The content is constant.
+const MCP_OFF = (() => {
+  const p = path.join(os.tmpdir(), `zonoid-mcp-off-${process.pid}.json`);
+  fs.writeFileSync(p, '{"mcpServers":{}}');
+  return p;
+})();
 const DAEMON = process.env.ORCH_DAEMON || 'http://localhost:8787';
 const PREFIX = '[ingest] '; // reuse the existing reversible prefix so injected nodes stay uniform
 const TIMEOUT_S = 600;
@@ -186,8 +197,8 @@ function runLearner(repoAbs, candidates, outFile, model, maxKeep) {
   const prompt = buildPrompt(repoAbs, candidates, outFile, maxKeep);
   const sessionId = crypto.randomUUID();
   // OFF-graph MCP config: the learner must NOT have orchestrator tools (it only writes a JSON
-  // file). Reuse the empty mcp-off.json so no graph server is even reachable.
-  const mcpConfig = path.join(SELF_REPO, 'bench', 'mcp-off.json');
+  // file). MCP_OFF is an empty config generated at runtime so no graph server is even reachable.
+  const mcpConfig = MCP_OFF;
   const args = [
     '-p', prompt,
     '--mcp-config', mcpConfig, '--strict-mcp-config',
