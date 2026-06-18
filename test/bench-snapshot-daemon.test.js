@@ -31,6 +31,16 @@ function ping(port) {
     req.end();
   });
 }
+
+function getJson(port, urlPath) {
+  return new Promise((resolve) => {
+    const req = http.request({ host: '127.0.0.1', port, path: urlPath, method: 'GET', timeout: 2000 },
+      (res) => { let s = ''; res.setEncoding('utf8'); res.on('data', (c) => { s += c; }); res.on('end', () => { try { resolve(JSON.parse(s)); } catch { resolve(null); } }); });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.end();
+  });
+}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
@@ -62,9 +72,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const pong = await ping(port);
       ok('booted: /ping returns 200', pong && pong.status === 200);
 
-      let ws = null;
-      try { ws = JSON.parse(pong.body).workspace; } catch { /* ignore */ }
-      ok('booted: daemon workspace is the frozen snapshot', ws === snap.SNAPSHOT_WS);
+      // P3: /ping no longer carries workspace (no daemon-global default). Verify the snapshot
+      // workspace is registered by checking the /workspaces registry endpoint instead.
+      const wsList = await getJson(port, '/workspaces');
+      const registered = wsList && Array.isArray(wsList.workspaces) &&
+        wsList.workspaces.some((w) => w.path === snap.SNAPSHOT_WS);
+      ok('booted: daemon workspace is the frozen snapshot', registered);
       ok('booted: frozen .graph snapshot exists on disk', fs.existsSync(snap.SNAPSHOT_GRAPH));
 
       const port2 = await snap.ensureRunning();
