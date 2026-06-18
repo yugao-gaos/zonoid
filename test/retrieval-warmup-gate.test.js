@@ -61,8 +61,10 @@ function getJSON(port, p) {
       const deadline = Date.now() + 90_000;
       let vias = null, sawLexical = false;
       while (Date.now() < deadline) {
-        const r = await getJSON(port, `/search?q=${encodeURIComponent(rb.WARMUP_PROBE)}&k=5`);
-        vias = (r.results || []).map((x) => x.via).filter(Boolean);
+        // P3: /search requires ?workspace= — pass the snapshot workspace so the daemon
+        // can resolve which overlay to search against.
+        const r = await getJSON(port, `/search?workspace=${encodeURIComponent(snap.SNAPSHOT_WS)}&q=${encodeURIComponent(rb.WARMUP_PROBE)}&k=5`);
+        vias = (r && r.results || []).map((x) => x.via).filter(Boolean);
         if (vias.includes('lexical')) sawLexical = true;
         if (vias.length > 0 && vias.every((v) => v === 'semantic')) break;
         await new Promise((res) => setTimeout(res, 300));

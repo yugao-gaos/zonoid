@@ -623,6 +623,98 @@ def run_probe_distill(
     }]
 
 
+def run_probe_dag_combined(
+    base_url: str,
+    workspace: str,
+    distill_workspace: str,
+    conv_id: str,
+    probe: dict[str, Any],
+    candidates: list[_SessionCandidate],
+) -> list[dict[str, Any]]:
+    """ARM dag-combined: DAG wiring (eager-judge) over raw notes + distill fact search, merged context.
+
+    Merges three independent retrieval tiers then answers ONCE:
+      1. DAG tier    : autowire >= 0.55 → LLM EdgeJudge → kept raw session note summaries.
+      2. RAG fill    : top-k vector search over raw notes, dedupe against DAG tier.
+      3. Distill tier: top-k vector search over atomic fact notes (*distill_workspace*).
+
+    All tiers use the embedded daemon (fresh overlay, no pendingDup) so all notes are visible.
+    Keys are deduped across tiers; blocks are labelled [DAG]/[RAG]/[DISTILL] for the answerer.
+    """
+    question = probe["question"]
+    unit_id = f"{probe['qid']}-dc-{int(time.time() * 1000) % 1_000_000}"
+    common = {
+        "conv_id": conv_id,
+        "qid": probe.get("qid"),
+        "category": probe.get("category"),
+        "question": probe.get("question"),
+        "gold": probe.get("answer"),
+    }
+
+    handle = None
+    try:
+        # ONE embedded daemon for all tiers (fresh overlay: no pendingDup for either workspace).
+        handle = _start_our_way_daemon(workspace)
+        emb_url = handle.base_url
+        emb_data_dir = handle.data_dir
+        emb_client = ZonoidClient(emb_url, workspace=workspace, timeout=120)
+        _ingest_candidates_into_daemon(emb_client, candidates, workspace)
+
+        seen_keys: set[str] = set()
+        context_blocks: list[str] = []
+
+        # ── Tier 1+2: DAG (autowire + EdgeJudge) + RAG fill over raw session notes ─────────
+        try:
+            wiring = _arms.run_canonical_wiring(
+                emb_client,
+                unit_id=unit_id,
+                task_summary=question,
+                data_dir=emb_data_dir,
+            )
+            for d in _arms.read_wired_context(emb_client, wiring.task_key):
+                key = d.get("key") or ""
+                text = str(d.get("summary") or "")
+                if text.strip():
+                    context_blocks.append(f"[DAG] {text}")
+                if key:
+                    seen_keys.add(key)
+            raw_hits = emb_client.search(question, k=_SEARCH_K * 3, gated=False)
+            for h in [h for h in raw_hits if _is_session_note_hit(h)][:_SEARCH_K]:
+                key = h.get("key") or ""
+                if key and key not in seen_keys:
+                    text = str(h.get("summary") or "")
+                    if text.strip():
+                        context_blocks.append(f"[RAG] {text}")
+                    seen_keys.add(key)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[probe_runner] dag-combined DAG/RAG tier failed (non-fatal): {exc}", file=sys.stderr)
+
+        # ── Tier 3: distill fact search (via embedded daemon on distill_workspace) ──────────
+        try:
+            dist_client = ZonoidClient(emb_url, workspace=distill_workspace, timeout=120)
+            distill_raw = dist_client.search(question, k=_SEARCH_K * 3, gated=False)
+            for h in [h for h in distill_raw if _is_session_note_hit(h)][:_SEARCH_K]:
+                key = h.get("key") or ""
+                if key and key not in seen_keys:
+                    text = str(h.get("summary") or "")
+                    if text.strip():
+                        context_blocks.append(f"[DISTILL] {text}")
+                    seen_keys.add(key)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[probe_runner] dag-combined distill tier failed (non-fatal): {exc}", file=sys.stderr)
+
+        predicted = _answer_from_context(question, context_blocks)
+
+    finally:
+        if handle is not None:
+            try:
+                _daemon_mod.stop(handle)
+            except Exception:  # noqa: BLE001
+                pass
+
+    return [{"arm": "dag-combined", **common, "predicted": predicted}]
+
+
 # ---------------------------------------------------------------------------
 # Orchestration: run all three arms for one (conv, probe)
 # ---------------------------------------------------------------------------

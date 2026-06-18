@@ -241,6 +241,9 @@ class ArmResult:
     agents_md: str = ""
     context_keys: list[str] = field(default_factory=list)
     wiring: Optional[WiringResult] = None
+    ctx_chars: int = 0
+    answer_input_tokens: int = 0
+    answer_output_tokens: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -652,18 +655,22 @@ def run_agent_in_container(
 # Executor (b): retrieve_and_answer — read wired DAG + answer via claude_p
 # ---------------------------------------------------------------------------
 
-def _answer_from_context(question: str, context_blocks: list[str], model: Optional[str]) -> str:
-    """Answer *question* from *context_blocks* via the shared tool-less ``judge.claude_p``.
+def _answer_from_context(
+    question: str,
+    context_blocks: list[str],
+    model: Optional[str],
+) -> tuple[str, dict[str, int]]:
+    """Answer *question* from *context_blocks*; return (answer, usage).
 
-    If no context was retrieved we make the answerer say so honestly (don't fall back to world
-    knowledge — that would contaminate the arm, the same honesty discipline as probe_runner).
+    usage = {"input_tokens": N, "output_tokens": N} from the claude_p call.
+    If no context was retrieved we make the answerer say so honestly.
     """
     context = "\n\n---\n\n".join(b for b in context_blocks if b and b.strip())
     if not context.strip():
         context = "(no relevant memory was retrieved)"
     prompt = _ANSWER_TEMPLATE.format(context=context, question=question)
-    raw = judge_mod.claude_p(prompt, model=model)
-    return (raw or "").strip()
+    text, usage = judge_mod.claude_p_with_usage(prompt, model=model)
+    return (text or "").strip(), usage
 
 
 def run_retrieve_and_answer(
@@ -738,13 +745,17 @@ def run_retrieve_and_answer(
     if wiring is not None:
         wiring.search_hits = list(dag_keys) + rag_keys  # dag kept + rag fill, for provenance
 
-    predicted = _answer_from_context(question, context_blocks, model)
+    ctx_chars = sum(len(b) for b in context_blocks if b and b.strip())
+    predicted, usage = _answer_from_context(question, context_blocks, model)
     return ArmResult(
         arm="on",
         mode="retrieve_and_answer",
         predicted=predicted,
         context_keys=all_context_keys,
         wiring=wiring,
+        ctx_chars=ctx_chars,
+        answer_input_tokens=usage.get("input_tokens", 0),
+        answer_output_tokens=usage.get("output_tokens", 0),
     )
 
 
@@ -759,8 +770,14 @@ def run_cold(question: str, *, model: Optional[str] = None) -> ArmResult:
     answerable from world knowledge and the comparison is rigged.
     """
     prompt = _COLD_TEMPLATE.format(question=question)
-    raw = judge_mod.claude_p(prompt, model=model)
-    return ArmResult(arm="cold", predicted=(raw or "").strip())
+    text, usage = judge_mod.claude_p_with_usage(prompt, model=model)
+    return ArmResult(
+        arm="cold",
+        predicted=(text or "").strip(),
+        ctx_chars=0,
+        answer_input_tokens=usage.get("input_tokens", 0),
+        answer_output_tokens=usage.get("output_tokens", 0),
+    )
 
 
 def run_rag_control(
@@ -784,11 +801,15 @@ def run_rag_control(
     raw_hits = client.search(question, k=k * 3, gated=False)  # NB: no task_key — retrieval-time control.
     note_hits = [h for h in raw_hits if _is_note_hit(h)][:k]
     context_blocks = [str(h.get("summary") or "") for h in note_hits]
-    predicted = _answer_from_context(question, context_blocks, model)
+    ctx_chars = sum(len(b) for b in context_blocks if b and b.strip())
+    predicted, usage = _answer_from_context(question, context_blocks, model)
     return ArmResult(
         arm="rag_control",
         predicted=predicted,
         context_keys=[h.get("key") for h in note_hits if h.get("key")],
+        ctx_chars=ctx_chars,
+        answer_input_tokens=usage.get("input_tokens", 0),
+        answer_output_tokens=usage.get("output_tokens", 0),
     )
 
 

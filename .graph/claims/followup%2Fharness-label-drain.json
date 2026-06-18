@@ -1,11 +1,11 @@
 {
   "task_key": "followup/harness-label-drain",
-  "agent_id": "label-drain-pass-20",
+  "agent_id": "label-drain-pass-21",
   "session_id": "680e9dd1-876a-4bc4-9267-d218ff5d33c2",
   "workspace": "D:/zonoid",
   "branch": "orch/attempt/followup-harness-label-drain",
   "status": "done",
-  "claimed_at": "2026-06-18T13:32:22.466Z",
-  "lease_until": "2026-06-18T14:32:22.466Z",
-  "completed_at": "2026-06-18T13:33:07.730Z"
+  "claimed_at": "2026-06-18T15:13:18.477Z",
+  "lease_until": "2026-06-18T16:13:18.477Z",
+  "completed_at": "2026-06-18T15:16:55.609Z"
 }

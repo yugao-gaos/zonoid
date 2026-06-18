@@ -118,6 +118,62 @@ def claude_p(
     return run.stdout or ""
 
 
+def claude_p_with_usage(
+    prompt: str,
+    *,
+    model: str | None = None,
+    timeout: int | None = None,
+) -> tuple[str | None, dict[str, int]]:
+    """Like claude_p but uses --output-format json to capture token usage.
+
+    Returns (text, {"input_tokens": N, "output_tokens": N}).
+    Falls back to (text, {}) if the JSON output cannot be parsed.
+    Returns (None, {}) on spawn failure or non-zero exit.
+    """
+    cli = _CLAUDE_CLI
+    mdl = model or _JUDGE_MODEL
+    tmo = timeout if timeout is not None else _JUDGE_TIMEOUT
+
+    args: list[str] = [cli, "-p"]
+    if os.path.exists(_MCP_OFF):
+        args += ["--mcp-config", _MCP_OFF, "--strict-mcp-config"]
+    args += ["--model", mdl, "--output-format", "json", "--allowedTools", ""]
+
+    try:
+        run = subprocess.run(
+            args,
+            input=prompt,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=tmo,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[zonoid_bench.judge] claude_p_with_usage spawn failed: {exc}", file=sys.stderr)
+        return None, {}
+
+    if run.returncode != 0:
+        tail = (run.stderr or run.stdout or "")[-400:]
+        print(
+            f"[zonoid_bench.judge] claude_p_with_usage exit={run.returncode}; tail: {tail}",
+            file=sys.stderr,
+        )
+        return None, {}
+
+    raw_out = run.stdout or ""
+    try:
+        obj = json.loads(raw_out)
+        text = str(obj.get("result") or "")
+        raw_usage = obj.get("usage") or {}
+        usage: dict[str, int] = {
+            "input_tokens": int(raw_usage.get("input_tokens") or 0),
+            "output_tokens": int(raw_usage.get("output_tokens") or 0),
+        }
+        return text, usage
+    except Exception:  # noqa: BLE001 — unexpected JSON shape; fall back to raw text, no usage
+        return raw_out, {}
+
+
 # ---------------------------------------------------------------------------
 # parse_strict_json — brace-match scan for the first parseable {...}
 # ---------------------------------------------------------------------------

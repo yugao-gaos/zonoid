@@ -114,14 +114,14 @@ function cleanupNativeFixtures({ projDir, tasksDir, session }) {
 async function seedGraphOnArm({ port, workspace, scenario, keyA, keyB }) {
   const summary = taskSummary(scenario);
   await httpJson(port, 'POST', '/workspace', { path: workspace });
-  await httpJson(port, 'GET', '/state');
-  const edge = await httpJson(port, 'POST', '/overlay/edge', { from: keyA, to: keyB, kind: 'context' });
+  await httpJson(port, 'GET', '/state?workspace=' + encodeURIComponent(workspace));
+  const edge = await httpJson(port, 'POST', '/overlay/edge', { workspace, from: keyA, to: keyB, kind: 'context' });
   if (edge.status >= 400 || edge.body.error) throw new Error('edge seed failed: ' + JSON.stringify(edge.body));
   const done = await httpJson(port, 'POST', '/overlay/status', {
-    key: keyA, status: 'done', summary, agent_id: 'bench-e2e-seed',
+    workspace, key: keyA, status: 'done', summary, agent_id: 'bench-e2e-seed',
   });
   if (done.status >= 400 || done.body.error) throw new Error('task A seed failed: ' + JSON.stringify(done.body));
-  const ctx = await httpJson(port, 'GET', '/task/context?key=' + encodeURIComponent(keyB));
+  const ctx = await httpJson(port, 'GET', '/task/context?workspace=' + encodeURIComponent(workspace) + '&key=' + encodeURIComponent(keyB));
   return { summary, ctx: ctx.body };
 }
 

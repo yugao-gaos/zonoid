@@ -143,8 +143,8 @@ async function waitForPing(ms = 8000) {
     ok('daemon came up', await waitForPing());
     ok('workspace pinned', (await req('POST', '/workspace', { path: WS })).status === 200);
     await req('GET', '/state');
-    ok('roots declared', (await req('POST', '/mark-root', { task_key: K(1) })).status === 200 && (await req('POST', '/mark-root', { task_key: K(2) })).status === 200);
-    ok('metric spec set on task 2', (await req('POST', '/task/metric', { key: K(2), spec: METRIC })).status === 200);
+    ok('roots declared', (await req('POST', '/mark-root', { workspace: WS, task_key: K(1) })).status === 200 && (await req('POST', '/mark-root', { workspace: WS, task_key: K(2) })).status === 200);
+    ok('metric spec set on task 2', (await req('POST', '/task/metric', { workspace: WS, key: K(2), spec: METRIC })).status === 200);
 
     // =================================================================================================
     // LEG A — full live round-trip on the NON-metric task 1:
@@ -155,7 +155,7 @@ async function waitForPing(ms = 8000) {
     // DISPATCH: dispatcher branches a worktree (registered in overlay.git — the delegation proof),
     // then builds the handoff_envelope it would hand the worker. The branch slot is the real attempt
     // branch returned by branch_task.
-    const wt = await req('POST', '/git/worktree', { key: K(1) });
+    const wt = await req('POST', '/git/worktree', { workspace: WS, key: K(1) });
     ok('attempt worktree created + registered', wt.status === 200 && String(wt.body.branch).startsWith('orch/attempt/'));
     const worktreePath = wt.body.worktree || wt.body.path;
 
@@ -166,6 +166,8 @@ async function waitForPing(ms = 8000) {
       branch: wt.body.branch,
       target_repo: WS,
       files_in_scope: ['result.txt'],
+      plan_goal: 'Verify the end-to-end handoff round-trip for structured dispatcher→worker contract.',
+      sibling_tasks: [{ task_key: K(2), title: 'roundtrip metric handoff' }],
       context_deps: [{ task_key: K(1), summary: 'pre-resolved Tier-1 context for the worker' }],
       return_contract: { version: 1, status: 'tested', summary: 'placeholder return shape' },
     };
@@ -217,11 +219,11 @@ async function waitForPing(ms = 8000) {
 
     // COMPLETE: terminal write carrying the structured task_result. Accepted (the task has no metric
     // spec, so the handoff completeness gate does not fire).
-    const done1 = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'rt-worker', summary: result1.summary, task_result: result1 });
+    const done1 = await req('POST', '/overlay/status', { workspace: WS, key: K(1), status: 'tested', agent_id: 'rt-worker', summary: result1.summary, task_result: result1 });
     ok('terminal complete_task with structured task_result accepted (200)', done1.status === 200 && done1.body.ok === true);
 
     // And the task actually landed `tested` end-to-end.
-    const st = await req('GET', '/state');
+    const st = await req('GET', `/state?workspace=${encodeURIComponent(WS)}`);
     const tnode = st.body && Array.isArray(st.body.tasks) && st.body.tasks.find((t) => t.id === K(1));
     ok('task landed tested after the full round-trip', tnode && tnode.status === 'tested');
 
@@ -232,7 +234,7 @@ async function waitForPing(ms = 8000) {
     // =================================================================================================
 
     // MEASURE: run the configured measure_command (echo 7) via measure_task.
-    const meas = await req('POST', '/task/measure', { key: K(2) });
+    const meas = await req('POST', '/task/measure', { workspace: WS, key: K(2) });
     ok('metric measurement recorded', meas.status === 200);
 
     // The metric worker's task_result: has_metric_spec injected (T2's validation-time discriminator
@@ -252,7 +254,7 @@ async function waitForPing(ms = 8000) {
     // COMPLETE: terminal write carrying the metric task_result. The daemon's handoff gate (T2) accepts
     // it because metric_measurements is present and non-empty.
     const { has_metric_spec, ...result2Wire } = result2; // discriminator is validation-time only, not persisted
-    const done2 = await req('POST', '/overlay/status', { key: K(2), status: 'tested', agent_id: 'rt-worker', summary: result2.summary, task_result: result2Wire });
+    const done2 = await req('POST', '/overlay/status', { workspace: WS, key: K(2), status: 'tested', agent_id: 'rt-worker', summary: result2.summary, task_result: result2Wire });
     ok('terminal complete_task with metric task_result accepted by handoff gate (200)', done2.status === 200 && done2.body.ok === true);
   } finally {
     try { child.kill(); } catch { /* already gone */ }

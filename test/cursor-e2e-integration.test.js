@@ -144,15 +144,30 @@ function runHook(script, input, env = {}) {
     child.kill('SIGTERM');
   }
 
-  // ── 3) gate denies unclaimed Write (cursor orch-gate → shared orch-gate.sh) ─
+  // ── 3) gate denies unclaimed Write (cursor orch-gate → shared orch-gate.js via Node HTTP) ─
+  // The gate now uses Node's http module (not curl), so we spawn a real stub daemon process
+  // (not a curl shim — spawnSync blocks the Node event loop, so the in-process server can't
+  // serve requests while the gate subprocess runs synchronously). The stub responds with
+  // {claimed:false} for /active-claim and {is_subagent:true} for /session-info so the gate
+  // correctly denies the unclaimed subagent write.
   {
-    const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-gate-stub-'));
-    writeCurlStub(stubDir, `U="\${@: -1}"
-if [[ "\$U" == *"/active-claim"* ]]; then echo '{"claimed":false}'
-elif [[ "\$U" == *"/session-info"* ]]; then echo '{"is_subagent":"true"}'
-fi
-exit 0
-`);
+    const gatePort = 18800 + Math.floor(Math.random() * 100);
+    const stubServerCode = `
+'use strict';
+const http = require('http');
+const srv = http.createServer((req, res) => {
+  res.writeHead(200, {'content-type': 'application/json'});
+  if (req.url && req.url.includes('/active-claim')) res.end(JSON.stringify({claimed:false,claims:[]}));
+  else if (req.url && req.url.includes('/session-info')) res.end(JSON.stringify({is_subagent:true}));
+  else res.end('{}');
+});
+srv.listen(${gatePort}, '127.0.0.1', () => { process.stdout.write('ready\\n'); });
+`;
+    const stubFile = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-stub-'));
+    const stubPath = path.join(stubFile, 'stub.js');
+    fs.writeFileSync(stubPath, stubServerCode);
+    const stubProc = spawn(process.execPath, [stubPath], { stdio: ['ignore', 'pipe', 'ignore'] });
+    await new Promise((r) => { stubProc.stdout.once('data', r); });
 
     const gateIn = JSON.stringify({
       conversation_id: 'conv-gate-sub',
@@ -164,9 +179,10 @@ exit 0
       // without it the path falls back to ~/.claude/orchestrator, which isn't present in CI.
       ZONOID_ROOT: REPO,
       ORCH_ROOT: REPO,
-      ORCH_PORT: '8787',
-      PATH: `${stubDir}:${process.env.PATH}`,
+      ORCH_PORT: String(gatePort),
     });
+    stubProc.kill('SIGKILL');
+    try { fs.rmSync(stubFile, { recursive: true, force: true }); } catch { /* best effort */ }
     ok('gate: unclaimed subagent Write → exit 2', gr.status === 2);
     ok('gate: denial message mentions claim', /no task claimed|start_task/i.test(gr.stderr));
   }

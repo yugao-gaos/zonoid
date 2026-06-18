@@ -48,6 +48,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (ctx.cache.agg) ctx.cache.agg.delete(T.ws);
       if (ctx.cache.aggAt) ctx.cache.aggAt.delete(T.ws);
     }
+    // PHASE 4 (unification): auto-wire this newly-created task to entities whose name appears
+    // as a substring in the task label (case-insensitive). Best-effort: any error is swallowed
+    // so task creation is NEVER blocked. Only fires on creation (snapshot didn't exist above).
+    // Relation 'touches' indicates the task acts on this entity's subsystem.
+    try {
+      if (T.ov.entity_nodes) {
+        const labelLower = key.toLowerCase();
+        for (const entity of Object.values(T.ov.entity_nodes)) {
+          if (!entity.validTo && entity.name && labelLower.includes(entity.name.toLowerCase())) {
+            try { overlayStore.addEntityEdge(T.ov, key, 'entity:' + entity.id, 'touches'); } catch { /* best-effort */ }
+          }
+        }
+      }
+    } catch { /* best-effort — never abort task creation */ }
   };
 
   if (p === '/overlay/edge' && m === 'POST') {
@@ -355,6 +369,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           // relevant NOTES+TASKS for the neighborhood-aware judge) → markEagerJudge all fire in lockstep
           // with the birth-time native lane. Identical result, one funnel. Best-effort, null-safe.
           await ctx.ingestNode(T.ov, buildGraph(T.ws), b.key, { title, summary: T.ov.summaries[b.key] });
+          // PHASE 4 (unification): auto-wire this task to entities whose name appears as a
+          // substring in the resolved task label. Best-effort — never blocks the status write.
+          // Fires only at task birth (first vec, no existing snapshot vec) so it does not repeat
+          // on every status update. Relation 'touches' marks entity/execution boundary wiring.
+          if (title && T.ov.entity_nodes) {
+            const titleLower = title.toLowerCase();
+            for (const entity of Object.values(T.ov.entity_nodes)) {
+              if (!entity.validTo && entity.name && titleLower.includes(entity.name.toLowerCase())) {
+                try { overlayStore.addEntityEdge(T.ov, b.key, 'entity:' + entity.id, 'touches'); } catch { /* best-effort */ }
+              }
+            }
+          }
         } else if (b.summary != null) {
           // Already ingested, but the interface text (summary) changed ⇒ re-embed ONLY so retrieval
           // tracks the new text. No re-autowire / no re-mark — candidate seeding is a one-shot at birth
@@ -839,6 +865,189 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     overlayStore.addEdge(T.ov, b.old_key, b.new_key, null, 'supersede');
     T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, old_key: b.old_key, new_key: b.new_key }); return true;
+  }
+
+  // ─── Phase 2: Entity layer ────────────────────────────────────────────────
+
+  // POST /entity — create or upsert an entity node.
+  // Body: { name, type, aliases?, workspace, vec? }
+  // Returns: { ok, id, kind:'entity', name, type, created }
+  if (p === '/entity' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!b.name) { send(res, 400, { ok: false, error: 'name required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    // Embed the entity name for semantic retrieval (same embed path as notes; best-effort).
+    let vec = null;
+    try { vec = await embed(String(b.name)); } catch { /* embedding sidecar unavailable — lexical fallback */ }
+    let entity;
+    try {
+      entity = overlayStore.createEntity(T.ov, { name: b.name, type: b.type, aliases: b.aliases, vec });
+    } catch (err) {
+      send(res, 400, { ok: false, error: err.message }); return true;
+    }
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, id: entity.id, kind: 'entity', name: entity.name, type: entity.type, created: !vec || entity.validFrom === entity.validFrom }); return true;
+  }
+
+  // POST /entity/link — wire two nodes with a relation label.
+  // Body: { from, to, relation, workspace }
+  //
+  // Accepted combinations (Phase 4 extended — entity is the unification join key):
+  //   note    → entity   (a distilled fact is about this entity)
+  //   entity  → note     (same, reversed)
+  //   entity  → entity   (e.g. 'works_at', 'prefers')
+  //   task    → entity   (a task touches this entity's subsystem)
+  //   entity  → task     (same, reversed)
+  //
+  // from/to may be a note key ('note:<id>'), task key (any key in ov.nodes as kind:'task',
+  // or any admissible overlay key), or entity key ('entity:<id>').
+  // relation: e.g. 'subject_of', 'related_to', 'works_at', 'touches'
+  // Returns: { ok, from, to, relation }
+  // After wiring, fires the async contradiction check (fire-and-forget, note→entity pairs only).
+  if (p === '/entity/link' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!b.from || !b.to) { send(res, 400, { ok: false, error: 'from and to required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    // Validate each key: entity keys must exist in entity_nodes; task keys must exist as tasks.
+    // note keys (note:<id>) are accepted without a node existence check (same as /overlay/edge).
+    const validateLinkKey = (key) => {
+      if (key.startsWith('entity:')) {
+        const bareId = key.slice(7);
+        return (T.ov.entity_nodes && T.ov.entity_nodes[bareId]) ? null : `unknown entity: ${key}`;
+      }
+      if (key.startsWith('note:')) return null; // note keys are self-validating (note:<id>)
+      // task key: must be admissible or exist in graph
+      if (!acceptsTaskKey(T, key)) return `unknown task: ${key}`;
+      return null;
+    };
+    const fromErr = validateLinkKey(b.from);
+    if (fromErr) { send(res, 404, { ok: false, error: fromErr }); return true; }
+    const toErr = validateLinkKey(b.to);
+    if (toErr) { send(res, 404, { ok: false, error: toErr }); return true; }
+    // At least one side must be an entity (entity-link is entity-anchored).
+    if (!b.from.startsWith('entity:') && !b.to.startsWith('entity:')) {
+      send(res, 400, { ok: false, error: 'at least one of from/to must be an entity key (entity:<id>)' }); return true;
+    }
+    let edge;
+    try {
+      edge = overlayStore.addEntityEdge(T.ov, b.from, b.to, b.relation);
+    } catch (err) {
+      send(res, 400, { ok: false, error: err.message }); return true;
+    }
+    T.save(); notifyChange(T.ws);
+
+    // Contradiction check: fire-and-forget when a note is wired to an entity.
+    // Only fires when the new side is a note and the other side is an entity.
+    const noteKey = b.from.startsWith('note:') ? b.from : (b.to.startsWith('note:') ? b.to : null);
+    const entityKey = b.from.startsWith('entity:') ? b.from : (b.to.startsWith('entity:') ? b.to : null);
+    if (noteKey && entityKey) {
+      const newNoteId = noteKey.slice(5);
+      const entityId = entityKey.slice(7);
+      // Build a spawnClaude helper: wraps child_process.execFile with the same pattern as distill.py.
+      const spawnClaude = async (prompt) => {
+        const { execFile } = require('child_process');
+        const { promisify } = require('util');
+        const execFileAsync = promisify(execFile);
+        const claudeCli = process.env.ZONOID_BENCH_CLAUDE || 'claude';
+        const model = process.env.ZONOID_BENCH_MODEL || 'haiku'; // use fast/cheap model for contradiction check
+        const args = ['--model', model, '--output-format', 'text', '--allowedTools', '', '-p'];
+        try {
+          const result = await execFileAsync(claudeCli, args, { input: prompt, encoding: 'utf8', timeout: 60000, windowsHide: true });
+          return result.stdout || '';
+        } catch {
+          return null;
+        }
+      };
+      // setImmediate so we don't block the HTTP response.
+      setImmediate(() => {
+        overlayStore.checkEntityContradiction(T.ov, T.ws, newNoteId, entityId, spawnClaude, overlayStore.save).catch(() => {});
+      });
+    }
+
+    send(res, 200, { ok: true, from: b.from, to: b.to, relation: b.relation || null }); return true;
+  }
+
+  // ─── Phase 4: Entity context (unification payoff) ────────────────────────
+
+  // GET /entity?name=<name>&workspace=...
+  // Look up an entity by name (case-insensitive exact match). Returns the entity record or 404.
+  // Used by the entity_context MCP tool to find an entity id before calling GET /entity/:id/context.
+  if (p === '/entity' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass ?workspace=' }); return true; }
+    const nameParam = u && u.searchParams && u.searchParams.get('name');
+    if (!nameParam) { send(res, 400, { ok: false, error: 'name query param required' }); return true; }
+    const normName = nameParam.trim().toLowerCase();
+    let found = null;
+    for (const entity of Object.values(T.ov.entity_nodes || {})) {
+      if (!entity.validTo && entity.name && entity.name.toLowerCase() === normName) { found = entity; break; }
+    }
+    if (!found) { send(res, 404, { ok: false, error: `no entity found with name: ${nameParam}` }); return true; }
+    send(res, 200, { ok: true, id: found.id, name: found.name, type: found.type, aliases: found.aliases || [], validFrom: found.validFrom || null }); return true;
+  }
+
+  // GET /entity/:id/context?workspace=...&asOf=...
+  // Returns everything known (conversational facts) AND everything done (tasks) about entity E,
+  // in a single unified view. Entity is the join key across both graphs.
+  //
+  // Response:
+  //   { entity: { id, name, type, aliases },
+  //     facts: [ ...note nodes linked to this entity via context edges ],
+  //     tasks: [ ...task nodes linked to this entity via context edges ],
+  //     summary: "N facts, M tasks" }
+  //
+  // Temporal filter: if asOf is provided, only facts with validTo==null OR validTo >= asOf are returned.
+  if (p.startsWith('/entity/') && p.endsWith('/context') && m === 'GET') {
+    const T = targetOverlay(null, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass ?workspace=' }); return true; }
+    // Extract entity id from path: /entity/<id>/context
+    // pathParts: ['', 'entity', '<id>', 'context']
+    const pathParts = p.split('/');
+    const entityId = pathParts[2];
+    if (!entityId) { send(res, 400, { ok: false, error: 'entity id required in path' }); return true; }
+    const entity = T.ov.entity_nodes && T.ov.entity_nodes[entityId];
+    if (!entity) { send(res, 404, { ok: false, error: `unknown entity: entity:${entityId}` }); return true; }
+
+    const asOf = (u && u.searchParams && u.searchParams.get('asOf')) || null;
+    const entityKey = 'entity:' + entityId;
+
+    // Traverse context edges to find all nodes linked to this entity.
+    const linkedKeys = new Set();
+    for (const e of (T.ov.edges || [])) {
+      if (e.kind !== 'context') continue;
+      if (e.from === entityKey) linkedKeys.add(e.to);
+      else if (e.to === entityKey) linkedKeys.add(e.from);
+    }
+
+    // Separate into facts (note nodes) and tasks (task nodes in overlay).
+    const facts = [];
+    const tasks = [];
+    for (const key of linkedKeys) {
+      if (key.startsWith('note:')) {
+        const noteId = key.slice(5);
+        const n = T.ov.note_nodes && T.ov.note_nodes[noteId];
+        if (!n) continue;
+        // Temporal filter: if asOf provided, skip notes that had already expired before asOf.
+        if (asOf && n.validTo && n.validTo < asOf) continue;
+        facts.push({ key, id: n.id, title: n.title, summary: n.summary, category: n.category || null, validFrom: n.validFrom || null, validTo: n.validTo || null, supersededBy: n.supersededBy || null });
+      } else if (!key.startsWith('entity:')) {
+        // Task node: look it up in snapshots + status overlay.
+        const snap = T.ov.snapshots && T.ov.snapshots[key];
+        const status = (T.ov.status && T.ov.status[key]) || (snap && snap.status) || 'unknown';
+        const summary = (T.ov.summaries && T.ov.summaries[key]) || (snap && snap.description) || '';
+        tasks.push({ key, label: (snap && snap.subject) || key, status, summary });
+      }
+    }
+
+    send(res, 200, {
+      ok: true,
+      entity: { id: entity.id, name: entity.name, type: entity.type, aliases: entity.aliases || [] },
+      facts,
+      tasks,
+      summary: `${facts.length} fact${facts.length !== 1 ? 's' : ''}, ${tasks.length} task${tasks.length !== 1 ? 's' : ''}`,
+    }); return true;
   }
 
   return false;
