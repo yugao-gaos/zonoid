@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/product-pipeline-map",
+  "agent_id": "pp-map-worker",
+  "session_id": "019edacd-c1b2-7932-9ccc-beb19413c537",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-product-pipeline-map",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T12:57:21.302Z",
+  "lease_until": "2026-06-18T13:57:21.302Z"
+}
