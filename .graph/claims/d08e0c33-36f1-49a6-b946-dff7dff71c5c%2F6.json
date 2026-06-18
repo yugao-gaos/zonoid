@@ -1,0 +1,10 @@
+{
+  "task_key": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/6",
+  "agent_id": "worker-d08e0c33-6",
+  "session_id": "worker-d08e0c33-6",
+  "workspace": "D:/zonoid",
+  "branch": "orch/attempt/d08e0c33-36f1-49a6-b946-dff7dff71c5c-6",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T11:38:32.783Z",
+  "lease_until": "2026-06-18T12:38:32.783Z"
+}
