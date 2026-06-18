@@ -6,6 +6,7 @@ const { computeNoteStats, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-
 
 const { JUDGE_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 const { appendShadow } = require('../lib/shadow-journal');
+const { checkAndPromote } = require('../lib/promotion-gate');
 
 // Lazy-load the learned edge classifier. Returns null when the model file is absent
 // or the module fails to load — best-effort only, never breaks the verdict path.
@@ -18,13 +19,25 @@ function getPredictEdge() {
   return _predictEdge || null;
 }
 
-// Score an edge with the learned classifier and append a shadow row.
-// Best-effort: wrapped in try/catch — a missing model file must never break a verdict.
-// Only called for keepEdge / pruneEdge verdicts (the binary-verdict cases).
-function scoreShadow(ws, { from, to, verdict, cosine, fromKind, toKind }) {
+// Promotion state cache: null = unchecked; refresh at most every 60s.
+let _promotionState = null;
+let _promotionAt = 0;
+function getPromotion(ws) {
+  const now = Date.now();
+  if (_promotionState !== null && now - _promotionAt < 60000) return _promotionState;
+  try {
+    _promotionState = checkAndPromote(ws);
+  } catch { _promotionState = { promoted: false }; }
+  _promotionAt = now;
+  return _promotionState;
+}
+
+// Compute the learned-model prediction for an edge. Returns { label, score, shadowVerdict } or null.
+// Best-effort: returns null when model is absent or on any error.
+function computePrediction(ws, { cosine, fromKind, toKind }) {
   try {
     const predictEdge = getPredictEdge();
-    if (!predictEdge) return;
+    if (!predictEdge) return null;
     const features = {
       cosine_score: typeof cosine === 'number' ? cosine : 0,
       from_kind: fromKind || 'task',
@@ -35,17 +48,46 @@ function scoreShadow(ws, { from, to, verdict, cosine, fromKind, toKind }) {
       task_task: false,
     };
     const { score, label } = predictEdge(features, ws);
+    return { label, score, shadowVerdict: label === 1 ? 'keep' : 'prune', cosineUsed: features.cosine_score };
+  } catch { return null; }
+}
+
+// Append a shadow journal row. Best-effort: wrapped in try/catch.
+// When promoted, the model verdict IS primary, so roles are swapped in the journal:
+// verdict = what model decided, shadow_verdict = what Sonnet decided.
+function appendShadowRow(ws, { from, to, verdict, shadowVerdict, score, cosineUsed, promoted }) {
+  try {
     appendShadow(ws, {
       ts: Date.now(),
       from,
       to,
-      verdict,
-      shadow_verdict: label === 1 ? 'keep' : 'prune',
+      verdict: promoted ? shadowVerdict : verdict,
+      shadow_verdict: promoted ? verdict : shadowVerdict,
       shadow_conf: score,
-      cosine: features.cosine_score,
+      cosine: cosineUsed,
       model_version: 'v1',
     });
   } catch { /* best-effort */ }
+}
+
+// Score an edge with the learned classifier and append a shadow row.
+// Best-effort: wrapped in try/catch — a missing model file must never break a verdict.
+// Only called for keepEdge / pruneEdge verdicts (the binary-verdict cases).
+// Returns the model's verdict string ('keep' | 'prune') when promoted, null otherwise.
+function scoreShadow(ws, { from, to, verdict, cosine, fromKind, toKind }) {
+  try {
+    const pred = computePrediction(ws, { cosine, fromKind, toKind });
+    if (!pred) return null;
+    const promotion = getPromotion(ws);
+    appendShadowRow(ws, {
+      from, to, verdict,
+      shadowVerdict: pred.shadowVerdict,
+      score: pred.score,
+      cosineUsed: pred.cosineUsed,
+      promoted: promotion.promoted,
+    });
+    return promotion.promoted ? pred.shadowVerdict : null;
+  } catch { return null; }
 }
 
 // Compute the max pairwise cosine similarity among a set of note keys, using their stored vectors.
@@ -257,30 +299,42 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         const kept = findEdge(v.keepEdge.from, v.keepEdge.to, 'context');
         const cos = edgeCosine(kept);
         const origin = edgeOrigin(kept);
-        // keepEdge() only promotes (and returns truthy for) a weight-0 / judged===false autowire edge.
-        // A LEGACY already-judged edge (judged===true, weight>0) flagged for rejudge returns falsy —
-        // so we must ALSO enter this block when the edge is currently rejudge-flagged, to clear the
-        // flag + journal the keep. Compute that flag first (sig = from>>to; see overlay.markForRejudge).
-        const rejudgeSig = v.keepEdge.from + '>>' + v.keepEdge.to;
-        const wasRejudgeFlagged = !!(T.ov.edgeRejudge && T.ov.edgeRejudge[rejudgeSig]);
-        const promoted = judge.keepEdge(T.ov, v.keepEdge.from, v.keepEdge.to);
-        if (promoted || (wasRejudgeFlagged && kept)) {
-          overlayStore.clearEdgeRejudge(T.ov, v.keepEdge.from, v.keepEdge.to);
-          applied.kept++;
-          // task→task KIND classification: the agent decided "anchor REQUIRES N" → reclassify the
-          // kept context edge as a true blocking prerequisite (the dual of context = non-blocking).
-          if (v.keepEdge.kind === 'blocking' && kept) {
-            kept.kind = 'blocking';
-            delete kept.weight;            // blocking edges carry no relevance weight
-            applied.reclassified = (applied.reclassified || 0) + 1;
+        const fromNode = T.ov.note_nodes && T.ov.note_nodes[String(v.keepEdge.from).replace(/^note:/, '')];
+        const toNode = T.ov.note_nodes && T.ov.note_nodes[String(v.keepEdge.to).replace(/^note:/, '')];
+        const fromKind = fromNode ? (fromNode.kind || 'note') : (isNote(v.keepEdge.from) ? 'note' : 'task');
+        const toKind = toNode ? (toNode.kind || 'note') : (isNote(v.keepEdge.to) ? 'note' : 'task');
+        // Compute model prediction before applying. When promoted, model verdict overrides Sonnet.
+        const modelVerdict = scoreShadow(T.ws, { from: v.keepEdge.from, to: v.keepEdge.to, verdict: 'keep', cosine: cos, fromKind, toKind });
+        if (modelVerdict === 'prune') {
+          // Promoted + model says prune: override — remove the edge instead of keeping it.
+          const beforePr = T.ov.edges.length;
+          overlayStore.removeEdge(T.ov, v.keepEdge.from, v.keepEdge.to, null, 'context');
+          if (T.ov.edges.length < beforePr) {
+            overlayStore.clearEdgeRejudge(T.ov, v.keepEdge.from, v.keepEdge.to);
+            applied.pruned++;
+            judge.appendVerdict(T.ws, { epoch, verdict: 'prune', from: v.keepEdge.from, to: v.keepEdge.to, edgeKind: 'context', cosine: cos, origin, by: 'model' });
           }
-          judge.appendVerdict(T.ws, { epoch, verdict: 'keep', from: v.keepEdge.from, to: v.keepEdge.to, edgeKind: v.keepEdge.kind === 'blocking' ? 'blocking' : 'context', cosine: cos, origin, by: 'judge' });
-          // Shadow-score the same edge with the learned classifier (best-effort, never blocks verdict).
-          const fromNode = T.ov.note_nodes && T.ov.note_nodes[String(v.keepEdge.from).replace(/^note:/, '')];
-          const toNode = T.ov.note_nodes && T.ov.note_nodes[String(v.keepEdge.to).replace(/^note:/, '')];
-          const fromKind = fromNode ? (fromNode.kind || 'note') : (isNote(v.keepEdge.from) ? 'note' : 'task');
-          const toKind = toNode ? (toNode.kind || 'note') : (isNote(v.keepEdge.to) ? 'note' : 'task');
-          scoreShadow(T.ws, { from: v.keepEdge.from, to: v.keepEdge.to, verdict: 'keep', cosine: cos, fromKind, toKind });
+        } else {
+          // keepEdge() only promotes (and returns truthy for) a weight-0 / judged===false autowire edge.
+          // A LEGACY already-judged edge (judged===true, weight>0) flagged for rejudge returns falsy —
+          // so we must ALSO enter this block when the edge is currently rejudge-flagged, to clear the
+          // flag + journal the keep. Compute that flag first (sig = from>>to; see overlay.markForRejudge).
+          const rejudgeSig = v.keepEdge.from + '>>' + v.keepEdge.to;
+          const wasRejudgeFlagged = !!(T.ov.edgeRejudge && T.ov.edgeRejudge[rejudgeSig]);
+          const edgePromoted = judge.keepEdge(T.ov, v.keepEdge.from, v.keepEdge.to);
+          if (edgePromoted || (wasRejudgeFlagged && kept)) {
+            overlayStore.clearEdgeRejudge(T.ov, v.keepEdge.from, v.keepEdge.to);
+            applied.kept++;
+            // task→task KIND classification: the agent decided "anchor REQUIRES N" → reclassify the
+            // kept context edge as a true blocking prerequisite (the dual of context = non-blocking).
+            if (v.keepEdge.kind === 'blocking' && kept) {
+              kept.kind = 'blocking';
+              delete kept.weight;            // blocking edges carry no relevance weight
+              applied.reclassified = (applied.reclassified || 0) + 1;
+            }
+            const by = modelVerdict === 'keep' ? 'model' : 'judge';
+            judge.appendVerdict(T.ws, { epoch, verdict: 'keep', from: v.keepEdge.from, to: v.keepEdge.to, edgeKind: v.keepEdge.kind === 'blocking' ? 'blocking' : 'context', cosine: cos, origin, by });
+          }
         }
       }
       if (v && v.pruneEdge && v.pruneEdge.from && v.pruneEdge.to) {
@@ -288,19 +342,29 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         const doomed = findEdge(v.pruneEdge.from, v.pruneEdge.to, v.pruneEdge.kind || 'context');
         const cos = edgeCosine(doomed);
         const origin = edgeOrigin(doomed);
-        const before = T.ov.edges.length;
-        overlayStore.removeEdge(T.ov, v.pruneEdge.from, v.pruneEdge.to, null, v.pruneEdge.kind);
-        if (T.ov.edges.length < before) {
-          overlayStore.clearEdgeRejudge(T.ov, v.pruneEdge.from, v.pruneEdge.to);
-          applied.pruned++;
-          judge.appendVerdict(T.ws, { epoch, verdict: 'prune', from: v.pruneEdge.from, to: v.pruneEdge.to, edgeKind: v.pruneEdge.kind || 'context', cosine: cos, origin, by: 'judge' });
-          // Shadow-score the same edge with the learned classifier (best-effort, never blocks verdict).
-          // Read node kinds from overlay (before prune, so doomed node info may still be present).
-          const fromPruneNode = T.ov.note_nodes && T.ov.note_nodes[String(v.pruneEdge.from).replace(/^note:/, '')];
-          const toPruneNode = T.ov.note_nodes && T.ov.note_nodes[String(v.pruneEdge.to).replace(/^note:/, '')];
-          const fromPruneKind = fromPruneNode ? (fromPruneNode.kind || 'note') : (isNote(v.pruneEdge.from) ? 'note' : 'task');
-          const toPruneKind = toPruneNode ? (toPruneNode.kind || 'note') : (isNote(v.pruneEdge.to) ? 'note' : 'task');
-          scoreShadow(T.ws, { from: v.pruneEdge.from, to: v.pruneEdge.to, verdict: 'prune', cosine: cos, fromKind: fromPruneKind, toKind: toPruneKind });
+        const fromPruneNode = T.ov.note_nodes && T.ov.note_nodes[String(v.pruneEdge.from).replace(/^note:/, '')];
+        const toPruneNode = T.ov.note_nodes && T.ov.note_nodes[String(v.pruneEdge.to).replace(/^note:/, '')];
+        const fromPruneKind = fromPruneNode ? (fromPruneNode.kind || 'note') : (isNote(v.pruneEdge.from) ? 'note' : 'task');
+        const toPruneKind = toPruneNode ? (toPruneNode.kind || 'note') : (isNote(v.pruneEdge.to) ? 'note' : 'task');
+        // Compute model prediction before applying. When promoted, model verdict overrides Sonnet.
+        const modelVerdict = scoreShadow(T.ws, { from: v.pruneEdge.from, to: v.pruneEdge.to, verdict: 'prune', cosine: cos, fromKind: fromPruneKind, toKind: toPruneKind });
+        if (modelVerdict === 'keep') {
+          // Promoted + model says keep: override — promote the edge instead of removing it.
+          const edgePromoted2 = judge.keepEdge(T.ov, v.pruneEdge.from, v.pruneEdge.to);
+          if (edgePromoted2) {
+            overlayStore.clearEdgeRejudge(T.ov, v.pruneEdge.from, v.pruneEdge.to);
+            applied.kept++;
+            judge.appendVerdict(T.ws, { epoch, verdict: 'keep', from: v.pruneEdge.from, to: v.pruneEdge.to, edgeKind: v.pruneEdge.kind || 'context', cosine: cos, origin, by: 'model' });
+          }
+        } else {
+          const before = T.ov.edges.length;
+          overlayStore.removeEdge(T.ov, v.pruneEdge.from, v.pruneEdge.to, null, v.pruneEdge.kind);
+          if (T.ov.edges.length < before) {
+            overlayStore.clearEdgeRejudge(T.ov, v.pruneEdge.from, v.pruneEdge.to);
+            applied.pruned++;
+            const by = modelVerdict === 'prune' ? 'model' : 'judge';
+            judge.appendVerdict(T.ws, { epoch, verdict: 'prune', from: v.pruneEdge.from, to: v.pruneEdge.to, edgeKind: v.pruneEdge.kind || 'context', cosine: cos, origin, by });
+          }
         }
       }
       // task→task DUPLICATE: the agent decided the anchor RE-PLANS N (anchor supersedes the older N).

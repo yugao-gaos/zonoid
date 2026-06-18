@@ -4700,12 +4700,26 @@ async function tick(){
     `</span>` +
     (()=>{
       const ag=agreementCache;
+      const prom=_agreementPromoted;
+      const ps=_agreementPromotionState;
+      if(prom){
+        const promRate=ps&&ps.rate!=null?Math.round(ps.rate*100)+'%':'—';
+        const promSub=ps?`${ps.total} rows at promotion`:'primary mode';
+        const promAt=ps&&ps.promotedAt?new Date(ps.promotedAt).toLocaleString():'unknown';
+        const promTip=`Model promoted to PRIMARY judge at ${promAt}. Rate at promotion: ${promRate}. Edge verdicts now driven by the learned classifier.`;
+        return `<span class="hero">` +
+          `<span class="hlabel">Model <span style="font-size:8px;background:#2ea04322;color:#3fb950;border:1px solid #2ea04355;border-radius:4px;padding:0 4px;vertical-align:middle">PRIMARY</span></span>` +
+          `<span class="hval" style="color:#3fb950">${promRate}</span>` +
+          `<span class="hval-sub">${promSub}</span>` +
+          `<span class="htip"><div class="tip-title">Model is PRIMARY judge</div>${promTip}</span>` +
+          `</span>`;
+      }
       const agRate=ag&&ag.rate!=null?Math.round(ag.rate*100)+'%':'—';
       const agColor=ag==null?'#484f58':ag.rate>=0.8?'#3fb950':ag.rate>=0.6?'#e3b341':'#f85149';
       const agSub=ag?`${ag.agreed}/${ag.total} rows`:'no shadow data';
-      const agTip=ag?`Last ${ag.window} rows examined; ${ag.window_used} had valid verdicts. Agreement = rows where shadow_verdict === Sonnet verdict.`:'No shadow journal rows yet — agreement data appears once the edge judge runs.';
+      const agTip=ag?`Last ${ag.window} rows examined; ${ag.window_used} had valid verdicts. Agreement = rows where shadow_verdict === Sonnet verdict. Shadow mode — model observes but does not decide.`:'No shadow journal rows yet — agreement data appears once the edge judge runs.';
       return `<span class="hero">` +
-        `<span class="hlabel">Model agree</span><span class="hval" style="color:${agColor}">${agRate}</span>` +
+        `<span class="hlabel">Model agree <span style="font-size:8px;color:#484f58;font-weight:400;text-transform:none">shadow</span></span><span class="hval" style="color:${agColor}">${agRate}</span>` +
         `<span class="hval-sub">${agSub}</span>` +
         `<span class="htip"><div class="tip-title">Shadow model agreement</div>${agTip}</span>` +
         `</span>`;
@@ -5701,13 +5715,17 @@ let _lastCronData=null;
 async function fetchCronData(){ try{ const d=await(await fetch(BASE+'/cron/usage')).json(); _lastCronData=d; return d; }catch{ return null; } }
 // Agreement rate cache: how often the learned shadow model agrees with Sonnet's verdict.
 // Refreshed at most once per 30 s, in the background, exactly like refreshInfraHero.
-let agreementCache=null, _agreementAt=0, _agreementBusy=false;
+let agreementCache=null, _agreementPromoted=false, _agreementPromotionState=null, _agreementAt=0, _agreementBusy=false;
 async function refreshAgreement(){
   if(_agreementBusy||Date.now()-_agreementAt<30000) return;
   _agreementBusy=true; _agreementAt=Date.now();
   try{
     const d=await(await dfetch('/metrics/agreement')).json();
-    if(d&&d.ok) agreementCache=d.agreement;
+    if(d&&d.ok){
+      agreementCache=d.agreement;
+      _agreementPromoted=!!d.promoted;
+      _agreementPromotionState=d.promotionState||null;
+    }
   }catch{}finally{ _agreementBusy=false; }
 }
 // Fetch cron totals periodically and update infra hero
