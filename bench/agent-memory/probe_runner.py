@@ -530,6 +530,59 @@ def run_cold(probe: dict[str, Any]) -> dict[str, Any]:
     return {"predicted": _answer_cold(probe["question"])}
 
 
+def run_probe_combined(
+    base_url: str,
+    workspace: str,
+    distill_workspace: str,
+    conv_id: str,
+    probe: dict,
+) -> list[dict]:
+    """ARM combined: merge raw-chunk hits + atomic-fact hits, rank by RRF, answer.
+
+    This is the production-equivalent arm: both ingest paths have already run,
+    retrieval merges both pools before answering.
+    """
+    question = probe["question"]
+    k = _SEARCH_K * 3  # fetch extra from each pool before merge
+
+    # Retrieve from both pools independently
+    raw_hits  = kb_search(base_url, workspace,         question, k=k, gated=False)
+    fact_hits = kb_search(base_url, distill_workspace, question, k=k, gated=False)
+
+    # Filter stubs from each pool
+    raw_hits  = [h for h in raw_hits  if _is_session_note_hit(h)]
+    fact_hits = [h for h in fact_hits if _is_session_note_hit(h)]
+
+    # Merge by key (fact_hits take precedence on collision — more specific)
+    seen: dict[str, Any] = {}
+    for h in fact_hits:
+        seen[h.get("key")] = h
+    for h in raw_hits:
+        k_ = h.get("key")
+        if k_ not in seen:
+            seen[k_] = h
+
+    # Re-rank merged pool by score descending, take top _SEARCH_K
+    merged = sorted(seen.values(), key=lambda h: h.get("score", 0), reverse=True)[:_SEARCH_K]
+
+    context_blocks = [str(h.get("summary") or "") for h in merged]
+    predicted = _answer_from_context(question, context_blocks)
+
+    common = {
+        "conv_id": conv_id,
+        "qid": probe.get("qid"),
+        "category": probe.get("category"),
+        "question": probe.get("question"),
+        "gold": probe.get("answer"),
+    }
+    return [{
+        "arm": "combined",
+        **common,
+        "predicted": predicted,
+        "hit_keys": [h.get("key") for h in merged],
+    }]
+
+
 def run_probe_distill(
     base_url: str,
     workspace: str,

@@ -25,9 +25,10 @@ directory (or individual .done files) to re-run from scratch.
 
 Arms
 ----
---arms is a comma-separated subset of:  our-way, search, cold, distill
+--arms is a comma-separated subset of:  our-way, search, cold, distill, combined
 Default: our-way,search,cold (all three).
 Add distill to compare LLM fact-distillation against raw-chunk ingest.
+Add combined to merge both ingest paths (production-equivalent retrieval).
 
 Score
 -----
@@ -58,6 +59,7 @@ from ingest import ConversationIngester  # noqa: E402
 from probe_runner import (  # noqa: E402
     _build_session_candidates,
     run_probe,
+    run_probe_combined,
     run_probe_distill,
 )
 from scorer import generate_report, score  # noqa: E402
@@ -105,10 +107,15 @@ def _run_conv(
     Writes one JSONL record per (probe, arm) to *out_fh*.
     Returns the number of records written.
 
-    If *distiller* is provided (non-None) and "distill" is in *arms*, the
-    conversation is also ingested via ``ConversationDistiller`` into a separate
-    distill workspace, and distill-arm probe records are written alongside the
-    standard arm records.
+    If *distiller* is provided (non-None) and "distill" or "combined" is in *arms*,
+    the conversation is also ingested via ``ConversationDistiller`` into a separate
+    distill workspace, and distill/combined-arm probe records are written alongside
+    the standard arm records.
+
+    For the "combined" arm: retrieval merges both the raw-chunk workspace (populated
+    by ``ConversationIngester``) and the atomic-fact distill workspace (populated by
+    ``ConversationDistiller``), re-ranks by score, and answers from the merged pool.
+    This is the production-equivalent arm.
     """
     conv_id = str(conv.get("conv_id") or "unknown")
     workspace = ingester.workspace_for(conv_id)
@@ -128,13 +135,15 @@ def _run_conv(
         file=sys.stderr,
     )
 
-    # Distill arm: ingest facts into a separate workspace, then answer probes
-    # using the distilled-fact graph (search-based retrieval over atomic facts).
+    # Distill arm / combined arm: ingest facts into a separate workspace, then
+    # answer probes using the distilled-fact graph (search-based retrieval over
+    # atomic facts). Combined arm also requires this workspace.
+    needs_distill = distiller is not None and ("distill" in arms or "combined" in arms)
     distill_workspace: str | None = None
-    if distiller is not None and "distill" in arms:
-        distill_workspace = distiller.workspace_for(conv_id)
+    if needs_distill:
+        distill_workspace = distiller.workspace_for(conv_id)  # type: ignore[union-attr]
         print(f"[run]   distilling {conv_id!r} into {distill_workspace!r} …", file=sys.stderr)
-        distill_map = distiller.ingest(conv)
+        distill_map = distiller.ingest(conv)  # type: ignore[union-attr]
         n_facts = sum(len(v) for v in distill_map.values())
         print(f"[run]   distilled {n_facts} fact(s) across {len(distill_map)} session(s)", file=sys.stderr)
 
@@ -145,7 +154,7 @@ def _run_conv(
     n = 0
     for probe in probes:
         # Standard arms (our-way, search, cold).
-        standard_arms = [a for a in arms if a != "distill"]
+        standard_arms = [a for a in arms if a not in ("distill", "combined")]
         if standard_arms:
             all_records = run_probe(
                 base_url=daemon,
@@ -169,6 +178,20 @@ def _run_conv(
                 probe=probe,
             )
             for rec in distill_records:
+                out_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                out_fh.flush()
+                n += 1
+
+        # Combined arm: merge raw-chunk + distill retrieval pools, re-rank, answer.
+        if "combined" in arms and distill_workspace is not None:
+            combined_records = run_probe_combined(
+                base_url=daemon,
+                workspace=workspace,
+                distill_workspace=distill_workspace,
+                conv_id=conv_id,
+                probe=probe,
+            )
+            for rec in combined_records:
                 out_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 out_fh.flush()
                 n += 1
@@ -204,7 +227,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--arms",
         default="our-way,search,cold",
-        help="Comma-separated arms to run (default: our-way,search,cold). Also: distill.",
+        help=(
+            "Comma-separated arms to run (default: our-way,search,cold). "
+            "Also: distill, combined. "
+            "combined merges raw-chunk + distill retrieval pools (auto-enables distill ingest)."
+        ),
     )
     parser.add_argument(
         "--daemon",
@@ -290,11 +317,19 @@ def main(argv: list[str] | None = None) -> int:
     results_path = os.path.join(output_dir, "results.jsonl")
 
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
-    valid_arms = {"our-way", "search", "cold", "distill"}
+    valid_arms = {"our-way", "search", "cold", "distill", "combined"}
     bad = [a for a in arms if a not in valid_arms]
     if bad:
         print(f"ERROR: unknown arm(s): {bad}. Valid: {sorted(valid_arms)}", file=sys.stderr)
         return 2
+
+    # combined arm requires the distill ingest path — auto-enable it if not already present.
+    if "combined" in arms and "distill" not in arms:
+        arms = list(arms) + ["distill"]
+        print(
+            "[run] combined arm selected — auto-enabling distill ingest (needed for both pools)",
+            file=sys.stderr,
+        )
 
     # Load conversations
     bm = args.benchmark.lower()
@@ -330,10 +365,11 @@ def main(argv: list[str] | None = None) -> int:
         timeout=120,
     )
 
-    # Distill arm: create a distiller with a separate workspace root so distilled-fact
-    # notes land in a different directory than raw-chunk notes — prevents cross-contamination.
+    # Distill arm / combined arm: create a distiller with a separate workspace root so
+    # distilled-fact notes land in a different directory than raw-chunk notes — prevents
+    # cross-contamination. Both "distill" and "combined" require the distiller.
     distiller: ConversationDistiller | None = None
-    if "distill" in arms:
+    if "distill" in arms or "combined" in arms:
         distill_root = (
             os.path.join(args.workspace_root, "distill")
             if args.workspace_root
