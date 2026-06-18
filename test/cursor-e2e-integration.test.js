@@ -19,6 +19,7 @@ const CLASSIFY = path.join(ADAPTERS, 'classify.sh');
 const HOOKS_SAMPLE = path.join(ADAPTERS, 'hooks.json.sample');
 const cursorTx = require('../lib/cursor-transcripts');
 const filedrop = require('../lib/filedrop-tasks');
+const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -62,8 +63,20 @@ function spawnDaemon(port, sandbox, extra = {}) {
   });
 }
 
-function runHook(script, input, env) {
-  const r = spawnSync('bash', [script], { input, encoding: 'utf8', env: { ...process.env, ...env } });
+function runHook(script, input, env = {}) {
+  // Split any caller-supplied `${stubDir}:${process.env.PATH}` PATH back into a stub dir + rebuild
+  // through hookEnv so `jq` stays resolvable in the spawned bash on Windows (see
+  // test/helpers/curl-stub.js). Hooks here depend on jq under `set -euo pipefail`.
+  const { PATH: rawPath, ...rest } = env;
+  let stubDirs = [];
+  let overrides = rest;
+  if (rawPath) {
+    const tail = `:${process.env.PATH}`;
+    stubDirs = rawPath.endsWith(tail) ? [rawPath.slice(0, -tail.length)] : [rawPath];
+  } else {
+    overrides = { ...rest, PATH: process.env.PATH };
+  }
+  const r = spawnSync('bash', [script], { input, encoding: 'utf8', env: hookEnv(stubDirs, overrides) });
   return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 
@@ -124,13 +137,12 @@ function runHook(script, input, env) {
   // ── 3) gate denies unclaimed Write (cursor orch-gate → shared orch-gate.sh) ─
   {
     const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-gate-stub-'));
-    fs.writeFileSync(path.join(stubDir, 'curl'), `#!/bin/bash
-U="\${@: -1}"
+    writeCurlStub(stubDir, `U="\${@: -1}"
 if [[ "\$U" == *"/active-claim"* ]]; then echo '{"claimed":false}'
 elif [[ "\$U" == *"/session-info"* ]]; then echo '{"is_subagent":"true"}'
 fi
 exit 0
-`, { mode: 0o755 });
+`);
 
     const gateIn = JSON.stringify({
       conversation_id: 'conv-gate-sub',

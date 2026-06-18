@@ -6,6 +6,7 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
 
 const REPO = path.resolve(__dirname, '..');
 const HOOK = path.join(REPO, 'adapters', 'cursor', 'classify.sh');
@@ -19,13 +20,12 @@ function ok(label, cond) {
   else { console.log(`FAIL  ${label}`); fail++; }
 }
 
-function runHook(input, extraEnv = {}) {
-  const env = {
-    ...process.env,
+function runHook(input, extraEnv = {}, stubDirs = []) {
+  const env = hookEnv(stubDirs, {
     ZONOID_ROOT: REPO,
     CLAUDE_PLUGIN_DATA: path.dirname(SESSION_DIR),
     ...extraEnv,
-  };
+  });
   const r = spawnSync('bash', [HOOK], { input, encoding: 'utf8', env });
   return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
@@ -38,10 +38,9 @@ const stubDir = path.join(TMP, 'stub-curl');
 fs.mkdirSync(stubDir, { recursive: true });
 const stubPayload = { additional_context: '[Model routing] cursor-stub\n[Orchestrator heartbeat] cursor-stub' };
 fs.writeFileSync(path.join(stubDir, 'classify.json'), JSON.stringify(stubPayload));
-fs.writeFileSync(
-  path.join(stubDir, 'curl'),
-  `#!/bin/bash
-DIR="$(cd "$(dirname "$0")" && pwd)"
+writeCurlStub(
+  stubDir,
+  `DIR="$(cd "$(dirname "$0")" && pwd)"
 prev=""
 for arg in "$@"; do
   if [ "$prev" = "-d" ]; then
@@ -56,7 +55,6 @@ else
 fi
 exit 0
 `,
-  { mode: 0o755 },
 );
 
 const CONV_ID = 'cursor-conv-relay-abc123';
@@ -67,7 +65,7 @@ const cursorInput = JSON.stringify({
 });
 
 {
-  const r = runHook(cursorInput, { PATH: stubDir + ':' + process.env.PATH });
+  const r = runHook(cursorInput, {}, [stubDir]);
   ok('relay exit 0', r.status === 0);
   const body = JSON.parse(fs.readFileSync(path.join(stubDir, 'last-body.json'), 'utf8'));
   ok('conversation_id → session_id in /classify body', body.session_id === CONV_ID);
@@ -82,17 +80,13 @@ const cursorInput = JSON.stringify({
 {
   const sid = 'cursor-orch-off-conv';
   runHook(JSON.stringify({ conversation_id: sid, prompt: 'orch off' }));
-  const r = runHook(JSON.stringify({ conversation_id: sid, prompt: 'hello after off' }), {
-    PATH: stubDir + ':' + process.env.PATH,
-  });
+  const r = runHook(JSON.stringify({ conversation_id: sid, prompt: 'hello after off' }), {}, [stubDir]);
   ok('orch off via conversation_id → silent', r.stdout.trim() === '');
   ok('orch off → exit 0', r.status === 0);
 }
 
 {
-  const r = runHook(JSON.stringify({ conversation_id: 'cursor-user-msg', user_message: 'audit auth module' }), {
-    PATH: stubDir + ':' + process.env.PATH,
-  });
+  const r = runHook(JSON.stringify({ conversation_id: 'cursor-user-msg', user_message: 'audit auth module' }), {}, [stubDir]);
   const body = JSON.parse(fs.readFileSync(path.join(stubDir, 'last-body.json'), 'utf8'));
   ok('user_message maps to prompt', body.prompt === 'audit auth module');
 }
