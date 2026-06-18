@@ -4,7 +4,8 @@
   "session_id": "judge-opencode-prompt-workspace-parity-review",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-opencode-prompt-workspace-parity-review",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T02:37:01.481Z",
-  "lease_until": "2026-06-18T03:37:01.481Z"
+  "lease_until": "2026-06-18T03:37:01.481Z",
+  "completed_at": "2026-06-18T02:39:25.493Z"
 }
