@@ -4,7 +4,8 @@
   "session_id": "distill-config-session-001",
   "workspace": "D:/zonoid",
   "branch": "orch/attempt/e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f-3",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T16:11:27.043Z",
-  "lease_until": "2026-06-18T17:11:27.043Z"
+  "lease_until": "2026-06-18T17:11:27.043Z",
+  "completed_at": "2026-06-18T16:21:23.209Z"
 }
