@@ -17,3 +17,4 @@
 {"evt":"knowledge_added","id":"note-mqh66j6iqnp","workspace":"D:\\zonoid","item":"drain:followup/harness-label-drain","actor":"overlay-sync","ts":"2026-06-16T22:30:26.115Z"}
 {"evt":"knowledge_added","id":"note-mqh66j6iqnp","workspace":"D:\\zonoid","item":"exit:0","actor":"overlay-sync","ts":"2026-06-16T22:30:26.115Z"}
 {"evt":"edge_added","from":"note:note-mqh66j6iqnp","to":"note:note-mqhbveqejgj","kind":"context","actor":"overlay-sync","ts":"2026-06-17T01:42:36.081Z","weight":0,"by":"autowire","judged":false,"score":0.788,"origin":"autowire-semantic"}
+{"evt":"note_superseded","id":"note-mqh66j6iqnp","supersededBy":"note-mqhrcthemzp","validTo":"2026-06-17T07:37:03.554Z","ts":"2026-06-17T07:37:03.554Z","actor":"supersede"}

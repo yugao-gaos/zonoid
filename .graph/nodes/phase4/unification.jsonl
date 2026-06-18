@@ -1,0 +1,6 @@
+{"evt":"status_changed","id":"phase4/unification","workspace":"D:/zonoid","status":"not_ready","actor":"overlay-sync","ts":"2026-06-18T04:43:00.352Z"}
+{"evt":"snapshot_stored","id":"phase4/unification","workspace":"D:/zonoid","subject":"phase4/unification","description":"","status":"pending","blockedBy":[],"owner":null,"metadata":{"synthetic_overlay_task":true},"snapshotted_at":"2026-06-18T04:42:59.860Z","actor":"overlay-sync","ts":"2026-06-18T04:43:00.352Z"}
+{"evt":"timestamps_set","id":"phase4/unification","workspace":"D:/zonoid","timestamps":{"firstSeen":"2026-06-18T04:42:59.860Z","lastChanged":"2026-06-18T04:42:59.860Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-18T04:43:00.352Z"}
+{"evt":"status_changed","id":"phase4/unification","workspace":"D:/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T07:11:00.570Z"}
+{"evt":"edge_added","from":"phase4/unification","to":"judge/phase4-unification","kind":"context","actor":"overlay-sync","ts":"2026-06-18T07:11:11.153Z","weight":0,"by":"autowire-blockdep","judged":false,"origin":"blocking-dep-seed"}
+{"evt":"status_changed","id":"phase4/unification","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T07:27:48.504Z"}
