@@ -4,7 +4,8 @@
   "session_id": "019edc68-2fa8-7361-acdb-8b3735dc584a",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-judge-brain-search-context-compiler",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T20:25:03.138Z",
-  "lease_until": "2026-06-18T21:25:03.138Z"
+  "lease_until": "2026-06-18T21:25:03.138Z",
+  "completed_at": "2026-06-18T20:27:28.100Z"
 }
