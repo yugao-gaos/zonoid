@@ -118,6 +118,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // Climb ONLY when repoRoot found a STRICT ancestor (b.path is genuinely nested in a repo) and that
     // ancestor is not a filesystem "container" root (system temp / home / fs root) — an incidental
     // `.graph`/`.git` left in such a container must never re-home a fresh top-level workspace dir.
+    // NOTE (U7, note note-mqj20ekamwy): the container-root guard is now ALSO enforced inside
+    // lib/workspace-registry.repoRoot itself (so hooks + CLI callers benefit), meaning repoRoot can no
+    // longer return a container root and this local `containers` check is redundant. It is kept as
+    // cheap defense-in-depth at the climb seam (the climb decision is route-specific and reads clearer
+    // with the guard inline); both layers agree, so the behavior is unchanged.
     const os = require('os');
     const containers = new Set([norm(os.tmpdir()), norm(os.homedir())]);
     const climbed = resolvedRoot
