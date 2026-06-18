@@ -4,7 +4,8 @@
   "session_id": "019edca0-5a6f-70c2-a4a1-6c424511e03a",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-exec-brain-state-seam-session-claim-impl",
-  "status": "claimed",
+  "status": "failed",
   "claimed_at": "2026-06-18T21:28:02.736Z",
-  "lease_until": "2026-06-18T22:28:02.736Z"
+  "lease_until": "2026-06-18T22:28:02.736Z",
+  "completed_at": "2026-06-18T21:33:43.407Z"
 }
