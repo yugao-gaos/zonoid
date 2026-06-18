@@ -4,7 +4,8 @@
   "session_id": "combined-bench-judge-session",
   "workspace": "D:/zonoid",
   "branch": "orch/attempt/e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f-2",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T15:59:59.796Z",
-  "lease_until": "2026-06-18T16:59:59.796Z"
+  "lease_until": "2026-06-18T16:59:59.796Z",
+  "completed_at": "2026-06-18T16:04:45.002Z"
 }
