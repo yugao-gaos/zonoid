@@ -1,0 +1,10 @@
+{
+  "task_key": "f908e4df-f49f-4717-ae12-db0e4f496e03/15",
+  "agent_id": "fix-curl-stub-15",
+  "session_id": "680e9dd1-876a-4bc4-9267-d218ff5d33c2",
+  "workspace": "D:\\zonoid",
+  "branch": "orch/attempt/f908e4df-f49f-4717-ae12-db0e4f496e03-15",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T16:30:57.024Z",
+  "lease_until": "2026-06-18T17:30:57.024Z"
+}
