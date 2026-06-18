@@ -6,8 +6,9 @@ OpenCode bridge for the [Zonoid](https://github.com/yugao-gaos/zonoid) orchestra
 
 | Hook / tool | Behavior |
 |---|---|
+| `chat.message` | Extracts text prompt parts, best-effort `POST /classify { prompt, session_id, workspace }`, and appends returned context as an additional text part without replacing user parts. |
 | `tool.execute.before` | Applies the shared Zonoid write policy (`hooks/lib/gate-policy.js`): blocks non-exempt `write` / `edit` / patch tools without a claim and confines claimed writes to the task worktree. Throws `Error` — **never** mutates `output.args` (OpenCode ≥ 1.14 freezes args). |
-| `event` | `session.created` → `POST /agent/start`; `session.idle` / `session.deleted` → `POST /agent/done`. |
+| `event` | Plugin init / `session.created` → `POST /workspace`; `session.created` → `POST /agent/start`; `session.idle` / `session.deleted` → `POST /agent/done`. |
 | `task_create` | Writes a v1 stub JSON under the daemon file-drop folder (`opencode/<id>.json`), then `POST /sync` for immediate adoption. IDs are trimmed and may contain only letters, numbers, dot, underscore, and dash. |
 | `schedule_wakeup` | Claude-compatible `ScheduleWakeup`: cancels any prior wake for the session, arms `delaySeconds` via `lib/schedule-wakeup.js`, returns `{ command, notify_pattern }` for monitored wake (`ORCH_SCHEDULED_TASK …`). |
 
@@ -81,10 +82,12 @@ can load the shared gate policy.
 
 ## Workflow
 
-1. `task_create` — mint `opencode/<id>` in the graph (stub + `/sync`).
-2. Orchestrator MCP `branch_task(task_key)`, then `start_task(task_key, agent_id)` — create the attempt worktree and claim before edits.
-3. Edit files inside the returned worktree — gate allows claimed writes only there.
-4. Orchestrator MCP `complete_task` — finish and release claim.
-5. `schedule_wakeup(delaySeconds, reason, prompt)` — heartbeat / idle polling (same contract as Claude native `ScheduleWakeup`). Re-arming replaces any prior wake for the session. Response includes `notify_pattern: "ORCH_SCHEDULED_TASK"` when a harness monitors stdout for the fire line.
+1. Plugin init and `session.created` register the OpenCode workspace with the daemon.
+2. Each user prompt runs through `chat.message`, which appends `/classify` context when the daemon returns one.
+3. `task_create` — mint `opencode/<id>` in the graph (stub + `/sync`).
+4. Orchestrator MCP `branch_task(task_key)`, then `start_task(task_key, agent_id)` — create the attempt worktree and claim before edits.
+5. Edit files inside the returned worktree — gate allows claimed writes only there.
+6. Orchestrator MCP `complete_task` — finish and release claim.
+7. `schedule_wakeup(delaySeconds, reason, prompt)` — heartbeat / idle polling (same contract as Claude native `ScheduleWakeup`). Re-arming replaces any prior wake for the session. Response includes `notify_pattern: "ORCH_SCHEDULED_TASK"` when a harness monitors stdout for the fire line.
 
 Dashboard: http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>
