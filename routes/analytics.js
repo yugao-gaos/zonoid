@@ -7,6 +7,7 @@ const costflow = require('../lib/costflow');
 const usageAccounting = require('../lib/usage-accounting');
 const { agreementRate } = require('../lib/shadow-journal');
 const { getPromotionState } = require('../lib/promotion-gate');
+const { estimatedSavings } = require('../lib/economy');
 
 function sessionsFromOverlay(ov) {
   const snap = ov && ov.usage_reconcile_snapshot;
@@ -262,6 +263,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const agreement = result ? { ...result, window: win } : null;
     const promotionState = getPromotionState(T.ws);
     send(res, 200, { ok: true, agreement, promoted: !!promotionState.promoted, promotionState: promotionState.promoted ? promotionState : null });
+    return true;
+  }
+
+  // GET /metrics/economy — Sonnet judge calls avoided by promoted learned model.
+  // Reads .graph/gate-labeled.jsonl and counts rows where by === 'model'.
+  // Cost is estimated; label as such in the response.
+  if (p === '/metrics/economy' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required — pass ?workspace=' }); return true; }
+    const economy = estimatedSavings(T.ws);
+    send(res, 200, { ok: true, economy });
     return true;
   }
 
