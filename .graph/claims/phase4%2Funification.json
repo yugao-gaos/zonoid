@@ -4,7 +4,8 @@
   "session_id": "1fddb664-b25f-4ee6-8607-ab0613297573",
   "workspace": "D:/zonoid",
   "branch": "orch/attempt/phase4-unification",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T07:36:31.637Z",
-  "lease_until": "2026-06-18T08:36:31.637Z"
+  "lease_until": "2026-06-18T08:36:31.637Z",
+  "completed_at": "2026-06-18T07:36:52.162Z"
 }
