@@ -6,7 +6,7 @@ import type { Plugin } from '@opencode-ai/plugin';
 import { tool } from '@opencode-ai/plugin';
 import { createRequire } from 'node:module';
 import { writeTaskStub } from './lib/stub-writer.js';
-import { checkShouldStop, gateWriteTool, orchPost } from './lib/gate.js';
+import { checkShouldStop, gateWriteTool, nudgeReady, orchPost } from './lib/gate.js';
 import { injectClassifiedContext, postWorkspace } from './lib/prompt-context.js';
 
 const require = createRequire(import.meta.url);
@@ -44,6 +44,12 @@ export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
         const agentId = sessionAgents.get(sessionID) || `opencode-${sessionID.slice(0, 8)}`;
         sessionAgents.delete(sessionID);
         await orchPost('/agent/done', { agent_id: agentId, workspace }).catch(() => {});
+        return;
+      }
+
+      if (type === 'todo.updated') {
+        const todoSessionID = String(props.sessionID ?? props.sessionId ?? '');
+        if (todoSessionID) void nudgeReady({ sessionID: todoSessionID, workspace }).catch(() => {});
       }
     },
 
@@ -57,6 +63,11 @@ export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
       await checkShouldStop({ sessionID, agentId, workspace });
       const args = (output.args && typeof output.args === 'object') ? output.args : {};
       await gateWriteTool(sessionID, input.tool, args);
+    },
+
+    'tool.execute.after': async (input) => {
+      const sessionID = String(input.sessionID ?? input.sessionId ?? '');
+      void nudgeReady({ sessionID, workspace }).catch(() => {});
     },
 
     tool: {
