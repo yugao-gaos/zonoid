@@ -3,6 +3,7 @@
 
 const assert = require('assert');
 const { buildTaskContextPack, DEFAULT_CONTEXT_WEIGHT } = require('../lib/search/task-context');
+const retrievalWeights = require('../lib/search/retrieval-weights');
 
 let pass = 0;
 let fail = 0;
@@ -131,6 +132,33 @@ ok('returns ghost dependencies separately, not as result entries', () => {
     { workspace: '/remote/ws', key: 'task/remote', label: 'Remote dep', status: 'done' },
   ]);
   assert.equal(pack.results.some((entry) => entry.key.startsWith('ghost:')), false);
+});
+
+ok('learned retrieval weight only tie-breaks and never drops direct context', () => {
+  const strong = retrievalWeights.canonicalEdge('task/a', 'note:strong', 'context');
+  const low = retrievalWeights.canonicalEdge('task/a', 'note:low', 'context');
+  const learned = new Map([
+    [strong.key, { weight: 1.5 }],
+    [low.key, { weight: 0.5 }],
+  ]);
+  const weighted = buildTaskContextPack({
+    tasks: [
+      node('task/a', 'Task A', {
+        deps: ['task/blocker'],
+        context_deps: ['note:low', 'note:strong', 'note:absent'],
+        context_weights: { 'note:low': 0.5, 'note:strong': 0.5, 'note:absent': 0.5 },
+      }),
+      node('task/blocker', 'Blocker'),
+      node('note:low', 'Low learned note', { kind: 'note' }),
+      node('note:strong', 'Strong learned note', { kind: 'note' }),
+      node('note:absent', 'Absent learned note', { kind: 'note' }),
+    ],
+  }, 'task/a', { retrievalWeightMap: learned });
+
+  assert.deepEqual(keys(weighted.pinned.context), ['note:strong', 'note:absent', 'note:low']);
+  assert(weighted.results.some((entry) => entry.key === 'task/blocker'), 'blocking dep must remain included');
+  assert(weighted.results.some((entry) => entry.key === 'note:low'), 'low learned context must remain included');
+  assert(weighted.results.some((entry) => entry.key === 'note:absent'), 'absent learned context must remain included');
 });
 
 ok('falls back to default context weight when projected weight is absent', () => {
