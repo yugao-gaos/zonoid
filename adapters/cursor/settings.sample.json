@@ -6,7 +6,7 @@
       "mcp__orchestrator-graph__suggest_links",
       "mcp__orchestrator-graph__add_dependency",
       "mcp__orchestrator-graph__record_decision",
-      "mcp__orchestrator-graph__get_full_graph",
+      "mcp__orchestrator-graph__get_graph",
       "mcp__orchestrator-graph__set_status"
     ]
   },

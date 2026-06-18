@@ -96,7 +96,7 @@ This means every file change in the repo has a named task as its reason.
 ┌─────────────────────────────────────────┐
 │  start_task · complete_task · set_status│
 │  search_knowledge · suggest_links       │
-│  record_decision · get_full_graph       │
+│  record_decision · get_graph       │
 └─────────────────────────────────────────┘
 ```
 
@@ -166,7 +166,7 @@ Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 
 | Tool | Purpose |
 |---|---|
-| `get_full_graph` | Get the workspace task graph or a focused slice of it (frontier digest by default) |
+| `get_graph` | Get the workspace task graph or a focused slice of it (frontier digest by default) |
 | `get_dependency_summaries` | Tier 1 (cheap, do first): concise summaries of a task's dependencies |
 | `get_task_detail` | Tier 2 (on demand): full detail for one task — knowledge, summary, agent, token usage |
 | `suggest_links` | Suggest existing tasks (including completed ones) a task should link to, ranked by overlap |

@@ -252,7 +252,7 @@ function report(rows, s) {
 const REQUIRED_ALLOW = [
   'Read',
   'Bash(curl*)', 'Bash(ls*)', 'Bash(cat*)', 'Bash(find*)', 'Bash(grep*)', 'Bash(jq*)', 'Bash(node*)',
-  'mcp__orchestrator-graph__next_action', 'mcp__orchestrator-graph__get_full_graph',
+  'mcp__orchestrator-graph__next_action', 'mcp__orchestrator-graph__get_graph',
   'mcp__orchestrator-graph__set_status', 'mcp__orchestrator-graph__start_task',
   'mcp__orchestrator-graph__complete_task', 'mcp__orchestrator-graph__record_decision',
   'mcp__orchestrator-graph__search_knowledge', 'mcp__orchestrator-graph__get_learnings',

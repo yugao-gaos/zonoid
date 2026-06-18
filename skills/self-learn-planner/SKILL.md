@@ -55,7 +55,7 @@ Operate ONLY via MCP tools — never shell the daemon directly.
        dead end** (`source:'failure'`, with the `reason`/note). The daemon has already filtered
        out superseded/duplicate/consolidated work, so every entry here is something NOT to
        re-propose. Keep this ledger handy for the dedup check in step 4.
-   - `get_full_graph()` → all tasks with derived status + edges. Build your working set:
+   - `get_graph()` → all tasks with derived status + edges. Build your working set:
      - **open** = `in_progress` / `ready` / `not_ready` (the no-fly zone — never touch),
      - **done** / **note** nodes (candidate `context` anchors for new initiatives),
      - **canceled / failed** (avoid repeating; respect "superseded" notes).

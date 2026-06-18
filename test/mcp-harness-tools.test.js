@@ -144,7 +144,7 @@ async function waitForPing(ms = 8000) {
 
   const codexList = await handleRpc({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, { call: () => ({}), extraTools: codexExtra });
   ok('codex tools/list adds create_task + ScheduleWakeup', codexList.result.tools.length === TOOLS.length + 2);
-  ok('codex list still includes get_full_graph', codexList.result.tools.some((t) => t.name === 'get_full_graph'));
+  ok('codex list still includes get_graph', codexList.result.tools.some((t) => t.name === 'get_graph'));
   ok('codex default core names unchanged', JSON.stringify(codexList.result.tools.slice(0, TOOLS.length)) === baselinePayload);
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {

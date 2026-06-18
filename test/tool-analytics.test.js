@@ -34,16 +34,16 @@ ok('window keeps 7th day', (() => { t.days['2026-06-04'] = 1; a.record(st, 'star
 ok('null workspace tolerated', Object.keys(t.workspaces).length === 2);
 
 // --- report: zero rows + registry diff + sorting ---
-a.record(st, 'get_full_graph', false, '/ws/a', NOW);
+a.record(st, 'get_graph', false, '/ws/a', NOW);
 a.record(st, 'old_tool', false, '/ws/a', NOW);   // historical: no longer in the registry
-const rows = a.report(st, ['start_task', 'get_full_graph', 'never_called'], NOW);
+const rows = a.report(st, ['start_task', 'get_graph', 'never_called'], NOW);
 ok('all names present', rows.length === 4);
 const byName = Object.fromEntries(rows.map((r) => [r.name, r]));
 ok('zero row for never-called', byName.never_called.total === 0 && byName.never_called.last_called === null && byName.never_called.last7d === 0);
 ok('never-called still registered', byName.never_called.registered === true);
 ok('removed tool flagged', byName.old_tool.registered === false && byName.old_tool.total === 1);
 ok('sorted by total desc', rows[0].name === 'start_task');
-ok('ties broken by name', rows.findIndex((r) => r.name === 'get_full_graph') < rows.findIndex((r) => r.name === 'old_tool'));
+ok('ties broken by name', rows.findIndex((r) => r.name === 'get_graph') < rows.findIndex((r) => r.name === 'old_tool'));
 ok('last7d sums day buckets', byName.start_task.last7d === Object.values(st.tools.start_task.days).reduce((s, n) => s + n, 0));
 
 // --- load: resilient to missing/garbage files ---
