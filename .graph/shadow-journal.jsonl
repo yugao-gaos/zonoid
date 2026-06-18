@@ -1,0 +1,14 @@
+{"ts":1781796354396,"from":"note:note-mqitxvm9mlu","to":"bench/combined-bench-0-0","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.4413339712794256,"cosine":0.703,"model_version":"v1"}
+{"ts":1781796495673,"from":"note:note-mqitxz0f7gd","to":"bench/combined-bench-1-1","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.39130361752629056,"cosine":0.601,"model_version":"v1"}
+{"ts":1781796647493,"from":"note:note-mqd5cck16d4","to":"bench/combined-bench-3-3","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.4038848288756281,"cosine":0.627,"model_version":"v1"}
+{"ts":1781796647496,"from":"note:note-mqity7gnjvm","to":"bench/combined-bench-3-3","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.47795002728342256,"cosine":0.776,"model_version":"v1"}
+{"ts":1781803558150,"from":"note:note-mqityg5mr1x","to":"bench/combined-bench-raw-0-6","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.4254586406737412,"cosine":0.671,"model_version":"v1"}
+{"ts":1781803637347,"from":"note:note-mqitz2t0xim","to":"bench/combined-bench-raw-1-discovered","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.3855441861367765,"cosine":0.589,"model_version":"v1"}
+{"ts":1781803746973,"from":"note:note-mqenc9e44v4","to":"bench/combined-bench-raw-2-discovered","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.40534501680215546,"cosine":0.63,"model_version":"v1"}
+{"ts":1781803746977,"from":"note:note-mqfbt5qqpta","to":"bench/combined-bench-raw-2-discovered","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.4131604116109969,"cosine":0.646,"model_version":"v1"}
+{"ts":1781803746981,"from":"note:note-mqgyd39h2uo","to":"bench/combined-bench-raw-2-discovered","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.4077823770137298,"cosine":0.635,"model_version":"v1"}
+{"ts":1781803746983,"from":"note:note-mqh2eifaveh","to":"bench/combined-bench-raw-2-discovered","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.4165937028456081,"cosine":0.653,"model_version":"v1"}
+{"ts":1781803746986,"from":"note:note-mqiuag3ftku","to":"bench/combined-bench-raw-2-discovered","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.44233052340478696,"cosine":0.705,"model_version":"v1"}
+{"ts":1781803829688,"from":"note:note-mqiu8m4etal","to":"bench/combined-bench-raw-3-14","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.3855441861367765,"cosine":0.589,"model_version":"v1"}
+{"ts":1781804052089,"from":"note:note-mqiuag3ftku","to":"bench/combined-bench-raw-6-discovered","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.4568287585943113,"cosine":0.734,"model_version":"v1"}
+{"ts":1781804144966,"from":"note:note-mqiuap80kdh","to":"bench/combined-bench-raw-7-discovered","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.4038848288756281,"cosine":0.627,"model_version":"v1"}

@@ -22,3 +22,4 @@
 {"evt":"edge_promoted","from":"codex/fix-shell-write-gate-cross-shell","to":"codex/integrate-shell-gate-policy-refactor","kind":"context","actor":"overlay-sync","ts":"2026-06-17T19:00:31.276Z","weight":0.75,"origin":"asserted"}
 {"evt":"status_changed","id":"codex/fix-shell-write-gate-cross-shell","workspace":"D:\\PersonalProject\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T02:19:41.478Z"}
 {"evt":"timestamps_set","id":"codex/fix-shell-write-gate-cross-shell","workspace":"D:\\PersonalProject\\zonoid","timestamps":{"firstSeen":"2026-06-17T18:02:11.518Z","lastChanged":"2026-06-18T02:19:41.623Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-18T02:25:16.349Z"}
+{"evt":"timestamps_set","id":"codex/fix-shell-write-gate-cross-shell","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-17T18:02:11.518Z","lastChanged":"2026-06-18T06:18:49.570Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-18T15:10:08.069Z"}
