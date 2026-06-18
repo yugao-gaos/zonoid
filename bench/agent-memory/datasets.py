@@ -105,8 +105,67 @@ def _norm_turns(raw_turns: list[Any]) -> list[dict]:
 #   "unanswerable" / "adversarial" — map verbatim, do not normalise.
 # ---------------------------------------------------------------------------
 
+def _load_locomo_real_sessions(conv: dict, item_idx: int) -> list[dict]:
+    """Extract sessions from the REAL LoCoMo locomo10.json format.
+
+    The real dataset stores sessions as flat keys on the ``conversation`` dict:
+        ``session_1``, ``session_2``, … (each a list of turn dicts)
+        ``session_1_date_time``, ``session_2_date_time``, … (each a date string)
+
+    Turns: ``{speaker: str, text: str, dia_id?: str}``
+    """
+    conversation = conv.get("conversation")
+    if not isinstance(conversation, dict):
+        return []
+
+    sessions: list[dict] = []
+    import re as _re
+    # Collect session numbers present
+    nums: list[int] = []
+    for k in conversation.keys():
+        m = _re.match(r"^session_(\d+)$", k)
+        if m:
+            nums.append(int(m.group(1)))
+    nums.sort()
+
+    for n in nums:
+        key = f"session_{n}"
+        date_key = f"session_{n}_date_time"
+        raw_turns = conversation.get(key)
+        if not isinstance(raw_turns, list):
+            continue
+        date = conversation.get(date_key) or None
+
+        # Normalise turns: real format has {speaker, text, dia_id?}
+        turns: list[dict] = []
+        for t in raw_turns:
+            if isinstance(t, dict):
+                speaker = t.get("speaker") or "unknown"
+                text = t.get("text") or ""
+                turn_id = t.get("dia_id") or t.get("turn_id") or None
+            elif isinstance(t, str):
+                speaker = "unknown"
+                text = t
+                turn_id = None
+            else:
+                continue
+            turns.append({"speaker": str(speaker), "text": str(text), "turn_id": turn_id})
+
+        sessions.append({
+            "idx": n,
+            "date": str(date) if date is not None else None,
+            "turns": turns,
+        })
+    return sessions
+
+
 def load_locomo(data_dir: str) -> list[dict]:
     """Load LoCoMo (locomo10.json) from *data_dir* into the common shape.
+
+    Handles both the synthetic fixture format (list of dicts with a ``sessions``
+    list key) and the REAL locomo10.json format (list of dicts where sessions
+    are stored as flat ``session_N`` / ``session_N_date_time`` keys inside a
+    ``conversation`` dict).
 
     Returns a list of 10 dialogue dicts, each conforming to the common schema.
     Sessions are sorted by idx; probes preserve source order.
@@ -126,29 +185,37 @@ def load_locomo(data_dir: str) -> list[dict]:
 
     records: list[dict] = []
     for idx, item in enumerate(raw):
-        conv_id = str(item.get("dialogue_id") or item.get("conv_id") or item.get("id") or idx)
+        conv_id = str(item.get("dialogue_id") or item.get("conv_id") or item.get("id")
+                      or item.get("sample_id") or idx)
 
-        # Sessions
+        # Sessions — try standard key first, then the real LoCoMo flat-dict format
         raw_sessions = item.get("sessions") or item.get("conversations") or []
         sessions: list[dict] = []
-        for s_idx, sess in enumerate(raw_sessions):
-            if isinstance(sess, dict):
-                s_i = sess.get("session_id") or sess.get("idx") or s_idx
-                date = sess.get("date") or sess.get("timestamp") or None
-                raw_turns = (
-                    sess.get("conversation")
-                    or sess.get("turns")
-                    or sess.get("messages")
-                    or []
-                )
-            else:
-                # Unexpected shape — skip
-                continue
-            sessions.append({
-                "idx": int(s_i) if str(s_i).isdigit() else s_idx,
-                "date": str(date) if date is not None else None,
-                "turns": _norm_turns(raw_turns),
-            })
+
+        if raw_sessions:
+            # Synthetic fixture / standard shape: list of session dicts
+            for s_idx, sess in enumerate(raw_sessions):
+                if isinstance(sess, dict):
+                    s_i = sess.get("session_id") or sess.get("idx") or s_idx
+                    date = sess.get("date") or sess.get("timestamp") or None
+                    raw_turns = (
+                        sess.get("conversation")
+                        or sess.get("turns")
+                        or sess.get("messages")
+                        or []
+                    )
+                else:
+                    # Unexpected shape — skip
+                    continue
+                sessions.append({
+                    "idx": int(s_i) if str(s_i).isdigit() else s_idx,
+                    "date": str(date) if date is not None else None,
+                    "turns": _norm_turns(raw_turns),
+                })
+        else:
+            # Real LoCoMo format: sessions stored as flat keys in ``conversation`` dict
+            sessions = _load_locomo_real_sessions(item, idx)
+
         sessions.sort(key=lambda s: s["idx"])
 
         # QA probes
@@ -253,17 +320,29 @@ def load_longmemeval(data_dir: str, variant: str = "oracle") -> list[dict]:
 
         # Sessions from haystack_sessions
         raw_sessions = item.get("haystack_sessions") or item.get("sessions") or []
+        # haystack_dates is parallel to haystack_sessions in the real cleaned dataset
+        haystack_dates = item.get("haystack_dates") or []
         sessions: list[dict] = []
         for s_idx, sess in enumerate(raw_sessions):
-            s_id = str(sess.get("session_id") or sess.get("id") or s_idx)
-            date = sess.get("date") or sess.get("timestamp") or None
-            raw_turns = (
-                sess.get("content")
-                or sess.get("turns")
-                or sess.get("messages")
-                or sess.get("conversation")
-                or []
-            )
+            # Real cleaned LongMemEval-S: haystack_sessions is a list of turn-lists
+            # (each session is a plain list of {role, content} dicts) with dates in
+            # the parallel haystack_dates list.
+            if isinstance(sess, list):
+                # Real format: sess is a list of turn dicts {role, content}
+                date = haystack_dates[s_idx] if s_idx < len(haystack_dates) else None
+                raw_turns = sess
+            elif isinstance(sess, dict):
+                # Standard format: sess is a dict with session_id, date, content/turns
+                date = sess.get("date") or sess.get("timestamp") or None
+                raw_turns = (
+                    sess.get("content")
+                    or sess.get("turns")
+                    or sess.get("messages")
+                    or sess.get("conversation")
+                    or []
+                )
+            else:
+                continue
             sessions.append({
                 "idx": s_idx,
                 "date": str(date) if date is not None else None,
