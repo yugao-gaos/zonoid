@@ -24,9 +24,23 @@ try {
   ok('key is opencode/<id>', key === 'opencode/t42');
   ok('stub file exists', fs.existsSync(file));
   ok('aggregate picks up stub', fd.aggregateWorkspace(WS).some((t) => t.key === 'opencode/t42'));
+  const trimmed = sw.writeTaskStub(WS, {
+    id: '  trimmed_id-1.2  ', subject: 'Trimmed id',
+  });
+  ok('task id is trimmed', trimmed.key === 'opencode/trimmed_id-1.2');
+  ok('trimmed stub stays in opencode task dir',
+    path.dirname(trimmed.file) === path.join(sw.dirFor(WS), sw.HARNESS));
   ok('missing id throws', (() => {
     try { sw.writeTaskStub(WS, { subject: 'x' }); return false; }
     catch (e) { return /required/.test(e.message); }
+  })());
+  ok('path-like id throws', (() => {
+    try { sw.writeTaskStub(WS, { id: '../escape', subject: 'x' }); return false; }
+    catch (e) { return /letters, numbers, dot, underscore, and dash/.test(e.message); }
+  })());
+  ok('id with slash throws', (() => {
+    try { sw.stubPath(WS, 'nested/task'); return false; }
+    catch (e) { return /letters, numbers, dot, underscore, and dash/.test(e.message); }
   })());
   console.log(`\n${pass}/${pass + fail} assertions passed`);
   if (fail) process.exit(1);

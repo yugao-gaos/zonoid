@@ -8,7 +8,7 @@ OpenCode bridge for the [Zonoid](https://github.com/yugao-gaos/zonoid) orchestra
 |---|---|
 | `tool.execute.before` | Applies the shared Zonoid write policy (`hooks/lib/gate-policy.js`): blocks non-exempt `write` / `edit` / patch tools without a claim and confines claimed writes to the task worktree. Throws `Error` — **never** mutates `output.args` (OpenCode ≥ 1.14 freezes args). |
 | `event` | `session.created` → `POST /agent/start`; `session.idle` / `session.deleted` → `POST /agent/done`. |
-| `task_create` | Writes a v1 stub JSON under the daemon file-drop folder (`opencode/<id>.json`), then `POST /sync` for immediate adoption. |
+| `task_create` | Writes a v1 stub JSON under the daemon file-drop folder (`opencode/<id>.json`), then `POST /sync` for immediate adoption. IDs are trimmed and may contain only letters, numbers, dot, underscore, and dash. |
 | `schedule_wakeup` | Claude-compatible `ScheduleWakeup`: cancels any prior wake for the session, arms `delaySeconds` via `lib/schedule-wakeup.js`, returns `{ command, notify_pattern }` for monitored wake (`ORCH_SCHEDULED_TASK …`). |
 
 ## Install (project)
