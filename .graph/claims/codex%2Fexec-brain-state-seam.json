@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/exec-brain-state-seam",
+  "agent_id": "worker-exec-brain-state-seam",
+  "session_id": "019edc4d-7e16-7da3-9d35-d5b9982600b1",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-exec-brain-state-seam",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T19:56:02.078Z",
+  "lease_until": "2026-06-18T20:56:02.078Z"
+}
