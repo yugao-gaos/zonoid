@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/brain-search-activation-engine",
+  "agent_id": "worker-brain-search-activation",
+  "session_id": "worker-brain-search-activation",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-brain-search-activation-engine",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T19:27:48.661Z",
+  "lease_until": "2026-06-18T20:27:48.661Z"
+}
