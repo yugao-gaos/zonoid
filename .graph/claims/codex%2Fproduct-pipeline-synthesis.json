@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/product-pipeline-synthesis",
+  "agent_id": "pp-synthesis-worker",
+  "session_id": "019edac5-6375-75e3-b674-a2087be1deb8",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-product-pipeline-synthesis",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T13:08:06.764Z",
+  "lease_until": "2026-06-18T14:08:06.764Z"
+}
