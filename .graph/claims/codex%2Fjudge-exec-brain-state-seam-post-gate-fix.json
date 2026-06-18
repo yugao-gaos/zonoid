@@ -4,7 +4,8 @@
   "session_id": "codex-desktop-2026-06-18-judge-exec-brain-state-seam-post-gate-fix",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-judge-exec-brain-state-seam-post-gate-fix",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T23:47:00.683Z",
-  "lease_until": "2026-06-19T00:47:00.683Z"
+  "lease_until": "2026-06-19T00:47:00.683Z",
+  "completed_at": "2026-06-18T23:51:43.158Z"
 }
