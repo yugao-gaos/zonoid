@@ -30,7 +30,16 @@ function opt(name, dflt) { const i = argv.indexOf(name); return i >= 0 && argv[i
 const DRY = flag('--dry-run') || flag('--print');
 const PORT = String(opt('--port', process.env.ORCH_PORT || '8787'));
 const INSTALL_DIR = path.resolve(opt('--install-dir', path.join(__dirname, '..')));
-const WORKSPACE = path.resolve(opt('--workspace', process.cwd()));
+// Resolve the workspace target to its containing repo root (nearest ancestor with .graph/.git);
+// fall back to the requested dir verbatim when no marker is found so we can still locate the
+// project-scoped settings file. --workspace DIR overrides cwd as the starting point.
+const WORKSPACE = (() => {
+  const start = path.resolve(opt('--workspace', process.cwd()));
+  try {
+    const { repoRoot } = require(path.join(INSTALL_DIR, 'lib', 'workspace-registry.js'));
+    return repoRoot(start) || start;
+  } catch { return start; }
+})();
 const USER_SCOPE = flag('--user');
 const SETTINGS_FILE = USER_SCOPE
   ? path.join(os.homedir(), '.claude', 'settings.json')
