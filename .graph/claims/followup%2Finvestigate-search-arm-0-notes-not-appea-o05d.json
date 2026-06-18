@@ -1,0 +1,10 @@
+{
+  "task_key": "followup/investigate-search-arm-0-notes-not-appea-o05d",
+  "agent_id": "search-arm-0-investigator",
+  "session_id": "search-arm-0-investigation-session",
+  "workspace": "D:\\zonoid",
+  "branch": "orch/attempt/followup-investigate-search-arm-0-notes-not-appea-o05d",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T15:58:01.515Z",
+  "lease_until": "2026-06-18T16:58:01.515Z"
+}
