@@ -8,7 +8,7 @@ const {
   postWorkspace,
   promptFromParts,
 } = require('../packages/opencode-plugin/lib/prompt-context');
-const { checkShouldStop } = require('../packages/opencode-plugin/lib/gate');
+const { checkShouldStop, nudgeReady } = require('../packages/opencode-plugin/lib/gate');
 
 test('postWorkspace sends the OpenCode workspace path to /workspace', async () => {
   const calls = [];
@@ -181,4 +181,45 @@ test('checkShouldStop fails open without session or daemon', async () => {
       throw new Error('offline');
     },
   }));
+});
+
+test('nudgeReady queries ready endpoint with encoded session and workspace', async () => {
+  const calls = [];
+  const result = await nudgeReady({
+    sessionID: 'oc session/123',
+    workspace: '/repo/app with spaces',
+    get: async (path) => {
+      calls.push(path);
+      return { ready: [] };
+    },
+  });
+
+  assert.deepEqual(result, { ready: [] });
+  const url = new URL(`http://orch${calls[0]}`);
+  assert.equal(url.pathname, '/ready');
+  assert.equal(url.searchParams.get('session'), 'oc session/123');
+  assert.equal(url.searchParams.get('workspace'), '/repo/app with spaces');
+});
+
+test('nudgeReady fails open when the daemon is unavailable', async () => {
+  await assert.doesNotReject(nudgeReady({
+    sessionID: 'oc-session',
+    workspace: '/repo/app',
+    get: async () => {
+      throw new Error('offline');
+    },
+  }));
+});
+
+test('nudgeReady skips daemon call when session and workspace are missing', async () => {
+  let called = false;
+  const result = await nudgeReady({
+    get: async () => {
+      called = true;
+      return { ready: [] };
+    },
+  });
+
+  assert.equal(result, null);
+  assert.equal(called, false);
 });

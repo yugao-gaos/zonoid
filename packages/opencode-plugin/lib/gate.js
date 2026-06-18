@@ -73,6 +73,22 @@ async function checkShouldStop({ sessionID, agentId, workspace, get = orchGet } 
   return verdict || null;
 }
 
+async function nudgeReady({ sessionID, workspace, get = orchGet } = {}) {
+  const session = sessionID ? String(sessionID) : '';
+  const ws = workspace ? String(workspace) : '';
+  if (!session && !ws) return null;
+
+  const params = new URLSearchParams();
+  if (session) params.set('session', session);
+  if (ws) params.set('workspace', ws);
+
+  try {
+    return await get(`/ready?${params.toString()}`);
+  } catch {
+    return null;
+  }
+}
+
 function hookInputFromToolArgs(tool, args) {
   const input = (args && typeof args === 'object') ? { ...args } : {};
   if (input.file_path == null) {
@@ -156,4 +172,4 @@ async function gateWriteTool(sessionID, tool, args) {
   throw new Error(msg);
 }
 
-module.exports = { WRITE_TOOLS, orchPost, checkShouldStop, gateWriteTool };
+module.exports = { WRITE_TOOLS, orchPost, checkShouldStop, nudgeReady, gateWriteTool };
