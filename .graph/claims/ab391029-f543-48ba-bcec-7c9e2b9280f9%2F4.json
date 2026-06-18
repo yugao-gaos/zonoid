@@ -1,0 +1,10 @@
+{
+  "task_key": "ab391029-f543-48ba-bcec-7c9e2b9280f9/4",
+  "agent_id": "ce2-judge-search-rerank",
+  "session_id": "ce2-judge-search-rerank-session",
+  "workspace": "D:\\zonoid",
+  "branch": "orch/attempt/ab391029-f543-48ba-bcec-7c9e2b9280f9-4",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T15:57:12.422Z",
+  "lease_until": "2026-06-18T16:57:12.422Z"
+}
