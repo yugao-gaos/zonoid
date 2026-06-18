@@ -22,18 +22,28 @@ function dirFor(workspace) {
   return path.join(baseDir(), workspaceKey(workspace));
 }
 
+function normalizeTaskId(id) {
+  const normalized = String(id ?? '').trim();
+  if (!normalized) throw new Error('task_create: id and subject are required');
+  if (!/^[A-Za-z0-9._-]+$/.test(normalized)) {
+    throw new Error('task_create: id may contain only letters, numbers, dot, underscore, and dash');
+  }
+  return normalized;
+}
+
 function stubPath(workspace, id) {
-  return path.join(dirFor(workspace), HARNESS, `${id}.json`);
+  return path.join(dirFor(workspace), HARNESS, `${normalizeTaskId(id)}.json`);
 }
 
 /** Write a v1 stub file atomically (.tmp then rename). Returns { key, file, stub }. */
 function writeTaskStub(workspace, { id, subject, description, status, blockedBy, agent_id }) {
-  if (!id || !subject) throw new Error('task_create: id and subject are required');
+  if (!subject) throw new Error('task_create: id and subject are required');
+  const taskId = normalizeTaskId(id);
   const dir = path.join(dirFor(workspace), HARNESS);
   fs.mkdirSync(dir, { recursive: true });
-  const file = stubPath(workspace, String(id));
+  const file = stubPath(workspace, taskId);
   const stub = {
-    id: String(id),
+    id: taskId,
     subject: String(subject),
     description: description != null ? String(description) : '',
     status: status || 'pending',
@@ -46,4 +56,4 @@ function writeTaskStub(workspace, { id, subject, description, status, blockedBy,
   return { key: `${HARNESS}/${stub.id}`, file, stub };
 }
 
-module.exports = { HARNESS, workspaceKey, dirFor, stubPath, writeTaskStub };
+module.exports = { HARNESS, workspaceKey, dirFor, stubPath, normalizeTaskId, writeTaskStub };

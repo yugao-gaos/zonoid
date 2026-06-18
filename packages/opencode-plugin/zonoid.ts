@@ -51,7 +51,7 @@ export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
       task_create: tool({
         description: 'Mint a Zonoid orchestrator task (file-drop stub + POST /sync).',
         args: {
-          id: tool.schema.string().describe('Task id → opencode/<id>'),
+          id: tool.schema.string().describe('Task id -> opencode/<id>; use letters, numbers, dot, underscore, or dash only'),
           subject: tool.schema.string().describe('Short title'),
           description: tool.schema.string().optional(),
           blockedBy: tool.schema.array(tool.schema.string()).optional(),
