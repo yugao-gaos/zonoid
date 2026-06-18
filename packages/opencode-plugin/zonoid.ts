@@ -6,7 +6,7 @@ import type { Plugin } from '@opencode-ai/plugin';
 import { tool } from '@opencode-ai/plugin';
 import { createRequire } from 'node:module';
 import { writeTaskStub } from './lib/stub-writer.js';
-import { gateWriteTool, orchPost } from './lib/gate.js';
+import { checkShouldStop, gateWriteTool, orchPost } from './lib/gate.js';
 import { injectClassifiedContext, postWorkspace } from './lib/prompt-context.js';
 
 const require = createRequire(import.meta.url);
@@ -52,8 +52,11 @@ export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
     },
 
     'tool.execute.before': async (input, output) => {
+      const sessionID = String(input.sessionID ?? input.sessionId ?? '');
+      const agentId = sessionID ? (sessionAgents.get(sessionID) || `opencode-${sessionID.slice(0, 8)}`) : '';
+      await checkShouldStop({ sessionID, agentId, workspace });
       const args = (output.args && typeof output.args === 'object') ? output.args : {};
-      await gateWriteTool(input.sessionID, input.tool, args);
+      await gateWriteTool(sessionID, input.tool, args);
     },
 
     tool: {

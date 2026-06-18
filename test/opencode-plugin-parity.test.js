@@ -8,6 +8,7 @@ const {
   postWorkspace,
   promptFromParts,
 } = require('../packages/opencode-plugin/lib/prompt-context');
+const { checkShouldStop } = require('../packages/opencode-plugin/lib/gate');
 
 test('postWorkspace sends the OpenCode workspace path to /workspace', async () => {
   const calls = [];
@@ -115,4 +116,69 @@ test('injectClassifiedContext fails open when classify is unavailable', async ()
 
   assert.equal(changed, false);
   assert.deepEqual(output.parts, [first]);
+});
+
+test('checkShouldStop queries session agent and workspace', async () => {
+  const calls = [];
+  const result = await checkShouldStop({
+    sessionID: 'oc-session-12345678',
+    agentId: 'worker-opencode',
+    workspace: '/repo/app',
+    get: async (path) => {
+      calls.push(path);
+      return { stop: false };
+    },
+  });
+
+  assert.deepEqual(result, { stop: false });
+  const url = new URL(`http://orch${calls[0]}`);
+  assert.equal(url.pathname, '/should-stop');
+  assert.equal(url.searchParams.get('session'), 'oc-session-12345678');
+  assert.equal(url.searchParams.get('agent'), 'worker-opencode');
+  assert.equal(url.searchParams.get('workspace'), '/repo/app');
+});
+
+test('checkShouldStop falls back to OpenCode session agent convention', async () => {
+  const calls = [];
+  await checkShouldStop({
+    sessionID: 'abcdef123456',
+    get: async (path) => {
+      calls.push(path);
+      return { stop: false };
+    },
+  });
+
+  const url = new URL(`http://orch${calls[0]}`);
+  assert.equal(url.searchParams.get('agent'), 'opencode-abcdef12');
+});
+
+test('checkShouldStop throws with daemon stop reason', async () => {
+  await assert.rejects(
+    checkShouldStop({
+      sessionID: 'oc-session',
+      agentId: 'worker-opencode',
+      get: async () => ({ stop: true, reason: 'task canceled' }),
+    }),
+    /task canceled/,
+  );
+});
+
+test('checkShouldStop fails open without session or daemon', async () => {
+  let called = false;
+  const noSession = await checkShouldStop({
+    sessionID: '',
+    get: async () => {
+      called = true;
+      return { stop: true };
+    },
+  });
+
+  assert.equal(noSession, null);
+  assert.equal(called, false);
+  await assert.doesNotReject(checkShouldStop({
+    sessionID: 'oc-session',
+    get: async () => {
+      throw new Error('offline');
+    },
+  }));
 });
