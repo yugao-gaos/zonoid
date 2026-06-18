@@ -26,7 +26,7 @@ them (plus such relay-only helpers as `GET /session-info` and `POST /route` used
 | `/should-stop` | `GET` | Cooperative stop signal: `{ stop, reason? }` for `?session=<id>&agent=<id>?`. |
 | `/agent/start` | `POST` | Register a worker (`{ agent_id, agent_type?, transcript_path?, session?, subagent_session?, workspace?, task? }`). |
 | `/agent/done` | `POST` | Mark worker done; auto-release dangling `in_progress` claims (`{ agent_id, workspace? }` → `{ released }`). |
-| `/classify` | `POST` | **Planned (P4-C1).** Absorb prompt-submit heuristics; return finished injection text (`{ prompt }` → `{ additionalContext, … }`). Today Claude uses `hooks/classify.sh` locally plus `POST /context-classify`. |
+| `/classify` | `POST` | Absorb prompt-submit heuristics; return finished injection text (`{ prompt, session_id?, workspace? }` → `{ additional_context, … }`). |
 | `/ready` | `GET` | Ready frontier: `{ ready: [{ key, label }] }`. Optional `?session=` / `?roots=` filters. |
 | `/sync` | `POST` | Immediate file-drop pull (`{ workspace? }` → `{ adopted[], suggestions{} }`). |
 | `/overlay/status` | `POST` | Authoritative task status / claim / complete (`{ key, status, agent_id?, summary?, … }`). MCP `start_task` / `complete_task` map here. **Dispatcher sessions are refused** on `in_progress` (409). |
@@ -75,8 +75,8 @@ harness guarantees interception.
 | Contract event | Claude Code (reference) | Cursor | Codex | OpenCode |
 |---|---|---|---|---|
 | **Hook / plugin install** | `.claude/settings.json` → `hooks/*.sh` | Try `.claude/settings.json` compat first; else `.cursor/hooks.json` | `~/.codex/hooks.json` or `[hooks]` in `config.toml` | `.opencode/plugins/zonoid.ts` (or package) |
-| **Workspace bind** | `SessionStart` → `start-daemon.sh` → `POST /workspace` | `sessionStart` → relay | `SessionStart` → relay | Plugin init / session hook → relay |
-| **Prompt submit** | `UserPromptSubmit` → `classify.sh` → `/classify` *(target)*; today `/context-classify`, `/ready`, `/route` | `beforeSubmitPrompt` or mapped `UserPromptSubmit` → relay | `UserPromptSubmit` → relay | `chat.message` / `event` → relay |
+| **Workspace bind** | `SessionStart` → `start-daemon.sh` → `POST /workspace` | `sessionStart` → relay | `SessionStart` → relay | Plugin init and `session.created` → `POST /workspace` |
+| **Prompt submit** | `UserPromptSubmit` → `classify.sh` → `/classify` | `beforeSubmitPrompt` or mapped `UserPromptSubmit` → relay | `UserPromptSubmit` → relay | `chat.message` → `POST /classify`, append returned context as a text part |
 | **Write gate** | `PreToolUse` `Write\|Edit` → shared policy in `hooks/lib/gate-policy.js` via `orch-gate.*` (exit 2) | `preToolUse` → normalize payload, then same shared gate (exit 2) | `PreToolUse` → same shared gate, translated to `permissionDecision: deny` | `tool.execute.before` → same shared policy, then **throw** to block (never rely on arg rewrite) |
 | **Cooperative stop** | `PreToolUse` `*` → `orch-stop.sh` → `/should-stop` (exit 2) | `preToolUse` → relay (exit 2) | `PreToolUse` / `Stop` → relay | `tool.execute.before` throw or `event` handler |
 | **Agent start** | `SubagentStart` → `subagent-start.sh` → `/agent/start` | `subagentStart` → relay | hook lifecycle → relay | `event` subscription → relay |
@@ -229,9 +229,9 @@ Installed hooks in `hooks/hooks.json`:
 | `PostToolUse` `TaskCreate` | `suggest-links.sh` | MCP / graph tools (wiring nudge) |
 | *(after MCP `start_task`)* | `orch-posttool-starttask.sh` | `/overlay/claim-session` |
 
-Phase 4 follow-ups: **P4-C1** adds `POST /classify`; **P4-C3** slims `classify.sh` to a dumb
-relay. Until then, adapters should treat `/classify` as the contract target and
-`/context-classify` + script heuristics as the Claude reference implementation.
+`POST /classify` is the contract target for prompt-submit relays. Claude's `classify.sh`
+remains the reference hook relay, while OpenCode uses `chat.message` to append returned
+context into the outgoing user message.
 
 ---
 
