@@ -38,7 +38,7 @@ for _p in (_HERE, _BENCH):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from zonoid_lifecycle import post_note  # noqa: E402
+from zonoid_lifecycle import post_note, _http_post  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # LLM helpers — reuse the same claude_p / parse logic as zonoid_bench.judge
@@ -101,10 +101,18 @@ Rules:
 5. Only extract facts stated by the user (not the assistant's speculative responses).
 6. Skip pleasantries, meta-commentary, generic advice — only concrete facts about the user.
 7. If you find NO extractable facts, return an empty list.
+8. For each fact, identify the PRIMARY entity it is about: choose a concise canonical name
+   (e.g. "bread baking", "Alice Smith", "San Francisco") and its type: one of
+   person | org | place | thing | concept.
 
 Return ONLY a JSON array of objects with this shape:
 [
-  {{"title": "short fact title (5-10 words)", "fact": "full self-contained fact sentence"}},
+  {{
+    "title": "short fact title (5-10 words)",
+    "fact": "full self-contained fact sentence",
+    "entity_name": "canonical entity name this fact is about",
+    "entity_type": "person|org|place|thing|concept"
+  }},
   ...
 ]
 
@@ -176,7 +184,15 @@ def _parse_facts(raw: str) -> list[dict[str, str]]:
         title = str(item.get("title") or "").strip()
         fact = str(item.get("fact") or "").strip()
         if fact:
-            facts.append({"title": title or fact[:60], "fact": fact})
+            entry: dict[str, str] = {"title": title or fact[:60], "fact": fact}
+            # Phase 2: entity fields (optional — backwards-compatible with old prompts that omit them).
+            entity_name = str(item.get("entity_name") or "").strip()
+            entity_type = str(item.get("entity_type") or "").strip().lower()
+            if entity_name:
+                entry["entity_name"] = entity_name
+            if entity_type:
+                entry["entity_type"] = entity_type
+            facts.append(entry)
     return facts
 
 
@@ -270,6 +286,43 @@ def distill_session(
                 print(f"  [{note_key}] {title!r}", file=sys.stderr)
             if note_key:
                 written.append({"note_key": note_key, "title": title, "fact": fact_text})
+
+                # Phase 2: entity wiring — upsert entity node + link fact note to it.
+                entity_name = fact.get("entity_name", "").strip()
+                entity_type = fact.get("entity_type", "concept").strip() or "concept"
+                if entity_name and note_key:
+                    try:
+                        # Upsert the entity node (idempotent by name).
+                        entity_resp = _http_post(
+                            f"{base_url.rstrip('/')}/entity",
+                            {"workspace": workspace, "name": entity_name, "type": entity_type},
+                            timeout,
+                        )
+                        entity_id = entity_resp.get("id")
+                        if entity_id:
+                            entity_key = f"entity:{entity_id}"
+                            # Wire: note → entity with relation "subject_of".
+                            _http_post(
+                                f"{base_url.rstrip('/')}/entity/link",
+                                {
+                                    "workspace": workspace,
+                                    "from": note_key,
+                                    "to": entity_key,
+                                    "relation": "subject_of",
+                                },
+                                timeout,
+                            )
+                            if verbose:
+                                print(
+                                    f"    entity [{entity_key}] {entity_name!r} ({entity_type})",
+                                    file=sys.stderr,
+                                )
+                    except Exception as ent_exc:  # noqa: BLE001
+                        # Entity wiring is best-effort — never fail fact ingest because of it.
+                        print(
+                            f"[distill] session {session_idx} entity wiring failed: {ent_exc}",
+                            file=sys.stderr,
+                        )
         except Exception as exc:  # noqa: BLE001
             print(f"[distill] session {session_idx} fact write failed: {exc}", file=sys.stderr)
 
