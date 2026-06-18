@@ -4,7 +4,8 @@
   "session_id": "019edacd-c263-70f3-96e7-d875bdeb803e",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-product-pipeline-daemon-review",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T12:57:18.068Z",
-  "lease_until": "2026-06-18T13:57:18.068Z"
+  "lease_until": "2026-06-18T13:57:18.068Z",
+  "completed_at": "2026-06-18T13:03:16.730Z"
 }
