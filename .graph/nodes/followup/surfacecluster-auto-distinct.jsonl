@@ -1,0 +1,2 @@
+{"evt":"status_changed","id":"followup/surfacecluster-auto-distinct","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T18:23:24.910Z"}
+{"evt":"timestamps_set","id":"followup/surfacecluster-auto-distinct","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-17T16:19:41.252Z","lastChanged":"2026-06-17T20:21:05.743Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-18T18:23:24.910Z"}

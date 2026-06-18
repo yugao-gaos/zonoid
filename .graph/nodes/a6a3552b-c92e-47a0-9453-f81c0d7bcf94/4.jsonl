@@ -1,0 +1,2 @@
+{"evt":"edge_added","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:52:19.937Z","weight":0.7,"origin":"asserted"}
+{"evt":"snapshot_stored","id":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","workspace":"/Users/imyu/Desktop/zonoid","subject":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","description":"","status":"done","blockedBy":[],"owner":null,"metadata":{"synthetic_overlay_task":true},"snapshotted_at":"2026-06-18T19:52:19.884Z","actor":"overlay-sync","ts":"2026-06-18T19:52:19.937Z"}

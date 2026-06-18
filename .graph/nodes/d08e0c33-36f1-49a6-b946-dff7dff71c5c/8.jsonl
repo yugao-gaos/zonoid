@@ -5,3 +5,5 @@
 {"evt":"edge_added","from":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/8","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/10","kind":"context","actor":"overlay-sync","ts":"2026-06-15T02:34:01.570Z","origin":"asserted"}
 {"evt":"edge_added","from":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/8","to":"codex/trace-daemon-lifecycle-codex","kind":"context","actor":"overlay-sync","ts":"2026-06-17T17:31:40.863Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/8","to":"codex/trace-daemon-lifecycle-codex","kind":"context","actor":"overlay-sync","ts":"2026-06-17T17:31:51.986Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_added","from":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/8","to":"codex/product-pipeline-map","kind":"context","actor":"overlay-sync","ts":"2026-06-18T18:23:24.910Z","weight":0.8,"judged":true,"origin":"asserted"}
+{"evt":"edge_added","from":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/8","to":"codex/product-pipeline-daemon-review","kind":"context","actor":"overlay-sync","ts":"2026-06-18T18:23:24.910Z","weight":0.9,"judged":true,"origin":"asserted"}
