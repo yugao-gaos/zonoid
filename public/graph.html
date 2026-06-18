@@ -4592,7 +4592,7 @@ async function tick(){
   // re-ticks once a choice lands. This is what prevents a silent fall-through to the global pointer.
   if (!WS_RESOLVED) { try { await resolveExplicitWorkspace(); } catch {} if (!WS_RESOLVED) return; }
   let d; try{ d=await(await dfetch('/state')).json(); }catch{ return; }
-  refreshCost(); refreshCronTok(); refreshInfraHero(); refreshAgreement();
+  refreshCost(); refreshCronTok(); refreshInfraHero(); refreshAgreement(); refreshEconomy();
   liveAgentIds=new Set((d.agents||[]).filter(a=>a&&a.state==='running').map(a=>a.agent_id));
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
 
@@ -4722,6 +4722,21 @@ async function tick(){
         `<span class="hlabel">Model agree <span style="font-size:8px;color:#484f58;font-weight:400;text-transform:none">shadow</span></span><span class="hval" style="color:${agColor}">${agRate}</span>` +
         `<span class="hval-sub">${agSub}</span>` +
         `<span class="htip"><div class="tip-title">Shadow model agreement</div>${agTip}</span>` +
+        `</span>`;
+    })() +
+    (()=>{
+      const ec=economyCache;
+      const ecAvoided=ec&&ec.avoided!=null?ec.avoided:null;
+      const ecCost=ec&&ec.estimated_cost_usd!=null?ec.estimated_cost_usd:null;
+      const ecColor=ecAvoided!=null&&ecAvoided>0?'#3fb950':'#484f58';
+      const ecVal=ecAvoided!=null?String(ecAvoided):'—';
+      const ecSub=ecCost!=null?'$'+ecCost.toFixed(2)+' est. saved':'no data yet';
+      const perCall=ec&&ec.cost_per_call_usd!=null?ec.cost_per_call_usd:0.011;
+      const ecTip=`Edge verdicts decided by the learned model since promotion, avoiding Sonnet API calls. Cost estimate: $${perCall}/call (Sonnet 3.5 ~2000 input + 300 output tokens).`;
+      return `<span class="hero">` +
+        `<span class="hlabel">Calls saved</span><span class="hval" style="color:${ecColor}">${ecVal}</span>` +
+        `<span class="hval-sub">${ecSub}</span>` +
+        `<span class="htip"><div class="tip-title">Judge calls avoided</div>${ecTip}</span>` +
         `</span>`;
     })();
   // Status dock update
@@ -5716,6 +5731,15 @@ async function fetchCronData(){ try{ const d=await(await fetch(BASE+'/cron/usage
 // Agreement rate cache: how often the learned shadow model agrees with Sonnet's verdict.
 // Refreshed at most once per 30 s, in the background, exactly like refreshInfraHero.
 let agreementCache=null, _agreementPromoted=false, _agreementPromotionState=null, _agreementAt=0, _agreementBusy=false;
+let economyCache=null, _economyAt=0, _economyBusy=false;
+async function refreshEconomy(){
+  if(_economyBusy||Date.now()-_economyAt<30000) return;
+  _economyBusy=true; _economyAt=Date.now();
+  try{
+    const d=await(await dfetch('/metrics/economy')).json();
+    if(d&&d.ok){ economyCache=d.economy; }
+  }catch{}finally{ _economyBusy=false; }
+}
 async function refreshAgreement(){
   if(_agreementBusy||Date.now()-_agreementAt<30000) return;
   _agreementBusy=true; _agreementAt=Date.now();
