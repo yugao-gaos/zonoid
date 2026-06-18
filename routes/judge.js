@@ -2,7 +2,7 @@
 const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
-const { computeNoteStats, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-journal');
+const { computeNoteUsageEvidence, scoreNoteNecessity, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-journal');
 
 const { JUDGE_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 const { appendShadow } = require('../lib/shadow-journal');
@@ -227,7 +227,12 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           noteId: it.noteId,
           note: n ? { key: it.noteId, title: n.title, summary: String(n.summary || '').slice(0, 300), validFrom: n.validFrom || null } : { key: it.noteId, title: it.id, summary: '' },
           winRate: it.winRate,
+          wins: it.wins,
+          losses: it.losses,
           total: it.total,
+          ageDays: it.ageDays,
+          confidence: it.confidence,
+          reasons: it.reasons || [],
           action: it.action,
         };
       }
@@ -565,27 +570,45 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   // Read-only diagnostic endpoint. Runs the same decay gate logic as buildQueue pass (4) and returns
   // which notes WOULD be soft-retired WITHOUT writing any note_superseded event.
   // Response: { candidates: [{noteId, label, winRate, wins, losses, total, ageDays, validFrom}],
-  //             scanned, belowThreshold }
+  //             review: [{noteId, label, reason, ...}], scanned, belowThreshold }
   if (p === '/judge/decay-preview' && m === 'GET') {
     const T = targetOverlay(null, u);
     const ws = T.ws;
     const noteNodes = T.ov.note_nodes || {};
-    const noteStats = computeNoteStats(ws);
+    const evidenceMap = computeNoteUsageEvidence(ws, noteNodes);
     const nowMs = Date.now();
     let scanned = 0;
     let belowThreshold = 0;
     const candidates = [];
+    const review = [];
     for (const n of Object.values(noteNodes)) {
       scanned++;
-      const stat = noteStats.get(n.id);
-      const check = judge.isDecayCandidate(n, stat, nowMs);
+      const noteKey = 'note:' + n.id;
+      const evidence = evidenceMap.get(noteKey);
+      const check = scoreNoteNecessity(evidence, nowMs);
       // Count notes that have stats but fail win-rate gate (regardless of age/opportunities).
-      if (!check.candidate && stat && stat.winRate < WIN_RATE_THRESHOLD) belowThreshold++;
-      if (!check.candidate) continue;
-      const wins = stat ? stat.wins : 0;
-      const losses = stat ? stat.losses : 0;
+      if (evidence && evidence.opportunities > 0 && evidence.winRate < WIN_RATE_THRESHOLD) belowThreshold++;
+      const wins = evidence ? evidence.wins : 0;
+      const losses = evidence ? evidence.losses : 0;
+      if (!check.retireCandidate) {
+        if (check.review && evidence && evidence.opportunities > 0 && (evidence.winRate < WIN_RATE_THRESHOLD || check.borderline)) {
+          review.push({
+            noteId: noteKey,
+            label: n.title || n.id,
+            classification: check.classification,
+            reasons: check.reasons,
+            winRate: check.winRate,
+            wins,
+            losses,
+            total: check.total,
+            ageDays: check.ageDays,
+            validFrom: n.validFrom || null,
+          });
+        }
+        continue;
+      }
       candidates.push({
-        noteId: 'note:' + n.id,
+        noteId: noteKey,
         label: n.title || n.id,
         winRate: check.winRate,
         wins,
@@ -597,7 +620,8 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     }
     // Stable ordering: ascending by noteId so output is deterministic
     candidates.sort((a, b) => (a.noteId < b.noteId ? -1 : a.noteId > b.noteId ? 1 : 0));
-    send(res, 200, { candidates, scanned, belowThreshold }); return true;
+    review.sort((a, b) => (a.noteId < b.noteId ? -1 : a.noteId > b.noteId ? 1 : 0));
+    send(res, 200, { candidates, review, scanned, belowThreshold }); return true;
   }
 
   return false;

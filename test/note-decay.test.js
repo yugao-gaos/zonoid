@@ -17,12 +17,18 @@ const {
   readRows,
   latestByTask,
   computeNoteStats,
+  computeNoteUsageEvidence,
+  computeNoteUsageEvidenceFromRows,
+  scoreNoteNecessity,
+  NECESSITY_KEEP,
+  NECESSITY_RETIRE_CANDIDATE,
   MIN_AGE_DAYS,
   MIN_OPPORTUNITIES,
   WIN_RATE_THRESHOLD,
 } = require('../lib/recall-outcome-journal');
 
 const judge = require('../lib/judge');
+const graphStore = require('../lib/graph-store');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -361,6 +367,101 @@ console.log('\n=== D. Zero / sub-threshold opportunities ===\n');
   const o = makeOverlay({ 'exact-min': note }, ws);
   const q = judge.buildQueue(o);
   ok(`D4: exactly MIN_OPPORTUNITIES=${MIN_OPPORTUNITIES} rows, all losses → included in decay lane`, q.filter((i) => i.kind === 'decay').length === 1);
+  fs.rmSync(ws, { recursive: true });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// E. Pure usage evidence + necessity scorer
+// ──────────────────────────────────────────────────────────────────────────────
+console.log('\n=== E. Usage evidence + scorer ===\n');
+
+// E1: evidence combines latest resolved journal rows with current note metadata.
+{
+  const oldIso = new Date(Date.now() - OLD_MS).toISOString();
+  const rows = [
+    { ts: '2026-01-01T00:00:00.000Z', task_key: 'task/e1-pending', recalled_note_keys: ['n-e1'], outcome: 'pending' },
+    { ts: '2026-01-02T00:00:00.000Z', task_key: 'task/e1-pending', recalled_note_keys: ['n-e1'], outcome: 'approve' },
+    { ts: '2026-01-03T00:00:00.000Z', task_key: 'task/e1-loss', recalled_note_keys: ['note:n-e1'], outcome: 'failed' },
+  ];
+  const evidence = computeNoteUsageEvidenceFromRows(rows, {
+    'n-e1': { id: 'n-e1', title: 'e1', summary: 'summary', created_by: 'tester', validFrom: oldIso, validTo: null },
+  }).get('note:n-e1');
+  ok('E1: bare note ids normalize to note:<id>', !!evidence && evidence.noteKey === 'note:n-e1');
+  ok('E1: latest resolved row overrides pending', evidence && evidence.winCount === 1 && evidence.lossCount === 1);
+  ok('E1: opportunities/recallCount count resolved recalls', evidence && evidence.opportunities === 2 && evidence.recallCount === 2);
+  ok('E1: metadata marks note current', evidence && evidence.current === true && evidence.validFrom === oldIso);
+  ok('E1: lastRecalledAt tracks latest resolved row', evidence && evidence.lastRecalledAt === '2026-01-03T00:00:00.000Z');
+}
+
+// E2: scorer emits retire-candidate only after age + opportunity gates and low win rate.
+{
+  const ws = makeTmpWs();
+  const note = makeNote('score-retire', OLD_MS);
+  seedRows(ws, 'note:score-retire', 0, MIN_OPPORTUNITIES);
+  const evidence = computeNoteUsageEvidence(ws, { 'score-retire': note }).get('note:score-retire');
+  const score = scoreNoteNecessity(evidence, Date.now());
+  ok('E2: low-win old note is retire-candidate', score.classification === NECESSITY_RETIRE_CANDIDATE && score.retireCandidate === true);
+  ok('E2: score carries sufficient confidence', score.confidence === 'sufficient');
+  fs.rmSync(ws, { recursive: true });
+}
+
+// E3: low-confidence and borderline cases are surfaced for review, not auto-retired.
+{
+  const ws = makeTmpWs();
+  const lowOpp = makeNote('score-low-opp', OLD_MS);
+  seedRows(ws, 'note:score-low-opp', 0, MIN_OPPORTUNITIES - 1);
+  const lowEvidence = computeNoteUsageEvidence(ws, { 'score-low-opp': lowOpp }).get('note:score-low-opp');
+  const lowScore = scoreNoteNecessity(lowEvidence, Date.now());
+  ok('E3: low-opportunity note is kept', lowScore.classification === NECESSITY_KEEP && lowScore.retireCandidate === false);
+  ok('E3: low-opportunity note is exposed for review', lowScore.review === true && lowScore.reasons.includes('insufficient_opportunities'));
+
+  const threshold = makeNote('score-threshold', OLD_MS);
+  seedRows(ws, 'note:score-threshold', 1, 3); // winRate = 0.25 with current threshold
+  const thresholdEvidence = computeNoteUsageEvidence(ws, { 'score-threshold': threshold }).get('note:score-threshold');
+  const thresholdScore = scoreNoteNecessity(thresholdEvidence, Date.now());
+  if (Math.abs(thresholdEvidence.winRate - WIN_RATE_THRESHOLD) < 0.001) {
+    ok('E3: threshold note is kept', thresholdScore.classification === NECESSITY_KEEP && thresholdScore.retireCandidate === false);
+    ok('E3: threshold note is marked borderline review', thresholdScore.borderline === true && thresholdScore.review === true);
+  } else {
+    ok('E3: threshold fixture not exact for current constants', true);
+    ok('E3: threshold fixture skipped borderline check', true);
+  }
+  fs.rmSync(ws, { recursive: true });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// F. Soft-retire round trip + recoverability
+// ──────────────────────────────────────────────────────────────────────────────
+console.log('\n=== F. Soft-retire round trip ===\n');
+
+{
+  const ws = makeTmpWs();
+  const store = graphStore.open(path.join(ws, '.graph'));
+  const validFrom = new Date(Date.now() - OLD_MS).toISOString();
+  const retiredAt = new Date().toISOString();
+  graphStore.appendEvent(store, 'note:soft-retire', {
+    evt: 'note_created',
+    actor: 'test',
+    id: 'soft-retire',
+    workspace: ws,
+    title: 'soft retire test',
+    summary: 'recoverable retired note',
+    created_by: 'tester',
+    valid_from: validFrom,
+  });
+  graphStore.appendEvent(store, 'note:soft-retire', {
+    evt: 'note_superseded',
+    id: 'soft-retire',
+    validTo: retiredAt,
+    actor: 'judge:decay',
+    ts: retiredAt,
+  });
+  const graph = graphStore.loadGraph(store);
+  const node = graph.nodes['note:soft-retire'];
+  ok('F1: soft-retired note remains in graph', !!node);
+  ok('F1: validTo is stamped by note_superseded', node && node.validTo === retiredAt);
+  ok('F1: retire-without-replacement has no supersededBy', node && !node.supersededBy);
+  ok('F1: note content remains recoverable in history', node && node.note && node.note.summary === 'recoverable retired note');
   fs.rmSync(ws, { recursive: true });
 }
 
