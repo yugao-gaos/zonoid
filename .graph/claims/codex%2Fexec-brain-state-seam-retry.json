@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/exec-brain-state-seam-retry",
+  "agent_id": "worker-exec-brain-state-seam-retry",
+  "session_id": "019edc69-6d90-7793-be30-a9751ddd4d0d",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-exec-brain-state-seam-retry",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T20:26:37.758Z",
+  "lease_until": "2026-06-18T21:26:37.758Z"
+}
