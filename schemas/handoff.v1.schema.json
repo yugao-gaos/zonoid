@@ -32,6 +32,23 @@
           "items": { "type": "string" },
           "description": "Files the worker is expected to touch. Advisory scope hint, not a hard fence."
         },
+        "plan_goal": {
+          "type": "string",
+          "description": "One-sentence objective of the overall plan this task belongs to. Gives the worker the 'why' behind their scoped work — the broader initiative the dispatcher decomposed."
+        },
+        "sibling_tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "task_key": { "type": "string", "description": "Graph task key of the sibling." },
+              "title": { "type": "string", "description": "Short task title — enough to know what the sibling covers." }
+            },
+            "required": ["task_key", "title"],
+            "additionalProperties": false
+          },
+          "description": "Lightweight list of sibling tasks in the same plan (key + title only). Workers can call get_task_detail on a specific sibling if they need deeper context or want to check its status."
+        },
         "context_deps": {
           "type": "array",
           "items": {
@@ -50,7 +67,7 @@
           "description": "The shape the worker must return. Reference to task_result so envelope and result stay coupled to one version."
         }
       },
-      "required": ["version", "task_key", "agent_id", "branch", "target_repo", "return_contract"],
+      "required": ["version", "task_key", "agent_id", "branch", "target_repo", "plan_goal", "sibling_tasks", "return_contract"],
       "additionalProperties": false
     },
     "task_result": {
