@@ -9,7 +9,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     analyticsState, analyticsFlush, PUBLIC, loops, taskTranscript, usageCached,
     staleClaimKeys, releaseClaim, reapAgent, saveAgents, cache, targetOverlay, MCP_CALL,
     embedStatus, respCacheGet, respCachePut, isTruthy, frontier, agentsArr, sessionCount,
-    WORKSPACES_FILE, graphStore } = ctx;
+    WORKSPACES_FILE, graphStore, loadRegistry, repoToWorkspace, repoRoot } = ctx;
 
   if (p === '/ping') { send(res, 200, { ok: true, sessions: sessionCount() }); return true; }
 
@@ -103,8 +103,55 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // P3: setWorkspace REGISTERS + BINDS the workspace (no global default to flip), so the old
     // "skip when a different workspace is already pinned" guard is gone — each call just registers
     // and binds its own path.
-    setWorkspace(b.path, b);
-    send(res, 200, { ok: true, workspace: b.path }); return true;
+    // Workspace model (U3): a workspace is a NAMED group of repos. `b.path` is a repo; if a deep cwd
+    // was passed (a subdir BELOW an existing .graph/.git repo), resolve UP to the containing repo so
+    // we register the REPO, not a subdir. The optional `b.workspace` names the group it joins
+    // (setWorkspace defaults it to basename(repoRoot) — a single-repo workspace — when absent).
+    //
+    // Resolution is conservative: a path that is ALREADY a repo root (has its own .graph or .git) is
+    // used verbatim, and a brand-new workspace dir with NO marker is registered AS GIVEN (setWorkspace
+    // creates its .graph). We only substitute repoRoot's result when it CLIMBED to a STRICT ANCESTOR
+    // — i.e. b.path is genuinely nested inside an existing repo — so a fresh top-level workspace dir is
+    // never silently re-homed onto a stray ancestor marker.
+    const resolvedRoot = repoRoot(b.path);
+    const norm = (s) => path.resolve(s).replace(/[/\\]+$/, '');
+    // Climb ONLY when repoRoot found a STRICT ancestor (b.path is genuinely nested in a repo) and that
+    // ancestor is not a filesystem "container" root (system temp / home / fs root) — an incidental
+    // `.graph`/`.git` left in such a container must never re-home a fresh top-level workspace dir.
+    const os = require('os');
+    const containers = new Set([norm(os.tmpdir()), norm(os.homedir())]);
+    const climbed = resolvedRoot
+      && norm(resolvedRoot) !== norm(b.path)
+      && !containers.has(norm(resolvedRoot))
+      && path.dirname(norm(resolvedRoot)) !== norm(resolvedRoot); // not the fs root
+    const repoRootPath = climbed ? resolvedRoot : b.path;
+    setWorkspace(repoRootPath, { ...b, path: repoRootPath, workspace: b.workspace });
+    send(res, 200, { ok: true, workspace: repoRootPath }); return true;
+  }
+
+  if (p === '/workspace/add-repo' && m === 'POST') {
+    // Explicit "register this repo under this NAMED workspace group" op — no session bind, no SSE
+    // pin. Distinct from POST /workspace (which binds the caller's session). Resolves a deep cwd to
+    // its repo root, registers via the registry (idempotent, atomic v2 write), and warms the same
+    // per-repo machinery setWorkspace does so the repo is immediately usable (overlay + merge driver).
+    const b = await readBody(req);
+    if (!b.workspace || typeof b.workspace !== 'string') { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
+    if (!b.repo || typeof b.repo !== 'string') { send(res, 400, { ok: false, error: 'repo required' }); return true; }
+    const repoPath = repoRoot(b.repo) || b.repo;
+    try {
+      fs.mkdirSync(ctx.BASE, { recursive: true });
+      require('../lib/workspace-registry').addRepo(WORKSPACES_FILE, { workspace: b.workspace, repo: repoPath });
+    } catch (e) { send(res, 500, { ok: false, error: String(e && e.message || e) }); return true; }
+    // Warm overlay + merge driver for the repo (same side-effects setWorkspace performs), so the
+    // freshly registered repo is ready for graph ops without a separate /workspace bind.
+    try {
+      ctx.overlayFor(repoPath);
+      graphStore.open(path.join(repoPath, '.graph'));
+      graphStore.initGitAttributes(repoPath);
+      ctx.git.ensureMergeDriver(repoPath);
+    } catch { /* best effort warm — registration already persisted */ }
+    notifyChange();
+    send(res, 200, { ok: true, workspace: b.workspace, repo: repoPath }); return true;
   }
 
   if (p === '/analytics/tool-call' && m === 'POST') {
@@ -194,31 +241,35 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   }
 
   if (p === '/workspaces' && m === 'GET') {
-    // Build the union of all known workspaces for the dashboard workspace switcher.
-    // Sources (all deduped): workspaces.json registry + sessions + agents + graphStore known dirs.
-    // (P3: there is no daemon-global current workspace to seed from anymore.)
-    // Cheap: NO buildGraph per workspace — just path enumeration + basename.
+    // Build the union of all known REPOS for the dashboard workspace switcher, GROUPED by their
+    // named workspace (U3 workspace model: a workspace is a NAMED group of repos; each repo keeps its
+    // own .graph). Sources (all deduped): v2 registry (ctx.loadRegistry, migrates legacy v1) +
+    // sessions + agents + graphStore known dirs. (P3: no daemon-global current workspace to seed.)
+    // Cheap: NO buildGraph per repo — just path enumeration + basename + the repo->workspace index.
     const seenPaths = new Set();
     // Normalize to the OS-native separator and resolve any trailing sep — so Windows paths with
     // forward-slash variants (stored e.g. from ?workspace= URL decode) dedup against backslash ones.
     const normPath = (p2) => p2.replace(/[/\\]+$/, '').replace(/\//g, path.sep);
     const addPath = (p2) => { if (p2 && typeof p2 === 'string') seenPaths.add(normPath(p2)); };
 
-    // 1. Registry file (persisted across restarts)
-    try {
-      const stored = JSON.parse(fs.readFileSync(WORKSPACES_FILE, 'utf8'));
-      if (Array.isArray(stored)) stored.forEach(addPath);
-    } catch { /* file may not exist yet */ }
+    // 1. Registry file (persisted across restarts) — v2 grouped registry via ctx.loadRegistry, which
+    //    lazily migrates a legacy v1 flat array. Build the repo->workspace reverse index from it; all
+    //    member repos are registry-known repos that join their named group.
+    const reg = loadRegistry();
+    const repoWs = repoToWorkspace(reg);            // Map<normalizedRepoPath, workspaceName>
+    // repoToWorkspace keys are the raw stored paths; re-key by normPath so lookups match seenPaths.
+    const repoWsNorm = new Map();
+    for (const [repo, name] of repoWs) { repoWsNorm.set(normPath(repo), name); addPath(repo); }
 
     // 2. (P3) No daemon-global current workspace — sessions/agents/registry are the sources.
 
-    // 3. Distinct session workspaces
+    // 3. Distinct session workspaces (repos)
     for (const s of Object.values(state.sessions || {})) addPath(s.workspace);
 
-    // 4. Distinct agent workspaces
+    // 4. Distinct agent workspaces (repos)
     for (const a of Object.values(state.agents || {})) addPath(a.workspace);
 
-    // 5. graphStore opened dirs (strip /.graph suffix)
+    // 5. graphStore opened dirs (strip /.graph suffix) — these contribute REPOS too.
     for (const store of graphStore.allStores()) {
       const dir = store.dir;
       if (dir && dir.endsWith(path.sep + '.graph')) addPath(dir.slice(0, -(path.sep.length + 6)));
@@ -226,13 +277,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
 
     // P3: no daemon-global current workspace; the dashboard tracks its own selected workspace
-    // client-side. Reflect back the OPTIONAL ?workspace= the caller passed (else null).
+    // client-side. Reflect back the OPTIONAL ?workspace= the caller passed (else null). `current` on a
+    // repo entry = that repo path matching ?workspace=.
     const current = u.searchParams.get('workspace') || null;
-    // Filter: keep only paths that still exist on disk AND have a .graph dir (are real workspaces),
+    const currentNorm = current ? normPath(current) : null;
+    // Filter: keep only paths that still exist on disk AND have a .graph dir (are real repos),
     // AND are not git worktrees (orchestrator attempt/feature branches where .git is a FILE, not a
     // directory — a gitdir-pointer file written by `git worktree add`). Worktrees accumulate in
     // graphStore._stores via ?workspace= reads but should never appear in the user-facing switcher.
-    const workspaces = [...seenPaths]
+    const repoEntries = [...seenPaths]
       .filter((wsPath) => {
         if (!fs.existsSync(wsPath)) return false;
         if (!fs.existsSync(path.join(wsPath, '.graph'))) return false;
@@ -243,8 +296,32 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       .map((wsPath) => ({
         path: wsPath,
         name: path.basename(wsPath),
-        current: wsPath === current,
+        current: wsPath === currentNorm,
       }));
+
+    // ?flat=1 — legacy OLD flat shape [{path,name,current}] for U6 rollout compatibility.
+    if (isTruthy(u.searchParams.get('flat'))) {
+      send(res, 200, { ok: true, current, workspaces: repoEntries }); return true;
+    }
+
+    // GROUPED shape: [{ name, repos:[{path,name,current}], current }]. Each repo attaches to its
+    // workspace via the registry reverse index; repos present on disk but NOT in the registry
+    // (graphStore/session/agent dirs that were never `addRepo`'d) bucket under a synthetic
+    // "(unregistered)" group. A group's `current` = it owns the repo matching ?workspace=.
+    const ORPHAN = '(unregistered)';
+    const groups = new Map();   // name -> { name, repos:[], current }
+    const groupFor = (name) => {
+      let g = groups.get(name);
+      if (!g) { g = { name, repos: [], current: false }; groups.set(name, g); }
+      return g;
+    };
+    for (const repo of repoEntries) {
+      const name = repoWsNorm.get(repo.path) || ORPHAN;
+      const g = groupFor(name);
+      g.repos.push(repo);
+      if (repo.current) g.current = true;
+    }
+    const workspaces = [...groups.values()];
 
     send(res, 200, { ok: true, current, workspaces }); return true;
   }
