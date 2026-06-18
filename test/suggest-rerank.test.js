@@ -12,14 +12,26 @@
 //   4. Rerank DEFAULT-ON is null-safe: with a cold/absent sidecar rerank() returns null and the
 //      cosine order is preserved (no throw); ORCH_RERANK=off force-disables identically.
 'use strict';
+let rerankScores = null;
+const rerankCalls = [];
+// Stub rerank before daemon import so the default-on path is deterministic and sidecar-free.
+const rerankPath = require.resolve('../lib/rerank');
+require.cache[rerankPath] = {
+  id: rerankPath,
+  filename: rerankPath,
+  loaded: true,
+  exports: {
+    rerank: async (query, docs) => {
+      rerankCalls.push({ query, docs });
+      return Array.isArray(rerankScores) ? rerankScores : null;
+    },
+    rerankStatus: () => 'stub',
+  },
+};
 const { suggestForTask, SEMANTIC_DUP_THRESHOLD } = require('../daemon');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
-
-// Watchdog: the rerank leg can trigger an 80MB cross-encoder load under the parallel suite. Exit
-// cleanly at 60s — the deterministic scorer assertions (rerank forced off) have already run by then.
-setTimeout(() => { console.log(`\n(watchdog 60s) ${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0); }, 60_000).unref();
 
 // 3-dim synthetic vecs (cosine only needs matching lengths, not DIMS). Word overlap is independent of
 // the vecs so we can assert the `shared` evidence survives semantic ranking.
@@ -60,7 +72,16 @@ const lexGraph = { tasks: [
   ok('semantic: merely-related candidate NOT flagged duplicate', b && b.score < SEMANTIC_DUP_THRESHOLD && b.duplicate === false);
   ok('semantic: dup hint nudges supersede_task', sem.duplicates.length > 0 && /WARNING/.test(sem.hint) && /supersede_task/.test(sem.hint));
 
+  // ---- 2b. Rerank DEFAULT-ON with non-null scores can reorder the semantic candidate window ----
+  delete process.env.ORCH_RERANK;
+  rerankScores = [0.1, 0.9]; // score order matches the cosine pool [a,b], but CE prefers b
+  rerankCalls.length = 0;
+  const rrSem = await suggestForTask(semGraph, semTarget);
+  ok('rerank default-on (non-null): cross-encoder called once', rerankCalls.length === 1 && rerankCalls[0].docs.length === 2);
+  ok('rerank default-on (non-null): CE score reorders b above a', rrSem.suggestions[0] && rrSem.suggestions[0].key === 'b' && rrSem.suggestions[0].ceScore === 0.9);
+
   // ---- 3. LEXICAL fallback (vec-less) — relevant above unrelated, via:'lexical' ----
+  rerankScores = null;
   const lex = await suggestForTask(lexGraph, lexTarget);
   ok('lexical: top-5 cap + structure', lex.suggestions.length <= 5 && Array.isArray(lex.duplicates));
   ok('lexical: relevant s/1 ranks above unrelated s/3', (() => {

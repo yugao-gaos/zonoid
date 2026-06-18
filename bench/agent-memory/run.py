@@ -53,6 +53,9 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
+# Bench runs should measure retrieval/answer quality without note-retirement side effects.
+os.environ.setdefault("ZONOID_BENCH_DISABLE_NOTE_DECAY", "1")
+
 from datasets import load_locomo, load_longmemeval  # noqa: E402
 from distill import ConversationDistiller  # noqa: E402
 from ingest import ConversationIngester  # noqa: E402

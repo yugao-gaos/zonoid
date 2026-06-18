@@ -208,6 +208,8 @@ async function waitForPing(ms = 10000) {
     await req('POST', '/agent/stop', { workspace: WS_A, agent_id: 'claim-worker-A' });
     const claimA = await req('GET', `/active-claim?session=${encodeURIComponent('claim-session-A')}&workspace=${encodeURIComponent(WS_A)}`);
     ok('/active-claim?workspace=A sees A claim session', claimA.status === 200 && claimA.body.claimed === true && claimA.body.claims.some((c) => c.key === 'sessA/claim1'));
+    const claimNoWorkspace = await req('GET', `/active-claim?session=${encodeURIComponent('claim-session-A')}`);
+    ok('/active-claim without workspace scans registered overlays for claim session', claimNoWorkspace.status === 200 && claimNoWorkspace.body.claimed === true && claimNoWorkspace.body.claims.some((c) => c.key === 'sessA/claim1'));
     const stopA = await req('GET', `/should-stop?session=${encodeURIComponent('claim-session-A')}&agent=${encodeURIComponent('claim-worker-A')}&workspace=${encodeURIComponent(WS_A)}`);
     ok('/should-stop?workspace=A sees A stop flag', stopA.status === 200 && stopA.body.stop === true && stopA.body.agent === 'claim-worker-A');
     // P3: /should-stop with no workspace has no daemon-global overlay to read the stop flag from,

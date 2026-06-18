@@ -1,1 +1,3 @@
 {"evt":"edge_added","from":"59fc18e1-744e-4f7a-9093-a8e12d43087b/28","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/30","kind":"context","actor":"overlay-sync","ts":"2026-06-18T15:10:08.069Z","origin":"asserted"}
+{"evt":"edge_added","from":"59fc18e1-744e-4f7a-9093-a8e12d43087b/28","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/30","kind":"context","actor":"overlay-sync","ts":"2026-06-18T18:23:24.910Z","origin":"asserted"}
+{"evt":"status_changed","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/28","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T18:23:24.910Z"}

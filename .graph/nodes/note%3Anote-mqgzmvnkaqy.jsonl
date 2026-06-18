@@ -11,3 +11,4 @@
 {"evt":"edge_added","from":"note:note-mqgzmvnkaqy","to":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/15","kind":"context","actor":"overlay-sync","ts":"2026-06-17T02:05:08.281Z","weight":0,"by":"autowire","judged":false,"score":0.563,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqgzmvnkaqy","to":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/22","kind":"context","actor":"overlay-sync","ts":"2026-06-17T02:05:19.141Z","weight":0,"by":"autowire","judged":false,"score":0.574,"origin":"autowire-semantic"}
 {"evt":"note_superseded","id":"note-mqgzmvnkaqy","supersededBy":"note-mqh2njkvhda","validTo":"2026-06-16T20:05:33.535Z","ts":"2026-06-16T20:05:33.535Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mqgzmvnkaqy","to":"codex/product-pipeline-surface-review","kind":"context","actor":"overlay-sync","ts":"2026-06-18T18:23:24.910Z","weight":0.7,"judged":true,"origin":"asserted"}

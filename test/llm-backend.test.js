@@ -507,22 +507,25 @@ test('codex provider: buildInvocation produces the expected `codex exec` argv', 
   const restore = withEnv({ CODEX_BIN: '/bin/codex' });
   try {
     const inv = backend.codexProvider.buildInvocation({
-      prompt: 'judge the diff', model: 'gpt-5-codex',
+      prompt: 'judge the diff', model: 'gpt-5.4-mini',
       mcpConfig: '/ws/.mcp.json', addDir: '/ws', budget: 6,
     });
     assert.equal(inv.bin, '/bin/codex');
     assert.ok(Array.isArray(inv.args));
     assert.equal(inv.args[0], 'exec', 'non-interactive subcommand is `exec`');
+    // per-run override keeps drains compatible with installed Codex CLIs that reject newer effort labels
+    assert.ok(inv.args.includes('--config'));
+    assert.equal(inv.args[inv.args.indexOf('--config') + 1], 'model_reasoning_effort="high"');
     // model selection
     assert.ok(inv.args.includes('--model'));
-    assert.equal(inv.args[inv.args.indexOf('--model') + 1], 'gpt-5-codex');
+    assert.equal(inv.args[inv.args.indexOf('--model') + 1], 'gpt-5.4-mini');
     // machine-readable output
     assert.ok(inv.args.includes('--json'));
     // auto-approve analogue of --dangerously-skip-permissions
     assert.ok(inv.args.includes('--dangerously-bypass-approvals-and-sandbox'));
-    // add-dir wiring
-    assert.ok(inv.args.includes('--add-dir'));
-    assert.equal(inv.args[inv.args.indexOf('--add-dir') + 1], '/ws');
+    // working-root wiring
+    assert.ok(inv.args.includes('--cd'));
+    assert.equal(inv.args[inv.args.indexOf('--cd') + 1], '/ws');
     // prompt is the trailing positional
     assert.equal(inv.args[inv.args.length - 1], 'judge the diff');
     // mcpConfig has NO codex-exec flag — carried through, NOT emitted as an arg.
@@ -537,8 +540,8 @@ test('codex provider: buildInvocation produces the expected `codex exec` argv', 
 
 test('codex provider: buildInvocation defaults model and throws without a prompt', () => {
   const inv = backend.codexProvider.buildInvocation({ prompt: 'hi' });
-  assert.equal(inv.args[inv.args.indexOf('--model') + 1], 'gpt-5-codex', 'defaults model');
-  assert.ok(!inv.args.includes('--add-dir'), 'no addDir ⇒ no --add-dir');
+  assert.equal(inv.args[inv.args.indexOf('--model') + 1], 'gpt-5.4-mini', 'defaults model');
+  assert.ok(!inv.args.includes('--cd'), 'no addDir ⇒ no --cd');
   assert.throws(() => backend.codexProvider.buildInvocation({}), /prompt is required/);
 });
 

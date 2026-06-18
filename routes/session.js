@@ -29,17 +29,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/active-claim') {
     const sid = u.searchParams.get('session');
+    const explicitWorkspace = u.searchParams.has('workspace');
     const T = targetOverlay(null, u);
     // P3: there is no daemon-global workspace, and the gate queries /active-claim with only a
     // session id (no ?workspace=). So when no explicit workspace is given, enumerate EVERY
     // registered workspace and union their in_progress tasks — a claim lives in one workspace's
     // overlay and the gate can't name which. With an explicit ?workspace= we honor it exactly.
-    const scanWorkspaces = T.ws ? [T.ws] : ctx.registeredWorkspaces();
+    const scanWorkspaces = explicitWorkspace && T.ws
+      ? [T.ws]
+      : [...new Set([
+          ...ctx.registeredWorkspaces(),
+          ...agentsArr().map((a) => a.workspace).filter(Boolean),
+        ])];
     let all = [];
     for (const ws of scanWorkspaces) {
       const g = buildGraph(ws);
       for (const t of g.tasks) {
-        if (t.status === 'in_progress') all.push({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id });
+        if (t.status === 'in_progress') all.push({ key: t.id, label: t.label, session: t.session, agent_id: t.agent_id, workspace: ws });
       }
     }
     if (sid && !all.some((t) => t.session === sid)) {
@@ -60,10 +66,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     }
     if (sid) {
-      const cs = T.ov.claimSessions;
-      if (cs) {
-        for (const t of all.filter((t) => t.session !== sid)) {
-          if (cs[t.key] === sid && !all.some((x) => x.key === t.key && x.session === sid))
+      for (const ws of scanWorkspaces) {
+        const ov = ws === T.ws ? T.ov : overlayStore.load(ws);
+        const cs = ov.claimSessions;
+        if (!cs) continue;
+        for (const t of all.filter((t) => t.workspace === ws && t.session !== sid)) {
+          const claimSession = cs[t.key];
+          if (claimSession === sid && !all.some((x) => x.key === t.key && x.session === sid))
             all.push({ ...t, session: sid });
         }
       }

@@ -147,8 +147,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (cur === 'canceled' && b.status !== 'canceled' && !b.force && !b.reopen) {
       send(res, 409, { ok: false, error: 'task is canceled (terminal): pass force/reopen to override', current: cur, attempted: b.status }); return true;
     }
+    let claimSid = null;
     if (b.status === 'in_progress') {
-      let claimSid = b.session_id ? String(b.session_id) : null;
+      claimSid = b.session_id ? String(b.session_id) : null;
       if (!claimSid && b.agent_id && ctx.state.agents[b.agent_id]) {
         const ag = ctx.state.agents[b.agent_id];
         if (ag.subagent_session && ag.subagent_session !== ag.session) claimSid = ag.subagent_session;
@@ -323,9 +324,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         start_ts: now(),
         end_ts: null,
       });
-      if (gitClaim && gitClaim.claim) {
+      if (claimSid) {
         if (!T.ov.claimSessions) T.ov.claimSessions = {};
-        T.ov.claimSessions[b.key] = {
+        T.ov.claimSessions[b.key] = claimSid;
+      }
+      if (gitClaim && gitClaim.claim) {
+        if (!T.ov.git_claims) T.ov.git_claims = {};
+        T.ov.git_claims[b.key] = {
           mode: 'git',
           agent_id: b.agent_id || null,
           branch: gitClaim.claim.branch || null,
@@ -341,6 +346,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
       if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && T.ov.claimSessions) {
         delete T.ov.claimSessions[b.key];
+      }
+      if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && T.ov.git_claims) {
+        delete T.ov.git_claims[b.key];
       }
       if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && gitClaims.claimModeEnabled(T.ov)) {
         try {
@@ -650,7 +658,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // semantically subsumes an older current note (cosine >= SUBSUMPTION_THRESHOLD), soft-retire
     // the older note by setting its validTo and supersededBy, then log a note_superseded event.
     // Guard: skip if no vec (embedding sidecar unavailable → fail-open, consistent with dup guard).
-    if (b.vec) {
+    if (b.vec && !judge.noteDecayDisabled()) {
       try {
         const subsumed = judge.findSubsumedNotes(id, b.vec, T.ov);
         if (subsumed.length) {

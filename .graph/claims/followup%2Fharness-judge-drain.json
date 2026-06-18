@@ -1,11 +1,11 @@
 {
   "task_key": "followup/harness-judge-drain",
-  "agent_id": "edge-judge-drain-22",
-  "session_id": "680e9dd1-876a-4bc4-9267-d218ff5d33c2",
-  "workspace": "D:/zonoid",
+  "agent_id": "worker-harness-judge-drain-24",
+  "session_id": "worker-harness-judge-drain-24",
+  "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/followup-harness-judge-drain",
   "status": "done",
-  "claimed_at": "2026-06-18T15:15:12.401Z",
-  "lease_until": "2026-06-18T16:15:12.401Z",
-  "completed_at": "2026-06-18T15:17:35.046Z"
+  "claimed_at": "2026-06-18T22:54:49.026Z",
+  "lease_until": "2026-06-18T23:54:49.026Z",
+  "completed_at": "2026-06-18T22:57:50.535Z"
 }

@@ -34,3 +34,11 @@
 {"evt":"timestamps_set","id":"phase2/entity-layer","workspace":"D:/zonoid","timestamps":{"firstSeen":"2026-06-18T04:42:50.948Z","lastChanged":"2026-06-18T16:53:02.388Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-18T16:53:09.776Z"}
 {"evt":"status_changed","id":"phase2/entity-layer","workspace":"D:/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-18T16:53:12.893Z"}
 {"evt":"timestamps_set","id":"phase2/entity-layer","workspace":"D:/zonoid","timestamps":{"firstSeen":"2026-06-18T04:42:50.948Z","lastChanged":"2026-06-18T16:24:02.367Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-18T16:53:12.893Z"}
+{"evt":"status_changed","id":"phase2/entity-layer","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T19:47:41.455Z"}
+{"evt":"timestamps_set","id":"phase2/entity-layer","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-18T04:42:50.948Z","lastChanged":"2026-06-18T19:47:39.966Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-18T19:47:41.455Z"}
+{"evt":"status_changed","id":"phase2/entity-layer","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-18T19:47:41.509Z"}
+{"evt":"timestamps_set","id":"phase2/entity-layer","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-18T04:42:50.948Z","lastChanged":"2026-06-18T16:24:02.367Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-18T19:47:41.509Z"}
+{"evt":"status_changed","id":"phase2/entity-layer","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T19:47:42.148Z"}
+{"evt":"timestamps_set","id":"phase2/entity-layer","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-18T04:42:50.948Z","lastChanged":"2026-06-18T19:47:39.966Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-18T19:47:42.148Z"}
+{"evt":"status_changed","id":"phase2/entity-layer","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z"}
+{"evt":"timestamps_set","id":"phase2/entity-layer","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-18T04:42:50.948Z","lastChanged":"2026-06-18T16:24:02.367Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z"}

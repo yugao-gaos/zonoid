@@ -7,7 +7,7 @@
 //   - createEdge writes a context edge tagged judged:true,by:'judge' (a REASONED assertion, not cosine).
 //   - keepEdge flips an unverified edge to judged:true.
 //   - pruneEdge removes the edge; it is actually GONE.
-//   - surfaceSupersede raises GUIDANCE only — NEVER stamps validTo / mutates the note timeline.
+//   - surfaceCluster auto-resolves as DISTINCT — no guidance, no note timeline mutation.
 //   - every verdict stamps the source note's judgedAtEpoch (a 'no edge' verdict included).
 'use strict';
 const ov = require('../lib/overlay');
@@ -60,7 +60,13 @@ function applyVerdict(overlay, v) {
   }
   if (v.surfaceCluster && Array.isArray(v.surfaceCluster.keys) && v.surfaceCluster.keys.length) {
     const keys = v.surfaceCluster.keys.map((k) => String(k).startsWith('note:') ? k : 'note:' + k);
-    ov.addGuidance(overlay, { question: `cluster ${keys.join(',')}?`, context: v.surfaceCluster.why || '', trigger: 'ambiguous_intent' });
+    const settled = judge.clusterConsolidationState(overlay, keys);
+    if (settled) {
+      judge.stampCluster(overlay.judgedClusters, keys, epoch);
+      return;
+    }
+    ov.markClusterDistinct(overlay, keys);
+    for (const k of keys) ov.clearPendingDup(overlay, k);
     judge.stampCluster(overlay.judgedClusters, keys, epoch);
   }
   const noteKey = v.markJudged || (v.item && v.item.kind === 'orphan' ? v.item.id : null);
@@ -139,14 +145,17 @@ function applyVerdict(overlay, v) {
   ok('consolidate idempotent: old still superseded by keep', o.note_nodes[old1].supersededBy === keep);
 }
 
-// --- surfaceCluster: ONE cluster-level guidance item (not per-pair) ------------------------------
+// --- surfaceCluster: auto-resolves as DISTINCT (no guidance) -------------------------------------
 {
   const o = ov.EMPTY(); o.epoch = 2;
   const a = ov.addNoteNode(o, { title: 'amb a', summary: '' });
   const b = ov.addNoteNode(o, { title: 'amb b', summary: '' });
   const c = ov.addNoteNode(o, { title: 'amb c', summary: '' });
+  ov.markPendingDup(o, 'note:' + b, 'note:' + a, 0.74);
   applyVerdict(o, { surfaceCluster: { keys: ['note:' + a, 'note:' + b, 'note:' + c], why: 'unsure same fact' } });
-  ok('surfaceCluster raises exactly ONE guidance item (cluster-level)', ov.pendingGuidance(o).length === 1);
+  ok('surfaceCluster raises no guidance item', ov.pendingGuidance(o).length === 0);
+  ok('surfaceCluster marks the cluster DISTINCT', ov.isClusterDistinct(o, ['note:' + a, 'note:' + b, 'note:' + c]) === true);
+  ok('surfaceCluster clears pendingDup for member notes', ov.isPendingDup(o, 'note:' + b) === false);
   ok('surfaceCluster does NOT mutate any note timeline', o.note_nodes[a].validTo === null && o.note_nodes[b].validTo === null && o.note_nodes[c].validTo === null);
   ok('surfaceCluster marks the cluster judged', o.judgedClusters[judge.clusterSignature(['note:' + a, 'note:' + b, 'note:' + c])] === 2);
 }
