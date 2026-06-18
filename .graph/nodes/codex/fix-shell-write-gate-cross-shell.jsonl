@@ -20,3 +20,5 @@
 {"evt":"edge_added","from":"codex/fix-shell-write-gate-cross-shell","to":"codex/integrate-shell-gate-policy-refactor","kind":"context","actor":"overlay-sync","ts":"2026-06-17T18:59:06.299Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/fix-shell-write-gate-cross-shell","to":"codex/integrate-shell-gate-policy-refactor","kind":"context","actor":"overlay-sync","ts":"2026-06-17T18:59:18.210Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/fix-shell-write-gate-cross-shell","to":"codex/integrate-shell-gate-policy-refactor","kind":"context","actor":"overlay-sync","ts":"2026-06-17T19:00:31.276Z","weight":0.75,"origin":"asserted"}
+{"evt":"status_changed","id":"codex/fix-shell-write-gate-cross-shell","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T06:18:37.914Z"}
+{"evt":"timestamps_set","id":"codex/fix-shell-write-gate-cross-shell","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-17T18:02:11.518Z","lastChanged":"2026-06-18T06:18:49.570Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-18T06:30:19.932Z"}
