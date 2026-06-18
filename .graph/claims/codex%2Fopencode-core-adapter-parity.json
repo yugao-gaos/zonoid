@@ -1,0 +1,11 @@
+{
+  "task_key": "codex/opencode-core-adapter-parity",
+  "agent_id": "worker-opencode-core-adapter-parity",
+  "session_id": "019ed865-ea6c-7471-be7d-26fa7c4af18c",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-opencode-core-adapter-parity",
+  "status": "done",
+  "claimed_at": "2026-06-18T01:44:11.413Z",
+  "lease_until": "2026-06-18T02:44:11.413Z",
+  "completed_at": "2026-06-18T01:48:05.905Z"
+}

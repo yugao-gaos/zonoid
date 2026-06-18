@@ -1,0 +1,11 @@
+{
+  "task_key": "codex/opencode-core-adapter-review",
+  "agent_id": "judge-opencode-core-adapter-review",
+  "session_id": "judge-opencode-core-adapter-review",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-opencode-core-adapter-review",
+  "status": "done",
+  "claimed_at": "2026-06-18T01:50:56.174Z",
+  "lease_until": "2026-06-18T02:50:56.174Z",
+  "completed_at": "2026-06-18T01:53:10.748Z"
+}

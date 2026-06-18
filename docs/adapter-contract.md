@@ -427,7 +427,7 @@ path** differs per row above.
 
 ### Adapter scheduler API (hookless)
 
-`lib/adapters/scheduler-substrate.js` (wired into cursor, codex, stub):
+`lib/adapters/scheduler-substrate.js` (wired into cursor, codex, opencode, stub):
 
 | Method | Behavior |
 |---|---|

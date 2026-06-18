@@ -12,6 +12,7 @@ const ocSw = require('../packages/opencode-plugin/lib/schedule-wakeup');
 const cursor = require('../lib/adapters/cursor');
 const claude = require('../lib/adapters/claude');
 const codex = require('../lib/adapters/codex');
+const opencode = require('../lib/adapters/opencode');
 
 const SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sw-contract-'));
 const prevData = process.env.ORCH_DATA;
@@ -54,6 +55,8 @@ const ok = (label, cond) => {
 
     ok('cursor adapter arm', cursor.scheduler.armWakeup({ session: 'adapt', delaySeconds: 2, reason: 'x', prompt: 'y' }).ok);
     ok('codex shares armWakeup', codex.scheduler.armWakeup === cursor.scheduler.armWakeup);
+    ok('opencode shares armWakeup', opencode.scheduler.armWakeup === cursor.scheduler.armWakeup);
+    ok('opencode has writeScheduledTask', typeof opencode.scheduler.writeScheduledTask === 'function');
     ok('claude native arm', claude.scheduler.armWakeup().method === 'native');
   } finally {
     if (prevData === undefined) delete process.env.ORCH_DATA;
