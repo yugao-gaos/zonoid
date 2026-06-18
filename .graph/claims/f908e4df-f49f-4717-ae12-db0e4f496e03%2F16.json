@@ -4,7 +4,8 @@
   "session_id": "judge-curl-stub-16",
   "workspace": "D:\\zonoid",
   "branch": "orch/attempt/f908e4df-f49f-4717-ae12-db0e4f496e03-16",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T16:49:20.912Z",
-  "lease_until": "2026-06-18T17:49:20.912Z"
+  "lease_until": "2026-06-18T17:49:20.912Z",
+  "completed_at": "2026-06-18T16:51:48.734Z"
 }
