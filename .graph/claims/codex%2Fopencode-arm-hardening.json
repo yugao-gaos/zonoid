@@ -4,7 +4,8 @@
   "session_id": "019ed857-0604-7170-93ef-14034f750d0e",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-opencode-arm-hardening",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T01:27:56.890Z",
-  "lease_until": "2026-06-18T02:27:56.890Z"
+  "lease_until": "2026-06-18T02:27:56.890Z",
+  "completed_at": "2026-06-18T01:31:50.745Z"
 }
