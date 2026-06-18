@@ -4,7 +4,8 @@
   "session_id": "worker-brain-search-task-context",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-brain-search-task-context",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T19:27:35.614Z",
-  "lease_until": "2026-06-18T20:27:35.614Z"
+  "lease_until": "2026-06-18T20:27:35.614Z",
+  "completed_at": "2026-06-18T19:43:04.625Z"
 }
