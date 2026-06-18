@@ -102,6 +102,7 @@ def _run_conv(
     max_probes: int | None,
     out_fh: "Any",
     distiller: "ConversationDistiller | None" = None,
+    skip_distill_ingest: bool = False,
 ) -> int:
     """Ingest *conv* (idempotent) and probe it through *arms*.
 
@@ -143,10 +144,13 @@ def _run_conv(
     distill_workspace: str | None = None
     if needs_distill:
         distill_workspace = distiller.workspace_for(conv_id)  # type: ignore[union-attr]
-        print(f"[run]   distilling {conv_id!r} into {distill_workspace!r} …", file=sys.stderr)
-        distill_map = distiller.ingest(conv)  # type: ignore[union-attr]
-        n_facts = sum(len(v) for v in distill_map.values())
-        print(f"[run]   distilled {n_facts} fact(s) across {len(distill_map)} session(s)", file=sys.stderr)
+        if skip_distill_ingest:
+            print(f"[run]   --skip-distill-ingest: using existing notes in {distill_workspace!r}", file=sys.stderr)
+        else:
+            print(f"[run]   distilling {conv_id!r} into {distill_workspace!r} …", file=sys.stderr)
+            distill_map = distiller.ingest(conv)  # type: ignore[union-attr]
+            n_facts = sum(len(v) for v in distill_map.values())
+            print(f"[run]   distilled {n_facts} fact(s) across {len(distill_map)} session(s)", file=sys.stderr)
 
     probes = conv.get("probes") or []
     if max_probes is not None:
@@ -302,6 +306,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="During scoring, skip LLM judge calls — compute token-F1 only.",
     )
     parser.add_argument(
+        "--skip-distill-ingest",
+        action="store_true",
+        help="Skip distill LLM extraction — use existing notes already in the distill workspace.",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         default=True,
@@ -431,6 +440,7 @@ def main(argv: list[str] | None = None) -> int:
                     max_probes=args.max_probes,
                     out_fh=out_fh,
                     distiller=distiller,
+                    skip_distill_ingest=args.skip_distill_ingest,
                 )
                 total += n
                 _mark_done(checkpoint_dir, conv_id)

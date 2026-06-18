@@ -1,0 +1,11 @@
+{
+  "task_key": "followup/u7-update-workspaces-daemon-test-js-for--d0n3",
+  "agent_id": "u7-worker-1",
+  "session_id": "u7-worker-1",
+  "workspace": "D:\\zonoid",
+  "branch": "orch/attempt/followup-u7-update-workspaces-daemon-test-js-for--d0n3",
+  "status": "done",
+  "claimed_at": "2026-06-18T16:30:46.961Z",
+  "lease_until": "2026-06-18T17:30:46.961Z",
+  "completed_at": "2026-06-18T16:35:33.088Z"
+}

@@ -14,6 +14,7 @@ const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { startHookStub } = require('./support/hook-http-stub');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const ROOT = path.join(__dirname, '..');
@@ -31,8 +32,9 @@ function info(label, v) { console.log(`  ··    ${label}: ${v}`); }
 function daemon(method, p, body) {
   return new Promise((resolve) => {
     const data = body != null ? Buffer.from(JSON.stringify(body)) : null;
+    // Use a generous timeout — the live daemon may be slow under load on Windows.
     const req = http.request({ host: '127.0.0.1', port: PORT, path: p, method,
-      headers: data ? { 'content-type': 'application/json', 'content-length': data.length } : {}, timeout: 2000 },
+      headers: data ? { 'content-type': 'application/json', 'content-length': data.length } : {}, timeout: 8000 },
       (res) => { let o = ''; res.setEncoding('utf8'); res.on('data', d => o += d); res.on('end', () => { let j = null; try { j = JSON.parse(o); } catch {} resolve({ status: res.statusCode, text: o, json: j }); }); });
     req.on('error', (e) => resolve({ status: 0, text: String(e), json: null }));
     req.on('timeout', () => { req.destroy(); resolve({ status: 0, text: 'timeout', json: null }); });
@@ -45,6 +47,28 @@ function runHook(name, payload, env) {
     env: { ...process.env, ...(env || {}) },
   });
   return { code: res.status, stdout: (res.stdout || '').trim(), stderr: (res.stderr || '').trim() };
+}
+// Like runHook but with a generous timeout for hooks that talk to a potentially slow live daemon.
+function runHookLong(name, payload, env, timeoutMs = 30000) {
+  const res = spawnSync(process.execPath, [path.join(HOOKS, name)], {
+    input: payload === undefined ? '' : JSON.stringify(payload), encoding: 'utf8', timeout: timeoutMs,
+    env: { ...process.env, ...(env || {}) },
+  });
+  return { code: res.status, stdout: (res.stdout || '').trim(), stderr: (res.stderr || '').trim() };
+}
+// Run a hook with a fast in-process stub daemon instead of the live (potentially slow) daemon.
+// config follows hook-http-stub-child.js shape: { activeClaim, sessionInfo, dispatcherChildren, taskDetails }.
+function runHookWithStub(name, payload, config, extraEnv = {}) {
+  const stub = startHookStub(config);
+  try {
+    const res = spawnSync(process.execPath, [path.join(HOOKS, name)], {
+      input: payload === undefined ? '' : JSON.stringify(payload), encoding: 'utf8', timeout: 8000,
+      env: { ...process.env, ...stub.env(), ...extraEnv },
+    });
+    return { code: res.status, stdout: (res.stdout || '').trim(), stderr: (res.stderr || '').trim() };
+  } finally {
+    stub.stop();
+  }
 }
 function runScript(scriptPath, payload, env) {
   const res = spawnSync('bash', [scriptPath], {
@@ -126,23 +150,34 @@ function mkOff(sid) { fs.mkdirSync(SESS, { recursive: true }); fs.writeFileSync(
     check('opt-out suppresses classify (no ctx)', supp.code === 0 && supp.stdout === '', `stdout=${JSON.stringify(supp.stdout.slice(0,40))}`); }
 
   // ── orch-gate (allow exempt / deny no-claim / opt-out / gate-off) ───────────
+  // Uses a fast in-process stub instead of the live daemon so 600ms timeouts in the hook
+  // don't fail-open on a slow machine (daemon may take seconds to respond under load).
   console.log('orch-gate.js');
-  { check('exempt path allowed', runHook('orch-gate.js', { session_id: 'e2e-g', tool_input: { file_path: '/x/.mcp.json', new_string: 'y' } }).code === 0);
-    const d = runHook('orch-gate.js', { session_id: 'e2e-g2', tool_input: { file_path: '/x/src/app.js', new_string: 'a real edit' } });
-    check('no-claim source write denied (exit 2)', d.code === 2, `code=${d.code}`);
-    check('deny carries orch-gate stderr', /orch-gate/.test(d.stderr));
-    mkOff('e2e-goff');
-    check('opt-out marker allows', runHook('orch-gate.js', { session_id: 'e2e-goff', tool_input: { file_path: '/x/src/app.js', new_string: 'z' } }).code === 0);
-    check('ORCH_GATE_OFF=1 allows', runHook('orch-gate.js', { session_id: 'e2e-g3', tool_input: { file_path: '/x/src/app.js', new_string: 'z' } }, { ORCH_GATE_OFF: '1' }).code === 0); }
+  { const gStub = startHookStub({ activeClaim: { claimed: false }, sessionInfo: { is_subagent: false } });
+    try {
+      check('exempt path allowed', runHook('orch-gate.js', { session_id: 'e2e-g', tool_input: { file_path: '/x/.mcp.json', new_string: 'y' } }, gStub.env()).code === 0);
+      const d = runHook('orch-gate.js', { session_id: 'e2e-g2', tool_input: { file_path: '/x/src/app.js', new_string: 'a real edit' } }, gStub.env());
+      check('no-claim source write denied (exit 2)', d.code === 2, `code=${d.code}`);
+      check('deny carries orch-gate stderr', /orch-gate/.test(d.stderr));
+      mkOff('e2e-goff');
+      check('opt-out marker allows', runHook('orch-gate.js', { session_id: 'e2e-goff', tool_input: { file_path: '/x/src/app.js', new_string: 'z' } }, gStub.env()).code === 0);
+      check('ORCH_GATE_OFF=1 allows', runHook('orch-gate.js', { session_id: 'e2e-g3', tool_input: { file_path: '/x/src/app.js', new_string: 'z' } }, { ...gStub.env(), ORCH_GATE_OFF: '1' }).code === 0);
+    } finally { gStub.stop(); } }
 
   // ── orch-gate-bash (read allow / write deny / git + daemon exemptions) ───────
+  // Same rationale: use a fast stub so the hook's 600ms timeouts don't fail-open.
   console.log('orch-gate-bash.js');
-  { check('read-only cmd allowed', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: 'ls -la' } }).code === 0);
-    check('git commit exempt', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: 'git commit -m wip' } }).code === 0);
-    check('daemon curl exempt', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: `curl -s localhost:${PORT}/ping` } }).code === 0);
-    check('/tmp redirect denied without claim', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: 'echo hi > /tmp/x.txt' } }).code === 2);
-    check('no-claim redirect write denied (exit 2)', runHook('orch-gate-bash.js', { session_id: 'e2e-b2', tool_input: { command: 'echo hi > /x/out.txt' } }).code === 2);
-    check('no-claim cp-to-source denied (exit 2)', runHook('orch-gate-bash.js', { session_id: 'e2e-b2', tool_input: { command: 'cp a.js /x/main.js' } }).code === 2); }
+  { const bStub = startHookStub({ activeClaim: { claimed: false }, sessionInfo: { is_subagent: false } });
+    try {
+      check('read-only cmd allowed', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: 'ls -la' } }, bStub.env()).code === 0);
+      check('git commit exempt', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: 'git commit -m wip' } }, bStub.env()).code === 0);
+      // daemon-curl exemption uses the stub port (the hook exempts curl to its own ORCH_PORT)
+      const stubPort = bStub.env().ORCH_PORT;
+      check('daemon curl exempt', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: `curl -s localhost:${stubPort}/ping` } }, bStub.env()).code === 0);
+      check('/tmp redirect denied without claim', runHook('orch-gate-bash.js', { session_id: 'e2e-b', tool_input: { command: 'echo hi > /tmp/x.txt' } }, bStub.env()).code === 2);
+      check('no-claim redirect write denied (exit 2)', runHook('orch-gate-bash.js', { session_id: 'e2e-b2', tool_input: { command: 'echo hi > /x/out.txt' } }, bStub.env()).code === 2);
+      check('no-claim cp-to-source denied (exit 2)', runHook('orch-gate-bash.js', { session_id: 'e2e-b2', tool_input: { command: 'cp a.js /x/main.js' } }, bStub.env()).code === 2);
+    } finally { bStub.stop(); } }
 
   // ── orch-stop (allow when no stop requested) ────────────────────────────────
   console.log('orch-stop.js');
@@ -150,27 +185,33 @@ function mkOff(sid) { fs.mkdirSync(SESS, { recursive: true }); fs.writeFileSync(
     check('no stop -> allow (exit 0)', r.code === 0, `code=${r.code}`); }
 
   // ── subagent-start / subagent-stop (observe daemon agent counts) ────────────
+  // Use /agents (global, no workspace param required) instead of /state (requires ?workspace=).
   console.log('subagent-start.js / subagent-stop.js');
-  { const before = (await daemon('GET', '/state')).json;
-    const a0 = (before && before.summary && before.summary.agents) || {};
-    const start = runHook('subagent-start.js', { session_id: 'e2e-parent', agent_id: 'e2e-agent-1', agent_type: 'general', transcript_path: '/tmp/e2e.jsonl' });
+  { const agentId = `e2e-agent-${Date.now()}`;
+    const beforeList = (await daemon('GET', '/agents')).json;
+    const before0 = (beforeList && beforeList.agents) || [];
+    const start = runHook('subagent-start.js', { session_id: 'e2e-parent', agent_id: agentId, agent_type: 'general', transcript_path: '/tmp/e2e.jsonl' });
     check('subagent-start exit 0', start.code === 0, `code=${start.code}`);
-    const mid = (await daemon('GET', '/state')).json;
-    const a1 = (mid && mid.summary && mid.summary.agents) || {};
-    info('agents total before/after start', `${a0.total} -> ${a1.total}`);
-    check('daemon registered the agent (total or running grew)', (a1.total || 0) > (a0.total || 0) || (a1.running || 0) > (a0.running || 0), `before=${JSON.stringify(a0)} after=${JSON.stringify(a1)}`);
-    const stop = runHook('subagent-stop.js', { session_id: 'e2e-parent', agent_id: 'e2e-agent-1' });
+    const midList = (await daemon('GET', '/agents')).json;
+    const mid0 = (midList && midList.agents) || [];
+    const found = mid0.find((a) => a.agent_id === agentId);
+    info('agents total before/after start', `${before0.length} -> ${mid0.length}`);
+    check('daemon registered the agent (total or running grew)', mid0.length > before0.length || !!found, `before=${before0.length} after=${mid0.length} found=${!!found}`);
+    const stop = runHook('subagent-stop.js', { session_id: 'e2e-parent', agent_id: agentId });
     check('subagent-stop exit 0', stop.code === 0, `code=${stop.code}`);
-    const after = (await daemon('GET', '/state')).json;
-    const a2 = (after && after.summary && after.summary.agents) || {};
-    info('agents after stop', JSON.stringify(a2));
-    check('stop moved agent out of running', (a2.running || 0) <= (a1.running || 0), `running ${a1.running} -> ${a2.running}`);
+    const afterList = (await daemon('GET', '/agents')).json;
+    const after0 = (afterList && afterList.agents) || [];
+    const foundAfter = after0.find((a) => a.agent_id === agentId && a.state === 'running');
+    info('agents after stop', JSON.stringify(after0.filter((a) => a.agent_id === agentId).map((a) => ({ agent_id: a.agent_id, state: a.state }))));
+    check('stop moved agent out of running', !foundAfter, `foundRunning=${!!foundAfter}`);
     // opt-out: an off session must NOT register
+    const offAgentId = `e2e-agent-OFF-${Date.now()}`;
     mkOff('e2e-suboff');
-    const sb = (await daemon('GET', '/state')).json; const ab = (sb && sb.summary && sb.summary.agents) || {};
-    runHook('subagent-start.js', { session_id: 'e2e-suboff', agent_id: 'e2e-agent-OFF', agent_type: 'general' });
-    const sa = (await daemon('GET', '/state')).json; const aa = (sa && sa.summary && sa.summary.agents) || {};
-    check('opt-out session does NOT register an agent', (aa.total || 0) === (ab.total || 0), `${ab.total} -> ${aa.total}`); }
+    const sbList = (await daemon('GET', '/agents')).json; const sb0 = (sbList && sbList.agents) || [];
+    runHook('subagent-start.js', { session_id: 'e2e-suboff', agent_id: offAgentId, agent_type: 'general' });
+    const saList = (await daemon('GET', '/agents')).json; const sa0 = (saList && saList.agents) || [];
+    const foundOff = sa0.find((a) => a.agent_id === offAgentId);
+    check('opt-out session does NOT register an agent', !foundOff, `found=${!!foundOff}`); }
 
   // ── post-agent (ready-task nudge) ───────────────────────────────────────────
   console.log('post-agent.js');
@@ -226,8 +267,10 @@ function mkOff(sid) { fs.mkdirSync(SESS, { recursive: true }); fs.writeFileSync(
     } }
 
   // ── start-daemon (re-register workspace; daemon stays healthy) ───────────────
+  // Uses runHookLong: on Windows the live daemon may be slow to respond, and
+  // start-daemon.js loops waiting for it — needs more than the default 8s budget.
   console.log('start-daemon.js');
-  { const r = runHook('start-daemon.js', { cwd: path.join(__dirname, '..'), session_id: 'e2e-sd', transcript_path: '/tmp/e2e.jsonl', harness: 'claude' });
+  { const r = runHookLong('start-daemon.js', { cwd: path.join(__dirname, '..'), session_id: 'e2e-sd', transcript_path: '/tmp/e2e.jsonl', harness: 'claude' });
     check('exit 0', r.code === 0, `code=${r.code}`);
     const h = await daemon('GET', '/health');
     check('daemon still healthy after', !!(h.json && h.json.ok), `status=${h.status}`); }

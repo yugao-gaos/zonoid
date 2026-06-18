@@ -1,11 +1,11 @@
 {
   "task_key": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/3",
-  "agent_id": "distill-config-worker",
-  "session_id": "distill-config-session-001",
+  "agent_id": "distill-ingest-worker",
+  "session_id": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f",
   "workspace": "D:/zonoid",
   "branch": "orch/attempt/e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f-3",
-  "status": "failed",
-  "claimed_at": "2026-06-18T16:11:27.043Z",
-  "lease_until": "2026-06-18T17:11:27.043Z",
-  "completed_at": "2026-06-18T16:26:48.814Z"
+  "status": "done",
+  "claimed_at": "2026-06-18T16:40:04.368Z",
+  "lease_until": "2026-06-18T17:40:04.368Z",
+  "completed_at": "2026-06-18T17:03:51.530Z"
 }
