@@ -131,6 +131,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const excludeKeys = new Set((u.searchParams.get('exclude_keys') || '').split(',').map((s) => s.trim()).filter(Boolean));
     const plateauContinue = (notes) => round < 3 && notes.some((n) => n.tier === 'rag' && (n.kind || 'note') === 'note' && n.score >= 0.5);
     const gated = isTruthy(u.searchParams.get('gated'));
+    if (gated && !task_key) {
+      send(res, 400, { ok: false, error: 'gated:true requires task_key — pass the task you are working on', code: 'missing_task_key' });
+      return true;
+    }
     const g = buildGraph(ws);
     // PENDING-DUP recall invisibility: a note admitted PROVISIONAL on a write-time dup-guard fire is
     // RETRIEVAL-INVISIBLE until the dup-judge clears it — that's what preserves the guard's purpose.
