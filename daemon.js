@@ -1587,7 +1587,7 @@ function scoreMatchesSemantic(g, target, targetVec) {
 // post-backfill cloude corpus (128 notes); see STEP 2. Used only by the semantic note-wiring path.
 // ENV OVERRIDE: ORCH_AUTOWIRE_THRESHOLD (bench daemons set this to ~0 so the eager-judge sees the
 // full top-K reranked pool instead of a cosine cutoff; production stays at 0.55 by default).
-const SEMANTIC_AUTOWIRE_THRESHOLD = parseFloat(process.env.ORCH_AUTOWIRE_THRESHOLD || '0.55') || 0.55;
+const SEMANTIC_AUTOWIRE_THRESHOLD = process.env.ORCH_AUTOWIRE_THRESHOLD !== undefined ? parseFloat(process.env.ORCH_AUTOWIRE_THRESHOLD) : 0.55;
 // Auto-wire a NOTE as a context PROVIDER: write weighted context edges (note -> neighbor) so the
 // note's summary flows INTO each relevant open task instead of the note sitting as an orphan root.
 // The note FEEDS existing consumers (the inverse of a consumer pulling in providers). `g` is the rebuilt graph; the note need not be in `g` yet (we build
