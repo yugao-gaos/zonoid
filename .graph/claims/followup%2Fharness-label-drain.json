@@ -4,7 +4,8 @@
   "session_id": "680e9dd1-876a-4bc4-9267-d218ff5d33c2",
   "workspace": "D:/zonoid",
   "branch": "orch/attempt/followup-harness-label-drain",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T15:13:18.477Z",
-  "lease_until": "2026-06-18T16:13:18.477Z"
+  "lease_until": "2026-06-18T16:13:18.477Z",
+  "completed_at": "2026-06-18T15:16:55.609Z"
 }
