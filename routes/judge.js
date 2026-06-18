@@ -5,6 +5,48 @@ const graphStore = require('../lib/graph-store');
 const { computeNoteStats, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-journal');
 
 const { JUDGE_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
+const { appendShadow } = require('../lib/shadow-journal');
+
+// Lazy-load the learned edge classifier. Returns null when the model file is absent
+// or the module fails to load — best-effort only, never breaks the verdict path.
+let _predictEdge = null;
+function getPredictEdge() {
+  if (_predictEdge !== null) return _predictEdge;
+  try {
+    _predictEdge = require('../scripts/predict-edge-classifier').predictEdge;
+  } catch { _predictEdge = undefined; }
+  return _predictEdge || null;
+}
+
+// Score an edge with the learned classifier and append a shadow row.
+// Best-effort: wrapped in try/catch — a missing model file must never break a verdict.
+// Only called for keepEdge / pruneEdge verdicts (the binary-verdict cases).
+function scoreShadow(ws, { from, to, verdict, cosine, fromKind, toKind }) {
+  try {
+    const predictEdge = getPredictEdge();
+    if (!predictEdge) return;
+    const features = {
+      cosine_score: typeof cosine === 'number' ? cosine : 0,
+      from_kind: fromKind || 'task',
+      to_kind: toKind || 'task',
+      neighborhood_size: 0,
+      neighborhood_avg_relevance: 0,
+      supersede_chain_len: 0,
+      task_task: false,
+    };
+    const { score, label } = predictEdge(features, ws);
+    appendShadow(ws, {
+      ts: Date.now(),
+      from,
+      to,
+      verdict,
+      shadow_verdict: label === 1 ? 'keep' : 'prune',
+      shadow_conf: score,
+      cosine: features.cosine_score,
+      model_version: 'v1',
+    });
+  } catch { /* best-effort */ }
+}
 
 // Compute the max pairwise cosine similarity among a set of note keys, using their stored vectors.
 // Returns null if fewer than 2 vectors are available or on any error.
@@ -233,6 +275,12 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
             applied.reclassified = (applied.reclassified || 0) + 1;
           }
           judge.appendVerdict(T.ws, { epoch, verdict: 'keep', from: v.keepEdge.from, to: v.keepEdge.to, edgeKind: v.keepEdge.kind === 'blocking' ? 'blocking' : 'context', cosine: cos, origin, by: 'judge' });
+          // Shadow-score the same edge with the learned classifier (best-effort, never blocks verdict).
+          const fromNode = T.ov.note_nodes && T.ov.note_nodes[String(v.keepEdge.from).replace(/^note:/, '')];
+          const toNode = T.ov.note_nodes && T.ov.note_nodes[String(v.keepEdge.to).replace(/^note:/, '')];
+          const fromKind = fromNode ? (fromNode.kind || 'note') : (isNote(v.keepEdge.from) ? 'note' : 'task');
+          const toKind = toNode ? (toNode.kind || 'note') : (isNote(v.keepEdge.to) ? 'note' : 'task');
+          scoreShadow(T.ws, { from: v.keepEdge.from, to: v.keepEdge.to, verdict: 'keep', cosine: cos, fromKind, toKind });
         }
       }
       if (v && v.pruneEdge && v.pruneEdge.from && v.pruneEdge.to) {
@@ -246,6 +294,13 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           overlayStore.clearEdgeRejudge(T.ov, v.pruneEdge.from, v.pruneEdge.to);
           applied.pruned++;
           judge.appendVerdict(T.ws, { epoch, verdict: 'prune', from: v.pruneEdge.from, to: v.pruneEdge.to, edgeKind: v.pruneEdge.kind || 'context', cosine: cos, origin, by: 'judge' });
+          // Shadow-score the same edge with the learned classifier (best-effort, never blocks verdict).
+          // Read node kinds from overlay (before prune, so doomed node info may still be present).
+          const fromPruneNode = T.ov.note_nodes && T.ov.note_nodes[String(v.pruneEdge.from).replace(/^note:/, '')];
+          const toPruneNode = T.ov.note_nodes && T.ov.note_nodes[String(v.pruneEdge.to).replace(/^note:/, '')];
+          const fromPruneKind = fromPruneNode ? (fromPruneNode.kind || 'note') : (isNote(v.pruneEdge.from) ? 'note' : 'task');
+          const toPruneKind = toPruneNode ? (toPruneNode.kind || 'note') : (isNote(v.pruneEdge.to) ? 'note' : 'task');
+          scoreShadow(T.ws, { from: v.pruneEdge.from, to: v.pruneEdge.to, verdict: 'prune', cosine: cos, fromKind: fromPruneKind, toKind: toPruneKind });
         }
       }
       // task→task DUPLICATE: the agent decided the anchor RE-PLANS N (anchor supersedes the older N).
