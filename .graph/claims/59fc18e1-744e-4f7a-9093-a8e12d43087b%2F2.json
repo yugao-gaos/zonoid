@@ -4,7 +4,8 @@
   "session_id": "worker-locomo-longmemeval-harness-finalize",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/59fc18e1-744e-4f7a-9093-a8e12d43087b-2",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T21:13:28.081Z",
-  "lease_until": "2026-06-18T22:13:28.081Z"
+  "lease_until": "2026-06-18T22:13:28.081Z",
+  "completed_at": "2026-06-18T21:16:52.183Z"
 }
