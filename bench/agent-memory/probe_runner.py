@@ -530,6 +530,46 @@ def run_cold(probe: dict[str, Any]) -> dict[str, Any]:
     return {"predicted": _answer_cold(probe["question"])}
 
 
+def run_probe_distill(
+    base_url: str,
+    workspace: str,
+    conv_id: str,
+    probe: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """ARM distill: search the distilled-fact workspace and answer the probe.
+
+    The distill arm is structurally identical to the search arm, except it
+    operates on a DIFFERENT workspace that was populated by ``ConversationDistiller``
+    (atomic LLM-extracted fact notes) rather than by ``ConversationIngester``
+    (raw session-turn notes).
+
+    This makes a direct apples-to-apples comparison possible:
+      - search arm: retrieval over raw session chunks (current baseline)
+      - distill arm: retrieval over atomic fact notes (Phase 1 hypothesis)
+
+    Returns a list with one record (arm="distill").
+    ``gold`` is recorded FOR THE SCORER ONLY; it never enters the prediction path.
+    """
+    common = {
+        "conv_id": conv_id,
+        "qid": probe.get("qid"),
+        "category": probe.get("category"),
+        "question": probe.get("question"),
+        "gold": probe.get("answer"),  # for the scorer; NOT used by any arm
+    }
+    question = probe["question"]
+    raw_hits = kb_search(base_url, workspace, question, k=_SEARCH_K * 3, gated=False)
+    note_hits = [h for h in raw_hits if _is_session_note_hit(h)][:_SEARCH_K]
+    context_blocks = [str(h.get("summary") or "") for h in note_hits]
+    predicted = _answer_from_context(question, context_blocks)
+    return [{
+        "arm": "distill",
+        **common,
+        "predicted": predicted,
+        "hit_keys": [h.get("key") for h in note_hits],
+    }]
+
+
 # ---------------------------------------------------------------------------
 # Orchestration: run all three arms for one (conv, probe)
 # ---------------------------------------------------------------------------
