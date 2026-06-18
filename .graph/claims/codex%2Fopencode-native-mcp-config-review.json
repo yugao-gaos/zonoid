@@ -4,7 +4,8 @@
   "session_id": "019ed87a-c07f-7261-a90c-9ccab909804e",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-opencode-native-mcp-config-review",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T02:07:12.180Z",
-  "lease_until": "2026-06-18T03:07:12.180Z"
+  "lease_until": "2026-06-18T03:07:12.180Z",
+  "completed_at": "2026-06-18T02:09:13.713Z"
 }
