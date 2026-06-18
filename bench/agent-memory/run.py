@@ -60,6 +60,7 @@ from probe_runner import (  # noqa: E402
     _build_session_candidates,
     run_probe,
     run_probe_combined,
+    run_probe_dag_combined,
     run_probe_distill,
 )
 from scorer import generate_report, score  # noqa: E402
@@ -138,7 +139,7 @@ def _run_conv(
     # Distill arm / combined arm: ingest facts into a separate workspace, then
     # answer probes using the distilled-fact graph (search-based retrieval over
     # atomic facts). Combined arm also requires this workspace.
-    needs_distill = distiller is not None and ("distill" in arms or "combined" in arms)
+    needs_distill = distiller is not None and ("distill" in arms or "combined" in arms or "dag-combined" in arms)
     distill_workspace: str | None = None
     if needs_distill:
         distill_workspace = distiller.workspace_for(conv_id)  # type: ignore[union-attr]
@@ -192,6 +193,21 @@ def _run_conv(
                 probe=probe,
             )
             for rec in combined_records:
+                out_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                out_fh.flush()
+                n += 1
+
+        # dag-combined arm: DAG wiring + RAG fill (raw notes) + distill fact search, merged context.
+        if "dag-combined" in arms and distill_workspace is not None:
+            dc_records = run_probe_dag_combined(
+                base_url=daemon,
+                workspace=workspace,
+                distill_workspace=distill_workspace,
+                conv_id=conv_id,
+                probe=probe,
+                candidates=candidates,
+            )
+            for rec in dc_records:
                 out_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 out_fh.flush()
                 n += 1
@@ -317,7 +333,7 @@ def main(argv: list[str] | None = None) -> int:
     results_path = os.path.join(output_dir, "results.jsonl")
 
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
-    valid_arms = {"our-way", "search", "cold", "distill", "combined"}
+    valid_arms = {"our-way", "search", "cold", "distill", "combined", "dag-combined"}
     bad = [a for a in arms if a not in valid_arms]
     if bad:
         print(f"ERROR: unknown arm(s): {bad}. Valid: {sorted(valid_arms)}", file=sys.stderr)
@@ -328,6 +344,14 @@ def main(argv: list[str] | None = None) -> int:
         arms = list(arms) + ["distill"]
         print(
             "[run] combined arm selected — auto-enabling distill ingest (needed for both pools)",
+            file=sys.stderr,
+        )
+
+    # dag-combined requires the distill ingest path.
+    if "dag-combined" in arms and "distill" not in arms:
+        arms = list(arms) + ["distill"]
+        print(
+            "[run] dag-combined arm selected — auto-enabling distill ingest (needed for distill tier)",
             file=sys.stderr,
         )
 
