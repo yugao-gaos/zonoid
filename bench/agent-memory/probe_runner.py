@@ -638,6 +638,11 @@ def run_probe(
 
     Each record: {arm, conv_id, qid, category, question, gold, predicted, ...diagnostics}.
     ``gold`` is recorded FOR THE SCORER ONLY; it never enters any prediction path above.
+
+    Uses ONE embedded daemon for both our-way and search arms so the search arm benefits
+    from the embedded daemon's fresh overlay (no pendingDup) — all ingested session notes
+    are visible. The main daemon's overlay can have pendingDup entries that make notes
+    retrieval-invisible, causing 0% accuracy on real multi-session data.
     """
     common = {
         "conv_id": conv_id,
@@ -648,27 +653,48 @@ def run_probe(
     }
     records: list[dict[str, Any]] = []
 
-    # ARM our-way (headline)
-    ow = run_our_way(base_url, workspace, probe, candidates)
-    records.append({
-        "arm": "our-way",
-        **common,
-        "predicted": ow.get("predicted", ""),
-        "kept_sids": ow.get("kept_sids"),
-        "context_keys": ow.get("context_keys"),
-        "candidate_sids": ow.get("candidate_sids"),
-    })
+    # Start ONE embedded daemon for both our-way and search arms.
+    # The embedded daemon loads a fresh overlay from graph-store (no pendingDup),
+    # making all ingested session notes visible to search retrieval.
+    handle = None
+    try:
+        handle = _start_our_way_daemon(workspace)
+        emb_url = handle.base_url
+        emb_data_dir = handle.data_dir
+        emb_client = ZonoidClient(emb_url, workspace=workspace, timeout=120)
+        _ingest_candidates_into_daemon(emb_client, candidates, workspace)
 
-    # ARM search (retrieval control)
-    sr = run_search(base_url, workspace, probe)
-    records.append({
-        "arm": "search",
-        **common,
-        "predicted": sr.get("predicted", ""),
-        "hit_keys": sr.get("hit_keys"),
-    })
+        # ARM our-way (headline) — reuses embedded daemon
+        ow = run_our_way(
+            base_url, workspace, probe, candidates,
+            _embedded_client=emb_client,
+            _embedded_data_dir=emb_data_dir,
+        )
+        records.append({
+            "arm": "our-way",
+            **common,
+            "predicted": ow.get("predicted", ""),
+            "kept_sids": ow.get("kept_sids"),
+            "context_keys": ow.get("context_keys"),
+            "candidate_sids": ow.get("candidate_sids"),
+        })
 
-    # ARM cold (floor)
+        # ARM search — uses embedded daemon for full note visibility (no pendingDup)
+        sr = run_search(emb_url, workspace, probe)
+        records.append({
+            "arm": "search",
+            **common,
+            "predicted": sr.get("predicted", ""),
+            "hit_keys": sr.get("hit_keys"),
+        })
+    finally:
+        if handle is not None:
+            try:
+                _daemon_mod.stop(handle)
+            except Exception:  # noqa: BLE001
+                pass
+
+    # ARM cold (floor) — no memory needed, runs after daemon stop
     cd = run_cold(probe)
     records.append({
         "arm": "cold",
