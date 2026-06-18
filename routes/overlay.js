@@ -650,7 +650,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // semantically subsumes an older current note (cosine >= SUBSUMPTION_THRESHOLD), soft-retire
     // the older note by setting its validTo and supersededBy, then log a note_superseded event.
     // Guard: skip if no vec (embedding sidecar unavailable → fail-open, consistent with dup guard).
-    if (b.vec) {
+    if (b.vec && !judge.noteDecayDisabled()) {
       try {
         const subsumed = judge.findSubsumedNotes(id, b.vec, T.ov);
         if (subsumed.length) {
