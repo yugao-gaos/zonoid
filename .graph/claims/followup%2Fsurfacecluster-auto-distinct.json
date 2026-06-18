@@ -1,0 +1,10 @@
+{
+  "task_key": "followup/surfacecluster-auto-distinct",
+  "agent_id": "worker-surfacecluster-auto-distinct-finalize",
+  "session_id": "worker-surfacecluster-auto-distinct-finalize",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/followup-surfacecluster-auto-distinct",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T21:09:16.392Z",
+  "lease_until": "2026-06-18T22:09:16.392Z"
+}
