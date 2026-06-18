@@ -4,7 +4,8 @@
   "session_id": "019ed85d-26df-7733-9134-d814d002f06b",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-opencode-arm-review",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T01:34:47.020Z",
-  "lease_until": "2026-06-18T02:34:47.020Z"
+  "lease_until": "2026-06-18T02:34:47.020Z",
+  "completed_at": "2026-06-18T01:35:47.953Z"
 }
