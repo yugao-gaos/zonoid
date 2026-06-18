@@ -36,6 +36,30 @@ function repoRootNoMarkers(startDir) {
   return m.exports.repoRoot(startDir);
 }
 
+// Load a private copy of the module whose `os` reports a STUBBED tmpdir/homedir (so we can exercise
+// the container-root guard against real on-disk markers we control), while `fs` stays REAL. Used to
+// prove repoRoot never adopts an incidental `.graph`/`.git` sitting AT a container root.
+function repoRootWithContainers(startDir, { tmpdir, homedir }) {
+  const Module = require('module');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'workspace-registry.js'), 'utf8');
+  const m = new Module('ws-reg-containers', module);
+  m.filename = path.join(__dirname, '..', 'lib', 'workspace-registry.js');
+  m.paths = Module._nodeModulePaths(path.dirname(m.filename));
+  const realOs = require('os');
+  const stubOs = new Proxy(realOs, { get(t, k) {
+    if (k === 'tmpdir') return () => tmpdir;
+    if (k === 'homedir') return () => homedir;
+    return t[k];
+  }});
+  const origLoad = Module._load;
+  Module._load = function (req, parent, isMain) {
+    if (req === 'os') return stubOs;
+    return origLoad.call(this, req, parent, isMain);
+  };
+  try { m._compile(src, m.filename); } finally { Module._load = origLoad; }
+  return m.exports.repoRoot(startDir);
+}
+
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
   if (cond) { console.log(`PASS  ${label}`); pass++; }
@@ -102,6 +126,36 @@ try {
   // termination against an isolated FS view where NO level has a marker. repoRoot must return null.
   ok('repoRoot returns null when no marker exists up to the fs root',
     repoRootNoMarkers(path.join(SANDBOX, 'noMarkers', 'x', 'y')) === null);
+
+  // ── repoRoot: container-root guard (hoisted from routes/meta.js, note note-mqj20ekamwy) ──────
+  // An incidental `.graph`/`.git` sitting AT a container root (system temp / home / fs root) must
+  // NEVER be adopted as a repo root — otherwise a fresh top-level workspace dir (or a hooks/CLI cwd)
+  // nested under temp would be silently re-homed onto a stray ancestor marker. We stub os.tmpdir/
+  // os.homedir to dirs we control and give each an incidental `.graph`, then assert repoRoot walking
+  // up from a markerless child does NOT return the container dir.
+  {
+    // (1) tmpdir as container: child under a stubbed-tmpdir that itself has an incidental .graph.
+    const fakeTmp = mk('containers', 'fakeTmp');
+    touchDir(fakeTmp, '.graph');                       // incidental marker AT the container root
+    const childUnderTmp = mk('containers', 'fakeTmp', 'proj', 'src');  // markerless descendant
+    ok('container guard: incidental .graph AT stubbed tmpdir is NOT adopted',
+      repoRootWithContainers(childUnderTmp, { tmpdir: fs.realpathSync(fakeTmp), homedir: path.join(SANDBOX, 'no-home') }) !== fs.realpathSync(fakeTmp));
+
+    // (2) homedir as container: same, but the incidental marker is a .git DIRECTORY at home.
+    const fakeHome = mk('containers', 'fakeHome');
+    touchDir(fakeHome, '.git');
+    const childUnderHome = mk('containers', 'fakeHome', 'work', 'a');
+    ok('container guard: incidental .git AT stubbed homedir is NOT adopted',
+      repoRootWithContainers(childUnderHome, { tmpdir: path.join(SANDBOX, 'no-tmp'), homedir: fs.realpathSync(fakeHome) }) !== fs.realpathSync(fakeHome));
+
+    // (3) POSITIVE control: a REAL repo NESTED BELOW the container (not AT it) is still adopted —
+    // the guard excludes only the container dir itself, never its legitimate sub-repos.
+    const realUnderTmp = mk('containers', 'fakeTmp2', 'realproj');
+    touchDir(realUnderTmp, '.graph');
+    const deepInReal = mk('containers', 'fakeTmp2', 'realproj', 'lib', 'x');
+    ok('container guard: a real .graph repo NESTED below the container IS still adopted',
+      repoRootWithContainers(deepInReal, { tmpdir: fs.realpathSync(mk('containers', 'fakeTmp2')), homedir: path.join(SANDBOX, 'no-home') }) === fs.realpathSync(realUnderTmp));
+  }
 
   // ── loadRegistry: missing file => empty v2 ────────────────────────────────────
   const missing = path.join(SANDBOX, 'does-not-exist.json');
