@@ -147,9 +147,18 @@ UNIT_HARNESS: str = os.environ.get("ZONOID_BENCH_UNIT_HARNESS", "bench")
 # ---------------------------------------------------------------------------
 
 _ANSWER_TEMPLATE = (
-    "Answer the question using ONLY the context provided below. Be concise — reply with just "
-    "the answer (a short phrase or sentence), no explanation. If the context does not contain "
-    "the answer, reply exactly: I don't know.\n\n"
+    "Answer the question using ONLY the context provided below.\n\n"
+    "Rules:\n"
+    "1. Give the SPECIFIC fact (a name, date, place, number, or short phrase) — NOT a generic "
+    "relational answer like 'the person mentioned' or 'what was discussed'.\n"
+    "2. Answer from PARAPHRASED evidence: if the fact is clearly present in the context but "
+    "stated in different words, still extract and state the specific answer — do NOT say "
+    "'I don't know' just because the wording differs from the question.\n"
+    "3. RESOLVE relative time expressions (e.g. 'yesterday', 'last week', 'this month', "
+    "'next Tuesday') against any 'Session date:' line present in the context. Convert them "
+    "to the actual calendar date or month in your answer.\n"
+    "4. Reply with ONLY the answer — a short phrase or sentence, no explanation.\n"
+    "5. If the answer truly cannot be determined from the context, reply exactly: I don't know.\n\n"
     "CONTEXT:\n{context}\n\n"
     "QUESTION: {question}\n\n"
     "ANSWER:"
