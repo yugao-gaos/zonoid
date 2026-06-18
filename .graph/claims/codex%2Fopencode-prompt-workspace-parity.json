@@ -1,0 +1,11 @@
+{
+  "task_key": "codex/opencode-prompt-workspace-parity",
+  "agent_id": "worker-opencode-prompt-workspace-parity",
+  "session_id": "worker-opencode-prompt-workspace-parity",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-opencode-prompt-workspace-parity",
+  "status": "done",
+  "claimed_at": "2026-06-18T02:28:36.814Z",
+  "lease_until": "2026-06-18T03:28:36.814Z",
+  "completed_at": "2026-06-18T02:34:51.760Z"
+}

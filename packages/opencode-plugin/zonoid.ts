@@ -7,6 +7,7 @@ import { tool } from '@opencode-ai/plugin';
 import { createRequire } from 'node:module';
 import { writeTaskStub } from './lib/stub-writer.js';
 import { gateWriteTool, orchPost } from './lib/gate.js';
+import { injectClassifiedContext, postWorkspace } from './lib/prompt-context.js';
 
 const require = createRequire(import.meta.url);
 const scheduleWakeup = require('./lib/schedule-wakeup.js');
@@ -15,6 +16,7 @@ const sessionAgents = new Map();
 
 export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
   const workspace = worktree || directory;
+  await postWorkspace(workspace, orchPost);
 
   return {
     event: async ({ event }) => {
@@ -23,15 +25,18 @@ export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
       const props = ev?.properties || {};
       const sessionID = String(props.sessionID ?? props.sessionId ?? props.id ?? '');
 
-      if (type === 'session.created' && sessionID) {
-        const agentId = String(props.agentID ?? props.agent_id ?? `opencode-${sessionID.slice(0, 8)}`);
-        sessionAgents.set(sessionID, agentId);
-        await orchPost('/agent/start', {
-          agent_id: agentId,
-          agent_type: 'opencode',
-          session: sessionID,
-          workspace,
-        }).catch(() => {});
+      if (type === 'session.created') {
+        await postWorkspace(workspace, orchPost);
+        if (sessionID) {
+          const agentId = String(props.agentID ?? props.agent_id ?? `opencode-${sessionID.slice(0, 8)}`);
+          sessionAgents.set(sessionID, agentId);
+          await orchPost('/agent/start', {
+            agent_id: agentId,
+            agent_type: 'opencode',
+            session: sessionID,
+            workspace,
+          }).catch(() => {});
+        }
         return;
       }
 
@@ -40,6 +45,10 @@ export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
         sessionAgents.delete(sessionID);
         await orchPost('/agent/done', { agent_id: agentId, workspace }).catch(() => {});
       }
+    },
+
+    'chat.message': async (input, output) => {
+      await injectClassifiedContext(input, output, { workspace, post: orchPost });
     },
 
     'tool.execute.before': async (input, output) => {
