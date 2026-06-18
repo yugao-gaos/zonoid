@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/brain-search-weight-evolution",
+  "agent_id": "worker-brain-search-weight-evolution",
+  "session_id": "019edc6c-a29a-7160-af22-dce5a857298c",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-brain-search-weight-evolution",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T20:30:15.947Z",
+  "lease_until": "2026-06-18T21:30:15.947Z"
+}
