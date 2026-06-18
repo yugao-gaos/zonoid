@@ -1,0 +1,10 @@
+{
+  "task_key": "followup/harness-judge-drain",
+  "agent_id": "edge-judge-drain-22",
+  "session_id": "680e9dd1-876a-4bc4-9267-d218ff5d33c2",
+  "workspace": "D:/zonoid",
+  "branch": "orch/attempt/followup-harness-judge-drain",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T15:15:12.401Z",
+  "lease_until": "2026-06-18T16:15:12.401Z"
+}
