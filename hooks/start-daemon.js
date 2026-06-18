@@ -6,14 +6,17 @@
 const path = require('path');
 const { spawn } = require('child_process');
 const k = require('./lib/hookkit');
+const { repoRoot } = require('../lib/workspace-registry');
 
 (async () => {
   const input = await k.readInput();
-  let cwd = input.cwd || '';
   const tx = input.transcript_path || '';
   const sid = input.session_id || '';
   const harness = input.harness || '';
-  if (!cwd) cwd = process.cwd();
+  // Resolve the workspace as the repo CONTAINING cwd (note:note-mqj0wcabtxh): the old
+  // ~/.claude/orchestrator/workspace pointer and the raw-cwd-as-workspace fallback are gone.
+  // repoRoot returns null when cwd is not inside a repo — we then skip POST /workspace.
+  const cwd = repoRoot(input.cwd || process.cwd());
 
   if (!(await k.ping(300))) {
     try {
@@ -25,9 +28,11 @@ const k = require('./lib/hookkit');
     for (let i = 0; i < 40; i++) { if (await k.ping(200)) break; await new Promise((r) => setTimeout(r, 100)); }
   }
 
-  const body = { path: cwd, transcript: tx, session_id: sid };
-  if (harness) body.harness = harness;
-  await k.post('/workspace', body, 500);
-  await k.post('/usage/reconcile', { harness: harness || 'claude', workspace: cwd, session: sid }, 2000);
+  if (cwd) {
+    const body = { path: cwd, transcript: tx, session_id: sid };
+    if (harness) body.harness = harness;
+    await k.post('/workspace', body, 500);
+    await k.post('/usage/reconcile', { harness: harness || 'claude', workspace: cwd, session: sid }, 2000);
+  }
   process.exit(0);
 })().catch(() => process.exit(0));
