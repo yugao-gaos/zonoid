@@ -1,0 +1,3 @@
+{"evt":"status_changed","id":"703d3dcc-ae30-4ad7-8959-5d98069473cc/2","workspace":"D:\\zonoid","status":"canceled","actor":"overlay-sync","ts":"2026-06-18T15:10:08.069Z"}
+{"evt":"snapshot_stored","id":"703d3dcc-ae30-4ad7-8959-5d98069473cc/2","workspace":"D:\\zonoid","subject":"Write resolve-owner-ht.js file","description":"","status":"pending","blockedBy":[],"owner":null,"metadata":null,"snapshotted_at":"2026-06-17T17:29:21.371Z","actor":"overlay-sync","ts":"2026-06-18T15:10:08.069Z"}
+{"evt":"timestamps_set","id":"703d3dcc-ae30-4ad7-8959-5d98069473cc/2","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-15T03:33:11.712Z","lastChanged":"2026-06-18T00:58:16.988Z","lastStatus":"canceled"},"actor":"overlay-sync","ts":"2026-06-18T15:10:08.069Z"}

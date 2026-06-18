@@ -8,10 +8,7 @@
         "mcp-graph.js"
       ],
       "env": {
-        "ORCH_PORT": "8787",
-        "ORCH_RERANK_ALPHA": "0.5",
-        "ORCH_RERANK_K": "50",
-        "ORCH_HEADLESS_DRAINS": "1"
+        "ORCH_PORT": "8787"
       }
     }
   }

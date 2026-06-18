@@ -11,3 +11,5 @@
 {"evt":"timestamps_set","id":"9195fb5e-f196-497d-962f-69616733d2e9/21","workspace":"D:/zonoid","timestamps":{"firstSeen":"2026-06-15T19:08:28.932Z","lastChanged":"2026-06-18T03:28:26.901Z","lastStatus":"failed"},"actor":"overlay-sync","ts":"2026-06-18T03:39:20.700Z"}
 {"evt":"status_changed","id":"9195fb5e-f196-497d-962f-69616733d2e9/21","workspace":"D:/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T03:39:58.793Z"}
 {"evt":"timestamps_set","id":"9195fb5e-f196-497d-962f-69616733d2e9/21","workspace":"D:/zonoid","timestamps":{"firstSeen":"2026-06-15T19:08:28.932Z","lastChanged":"2026-06-18T03:39:59.079Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-18T03:41:29.151Z"}
+{"evt":"status_changed","id":"9195fb5e-f196-497d-962f-69616733d2e9/21","workspace":"D:/zonoid","status":"canceled","actor":"overlay-sync","ts":"2026-06-18T10:41:41.983Z"}
+{"evt":"status_changed","id":"9195fb5e-f196-497d-962f-69616733d2e9/21","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T11:12:46.349Z"}
