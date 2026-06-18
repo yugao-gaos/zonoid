@@ -12,6 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { HEARTBEAT } = require('../lib/classify-assemble');
+const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'classify.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'judge-hook-nudge-test-'));
@@ -27,9 +28,21 @@ function mkInput(prompt, sessionId) {
   return JSON.stringify({ prompt: prompt || 'hello world', session_id: sessionId || 'test-nudge-sid' });
 }
 
-// Run the hook with the given input and env overrides; returns { status, stdout, stderr }
-function runHook(input, extraEnv) {
-  const env = { ...process.env, ...extraEnv };
+// Run the hook with the given input and env overrides; returns { status, stdout, stderr }.
+// The stub dir rides in extraEnv.PATH as `${stubDir}:${process.env.PATH}`; we split off the
+// leading stub dir and rebuild the PATH through hookEnv so `jq` stays resolvable in the spawned
+// bash on Windows (see test/helpers/curl-stub.js for the full rationale).
+function runHook(input, extraEnv = {}) {
+  const { PATH: rawPath, ...rest } = extraEnv;
+  let stubDirs = [];
+  let envOverrides = rest;
+  if (rawPath) {
+    const tail = ':' + process.env.PATH;
+    stubDirs = rawPath.endsWith(tail) ? [rawPath.slice(0, -tail.length)] : [rawPath];
+  } else {
+    envOverrides = { ...rest, PATH: process.env.PATH };
+  }
+  const env = hookEnv(stubDirs, envOverrides);
   const r = spawnSync('bash', [HOOK], { input, encoding: 'utf8', env });
   return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
@@ -49,10 +62,9 @@ function mkClassifyStub(mode) {
   const ctxNoJudge = BASE_CTX;
   fs.writeFileSync(path.join(dir, 'with-judge.json'), JSON.stringify({ additional_context: ctxWithJudge }));
   fs.writeFileSync(path.join(dir, 'no-judge.json'), JSON.stringify({ additional_context: ctxNoJudge }));
-  fs.writeFileSync(
-    path.join(dir, 'curl'),
-    `#!/bin/bash
-DIR="$(cd "$(dirname "$0")" && pwd)"
+  writeCurlStub(
+    dir,
+    `DIR="$(cd "$(dirname "$0")" && pwd)"
 ARGS="$*"
 if printf "%s" "$ARGS" | grep -q "/classify"; then
   if [ "\${ORCH_GATE_OFF:-0}" = "1" ]; then
@@ -67,7 +79,6 @@ else
 fi
 exit 0
 `,
-    { mode: 0o755 },
   );
   return dir;
 }
@@ -77,11 +88,9 @@ const stubNudgeFalseDir = mkClassifyStub('nudge-false');
 
 // ── Stub curl that times out / returns nothing for classify (fail-silent test) ────────────────
 const stubNoResponseDir = path.join(TMP, 'stub-no-response');
-fs.mkdirSync(stubNoResponseDir, { recursive: true });
-fs.writeFileSync(
-  path.join(stubNoResponseDir, 'curl'),
-  `#!/bin/bash
-ARGS="$*"
+writeCurlStub(
+  stubNoResponseDir,
+  `ARGS="$*"
 if printf "%s" "$ARGS" | grep -q "/classify"; then
   exit 1
 else
@@ -89,7 +98,6 @@ else
 fi
 exit 0
 `,
-  { mode: 0o755 },
 );
 
 // Helper: parse additionalContext from hook stdout JSON

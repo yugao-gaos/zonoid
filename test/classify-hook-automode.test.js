@@ -10,6 +10,7 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'classify.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'classify-automode-'));
@@ -24,29 +25,24 @@ function ok(label, cond) {
 
 // Stub curl: capture the -d body to a file and return a minimal classify payload so the hook emits.
 const stubDir = path.join(TMP, 'stub-curl');
-fs.mkdirSync(stubDir, { recursive: true });
 const BODY_OUT = path.join(TMP, 'last-body.json');
-fs.writeFileSync(
-  path.join(stubDir, 'curl'),
-  `#!/bin/bash
-prev=""
+writeCurlStub(
+  stubDir,
+  `prev=""
 for a in "$@"; do
-  if [ "$prev" = "-d" ]; then printf '%s' "$a" > "${BODY_OUT}"; fi
+  if [ "$prev" = "-d" ]; then printf '%s' "$a" > "${BODY_OUT.replace(/\\/g, '/')}"; fi
   prev="$a"
 done
 echo '{"additional_context":"[Model routing] stub"}'
 exit 0
 `,
-  { mode: 0o755 },
 );
 
 function runHook(input, extraEnv = {}) {
-  const env = {
-    ...process.env,
+  const env = hookEnv([stubDir], {
     CLAUDE_PLUGIN_DATA: path.dirname(SESSION_DIR),
-    PATH: stubDir + ':' + process.env.PATH,
     ...extraEnv,
-  };
+  });
   if (fs.existsSync(BODY_OUT)) fs.rmSync(BODY_OUT);
   const r = spawnSync('bash', [HOOK], { input, encoding: 'utf8', env });
   let body = null;

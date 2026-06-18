@@ -5,5 +5,5 @@
 # wires the .js hooks for Claude Code anyway (bin/install.js hookCmd); this .sh exists only for the
 # Cursor/Codex adapters and the test suite, which now share the same resolution by delegating.
 # stdin (the hook input JSON) is piped straight through — start-daemon.js reads it via readInput().
-DIR="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/orchestrator}"
-exec node "$DIR/hooks/start-daemon.js"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+exec node "$DIR/start-daemon.js"

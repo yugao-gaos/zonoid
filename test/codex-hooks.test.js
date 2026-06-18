@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
 
 const HOOK = path.join(__dirname, '..', 'adapters', 'codex', 'hooks', 'agent-done.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-hooks-'));
@@ -37,18 +38,16 @@ try {
 
   const capture = path.join(TMP, 'curl-args.txt');
   const stubDir = path.join(TMP, 'bin');
-  fs.mkdirSync(stubDir, { recursive: true });
-  fs.writeFileSync(path.join(stubDir, 'curl'), [
-    '#!/bin/bash',
+  writeCurlStub(stubDir, [
     `printf '%s\\n' "$@" >> ${JSON.stringify(capture)}`,
     'exit 0',
     '',
-  ].join('\n'), { mode: 0o755 });
+  ].join('\n'));
 
   const r = spawnSync('bash', [HOOK], {
     input: JSON.stringify({ agent_id: 'codex-hook-agent' }),
     encoding: 'utf8',
-    env: { ...process.env, PATH: `${stubDir}:${process.env.PATH}`, CODEX_HOME: codexHome },
+    env: hookEnv(stubDir, { CODEX_HOME: codexHome }),
   });
 
   ok('agent-done exits 0', r.status === 0);
