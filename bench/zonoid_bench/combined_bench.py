@@ -95,6 +95,34 @@ ceiling is likewise a post-hoc runaway flag (``ON_over_ceiling``): a single QA c
 approaches 500k, so the ceiling is a guard for pathological inputs, not a live throttle. See
 ``open_risks`` in the run summary. A future ``--stream-kill`` mode is stubbed in ``_STREAM_KILL_TODO``.
 
+================================================================================================
+ON-CONFIG: raw-dag vs dag-distill
+================================================================================================
+``--on-config raw-dag`` (default): the standard ON arm above — retrieves from the live KB whose
+notes were mined from the repo SOURCE by the production pipeline.
+
+``--on-config dag-distill``: the DISTILLED ON arm — re-mines the SAME SOURCE the featurebench notes
+came from (the ``evidence`` field of each problem, e.g. "daemon.js:206-211"), runs it through the
+distill.py atomic-fact extractor (_DISTILL_PROMPT + _claude_p + _parse_facts), and seeds the
+resulting atomic-fact notes into a DEDICATED distill workspace.  Then retrieves via the SAME
+production gate-first path (arms.run_canonical_wiring) from that distill workspace.
+
+Honesty bar (MANDATORY — see note-mqjpp4w7iex):
+  - ONLY the SOURCE CODE (evidence field → repo lines) is the distill input.  The gold answer
+    (prob["gold"]) NEVER enters any distill/seed/retrieve/answer step.
+  - If a probe has no evidence field, or the source lines cannot be read, we seed NOTHING for that
+    probe (honest miss) — we do NOT fall back to gold or any other grader-only field.
+
+Workspace isolation for dag-distill (fixing the rejected prior attempt):
+  The prior attempt (commit 0548213) did a per-problem global rebind of the daemon's live workspace,
+  which races concurrent sessions.  The corrected design:
+    1. Before the run loop, create ONE dedicated distill workspace directory.
+    2. Seed ALL problems' distilled atomic facts into that workspace (ingest phase).
+    3. Bind the daemon live workspace to the distill workspace ONCE at the start of the run.
+    4. Run all probes against that workspace.
+    5. Restore the original live workspace binding on exit.
+  This is the same pattern raw-dag uses: one bind per run, not one per problem.
+
 Runtime: stdlib ONLY (urllib/json/subprocess via client.py + judge.py + arms.py). Runs on the
 embeddable Python 3.12 at C:\\Users\\Imyu\\AppData\\Local\\py312embed\\python.exe and on Mac/Linux.
 """
@@ -104,6 +132,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -158,6 +187,14 @@ _DEFAULT_MODEL = os.environ.get("ZONOID_BENCH_MODEL", None)
 # Per-call wall-clock budget for a single ``claude -p`` answer completion (seconds). Clamped to a
 # sane max so a hung child can't stall the whole run (the 9.5h-hang post-mortem in judge.py).
 _ANSWER_TIMEOUT = min(600, int(os.environ.get("ZONOID_BENCH_ANSWER_TIMEOUT", "300")))
+
+# ---------------------------------------------------------------------------
+# ON-CONFIG options
+# ---------------------------------------------------------------------------
+
+_ON_CONFIG_RAW_DAG = "raw-dag"      # default: retrieve from production KB (mined notes)
+_ON_CONFIG_DAG_DISTILL = "dag-distill"  # retrieve from distilled-from-source atomic-fact KB
+_ON_CONFIG_CHOICES = [_ON_CONFIG_RAW_DAG, _ON_CONFIG_DAG_DISTILL]
 
 
 # ---------------------------------------------------------------------------
@@ -475,7 +512,339 @@ def load_problems(path: str) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Per-problem fused run
+# dag-distill: source-code reader + atomic-fact extractor
+# ---------------------------------------------------------------------------
+
+# Distillation prompt — adapted from distill.py's _DISTILL_PROMPT but targeting
+# source CODE (not conversational turns). Extracts atomic engineering facts.
+_SOURCE_DISTILL_PROMPT = """\
+You are a technical fact-extraction assistant. Extract ATOMIC FACTS from the source code snippet \
+below.
+
+Rules:
+1. ONE claim per fact — one subject-predicate-object statement about the code's behaviour.
+2. Be SPECIFIC: keep constant names, exact numeric values, function names, module names.
+3. Each fact must be SELF-CONTAINED: readable with no surrounding code context.
+4. Extract facts about: constants/thresholds, default values, conditions/triggers, data structures, \
+and non-obvious algorithmic decisions.
+5. Skip trivial observations (e.g. "this is a JavaScript file", "there is a comment").
+6. If there are NO meaningful engineering facts in the snippet, return an empty list.
+
+Return ONLY a JSON array of objects with this shape:
+[
+  {{
+    "title": "short fact title (5-10 words)",
+    "fact": "full self-contained engineering fact sentence"
+  }},
+  ...
+]
+
+SOURCE FILE: {filename}
+LINES: {line_range}
+
+CODE:
+{source_text}
+
+JSON array of facts:"""
+
+
+def _read_source_lines(repo_root: str, filename: str, start: int, end: int) -> str:
+    """Read lines [start, end] (1-indexed, inclusive) from repo_root/filename.
+
+    Returns the text or empty string if the file/range is not accessible.
+    """
+    path = os.path.join(repo_root, filename.replace("/", os.sep).replace("\\", os.sep))
+    if not os.path.exists(path):
+        return ""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            all_lines = fh.readlines()
+        # Convert to 0-indexed.  Clamp to file bounds.
+        s = max(0, start - 1)
+        e = min(len(all_lines), end)
+        return "".join(all_lines[s:e])
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _parse_evidence_spec(evidence_spec: str) -> list[tuple[str, int, int]]:
+    """Parse an evidence spec string into (filename, start_line, end_line) tuples.
+
+    Supported formats (mirrors featurebench bench-questions.jsonl):
+      "daemon.js:206-211"                 → [("daemon.js", 206, 211)]
+      "lib/optimize.js:12-21"             → [("lib/optimize.js", 12, 21)]
+      "daemon.js:1140,1196,1237"          → [("daemon.js", 1140, 1140),
+                                              ("daemon.js", 1196, 1196),
+                                              ("daemon.js", 1237, 1237)]
+      "lib/a.js:10-20; daemon.js:5-8"    → [("lib/a.js", 10, 20), ("daemon.js", 5, 8)]
+      Multiple specs separated by ";" are supported.
+    """
+    results: list[tuple[str, int, int]] = []
+    parts = [p.strip() for p in evidence_spec.split(";") if p.strip()]
+    for part in parts:
+        # Expect "filename:linespec"
+        m = re.match(r"^(.+?):(.+)$", part.strip())
+        if not m:
+            continue
+        filename = m.group(1).strip()
+        linespec = m.group(2).strip()
+
+        # "206-211" — a range
+        range_m = re.match(r"^(\d+)-(\d+)$", linespec)
+        if range_m:
+            results.append((filename, int(range_m.group(1)), int(range_m.group(2))))
+            continue
+
+        # "1140,1196,1237" — individual lines (treat each as a 3-line window for context)
+        # A single line number reads ±1 around it so a statement that spans a line or two is visible.
+        for tok in linespec.split(","):
+            tok = tok.strip()
+            if tok.isdigit():
+                ln = int(tok)
+                results.append((filename, max(1, ln - 1), ln + 1))
+    return results
+
+
+def _distill_source_text(source_text: str, filename: str, line_range: str) -> list[dict[str, str]]:
+    """Extract atomic facts from *source_text* via LLM (distill.py pattern).
+
+    Returns a list of {title, fact} dicts. Returns [] on LLM failure or no facts.
+    This mirrors distill.py's _claude_p + _parse_facts but targets source CODE
+    rather than conversational turns.
+
+    NOTE: source_text is the SOURCE CODE, never the gold answer — honesty bar.
+    """
+    if not (source_text or "").strip():
+        return []
+
+    prompt = _SOURCE_DISTILL_PROMPT.format(
+        filename=filename,
+        line_range=line_range,
+        source_text=source_text,
+    )
+
+    # Reuse judge_mod.claude_p (the SDK's battle-tested tool-less LLM call).
+    cli = _resolve_claude()
+    mcp_off = os.path.join(_BENCH, "mcp-off.json")
+    args: list[str] = [cli, "-p"]
+    if os.path.exists(mcp_off):
+        args += ["--mcp-config", mcp_off, "--strict-mcp-config"]
+    # Use text output — we parse JSON from the LLM's text response.
+    args += ["--output-format", "text", "--allowedTools", ""]
+    distill_timeout = int(os.environ.get("ZONOID_BENCH_DISTILL_TIMEOUT", "120"))
+
+    sandbox = tempfile.mkdtemp(prefix="combined-bench-distill-")
+    try:
+        run = subprocess.run(
+            args,
+            input=prompt,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=distill_timeout,
+            env=dict(os.environ),
+            cwd=sandbox,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[combined_bench/distill] LLM call failed: {exc}", file=sys.stderr)
+        return []
+    finally:
+        shutil.rmtree(sandbox, ignore_errors=True)
+
+    if run.returncode != 0:
+        tail = (run.stderr or run.stdout or "")[-200:]
+        print(f"[combined_bench/distill] LLM exit={run.returncode}: {tail}", file=sys.stderr)
+        return []
+
+    raw = run.stdout or ""
+    return _parse_distill_facts(raw)
+
+
+def _parse_distill_facts(raw: str) -> list[dict[str, str]]:
+    """Parse the JSON array of facts from raw LLM output (mirrors distill.py _parse_facts)."""
+    if not raw:
+        return []
+    raw = raw.strip()
+
+    # Pattern 1: markdown fence
+    fence_m = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", raw, re.DOTALL)
+    if fence_m:
+        raw = fence_m.group(1)
+
+    # Pattern 2: scan for first '[' ... matching ']'
+    start = raw.find("[")
+    end = raw.rfind("]")
+    if start == -1 or end == -1 or end < start:
+        return []
+    blob = raw[start: end + 1]
+
+    try:
+        parsed = json.loads(blob)
+    except json.JSONDecodeError:
+        # Try stripping trailing commas (common LLM mistake)
+        cleaned = re.sub(r",\s*([}\]])", r"\1", blob)
+        try:
+            parsed = json.loads(cleaned)
+        except json.JSONDecodeError:
+            return []
+
+    if not isinstance(parsed, list):
+        return []
+
+    facts: list[dict[str, str]] = []
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        fact = str(item.get("fact") or "").strip()
+        if fact:
+            facts.append({"title": title or fact[:60], "fact": fact})
+    return facts
+
+
+def distill_probe_source(
+    prob: dict[str, Any],
+    repo_root: str,
+) -> list[dict[str, str]]:
+    """Extract atomic facts from the SOURCE CODE referenced by prob["evidence"].
+
+    This is the HONEST ingest source for dag-distill:
+      - Reads the repo source lines specified in prob["evidence"] (e.g. "daemon.js:206-211").
+      - Runs the atomic-fact extractor on that SOURCE CODE.
+      - NEVER touches prob["gold"] (the reference answer) — that is grader-only.
+
+    Returns a list of {title, fact} dicts for ALL evidence specs in the problem.
+    Returns [] if evidence is missing, or source cannot be read, or LLM extraction fails.
+    Honest miss: returning [] means the distill arm seeds NOTHING for this probe (correct).
+    """
+    evidence_spec = str(prob.get("evidence") or "").strip()
+    if not evidence_spec:
+        return []
+
+    specs = _parse_evidence_spec(evidence_spec)
+    if not specs:
+        return []
+
+    all_facts: list[dict[str, str]] = []
+    for (filename, start, end) in specs:
+        source_text = _read_source_lines(repo_root, filename, start, end)
+        if not source_text.strip():
+            print(
+                f"[combined_bench/distill] evidence {filename}:{start}-{end} — "
+                f"source not readable (honest miss, seeding nothing for this spec)",
+                file=sys.stderr,
+            )
+            continue
+        line_range = f"{start}-{end}"
+        facts = _distill_source_text(source_text, filename, line_range)
+        if facts:
+            all_facts.extend(facts)
+        else:
+            print(
+                f"[combined_bench/distill] evidence {filename}:{start}-{end} — "
+                f"LLM extracted 0 facts (honest miss for this spec)",
+                file=sys.stderr,
+            )
+    return all_facts
+
+
+# ---------------------------------------------------------------------------
+# dag-distill: build the distilled KB (seed ALL problems before any retrieval)
+# ---------------------------------------------------------------------------
+
+def build_distill_workspace(
+    problems: list[dict[str, Any]],
+    repo_root: str,
+    distill_ws: str,
+    daemon_url: str,
+    *,
+    verbose: bool = True,
+) -> dict[str, list[str]]:
+    """Seed atomic-fact notes from SOURCE (never gold) into *distill_ws* for all problems.
+
+    For each problem:
+      1. Parse prob["evidence"] to get repo source file+lines.
+      2. Read those source lines from *repo_root*.
+      3. Run LLM atomic-fact extraction on the source text.
+      4. POST each fact note into *distill_ws* via POST /overlay/note.
+
+    Returns a dict mapping prob source/idx → list of seeded note keys.
+    This workspace is then bound ONCE for the entire dag-distill pass; no per-problem rebind.
+
+    HONESTY BAR: prob["gold"] is never read or passed to any step here.
+    """
+    os.makedirs(distill_ws, exist_ok=True)
+
+    # We use the module-level post_note from client.py (not zonoid_lifecycle) since we're in
+    # the zonoid_bench package. Import the functional form directly.
+    from zonoid_bench.client import post_note as _post_note  # noqa: PLC0415
+
+    seeded: dict[str, list[str]] = {}
+
+    for i, prob in enumerate(problems):
+        prob_id = str(prob.get("source") or i)
+        evidence_spec = str(prob.get("evidence") or "").strip()
+
+        if not evidence_spec:
+            if verbose:
+                print(
+                    f"[distill-kb] prob {prob_id}: no evidence field — seeding nothing (honest miss)",
+                    file=sys.stderr,
+                )
+            seeded[prob_id] = []
+            continue
+
+        if verbose:
+            print(
+                f"[distill-kb] prob {prob_id}: distilling source {evidence_spec!r} ...",
+                file=sys.stderr,
+            )
+
+        facts = distill_probe_source(prob, repo_root)
+
+        if not facts:
+            if verbose:
+                print(
+                    f"[distill-kb] prob {prob_id}: 0 facts extracted (honest miss)",
+                    file=sys.stderr,
+                )
+            seeded[prob_id] = []
+            continue
+
+        note_keys: list[str] = []
+        for fact in facts:
+            try:
+                resp = _post_note(
+                    base_url=daemon_url,
+                    workspace=distill_ws,
+                    title=fact["title"],
+                    summary=fact["fact"],
+                    category="distilled-source-fact",
+                    tags=[f"prob-{prob_id}", "dag-distill", evidence_spec[:80]],
+                    timeout=60,
+                )
+                key = resp.get("key") or resp.get("note_key") or ""
+                if key:
+                    note_keys.append(key)
+            except Exception as exc:  # noqa: BLE001 — one note failure must not abort the ingest
+                print(
+                    f"[distill-kb] prob {prob_id}: note write failed: {exc}",
+                    file=sys.stderr,
+                )
+
+        seeded[prob_id] = note_keys
+        if verbose:
+            print(
+                f"[distill-kb] prob {prob_id}: seeded {len(note_keys)}/{len(facts)} fact notes "
+                f"(source: {evidence_spec!r})",
+                file=sys.stderr,
+            )
+
+    return seeded
+
+
+# ---------------------------------------------------------------------------
+# Per-problem fused run (shared by raw-dag and dag-distill)
 # ---------------------------------------------------------------------------
 
 def run_problem(
@@ -486,15 +855,24 @@ def run_problem(
     data_dir: str,
     model: Optional[str],
     on_ceiling: float,
+    on_config: str = _ON_CONFIG_RAW_DAG,
 ) -> dict[str, Any]:
-    """Run BOTH arms on one problem and return the fused per-problem record."""
+    """Run BOTH arms on one problem and return the fused per-problem record.
+
+    ``on_config`` controls the ON arm's KB source:
+      raw-dag     (default): standard production KB — seeded notes from the production pipeline.
+      dag-distill          : distilled-from-source KB bound before this call (via client.workspace).
+                             NOTE: workspace bind is done ONCE before the run loop, not per-problem.
+    """
     question = str(prob["question"])
     gold = str(prob["gold"])
     category = str(prob.get("category") or "unknown")
     qid = str(prob.get("source") or idx)
-    unit_id = f"combined-bench-{idx}-{qid}"
+    # unit_id distinguishes arms in the graph so task stubs don't collide.
+    cfg_tag = "distill" if on_config == _ON_CONFIG_DAG_DISTILL else "raw"
+    unit_id = f"combined-bench-{cfg_tag}-{idx}-{qid}"
 
-    # --- ON arm (production parity) ---
+    # --- ON arm (production parity, KB source controlled by client.workspace) ---
     on_err = ""
     try:
         t0 = time.monotonic()
@@ -524,6 +902,7 @@ def run_problem(
         off_elapsed = 0.0
 
     # --- Grade both final answers (validated LLM-judge) ---
+    # Gold is used ONLY here — never above in retrieval/seed/answer steps.
     on_solved = bool(_grade(question, gold, on["predicted"], category))
     off_solved = bool(_grade(question, gold, off["predicted"], category))
 
@@ -542,6 +921,7 @@ def run_problem(
         "category": category,
         "question": question,
         "gold": gold,
+        "on_config": on_config,
         # headline fused fields (the contract)
         "ON_solved": on_solved,
         "ON_cost": round(on_cost, 1),
@@ -639,13 +1019,14 @@ def _pct(v: float) -> str:
 
 
 def render_report(agg: dict[str, Any], records: list[dict[str, Any]], path_md: str, path_json: str,
-                  *, title: str, on_ceiling: float) -> tuple[str, str]:
+                  *, title: str, on_ceiling: float, on_config: str = _ON_CONFIG_RAW_DAG) -> tuple[str, str]:
     """Write report.json (machine) + report.md (human) for the combined bench."""
     for p in (path_md, path_json):
         os.makedirs(os.path.dirname(os.path.abspath(p)) or ".", exist_ok=True)
 
     report_data = {
         "title": title,
+        "on_config": on_config,
         "metric": "validated LLM-judge (report.judge_correctness); cost = bench-economy.js weighted "
                   "token-equivalent (input + output*5 + cache_read*0.1 + cache_creation*1.25).",
         "on_ceiling": on_ceiling,
@@ -662,11 +1043,23 @@ def render_report(agg: dict[str, Any], records: list[dict[str, Any]], path_md: s
     lines.append(f"# {title}")
     lines.append("")
     lines.append("_Combined ON-vs-OFF cost-bounded agentic bench (canonical, note-mqjmq2cbdy3)._")
+    lines.append(f"_ON-config: {on_config}_")
     lines.append("")
-    lines.append("- **ON arm**: production-faithful memory retrieval (mint probe TASK -> autowire "
-                 "NOTE->probe context_deps at cosine>=0.55 -> eager-judge keep/prune -> frozen "
-                 "/task/context (= get_dependency_summaries) + RAG fill = search_knowledge tiered). "
-                 f"Token CEILING {on_ceiling:.0f} weighted tok-eq = runaway guard ONLY, not a target.")
+    on_arm_desc = {
+        _ON_CONFIG_RAW_DAG: (
+            "production-faithful memory retrieval (mint probe TASK -> autowire "
+            "NOTE->probe context_deps at cosine>=0.55 -> eager-judge keep/prune -> frozen "
+            "/task/context (= get_dependency_summaries) + RAG fill = search_knowledge tiered). "
+            f"Token CEILING {on_ceiling:.0f} weighted tok-eq = runaway guard ONLY, not a target."
+        ),
+        _ON_CONFIG_DAG_DISTILL: (
+            "DAG+distill: distilled atomic facts from SOURCE CODE (evidence field) "
+            "seeded into a dedicated distill workspace ONCE, then retrieved via the same "
+            "production canonical_wiring path. Gold never enters seed/retrieve/answer. "
+            f"Token CEILING {on_ceiling:.0f} weighted tok-eq = runaway guard ONLY, not a target."
+        ),
+    }.get(on_config, on_config)
+    lines.append(f"- **ON arm** ({on_config}): {on_arm_desc}")
     lines.append("- **OFF arm**: pure agentic, clean env (no MCP/KB/.graph/ORCH_*). Budget cap = "
                  "ON's ACTUAL spend on that problem, enforced post-hoc.")
     lines.append("- **Cost**: input + output*5 + cache_read*0.1 + cache_creation*1.25 "
@@ -746,6 +1139,24 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="Write report.json + report.md here (default: alongside --out).")
     parser.add_argument("--score-only", metavar="PATH", default=None,
                         help="Load a fused-records JSONL, recompute the aggregate + report, and exit.")
+    parser.add_argument(
+        "--on-config", default=_ON_CONFIG_RAW_DAG,
+        choices=_ON_CONFIG_CHOICES,
+        help=(
+            "ON arm knowledge-base source. "
+            f"raw-dag (default): retrieve from the production KB mined from repo source. "
+            f"dag-distill: re-mine the same repo source (evidence field) through the "
+            "atomic-fact distiller into a dedicated workspace, then retrieve via the same "
+            "production path. Gold never enters any distill/seed/retrieve/answer step."
+        ),
+    )
+    parser.add_argument("--distill-workspace", default=None,
+                        help="dag-distill only: path for the dedicated distill workspace "
+                             "(default: auto-created temp dir, persists for the run duration). "
+                             "Pass an explicit path to reuse a pre-built distill KB.")
+    parser.add_argument("--repo-root", default=None,
+                        help="dag-distill only: repo root to read source files from "
+                             "(default: inferred as parent of bench/).")
     args = parser.parse_args(argv)
 
     # --- score-only mode (no run; recompute aggregate from saved fused records) ---
@@ -758,24 +1169,29 @@ def main(argv: Optional[list[str]] = None) -> int:
                     recs.append(json.loads(line))
         print(f"[combined_bench] loaded {len(recs)} fused records from {args.score_only}")
         agg = aggregate(recs)
+        on_config_from_recs = recs[0].get("on_config", _ON_CONFIG_RAW_DAG) if recs else _ON_CONFIG_RAW_DAG
         report_dir = args.report_dir or os.path.dirname(os.path.abspath(args.score_only)) or "."
         jp, mp = render_report(agg, recs,
                                os.path.join(report_dir, "combined-bench-report.md"),
                                os.path.join(report_dir, "combined-bench-report.json"),
                                title="Zonoid Combined ON-vs-OFF Cost-Bounded Bench",
-                               on_ceiling=args.on_ceiling)
+                               on_ceiling=args.on_ceiling,
+                               on_config=on_config_from_recs)
         _print_summary(agg)
         print(f"[combined_bench] report.json -> {jp}")
         print(f"[combined_bench] report.md   -> {mp}")
         return 0
 
+    on_config = args.on_config
     workspace = os.path.abspath(args.workspace or _REPO)
     data_dir = args.data_dir
+    repo_root = os.path.abspath(args.repo_root or _REPO)
 
     print("=" * 72)
-    print("Zonoid Combined ON-vs-OFF Cost-Bounded Bench (canonical)")
+    print(f"Zonoid Combined ON-vs-OFF Cost-Bounded Bench ({on_config})")
     print("=" * 72)
     print(f"  daemon     : {args.daemon}")
+    print(f"  on_config  : {on_config}")
     print(f"  workspace  : {workspace}  (KB source for the ON arm)")
     print(f"  data_dir   : {data_dir}")
     print(f"  questions  : {args.questions}")
@@ -802,52 +1218,134 @@ def main(argv: Optional[list[str]] = None) -> int:
         print("  Nothing to run.")
         return 0
 
-    # Connect + bind the live workspace (the eager-judge read is hard-bound to the daemon's LIVE
-    # workspace — note-mqgwrh5a63x; the probe TASK must live there for /judge/next to resolve, and
-    # the seeded notes live there too). force the bind so a stale workspace file is overridden.
-    client = ZonoidClient(args.daemon, workspace=workspace, timeout=180)
-    try:
-        client.warm_up()
-        client.set_workspace(workspace, force=True)
-        hits = client.search("combined bench warmup probe", k=1)
-        print(f"  daemon reachable + live workspace bound to {workspace} ({len(hits)} warmup hits)")
-    except Exception as exc:  # noqa: BLE001
-        print(f"\nERROR: daemon at {args.daemon} not reachable / could not bind workspace: {exc}")
-        print("  Ensure the daemon is running and the KB (seeded notes) is loaded in --workspace.")
-        return 1
+    # -----------------------------------------------------------------------
+    # dag-distill: build the distilled KB ONCE before any retrieval
+    # -----------------------------------------------------------------------
+    distill_ws_tmp: Optional[str] = None  # set if we created a temp dir to clean up
+    prev_workspace: Optional[str] = None  # the workspace we'll restore on exit
+
+    if on_config == _ON_CONFIG_DAG_DISTILL:
+        # Decide distill workspace (explicit path or temp dir).
+        if args.distill_workspace:
+            distill_ws = os.path.abspath(args.distill_workspace)
+            os.makedirs(distill_ws, exist_ok=True)
+            print(f"\n  [dag-distill] using explicit distill workspace: {distill_ws}")
+        else:
+            distill_ws = os.path.abspath(tempfile.mkdtemp(prefix="combined-bench-distill-ws-"))
+            distill_ws_tmp = distill_ws
+            print(f"\n  [dag-distill] created temp distill workspace: {distill_ws}")
+
+        print(f"  [dag-distill] repo_root for source reads: {repo_root}")
+        print(f"  [dag-distill] ingesting atomic facts from source (evidence fields) ...\n")
+
+        # Connect to daemon (just for warm-up; workspace will be rebound after ingest).
+        ingest_client = ZonoidClient(args.daemon, workspace=distill_ws, timeout=180)
+        try:
+            ingest_client.warm_up()
+            print(f"  daemon warm-up OK")
+        except Exception as exc:  # noqa: BLE001
+            print(f"\nERROR: daemon at {args.daemon} not reachable: {exc}")
+            if distill_ws_tmp:
+                shutil.rmtree(distill_ws_tmp, ignore_errors=True)
+            return 1
+
+        # Seed ALL problems' distilled facts into the distill workspace.
+        seeded_map = build_distill_workspace(
+            problems, repo_root, distill_ws, args.daemon, verbose=True,
+        )
+        total_seeded = sum(len(v) for v in seeded_map.values())
+        n_miss = sum(1 for v in seeded_map.values() if not v)
+        print(
+            f"\n  [dag-distill] ingest complete: {total_seeded} fact notes seeded, "
+            f"{n_miss}/{len(problems)} honest misses (no evidence / no source / 0 facts)\n"
+        )
+
+        # Allow the daemon to embed + index the freshly posted notes before any retrieval.
+        print("  [dag-distill] waiting for embedder to index distill notes ...", end="", flush=True)
+        time.sleep(8)
+        print(" done")
+
+        # Bind the distill workspace ONCE for the whole pass.
+        # Save the previous live workspace so we can restore it on exit.
+        try:
+            ingest_client.set_workspace(distill_ws, force=True)
+            # Verify the bind took + check warmup hits.
+            hits = ingest_client.search("distill bench warmup probe", k=1)
+            print(f"  [dag-distill] live workspace bound to distill ws ({len(hits)} warmup hits)")
+            prev_workspace = workspace  # remember for restore
+        except Exception as exc:  # noqa: BLE001
+            print(f"\nERROR: could not bind distill workspace: {exc}")
+            if distill_ws_tmp:
+                shutil.rmtree(distill_ws_tmp, ignore_errors=True)
+            return 1
+
+        # The client for the run loop points at the distill workspace.
+        client = ZonoidClient(args.daemon, workspace=distill_ws, timeout=180)
+    else:
+        # raw-dag: standard bind to the main workspace.
+        client = ZonoidClient(args.daemon, workspace=workspace, timeout=180)
+        try:
+            client.warm_up()
+            client.set_workspace(workspace, force=True)
+            hits = client.search("combined bench warmup probe", k=1)
+            print(f"  daemon reachable + live workspace bound to {workspace} ({len(hits)} warmup hits)")
+        except Exception as exc:  # noqa: BLE001
+            print(f"\nERROR: daemon at {args.daemon} not reachable / could not bind workspace: {exc}")
+            print("  Ensure the daemon is running and the KB (seeded notes) is loaded in --workspace.")
+            return 1
 
     print(f"\nRunning {total} problems (ON + OFF per problem) ...\n")
     all_records: list[dict[str, Any]] = []
     run_t0 = time.monotonic()
     n_err = 0
 
-    for i, prob in enumerate(problems):
-        idx = i + args.offset
-        is_first_write = (i == 0 and not args.append)
-        try:
-            rec = run_problem(client, idx, prob, data_dir=data_dir, model=args.model,
-                              on_ceiling=args.on_ceiling)
-        except Exception as exc:  # noqa: BLE001 — never let one problem abort the run
-            print(f"[{i+1}/{total}] ERROR (problem skipped): {exc}")
-            n_err += 1
-            continue
+    try:
+        for i, prob in enumerate(problems):
+            idx = i + args.offset
+            is_first_write = (i == 0 and not args.append)
+            try:
+                rec = run_problem(
+                    client, idx, prob,
+                    data_dir=data_dir, model=args.model,
+                    on_ceiling=args.on_ceiling, on_config=on_config,
+                )
+            except Exception as exc:  # noqa: BLE001 — never let one problem abort the run
+                print(f"[{i+1}/{total}] ERROR (problem skipped): {exc}")
+                n_err += 1
+                continue
 
-        report_mod.write_results([rec], args.out, append=not is_first_write)
-        all_records.append(rec)
+            report_mod.write_results([rec], args.out, append=not is_first_write)
+            all_records.append(rec)
 
-        marks = []
-        if rec["memory_win"]:
-            marks.append("MEM-WIN")
-        if rec.get("ON_over_ceiling"):
-            marks.append("ON>CEIL")
-        if rec.get("ON_error") or rec.get("OFF_error"):
-            marks.append("ERR")
-        mark_s = ("  [" + ",".join(marks) + "]") if marks else ""
-        print(f"[{i+1:3d}/{total}] {rec['category']:11s} "
-              f"ON={'OK ' if rec['ON_solved'] else 'no '}({rec['ON_cost']:.0f}) "
-              f"OFF={'OK ' if rec['OFF_solved'] else 'no '}({rec['OFF_cost']:.0f}) "
-              f"in_budget={'Y' if rec['OFF_solved_within_budget'] else 'N'}"
-              f"{mark_s}  {rec['question'][:48]!r}")
+            marks = []
+            if rec["memory_win"]:
+                marks.append("MEM-WIN")
+            if rec.get("ON_over_ceiling"):
+                marks.append("ON>CEIL")
+            if rec.get("ON_error") or rec.get("OFF_error"):
+                marks.append("ERR")
+            mark_s = ("  [" + ",".join(marks) + "]") if marks else ""
+            print(f"[{i+1:3d}/{total}] {rec['category']:11s} "
+                  f"ON={'OK ' if rec['ON_solved'] else 'no '}({rec['ON_cost']:.0f}) "
+                  f"OFF={'OK ' if rec['OFF_solved'] else 'no '}({rec['OFF_cost']:.0f}) "
+                  f"in_budget={'Y' if rec['OFF_solved_within_budget'] else 'N'}"
+                  f"{mark_s}  {rec['question'][:48]!r}")
+
+    finally:
+        # dag-distill: restore the original workspace binding on exit (cleanup).
+        if on_config == _ON_CONFIG_DAG_DISTILL and prev_workspace is not None:
+            try:
+                client.set_workspace(prev_workspace, force=True)
+                print(f"\n  [dag-distill] restored live workspace to {prev_workspace}")
+            except Exception as exc:  # noqa: BLE001 — best-effort restore
+                print(f"\n  [dag-distill] WARNING: could not restore workspace: {exc}", file=sys.stderr)
+        # Clean up auto-created temp distill workspace.
+        if distill_ws_tmp is not None:
+            try:
+                shutil.rmtree(distill_ws_tmp, ignore_errors=True)
+                print(f"  [dag-distill] cleaned up temp distill workspace: {distill_ws_tmp}")
+            except Exception:  # noqa: BLE001
+                pass
 
     elapsed = time.monotonic() - run_t0
     print(f"\nDone — {total} problems in {elapsed:.0f}s ({n_err} errors)")
@@ -860,7 +1358,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                                os.path.join(report_dir, "combined-bench-report.md"),
                                os.path.join(report_dir, "combined-bench-report.json"),
                                title="Zonoid Combined ON-vs-OFF Cost-Bounded Bench",
-                               on_ceiling=args.on_ceiling)
+                               on_ceiling=args.on_ceiling,
+                               on_config=on_config)
         _print_summary(agg)
         print(f"  report.json -> {jp}")
         print(f"  report.md   -> {mp}")
