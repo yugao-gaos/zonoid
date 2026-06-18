@@ -29,11 +29,15 @@ const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-git-cla
 try {
   delete process.env.ORCH_CLAIM_MODE;
   ok('git claim mode is enabled by default', claims.claimModeEnabled({ config: {} }) === true);
+  ok('default git claim mode is advisory', claims.claimMode({ config: {} }).enabled === true && claims.claimModeStrict({ config: {} }) === false && claims.claimMode({ config: {} }).explicit === false);
   ok('local claim mode disables git claims', claims.claimModeEnabled({ config: { claim_mode: 'local' } }) === false);
+  ok('strict aliases normalize to strict git mode', claims.normalizeClaimMode('strict').mode === 'git-strict' && claims.normalizeClaimMode('git-strict').strict === true);
   process.env.ORCH_CLAIM_MODE = 'local';
   ok('env can disable git claims', claims.claimModeEnabled({ config: { claim_mode: 'git' } }) === false);
   process.env.ORCH_CLAIM_MODE = 'git';
   ok('env can force git claims', claims.claimModeEnabled({ config: { claim_mode: 'local' } }) === true);
+  process.env.ORCH_CLAIM_MODE = 'git-strict';
+  ok('env can force strict git claims', claims.claimModeStrict({ config: { claim_mode: 'local' } }) === true);
   delete process.env.ORCH_CLAIM_MODE;
 
   const bare = path.join(root, 'origin.git');
@@ -57,13 +61,22 @@ try {
   const ca = claims.acquire(a, task, { agentId: 'alice', sessionId: 'sess-a', workspace: a, branch: 'orch/attempt/shared-task-1', leaseMinutes: 30 });
   ok('first clone acquires and pushes claim', ca.ok && ca.pushed === true, JSON.stringify(ca));
   ok('claim file path is deterministic', claims.claimRelPath(task) === '.graph/claims/shared-task%2F1.json');
+  const written = JSON.parse(fs.readFileSync(path.join(a, claims.claimRelPath(task)), 'utf8'));
+  ok('git claim file omits local session_id', !Object.prototype.hasOwnProperty.call(written, 'session_id'), JSON.stringify(written));
+  ok('git claim file omits local workspace', !Object.prototype.hasOwnProperty.call(written, 'workspace'), JSON.stringify(written));
 
   const cb = claims.acquire(b, task, { agentId: 'bob', sessionId: 'sess-b', workspace: b, branch: 'orch/attempt/shared-task-1', leaseMinutes: 30 });
   ok('second clone is rejected by pushed git claim', cb.ok === false && cb.conflict === true, JSON.stringify(cb));
   ok('conflict identifies winning agent', cb.claim && cb.claim.agent_id === 'alice', JSON.stringify(cb.claim));
+  ok('default mode treats conflicts as advisory to the caller', cb.conflict === true && claims.claimModeStrict({ config: {} }) === false);
 
   const cbSame = claims.acquire(b, task, { agentId: 'alice', sessionId: 'sess-a', workspace: b, branch: 'orch/attempt/shared-task-1', leaseMinutes: 30 });
   ok('same agent can observe its own live remote claim', cbSame.ok === true && cbSame.already_claimed === true, JSON.stringify(cbSame));
+  const fa = claims.finalize(a, task, { agentId: 'alice', status: 'tested' });
+  ok('finalize releases and pushes claim audit', fa.ok === true && fa.pushed === true, JSON.stringify(fa));
+  const released = JSON.parse(fs.readFileSync(path.join(a, claims.claimRelPath(task)), 'utf8'));
+  ok('released git claim file still omits local session_id', !Object.prototype.hasOwnProperty.call(released, 'session_id'), JSON.stringify(released));
+  ok('released git claim file still omits local workspace', !Object.prototype.hasOwnProperty.call(released, 'workspace'), JSON.stringify(released));
 
   const noRemote = path.join(root, 'local-only');
   fs.mkdirSync(noRemote);
@@ -72,9 +85,14 @@ try {
   git(noRemote, ['config', 'user.email', 'local@example.test']);
   git(noRemote, ['commit', '--allow-empty', '-m', 'init']);
   const cr = claims.acquire(noRemote, task, { agentId: 'local' });
-  ok('git claim mode fails closed without origin', cr.ok === false && /origin/.test(cr.error), JSON.stringify(cr));
+  ok('direct git claim acquire reports missing origin', cr.ok === false && /origin/.test(cr.error), JSON.stringify(cr));
   ok('default mode skips acquisition without origin', claims.shouldAcquire(noRemote, { config: {} }) === false);
-  ok('explicit git mode requires acquisition without origin', claims.shouldAcquire(noRemote, { config: { claim_mode: 'git' } }) === true);
+  ok('explicit git mode attempts advisory acquisition without origin', claims.shouldAcquire(noRemote, { config: { claim_mode: 'git' } }) === true && claims.claimModeStrict({ config: { claim_mode: 'git' } }) === false);
+  ok('strict git mode requires acquisition without origin', claims.shouldAcquire(noRemote, { config: { claim_mode: 'git-strict' } }) === true && claims.claimModeStrict({ config: { claim_mode: 'git-strict' } }) === true);
+  const frAdvisory = claims.finalize(noRemote, task, { agentId: 'local' });
+  ok('advisory finalize skips without origin', frAdvisory.ok === true && frAdvisory.skipped === true, JSON.stringify(frAdvisory));
+  const frStrict = claims.finalize(noRemote, task, { agentId: 'local', strict: true });
+  ok('strict finalize fails closed without origin', frStrict.ok === false && /origin/.test(frStrict.error), JSON.stringify(frStrict));
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
