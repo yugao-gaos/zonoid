@@ -4,7 +4,8 @@
   "session_id": "019edcf3-a179-79c1-bd2f-cee15e001322",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-bench-real-search-behavior",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T22:58:37.671Z",
-  "lease_until": "2026-06-18T23:58:37.671Z"
+  "lease_until": "2026-06-18T23:58:37.671Z",
+  "completed_at": "2026-06-18T23:09:30.276Z"
 }
