@@ -4,7 +4,8 @@
   "session_id": "worker-surfacecluster-auto-distinct-finalize",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/followup-surfacecluster-auto-distinct",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T21:09:16.392Z",
-  "lease_until": "2026-06-18T22:09:16.392Z"
+  "lease_until": "2026-06-18T22:09:16.392Z",
+  "completed_at": "2026-06-18T21:28:06.607Z"
 }
