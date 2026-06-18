@@ -4,3 +4,5 @@
 {"evt":"status_changed","id":"bench/realistic-A-83975","workspace":"D:\\zonoid","status":"not_ready","actor":"overlay-sync","ts":"2026-06-17T15:28:06.115Z"}
 {"evt":"summary_set","id":"bench/realistic-A-83975","workspace":"D:\\zonoid","summary":"What JavaScript framework did Sarah switch to for the dashboard project?","actor":"overlay-sync","ts":"2026-06-17T15:28:06.115Z"}
 {"evt":"timestamps_set","id":"bench/realistic-A-83975","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-17T15:28:04.520Z","lastChanged":"2026-06-17T15:28:05.061Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-17T15:30:28.214Z"}
+{"evt":"status_changed","id":"bench/realistic-A-83975","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-17T20:15:56.504Z"}
+{"evt":"timestamps_set","id":"bench/realistic-A-83975","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-17T15:28:04.520Z","lastChanged":"2026-06-17T20:21:05.731Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-17T20:21:37.169Z"}
