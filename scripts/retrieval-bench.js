@@ -2,8 +2,8 @@
 /**
  * retrieval-bench.js — retrieval-quality benchmark for search_knowledge (/search).
  *
- * Runs every query in bench/retrieval/eval-set.json through the daemon's /search endpoint
- * (the IDENTICAL scorer that backs the search_knowledge MCP tool) and computes, per query
+ * Runs every query in bench/retrieval/eval-set.json through the daemon's current /search endpoint
+ * (the route used by the search_knowledge MCP tool) and computes, per query
  * and aggregated:
  *   - recall@k      = |relevant retrieved in top-k| / |relevant|
  *   - precision@k   = |relevant retrieved in top-k| / k
@@ -26,7 +26,7 @@
  *   node scripts/retrieval-bench.js --check         # exit non-zero if below thresholds (see THRESHOLDS)
  *
  * Exit code: 0 normally; with --check, non-zero if any threshold is violated (regression guard
- * for CI / smoke). The same threshold logic is unit-tested offline in test/retrieval-quality.test.js.
+ * for CI / smoke). The same scoring logic is unit-tested offline in test/retrieval-quality.test.js.
  */
 'use strict';
 
@@ -82,6 +82,7 @@ const WRITE = !hasFlag('--no-write');
 const CHECK = hasFlag('--check');
 
 let DAEMON = process.env.ORCH_DAEMON || 'http://localhost:8787';
+let WORKSPACE = process.env.ZONOID_WORKSPACE || process.env.ORCH_WORKSPACE || ROOT;
 let EVAL_PATH = IS_HELDOUT ? HELDOUT_EVAL : EVAL_DEFAULT;
 let OUT_JSON = IS_HELDOUT ? OUT_JSON_HELDOUT : OUT_JSON_DEFAULT;
 let OUT_MD = IS_HELDOUT ? OUT_MD_HELDOUT : OUT_MD_DEFAULT;
@@ -108,12 +109,23 @@ function httpGetJSON(urlPath, daemon = DAEMON) {
   });
 }
 
-const search = (q, k) => httpGetJSON(`/search?q=${encodeURIComponent(q)}&k=${k}`);
+function buildSearchPath(q, k, workspace = WORKSPACE) {
+  const params = new URLSearchParams();
+  params.set('workspace', workspace);
+  params.set('q', q);
+  params.set('k', String(k));
+  return `/search?${params.toString()}`;
+}
+
+const search = (q, k, options = {}) => httpGetJSON(
+  buildSearchPath(q, k, options.workspace || WORKSPACE),
+  options.daemon || DAEMON
+);
 
 // EMBED-WARMUP GATE — blocks until the daemon's /search path is serving SEMANTIC results
 // (MiniLM sidecar lazy-loaded AND the daemon process's embed() connection is live), then proves
 // it. The held-out bench previously fired its first queries before warmup, so /search silently
-// fell back to LEXICAL-only ranking (qvec===null at routes/graph.js) and the whole ladder was
+// fell back to LEXICAL-only ranking (qvec===null in the compiler-backed memory search) and the whole ladder was
 // measured against an under-scored cold baseline. We detect warmth from the per-result `via`
 // field (`semantic` vs `lexical`): a probe whose top hits all come back `via:'semantic'` proves
 // the embedder is warm end-to-end through this daemon. HARD-FAIL on timeout — never silently
@@ -123,7 +135,7 @@ const WARMUP_TIMEOUT_MS = 90_000;   // first cold sidecar load can take 10–90s
 const WARMUP_POLL_MS = 300;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function warmupGate({ probe = WARMUP_PROBE, timeoutMs = WARMUP_TIMEOUT_MS } = {}) {
+async function warmupGate({ probe = WARMUP_PROBE, timeoutMs = WARMUP_TIMEOUT_MS, pollMs = WARMUP_POLL_MS, searchFn = search } = {}) {
   const deadline = Date.now() + timeoutMs;
   let lastVias = null;
   let attempts = 0;
@@ -131,11 +143,11 @@ async function warmupGate({ probe = WARMUP_PROBE, timeoutMs = WARMUP_TIMEOUT_MS 
     attempts++;
     let results = [];
     try {
-      const r = await search(probe, PRIMARY_K);
+      const r = await searchFn(probe, PRIMARY_K);
       results = r.results || [];
     } catch (e) {
       // daemon transiently unready — keep polling until the timeout
-      await sleep(WARMUP_POLL_MS);
+      await sleep(pollMs);
       continue;
     }
     const vias = results.map((x) => x.via).filter(Boolean);
@@ -146,7 +158,7 @@ async function warmupGate({ probe = WARMUP_PROBE, timeoutMs = WARMUP_TIMEOUT_MS 
       console.log(`embed warmup: SEMANTIC after ${attempts} probe(s) (${vias.length} hits via semantic)`);
       return { warm: true, attempts, vias };
     }
-    await sleep(WARMUP_POLL_MS);
+    await sleep(pollMs);
   }
   // Never warmed within the budget — HARD FAIL. A cold/lexical baseline is worse than no baseline.
   console.error(
@@ -268,6 +280,7 @@ async function runDefaultEval() {
   const scorecard = {
     generated_at: new Date().toISOString(),
     daemon: DAEMON,
+    workspace: WORKSPACE,
     eval_set: path.relative(ROOT, EVAL_PATH),
     eval_set_version: evalSet.version || null,
     num_queries: cases.length,
@@ -341,6 +354,7 @@ async function runHeldoutEval() {
   const scorecard = {
     generated_at: new Date().toISOString(),
     daemon: DAEMON,
+    workspace: WORKSPACE,
     mode: 'heldout',
     isolated: ISOLATED,
     eval_set: path.relative(ROOT, EVAL_PATH),
@@ -365,7 +379,8 @@ async function main() {
     snap = require('./bench-snapshot-daemon');
     const port = await snap.ensureRunning({ refreshSnapshot: false });
     DAEMON = `http://127.0.0.1:${port}`;
-    console.log(`isolated snapshot daemon on ${DAEMON}`);
+    WORKSPACE = snap.SNAPSHOT_WS;
+    console.log(`isolated snapshot daemon on ${DAEMON} (workspace ${WORKSPACE})`);
   }
 
   try {
@@ -413,6 +428,7 @@ function renderMd(sc) {
   L.push('');
   L.push(`Generated: ${sc.generated_at}  `);
   L.push(`Daemon: \`${sc.daemon}\`  `);
+  L.push(`Workspace: \`${sc.workspace}\`  `);
   L.push(`Eval set: \`${sc.eval_set}\` (v${sc.eval_set_version}, ${sc.num_queries} queries)  `);
   L.push(`Status: **${sc.passed ? 'PASS' : 'FAIL'}**${sc.passed ? '' : ' — ' + sc.violations.join('; ')}`);
   L.push('');
@@ -451,6 +467,7 @@ function renderHeldoutMd(sc) {
   L.push('');
   L.push(`Generated: ${sc.generated_at}  `);
   L.push(`Daemon: \`${sc.daemon}\`${sc.isolated ? ' (isolated snapshot)' : ''}  `);
+  L.push(`Workspace: \`${sc.workspace}\`  `);
   L.push(`Eval set: \`${sc.eval_set}\` (v${sc.eval_set_version})  `);
   L.push(`Status: **${sc.passed ? 'PASS' : 'FAIL'}**${sc.passed ? '' : ' — ' + sc.violations.join('; ')}`);
   L.push('');
@@ -486,6 +503,8 @@ module.exports = {
   titleKey,
   scoreCase,
   scoreNegativeCase,
+  buildSearchPath,
+  search,
   warmupGate,
   WARMUP_PROBE,
   aggregateCandidateRecall,
