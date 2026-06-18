@@ -38,8 +38,8 @@ function judgePressure(overlay, buildGraph, ws) {
 }
 
 function labelPressure(state, buildGraph, ws, ov) {
-  ws = ws || state.workspace;
-  ov = ov || state.overlay;
+  // P3: ws/ov come from the resolved request (T.ws/T.ov) — no daemon-global fallback. A null ws
+  // (the caller couldn't resolve a workspace) yields zero pressure, the graceful hook-probe no-op.
   if (!ws) return { depth: 0, nudge: false, harness_task_key: labelRoute.HARNESS_LABEL_DRAIN_KEY };
   const journalRows = readJsonl(journalPath(ws));
   const labeledRows = readJsonl(labeledPath(ws));
@@ -68,6 +68,9 @@ function labelPressure(state, buildGraph, ws, ov) {
 }
 
 function learnerPressure(ws, sessionId, ctx, ov) {
+  // P3: ws/ov come from the resolved request (T.ws/T.ov) — no daemon-global fallback. A null ws
+  // (the caller couldn't resolve a workspace) yields zero pressure, the graceful hook-probe no-op.
+  if (!ws) return { depth: 0, nudge: false, harness_task_key: HARNESS_LEARNER_DRAIN_KEY };
   const onboardDir = require('path').join(__dirname, '..', 'bench', 'onboard');
   let best = null;
   try {
@@ -92,8 +95,6 @@ function learnerPressure(ws, sessionId, ctx, ov) {
   } catch (e3) { }
   if (!best) return { depth: 0, nudge: false, harness_task_key: HARNESS_LEARNER_DRAIN_KEY };
   const buildGraph = ctx.buildGraph;
-  const state = ctx.state;
-  ov = ov || state.overlay;
   const gate = computePressureNudge({
     depth: best.depth,
     depthThreshold: 1,

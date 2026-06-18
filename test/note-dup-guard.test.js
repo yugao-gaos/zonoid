@@ -36,10 +36,16 @@ const PORT = 19800 + Math.floor(Math.random() * 100);
 const BASE = `http://127.0.0.1:${PORT}`;
 
 async function post(p, body) {
+  // P3: writes require an explicit workspace (no daemon-global default). This suite operates on a
+  // single sandbox workspace WS, so default it into every body (except the /workspace registration
+  // itself, which carries `path`). Callers can still override by passing workspace explicitly.
+  const payload = (p === '/workspace' || (body && body.workspace))
+    ? body
+    : { ...(body || {}), workspace: WS };
   const res = await fetch(`${BASE}${p}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
   return res.json();
 }

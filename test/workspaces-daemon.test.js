@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 // Integration test for GET /workspaces — asserts the union list, current flag, and basename name.
+// P3 (deprecate-global-workspace): there is NO daemon-global current pointer. The `current` flag
+// reflects the OPTIONAL ?workspace= the caller passes; /state without a workspace 400s; and
+// multiple workspaces stay isolated (each ?workspace= read targets exactly that workspace).
 // Pattern mirrors adopt-native-daemon.test.js: in-process http against a sandboxed spawned daemon.
 // Run: node test/workspaces-daemon.test.js
 'use strict';
@@ -75,35 +78,44 @@ function spawnDaemon() {
       ok('(A) workspaces is an array', Array.isArray(r.body.workspaces));
     }
 
-    // (B) Set WS1 as the primary workspace
+    // (B) Register WS1. P3: there is NO daemon-global current pointer — the `current` flag on
+    // /workspaces reflects the OPTIONAL ?workspace= the CALLER passes, not a server-side default.
     await req('POST', '/workspace', { path: WS1 });
 
     {
-      const r = await req('GET', '/workspaces');
-      ok('(B) /workspaces ok after setting WS1', r.status === 200 && r.body.ok === true);
+      const r = await req('GET', `/workspaces?workspace=${encodeURIComponent(WS1)}`);
+      ok('(B) /workspaces ok after registering WS1', r.status === 200 && r.body.ok === true);
       const list = r.body.workspaces || [];
       const ws1Entry = list.find((w) => w.path === WS1);
       ok('(B) WS1 appears in list', !!ws1Entry);
-      ok('(B) WS1 has current:true', ws1Entry && ws1Entry.current === true);
+      ok('(B) WS1 has current:true when ?workspace=WS1', ws1Entry && ws1Entry.current === true);
       ok('(B) WS1 name is basename', ws1Entry && ws1Entry.name === path.basename(WS1));
-      ok('(B) current field equals WS1', r.body.current === WS1);
+      ok('(B) current field echoes the ?workspace= param (WS1)', r.body.current === WS1);
     }
 
-    // (C) Switch to WS2 — both should appear; WS2 is now current
+    {
+      // No ?workspace= ⇒ no current (P3: no global default to seed it).
+      const r = await req('GET', '/workspaces');
+      ok('(B) /workspaces without ?workspace= has current:null', r.body.current === null);
+      const ws1Entry = (r.body.workspaces || []).find((w) => w.path === WS1);
+      ok('(B) WS1 still listed but current:false without ?workspace=', ws1Entry && ws1Entry.current === false);
+    }
+
+    // (C) Register WS2 — both appear; `current` follows whichever ?workspace= the caller asks for.
     await req('POST', '/workspace', { path: WS2, force: true });
 
     {
-      const r = await req('GET', '/workspaces');
-      ok('(C) /workspaces ok after switching to WS2', r.status === 200 && r.body.ok === true);
+      const r = await req('GET', `/workspaces?workspace=${encodeURIComponent(WS2)}`);
+      ok('(C) /workspaces ok after registering WS2', r.status === 200 && r.body.ok === true);
       const list = r.body.workspaces || [];
       const ws1Entry = list.find((w) => w.path === WS1);
       const ws2Entry = list.find((w) => w.path === WS2);
-      ok('(C) WS1 still in list after switch', !!ws1Entry);
+      ok('(C) WS1 still in list', !!ws1Entry);
       ok('(C) WS2 in list', !!ws2Entry);
-      ok('(C) WS1 current:false after switch', ws1Entry && ws1Entry.current === false);
-      ok('(C) WS2 current:true after switch', ws2Entry && ws2Entry.current === true);
+      ok('(C) WS1 current:false when ?workspace=WS2', ws1Entry && ws1Entry.current === false);
+      ok('(C) WS2 current:true when ?workspace=WS2', ws2Entry && ws2Entry.current === true);
       ok('(C) WS2 name is basename', ws2Entry && ws2Entry.name === path.basename(WS2));
-      ok('(C) current field equals WS2', r.body.current === WS2);
+      ok('(C) current field echoes ?workspace= (WS2)', r.body.current === WS2);
       // All entries have non-empty path and name
       ok('(C) all entries have path and name', list.every((w) => w.path && w.name));
       // No duplicates
@@ -120,19 +132,18 @@ function spawnDaemon() {
       ok('(D) WS2 in registry file', Array.isArray(stored) && stored.includes(WS2));
     }
 
-    // (E) Back-compat: GET /state without ?workspace= still returns current workspace (WS2)
+    // (E) P3: GET /state without ?workspace= 400s (no daemon-global default to fall back onto).
     {
       const r = await req('GET', '/state');
-      ok('(E) /state without ?workspace= returns WS2 (current)', r.status === 200 && r.body.workspace === WS2);
+      ok('(E) /state without ?workspace= returns 400 (no global default)', r.status === 400 && r.body.ok === false);
     }
 
-    // (F) GET /state?workspace=WS1 targets WS1 without changing current
+    // (F) GET /state?workspace=WSn targets exactly that workspace (per-request binding, isolated).
     {
-      const r = await req('GET', `/state?workspace=${encodeURIComponent(WS1)}`);
-      ok('(F) /state?workspace=WS1 returns WS1', r.status === 200 && r.body.workspace === WS1);
-      // Current workspace is still WS2
-      const ping = await req('GET', '/ping');
-      ok('(F) current workspace unchanged after ?workspace= read', ping.body.workspace === WS2);
+      const r1 = await req('GET', `/state?workspace=${encodeURIComponent(WS1)}`);
+      ok('(F) /state?workspace=WS1 returns WS1', r1.status === 200 && r1.body.workspace === WS1);
+      const r2 = await req('GET', `/state?workspace=${encodeURIComponent(WS2)}`);
+      ok('(F) /state?workspace=WS2 returns WS2 (no global pointer to clobber)', r2.status === 200 && r2.body.workspace === WS2);
     }
 
     // (G) Ghost path: a path that never existed on disk is dropped from /workspaces.

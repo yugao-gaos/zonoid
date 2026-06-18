@@ -41,13 +41,20 @@ const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-ats-ws-')
 const PORT = 19560 + Math.floor(Math.random() * 30);
 const BASE = `http://127.0.0.1:${PORT}`;
 
+// P3: ops require an explicit workspace (no daemon-global default). Single-workspace suite ⇒
+// default WS into POST bodies and GET query strings (skip /workspace, /ping, explicit workspace).
 async function post(p, body) {
+  const payload = (p === '/workspace' || (body && body.workspace)) ? body : { ...(body || {}), workspace: WS };
   const res = await fetch(`${BASE}${p}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   });
   return { status: res.status, body: await res.json() };
 }
-async function get(p) { const res = await fetch(`${BASE}${p}`); return { status: res.status, body: await res.json() }; }
+function withWs(p) {
+  if (p.startsWith('/ping') || p.includes('workspace=')) return p;
+  return p + (p.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WS);
+}
+async function get(p) { const res = await fetch(`${BASE}${withWs(p)}`); return { status: res.status, body: await res.json() }; }
 async function waitForPing(ms = 10000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {

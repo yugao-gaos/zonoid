@@ -25,17 +25,26 @@ try {
 const PORT = 19700 + Math.floor(Math.random() * 100);
 const BASE = `http://127.0.0.1:${PORT}`;
 
+// P3: ops require an explicit workspace (no daemon-global default). This suite uses a single
+// sandbox workspace WS, so default it into POST bodies and GET query strings (skipping /workspace,
+// /ping, and any call that already names a workspace).
 async function post(p, body) {
+  const payload = (p === '/workspace' || (body && body.workspace)) ? body : { ...(body || {}), workspace: WS };
   const res = await fetch(`${BASE}${p}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
   return res.json();
 }
 
+function withWs(p) {
+  if (p.startsWith('/ping') || p.includes('workspace=')) return p;
+  return p + (p.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WS);
+}
+
 async function get(p) {
-  const res = await fetch(`${BASE}${p}`);
+  const res = await fetch(`${BASE}${withWs(p)}`);
   return res.json();
 }
 

@@ -24,14 +24,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     respCacheGet, respCachePut, isTruthy, now, harness } = ctx;
 
   if (p === '/costflow' && m === 'GET') {
-    const cfWs = u.searchParams.get('workspace') || state.workspace;
-    if (!cfWs) { send(res, 400, { ok: false, error: 'no workspace set' }); return true; }
+    const cfWs = u.searchParams.get('workspace');
+    if (!cfWs) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const cfKey = `costflow|${cfWs}|${u.searchParams.get('since') || ''}`;
     const cfHit = respCacheGet(cfWs, cfKey);
     if (cfHit !== undefined) { send(res, 200, cfHit); return true; }
     const T = targetOverlay(null, u);
     const g = buildGraph(T.ws);
-    const stWs = T.ws === state.workspace ? state : { ...state, overlay: T.ov };
+    const stWs = { ...state, overlay: T.ov };
     const claims = g.tasks.filter((t) => t.kind !== 'note').map((t) => ({
       id: t.id,
       transcript: taskTranscript(t.id, t.session, true, stWs),
@@ -189,7 +189,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         .filter((t) => t.kind !== 'note' && typeof t.label === 'string' && t.label.startsWith('harness:'))
         .map((t) => t.id);
       if (harnessTaskIds.length > 0) {
-        const stWs = T.ws === state.workspace ? state : { ...state, overlay: T.ov };
+        const stWs = { ...state, overlay: T.ov };
         const claims = harnessTaskIds.map((id) => {
           const t = g.tasks.find((x) => x.id === id);
           return { id, transcript: taskTranscript(id, t && t.session, true, stWs), window: { start: t && t.firstSeen, end: t && t.lastChanged } };

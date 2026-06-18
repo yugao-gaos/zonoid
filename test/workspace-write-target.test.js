@@ -2,10 +2,11 @@
 // Regression test for the daemon workspace gremlin: graph-MUTATING routes must honor a
 // per-request `workspace` (request body) instead of always writing into the daemon-global
 // state.workspace — a write from session A targeting workspace A must land in A's overlay
-// file even while the daemon's pinned workspace is B (flipped by another session's hook).
-// Also asserts the BACK-COMPAT fallback: no workspace in the body ⇒ the write still lands
-// in state.workspace, and same-workspace targeting stays coherent with the in-memory state
-// (visible via GET /state without a daemon reload).
+// file even while another session registered workspace B.
+// P3 (deprecate-global-workspace): the daemon-global default is GONE. A write with NO
+// resolvable workspace (no body.workspace and no ?workspace=) must return HTTP 400, not fall
+// back to a global pointer. Per-workspace isolation (A writes never leak into B) is asserted
+// directly from the overlay files; multi-workspace targeting stays coherent.
 //
 // End-to-end over HTTP: spawns the real daemon on a private port with a sandboxed
 // CLAUDE_PLUGIN_DATA. No framework; matches the style of test/test-cmd.test.js.
@@ -67,11 +68,11 @@ async function waitForPing(ms = 8000) {
   try {
     ok('daemon came up on the test port', await waitForPing());
 
-    // Pin the DAEMON-GLOBAL workspace to B (the "other session flipped it" precondition).
+    // Register workspace B (P3: setWorkspace registers + binds, it sets NO daemon-global default).
     const pin = await req('POST', '/workspace', { path: WS_B });
-    ok('workspace pinned to B', pin.status === 200 && pin.body.workspace === WS_B);
+    ok('workspace B registered', pin.status === 200 && pin.body.workspace === WS_B);
 
-    // --- cross-workspace WRITES: body.workspace = A while state.workspace = B ----------------
+    // --- cross-workspace WRITES: body.workspace = A while another session registered B -------
     // note (record_decision)
     const note = await req('POST', '/overlay/note', { workspace: WS_A, title: 'decision for A', summary: 'must land in workspace A overlay' });
     ok('note write accepted', note.status === 200 && note.body.ok === true);
@@ -105,24 +106,34 @@ async function waitForPing(ms = 8000) {
     const ovA2 = overlayStore.load(WS_A);
     ok('old note stamped validTo in A', !!ovA2.note_nodes[String(note.body.key).replace(/^note:/, '')].validTo);
 
-    // --- fallback: NO workspace in body ⇒ write lands in state.workspace (B) -----------------
-    const fb = await req('POST', '/overlay/edge', { from: 'sessB/1', to: 'sessB/2' });
-    ok('fallback edge write accepted', fb.status === 200 && fb.body.ok === true);
-    const ovB2 = overlayStore.load(WS_B);
-    ok('fallback edge landed in B (state.workspace)', ovB2.edges.some((e) => e.from === 'sessB/1' && e.to === 'sessB/2'));
-    ok('fallback edge NOT in A', !overlayStore.load(WS_A).edges.some((e) => e.from === 'sessB/1'));
+    // --- P3: NO resolvable workspace ⇒ HTTP 400 (the daemon-global default is GONE) -----------
+    // A write with neither body.workspace nor ?workspace= must 400, not silently target a global
+    // pointer. This is the core deprecate-global-workspace contract for the WRITE path.
+    const noWsEdge = await req('POST', '/overlay/edge', { from: 'orphan/1', to: 'orphan/2' });
+    ok('no-workspace edge write returns 400', noWsEdge.status === 400 && noWsEdge.body.ok === false);
+    const noWsNote = await req('POST', '/overlay/note', { title: 'orphan note', summary: 'no workspace anywhere' });
+    ok('no-workspace note write returns 400', noWsNote.status === 400 && noWsNote.body.ok === false);
+    const noWsReembed = await req('POST', '/overlay/reembed', {});
+    ok('no-workspace reembed returns 400', noWsReembed.status === 400 && noWsReembed.body.ok === false);
+    const noWsBackfill = await req('POST', '/overlay/backfill-embeddings', {});
+    ok('no-workspace backfill-embeddings returns 400', noWsBackfill.status === 400 && noWsBackfill.body.ok === false);
+    // The orphan write must not have leaked into either workspace's overlay file.
+    ok('orphan edge NOT in A', !overlayStore.load(WS_A).edges.some((e) => e.from === 'orphan/1'));
+    ok('orphan edge NOT in B', !overlayStore.load(WS_B).edges.some((e) => e.from === 'orphan/1'));
 
-    // --- same-workspace targeting (workspace explicitly = B) keeps IN-MEMORY state coherent ---
+    // --- explicit-workspace targeting (workspace = B) lands in B and is visible via /state?ws=B -
     const same = await req('POST', '/overlay/edge', { workspace: WS_B, from: 'sessB/3', to: 'sessB/4' });
-    ok('same-workspace write accepted', same.status === 200 && same.body.ok === true);
-    const stt = await req('GET', '/state');
-    ok('same-workspace edge visible in live /state (mutated state.overlay, not a detached copy)',
+    ok('explicit-B write accepted', same.status === 200 && same.body.ok === true);
+    const stt = await req('GET', `/state?workspace=${encodeURIComponent(WS_B)}`);
+    ok('explicit-B edge visible in /state?workspace=B',
       stt.body.edges.some((e) => e.from === 'sessB/3' && e.to === 'sessB/4'));
-    ok('fallback edge also visible in live /state', stt.body.edges.some((e) => e.from === 'sessB/1'));
 
-    // --- cross-workspace write must NOT clobber/poison the in-memory current overlay ----------
-    ok('live /state holds only B edges (A writes never leaked into memory)',
+    // --- per-workspace isolation: B's /state never shows A's writes -------------------------
+    ok('/state?workspace=B holds only B edges (A writes never leak across workspaces)',
       !stt.body.edges.some((e) => String(e.from).startsWith('sessA/')));
+    const sttA = await req('GET', `/state?workspace=${encodeURIComponent(WS_A)}`);
+    ok('/state?workspace=A holds A edges', sttA.body.edges.some((e) => e.from === 'sessA/1' && e.to === 'sessA/2'));
+    ok('/state?workspace=A holds no B edges', !sttA.body.edges.some((e) => String(e.from).startsWith('sessB/')));
   } catch (e) {
     console.error('TEST ERROR:', e);
     fail++;

@@ -106,10 +106,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     L.active = true; L.startedAt = now(); L.lastProgress = now();
     L.session = b.session || null;   // the conversation driving this loop — addresses its cooperative-stop signal
     // Workspace PIN (captured once, persists via loops.json): the heartbeat decides this loop
-    // against THIS workspace's graph even if another session later flips the daemon-global
-    // state.workspace. mcp-core injects the calling session's pin into every POST body; a bare
-    // caller pins to the global workspace as of NOW. null (legacy entries) ⇒ dynamic global fallback.
-    L.workspace = b.workspace || state.workspace || null;
+    // against THIS workspace's graph. mcp-core injects the calling session's workspace into every
+    // POST body. P3: there is no daemon-global fallback — a loop with no workspace is unpinned and
+    // the heartbeat treats it as having an empty graph (it simply finds nothing to do).
+    L.workspace = b.workspace || null;
     const loopSession = b.session || null;
     let mainTx = loopSession ? mainTranscriptForSession(loopSession) : null;
     if (!mainTx && state.sessions) {
@@ -179,10 +179,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // Capture task/session/workspace so a colliding worker is visible across sessions (GET /agents).
     // judged_node: set when this is a node-scoped eager judge dispatch (GET /judge/next?node=<key>)
     // so the completing agent's usage slice can be attributed to the triggering node.
-    touchAgent(b.agent_id, { state: 'running', agent_type: b.agent_type, transcript_path: b.transcript_path, task: b.task, task_key: b.task_key, session: b.session, subagent_session: subagentSession, agent_tool_spawn: agentToolSpawn, workspace: b.workspace || state.workspace, reported_usage: b.reported_usage, usage_baseline: usageBaseline, judged_node: b.judged_node || null });
+    touchAgent(b.agent_id, { state: 'running', agent_type: b.agent_type, transcript_path: b.transcript_path, task: b.task, task_key: b.task_key, session: b.session, subagent_session: subagentSession, agent_tool_spawn: agentToolSpawn, workspace: b.workspace || null, reported_usage: b.reported_usage, usage_baseline: usageBaseline, judged_node: b.judged_node || null });
     const sessionId = b.session || b.session_id || b.conversation_id;
     if (sessionId && b.transcript_path) {
-      bindSession(sessionId, { transcript: b.transcript_path, workspace: b.workspace || state.workspace, harness: b.harness });
+      bindSession(sessionId, { transcript: b.transcript_path, workspace: b.workspace || null, harness: b.harness });
     }
     notifyChange();
     return send(res, 200, { ok: true });
