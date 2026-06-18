@@ -154,8 +154,8 @@ def _run_conv(
 
     n = 0
     for probe in probes:
-        # Standard arms (our-way, search, cold).
-        standard_arms = [a for a in arms if a not in ("distill", "combined")]
+        # Standard arms (our-way, search, cold) — dag-combined has its own dispatch below.
+        standard_arms = [a for a in arms if a not in ("distill", "combined", "dag-combined")]
         if standard_arms:
             all_records = run_probe(
                 base_url=daemon,

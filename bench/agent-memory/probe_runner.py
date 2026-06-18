@@ -689,9 +689,9 @@ def run_probe_dag_combined(
         except Exception as exc:  # noqa: BLE001
             print(f"[probe_runner] dag-combined DAG/RAG tier failed (non-fatal): {exc}", file=sys.stderr)
 
-        # ── Tier 3: distill fact search (via embedded daemon on distill_workspace) ──────────
+        # ── Tier 3: distill fact search (main daemon — distill facts are not in embedded daemon) ─
         try:
-            dist_client = ZonoidClient(emb_url, workspace=distill_workspace, timeout=120)
+            dist_client = ZonoidClient(base_url, workspace=distill_workspace, timeout=120)
             distill_raw = dist_client.search(question, k=_SEARCH_K * 3, gated=False)
             for h in [h for h in distill_raw if _is_session_note_hit(h)][:_SEARCH_K]:
                 key = h.get("key") or ""

@@ -72,7 +72,7 @@ every tool call prompts — blocking unattended runs.
     "allow": [
       "Read",
       "Bash(curl*)", "Bash(ls*)", "Bash(cat*)", "Bash(find*)", "Bash(grep*)", "Bash(jq*)", "Bash(node*)",
-      "mcp__orchestrator-graph__next_action", "mcp__orchestrator-graph__get_full_graph",
+      "mcp__orchestrator-graph__next_action", "mcp__orchestrator-graph__get_graph",
       "mcp__orchestrator-graph__set_status", "mcp__orchestrator-graph__start_task",
       "mcp__orchestrator-graph__complete_task", "mcp__orchestrator-graph__record_decision",
       "mcp__orchestrator-graph__search_knowledge", "mcp__orchestrator-graph__get_learnings",
@@ -116,7 +116,7 @@ Two scheduled tasks are required infrastructure — install them if missing.
   > You are the orchestrator recovery driver for the workspace at <WORKSPACE>. Your job is lightweight: ensure the task graph keeps moving. Run fast, do the minimum.
   >
   > 1. Call `mcp__orchestrator-graph__next_action`. If empty `loops` array, go to step 2. If entries exist, go to step 3.
-  > 2. No active loop — call `mcp__orchestrator-graph__get_full_graph` (scope: "frontier"). If `ready` tasks exist: call `loop_control({ action: "start", tokenBudget: 80000, maxIterations: 100, minPoll: 30, maxPoll: 300, batch: 4, maxConcurrency: 6 })`, then `next_action` again, go to step 3. If no `ready` tasks: exit silently.
+  > 2. No active loop — call `mcp__orchestrator-graph__get_graph` (scope: "frontier"). If `ready` tasks exist: call `loop_control({ action: "start", tokenBudget: 80000, maxIterations: 100, minPoll: 30, maxPoll: 300, batch: 4, maxConcurrency: 6 })`, then `next_action` again, go to step 3. If no `ready` tasks: exit silently.
   > 3. Act on each loop entry: `stop`/`idle` → nothing. `spawn` → for each task dispatch a background subagent (Agent tool, run_in_background: true) with prompt: "You are a worker agent. TASK_ID: <key> (<label>). Workspace: <WORKSPACE>. Daemon: http://localhost:8787. Call start_task(TASK_ID, agent_id), do the work, then complete_task(TASK_ID, summary) on success or set_status(TASK_ID, 'failed', reason) on failure. Never exit silently." `judge_edges`/`plan`/`optimize`/`await_user` → ignore.
   > 4. Done. Do not reschedule. Never call request_guidance. If daemon unreachable, exit silently.
 
