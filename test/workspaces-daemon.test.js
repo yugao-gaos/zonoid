@@ -123,13 +123,21 @@ function spawnDaemon() {
       ok('(C) no duplicate paths', new Set(paths).size === paths.length);
     }
 
-    // (D) workspaces.json registry was persisted — verify file on disk
+    // (D) workspaces.json registry was persisted — verify file on disk.
+    // U2 wired lib/workspace-registry into the daemon: the file is now the v2 grouped shape
+    // { version:2, workspaces:{ <name>:{ repos:[...] } } }, NOT the legacy v1 flat array. Each repo
+    // registers under a single-repo workspace keyed by basename(repo) (default group). We assert the
+    // flattened member set (allRepos-equivalent) contains both repo PATHS.
     {
       let stored;
       try { stored = JSON.parse(fs.readFileSync(path.join(SANDBOX, 'workspaces.json'), 'utf8')); } catch { stored = null; }
-      ok('(D) workspaces.json written to disk', Array.isArray(stored));
-      ok('(D) WS1 in registry file', Array.isArray(stored) && stored.includes(WS1));
-      ok('(D) WS2 in registry file', Array.isArray(stored) && stored.includes(WS2));
+      const allRepos = (reg) => {
+        if (!reg || reg.version !== 2 || !reg.workspaces) return [];
+        return Object.values(reg.workspaces).flatMap((w) => (w && Array.isArray(w.repos) ? w.repos : []));
+      };
+      ok('(D) workspaces.json written to disk (v2 shape)', stored && stored.version === 2 && stored.workspaces && typeof stored.workspaces === 'object');
+      ok('(D) WS1 in registry file', allRepos(stored).includes(WS1));
+      ok('(D) WS2 in registry file', allRepos(stored).includes(WS2));
     }
 
     // (E) P3: GET /state without ?workspace= 400s (no daemon-global default to fall back onto).
