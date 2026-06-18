@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/judge-brain-search-activation-engine",
+  "agent_id": "judge-brain-search-activation",
+  "session_id": "judge-brain-search-activation",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-judge-brain-search-activation-engine",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T19:50:35.993Z",
+  "lease_until": "2026-06-18T20:50:35.993Z"
+}
