@@ -1000,8 +1000,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p.startsWith('/entity/') && p.endsWith('/context') && m === 'GET') {
     const T = targetOverlay(null, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass ?workspace=' }); return true; }
-    // Extract entity id from path: /entity/<id>/context
-    // pathParts: ['', 'entity', '<id>', 'context']
     const pathParts = p.split('/');
     const entityId = pathParts[2];
     if (!entityId) { send(res, 400, { ok: false, error: 'entity id required in path' }); return true; }
@@ -1011,7 +1009,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const asOf = (u && u.searchParams && u.searchParams.get('asOf')) || null;
     const entityKey = 'entity:' + entityId;
 
-    // Traverse context edges to find all nodes linked to this entity.
     const linkedKeys = new Set();
     for (const e of (T.ov.edges || [])) {
       if (e.kind !== 'context') continue;
@@ -1019,7 +1016,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       else if (e.to === entityKey) linkedKeys.add(e.from);
     }
 
-    // Separate into facts (note nodes) and tasks (task nodes in overlay).
     const facts = [];
     const tasks = [];
     for (const key of linkedKeys) {
@@ -1027,11 +1023,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         const noteId = key.slice(5);
         const n = T.ov.note_nodes && T.ov.note_nodes[noteId];
         if (!n) continue;
-        // Temporal filter: if asOf provided, skip notes that had already expired before asOf.
         if (asOf && n.validTo && n.validTo < asOf) continue;
         facts.push({ key, id: n.id, title: n.title, summary: n.summary, category: n.category || null, validFrom: n.validFrom || null, validTo: n.validTo || null, supersededBy: n.supersededBy || null });
       } else if (!key.startsWith('entity:')) {
-        // Task node: look it up in snapshots + status overlay.
         const snap = T.ov.snapshots && T.ov.snapshots[key];
         const status = (T.ov.status && T.ov.status[key]) || (snap && snap.status) || 'unknown';
         const summary = (T.ov.summaries && T.ov.summaries[key]) || (snap && snap.description) || '';
@@ -1047,6 +1041,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       summary: `${facts.length} fact${facts.length !== 1 ? 's' : ''}, ${tasks.length} task${tasks.length !== 1 ? 's' : ''}`,
     }); return true;
   }
+
 
   return false;
 };
