@@ -23,7 +23,7 @@ them (plus such relay-only helpers as `GET /session-info` and `POST /route` used
 |---|---|---|
 | `/workspace` | `POST` | Pin the active workspace (`{ path, transcript?, force? }`). Idempotent unless `force:true`. |
 | `/active-claim` | `GET` | `{ claimed, claims[] }` for `?session=<id>`. Resolves subagent aliases and cross-session claim registration. |
-| `/should-stop` | `GET` | Cooperative stop signal: `{ stop, reason? }` for `?session=<id>&agent=<id>?`. |
+| `/should-stop` | `GET` | Cooperative stop signal: `{ stop, reason? }` for `?session=<id>&agent=<id>&workspace=<path>?`. |
 | `/agent/start` | `POST` | Register a worker (`{ agent_id, agent_type?, transcript_path?, session?, subagent_session?, workspace?, task? }`). |
 | `/agent/done` | `POST` | Mark worker done; auto-release dangling `in_progress` claims (`{ agent_id, workspace? }` → `{ released }`). |
 | `/classify` | `POST` | Absorb prompt-submit heuristics; return finished injection text (`{ prompt, session_id?, workspace? }` → `{ additional_context, … }`). |
@@ -78,7 +78,7 @@ harness guarantees interception.
 | **Workspace bind** | `SessionStart` → `start-daemon.sh` → `POST /workspace` | `sessionStart` → relay | `SessionStart` → relay | Plugin init and `session.created` → `POST /workspace` |
 | **Prompt submit** | `UserPromptSubmit` → `classify.sh` → `/classify` | `beforeSubmitPrompt` or mapped `UserPromptSubmit` → relay | `UserPromptSubmit` → relay | `chat.message` → `POST /classify`, append returned context as a text part |
 | **Write gate** | `PreToolUse` `Write\|Edit` → shared policy in `hooks/lib/gate-policy.js` via `orch-gate.*` (exit 2) | `preToolUse` → normalize payload, then same shared gate (exit 2) | `PreToolUse` → same shared gate, translated to `permissionDecision: deny` | `tool.execute.before` → same shared policy, then **throw** to block (never rely on arg rewrite) |
-| **Cooperative stop** | `PreToolUse` `*` → `orch-stop.sh` → `/should-stop` (exit 2) | `preToolUse` → relay (exit 2) | `PreToolUse` / `Stop` → relay | `tool.execute.before` throw or `event` handler |
+| **Cooperative stop** | `PreToolUse` `*` → `orch-stop.sh` → `/should-stop` (exit 2) | `preToolUse` → relay (exit 2) | `PreToolUse` / `Stop` → relay | `tool.execute.before` → `/should-stop`, then throw to block |
 | **Agent start** | `SubagentStart` → `subagent-start.sh` → `/agent/start` | `subagentStart` → relay | hook lifecycle → relay | `event` subscription → relay |
 | **Agent stop** | `SubagentStop` → `subagent-stop.sh` → `/agent/done` | `subagentStop` → relay | `Stop` / lifecycle hook → relay | `event` subscription → relay |
 | **Ready nudge after dispatch** | `PostToolUse` `Agent\|Task` → `post-agent.sh` → `/ready` | `postToolUse` → relay | `PostToolUse` → relay | optional plugin `event` → `/ready` |
