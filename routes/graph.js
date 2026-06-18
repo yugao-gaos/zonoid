@@ -277,13 +277,108 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
       return true;
     };
-    // Score one item HYBRID: semantic cosine when both the query AND the item have a vector,
-    // else the lexical token overlap. Returns { score, via }. MULTI-VEC: vecNode carries EITHER a
-    // single `.vec` (notes, knowledge items) OR a `.vecs` array (tasks); maxCosine takes the max
-    // cosine over whichever it finds — identical to single-vec cosine when there is exactly one.
-    const scoreHybrid = (vecNode, lexNode) => {
-      if (qvec && nodeVecs(vecNode).length > 0) return { score: maxCosine(qvec, vecNode), via: 'semantic' };
-      return { score: scoreNodeAgainstTokens(lexNode, qt).score, via: 'lexical' };
+    // BM25 scorer (stdlib only, no npm). Scores a single document text against the query tokens.
+    // IDF = log(1 + (N - df + 0.5) / (df + 0.5)), TF-norm = BM25 k1=1.2 b=0.75.
+    // Returns a raw BM25 score (non-negative float). Called lazily — memoized per candidate set.
+    const _bm25State = { ready: false, idf: null, avgdl: 0 };
+    const _bm25Corpus = [];  // [{docText, toks}] — built the first time scoreRRF is called
+    const _bm25Idxmap = new Map();  // candidate-key → corpus index
+    const _STOP = new Set(['a','an','the','is','in','on','at','of','to','and','or','for','with',
+                           'by','as','be','it','that','this','was','are','were','has','have','had',
+                           'not','but','from','into','if','up','out','about','after','before']);
+    const _tokenize = (s) => String(s || '').toLowerCase().split(/\s+/).filter((t) => t.length > 1 && !_STOP.has(t));
+    const _qToks = _tokenize(q);
+    const _prepareBm25 = (candidates) => {
+      if (_bm25State.ready) return;
+      _bm25State.ready = true;
+      if (!_qToks.length) { _bm25State.idf = new Map(); return; }
+      let totalLen = 0;
+      for (let i = 0; i < candidates.length; i++) {
+        const c = candidates[i];
+        const docText = String(c.label || c.title || '') + ' ' + String(c.summary || '').slice(0, 200);
+        const toks = _tokenize(docText);
+        _bm25Corpus.push({ toks });
+        _bm25Idxmap.set(c._bm25Key, i);
+        totalLen += toks.length;
+      }
+      const N = candidates.length;
+      _bm25State.avgdl = N ? totalLen / N : 1;
+      // IDF per query token
+      const idf = new Map();
+      for (const qt2 of _qToks) {
+        if (idf.has(qt2)) continue;
+        let df = 0;
+        for (const { toks } of _bm25Corpus) { if (toks.includes(qt2)) df++; }
+        idf.set(qt2, Math.log(1 + (N - df + 0.5) / (df + 0.5)));
+      }
+      _bm25State.idf = idf;
+    };
+    const _bm25Score = (key) => {
+      const idx = _bm25Idxmap.get(key);
+      if (idx === undefined || !_bm25State.idf) return 0;
+      const { toks } = _bm25Corpus[idx];
+      const dl = toks.length;
+      const avgdl = _bm25State.avgdl || 1;
+      const k1 = 1.2, b = 0.75;
+      let score = 0;
+      for (const qt2 of _qToks) {
+        const tf = toks.filter((t) => t === qt2).length;
+        if (!tf) continue;
+        const idfVal = _bm25State.idf.get(qt2) || 0;
+        const tfNorm = (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * dl / avgdl));
+        score += idfVal * tfNorm;
+      }
+      return score;
+    };
+
+    // RRF fusion scorer. Replaces the old either/or scoreHybrid.
+    // Call prepareRRF(candidates) FIRST to build internal rank tables, then scoreRRF(key) returns
+    // the RRF blended score and via label for a candidate identified by _bm25Key.
+    // RRF formula: 1/(k+rank_cosine) + 1/(k+rank_bm25), k=60, ranks 1-indexed.
+    // When qvec is null (sidecar not ready), cosine rank is uniform (all tied at rank 1) so BM25
+    // carries all signal — graceful degradation identical to the old lexical fallback.
+    const _rrfK = 60;
+    const _rrfCosineRank = new Map();  // key → 1-indexed rank in cosine-sorted order
+    const _rrfBm25Rank   = new Map();  // key → 1-indexed rank in BM25-sorted order
+    let   _rrfReady      = false;
+    const prepareRRF = (candidates) => {
+      if (_rrfReady) return;
+      _rrfReady = true;
+      _prepareBm25(candidates);
+      const N = candidates.length;
+      if (!N) return;
+      // Cosine sort
+      const withCosine = candidates.map((c) => ({
+        key: c._bm25Key,
+        cos: (qvec && nodeVecs(c).length > 0) ? maxCosine(qvec, c) : 0,
+      }));
+      withCosine.sort((a, b) => b.cos - a.cos);
+      for (let i = 0; i < withCosine.length; i++) _rrfCosineRank.set(withCosine[i].key, i + 1);
+      // BM25 sort
+      const withBm25 = candidates.map((c) => ({
+        key: c._bm25Key,
+        bm25: _bm25Score(c._bm25Key),
+      }));
+      withBm25.sort((a, b) => b.bm25 - a.bm25);
+      for (let i = 0; i < withBm25.length; i++) _rrfBm25Rank.set(withBm25[i].key, i + 1);
+    };
+    const scoreRRF = (key) => {
+      const rankC = _rrfCosineRank.get(key) ?? (_rrfCosineRank.size + 1);
+      const rankB = _rrfBm25Rank.get(key)   ?? (_rrfBm25Rank.size + 1);
+      // Determine primary signal for the `via` label: whichever rank is better (lower).
+      const via = (rankC <= rankB) ? (qvec ? 'rrf-semantic' : 'rrf-bm25') : 'rrf-bm25';
+      return { score: 1 / (_rrfK + rankC) + 1 / (_rrfK + rankB), via };
+    };
+    // Back-compat wrapper used by the knowledge-item loop (single-item path, not pre-ranked).
+    // Adds the item to the RRF corpus on-the-fly if it was not part of the pre-prepared batch.
+    // This path is rare (knowledge items were already rare in the old hybrid path).
+    const scoreHybrid = (vecNode, lexNode, key) => {
+      // Fall back to old behavior if RRF wasn't prepared (e.g. empty graph).
+      if (!_rrfReady) {
+        if (qvec && nodeVecs(vecNode).length > 0) return { score: maxCosine(qvec, vecNode), via: 'semantic' };
+        return { score: scoreNodeAgainstTokens(lexNode, qt).score, via: 'lexical' };
+      }
+      return scoreRRF(key || '_unknown');
     };
     // Gate candidate pool: the SAME note subset the old gated branch scored —
     // kind 'note', still-current, non-DAG, non-excluded — with the RAW (pre-structBoost) cosine,
@@ -333,18 +428,115 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const pathAnchors = new Set(dagKeys);
     if (task_key) pathAnchors.add(task_key);
 
+    const ov = overlayFor(ws);
+
+    // ENTITY-SEEDED GRAPH EXPANSION (Phase 3, Change B):
+    // Before scoring, check entity_nodes in the overlay for matches to the query.
+    // Matching entities (by name substring or cosine > 0.5) expand 1-2 hops along
+    // context edges to surface linked notes. Expansion is additive — never removes
+    // candidates. No-op when entity_nodes is empty (Phase 2 not yet run / no entities).
+    const entityExpandedKeys = new Set();  // note keys added via entity expansion
+    {
+      const entityNodes = ov.entity_nodes || {};
+      const entityIds = Object.keys(entityNodes);
+      if (entityIds.length > 0) {
+        const qLower = q.toLowerCase();
+        // Collect matched entity ids.
+        const matchedEntityKeys = new Set();
+        for (const eid of entityIds) {
+          const ent = entityNodes[eid];
+          if (!ent || ent.validTo) continue;  // skip retired entities
+          // Name substring match.
+          const entName = String(ent.name || '').toLowerCase();
+          if (entName && qLower.includes(entName)) {
+            matchedEntityKeys.add('entity:' + eid);
+            continue;
+          }
+          // Alias substring match.
+          if (Array.isArray(ent.aliases)) {
+            for (const alias of ent.aliases) {
+              if (alias && qLower.includes(String(alias).toLowerCase())) {
+                matchedEntityKeys.add('entity:' + eid);
+                break;
+              }
+            }
+          }
+          // Embedding cosine match (when both qvec and entity vec are available).
+          // maxCosine accepts a node-like object with a .vec field.
+          if (qvec && Array.isArray(ent.vec) && ent.vec.length > 0) {
+            const sim = maxCosine(qvec, ent);
+            if (sim > 0.5) matchedEntityKeys.add('entity:' + eid);
+          }
+        }
+        // For each matched entity, traverse context edges up to 2 hops to collect linked notes.
+        if (matchedEntityKeys.size > 0) {
+          const edgeList = ov.edges || [];
+          // Hop 1: direct context neighbors of matched entities.
+          const hop1Keys = new Set();
+          for (const e of edgeList) {
+            if (e.kind !== 'context') continue;
+            if (matchedEntityKeys.has(e.from) && e.to && e.to.startsWith('note:')) hop1Keys.add(e.to);
+            if (matchedEntityKeys.has(e.to) && e.from && e.from.startsWith('note:')) hop1Keys.add(e.from);
+          }
+          // Hop 2: context neighbors of hop-1 note neighbors.
+          const hop2Keys = new Set();
+          for (const e of edgeList) {
+            if (e.kind !== 'context') continue;
+            if (hop1Keys.has(e.from) && e.to && e.to.startsWith('note:')) hop2Keys.add(e.to);
+            if (hop1Keys.has(e.to) && e.from && e.from.startsWith('note:')) hop2Keys.add(e.from);
+          }
+          for (const k of hop1Keys) entityExpandedKeys.add(k);
+          for (const k of hop2Keys) entityExpandedKeys.add(k);
+        }
+      }
+    }
+
+    // PRE-PASS: collect all RAG candidates (graph nodes) for RRF rank preparation.
+    // We need the full candidate set before scoring so both cosine and BM25 can be ranked.
+    // Each candidate needs a _bm25Key (= the node id) for the RRF rank lookup.
+    // Entity-expanded keys are included in the candidate set even if they would otherwise be
+    // filtered — they are marked via_entity and bypass the score > 0 gate.
+    const rrfCandidates = [];
+    const rrfNodeMap = new Map();  // key → node (for second pass)
+    for (const node of g.tasks) {
+      if (sysKeys.has(node.id)) continue;
+      if (dagKeys.has(node.id)) continue;
+      if (excludeKeys.has(node.id)) continue;
+      if (dupInvisible(node)) continue;
+      if (!temporalOk(node)) continue;
+      const bk = node.id;
+      node._bm25Key = bk;  // temporary tag; cleaned up in second pass
+      rrfCandidates.push(node);
+      rrfNodeMap.set(bk, node);
+    }
+    // Also include entity-expanded notes not already in the candidate set.
+    for (const expandedKey of entityExpandedKeys) {
+      if (rrfNodeMap.has(expandedKey)) continue;  // already included
+      if (sysKeys.has(expandedKey) || dagKeys.has(expandedKey) || excludeKeys.has(expandedKey)) continue;
+      // Find the node in g.tasks by key (needed for dupInvisible + temporalOk checks).
+      const node = g.tasks.find((n) => n.id === expandedKey);
+      if (!node) continue;
+      if (dupInvisible(node)) continue;
+      if (!temporalOk(node)) continue;
+      node._bm25Key = expandedKey;
+      rrfCandidates.push(node);
+      rrfNodeMap.set(expandedKey, node);
+    }
+    // Prepare RRF rank tables over the full candidate set.
+    prepareRRF(rrfCandidates);
+
     const ragResults = [];
     // (a) graph nodes (tasks + note nodes).
-    for (const node of g.tasks) {
-      if (sysKeys.has(node.id)) continue;  // skip system-tier notes (always injected above)
-      if (dagKeys.has(node.id)) continue;  // skip DAG-injected notes
-      if (excludeKeys.has(node.id)) continue;  // already injected in a prior round
-      if (dupInvisible(node)) continue;    // pending-dup note: retrieval-invisible until the dup-judge clears it
-      if (!temporalOk(node)) continue;
-      const { score, via } = scoreHybrid(node, node);
-      if (!(score > 0)) continue;
+    for (const node of rrfCandidates) {
+      const bk = node._bm25Key;
+      delete node._bm25Key;  // clean up temp tag
+      const isEntityExpanded = entityExpandedKeys.has(node.id);
+      const { score, via } = scoreRRF(bk);
+      // Entity-expanded notes bypass the score > 0 gate (they are seeded by entity match, not scoring).
+      if (!isEntityExpanded && !(score > 0)) continue;
       const foundPath = bfsPath(node.id, pathAnchors);
       const r = { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task', tier: 'rag', via, path: foundPath || [] };
+      if (isEntityExpanded) r.via_entity = true;
       // Surface temporal provenance on note hits so callers can reason about state changes.
       if ((node.kind || 'task') === 'note' && (node.validFrom || node.validTo || node.supersededBy || node.supersedes)) {
         r.validFrom = node.validFrom || null; r.validTo = node.validTo || null;
@@ -355,7 +547,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     // (b) per-task Tier-2 knowledge items (overlay.knowledge[key][]) — not graph nodes, but
     // semantically searchable. Scored with the same hybrid path over a synthetic lex node.
-    const ov = overlayFor(ws);
+    // Knowledge items are NOT in the pre-ranked RRF corpus, so they fall back to the legacy
+    // scoreHybrid (either cosine or lexical) — they were always a small, secondary population.
     for (const [tkey, items] of Object.entries(ov.knowledge || {})) {
       (items || []).forEach((it, i) => {
         const text = knowledgeText(it);
@@ -364,7 +557,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (dagKeys.has(key)) return;  // skip DAG-injected items
         if (excludeKeys.has(key)) return;  // already injected in a prior round
         const lexNode = { label: text, summary: '' };
-        const { score, via } = scoreHybrid({ vec: it && it._vec }, lexNode);
+        const { score, via } = scoreHybrid({ vec: it && it._vec }, lexNode, key);
         if (!(score > 0)) return;
         // Knowledge items are children of tkey; path via the parent task node.
         let kPath;
