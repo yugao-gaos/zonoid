@@ -1,0 +1,10 @@
+{
+  "task_key": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/1",
+  "agent_id": "worker-note-decay-consumer",
+  "session_id": "019edcf8-a291-7732-8f87-f5b4b7b3b9e0",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/d42ebe37-ee9f-46b6-ae21-f6f82464d482-1",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T23:03:01.396Z",
+  "lease_until": "2026-06-19T00:03:01.396Z"
+}
