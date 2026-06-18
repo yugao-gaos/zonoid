@@ -1,0 +1,11 @@
+{
+  "task_key": "bench/combined-arm",
+  "agent_id": "bench-combined-a1",
+  "session_id": "bench-combined-session-1",
+  "workspace": "D:/zonoid",
+  "branch": "orch/attempt/bench-combined-arm",
+  "status": "done",
+  "claimed_at": "2026-06-18T12:16:14.876Z",
+  "lease_until": "2026-06-18T13:16:14.876Z",
+  "completed_at": "2026-06-18T12:18:48.209Z"
+}

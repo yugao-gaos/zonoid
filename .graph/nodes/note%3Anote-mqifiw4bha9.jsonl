@@ -10,3 +10,7 @@
 {"evt":"knowledge_added","id":"note-mqifiw4bha9","workspace":"/Users/imyu/Desktop/zonoid","item":"exit:0","actor":"overlay-sync","ts":"2026-06-17T18:55:49.667Z"}
 {"evt":"knowledge_added","id":"note-mqifiw4bha9","workspace":"/Users/imyu/Desktop/zonoid","item":"drain:followup/harness-label-drain","actor":"overlay-sync","ts":"2026-06-17T18:56:28.415Z"}
 {"evt":"knowledge_added","id":"note-mqifiw4bha9","workspace":"/Users/imyu/Desktop/zonoid","item":"exit:0","actor":"overlay-sync","ts":"2026-06-17T18:56:28.415Z"}
+{"evt":"edge_added","from":"note:note-mqifiw4bha9","to":"note:note-mqidej47qls","kind":"context","actor":"overlay-sync","ts":"2026-06-18T01:34:29.308Z","weight":0,"by":"autowire","judged":false,"score":1,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqifiw4bha9","to":"note:note-mqieb1jkiau","kind":"context","actor":"overlay-sync","ts":"2026-06-18T04:41:28.821Z","weight":0,"by":"autowire","judged":false,"score":1,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqifiw4bha9","to":"note:note-mqif0l3ezkw","kind":"context","actor":"overlay-sync","ts":"2026-06-18T04:44:43.683Z","weight":0,"by":"autowire","judged":false,"score":1,"origin":"autowire-semantic"}
+{"evt":"note_superseded","id":"note-mqifiw4bha9","supersededBy":"note-mqiftta0itz","validTo":"2026-06-17T19:02:07.224Z","ts":"2026-06-17T19:02:07.224Z","actor":"supersede"}

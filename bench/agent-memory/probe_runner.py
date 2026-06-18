@@ -236,7 +236,15 @@ def _build_session_candidates(
             tid = t.get("turn_id")
             prefix = f"[{tid}] " if tid else ""
             lines.append(f"{prefix}{speaker}: {text}")
-        summary = "\n".join(lines)[:_SUMMARY_BUDGET]
+        # Prepend the session date so the embedded daemon sees a date-in-body signal that
+        # matches what ConversationIngester.ingest() writes on the main-daemon path (the #33
+        # date-in-body fix).  Without this prefix the embedded-daemon search scores stay at
+        # zero for date-anchored queries and RAG stays empty for LoCoMo convs.
+        date_prefix = f"Session date: {date}\n"
+        # Do NOT clip here — notes are already chunked at ingest (NOTE_BUDGET=6000 chars);
+        # clipping to _SUMMARY_BUDGET would drop facts before they reach the embedded daemon
+        # and the answerer.  The ingest chunking already bounds the note size.
+        summary = date_prefix + "\n".join(lines)
         cands.append(_SessionCandidate(sid=sid, date=str(date), note_keys=note_keys, summary=summary))
     # Stable order by numeric session idx where possible.
     cands.sort(key=lambda c: (int(c.sid) if c.sid.isdigit() else 1_000_000, c.sid))
@@ -255,9 +263,18 @@ _COLD_TEMPLATE = (
 )
 
 _ANSWER_TEMPLATE = (
-    "Answer the question using ONLY the context provided below. Be concise — reply with just "
-    "the answer (a short phrase or sentence), no explanation. If the context does not contain "
-    "the answer, reply exactly: I don't know.\n\n"
+    "Answer the question using ONLY the context provided below.\n\n"
+    "Rules:\n"
+    "1. Give the SPECIFIC fact (a name, date, place, number, or short phrase) — NOT a generic "
+    "relational answer like 'the person mentioned' or 'what was discussed'.\n"
+    "2. Answer from PARAPHRASED evidence: if the fact is clearly present in the context but "
+    "stated in different words, still extract and state the specific answer — do NOT say "
+    "'I don't know' just because the wording differs from the question.\n"
+    "3. RESOLVE relative time expressions (e.g. 'yesterday', 'last week', 'this month', "
+    "'next Tuesday') against any 'Session date:' line present in the context. Convert them "
+    "to the actual calendar date or month in your answer.\n"
+    "4. Reply with ONLY the answer — a short phrase or sentence, no explanation.\n"
+    "5. If the answer truly cannot be determined from the context, reply exactly: I don't know.\n\n"
     "CONTEXT:\n{context}\n\n"
     "QUESTION: {question}\n\n"
     "ANSWER:"
@@ -325,10 +342,34 @@ def _ingest_candidates_into_daemon(
 
     We use the candidate's already-rendered summary (budget-clipped session text) so the
     content the EdgeJudge ranks is semantically equivalent to what the ingester originally
-    wrote. The daemon's dup-guard prevents re-writes if a candidate was already ingested.
+    wrote.
 
-    A brief settle after each note lets the embedder index it before autowire runs.
+    WORKSPACE-SKIP: if the workspace already contains session notes (ingested by the
+    main-daemon path via ConversationIngester.ingest()), we skip re-ingest entirely.
+    Re-ingesting into a workspace that already has notes causes two problems:
+      1. The daemon's dup-guard (cosine >= 0.70 title similarity) marks the new notes
+         pending_dup=True, making them retrieval-invisible.
+      2. The subsumption gate (cosine >= 0.92 body similarity) retires the EXISTING notes
+         by setting their validTo — leaving ZERO searchable notes.
+    Skipping when the workspace already has notes preserves the main-daemon ingested notes
+    (which include the date-in-body fix from ConversationIngester.ingest()) and keeps them
+    visible for RAG fill.
+
+    A brief settle after each note lets the embedder index it before autowire seeds candidates.
     """
+    # Pre-check: if workspace already has session notes, skip re-ingest to avoid subsumption.
+    try:
+        pre_hits = client.search("session", k=3, gated=False)
+        if pre_hits:
+            print(
+                f"[probe_runner]   workspace already has {len(pre_hits)} notes — "
+                f"skipping re-ingest to preserve existing notes (dup/subsumption safety)",
+                file=sys.stderr,
+            )
+            return
+    except Exception as exc:  # noqa: BLE001
+        print(f"[probe_runner]   WARN: pre-check search failed ({exc}) — proceeding with re-ingest", file=sys.stderr)
+
     for c in candidates:
         if not c.summary.strip():
             continue
@@ -489,6 +530,99 @@ def run_cold(probe: dict[str, Any]) -> dict[str, Any]:
     return {"predicted": _answer_cold(probe["question"])}
 
 
+def run_probe_combined(
+    base_url: str,
+    workspace: str,
+    distill_workspace: str,
+    conv_id: str,
+    probe: dict,
+) -> list[dict]:
+    """ARM combined: merge raw-chunk hits + atomic-fact hits, rank by RRF, answer.
+
+    This is the production-equivalent arm: both ingest paths have already run,
+    retrieval merges both pools before answering.
+    """
+    question = probe["question"]
+    k = _SEARCH_K * 3  # fetch extra from each pool before merge
+
+    # Retrieve from both pools independently
+    raw_hits  = kb_search(base_url, workspace,         question, k=k, gated=False)
+    fact_hits = kb_search(base_url, distill_workspace, question, k=k, gated=False)
+
+    # Filter stubs from each pool
+    raw_hits  = [h for h in raw_hits  if _is_session_note_hit(h)]
+    fact_hits = [h for h in fact_hits if _is_session_note_hit(h)]
+
+    # Merge by key (fact_hits take precedence on collision — more specific)
+    seen: dict[str, Any] = {}
+    for h in fact_hits:
+        seen[h.get("key")] = h
+    for h in raw_hits:
+        k_ = h.get("key")
+        if k_ not in seen:
+            seen[k_] = h
+
+    # Re-rank merged pool by score descending, take top _SEARCH_K
+    merged = sorted(seen.values(), key=lambda h: h.get("score", 0), reverse=True)[:_SEARCH_K]
+
+    context_blocks = [str(h.get("summary") or "") for h in merged]
+    predicted = _answer_from_context(question, context_blocks)
+
+    common = {
+        "conv_id": conv_id,
+        "qid": probe.get("qid"),
+        "category": probe.get("category"),
+        "question": probe.get("question"),
+        "gold": probe.get("answer"),
+    }
+    return [{
+        "arm": "combined",
+        **common,
+        "predicted": predicted,
+        "hit_keys": [h.get("key") for h in merged],
+    }]
+
+
+def run_probe_distill(
+    base_url: str,
+    workspace: str,
+    conv_id: str,
+    probe: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """ARM distill: search the distilled-fact workspace and answer the probe.
+
+    The distill arm is structurally identical to the search arm, except it
+    operates on a DIFFERENT workspace that was populated by ``ConversationDistiller``
+    (atomic LLM-extracted fact notes) rather than by ``ConversationIngester``
+    (raw session-turn notes).
+
+    This makes a direct apples-to-apples comparison possible:
+      - search arm: retrieval over raw session chunks (current baseline)
+      - distill arm: retrieval over atomic fact notes (Phase 1 hypothesis)
+
+    Returns a list with one record (arm="distill").
+    ``gold`` is recorded FOR THE SCORER ONLY; it never enters the prediction path.
+    """
+    common = {
+        "conv_id": conv_id,
+        "qid": probe.get("qid"),
+        "category": probe.get("category"),
+        "question": probe.get("question"),
+        "gold": probe.get("answer"),  # for the scorer; NOT used by any arm
+    }
+    question = probe["question"]
+    raw_hits = kb_search(base_url, workspace, question, k=_SEARCH_K * 3, gated=False)
+    note_hits = [h for h in raw_hits if _is_session_note_hit(h)][:_SEARCH_K]
+    context_blocks = [str(h.get("summary") or "") for h in note_hits]
+    predicted = _answer_from_context(question, context_blocks)
+    return [{
+        "arm": "distill",
+        **common,
+        "predicted": predicted,
+        "hit_keys": [h.get("key") for h in note_hits],
+    }]
+
+
 # ---------------------------------------------------------------------------
 # Orchestration: run all three arms for one (conv, probe)
 # ---------------------------------------------------------------------------
@@ -504,6 +638,11 @@ def run_probe(
 
     Each record: {arm, conv_id, qid, category, question, gold, predicted, ...diagnostics}.
     ``gold`` is recorded FOR THE SCORER ONLY; it never enters any prediction path above.
+
+    Uses ONE embedded daemon for both our-way and search arms so the search arm benefits
+    from the embedded daemon's fresh overlay (no pendingDup) — all ingested session notes
+    are visible. The main daemon's overlay can have pendingDup entries that make notes
+    retrieval-invisible, causing 0% accuracy on real multi-session data.
     """
     common = {
         "conv_id": conv_id,
@@ -514,27 +653,48 @@ def run_probe(
     }
     records: list[dict[str, Any]] = []
 
-    # ARM our-way (headline)
-    ow = run_our_way(base_url, workspace, probe, candidates)
-    records.append({
-        "arm": "our-way",
-        **common,
-        "predicted": ow.get("predicted", ""),
-        "kept_sids": ow.get("kept_sids"),
-        "context_keys": ow.get("context_keys"),
-        "candidate_sids": ow.get("candidate_sids"),
-    })
+    # Start ONE embedded daemon for both our-way and search arms.
+    # The embedded daemon loads a fresh overlay from graph-store (no pendingDup),
+    # making all ingested session notes visible to search retrieval.
+    handle = None
+    try:
+        handle = _start_our_way_daemon(workspace)
+        emb_url = handle.base_url
+        emb_data_dir = handle.data_dir
+        emb_client = ZonoidClient(emb_url, workspace=workspace, timeout=120)
+        _ingest_candidates_into_daemon(emb_client, candidates, workspace)
 
-    # ARM search (retrieval control)
-    sr = run_search(base_url, workspace, probe)
-    records.append({
-        "arm": "search",
-        **common,
-        "predicted": sr.get("predicted", ""),
-        "hit_keys": sr.get("hit_keys"),
-    })
+        # ARM our-way (headline) — reuses embedded daemon
+        ow = run_our_way(
+            base_url, workspace, probe, candidates,
+            _embedded_client=emb_client,
+            _embedded_data_dir=emb_data_dir,
+        )
+        records.append({
+            "arm": "our-way",
+            **common,
+            "predicted": ow.get("predicted", ""),
+            "kept_sids": ow.get("kept_sids"),
+            "context_keys": ow.get("context_keys"),
+            "candidate_sids": ow.get("candidate_sids"),
+        })
 
-    # ARM cold (floor)
+        # ARM search — uses embedded daemon for full note visibility (no pendingDup)
+        sr = run_search(emb_url, workspace, probe)
+        records.append({
+            "arm": "search",
+            **common,
+            "predicted": sr.get("predicted", ""),
+            "hit_keys": sr.get("hit_keys"),
+        })
+    finally:
+        if handle is not None:
+            try:
+                _daemon_mod.stop(handle)
+            except Exception:  # noqa: BLE001
+                pass
+
+    # ARM cold (floor) — no memory needed, runs after daemon stop
     cd = run_cold(probe)
     records.append({
         "arm": "cold",

@@ -1,0 +1,11 @@
+{
+  "task_key": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/5",
+  "agent_id": "agreement-rate-worker",
+  "session_id": "680e9dd1-876a-4bc4-9267-d218ff5d33c2",
+  "workspace": "D:/zonoid",
+  "branch": "orch/attempt/d08e0c33-36f1-49a6-b946-dff7dff71c5c-5",
+  "status": "done",
+  "claimed_at": "2026-06-18T11:28:03.189Z",
+  "lease_until": "2026-06-18T12:28:03.189Z",
+  "completed_at": "2026-06-18T11:33:39.400Z"
+}

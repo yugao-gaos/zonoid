@@ -23,11 +23,11 @@ them (plus such relay-only helpers as `GET /session-info` and `POST /route` used
 |---|---|---|
 | `/workspace` | `POST` | Pin the active workspace (`{ path, transcript?, force? }`). Idempotent unless `force:true`. |
 | `/active-claim` | `GET` | `{ claimed, claims[] }` for `?session=<id>`. Resolves subagent aliases and cross-session claim registration. |
-| `/should-stop` | `GET` | Cooperative stop signal: `{ stop, reason? }` for `?session=<id>&agent=<id>?`. |
+| `/should-stop` | `GET` | Cooperative stop signal: `{ stop, reason? }` for `?session=<id>&agent=<id>&workspace=<path>?`. |
 | `/agent/start` | `POST` | Register a worker (`{ agent_id, agent_type?, transcript_path?, session?, subagent_session?, workspace?, task? }`). |
 | `/agent/done` | `POST` | Mark worker done; auto-release dangling `in_progress` claims (`{ agent_id, workspace? }` → `{ released }`). |
-| `/classify` | `POST` | **Planned (P4-C1).** Absorb prompt-submit heuristics; return finished injection text (`{ prompt }` → `{ additionalContext, … }`). Today Claude uses `hooks/classify.sh` locally plus `POST /context-classify`. |
-| `/ready` | `GET` | Ready frontier: `{ ready: [{ key, label }] }`. Optional `?session=` / `?roots=` filters. |
+| `/classify` | `POST` | Absorb prompt-submit heuristics; return finished injection text (`{ prompt, session_id?, workspace? }` → `{ additional_context, … }`). |
+| `/ready` | `GET` | Ready frontier: `{ ready: [{ key, label }] }`. Optional `?session=` / `?workspace=` / `?roots=` filters. |
 | `/sync` | `POST` | Immediate file-drop pull (`{ workspace? }` → `{ adopted[], suggestions{} }`). |
 | `/overlay/status` | `POST` | Authoritative task status / claim / complete (`{ key, status, agent_id?, summary?, … }`). MCP `start_task` / `complete_task` map here. **Dispatcher sessions are refused** on `in_progress` (409). |
 | `/overlay/dispatcher-focus` | `POST` | Pin trivial-edit attribution when multiple workers are in flight (`{ session_id, task_key }`). |
@@ -75,13 +75,13 @@ harness guarantees interception.
 | Contract event | Claude Code (reference) | Cursor | Codex | OpenCode |
 |---|---|---|---|---|
 | **Hook / plugin install** | `.claude/settings.json` → `hooks/*.sh` | Try `.claude/settings.json` compat first; else `.cursor/hooks.json` | `~/.codex/hooks.json` or `[hooks]` in `config.toml` | `.opencode/plugins/zonoid.ts` (or package) |
-| **Workspace bind** | `SessionStart` → `start-daemon.sh` → `POST /workspace` | `sessionStart` → relay | `SessionStart` → relay | Plugin init / session hook → relay |
-| **Prompt submit** | `UserPromptSubmit` → `classify.sh` → `/classify` *(target)*; today `/context-classify`, `/ready`, `/route` | `beforeSubmitPrompt` or mapped `UserPromptSubmit` → relay | `UserPromptSubmit` → relay | `chat.message` / `event` → relay |
+| **Workspace bind** | `SessionStart` → `start-daemon.sh` → `POST /workspace` | `sessionStart` → relay | `SessionStart` → relay | Plugin init and `session.created` → `POST /workspace` |
+| **Prompt submit** | `UserPromptSubmit` → `classify.sh` → `/classify` | `beforeSubmitPrompt` or mapped `UserPromptSubmit` → relay | `UserPromptSubmit` → relay | `chat.message` → `POST /classify`, append returned context as a text part |
 | **Write gate** | `PreToolUse` `Write\|Edit` → shared policy in `hooks/lib/gate-policy.js` via `orch-gate.*` (exit 2) | `preToolUse` → normalize payload, then same shared gate (exit 2) | `PreToolUse` → same shared gate, translated to `permissionDecision: deny` | `tool.execute.before` → same shared policy, then **throw** to block (never rely on arg rewrite) |
-| **Cooperative stop** | `PreToolUse` `*` → `orch-stop.sh` → `/should-stop` (exit 2) | `preToolUse` → relay (exit 2) | `PreToolUse` / `Stop` → relay | `tool.execute.before` throw or `event` handler |
+| **Cooperative stop** | `PreToolUse` `*` → `orch-stop.sh` → `/should-stop` (exit 2) | `preToolUse` → relay (exit 2) | `PreToolUse` / `Stop` → relay | `tool.execute.before` → `/should-stop`, then throw to block |
 | **Agent start** | `SubagentStart` → `subagent-start.sh` → `/agent/start` | `subagentStart` → relay | hook lifecycle → relay | `event` subscription → relay |
 | **Agent stop** | `SubagentStop` → `subagent-stop.sh` → `/agent/done` | `subagentStop` → relay | `Stop` / lifecycle hook → relay | `event` subscription → relay |
-| **Ready nudge after dispatch** | `PostToolUse` `Agent\|Task` → `post-agent.sh` → `/ready` | `postToolUse` → relay | `PostToolUse` → relay | optional plugin `event` → `/ready` |
+| **Ready nudge after dispatch** | `PostToolUse` `Agent\|Task` → `post-agent.sh` → `/ready` | `postToolUse` → relay | `PostToolUse` → relay | `tool.execute.after` and `todo.updated` with session id → `/ready` best-effort |
 | **Task mint** | Native `TaskCreate` → Claude task file → daemon pull (no `/sync` required) | `postToolUse` on todo tool → stub under `cursor/` → `/sync` | Shell/hook stub under `codex/` → `/sync`; fallback harness-scoped MCP `create_task` | Custom `task_create` tool → stub under `opencode/` → `/sync` |
 | **Task claim / complete** | MCP `start_task` / `complete_task` → `/overlay/status` | Same MCP surface | Same MCP surface (filtered tool list when MCP spawn sets `ORCH_CLIENT=codex`) | Same MCP + plugin-registered tools |
 | **Claim session alias** | `PostToolUse` after `start_task` → `/overlay/claim-session` | Same when MCP used | Same when MCP used | Same when MCP used |
@@ -104,23 +104,27 @@ which file each harness's wiring writes — picked so two harnesses never fight 
 |---|---|---|---|
 | `~/.codex/config.toml` → `[mcp_servers.orchestrator-graph]` | **codex** | `writeCodexMcp()` (TOML merge) | Codex's MCP server identity + `ORCH_CLIENT=codex` |
 | `~/.codex/hooks.json` | **codex** | `checkCodexHooks()` | Codex relay hooks |
-| `<cwd>/.mcp.json` → `mcpServers["orchestrator-graph"]` | **claude**, **cursor**, **opencode** | `bin/install.js installMcp` (claude) / `writeMcp()` (cursor, opencode) — both **MERGE** | The MCP server for JSON-config harnesses; cursor's entry adds `ORCH_CLIENT=cursor` |
+| `<cwd>/opencode.json` → `mcp["orchestrator-graph"]` | **opencode** | `writeOpencodeMcp()` (JSON merge) | OpenCode's native MCP server identity + `ORCH_CLIENT=opencode` |
+| `<cwd>/.mcp.json` → `mcpServers["orchestrator-graph"]` | **claude**, **cursor** | `bin/install.js installMcp` (claude) / `writeMcp()` (cursor) — both **MERGE** | The MCP server for `.mcp.json` harnesses; cursor's entry adds `ORCH_CLIENT=cursor` |
 | `<cwd>/.claude/settings.json` | **claude** | `bin/install.js installSettings` | Claude hooks + statusLine + MCP allow-list |
 | `<cwd>/CLAUDE.md` | **claude** | `checkClaude()` | Orchestrator workspace instructions |
 | `<cwd>/.cursor/hooks.json` | **cursor** | `checkCursorHooks()` | Cursor relay hooks |
 | `<cwd>/.opencode/plugins/*`, `<cwd>/.opencode/package.json` | **opencode** | `checkOpencodePlugin()` | OpenCode plugin + deps |
 
-**Key split — Codex's MCP store is `config.toml`, not `.mcp.json`.** Codex reads MCP servers from
-`~/.codex/config.toml` under `[mcp_servers.*]`; the repo `.mcp.json` is the store for
-**claude / cursor / opencode** only. Earlier builds wrote Codex's server into `<cwd>/.mcp.json`,
-which (a) Codex never reads and (b) clobbered the Claude/Cursor entry on a second `init` — both
-fixed by routing Codex to its native TOML store and making **every** `.mcp.json` writer a
-read-modify-write merge (`mcpServers["orchestrator-graph"]` set; sibling servers preserved).
+**Key split — each non-Claude-native MCP store stays native.** Codex reads MCP servers from
+`~/.codex/config.toml` under `[mcp_servers.*]`; OpenCode reads project MCP servers from
+`opencode.json` under `mcp`; the repo `.mcp.json` is the store for **claude / cursor** only.
+Earlier builds wrote Codex's server into `<cwd>/.mcp.json`, which Codex never reads and which
+clobbered the Claude/Cursor entry on a second `init`; that was fixed by routing Codex to its
+native TOML store. OpenCode is likewise routed to `opencode.json`. All writers are
+read-modify-write merges that set only their `orchestrator-graph` entry and preserve sibling
+servers/config.
 
 **Coexistence invariants:**
-- One repo, two client identities: Claude's server lives in `.mcp.json` (no `ORCH_CLIENT`),
-  Codex's lives in `config.toml` with `ORCH_CLIENT=codex`. They never collide because they are
-  different files.
+- One repo, multiple client identities: Claude's server lives in `.mcp.json` (no `ORCH_CLIENT`),
+  Cursor's lives in `.mcp.json` with `ORCH_CLIENT=cursor`, Codex's lives in `config.toml` with
+  `ORCH_CLIENT=codex`, and OpenCode's lives in `opencode.json` with `ORCH_CLIENT=opencode`.
+  They never collide because each native store owns only its own entry.
 - All writers are **idempotent merges**: re-running any harness's init replaces only its own
   `orchestrator-graph` entry and backs the file up once (`*.bak`); user-added MCP servers and
   unrelated config survive.
@@ -225,9 +229,9 @@ Installed hooks in `hooks/hooks.json`:
 | `PostToolUse` `TaskCreate` | `suggest-links.sh` | MCP / graph tools (wiring nudge) |
 | *(after MCP `start_task`)* | `orch-posttool-starttask.sh` | `/overlay/claim-session` |
 
-Phase 4 follow-ups: **P4-C1** adds `POST /classify`; **P4-C3** slims `classify.sh` to a dumb
-relay. Until then, adapters should treat `/classify` as the contract target and
-`/context-classify` + script heuristics as the Claude reference implementation.
+`POST /classify` is the contract target for prompt-submit relays. Claude's `classify.sh`
+remains the reference hook relay, while OpenCode uses `chat.message` to append returned
+context into the outgoing user message.
 
 ---
 
@@ -427,7 +431,7 @@ path** differs per row above.
 
 ### Adapter scheduler API (hookless)
 
-`lib/adapters/scheduler-substrate.js` (wired into cursor, codex, stub):
+`lib/adapters/scheduler-substrate.js` (wired into cursor, codex, opencode, stub):
 
 | Method | Behavior |
 |---|---|

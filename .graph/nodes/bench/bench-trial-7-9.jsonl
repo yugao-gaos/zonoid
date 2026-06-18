@@ -1,0 +1,6 @@
+{"evt":"status_changed","id":"bench/bench-trial-7-9","workspace":"D:\\zonoid","status":"not_ready","actor":"overlay-sync","ts":"2026-06-18T02:49:44.274Z"}
+{"evt":"summary_set","id":"bench/bench-trial-7-9","workspace":"D:\\zonoid","summary":"What is the cosine range of the last (open-ended) band in the judge-journal's DEFAULT_BANDS configuration?","actor":"overlay-sync","ts":"2026-06-18T02:49:44.274Z"}
+{"evt":"snapshot_stored","id":"bench/bench-trial-7-9","workspace":"D:\\zonoid","subject":"bench/bench-trial-7-9","description":"","status":"pending","blockedBy":[],"owner":null,"metadata":{"synthetic_overlay_task":true},"snapshotted_at":"2026-06-18T02:49:39.625Z","actor":"overlay-sync","ts":"2026-06-18T02:49:44.274Z"}
+{"evt":"timestamps_set","id":"bench/bench-trial-7-9","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-18T02:49:39.625Z","lastChanged":"2026-06-18T02:49:39.625Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-18T02:49:44.274Z"}
+{"evt":"status_changed","id":"bench/bench-trial-7-9","workspace":"D:/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T02:54:29.907Z"}
+{"evt":"timestamps_set","id":"bench/bench-trial-7-9","workspace":"D:/zonoid","timestamps":{"firstSeen":"2026-06-18T02:49:39.625Z","lastChanged":"2026-06-18T03:25:11.804Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-18T03:25:56.077Z"}

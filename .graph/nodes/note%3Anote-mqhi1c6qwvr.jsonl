@@ -11,3 +11,4 @@
 {"evt":"edge_added","from":"note:note-mqhi1c6qwvr","to":"note:note-mqhojh4ew7l","kind":"context","actor":"overlay-sync","ts":"2026-06-17T07:36:50.499Z","weight":0,"by":"autowire","judged":false,"score":0.785,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqhi1c6qwvr","to":"note:note-mqhu5cygufj","kind":"context","actor":"overlay-sync","ts":"2026-06-17T10:07:52.390Z","weight":0,"by":"autowire","judged":false,"score":0.785,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqhi1c6qwvr","to":"note:note-mqi293oh28r","kind":"context","actor":"overlay-sync","ts":"2026-06-17T13:58:32.739Z","weight":0,"by":"autowire","judged":false,"score":0.785,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqhi1c6qwvr","to":"followup/harness-label-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-18T04:05:39.982Z","weight":0,"by":"autowire","judged":false,"score":0.71,"origin":"autowire-semantic"}

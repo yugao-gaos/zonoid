@@ -5,3 +5,5 @@
 {"evt":"status_changed","id":"bench/realistic-B-393018","workspace":"D:\\zonoid","status":"not_ready","actor":"overlay-sync","ts":"2026-06-17T15:49:54.707Z"}
 {"evt":"summary_set","id":"bench/realistic-B-393018","workspace":"D:\\zonoid","summary":"When was the dentist appointment rescheduled to?","actor":"overlay-sync","ts":"2026-06-17T15:49:54.707Z"}
 {"evt":"timestamps_set","id":"bench/realistic-B-393018","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-17T15:49:53.467Z","lastChanged":"2026-06-17T15:53:29.553Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-17T15:55:10.134Z"}
+{"evt":"status_changed","id":"bench/realistic-B-393018","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-17T20:15:56.504Z"}
+{"evt":"timestamps_set","id":"bench/realistic-B-393018","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-17T15:49:53.467Z","lastChanged":"2026-06-17T20:21:05.732Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-17T20:21:37.169Z"}

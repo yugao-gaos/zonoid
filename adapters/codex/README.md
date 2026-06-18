@@ -27,7 +27,8 @@ Thin relay hooks for [OpenAI Codex](https://developers.openai.com/codex/hooks) t
 3. **Wire MCP** with harness-scoped tools (`create_task` for file-drop minting).
 
    Codex reads MCP servers from `~/.codex/config.toml` under `[mcp_servers.*]` (TOML) —
-   **not** from a repo `.mcp.json` (that file is for Claude/Cursor/OpenCode). `npx @zonoid/cli init --harness codex`
+   **not** from a repo `.mcp.json` (that file is for Claude/Cursor; OpenCode uses
+   `opencode.json` under `mcp`). `npx @zonoid/cli init --harness codex`
    merges the block below into `~/.codex/config.toml` for you, idempotently and preserving
    your other `[mcp_servers.*]`. To add it by hand, append this TOML (replace `__INSTALL_DIR__`):
 

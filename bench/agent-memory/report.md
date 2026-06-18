@@ -1,30 +1,43 @@
-# Agent-Memory Benchmark Report — LoCoMo
+# Agent-Memory Benchmark Report — LongMemEval
 
-_Metric: LLM-judge accuracy (headline) + token-level F1 (diagnostic)._  
-_Competitor bars: Mem0 92.5/94.4, Zep 91.6/94.8 (LongMemEval Oracle/S; Wu et al., 2024)._
+_Metrics: LLM-judge accuracy (headline, comparable to published bars) + token-level F1 (diagnostic, deterministic) + pass/fail rate (coding benches)._
 
-## Overall accuracy per arm
+## Overall per arm
 
 | Arm | LLM-judge accuracy | Token-F1 | n probes |
-|-----|-------------------|----------|---------|
-| our-way | 100.0% | 100.0% | 2 |
-| search | 50.0% | 50.0% | 2 |
-| cold | 0.0% | 0.0% | 2 |
-| *(Mem0)* | *(92.5% / 94.4%)* | *(n/a)* | *(published)* |
-| *(Zep)*  | *(91.6% / 94.8%)* | *(n/a)* | *(published)* |
+| --- | --- | --- | --- |
+| our-way | 100.0% | 81.2% | 4 |
+| search | 0.0% | 0.0% | 4 |
+| cold | 0.0% | 0.0% | 4 |
 
-## Per-category accuracy
+## Per-category breakdown
 
-| Category | our-way acc | search acc | cold acc | our-way F1 | search F1 | cold F1 |
+| Category | our-way acc | our-way F1 | search acc | search F1 | cold acc | cold F1 |
 | --- | --- | --- | --- | --- | --- | --- |
-| multi-hop | 100.0% | 0.0% | 0.0% | 100.0% | 0.0% | 0.0% |
-| single-hop | 100.0% | 100.0% | 0.0% | 100.0% | 100.0% | 0.0% |
+| multi-hop | 100.0% | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% |
+| multi-session | 100.0% | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% |
+| single-hop | 100.0% | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% |
+| temporal-reasoning | 100.0% | 25.0% | 0.0% | 0.0% | 0.0% | 0.0% |
 
-## Competitor context
+## Scorecard
 
-| System | LongMemEval-Oracle | LongMemEval-S | Source |
-|--------|-------------------|--------------|--------|
-| Mem0 | 92.5% | 94.4% | Wu et al., 2024 Table 2 |
-| Zep  | 91.6% | 94.8% | Wu et al., 2024 Table 2 |
+**Contrast axis: LLM-judge accuracy**
 
-> **Note (LoCoMo scoring dispute):** LoCoMo vendor scores vary across sources: original paper 84%, third-party replication 58.4%, vendor-corrected 75.1%. Treat LoCoMo absolute accuracy numbers with caution; use them for arm-vs-arm comparisons rather than absolute comparisons to the published 84%.
+### Internal arms
+
+| Arm | LLM-judge accuracy | n probes |
+| --- | --- | --- |
+| our-way | 100.0% | 4 |
+| search | 0.0% | 4 |
+| cold | 0.0% | 4 |
+
+### Competitor bars (published)
+
+| System | LongMemEval-Oracle | LongMemEval-S | LoCoMo | Source |
+| --- | --- | --- | --- | --- |
+| Mem0 | 92.5% | 94.4% | ~84% (disputed) | published |
+| Zep | 91.6% | 94.8% | ~75.1% (corrected) | published |
+
+> **Note:** competitor bars are from published papers and may be evaluated on different benchmark subsets, evaluation protocols, or model versions. Arm-vs-arm comparisons (internal table above) are directly comparable; internal vs competitor comparisons are cross-setup and should be interpreted as directional context, not apples-to-apples.
+
+> **Note (LoCoMo scoring dispute):** LoCoMo vendor scores vary across sources: original paper 84%, third-party replication 58.4%, vendor-corrected 75.1%. Treat LoCoMo absolute accuracy numbers with caution; use the arm-vs-arm contrast (our-way vs search vs cold) as the primary comparison within this harness, not the absolute comparison to the published 84%. Competitor bars are published numbers on possibly different subsets/protocols — directional context, not apples-to-apples.

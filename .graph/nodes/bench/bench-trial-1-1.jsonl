@@ -1,0 +1,14 @@
+{"evt":"status_changed","id":"bench/bench-trial-1-1","workspace":"D:\\zonoid","status":"not_ready","actor":"overlay-sync","ts":"2026-06-18T00:52:49.009Z"}
+{"evt":"summary_set","id":"bench/bench-trial-1-1","workspace":"D:\\zonoid","summary":"Optimize-loop convergence defaults: epsilon=0.01, diminishing_rounds=3","actor":"overlay-sync","ts":"2026-06-18T00:52:49.009Z"}
+{"evt":"snapshot_stored","id":"bench/bench-trial-1-1","workspace":"D:\\zonoid","subject":"bench/bench-trial-1-1","description":"","status":"pending","blockedBy":[],"owner":null,"metadata":{"synthetic_overlay_task":true},"snapshotted_at":"2026-06-18T00:52:46.613Z","actor":"overlay-sync","ts":"2026-06-18T00:52:49.009Z"}
+{"evt":"timestamps_set","id":"bench/bench-trial-1-1","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-18T00:52:46.613Z","lastChanged":"2026-06-18T00:52:46.613Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-18T00:52:49.009Z"}
+{"evt":"status_changed","id":"bench/bench-trial-1-1","workspace":"D:/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T00:55:11.853Z"}
+{"evt":"status_changed","id":"bench/bench-trial-1-1","workspace":"D:\\zonoid","status":"not_ready","actor":"overlay-sync","ts":"2026-06-18T00:59:09.936Z"}
+{"evt":"status_changed","id":"bench/bench-trial-1-1","workspace":"D:/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T01:00:03.468Z"}
+{"evt":"timestamps_set","id":"bench/bench-trial-1-1","workspace":"D:/zonoid","timestamps":{"firstSeen":"2026-06-18T00:52:46.613Z","lastChanged":"2026-06-18T01:23:34.668Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-18T01:25:32.934Z"}
+{"evt":"status_changed","id":"bench/bench-trial-1-1","workspace":"D:\\zonoid","status":"not_ready","actor":"overlay-sync","ts":"2026-06-18T02:05:02.087Z"}
+{"evt":"summary_set","id":"bench/bench-trial-1-1","workspace":"D:\\zonoid","summary":"What is the minimum number of consecutive sub-epsilon or no-win rounds required to trigger a converge/stuck condition in the optimize loop?","actor":"overlay-sync","ts":"2026-06-18T02:05:02.087Z"}
+{"evt":"timestamps_set","id":"bench/bench-trial-1-1","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-18T00:52:46.613Z","lastChanged":"2026-06-18T02:05:02.060Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-18T02:05:02.087Z"}
+{"evt":"status_changed","id":"bench/bench-trial-1-1","workspace":"D:/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-18T02:08:18.071Z"}
+{"evt":"summary_set","id":"bench/bench-trial-1-1","workspace":"D:/zonoid","summary":"Optimize-loop convergence defaults: epsilon=0.01, diminishing_rounds=3","actor":"overlay-sync","ts":"2026-06-18T02:08:18.071Z"}
+{"evt":"timestamps_set","id":"bench/bench-trial-1-1","workspace":"D:/zonoid","timestamps":{"firstSeen":"2026-06-18T00:52:46.613Z","lastChanged":"2026-06-18T01:23:34.668Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-18T02:08:18.071Z"}

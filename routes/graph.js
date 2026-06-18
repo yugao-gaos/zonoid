@@ -131,6 +131,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const excludeKeys = new Set((u.searchParams.get('exclude_keys') || '').split(',').map((s) => s.trim()).filter(Boolean));
     const plateauContinue = (notes) => round < 3 && notes.some((n) => n.tier === 'rag' && (n.kind || 'note') === 'note' && n.score >= 0.5);
     const gated = isTruthy(u.searchParams.get('gated'));
+    if (gated && !task_key) {
+      send(res, 400, { ok: false, error: 'gated:true requires task_key — pass the task you are working on', code: 'missing_task_key' });
+      return true;
+    }
     const g = buildGraph(ws);
     // PENDING-DUP recall invisibility: a note admitted PROVISIONAL on a write-time dup-guard fire is
     // RETRIEVAL-INVISIBLE until the dup-judge clears it — that's what preserves the guard's purpose.
@@ -342,7 +346,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (dupInvisible(node)) continue;    // pending-dup note: retrieval-invisible until the dup-judge clears it
       if (!temporalOk(node)) continue;
       const { score, via } = scoreHybrid(node, node);
-      if (!(score > 0)) continue;
+      if (score < -0.5) continue;
       const foundPath = bfsPath(node.id, pathAnchors);
       const r = { key: node.id, title: node.label, summary: String(node.summary || '').slice(0, 200), score: Math.round(score * 1000) / 1000, kind: node.kind || 'task', tier: 'rag', via, path: foundPath || [] };
       // Surface temporal provenance on note hits so callers can reason about state changes.
@@ -365,7 +369,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (excludeKeys.has(key)) return;  // already injected in a prior round
         const lexNode = { label: text, summary: '' };
         const { score, via } = scoreHybrid({ vec: it && it._vec }, lexNode);
-        if (!(score > 0)) return;
+        if (score < -0.5) return;
         // Knowledge items are children of tkey; path via the parent task node.
         let kPath;
         if (pathAnchors.has(tkey)) { kPath = [`dep:${tkey}`]; }

@@ -4634,7 +4634,7 @@ async function tick(){
   // re-ticks once a choice lands. This is what prevents a silent fall-through to the global pointer.
   if (!WS_RESOLVED) { try { await resolveExplicitWorkspace(); } catch {} if (!WS_RESOLVED) return; }
   let d; try{ d=await(await dfetch('/state')).json(); }catch{ return; }
-  refreshCost(); refreshCronTok(); refreshInfraHero();
+  refreshCost(); refreshCronTok(); refreshInfraHero(); refreshAgreement(); refreshEconomy();
   liveAgentIds=new Set((d.agents||[]).filter(a=>a&&a.state==='running').map(a=>a.agent_id));
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
 
@@ -4739,7 +4739,48 @@ async function tick(){
     `<span class="hlabel">Billing <span style="font-size:8px;color:#484f58;font-weight:400;text-transform:none">gross</span></span><span class="hval" style="color:#d29922">${billStr}</span>` +
     `<span class="hval-sub">${topModelShort?topModelShort+' '+topModelCost:'sessions + cron'}</span>` +
     `<span class="htip" style="width:200px"><div class="tip-title">Estimated API Cost</div>Sessions (gross, all models) + cron/gate. Click for full breakdown: productive vs trapped, infra overhead, per-model split.</span>` +
-    `</span>`;
+    `</span>` +
+    (()=>{
+      const ag=agreementCache;
+      const prom=_agreementPromoted;
+      const ps=_agreementPromotionState;
+      if(prom){
+        const promRate=ps&&ps.rate!=null?Math.round(ps.rate*100)+'%':'—';
+        const promSub=ps?`${ps.total} rows at promotion`:'primary mode';
+        const promAt=ps&&ps.promotedAt?new Date(ps.promotedAt).toLocaleString():'unknown';
+        const promTip=`Model promoted to PRIMARY judge at ${promAt}. Rate at promotion: ${promRate}. Edge verdicts now driven by the learned classifier.`;
+        return `<span class="hero">` +
+          `<span class="hlabel">Model <span style="font-size:8px;background:#2ea04322;color:#3fb950;border:1px solid #2ea04355;border-radius:4px;padding:0 4px;vertical-align:middle">PRIMARY</span></span>` +
+          `<span class="hval" style="color:#3fb950">${promRate}</span>` +
+          `<span class="hval-sub">${promSub}</span>` +
+          `<span class="htip"><div class="tip-title">Model is PRIMARY judge</div>${promTip}</span>` +
+          `</span>`;
+      }
+      const agRate=ag&&ag.rate!=null?Math.round(ag.rate*100)+'%':'—';
+      const agColor=ag==null?'#484f58':ag.rate>=0.8?'#3fb950':ag.rate>=0.6?'#e3b341':'#f85149';
+      const agSub=ag?`${ag.agreed}/${ag.total} rows`:'no shadow data';
+      const agTip=ag?`Last ${ag.window} rows examined; ${ag.window_used} had valid verdicts. Agreement = rows where shadow_verdict === Sonnet verdict. Shadow mode — model observes but does not decide.`:'No shadow journal rows yet — agreement data appears once the edge judge runs.';
+      return `<span class="hero">` +
+        `<span class="hlabel">Model agree <span style="font-size:8px;color:#484f58;font-weight:400;text-transform:none">shadow</span></span><span class="hval" style="color:${agColor}">${agRate}</span>` +
+        `<span class="hval-sub">${agSub}</span>` +
+        `<span class="htip"><div class="tip-title">Shadow model agreement</div>${agTip}</span>` +
+        `</span>`;
+    })() +
+    (()=>{
+      const ec=economyCache;
+      const ecAvoided=ec&&ec.avoided!=null?ec.avoided:null;
+      const ecCost=ec&&ec.estimated_cost_usd!=null?ec.estimated_cost_usd:null;
+      const ecColor=ecAvoided!=null&&ecAvoided>0?'#3fb950':'#484f58';
+      const ecVal=ecAvoided!=null?String(ecAvoided):'—';
+      const ecSub=ecCost!=null?'$'+ecCost.toFixed(2)+' est. saved':'no data yet';
+      const perCall=ec&&ec.cost_per_call_usd!=null?ec.cost_per_call_usd:0.011;
+      const ecTip=`Edge verdicts decided by the learned model since promotion, avoiding Sonnet API calls. Cost estimate: $${perCall}/call (Sonnet 3.5 ~2000 input + 300 output tokens).`;
+      return `<span class="hero">` +
+        `<span class="hlabel">Calls saved</span><span class="hval" style="color:${ecColor}">${ecVal}</span>` +
+        `<span class="hval-sub">${ecSub}</span>` +
+        `<span class="htip"><div class="tip-title">Judge calls avoided</div>${ecTip}</span>` +
+        `</span>`;
+    })();
   // Status dock update
   updateDock(s, sc);
   lastState=d;
@@ -5729,6 +5770,30 @@ document.addEventListener('click', ev=>{ const p=document.getElementById('billin
 
 let _lastCronData=null;
 async function fetchCronData(){ try{ const d=await(await fetch(BASE+'/cron/usage')).json(); _lastCronData=d; return d; }catch{ return null; } }
+// Agreement rate cache: how often the learned shadow model agrees with Sonnet's verdict.
+// Refreshed at most once per 30 s, in the background, exactly like refreshInfraHero.
+let agreementCache=null, _agreementPromoted=false, _agreementPromotionState=null, _agreementAt=0, _agreementBusy=false;
+let economyCache=null, _economyAt=0, _economyBusy=false;
+async function refreshEconomy(){
+  if(_economyBusy||Date.now()-_economyAt<30000) return;
+  _economyBusy=true; _economyAt=Date.now();
+  try{
+    const d=await(await dfetch('/metrics/economy')).json();
+    if(d&&d.ok){ economyCache=d.economy; }
+  }catch{}finally{ _economyBusy=false; }
+}
+async function refreshAgreement(){
+  if(_agreementBusy||Date.now()-_agreementAt<30000) return;
+  _agreementBusy=true; _agreementAt=Date.now();
+  try{
+    const d=await(await dfetch('/metrics/agreement')).json();
+    if(d&&d.ok){
+      agreementCache=d.agreement;
+      _agreementPromoted=!!d.promoted;
+      _agreementPromotionState=d.promotionState||null;
+    }
+  }catch{}finally{ _agreementBusy=false; }
+}
 // Fetch cron totals periodically and update infra hero
 let _infraAt=0, _infraBusy=false;
 async function refreshInfraHero(){

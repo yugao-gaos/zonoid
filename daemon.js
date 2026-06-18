@@ -1585,7 +1585,9 @@ function scoreMatchesSemantic(g, target, targetVec) {
 // than lexical token-overlap (related prose lands ~0.4–0.7 cosine, where it scored ~0 lexically), so
 // the lexical 0.25 bar is wrong here — it would wire nearly everything into a clique. Tuned on the
 // post-backfill cloude corpus (128 notes); see STEP 2. Used only by the semantic note-wiring path.
-const SEMANTIC_AUTOWIRE_THRESHOLD = 0.55;
+// ENV OVERRIDE: ORCH_AUTOWIRE_THRESHOLD (bench daemons set this to ~0 so the eager-judge sees the
+// full top-K reranked pool instead of a cosine cutoff; production stays at 0.55 by default).
+const SEMANTIC_AUTOWIRE_THRESHOLD = parseFloat(process.env.ORCH_AUTOWIRE_THRESHOLD || '0.55') || 0.55;
 // Auto-wire a NOTE as a context PROVIDER: write weighted context edges (note -> neighbor) so the
 // note's summary flows INTO each relevant open task instead of the note sitting as an orphan root.
 // The note FEEDS existing consumers (the inverse of a consumer pulling in providers). `g` is the rebuilt graph; the note need not be in `g` yet (we build
@@ -1665,7 +1667,13 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
       scored = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= threshold);
     }
   } else {
-    scored = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= threshold);
+    // ORCH_AUTOWIRE_K: optional top-K cap on the cosine pool BEFORE the per-kind fan-out.
+    // When ORCH_AUTOWIRE_THRESHOLD=0 (bench mode), the cosine filter is effectively disabled;
+    // ORCH_AUTOWIRE_K bounds cost by capping how many candidates reach the judge (default:
+    // no cap in production, preserving existing behaviour; bench sets it to 20 via daemon.py).
+    const awK = parseInt(process.env.ORCH_AUTOWIRE_K || '0', 10) || 0;
+    const allScored = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= threshold);
+    scored = awK > 0 ? allScored.slice(0, awK) : allScored;
   }
   const isNote = (k) => typeof k === 'string' && k.startsWith('note:');
   const notes = scored.filter((m) => isNote(m.key)).slice(0, TASK_CREATE_FANOUT);

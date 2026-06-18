@@ -147,9 +147,18 @@ UNIT_HARNESS: str = os.environ.get("ZONOID_BENCH_UNIT_HARNESS", "bench")
 # ---------------------------------------------------------------------------
 
 _ANSWER_TEMPLATE = (
-    "Answer the question using ONLY the context provided below. Be concise — reply with just "
-    "the answer (a short phrase or sentence), no explanation. If the context does not contain "
-    "the answer, reply exactly: I don't know.\n\n"
+    "Answer the question using ONLY the context provided below.\n\n"
+    "Rules:\n"
+    "1. Give the SPECIFIC fact (a name, date, place, number, or short phrase) — NOT a generic "
+    "relational answer like 'the person mentioned' or 'what was discussed'.\n"
+    "2. Answer from PARAPHRASED evidence: if the fact is clearly present in the context but "
+    "stated in different words, still extract and state the specific answer — do NOT say "
+    "'I don't know' just because the wording differs from the question.\n"
+    "3. RESOLVE relative time expressions (e.g. 'yesterday', 'last week', 'this month', "
+    "'next Tuesday') against any 'Session date:' line present in the context. Convert them "
+    "to the actual calendar date or month in your answer.\n"
+    "4. Reply with ONLY the answer — a short phrase or sentence, no explanation.\n"
+    "5. If the answer truly cannot be determined from the context, reply exactly: I don't know.\n\n"
     "CONTEXT:\n{context}\n\n"
     "QUESTION: {question}\n\n"
     "ANSWER:"
@@ -665,18 +674,29 @@ def run_retrieve_and_answer(
     task_summary: Optional[str] = None,
     data_dir: Optional[str] = None,
     model: Optional[str] = None,
+    rag_k: int = 5,
 ) -> ArmResult:
-    """ON arm, executor (b): wire the DAG for the unit, read the wired context, answer via claude_p.
+    """ON arm, executor (b): wire the DAG + RAG fill, read combined context, answer via claude_p.
 
     For QA benches that can't spawn a real agent per probe (500+ units). The unit is minted as a
     TASK PROBE so the read comes cleanly off GET /task/context; the question itself is the task
     summary (so autowire ranks NOTE providers against the question's embedding and the eager judge
-    keeps/prunes them). The answer is then produced by a tool-less ``claude -p`` over ONLY the
-    eager-judge-KEPT context summaries.
+    keeps/prunes them).
+
+    After the DAG wiring step we ALSO run a RAG search (/search with the question, note-only via
+    _is_note_hit filter) to catch relevant session notes that fell below the 0.55 autowire seed
+    threshold — the DAG tier alone misses sub-0.55 evidence.  We dedupe by note key and tag
+    DAG-vs-RAG provenance in the diagnostics on the returned WiringResult.
+
+    The combined (DAG-kept + RAG-fill) context blocks are injected into the answer prompt.  The
+    answerer remains tool-less/MCP-off: WE retrieve and inject; the answer agent calls no tools.
+
+    Mirrors production search_knowledge(task_key) = DAG tier + RAG fill.
 
     *task_summary* defaults to *question* (the FB convention — embed against the unit's text).
     *data_dir* is required (the file-drop stub destination); defaults to CLAUDE_PLUGIN_DATA or the
     standard orchestrator data dir.
+    *rag_k* is the top-k for the RAG fill search (default 5).
     """
     summary = task_summary or question
     dd = data_dir or os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.join(
@@ -684,13 +704,46 @@ def run_retrieve_and_answer(
     )
     wiring = run_canonical_wiring(client, unit_id, summary, data_dir=dd)
     ctx_deps = read_wired_context(client, wiring.task_key)
-    context_blocks = [str(d.get("summary") or "") for d in ctx_deps]
+
+    # --- DAG tier (eager-judge kept edges) ---
+    dag_keys: set[str] = set()
+    context_blocks: list[str] = []
+    all_context_keys: list[str] = []
+    for d in ctx_deps:
+        key = d.get("key") or ""
+        text = str(d.get("summary") or "")
+        if text.strip():
+            context_blocks.append(f"[DAG] {text}")
+        if key:
+            dag_keys.add(key)
+            all_context_keys.append(key)
+
+    # --- RAG fill (semantic search, note-only, dedupe against DAG tier) ---
+    rag_keys: list[str] = []
+    try:
+        raw_hits = client.search(question, k=rag_k * 3, gated=False)
+        note_hits = [h for h in raw_hits if _is_note_hit(h)][:rag_k]
+        for h in note_hits:
+            key = h.get("key") or ""
+            if key and key not in dag_keys:
+                text = str(h.get("summary") or "")
+                if text.strip():
+                    context_blocks.append(f"[RAG] {text}")
+                    rag_keys.append(key)
+                    all_context_keys.append(key)
+    except Exception as exc:  # noqa: BLE001 — RAG fill is best-effort
+        print(f"[arms] RAG fill search failed (non-fatal): {exc}", file=sys.stderr)
+
+    # Record RAG fill provenance on the wiring result for diagnostics.
+    if wiring is not None:
+        wiring.search_hits = list(dag_keys) + rag_keys  # dag kept + rag fill, for provenance
+
     predicted = _answer_from_context(question, context_blocks, model)
     return ArmResult(
         arm="on",
         mode="retrieve_and_answer",
         predicted=predicted,
-        context_keys=[d.get("key") for d in ctx_deps if d.get("key")],
+        context_keys=all_context_keys,
         wiring=wiring,
     )
 

@@ -50,6 +50,45 @@ async function orchPost(path, body) {
   return res.json();
 }
 
+async function checkShouldStop({ sessionID, agentId, workspace, get = orchGet } = {}) {
+  const session = sessionID ? String(sessionID) : '';
+  if (!session) return null;
+
+  const params = new URLSearchParams();
+  params.set('session', session);
+  params.set('agent', agentId ? String(agentId) : `opencode-${session.slice(0, 8)}`);
+  if (workspace) params.set('workspace', String(workspace));
+
+  let verdict;
+  try {
+    verdict = await get(`/should-stop?${params.toString()}`);
+  } catch {
+    return null;
+  }
+
+  if (verdict && verdict.stop === true) {
+    const reason = verdict.reason ? String(verdict.reason) : 'orchestrator requested stop';
+    throw new Error(`orch-stop: ${reason}`);
+  }
+  return verdict || null;
+}
+
+async function nudgeReady({ sessionID, workspace, get = orchGet } = {}) {
+  const session = sessionID ? String(sessionID) : '';
+  const ws = workspace ? String(workspace) : '';
+  if (!session && !ws) return null;
+
+  const params = new URLSearchParams();
+  if (session) params.set('session', session);
+  if (ws) params.set('workspace', ws);
+
+  try {
+    return await get(`/ready?${params.toString()}`);
+  } catch {
+    return null;
+  }
+}
+
 function hookInputFromToolArgs(tool, args) {
   const input = (args && typeof args === 'object') ? { ...args } : {};
   if (input.file_path == null) {
@@ -133,4 +172,4 @@ async function gateWriteTool(sessionID, tool, args) {
   throw new Error(msg);
 }
 
-module.exports = { WRITE_TOOLS, orchPost, gateWriteTool };
+module.exports = { WRITE_TOOLS, orchPost, checkShouldStop, nudgeReady, gateWriteTool };
