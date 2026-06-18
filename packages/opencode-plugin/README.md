@@ -54,7 +54,22 @@ OpenCode runs `bun install` in `.opencode/` at startup.
 | `CLAUDE_PLUGIN_DATA` | `~/.claude/orchestrator` | File-drop root (same as daemon) |
 | `ZONOID_ROOT` | `~/.claude/orchestrator` fallback | Zonoid install root; required for copied OpenCode plugins that are not symlinked by the CLI |
 
-5. Wire orchestrator MCP in `opencode.json` (stdio transport) so agents can `branch_task` / `start_task` / `complete_task` after minting.
+5. Wire orchestrator MCP in `opencode.json` so agents can `branch_task` / `start_task` / `complete_task` after minting. `npx @zonoid/cli init --harness opencode` writes this automatically; manual installs should add:
+
+```json
+{
+  "mcp": {
+    "orchestrator-graph": {
+      "type": "local",
+      "command": ["node", "/path/to/zonoid/mcp-graph.js"],
+      "enabled": true,
+      "environment": {
+        "ORCH_CLIENT": "opencode"
+      }
+    }
+  }
+}
+```
 
 6. Restart OpenCode. The plugin loads from `.opencode/plugins/` automatically.
 

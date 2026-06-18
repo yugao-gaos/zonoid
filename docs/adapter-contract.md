@@ -104,23 +104,27 @@ which file each harness's wiring writes — picked so two harnesses never fight 
 |---|---|---|---|
 | `~/.codex/config.toml` → `[mcp_servers.orchestrator-graph]` | **codex** | `writeCodexMcp()` (TOML merge) | Codex's MCP server identity + `ORCH_CLIENT=codex` |
 | `~/.codex/hooks.json` | **codex** | `checkCodexHooks()` | Codex relay hooks |
-| `<cwd>/.mcp.json` → `mcpServers["orchestrator-graph"]` | **claude**, **cursor**, **opencode** | `bin/install.js installMcp` (claude) / `writeMcp()` (cursor, opencode) — both **MERGE** | The MCP server for JSON-config harnesses; cursor's entry adds `ORCH_CLIENT=cursor` |
+| `<cwd>/opencode.json` → `mcp["orchestrator-graph"]` | **opencode** | `writeOpencodeMcp()` (JSON merge) | OpenCode's native MCP server identity + `ORCH_CLIENT=opencode` |
+| `<cwd>/.mcp.json` → `mcpServers["orchestrator-graph"]` | **claude**, **cursor** | `bin/install.js installMcp` (claude) / `writeMcp()` (cursor) — both **MERGE** | The MCP server for `.mcp.json` harnesses; cursor's entry adds `ORCH_CLIENT=cursor` |
 | `<cwd>/.claude/settings.json` | **claude** | `bin/install.js installSettings` | Claude hooks + statusLine + MCP allow-list |
 | `<cwd>/CLAUDE.md` | **claude** | `checkClaude()` | Orchestrator workspace instructions |
 | `<cwd>/.cursor/hooks.json` | **cursor** | `checkCursorHooks()` | Cursor relay hooks |
 | `<cwd>/.opencode/plugins/*`, `<cwd>/.opencode/package.json` | **opencode** | `checkOpencodePlugin()` | OpenCode plugin + deps |
 
-**Key split — Codex's MCP store is `config.toml`, not `.mcp.json`.** Codex reads MCP servers from
-`~/.codex/config.toml` under `[mcp_servers.*]`; the repo `.mcp.json` is the store for
-**claude / cursor / opencode** only. Earlier builds wrote Codex's server into `<cwd>/.mcp.json`,
-which (a) Codex never reads and (b) clobbered the Claude/Cursor entry on a second `init` — both
-fixed by routing Codex to its native TOML store and making **every** `.mcp.json` writer a
-read-modify-write merge (`mcpServers["orchestrator-graph"]` set; sibling servers preserved).
+**Key split — each non-Claude-native MCP store stays native.** Codex reads MCP servers from
+`~/.codex/config.toml` under `[mcp_servers.*]`; OpenCode reads project MCP servers from
+`opencode.json` under `mcp`; the repo `.mcp.json` is the store for **claude / cursor** only.
+Earlier builds wrote Codex's server into `<cwd>/.mcp.json`, which Codex never reads and which
+clobbered the Claude/Cursor entry on a second `init`; that was fixed by routing Codex to its
+native TOML store. OpenCode is likewise routed to `opencode.json`. All writers are
+read-modify-write merges that set only their `orchestrator-graph` entry and preserve sibling
+servers/config.
 
 **Coexistence invariants:**
-- One repo, two client identities: Claude's server lives in `.mcp.json` (no `ORCH_CLIENT`),
-  Codex's lives in `config.toml` with `ORCH_CLIENT=codex`. They never collide because they are
-  different files.
+- One repo, multiple client identities: Claude's server lives in `.mcp.json` (no `ORCH_CLIENT`),
+  Cursor's lives in `.mcp.json` with `ORCH_CLIENT=cursor`, Codex's lives in `config.toml` with
+  `ORCH_CLIENT=codex`, and OpenCode's lives in `opencode.json` with `ORCH_CLIENT=opencode`.
+  They never collide because each native store owns only its own entry.
 - All writers are **idempotent merges**: re-running any harness's init replaces only its own
   `orchestrator-graph` entry and backs the file up once (`*.bak`); user-added MCP servers and
   unrelated config survive.
