@@ -4,7 +4,8 @@
   "session_id": "featurizer-session-001",
   "workspace": "D:/zonoid",
   "branch": "orch/attempt/d08e0c33-36f1-49a6-b946-dff7dff71c5c-2",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T10:54:17.142Z",
-  "lease_until": "2026-06-18T11:54:17.142Z"
+  "lease_until": "2026-06-18T11:54:17.142Z",
+  "completed_at": "2026-06-18T10:57:46.309Z"
 }
