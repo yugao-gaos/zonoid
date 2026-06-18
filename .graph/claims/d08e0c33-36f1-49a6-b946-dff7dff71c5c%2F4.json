@@ -1,0 +1,10 @@
+{
+  "task_key": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/4",
+  "agent_id": "shadow-runner-worker",
+  "session_id": "680e9dd1-876a-4bc4-9267-d218ff5d33c2",
+  "workspace": "D:/zonoid",
+  "branch": "orch/attempt/d08e0c33-36f1-49a6-b946-dff7dff71c5c-4",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T11:22:12.779Z",
+  "lease_until": "2026-06-18T12:22:12.779Z"
+}
