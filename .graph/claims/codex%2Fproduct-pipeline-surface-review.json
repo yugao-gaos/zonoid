@@ -4,7 +4,8 @@
   "session_id": "019edacd-c3c3-7d83-9c87-c103b54074c6",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-product-pipeline-surface-review",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T12:57:02.611Z",
-  "lease_until": "2026-06-18T13:57:02.611Z"
+  "lease_until": "2026-06-18T13:57:02.611Z",
+  "completed_at": "2026-06-18T13:02:20.796Z"
 }
