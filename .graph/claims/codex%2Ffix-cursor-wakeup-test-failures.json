@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/fix-cursor-wakeup-test-failures",
+  "agent_id": "worker-fix-cursor-wakeup-test-failures",
+  "session_id": "worker-fix-cursor-wakeup-test-failures-session",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-fix-cursor-wakeup-test-failures",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T04:02:09.394Z",
+  "lease_until": "2026-06-18T05:02:09.394Z"
+}
