@@ -335,17 +335,29 @@ def load_longmemeval(data_dir: str, variant: str = "oracle") -> list[dict]:
 
         # Sessions from haystack_sessions
         raw_sessions = item.get("haystack_sessions") or item.get("sessions") or []
+        # haystack_dates is parallel to haystack_sessions in the real cleaned dataset
+        haystack_dates = item.get("haystack_dates") or []
         sessions: list[dict] = []
         for s_idx, sess in enumerate(raw_sessions):
-            s_id = str(sess.get("session_id") or sess.get("id") or s_idx)
-            date = sess.get("date") or sess.get("timestamp") or None
-            raw_turns = (
-                sess.get("content")
-                or sess.get("turns")
-                or sess.get("messages")
-                or sess.get("conversation")
-                or []
-            )
+            # Real cleaned LongMemEval-S: haystack_sessions is a list of turn-lists
+            # (each session is a plain list of {role, content} dicts) with dates in
+            # the parallel haystack_dates list.
+            if isinstance(sess, list):
+                # Real format: sess is a list of turn dicts {role, content}
+                date = haystack_dates[s_idx] if s_idx < len(haystack_dates) else None
+                raw_turns = sess
+            elif isinstance(sess, dict):
+                # Standard format: sess is a dict with session_id, date, content/turns
+                date = sess.get("date") or sess.get("timestamp") or None
+                raw_turns = (
+                    sess.get("content")
+                    or sess.get("turns")
+                    or sess.get("messages")
+                    or sess.get("conversation")
+                    or []
+                )
+            else:
+                continue
             sessions.append({
                 "idx": s_idx,
                 "date": str(date) if date is not None else None,

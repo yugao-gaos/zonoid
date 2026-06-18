@@ -209,6 +209,7 @@ class ConversationIngester:
             formatted = _format_turns(turns)
             parts = _split_into_parts(formatted, self.note_budget)
 
+            date_prefix = f"Session date: {date}\n"
             session_notes: list[dict[str, str]] = []
             date_prefix = f"Session date: {date}\n"
             for part_idx, part_text in enumerate(parts):
