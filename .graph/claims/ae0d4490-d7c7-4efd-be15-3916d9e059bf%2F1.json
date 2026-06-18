@@ -4,7 +4,8 @@
   "session_id": "019edcf1-0d13-7d92-92d2-3f15d326560f",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/ae0d4490-d7c7-4efd-be15-3916d9e059bf-1",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T22:55:43.460Z",
-  "lease_until": "2026-06-18T23:55:43.460Z"
+  "lease_until": "2026-06-18T23:55:43.460Z",
+  "completed_at": "2026-06-18T23:00:45.566Z"
 }
