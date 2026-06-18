@@ -70,6 +70,13 @@ try {
   ok('conflict identifies winning agent', cb.claim && cb.claim.agent_id === 'alice', JSON.stringify(cb.claim));
   ok('default mode treats conflicts as advisory to the caller', cb.conflict === true && claims.claimModeStrict({ config: {} }) === false);
 
+  const fsMissing = claims.finalize(b, task, { status: 'tested', strict: true });
+  ok('strict finalize without agent id rejects another live remote claim', fsMissing.ok === false && fsMissing.conflict === true && fsMissing.claim && fsMissing.claim.agent_id === 'alice', JSON.stringify(fsMissing));
+  const fsNull = claims.finalize(b, task, { agentId: null, status: 'tested', strict: true });
+  ok('strict finalize with null agent id rejects another live remote claim', fsNull.ok === false && fsNull.conflict === true && fsNull.claim && fsNull.claim.agent_id === 'alice', JSON.stringify(fsNull));
+  const stillClaimed = JSON.parse(git(b, ['show', `origin/main:${claims.claimRelPath(task)}`]));
+  ok('strict finalize without owner preserves remote live claim', stillClaimed.status === 'claimed' && stillClaimed.agent_id === 'alice', JSON.stringify(stillClaimed));
+
   const cbSame = claims.acquire(b, task, { agentId: 'alice', sessionId: 'sess-a', workspace: b, branch: 'orch/attempt/shared-task-1', leaseMinutes: 30 });
   ok('same agent can observe its own live remote claim', cbSame.ok === true && cbSame.already_claimed === true, JSON.stringify(cbSame));
   const fa = claims.finalize(a, task, { agentId: 'alice', status: 'tested' });
