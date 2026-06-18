@@ -4,7 +4,8 @@
   "session_id": "worker-u7-workspaces-test-finalize",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/followup-u7-update-workspaces-daemon-test-js-for--d0n3",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T21:09:51.169Z",
-  "lease_until": "2026-06-18T22:09:51.169Z"
+  "lease_until": "2026-06-18T22:09:51.169Z",
+  "completed_at": "2026-06-18T21:10:46.595Z"
 }
