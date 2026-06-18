@@ -70,7 +70,7 @@ async function waitForPing(ms = 8000) {
 
     // Register workspace B (P3: setWorkspace registers + binds, it sets NO daemon-global default).
     const pin = await req('POST', '/workspace', { path: WS_B });
-    ok('workspace B registered', pin.status === 200 && pin.body.workspace === WS_B);
+    ok('workspace B registered', pin.status === 200 && pin.body.ok === true);
 
     // --- cross-workspace WRITES: body.workspace = A while another session registered B -------
     // note (record_decision)

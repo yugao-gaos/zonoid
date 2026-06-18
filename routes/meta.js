@@ -114,7 +114,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // — i.e. b.path is genuinely nested inside an existing repo — so a fresh top-level workspace dir is
     // never silently re-homed onto a stray ancestor marker.
     const resolvedRoot = repoRoot(b.path);
-    const norm = (s) => path.resolve(s).replace(/[/\\]+$/, '');
+    const norm = (s) => {
+      const resolved = path.resolve(s).replace(/[/\\]+$/, '');
+      try { return fs.realpathSync(resolved).replace(/[/\\]+$/, ''); }
+      catch { return resolved; }
+    };
     // Climb ONLY when repoRoot found a STRICT ancestor (b.path is genuinely nested in a repo) and that
     // ancestor is not a filesystem "container" root (system temp / home / fs root) — an incidental
     // `.graph`/`.git` left in such a container must never re-home a fresh top-level workspace dir.

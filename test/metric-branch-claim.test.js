@@ -59,6 +59,25 @@ async function waitForPing(ms = 8000) {
   return false;
 }
 
+function stopChild(child) {
+  return new Promise((resolve) => {
+    if (!child || child.exitCode !== null) return resolve();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(killTimer);
+      resolve();
+    };
+    const killTimer = setTimeout(() => {
+      try { child.kill('SIGKILL'); } catch { /* already gone */ }
+      finish();
+    }, 1500);
+    child.once('exit', finish);
+    try { child.kill('SIGTERM'); } catch { finish(); }
+  });
+}
+
 (async () => {
   git.initRepo(WS);
   fs.mkdirSync(PROJ_DIR, { recursive: true });
@@ -110,7 +129,7 @@ async function waitForPing(ms = 8000) {
     const plainClaim = await req('POST', '/overlay/status', { key: K(2), status: 'in_progress', agent_id: 'test-agent', session_id: WORKER_SID, workspace: WS });
     ok('task without metric claims on main branch', plainClaim.status === 200 && plainClaim.body.ok === true);
   } finally {
-    try { child.kill(); } catch { /* already gone */ }
+    await stopChild(child);
     fs.rmSync(TASKS_DIR, { recursive: true, force: true });
     fs.rmSync(PROJ_DIR, { recursive: true, force: true });
     fs.rmSync(SANDBOX, { recursive: true, force: true });

@@ -427,51 +427,123 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('claimed session: every redirect target inside claimed worktrees → exit 0', r.status === 0);
 }
 
+// 40. Claimed session: tee target outside every worktree → denied
+{
+  const r = runWithConfig(
+    mkInput('printf ok | tee /Users/x/outside-tee.txt'),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: tee outside worktree → exit 2', r.status === 2);
+  ok('claimed session: tee message names outside path', r.stderr.includes('/Users/x/outside-tee.txt'));
+}
+
+// 41. Claimed session: tee target inside a worktree → allowed
+{
+  const r = runWithConfig(
+    mkInput(`printf ok | tee ${WT_A}/inside-tee.txt`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: tee inside worktree → exit 0', r.status === 0);
+}
+
+// 42. Claimed session: pathlib write_text outside every worktree → denied
+{
+  const r = runWithConfig(
+    mkInput('python3 -c "from pathlib import Path; Path(\'/Users/x/outside-python.txt\').write_text(\'x\')"'),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: pathlib write_text outside worktree → exit 2', r.status === 2);
+  ok('claimed session: pathlib message names outside path', r.stderr.includes('/Users/x/outside-python.txt'));
+}
+
+// 43. Claimed session: pathlib write_text inside a worktree → allowed
+{
+  const r = runWithConfig(
+    mkInput(`python3 -c "from pathlib import Path; Path('${WT_A}/inside-python.txt').write_text('x')"`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: pathlib write_text inside worktree → exit 0', r.status === 0);
+}
+
+// 44. Claimed session: open(..., "w") outside every worktree → denied
+{
+  const r = runWithConfig(
+    mkInput('python3 -c "open(\'/Users/x/outside-open.txt\', \'w\').write(\'x\')"'),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: open write outside worktree → exit 2', r.status === 2);
+}
+
+// 45. Claimed session: sed -i target outside every worktree → denied
+{
+  const r = runWithConfig(
+    mkInput("sed -i '' 's/foo/bar/' /Users/x/outside-sed.txt"),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: sed -i outside worktree → exit 2', r.status === 2);
+  ok('claimed session: sed message names outside path', r.stderr.includes('/Users/x/outside-sed.txt'));
+}
+
+// 46. Claimed session: sed -i target inside a worktree → allowed
+{
+  const r = runWithConfig(
+    mkInput(`sed -i '' 's/foo/bar/' ${WT_A}/inside-sed.txt`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: sed -i inside worktree → exit 0', r.status === 0);
+}
+
+// 47. Read-only search containing "install" must not trip the install write detector
+{
+  const r = runBlocked('rg -n "install" bin/install.js');
+  ok('read-only rg install query → no write pattern → exit 0', r.status === 0);
+}
+
 // ── PowerShell write-pattern regression tests ───────────────────────────────
 
-// 40. PowerShell Set-Content → blocked for unclaimed subagent
+// 48. PowerShell Set-Content → blocked for unclaimed subagent
 {
   const r = runBlocked('Set-Content -Path /Users/x/proj/main.txt -Value hi');
   ok('PowerShell Set-Content to non-exempt path → exit 2', r.status === 2);
 }
 
-// 41. PowerShell Add-Content alias → blocked for unclaimed subagent
+// 49. PowerShell Add-Content alias → blocked for unclaimed subagent
 {
   const r = runBlocked('ac /Users/x/proj/main.txt hi');
   ok('PowerShell ac alias to non-exempt path → exit 2', r.status === 2);
 }
 
-// 42. PowerShell Out-File positional target → blocked for unclaimed subagent
+// 50. PowerShell Out-File positional target → blocked for unclaimed subagent
 {
   const r = runBlocked("'hi' | Out-File /Users/x/proj/out.txt");
   ok('PowerShell Out-File positional target → exit 2', r.status === 2);
 }
 
-// 43. PowerShell New-Item → blocked for unclaimed subagent
+// 51. PowerShell New-Item → blocked for unclaimed subagent
 {
   const r = runBlocked('New-Item -Path /Users/x/proj/new.txt -ItemType File');
   ok('PowerShell New-Item to non-exempt path → exit 2', r.status === 2);
 }
 
-// 44. PowerShell Copy-Item destination → blocked for unclaimed subagent
+// 52. PowerShell Copy-Item destination → blocked for unclaimed subagent
 {
   const r = runBlocked('Copy-Item /tmp/src.txt /Users/x/proj/dest.txt');
   ok('PowerShell Copy-Item destination → exit 2', r.status === 2);
 }
 
-// 45. PowerShell Move-Item -Destination → blocked for unclaimed subagent
+// 53. PowerShell Move-Item -Destination → blocked for unclaimed subagent
 {
   const r = runBlocked('Move-Item -Path /tmp/src.txt -Destination /Users/x/proj/dest.txt');
   ok('PowerShell Move-Item -Destination → exit 2', r.status === 2);
 }
 
-// 46. PowerShell Remove-Item alias with switches → blocked for unclaimed subagent
+// 54. PowerShell Remove-Item alias with switches → blocked for unclaimed subagent
 {
   const r = runBlocked('rm -Recurse -Force /Users/x/proj/dead');
   ok('PowerShell rm alias with switches → exit 2', r.status === 2);
 }
 
-// 47. PowerShell Set-Content inside a claimed worktree → allowed
+// 55. PowerShell Set-Content inside a claimed worktree → allowed
 {
   const r = runWithConfig(
     mkInput(`Set-Content -Path ${WT_A}/ps.txt -Value ok`),
@@ -480,7 +552,7 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('claimed session: PowerShell Set-Content inside worktree → exit 0', r.status === 0);
 }
 
-// 48. PowerShell mixed inside/outside targets separated by semicolon → denied
+// 56. PowerShell mixed inside/outside targets separated by semicolon → denied
 {
   const r = runWithConfig(
     mkInput(`Set-Content -Path ${WT_A}/inside.txt -Value ok; Add-Content -Path /Users/x/outside.txt -Value no`),
@@ -490,7 +562,7 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('claimed session: PowerShell semicolon message names outside path', r.stderr.includes('/Users/x/outside.txt'));
 }
 
-// 49. PowerShell mixed inside/outside targets separated by && → denied
+// 57. PowerShell mixed inside/outside targets separated by && → denied
 {
   const r = runWithConfig(
     mkInput(`Set-Content ${WT_A}/inside.txt ok && Add-Content /Users/x/outside-and.txt no`),
@@ -500,7 +572,7 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('claimed session: PowerShell && message names outside path', r.stderr.includes('/Users/x/outside-and.txt'));
 }
 
-// 50. PowerShell mixed inside/outside targets separated by || → denied
+// 58. PowerShell mixed inside/outside targets separated by || → denied
 {
   const r = runWithConfig(
     mkInput(`Set-Content ${WT_A}/inside.txt ok || Add-Content /Users/x/outside-or.txt no`),
@@ -510,7 +582,7 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('claimed session: PowerShell || message names outside path', r.stderr.includes('/Users/x/outside-or.txt'));
 }
 
-// 51. PowerShell mixed inside/outside targets separated by single & → denied
+// 59. PowerShell mixed inside/outside targets separated by single & → denied
 {
   const r = runWithConfig(
     mkInput(`Set-Content ${WT_A}/inside.txt ok & Add-Content /Users/x/outside-amp.txt no`),
@@ -520,7 +592,7 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('claimed session: PowerShell single & message names outside path', r.stderr.includes('/Users/x/outside-amp.txt'));
 }
 
-// 52. PowerShell Copy-Item compound command keeps each destination across && → denied
+// 60. PowerShell Copy-Item compound command keeps each destination across && → denied
 {
   const r = runWithConfig(
     mkInput(`Copy-Item /tmp/a.txt /Users/x/outside-copy.txt && Copy-Item /tmp/b.txt ${WT_A}/inside.txt`),
@@ -530,13 +602,13 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('claimed session: PowerShell Copy-Item && message names outside path', r.stderr.includes('/Users/x/outside-copy.txt'));
 }
 
-// 53. PowerShell all-stream redirect target → blocked for unclaimed subagent
+// 61. PowerShell all-stream redirect target → blocked for unclaimed subagent
 {
   const r = runBlocked('Write-Output hi *> /Users/x/proj/ps-redirect.txt');
   ok('PowerShell *> redirect to non-exempt path → exit 2', r.status === 2);
 }
 
-// 54. PowerShell redirect inside a claimed worktree → allowed
+// 62. PowerShell redirect inside a claimed worktree → allowed
 {
   const r = runWithConfig(
     mkInput(`Write-Output ok *> ${WT_A}/ps-redirect.txt`),
@@ -545,7 +617,7 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('claimed session: PowerShell redirect inside worktree → exit 0', r.status === 0);
 }
 
-// 55. PowerShell pipe boundary keeps mixed targets separate → denied
+// 63. PowerShell pipe boundary keeps mixed targets separate → denied
 {
   const r = runWithConfig(
     mkInput(`Set-Content ${WT_A}/inside.txt ok | Add-Content /Users/x/outside-pipe.txt no`),

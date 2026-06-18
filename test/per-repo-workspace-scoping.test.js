@@ -68,9 +68,9 @@ async function waitForPing(ms = 10000) {
   try {
     ok('sandboxed daemon came up', await waitForPing());
 
-    // Pin the daemon-global workspace to B (simulates "another session won the pin race").
+    // Register workspace B first (simulates another session registering a different workspace).
     const pinB = await req('POST', '/workspace', { path: WS_B });
-    ok('workspace pinned to B (daemon global)', pinB.status === 200 && pinB.body.workspace === WS_B);
+    ok('workspace B registered', pinB.status === 200 && pinB.body.ok === true);
 
     // ── Seed agents in two different workspaces ──────────────────────────────────
     // Agent in workspace A

@@ -228,8 +228,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
     }
     if (b.status === 'in_progress' && T.ov.metrics && T.ov.metrics[b.key]) {
-      const branch = git.currentBranch(T.ws);
-      if (!branch || !branch.startsWith('orch/attempt/')) {
+      const gitInfo = T.ov.git && T.ov.git[b.key];
+      const wt = gitInfo && gitInfo.worktree;
+      const branch = wt ? git.currentBranch(wt) : null;
+      if (!wt || !branch || branch !== gitInfo.branch || !branch.startsWith('orch/attempt/')) {
         send(res, 409, { ok: false, error: 'self-learning mode: task has a metric spec — call branch_task first before editing' }); return true;
       }
     }

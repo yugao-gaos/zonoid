@@ -147,6 +147,50 @@ function isCommandBoundary(t) {
   return t === ';' || t === '|' || t === '&&' || t === '||' || t === '&';
 }
 
+function isRedirectToken(t) {
+  return /^[0-9]*>>?/.test(String(t || '')) || /^[0-9]*\*?>/.test(String(t || ''));
+}
+
+function isAssignmentToken(t) {
+  return /^[A-Za-z_][A-Za-z0-9_]*=/.test(String(t || ''));
+}
+
+const COMMAND_WRAPPERS = new Set(['sudo', 'command', 'builtin', 'env', 'noglob']);
+
+function shellCommandIndices(toks) {
+  const out = [];
+  let expect = true;
+  for (let i = 0; i < toks.length; i++) {
+    if (isCommandBoundary(toks[i])) {
+      expect = true;
+      continue;
+    }
+    if (!expect) continue;
+    let j = i;
+    while (j < toks.length && !isCommandBoundary(toks[j])) {
+      const candidate = cleanToken(toks[j]).toLowerCase();
+      if (COMMAND_WRAPPERS.has(candidate) || isAssignmentToken(candidate)) {
+        j++;
+        continue;
+      }
+      out.push(j);
+      break;
+    }
+    expect = false;
+  }
+  return out;
+}
+
+function commandName(tok) {
+  const raw = cleanToken(tok).toLowerCase();
+  return raw.split(/[\\/]/).pop();
+}
+
+function hasShellCommand(cmdNoComment, names) {
+  const toks = tokenizeShellCommand(cmdNoComment);
+  return shellCommandIndices(toks).some((i) => names.has(commandName(toks[i])));
+}
+
 const PS_PATH_OPTIONS = new Set(['-path', '-literalpath', '-filepath', '-destination']);
 const PS_SKIP_VALUE_OPTIONS = new Set([
   '-value', '-itemtype', '-type', '-encoding', '-filter', '-include', '-exclude',
@@ -208,16 +252,123 @@ function collectPowerShellTargets(cmdNoComment) {
 
 function hasBashWritePattern(cmd) {
   const cmdRedir = cmd.replace(/'[^']*'/g, 'Q').replace(/"[^"]*"/g, 'Q');
+  const cmdNoComment = String(cmd || '').replace(/[ \t]#.*$/m, '');
   return (
     /(^|[^A-Za-z0-9._@-])(>>?)\s*[^/\s&0-9]/.test(cmdRedir) ||
     /(>>?)\s*\/(?!dev\/null)/.test(cmdRedir) ||
-    /\btee\b/.test(cmd) ||
+    hasShellCommand(cmdNoComment, new Set(['tee'])) ||
     /open\s*\(.*['"]([wWaA]|[wWaA]b)['"]|\.write(_text|_bytes)?\s*\(|\.touch\s*\(/.test(cmd) ||
-    /\b(cp|mv|rsync|install)\b/.test(cmd) ||
+    hasShellCommand(cmdNoComment, new Set(['cp', 'mv', 'rsync', 'install'])) ||
     /\bdd\b.*\bof=/.test(cmd) ||
-    /\bsed\b.*-i/.test(cmd) ||
+    (hasShellCommand(cmdNoComment, new Set(['sed'])) && /(^|\s)-i(\s|[A-Za-z0-9._-])/.test(cmdNoComment)) ||
     tokenizeShellCommand(cmd).some(isPowerShellWriteCommand)
   );
+}
+
+function collectCommandDestTargets(cmdNoComment, names) {
+  const toks = tokenizeShellCommand(cmdNoComment);
+  const targets = [];
+  for (const idx of shellCommandIndices(toks)) {
+    if (!names.has(commandName(toks[idx]))) continue;
+    const positional = [];
+    for (let j = idx + 1; j < toks.length; j++) {
+      const raw = toks[j];
+      if (isCommandBoundary(raw)) break;
+      const tok = cleanToken(raw);
+      const lower = tok.toLowerCase();
+      if (isRedirectToken(lower)) {
+        if (/^[0-9]*\*?>?$/.test(lower) && j + 1 < toks.length && !isCommandBoundary(toks[j + 1])) j++;
+        continue;
+      }
+      if (lower === '--') continue;
+      if (lower.startsWith('-')) continue;
+      positional.push(tok);
+    }
+    if (positional.length) targets.push(positional[positional.length - 1]);
+  }
+  return targets;
+}
+
+function collectTeeTargets(cmdNoComment) {
+  const toks = tokenizeShellCommand(cmdNoComment);
+  const targets = [];
+  for (const idx of shellCommandIndices(toks)) {
+    if (commandName(toks[idx]) !== 'tee') continue;
+    for (let j = idx + 1; j < toks.length; j++) {
+      const raw = toks[j];
+      if (isCommandBoundary(raw)) break;
+      const tok = cleanToken(raw);
+      const lower = tok.toLowerCase();
+      if (isRedirectToken(lower)) {
+        if (/^[0-9]*\*?>?$/.test(lower) && j + 1 < toks.length && !isCommandBoundary(toks[j + 1])) j++;
+        continue;
+      }
+      if (lower === '--' || lower.startsWith('-')) continue;
+      targets.push(tok);
+    }
+  }
+  return targets;
+}
+
+function looksLikeSedScript(tok) {
+  return /^[a-z](.|$)/i.test(String(tok || '')) || String(tok || '').includes('/');
+}
+
+function collectSedTargets(cmdNoComment) {
+  const toks = tokenizeShellCommand(cmdNoComment);
+  const targets = [];
+  for (const idx of shellCommandIndices(toks)) {
+    if (commandName(toks[idx]) !== 'sed') continue;
+    let inPlace = false;
+    let scriptConsumed = false;
+    let skipNext = null;
+    for (let j = idx + 1; j < toks.length; j++) {
+      const raw = toks[j];
+      if (isCommandBoundary(raw)) break;
+      const tok = cleanToken(raw);
+      const lower = tok.toLowerCase();
+      if (isRedirectToken(lower)) {
+        if (/^[0-9]*\*?>?$/.test(lower) && j + 1 < toks.length && !isCommandBoundary(toks[j + 1])) j++;
+        continue;
+      }
+      if (skipNext) {
+        if (skipNext === 'script') scriptConsumed = true;
+        skipNext = null;
+        continue;
+      }
+      if (lower === '-i' || lower.startsWith('-i')) {
+        inPlace = true;
+        if (lower === '-i' && j + 1 < toks.length) {
+          const next = cleanToken(toks[j + 1]);
+          if (next.startsWith('.') && !looksLikeSedScript(next)) j++;
+        }
+        continue;
+      }
+      if (lower === '-e') { skipNext = 'script'; continue; }
+      if (lower === '-f') { skipNext = 'file'; continue; }
+      if (lower.startsWith('-')) continue;
+      if (!inPlace) continue;
+      if (!scriptConsumed) {
+        scriptConsumed = true;
+        continue;
+      }
+      targets.push(tok);
+    }
+  }
+  return targets;
+}
+
+function collectPythonTargets(cmd) {
+  const targets = [];
+  const pathCall = /\b(?:pathlib\.)?Path\s*\(\s*(['"])(.*?)\1\s*\)\s*\.\s*(?:write_text|write_bytes|touch)\s*\(/g;
+  for (const m of String(cmd || '').matchAll(pathCall)) {
+    if (m[2]) targets.push(m[2]);
+  }
+  const openCall = /\bopen\s*\(\s*(['"])(.*?)\1\s*,\s*(['"])([^'"]*[waWA][^'"]*)\3/g;
+  for (const m of String(cmd || '').matchAll(openCall)) {
+    if (m[2]) targets.push(m[2]);
+  }
+  return targets;
 }
 
 function bashWriteTargets(cmd) {
@@ -226,10 +377,10 @@ function bashWriteTargets(cmd) {
   for (const m of cmdNoComment.matchAll(/(>>?)\s*(\S+)/g)) {
     if (m[2]) targets.push(m[2]);
   }
-  if (/\b(cp|mv|rsync|install)\b/.test(cmdNoComment)) {
-    const toks = cmdNoComment.split(/\s+/).filter((t) => t && !t.startsWith('-'));
-    if (toks.length) targets.push(toks[toks.length - 1]);
-  }
+  targets.push(...collectCommandDestTargets(cmdNoComment, new Set(['cp', 'mv', 'rsync', 'install'])));
+  targets.push(...collectTeeTargets(cmdNoComment));
+  targets.push(...collectSedTargets(cmdNoComment));
+  targets.push(...collectPythonTargets(cmdNoComment));
   const dd = cmdNoComment.match(/\bof=(\S+)/);
   if (dd) targets.push(dd[1]);
   targets.push(...collectPowerShellTargets(cmdNoComment));

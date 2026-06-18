@@ -2385,7 +2385,21 @@ const handler = async (req, res) => {
     // Auth gate: when a token is configured, all mutating routes require it.
     // Public reads of the CURRENT workspace + the dashboard stay open; any ?workspace= read is gated too.
     const mutatingRequest = !['GET', 'HEAD', 'OPTIONS'].includes(m);
-    const sensitiveRead = p === '/peek' || p.startsWith('/agent/') || p.startsWith('/guidance') || p.startsWith('/git/');
+    const sensitiveRead = p === '/peek'
+      || p === '/active-claim'
+      || p === '/agents'
+      || p === '/events'
+      || p === '/next-action'
+      || p === '/session-info'
+      || p === '/should-stop'
+      || p === '/task/adjacent'
+      || p === '/task/context'
+      || p === '/task/detail'
+      || p === '/task/tree'
+      || p === '/workspaces'
+      || p.startsWith('/agent/')
+      || p.startsWith('/guidance')
+      || p.startsWith('/git/');
     const protectedPath = p === '/mcp' || mutatingRequest || sensitiveRead;
     if ((protectedPath || u.searchParams.has('workspace')) && m !== 'OPTIONS' && !authed(req, u)) return send(res, 401, { error: 'unauthorized: bearer token required' });
 

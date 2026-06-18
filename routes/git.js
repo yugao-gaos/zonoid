@@ -41,6 +41,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
     if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
     const info = git.createWorktree(repo, b.key, { base: b.base });
+    if (info && info.contended) {
+      send(res, 409, { ...info, ok: false, repo, error: 'worktree path is currently leased by another creator; retry branch_task' }); return true;
+    }
     overlayStore.setGit(T.ov, b.key, info);
     T.save(); notifyChange();
     send(res, 200, { ...info, repo }); return true;
@@ -83,6 +86,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
     if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
     const info = git.createFeatureWorktree(repo, b.key, { base: b.base });
+    if (info && info.contended) {
+      send(res, 409, { ...info, ok: false, repo, error: 'feature worktree path is currently leased by another creator; retry create_feature' }); return true;
+    }
     overlayStore.setFeature(T.ov, b.key, { feature_branch: info.branch, feature_worktree: info.worktree, base: b.base || 'main' });
     T.save(); notifyChange();
     send(res, 200, { ...info, repo }); return true;

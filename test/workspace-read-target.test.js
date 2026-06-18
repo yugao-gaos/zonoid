@@ -102,7 +102,7 @@ async function testMakeCall() {
 
     // Register workspace B (P3: setWorkspace registers + binds, it sets NO daemon-global default).
     const pin = await req('POST', '/workspace', { path: WS_B });
-    ok('workspace B registered', pin.status === 200 && pin.body.workspace === WS_B);
+    ok('workspace B registered', pin.status === 200 && pin.body.ok === true);
 
     // Seed workspace A via the (already-fixed) write routes: a note node, an edge, knowledge, guidance.
     const note = await req('POST', '/overlay/note', { workspace: WS_A, title: 'A-side decision', summary: 'read-gremlin fixture summary' });

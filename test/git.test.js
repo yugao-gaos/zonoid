@@ -63,6 +63,7 @@ try {
   fs.writeFileSync(git.leasePath(wt2), JSON.stringify({ owner: 'agent-B', pid: 1, ts: Date.now() }), { flag: 'wx' });
   const contend = git.createWorktree(ws, KEY2, { owner: 'agent-C' });
   ok('createWorktree contended on held live lease', contend.contended === true);
+  ok('contended createWorktree does not report a usable worktree path', contend.worktree === null);
   ok('contended worktree NOT created on disk', !fs.existsSync(path.join(wt2, '.git')));
   ok('held lease owner surfaced', contend.held && contend.held.owner === 'agent-B');
   fs.rmSync(git.leasePath(wt2), { force: true });

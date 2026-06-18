@@ -24,6 +24,7 @@ const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-feat-'));
 const FK = 'feat/login';            // feature key
 const A = 'feat-att/aa';            // attempt forked off the feature branch
 const FC = 'feat/conflict';         // feature key for the conflict case
+const FCONT = 'feat/contend';       // feature key for lease contention
 const cleanup = [];
 try {
   git.initRepo(ws);
@@ -90,6 +91,15 @@ try {
   ok('not-a-repo -> mergeFeature merged:false no throw', git.mergeFeature(bare, FK).merged === false);
   ok('not-a-repo -> createFeatureWorktree head null no throw', git.createFeatureWorktree(bare, FK).head === null);
   fs.rmSync(bare, { recursive: true, force: true });
+
+  const contendedWt = git.featureWorktreePath(ws, FCONT);
+  fs.mkdirSync(path.dirname(contendedWt), { recursive: true });
+  fs.writeFileSync(git.leasePath(contendedWt), JSON.stringify({ owner: 'agent-F', pid: 1, ts: Date.now() }), { flag: 'wx' });
+  const fContend = git.createFeatureWorktree(ws, FCONT, { owner: 'agent-G' });
+  ok('createFeatureWorktree contended on held live lease', fContend.contended === true);
+  ok('contended createFeatureWorktree does not report a usable worktree path', fContend.worktree === null);
+  ok('contended feature worktree NOT created on disk', !fs.existsSync(path.join(contendedWt, '.git')));
+  fs.rmSync(git.leasePath(contendedWt), { force: true });
 
   // --- removeFeatureWorktree idempotent ---
   const rm1 = git.removeFeatureWorktree(ws, FK);

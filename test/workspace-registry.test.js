@@ -148,6 +148,18 @@ try {
     ok('container guard: incidental .git AT stubbed homedir is NOT adopted',
       repoRootWithContainers(childUnderHome, { tmpdir: path.join(SANDBOX, 'no-tmp'), homedir: fs.realpathSync(fakeHome) }) !== fs.realpathSync(fakeHome));
 
+    // (2b) tmpdir may be reported through a symlink (/var) while callers pass realpaths
+    // (/private/var). The guard must compare realpaths so the container is still excluded.
+    const realTmp = mk('containers', 'realTmp');
+    const linkedTmp = path.join(SANDBOX, 'containers', 'linkedTmp');
+    try { fs.symlinkSync(realTmp, linkedTmp, 'dir'); } catch { /* symlinks may be unavailable */ }
+    if (fs.existsSync(linkedTmp)) {
+      touchDir(realTmp, '.graph');
+      const childUnderRealTmp = mk('containers', 'realTmp', 'fresh-workspace');
+      ok('container guard: symlinked tmpdir and realpathed child still do NOT adopt tmp root',
+        repoRootWithContainers(childUnderRealTmp, { tmpdir: linkedTmp, homedir: path.join(SANDBOX, 'no-home-2') }) !== fs.realpathSync(realTmp));
+    }
+
     // (3) POSITIVE control: a REAL repo NESTED BELOW the container (not AT it) is still adopted —
     // the guard excludes only the container dir itself, never its legitimate sub-repos.
     const realUnderTmp = mk('containers', 'fakeTmp2', 'realproj');

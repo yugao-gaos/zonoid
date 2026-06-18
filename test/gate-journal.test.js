@@ -5,7 +5,7 @@
 //
 // Covers:
 //   1. ABSTAIN: gated call with no note vectors → gate low-confidence → journals one row with
-//      ts (ISO), decision:'abstain', top1 (number), embedModel, task_key present (null ok),
+//      ts (ISO), decision:'abstain', top1 (number), embedModel, task_key present,
 //      gated:true, round (number).
 //   2. ABSTAIN also journals when called with an explicit ?task_key= parameter.
 //   3. INJECT: gated call against a note with a real MiniLM vec that scores above threshold →
@@ -120,11 +120,14 @@ function countRows(pred) { return readJournal(JOURNAL).filter(pred).length; }
     // Point daemon at our temp workspace.
     await post('/workspace', { path: WS });
 
+    const missingTaskKey = await get(`/search?gated=1&workspace=${encodeURIComponent(WS)}&q=${encodeURIComponent('missing task key')}`);
+    ok('gated search without task_key is rejected', missingTaskKey.status === 400 && missingTaskKey.body.code === 'missing_task_key');
+
     // ── 1. ABSTAIN: gated query with no note vectors (model unavailable or empty KB) ──────────
     // Without real embeddings the daemon falls back to lexical scoring; all gate-candidate scores
     // are zero → gate abstains with 'low-confidence'. The journal write must still fire.
     const beforeAbstain = countRows(() => true);
-    const gatedPath = `/search?gated=1&workspace=${encodeURIComponent(WS)}&q=${encodeURIComponent('test query for journal abstain')}`;
+    const gatedPath = `/search?gated=1&workspace=${encodeURIComponent(WS)}&task_key=journal-abstain&q=${encodeURIComponent('test query for journal abstain')}`;
     const ab = await get(gatedPath);
     ok('abstain call: HTTP 200', ab.status === 200);
     ok('abstain call: decision is abstain or rate-limited', ab.body.decision === 'abstain' || ab.body.decision === undefined);
@@ -141,7 +144,7 @@ function countRows(pred) { return readJournal(JOURNAL).filter(pred).length; }
     ok('abstain row: decision is inject or abstain', row.decision === 'inject' || row.decision === 'abstain');
     ok('abstain row: top1 is a number', typeof row.top1 === 'number');
     ok('abstain row: embedModel is Xenova/all-MiniLM-L6-v2', row.embedModel === 'Xenova/all-MiniLM-L6-v2');
-    ok('abstain row: task_key field present (null ok)', Object.prototype.hasOwnProperty.call(row, 'task_key'));
+    ok('abstain row: task_key field present', row.task_key === 'journal-abstain');
     ok('abstain row: workspace field present', typeof row.workspace === 'string');
     ok('abstain row: query field present', typeof row.query === 'string');
     ok('abstain row: reason field present', typeof row.reason === 'string');
@@ -178,7 +181,7 @@ function countRows(pred) { return readJournal(JOURNAL).filter(pred).length; }
     ok('abstain+task_key: gated is true', row2.gated === true);
     ok('abstain+task_key: round is a number', typeof row2.round === 'number');
     // complexity=0.99 passed via URL — should override the inline heuristic
-    const gatedWithComplexity = `/search?gated=1&workspace=${encodeURIComponent(WS)}&q=${encodeURIComponent('complexity passthrough test')}&complexity=0.99`;
+    const gatedWithComplexity = `/search?gated=1&workspace=${encodeURIComponent(WS)}&task_key=journal-complexity&q=${encodeURIComponent('complexity passthrough test')}&complexity=0.99`;
     const abCx = await get(gatedWithComplexity);
     ok('complexity passthrough: HTTP 200', abCx.status === 200);
     const rowCx = readJournal(JOURNAL).pop();
@@ -206,7 +209,7 @@ function countRows(pred) { return readJournal(JOURNAL).filter(pred).length; }
       // Query that directly matches the note vocabulary.
       const countBeforeInject = readJournal(JOURNAL).length;
       const injectQuery = 'harden worker workspace prevent cwd takeover runWorker pin';
-      const injectPath = `/search?gated=1&workspace=${encodeURIComponent(WS)}&q=${encodeURIComponent(injectQuery)}`;
+      const injectPath = `/search?gated=1&workspace=${encodeURIComponent(WS)}&task_key=journal-inject&q=${encodeURIComponent(injectQuery)}`;
       const inj = await get(injectPath);
       ok('inject call: HTTP 200', inj.status === 200);
 
@@ -244,7 +247,7 @@ function countRows(pred) { return readJournal(JOURNAL).filter(pred).length; }
       } else {
         let restored = false;
         try {
-          const failPath = `/search?gated=1&workspace=${encodeURIComponent(WS)}&q=${encodeURIComponent('fail-open test query')}`;
+          const failPath = `/search?gated=1&workspace=${encodeURIComponent(WS)}&task_key=journal-fail-open&q=${encodeURIComponent('fail-open test query')}`;
           const failResp = await get(failPath);
           // Restore before asserting (so cleanup works even if assertion fails).
           try { fs.chmodSync(graphDir, 0o755); restored = true; } catch { /* best effort */ }

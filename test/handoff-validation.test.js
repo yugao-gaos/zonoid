@@ -32,8 +32,14 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
 
 function req(method, p, body) {
   return new Promise((resolve, reject) => {
-    const data = body ? JSON.stringify(body) : null;
-    const r = http.request({ host: '127.0.0.1', port: PORT, path: p, method, headers: data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {} }, (res) => {
+    let pathWithWorkspace = p;
+    const needsWorkspace = p !== '/ping' && p !== '/workspace' && !p.startsWith('/mcp');
+    if (needsWorkspace && method === 'GET' && !/[?&]workspace=/.test(p)) {
+      pathWithWorkspace += (p.includes('?') ? '&' : '?') + `workspace=${encodeURIComponent(WS)}`;
+    }
+    const payload = needsWorkspace && body && !body.workspace ? { ...body, workspace: WS } : body;
+    const data = payload ? JSON.stringify(payload) : null;
+    const r = http.request({ host: '127.0.0.1', port: PORT, path: pathWithWorkspace, method, headers: data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {} }, (res) => {
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => { try { resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') }); } catch { resolve({ status: res.statusCode, body: {} }); } });
@@ -42,6 +48,36 @@ function req(method, p, body) {
     if (data) r.write(data);
     r.end();
   });
+}
+
+function mcpTool(name, args) {
+  const data = JSON.stringify({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name, arguments: args || {} } });
+  return new Promise((resolve, reject) => {
+    const r = http.request({
+      host: '127.0.0.1',
+      port: PORT,
+      path: '/mcp',
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(data),
+        'x-orch-workspace': WS,
+        'mcp-session-id': SESSION,
+      },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => { try { resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') }); } catch { resolve({ status: res.statusCode, body: {} }); } });
+    });
+    r.on('error', reject);
+    r.write(data);
+    r.end();
+  });
+}
+
+function mcpPayload(resp) {
+  const txt = resp && resp.body && resp.body.result && resp.body.result.content && resp.body.result.content[0] && resp.body.result.content[0].text;
+  try { return JSON.parse(txt || '{}'); } catch { return {}; }
 }
 
 async function waitForPing(ms = 8000) {
@@ -63,7 +99,7 @@ async function waitForPing(ms = 8000) {
   fs.writeFileSync(path.join(TASKS_DIR, '3.json'), JSON.stringify({ id: '3', subject: 'plain handoff gamma', status: 'pending' }));
   // Extra metric-carrying tasks for the additional level-1 gap assertions below (failed/canceled
   // terminal statuses, empty-vs-absent measurements, non-terminal scoping, guardrails-only).
-  for (const id of [4, 5, 6, 7, 8]) fs.writeFileSync(path.join(TASKS_DIR, `${id}.json`), JSON.stringify({ id: String(id), subject: `metric handoff gap ${id}`, status: 'pending' }));
+  for (const id of [4, 5, 6, 7, 8, 9]) fs.writeFileSync(path.join(TASKS_DIR, `${id}.json`), JSON.stringify({ id: String(id), subject: `metric handoff gap ${id}`, status: 'pending' }));
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
@@ -74,12 +110,12 @@ async function waitForPing(ms = 8000) {
     ok('workspace pinned', (await req('POST', '/workspace', { path: WS })).status === 200);
     await req('GET', '/state');
 
-    for (const id of [1, 2, 3, 4, 5, 6, 7, 8]) await req('POST', '/mark-root', { task_key: K(id) });
+    for (const id of [1, 2, 3, 4, 5, 6, 7, 8, 9]) await req('POST', '/mark-root', { task_key: K(id) });
 
     // Tasks 1, 2, and 4-8 carry a metric spec; task 3 does not.
     ok('metric spec set on task 1', (await req('POST', '/task/metric', { key: K(1), spec: METRIC })).status === 200);
     ok('metric spec set on task 2', (await req('POST', '/task/metric', { key: K(2), spec: METRIC })).status === 200);
-    for (const id of [4, 5, 6, 7, 8]) await req('POST', '/task/metric', { key: K(id), spec: METRIC });
+    for (const id of [4, 5, 6, 7, 8, 9]) await req('POST', '/task/metric', { key: K(id), spec: METRIC });
 
     // --- Refusal: metric task + structured task_result WITHOUT metric_measurements → 409 ---
     const r1 = await req('POST', '/overlay/status', {
@@ -164,6 +200,16 @@ async function waitForPing(ms = 8000) {
       task_result: { status: 'tested', summary: 'measured', metric_measurements: { value: 2, guardrails: { latency: 5 } } },
     });
     ok('metric task + complete metric_measurements (value+guardrails) accepted', rGuard.status === 200 && rGuard.body.ok === true);
+
+    // --- MCP pass-through: complete_task must forward task_result into the same daemon gate. ---
+    const mcpIncomplete = await mcpTool('complete_task', {
+      task_key: K(9),
+      summary: 'mcp incomplete result',
+      agent_id: 'a9',
+      task_result: { status: 'tested', summary: 'missing measurements' },
+    });
+    const mcpOut = mcpPayload(mcpIncomplete);
+    ok('MCP complete_task forwards task_result to handoff gate', mcpIncomplete.status === 200 && mcpIncomplete.body.result && mcpIncomplete.body.result.isError === true && mcpOut.missing === 'metric_measurements');
   } finally {
     try { child.kill(); } catch { /* already gone */ }
     fs.rmSync(TASKS_DIR, { recursive: true, force: true });

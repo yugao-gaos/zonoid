@@ -18,16 +18,25 @@ function startHookStub(config = {}) {
     stdio: ['ignore', 'ignore', 'inherit'],
   });
   const deadline = Date.now() + 5000;
-  while (!fs.existsSync(readyPath) && Date.now() < deadline) {
+  let ready = null;
+  while (Date.now() < deadline) {
     if (child.exitCode != null) break;
+    if (fs.existsSync(readyPath)) {
+      try {
+        ready = JSON.parse(fs.readFileSync(readyPath, 'utf8'));
+        if (ready && Number.isFinite(Number(ready.port))) break;
+      } catch {
+        ready = null;
+      }
+    }
     sleep(25);
   }
-  if (!fs.existsSync(readyPath)) {
+  if (!ready || !Number.isFinite(Number(ready.port))) {
     try { child.kill(); } catch {}
     fs.rmSync(dir, { recursive: true, force: true });
     throw new Error('hook HTTP stub did not start');
   }
-  const { port } = JSON.parse(fs.readFileSync(readyPath, 'utf8'));
+  const { port } = ready;
   return {
     env(extra = {}) {
       return { ORCH_PORT: String(port), ...extra };

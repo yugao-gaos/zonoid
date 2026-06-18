@@ -22,17 +22,30 @@ function sessionsFromOverlay(ov) {
   return [...bySession.values()];
 }
 
+function harnessNameForWorkspace(state, ov, workspace, fallback) {
+  const sessions = Object.values((state && state.sessions) || {})
+    .filter((s) => s && s.workspace === workspace && s.harness)
+    .sort((a, b) => String(b.lastSeen || '').localeCompare(String(a.lastSeen || '')));
+  if (sessions.length) return sessions[0].harness;
+  if (ov && ov.usage_reconcile_snapshot && ov.usage_reconcile_snapshot.harness) return ov.usage_reconcile_snapshot.harness;
+  if (process.env.ZONOID_HARNESS) return process.env.ZONOID_HARNESS;
+  return fallback || 'claude';
+}
+
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, buildGraph, state, targetOverlay, taskTranscript, usageCached,
-    respCacheGet, respCachePut, isTruthy, now, harness } = ctx;
+    respCacheGet, respCachePut, isTruthy, now, harness, harnessRegistry } = ctx;
 
   if (p === '/costflow' && m === 'GET') {
     const cfWs = u.searchParams.get('workspace');
     if (!cfWs) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
-    const cfKey = `costflow|${cfWs}|${u.searchParams.get('since') || ''}`;
+    const T = targetOverlay(null, u);
+    const harnessName = harnessNameForWorkspace(state, T.ov, T.ws, harness && harness.name);
+    let activeHarness = harness;
+    try { if (harnessRegistry && harnessName) activeHarness = harnessRegistry.get(harnessName); } catch { activeHarness = harness; }
+    const cfKey = `costflow|${cfWs}|${harnessName}|${u.searchParams.get('since') || ''}`;
     const cfHit = respCacheGet(cfWs, cfKey);
     if (cfHit !== undefined) { send(res, 200, cfHit); return true; }
-    const T = targetOverlay(null, u);
     const g = buildGraph(T.ws);
     const stWs = { ...state, overlay: T.ov };
     const claims = g.tasks.filter((t) => t.kind !== 'note').map((t) => ({
@@ -41,7 +54,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       window: { start: t.firstSeen, end: t.lastChanged },
       work_sessions: (T.ov.work_sessions && T.ov.work_sessions[t.id]) || null,
     }));
-    const tr = harness.transcripts;
+    const tr = activeHarness.transcripts;
     const taskUsageFromAgent = tr.taskUsageFromAgent || (() => null);
     const usageOutputOnly = (tp, claim) => {
       if (claim && claim.id) {

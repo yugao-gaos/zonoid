@@ -63,6 +63,17 @@ test('token-enabled daemon gates mutating and workspace-targeted routes', async 
     }
 
     assert.equal((await req('GET', `/search?workspace=${encodeURIComponent(WS)}&q=x`)).status, 401, 'workspace-targeted reads require auth');
+    for (const route of [
+      '/active-claim?session=s1',
+      '/agents',
+      '/next-action',
+      '/session-info?session=s1',
+      '/should-stop?agent_id=a1',
+      '/task/detail?key=x/1',
+      '/workspaces',
+    ]) {
+      assert.equal((await req('GET', route)).status, 401, `GET ${route} requires auth`);
+    }
     assert.equal((await req('POST', '/workspace', { path: WS }, TOKEN)).status, 200, 'valid token allows protected mutation');
   } finally {
     child.kill('SIGKILL');
