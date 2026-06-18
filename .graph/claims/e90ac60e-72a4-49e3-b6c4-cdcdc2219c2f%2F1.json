@@ -1,0 +1,10 @@
+{
+  "task_key": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/1",
+  "agent_id": "combined-bench-worker",
+  "session_id": "combined-bench-worker-session",
+  "workspace": "D:/zonoid",
+  "branch": "orch/attempt/e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f-1",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T15:24:36.414Z",
+  "lease_until": "2026-06-18T16:24:36.414Z"
+}
