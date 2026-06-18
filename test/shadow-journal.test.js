@@ -2,7 +2,7 @@
 // Plain Node test for lib/shadow-journal.js — the learned-model shadow journal.
 // Run: node test/shadow-journal.test.js
 //
-// Properties tested:
+// Properties tested (agreementRate tests added below the existing appendShadow suite):
 //   - appendShadow writes a valid JSON line to <ws>/.graph/shadow-journal.jsonl
 //   - Shadow row has all expected schema fields
 //   - appendShadow is best-effort: never throws on I/O error or missing directory
@@ -11,7 +11,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { appendShadow } = require('../lib/shadow-journal');
+const { appendShadow, agreementRate } = require('../lib/shadow-journal');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -146,6 +146,118 @@ function readShadow(ws) {
   appendShadow(ws, { ts: Date.now(), from: 'a', to: 'b', verdict: 'prune', shadow_verdict: 'prune', shadow_conf: 0.55, cosine: 0.4, model_version: 'v1' });
   const rows = readShadow(ws);
   ok('model_version is stored as written (v1)', rows[0].model_version === 'v1');
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// agreementRate tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+// --- agreementRate returns null on missing file ----------------------------------
+{
+  const ws = tmpWs();
+  // shadow-journal.jsonl is NOT created
+  const result = agreementRate(ws);
+  ok('agreementRate returns null when file is missing', result === null);
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+// --- agreementRate returns null on null workspace --------------------------------
+{
+  let threw = false;
+  let result;
+  try { result = agreementRate(null); } catch { threw = true; }
+  ok('agreementRate does not throw on null workspace', !threw);
+  ok('agreementRate returns null on null workspace', result === null);
+}
+
+// --- agreementRate returns null when file has no valid rows ----------------------
+{
+  const ws = tmpWs();
+  // Write a file with only blank lines / malformed JSON
+  fs.writeFileSync(path.join(ws, '.graph', 'shadow-journal.jsonl'), '\n\nnot-json\n\n');
+  const result = agreementRate(ws);
+  ok('agreementRate returns null when no valid rows exist', result === null);
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+// --- agreementRate: rate is 1.0 when all rows agree ------------------------------
+{
+  const ws = tmpWs();
+  appendShadow(ws, { ts: 1, from: 'a', to: 'b', verdict: 'keep',  shadow_verdict: 'keep',  shadow_conf: 0.9, cosine: 0.5, model_version: 'v1' });
+  appendShadow(ws, { ts: 2, from: 'c', to: 'd', verdict: 'prune', shadow_verdict: 'prune', shadow_conf: 0.2, cosine: 0.1, model_version: 'v1' });
+  appendShadow(ws, { ts: 3, from: 'e', to: 'f', verdict: 'keep',  shadow_verdict: 'keep',  shadow_conf: 0.8, cosine: 0.6, model_version: 'v1' });
+
+  const result = agreementRate(ws);
+  ok('agreementRate result is not null (3 agreeing rows)', result !== null);
+  ok('agreementRate total = 3', result && result.total === 3);
+  ok('agreementRate agreed = 3', result && result.agreed === 3);
+  ok('agreementRate rate = 1.0 when all agree', result && result.rate === 1.0);
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+// --- agreementRate: rate is 0.0 when no rows agree ------------------------------
+{
+  const ws = tmpWs();
+  appendShadow(ws, { ts: 1, from: 'a', to: 'b', verdict: 'keep',  shadow_verdict: 'prune', shadow_conf: 0.3, cosine: 0.4, model_version: 'v1' });
+  appendShadow(ws, { ts: 2, from: 'c', to: 'd', verdict: 'prune', shadow_verdict: 'keep',  shadow_conf: 0.7, cosine: 0.6, model_version: 'v1' });
+
+  const result = agreementRate(ws);
+  ok('agreementRate total = 2 (disagreeing rows)', result && result.total === 2);
+  ok('agreementRate agreed = 0 when none agree', result && result.agreed === 0);
+  ok('agreementRate rate = 0.0 when none agree', result && result.rate === 0.0);
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+// --- agreementRate: correct partial rate ----------------------------------------
+{
+  const ws = tmpWs();
+  // 3 agree, 1 disagrees → rate = 0.75
+  appendShadow(ws, { ts: 1, from: 'a', to: 'b', verdict: 'keep',  shadow_verdict: 'keep',  shadow_conf: 0.9, cosine: 0.5, model_version: 'v1' });
+  appendShadow(ws, { ts: 2, from: 'c', to: 'd', verdict: 'keep',  shadow_verdict: 'keep',  shadow_conf: 0.8, cosine: 0.6, model_version: 'v1' });
+  appendShadow(ws, { ts: 3, from: 'e', to: 'f', verdict: 'prune', shadow_verdict: 'prune', shadow_conf: 0.2, cosine: 0.2, model_version: 'v1' });
+  appendShadow(ws, { ts: 4, from: 'g', to: 'h', verdict: 'keep',  shadow_verdict: 'prune', shadow_conf: 0.3, cosine: 0.4, model_version: 'v1' });
+
+  const result = agreementRate(ws);
+  ok('agreementRate total = 4', result && result.total === 4);
+  ok('agreementRate agreed = 3', result && result.agreed === 3);
+  ok('agreementRate rate = 0.75', result && Math.abs(result.rate - 0.75) < 1e-9);
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+// --- agreementRate respects the window parameter (tail behaviour) ---------------
+{
+  const ws = tmpWs();
+  // Write 5 rows: first 3 all DISAGREE, last 2 AGREE. window=2 should see only the last 2.
+  appendShadow(ws, { ts: 1, from: 'a', to: 'b', verdict: 'keep',  shadow_verdict: 'prune', shadow_conf: 0.3, cosine: 0.4, model_version: 'v1' });
+  appendShadow(ws, { ts: 2, from: 'c', to: 'd', verdict: 'keep',  shadow_verdict: 'prune', shadow_conf: 0.4, cosine: 0.3, model_version: 'v1' });
+  appendShadow(ws, { ts: 3, from: 'e', to: 'f', verdict: 'prune', shadow_verdict: 'keep',  shadow_conf: 0.6, cosine: 0.5, model_version: 'v1' });
+  appendShadow(ws, { ts: 4, from: 'g', to: 'h', verdict: 'keep',  shadow_verdict: 'keep',  shadow_conf: 0.8, cosine: 0.7, model_version: 'v1' });
+  appendShadow(ws, { ts: 5, from: 'i', to: 'j', verdict: 'prune', shadow_verdict: 'prune', shadow_conf: 0.2, cosine: 0.1, model_version: 'v1' });
+
+  const full   = agreementRate(ws, 200);  // sees all 5: 2 agree → rate 0.4
+  const windowed = agreementRate(ws, 2);  // sees only rows 4+5: both agree → rate 1.0
+
+  ok('agreementRate full window total = 5', full && full.total === 5);
+  ok('agreementRate full window agreed = 2', full && full.agreed === 2);
+  ok('agreementRate full window rate ≈ 0.4', full && Math.abs(full.rate - 0.4) < 1e-9);
+
+  ok('agreementRate windowed total = 2', windowed && windowed.total === 2);
+  ok('agreementRate windowed agreed = 2', windowed && windowed.agreed === 2);
+  ok('agreementRate windowed rate = 1.0 (tail-2 rows both agree)', windowed && windowed.rate === 1.0);
+  ok('agreementRate window_used = 2', windowed && windowed.window_used === 2);
+  fs.rmSync(ws, { recursive: true, force: true });
+}
+
+// --- agreementRate returns { total, agreed, rate, window_used } shape ----------
+{
+  const ws = tmpWs();
+  appendShadow(ws, { ts: 1, from: 'a', to: 'b', verdict: 'keep', shadow_verdict: 'keep', shadow_conf: 0.9, cosine: 0.5, model_version: 'v1' });
+  const result = agreementRate(ws);
+  ok('agreementRate result has total field', result && typeof result.total === 'number');
+  ok('agreementRate result has agreed field', result && typeof result.agreed === 'number');
+  ok('agreementRate result has rate field', result && typeof result.rate === 'number');
+  ok('agreementRate result has window_used field', result && typeof result.window_used === 'number');
   fs.rmSync(ws, { recursive: true, force: true });
 }
 

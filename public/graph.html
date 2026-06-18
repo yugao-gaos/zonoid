@@ -4592,7 +4592,7 @@ async function tick(){
   // re-ticks once a choice lands. This is what prevents a silent fall-through to the global pointer.
   if (!WS_RESOLVED) { try { await resolveExplicitWorkspace(); } catch {} if (!WS_RESOLVED) return; }
   let d; try{ d=await(await dfetch('/state')).json(); }catch{ return; }
-  refreshCost(); refreshCronTok(); refreshInfraHero();
+  refreshCost(); refreshCronTok(); refreshInfraHero(); refreshAgreement();
   liveAgentIds=new Set((d.agents||[]).filter(a=>a&&a.state==='running').map(a=>a.agent_id));
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
 
@@ -4697,7 +4697,19 @@ async function tick(){
     `<span class="hlabel">Billing <span style="font-size:8px;color:#484f58;font-weight:400;text-transform:none">gross</span></span><span class="hval" style="color:#d29922">${billStr}</span>` +
     `<span class="hval-sub">${topModelShort?topModelShort+' '+topModelCost:'sessions + cron'}</span>` +
     `<span class="htip" style="width:200px"><div class="tip-title">Estimated API Cost</div>Sessions (gross, all models) + cron/gate. Click for full breakdown: productive vs trapped, infra overhead, per-model split.</span>` +
-    `</span>`;
+    `</span>` +
+    (()=>{
+      const ag=agreementCache;
+      const agRate=ag&&ag.rate!=null?Math.round(ag.rate*100)+'%':'—';
+      const agColor=ag==null?'#484f58':ag.rate>=0.8?'#3fb950':ag.rate>=0.6?'#e3b341':'#f85149';
+      const agSub=ag?`${ag.agreed}/${ag.total} rows`:'no shadow data';
+      const agTip=ag?`Last ${ag.window} rows examined; ${ag.window_used} had valid verdicts. Agreement = rows where shadow_verdict === Sonnet verdict.`:'No shadow journal rows yet — agreement data appears once the edge judge runs.';
+      return `<span class="hero">` +
+        `<span class="hlabel">Model agree</span><span class="hval" style="color:${agColor}">${agRate}</span>` +
+        `<span class="hval-sub">${agSub}</span>` +
+        `<span class="htip"><div class="tip-title">Shadow model agreement</div>${agTip}</span>` +
+        `</span>`;
+    })();
   // Status dock update
   updateDock(s, sc);
   lastState=d;
@@ -5687,6 +5699,17 @@ document.addEventListener('click', ev=>{ const p=document.getElementById('billin
 
 let _lastCronData=null;
 async function fetchCronData(){ try{ const d=await(await fetch(BASE+'/cron/usage')).json(); _lastCronData=d; return d; }catch{ return null; } }
+// Agreement rate cache: how often the learned shadow model agrees with Sonnet's verdict.
+// Refreshed at most once per 30 s, in the background, exactly like refreshInfraHero.
+let agreementCache=null, _agreementAt=0, _agreementBusy=false;
+async function refreshAgreement(){
+  if(_agreementBusy||Date.now()-_agreementAt<30000) return;
+  _agreementBusy=true; _agreementAt=Date.now();
+  try{
+    const d=await(await dfetch('/metrics/agreement')).json();
+    if(d&&d.ok) agreementCache=d.agreement;
+  }catch{}finally{ _agreementBusy=false; }
+}
 // Fetch cron totals periodically and update infra hero
 let _infraAt=0, _infraBusy=false;
 async function refreshInfraHero(){
