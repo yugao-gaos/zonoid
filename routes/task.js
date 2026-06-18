@@ -79,7 +79,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const spec = T.ov.metrics && T.ov.metrics[b.key];
     if (!spec) { send(res, 409, { ok: false, error: 'no metric spec on task: set one with configure_task (metric) first' }); return true; }
-    const repo = resolveRepo(b.key, b.repo_path, T.ov);
+    const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
     if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
     const cwd = b.baseline ? repo : git.createWorktree(repo, b.key).worktree;
     let result;
