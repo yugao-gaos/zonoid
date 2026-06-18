@@ -839,5 +839,89 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, { ok: true, old_key: b.old_key, new_key: b.new_key }); return true;
   }
 
+  // ─── Phase 2: Entity layer ────────────────────────────────────────────────
+
+  // POST /entity — create or upsert an entity node.
+  // Body: { name, type, aliases?, workspace, vec? }
+  // Returns: { ok, id, kind:'entity', name, type, created }
+  if (p === '/entity' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!b.name) { send(res, 400, { ok: false, error: 'name required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    // Embed the entity name for semantic retrieval (same embed path as notes; best-effort).
+    let vec = null;
+    try { vec = await embed(String(b.name)); } catch { /* embedding sidecar unavailable — lexical fallback */ }
+    let entity;
+    try {
+      entity = overlayStore.createEntity(T.ov, { name: b.name, type: b.type, aliases: b.aliases, vec });
+    } catch (err) {
+      send(res, 400, { ok: false, error: err.message }); return true;
+    }
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, id: entity.id, kind: 'entity', name: entity.name, type: entity.type, created: !vec || entity.validFrom === entity.validFrom }); return true;
+  }
+
+  // POST /entity/link — wire a note (or task) to an entity node with a relation label.
+  // Body: { from, to, relation, workspace }
+  //   from: a note key ('note:<id>'), task key, or entity key ('entity:<id>')
+  //   to:   same
+  //   relation: e.g. 'subject_of', 'related_to', 'works_at'
+  // Returns: { ok, from, to, relation }
+  // After wiring, fires the async contradiction check (fire-and-forget).
+  if (p === '/entity/link' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!b.from || !b.to) { send(res, 400, { ok: false, error: 'from and to required' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    // Validate entity nodes exist if the key is entity-prefixed.
+    const validateEntityKey = (key) => {
+      if (!key.startsWith('entity:')) return null; // not an entity key — skip
+      const bareId = key.slice(7);
+      return (T.ov.entity_nodes && T.ov.entity_nodes[bareId]) ? null : `unknown entity: ${key}`;
+    };
+    const fromErr = validateEntityKey(b.from);
+    if (fromErr) { send(res, 404, { ok: false, error: fromErr }); return true; }
+    const toErr = validateEntityKey(b.to);
+    if (toErr) { send(res, 404, { ok: false, error: toErr }); return true; }
+    let edge;
+    try {
+      edge = overlayStore.addEntityEdge(T.ov, b.from, b.to, b.relation);
+    } catch (err) {
+      send(res, 400, { ok: false, error: err.message }); return true;
+    }
+    T.save(); notifyChange(T.ws);
+
+    // Contradiction check: fire-and-forget when a note is wired to an entity.
+    // Only fires when the new side is a note and the other side is an entity.
+    const noteKey = b.from.startsWith('note:') ? b.from : (b.to.startsWith('note:') ? b.to : null);
+    const entityKey = b.from.startsWith('entity:') ? b.from : (b.to.startsWith('entity:') ? b.to : null);
+    if (noteKey && entityKey) {
+      const newNoteId = noteKey.slice(5);
+      const entityId = entityKey.slice(7);
+      // Build a spawnClaude helper: wraps child_process.execFile with the same pattern as distill.py.
+      const spawnClaude = async (prompt) => {
+        const { execFile } = require('child_process');
+        const { promisify } = require('util');
+        const execFileAsync = promisify(execFile);
+        const claudeCli = process.env.ZONOID_BENCH_CLAUDE || 'claude';
+        const model = process.env.ZONOID_BENCH_MODEL || 'haiku'; // use fast/cheap model for contradiction check
+        const args = ['--model', model, '--output-format', 'text', '--allowedTools', '', '-p'];
+        try {
+          const result = await execFileAsync(claudeCli, args, { input: prompt, encoding: 'utf8', timeout: 60000, windowsHide: true });
+          return result.stdout || '';
+        } catch {
+          return null;
+        }
+      };
+      // setImmediate so we don't block the HTTP response.
+      setImmediate(() => {
+        overlayStore.checkEntityContradiction(T.ov, T.ws, newNoteId, entityId, spawnClaude, overlayStore.save).catch(() => {});
+      });
+    }
+
+    send(res, 200, { ok: true, from: b.from, to: b.to, relation: b.relation || null }); return true;
+  }
+
   return false;
 };
