@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/product-pipeline-worker-review",
+  "agent_id": "pp-worker-review-worker",
+  "session_id": "019edacd-c314-7983-b762-694a7a920c33",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-product-pipeline-worker-review",
+  "status": "claimed",
+  "claimed_at": "2026-06-18T12:57:14.901Z",
+  "lease_until": "2026-06-18T13:57:14.901Z"
+}
