@@ -335,6 +335,38 @@ function writeMcp(cwd, overwrite = false, orchClient = null) {
   ok(`${had ? 'Merged' : 'Written'}: ${dest}`);
 }
 
+function opencodeMcpEntry() {
+  return {
+    type: 'local',
+    command: ['node', `${fwdSlash(INSTALL_DIR)}/mcp-graph.js`],
+    enabled: true,
+    environment: {
+      ORCH_PORT: ORCH_PORT,
+      ORCH_CLIENT: 'opencode',
+    },
+  };
+}
+
+function writeOpencodeMcp(cwd) {
+  const dest = path.join(cwd, 'opencode.json');
+
+  let existing = {};
+  const had = fs.existsSync(dest);
+  if (had) {
+    try { existing = JSON.parse(fs.readFileSync(dest, 'utf8')); }
+    catch (e) { warn('opencode.json exists but is not valid JSON — leaving it untouched'); return; }
+    fs.copyFileSync(dest, dest + '.bak');
+    log(`Backed up existing opencode.json to ${dest}.bak`);
+  }
+
+  existing.mcp = existing.mcp || {};
+  existing.mcp['orchestrator-graph'] = opencodeMcpEntry();
+
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, JSON.stringify(existing, null, 2) + '\n');
+  ok(`${had ? 'Merged' : 'Written'} OpenCode MCP config: ${dest}`);
+}
+
 function checkClaude(cwd) {
   const dest = path.join(cwd, 'CLAUDE.md');
   const src  = path.join(INSTALL_DIR, 'CLAUDE.md');
@@ -1144,8 +1176,9 @@ function checkClaudeWiring(cwd) {
 
 // Run ONE harness's additive workspace wiring. Each branch is idempotent and
 // only touches that harness's own files, so wiring a 2nd harness over a 1st
-// does not disturb the 1st (Codex → ~/.codex/config.toml; claude/cursor/opencode
-// → MERGE into <cwd>/.mcp.json preserving sibling servers).
+// does not disturb the 1st (Codex → ~/.codex/config.toml; OpenCode →
+// <cwd>/opencode.json; claude/cursor → MERGE into <cwd>/.mcp.json preserving
+// sibling servers).
 function wireHarness(harness, cwd) {
   if (harness === 'claude') {
     // INVARIANT 4: delegate .mcp.json + settings.json to bin/install.js
@@ -1164,8 +1197,8 @@ function wireHarness(harness, cwd) {
     warn('Codex init skips Claude settings.json / CLAUDE.md — wire hooks via ~/.codex/hooks.json');
   } else if (harness === 'opencode') {
     checkOpencodePlugin(cwd);
-    checkMcp(cwd);
-    warn('OpenCode init skips Claude hooks — wire orchestrator MCP in opencode.json for start_task / complete_task');
+    writeOpencodeMcp(cwd);
+    warn('OpenCode init skips Claude hooks — restart OpenCode after native opencode.json MCP wiring');
   }
 }
 
@@ -1192,11 +1225,10 @@ function printNextSteps(harness, cwd = process.cwd()) {
     console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else if (harness === 'opencode') {
     console.log('  Next steps (opencode):');
-    console.log('    1. Wire orchestrator MCP in opencode.json (stdio transport)');
-    console.log('    2. Restart OpenCode in this directory');
-    console.log(`    3. Open the dashboard: ${dash}`);
-    console.log('    4. Use task_create (file-drop stub + /sync) to mint, then start_task before editing');
-    console.log('    5. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
+    console.log('    1. Restart OpenCode in this directory after opencode.json MCP wiring');
+    console.log(`    2. Open the dashboard: ${dash}`);
+    console.log('    3. Use task_create (file-drop stub + /sync) to mint, then start_task before editing');
+    console.log('    4. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
   } else {
     console.log('  Next steps (claude):');
     console.log('    1. Restart Claude Code in this directory');
@@ -1352,7 +1384,9 @@ if (require.main === module) {
     // CDX-2: Claude+Codex coexistence — MCP store split + multi-harness init
     writeMcp,
     writeCodexMcp,
+    writeOpencodeMcp,
     orchestratorMcpEntry,
+    opencodeMcpEntry,
     codexMcpTomlBlock,
     stripCodexOrchTable,
     // graph auto-commit hook helpers

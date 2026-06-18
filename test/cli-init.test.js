@@ -17,7 +17,9 @@ const {
   installRepoSkill,
   writeMcp,
   writeCodexMcp,
+  writeOpencodeMcp,
   orchestratorMcpEntry,
+  opencodeMcpEntry,
   stripCodexOrchTable,
   graphAutocommitHookScript,
   mergeGraphAutocommitFlag,
@@ -388,6 +390,52 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
   }
 }
 
+// ── OpenCode native MCP config uses opencode.json, not .mcp.json ─────────────
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-opencode-mcp-'));
+  try {
+    const cwd = path.join(base, 'repo');
+    fs.mkdirSync(cwd, { recursive: true });
+    const opencodePath = path.join(cwd, 'opencode.json');
+
+    writeOpencodeMcp(cwd);
+    let config = JSON.parse(fs.readFileSync(opencodePath, 'utf8'));
+    let entry = config.mcp['orchestrator-graph'];
+    ok('opencode wiring creates opencode.json', fs.existsSync(opencodePath));
+    ok('opencode wiring does not create .mcp.json', !fs.existsSync(path.join(cwd, '.mcp.json')));
+    ok('opencode wiring uses local command array',
+      entry.type === 'local' &&
+      entry.command[0] === 'node' &&
+      /\/mcp-graph\.js$/.test(entry.command[1]));
+    ok('opencode wiring enables orchestrator MCP', entry.enabled === true);
+    ok('opencode wiring injects ORCH_CLIENT=opencode',
+      entry.environment && entry.environment.ORCH_CLIENT === 'opencode');
+
+    fs.writeFileSync(opencodePath, JSON.stringify({
+      theme: 'system',
+      mcp: {
+        'other-server': { type: 'local', command: ['node', 'other.js'] },
+      },
+    }, null, 2) + '\n');
+    writeOpencodeMcp(cwd);
+    config = JSON.parse(fs.readFileSync(opencodePath, 'utf8'));
+    entry = config.mcp['orchestrator-graph'];
+    ok('opencode merge preserves unrelated top-level config', config.theme === 'system');
+    ok('opencode merge preserves sibling MCP servers',
+      config.mcp['other-server'] && config.mcp['other-server'].command[1] === 'other.js');
+    ok('opencode merge backs up existing opencode.json', fs.existsSync(opencodePath + '.bak'));
+    ok('opencode merge keeps ORCH_CLIENT=opencode',
+      entry.environment && entry.environment.ORCH_CLIENT === 'opencode');
+
+    const before = fs.readFileSync(opencodePath, 'utf8');
+    writeOpencodeMcp(cwd);
+    const after = fs.readFileSync(opencodePath, 'utf8');
+    ok('opencode merge is idempotent (stable content)', before === after);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
 // ── CDX-2: orchestratorMcpEntry shape + stripCodexOrchTable preserves siblings ──
 {
   const claudeEntry = orchestratorMcpEntry();
@@ -396,6 +444,10 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     claudeEntry.type === 'stdio' && claudeEntry.command === 'node');
   const codexEntry = orchestratorMcpEntry('codex');
   ok('orchestratorMcpEntry: codex injects ORCH_CLIENT', codexEntry.env.ORCH_CLIENT === 'codex');
+  const opencodeEntry = opencodeMcpEntry();
+  ok('opencodeMcpEntry: native local command array',
+    opencodeEntry.type === 'local' && opencodeEntry.command[0] === 'node');
+  ok('opencodeMcpEntry: environment injects ORCH_CLIENT', opencodeEntry.environment.ORCH_CLIENT === 'opencode');
 
   // stripCodexOrchTable must drop ONLY the orchestrator-graph table + its .env
   // subtable, preserving a sibling [mcp_servers.other] entirely.

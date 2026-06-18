@@ -6,7 +6,8 @@ import type { Plugin } from '@opencode-ai/plugin';
 import { tool } from '@opencode-ai/plugin';
 import { createRequire } from 'node:module';
 import { writeTaskStub } from './lib/stub-writer.js';
-import { gateWriteTool, orchPost } from './lib/gate.js';
+import { checkShouldStop, gateWriteTool, nudgeReady, orchPost } from './lib/gate.js';
+import { injectClassifiedContext, postWorkspace } from './lib/prompt-context.js';
 
 const require = createRequire(import.meta.url);
 const scheduleWakeup = require('./lib/schedule-wakeup.js');
@@ -15,6 +16,7 @@ const sessionAgents = new Map();
 
 export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
   const workspace = worktree || directory;
+  await postWorkspace(workspace, orchPost);
 
   return {
     event: async ({ event }) => {
@@ -23,15 +25,18 @@ export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
       const props = ev?.properties || {};
       const sessionID = String(props.sessionID ?? props.sessionId ?? props.id ?? '');
 
-      if (type === 'session.created' && sessionID) {
-        const agentId = String(props.agentID ?? props.agent_id ?? `opencode-${sessionID.slice(0, 8)}`);
-        sessionAgents.set(sessionID, agentId);
-        await orchPost('/agent/start', {
-          agent_id: agentId,
-          agent_type: 'opencode',
-          session: sessionID,
-          workspace,
-        }).catch(() => {});
+      if (type === 'session.created') {
+        await postWorkspace(workspace, orchPost);
+        if (sessionID) {
+          const agentId = String(props.agentID ?? props.agent_id ?? `opencode-${sessionID.slice(0, 8)}`);
+          sessionAgents.set(sessionID, agentId);
+          await orchPost('/agent/start', {
+            agent_id: agentId,
+            agent_type: 'opencode',
+            session: sessionID,
+            workspace,
+          }).catch(() => {});
+        }
         return;
       }
 
@@ -39,19 +44,37 @@ export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
         const agentId = sessionAgents.get(sessionID) || `opencode-${sessionID.slice(0, 8)}`;
         sessionAgents.delete(sessionID);
         await orchPost('/agent/done', { agent_id: agentId, workspace }).catch(() => {});
+        return;
+      }
+
+      if (type === 'todo.updated') {
+        const todoSessionID = String(props.sessionID ?? props.sessionId ?? '');
+        if (todoSessionID) void nudgeReady({ sessionID: todoSessionID, workspace }).catch(() => {});
       }
     },
 
+    'chat.message': async (input, output) => {
+      await injectClassifiedContext(input, output, { workspace, post: orchPost });
+    },
+
     'tool.execute.before': async (input, output) => {
+      const sessionID = String(input.sessionID ?? input.sessionId ?? '');
+      const agentId = sessionID ? (sessionAgents.get(sessionID) || `opencode-${sessionID.slice(0, 8)}`) : '';
+      await checkShouldStop({ sessionID, agentId, workspace });
       const args = (output.args && typeof output.args === 'object') ? output.args : {};
-      await gateWriteTool(input.sessionID, input.tool, args);
+      await gateWriteTool(sessionID, input.tool, args);
+    },
+
+    'tool.execute.after': async (input) => {
+      const sessionID = String(input.sessionID ?? input.sessionId ?? '');
+      void nudgeReady({ sessionID, workspace }).catch(() => {});
     },
 
     tool: {
       task_create: tool({
         description: 'Mint a Zonoid orchestrator task (file-drop stub + POST /sync).',
         args: {
-          id: tool.schema.string().describe('Task id → opencode/<id>'),
+          id: tool.schema.string().describe('Task id -> opencode/<id>; use letters, numbers, dot, underscore, or dash only'),
           subject: tool.schema.string().describe('Short title'),
           description: tool.schema.string().optional(),
           blockedBy: tool.schema.array(tool.schema.string()).optional(),

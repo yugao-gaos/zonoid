@@ -1,0 +1,11 @@
+{
+  "task_key": "codex/opencode-ready-nudge-parity-review",
+  "agent_id": "judge-opencode-ready-nudge-parity-review",
+  "session_id": "judge-opencode-ready-nudge-parity-review",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-opencode-ready-nudge-parity-review",
+  "status": "done",
+  "claimed_at": "2026-06-18T03:11:55.435Z",
+  "lease_until": "2026-06-18T04:11:55.435Z",
+  "completed_at": "2026-06-18T03:13:42.159Z"
+}

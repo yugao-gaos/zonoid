@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const usage = require('../lib/harness-usage');
 const stub = require('../lib/adapters/stub');
+const opencode = require('../lib/adapters/opencode');
 const claude = require('../lib/adapters/claude');
 const { splitSessionTokens } = require('../lib/costflow');
 
@@ -66,6 +67,19 @@ const ok = (label, cond) => {
   ok('stub overhead empty', stub.transcripts.harnessOverheadTokens(null, {}).tokens === 0);
   const sr = stub.transcripts.selfReportedUsage({ w: { reported_usage: { output_tokens: 88 } } });
   ok('stub selfReportedUsage sums', sr.output_tokens === 88);
+}
+
+{
+  ok('opencode source self_reported', opencode.transcripts.source === 'self_reported');
+  ok('opencode projectDir null', opencode.transcripts.projectDir('/ws') === null);
+  ok('opencode humanInput empty', opencode.transcripts.humanInputTokens(null, {}).tokens === 0);
+  const sr = opencode.transcripts.selfReportedUsage({ w: { reported_usage: { output_tokens: 64 } } });
+  ok('opencode selfReportedUsage sums', sr.output_tokens === 64);
+  const slice = opencode.usage.normalizeReported({ input_tokens: 1000, output_tokens: 2000, model: 'gpt-5-codex' });
+  ok('opencode normalizeReported tags harness', slice.harness === 'opencode');
+  ok('opencode normalizeReported prices model', slice.cost.usd > 0 && !!slice.cost.by_model['gpt-5-codex']);
+  const sampled = opencode.usage.sample(null, { reported_usage: { output_tokens: 7, model: 'gpt-5-codex' } });
+  ok('opencode sample accepts reported_usage', sampled.usage.output_tokens === 7 && sampled.cost.usd > 0);
 }
 
 {
