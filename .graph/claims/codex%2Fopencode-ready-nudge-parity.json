@@ -4,7 +4,8 @@
   "session_id": "worker-opencode-ready-nudge-parity",
   "workspace": "/Users/imyu/Desktop/zonoid",
   "branch": "orch/attempt/codex-opencode-ready-nudge-parity",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-18T03:05:50.299Z",
-  "lease_until": "2026-06-18T04:05:50.299Z"
+  "lease_until": "2026-06-18T04:05:50.299Z",
+  "completed_at": "2026-06-18T03:09:34.803Z"
 }
