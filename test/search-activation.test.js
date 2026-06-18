@@ -73,6 +73,27 @@ const approx = (actual, expected, epsilon = 1e-9) => Math.abs(actual - expected)
   ok('relation weight appears in provenance', weighted.provenance[1].relationWeight === 0.5);
 }
 
+// Learned retrieval weights multiply edge strength without changing structural edge weight.
+{
+  const rows = activateGraph({
+    seeds: { seed: 1 },
+    includeSeeds: false,
+    maxDepth: 1,
+    decay: 1,
+    adjacency: {
+      seed: [
+        { to: 'plain', relation: 'context', weight: 0.5, judged: true },
+        { to: 'learned-strong', relation: 'context', weight: 0.5, retrievalWeight: 1.5, judged: true },
+      ],
+    },
+  });
+  const plain = byKey(rows, 'plain');
+  const strong = byKey(rows, 'learned-strong');
+
+  ok('learned retrieval weight increases activation', strong.activation > plain.activation);
+  ok('learned retrieval weight appears in provenance', strong.provenance[1].retrievalWeight === 1.5);
+}
+
 // A semantically weak seed can surface a strongly wired neighbour above a looser semantic hit.
 {
   const rows = activateGraph({
