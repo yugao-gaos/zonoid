@@ -6,6 +6,7 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'classify.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'classify-hook-relay-'));
@@ -18,12 +19,11 @@ function ok(label, cond) {
   else { console.log(`FAIL  ${label}`); fail++; }
 }
 
-function runHook(input, extraEnv = {}) {
-  const env = {
-    ...process.env,
+function runHook(input, extraEnv = {}, stubDirs = []) {
+  const env = hookEnv(stubDirs, {
     CLAUDE_PLUGIN_DATA: path.dirname(SESSION_DIR),
     ...extraEnv,
-  };
+  });
   const r = spawnSync('bash', [HOOK], { input, encoding: 'utf8', env });
   return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
@@ -41,10 +41,9 @@ const stubDir = path.join(TMP, 'stub-curl');
 fs.mkdirSync(stubDir, { recursive: true });
 const stubPayload = { additional_context: '[Model routing] stub\n[Orch gate] stub\n[Orchestrator heartbeat] stub' };
 fs.writeFileSync(path.join(stubDir, 'classify.json'), JSON.stringify(stubPayload));
-fs.writeFileSync(
-  path.join(stubDir, 'curl'),
-  `#!/bin/bash
-DIR="$(cd "$(dirname "$0")" && pwd)"
+writeCurlStub(
+  stubDir,
+  `DIR="$(cd "$(dirname "$0")" && pwd)"
 ARGS="$*"
 if printf "%s" "$ARGS" | grep -q "/classify"; then
   cat "$DIR/classify.json"
@@ -53,7 +52,6 @@ else
 fi
 exit 0
 `,
-  { mode: 0o755 },
 );
 
 {
@@ -73,28 +71,21 @@ exit 0
 }
 
 {
-  const r = runHook(JSON.stringify({ prompt: 'fix the bug', session_id: 'relay-classify' }), {
-    PATH: stubDir + ':' + process.env.PATH,
-  });
+  const r = runHook(JSON.stringify({ prompt: 'fix the bug', session_id: 'relay-classify' }), {}, [stubDir]);
   const ctx = extractCtx(r.stdout);
   ok('relay → model routing from stub', ctx.includes('[Model routing] stub'));
   ok('relay → heartbeat from stub', ctx.includes('[Orchestrator heartbeat] stub'));
 }
 
 {
-  const r = runHook(JSON.stringify({ prompt: 'fix typo', sessionId: 'relay-sessionId-fallback' }), {
-    PATH: stubDir + ':' + process.env.PATH,
-  });
+  const r = runHook(JSON.stringify({ prompt: 'fix typo', sessionId: 'relay-sessionId-fallback' }), {}, [stubDir]);
   ok('sessionId fallback → hook outputs context', extractCtx(r.stdout).includes('[Model routing] stub'));
 }
 
 {
   const emptyDir = path.join(TMP, 'stub-empty');
-  fs.mkdirSync(emptyDir, { recursive: true });
-  fs.writeFileSync(path.join(emptyDir, 'curl'), '#!/bin/bash\necho "{}"\nexit 0\n', { mode: 0o755 });
-  const r = runHook(JSON.stringify({ prompt: 'hello', session_id: 'empty' }), {
-    PATH: emptyDir + ':' + process.env.PATH,
-  });
+  writeCurlStub(emptyDir, 'echo "{}"\nexit 0\n');
+  const r = runHook(JSON.stringify({ prompt: 'hello', session_id: 'empty' }), {}, [emptyDir]);
   ok('empty classify → no output', r.stdout.trim() === '');
   ok('empty classify → exit 0', r.status === 0);
 }

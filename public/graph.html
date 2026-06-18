@@ -4349,22 +4349,53 @@ function dfetch(pathAndQuery, init) {
   if (parts.length) url += sep + parts.join('&');
   return fetch(url, init);
 }
-// Load the workspace picker from GET /workspaces and wire on-change to switch repos.
+// flattenWorkspaceRepos: GET /workspaces returns U3's GROUPED shape
+//   [{ name, repos:[{path,name,current}], current }] (orphans under "(unregistered)").
+// The picker pins a single REPO PATH as WS, so flatten the groups to the underlying repo
+// list [{path,name,current,group}] (group = the workspace name the repo belongs to) for the
+// option/button layer, which still selects by repo path. Tolerant of the legacy flat shape
+// [{path,name,current}] (e.g. ?flat=1) too — a flat entry has .path and no .repos.
+function flattenWorkspaceRepos(list) {
+  const out = [];
+  for (const w of (list || [])) {
+    if (Array.isArray(w.repos)) {
+      for (const r of w.repos) out.push({ path: r.path, name: r.name, current: !!r.current, group: w.name });
+    } else if (w.path) {
+      out.push({ path: w.path, name: w.name, current: !!w.current, group: null }); // legacy flat
+    }
+  }
+  return out;
+}
+// Load the workspace picker from GET /workspaces and wire on-change to switch repos. Renders an
+// <optgroup label=workspaceName> per workspace, one <option value=repoPath> per repo under it.
 async function loadWorkspacePicker() {
   const sel = document.getElementById('wsPicker');
   const wrap = document.getElementById('wsPickerWrap');
   if (!sel || !wrap) return;
   let data;
   try { data = await (await fetch(BASE + '/workspaces')).json(); } catch { return; }
-  if (!data || !data.workspaces || data.workspaces.length <= 1) return; // nothing to switch
+  if (!data || !data.workspaces) return;
+  const repos = flattenWorkspaceRepos(data.workspaces);
+  if (repos.length <= 1) return; // nothing to switch
   sel.innerHTML = '';
   for (const w of data.workspaces) {
-    const opt = document.createElement('option');
-    opt.value = w.path;
-    opt.textContent = w.name;
-    if (w.current && !WS) opt.selected = true;
-    if (WS && w.path === WS) opt.selected = true;
-    sel.appendChild(opt);
+    const isGrouped = Array.isArray(w.repos);
+    const reposIn = isGrouped ? w.repos : [w];                 // legacy flat: the entry is itself a repo
+    let container = sel;
+    if (isGrouped) {
+      const og = document.createElement('optgroup');
+      og.label = w.name;
+      sel.appendChild(og);
+      container = og;
+    }
+    for (const r of reposIn) {
+      const opt = document.createElement('option');
+      opt.value = r.path;
+      opt.textContent = r.name;
+      if (r.current && !WS) opt.selected = true;
+      if (WS && r.path === WS) opt.selected = true;
+      container.appendChild(opt);
+    }
   }
   wrap.style.display = '';
   sel.onchange = function() {
@@ -4398,13 +4429,15 @@ async function resolveExplicitWorkspace() {
   if (WS_RESOLVED) return true;
   let data;
   try { data = await (await fetch(BASE + '/workspaces')).json(); } catch { return false; }
-  const list = (data && data.workspaces) || [];
-  if (list.length === 1) { selectWorkspace(list[0].path); return true; }
-  if (list.length === 0) {
-    showWorkspaceGate('No registered workspaces yet. Bind one (POST /workspace, or open the Claude app in a project) and reload.', []);
+  // The selectable unit is a REPO PATH, so resolve over the flattened repo list (a single-repo
+  // workspace is still ONE selectable repo, and N repos across M groups is still N choices).
+  const repos = flattenWorkspaceRepos((data && data.workspaces) || []);
+  if (repos.length === 1) { selectWorkspace(repos[0].path); return true; }
+  if (repos.length === 0) {
+    showWorkspaceGate('No registered workspaces yet. Bind one (POST /workspace, or open the Claude app in a project) and reload.', (data && data.workspaces) || []);
     return false;
   }
-  showWorkspaceGate('Pick a workspace to view — the dashboard no longer defaults to a global workspace.', list);
+  showWorkspaceGate('Pick a workspace to view — the dashboard no longer defaults to a global workspace.', (data && data.workspaces) || []);
   return false;
 }
 function removeWorkspaceGate() {
@@ -4416,7 +4449,16 @@ function showWorkspaceGate(message, list) {
   const div = document.createElement('div');
   div.id = 'wsGate';
   div.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(13,17,23,0.92)';
-  const choices = (list || []).map((w) => `<button class="wsGateChoice" data-ws="${esc(w.path)}" style="display:block;width:100%;margin:4px 0;padding:8px 12px;background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;cursor:pointer;text-align:left;font:inherit">${esc(w.name)} <span style="color:#6e7681;font-size:11px">${esc(w.path)}</span></button>`).join('');
+  // Each selectable choice is a REPO PATH. Render one labeled section per workspace group with a
+  // button per repo under it; tolerate the legacy flat shape (a bare repo entry → its own button).
+  const repoBtn = (r) => `<button class="wsGateChoice" data-ws="${esc(r.path)}" style="display:block;width:100%;margin:4px 0;padding:8px 12px;background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;cursor:pointer;text-align:left;font:inherit">${esc(r.name)} <span style="color:#6e7681;font-size:11px">${esc(r.path)}</span></button>`;
+  const choices = (list || []).map((w) => {
+    if (Array.isArray(w.repos)) {
+      const label = `<div style="font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.04em;margin:12px 0 4px">${esc(w.name)}</div>`;
+      return label + w.repos.map(repoBtn).join('');
+    }
+    return repoBtn(w); // legacy flat entry
+  }).join('');
   div.innerHTML = `<div style="max-width:520px;padding:24px;background:#0d1117;border:1px solid #30363d;border-radius:10px"><div style="font-size:15px;font-weight:600;color:#c9d1d9;margin-bottom:6px">Select a workspace</div><div style="font-size:13px;color:#8b949e;margin-bottom:14px">${esc(message)}</div>${choices}</div>`;
   document.body.appendChild(div);
   for (const b of div.querySelectorAll('.wsGateChoice')) {

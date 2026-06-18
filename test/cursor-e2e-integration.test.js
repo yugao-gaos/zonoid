@@ -19,6 +19,7 @@ const CLASSIFY = path.join(ADAPTERS, 'classify.sh');
 const HOOKS_SAMPLE = path.join(ADAPTERS, 'hooks.json.sample');
 const cursorTx = require('../lib/cursor-transcripts');
 const filedrop = require('../lib/filedrop-tasks');
+const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -62,8 +63,20 @@ function spawnDaemon(port, sandbox, extra = {}) {
   });
 }
 
-function runHook(script, input, env) {
-  const r = spawnSync('bash', [script], { input, encoding: 'utf8', env: { ...process.env, ...env } });
+function runHook(script, input, env = {}) {
+  // Split any caller-supplied `${stubDir}:${process.env.PATH}` PATH back into a stub dir + rebuild
+  // through hookEnv so `jq` stays resolvable in the spawned bash on Windows (see
+  // test/helpers/curl-stub.js). Hooks here depend on jq under `set -euo pipefail`.
+  const { PATH: rawPath, ...rest } = env;
+  let stubDirs = [];
+  let overrides = rest;
+  if (rawPath) {
+    const tail = `:${process.env.PATH}`;
+    stubDirs = rawPath.endsWith(tail) ? [rawPath.slice(0, -tail.length)] : [rawPath];
+  } else {
+    overrides = { ...rest, PATH: process.env.PATH };
+  }
+  const r = spawnSync('bash', [script], { input, encoding: 'utf8', env: hookEnv(stubDirs, overrides) });
   return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
 }
 
@@ -94,6 +107,10 @@ function runHook(script, input, env) {
   const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-e2e-d-')));
   const PORT = 18920 + Math.floor(Math.random() * 80);
   const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cursor-e2e-ws-')));
+  // Mark WS as a real workspace so repoRoot() resolves it (repo-rooted model: a bare
+  // mkdtemp dir has repoRoot()===null, so start-daemon.js would skip registration). The
+  // .graph marker is exactly what repoRoot looks for, and avoids a git dependency in the test.
+  fs.mkdirSync(path.join(WS, '.graph'), { recursive: true });
   const TX = path.join(WS, 'fixture-transcript.jsonl');
   fs.writeFileSync(TX, '');
 
@@ -114,12 +131,13 @@ function runHook(script, input, env) {
     });
     ok('sessionStart: hook exits 0', r.status === 0);
 
-    // P3: /health no longer reflects a daemon-global workspace. Verify workspace registration
-    // via the /workspaces registry which lists all workspaces POST'd via /workspace.
-    const wsList = await req(PORT, 'GET', '/workspaces');
-    const registered = wsList.body && Array.isArray(wsList.body.workspaces) &&
-      wsList.body.workspaces.some((w) => w.path === WS);
-    ok('sessionStart: workspace registered', registered);
+    // P3 daemon model: /health is workspace-agnostic — its `workspace` field only echoes the
+    // OPTIONAL ?workspace= query param (routes/meta.js), it does NOT report a registered workspace.
+    // Genuine proof of registration lives in /workspaces, which enumerates the repos the daemon knows
+    // from session bindings (the cursor hook just bound one for WS). So assert WS shows up there.
+    const wss = await req(PORT, 'GET', '/workspaces');
+    const registeredRepos = (wss.body.workspaces || []).flatMap((w) => (w.repos || []).map((r2) => r2.path));
+    ok('sessionStart: workspace registered', registeredRepos.includes(WS));
     const health = await req(PORT, 'GET', '/health');
     ok('sessionStart: session binding registered', health.body.sessions >= 1);
   } finally {

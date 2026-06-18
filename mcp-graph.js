@@ -7,16 +7,20 @@ const path = require('path');
 const { spawn } = require('child_process');
 const core = require('./lib/mcp-core');
 const { extraToolsForClient, resolveSession } = require('./lib/mcp-harness-tools');
+const { repoRoot } = require('./lib/workspace-registry');
 
 const CLIENT = String(process.env.ORCH_CLIENT || 'claude').trim() || 'claude';
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const DAEMON = path.join(__dirname, 'daemon.js');
 // This session's pinned workspace (ORCH_WORKSPACE lets a process target a workspace independent
-// of its cwd; unset => cwd). Passed into makeCall so every MUTATING (POST) tool call carries it —
-// graph writes land in THIS session's workspace even when another session flipped the daemon's
-// global state.workspace (the workspace-gremlin fix).
-const WS = process.env.ORCH_WORKSPACE || (() => { try { return require('fs').readFileSync(require('path').join(process.env.CLAUDE_PLUGIN_DATA || require('path').join(require('os').homedir(),'.claude','orchestrator'), 'workspace'), 'utf8').trim() || null; } catch {} return null; })() || process.cwd();
+// of its cwd). Passed into makeCall so every MUTATING (POST) tool call carries it — graph writes
+// land in THIS session's workspace even when another session flipped the daemon's global
+// state.workspace (the workspace-gremlin fix). The old ~/.claude/orchestrator/workspace pointer
+// file AND the process.cwd()-as-workspace fallback are gone (note:note-mqj0wcabtxh): when
+// ORCH_WORKSPACE is unset we resolve cwd -> its containing repo via repoRoot, and WS stays null if
+// cwd is not inside a repo (callers tolerate null — see makeCall in lib/mcp-core.js).
+const WS = process.env.ORCH_WORKSPACE || repoRoot(process.cwd());
 const CALL = core.makeCall(PORT, WS);
 // Harness session fallback: Claude Desktop exposes CLAUDE_CODE_SESSION_ID and Codex exposes
 // CODEX_THREAD_ID. Without this, ctx.session is null and session-bound tools such as start_task
@@ -76,4 +80,4 @@ process.stdin.on('end', () => { ending = true; maybeExit(); });
 
 // Startup: boot the daemon + register this workspace, so the graph reflects this project.
 // (WS is resolved above, next to CALL, so mutating tool calls carry it per-request too.)
-(async () => { try { await ensureDaemon(); await CALL('POST', '/workspace', { path: WS }); } catch { /* ignore */ } })();
+(async () => { try { await ensureDaemon(); if (WS) await CALL('POST', '/workspace', { path: WS }); } catch { /* ignore */ } })();

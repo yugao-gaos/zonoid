@@ -35,6 +35,7 @@ const graphStore = require('./lib/graph-store');
 const sessionBindings = require('./lib/session-bindings');
 const { taskEmbedText } = require('./lib/node-tags');
 const headlessDrain = require('./lib/headless-drain');
+const registry = require('./lib/workspace-registry');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -294,8 +295,11 @@ function migrateBlindEdges(workspace, overlay) {
 function registeredWorkspaces() {
   const set = new Set();
   try {
-    const known = JSON.parse(fs.readFileSync(WORKSPACES_FILE, 'utf8'));
-    if (Array.isArray(known)) for (const p of known) { if (p) set.add(p); }
+    // v2 registry: flatten every member repo across all named workspaces into a flat list of repo
+    // PATHS. This MUST stay a Set<repoPath> — ≈10 sweep/claim callers iterate repo paths (never
+    // workspace NAMES); leaking names would break every maintenance sweep + the gate claim scan.
+    // loadRegistry lazily migrates a legacy v1 flat array in place; allRepos de-dupes.
+    for (const p of registry.allRepos(registry.loadRegistry(WORKSPACES_FILE))) { if (p) set.add(p); }
   } catch { /* no registry yet / unreadable — fall through to active-loop set */ }
   // Defensive union: a loop pinned to a workspace that isn't (yet) in the registry still needs sweeping.
   for (const L of loops.values()) { if (L.active && L.workspace) set.add(L.workspace); }
@@ -2293,15 +2297,16 @@ const ctx = {
         transcript, workspace: p, harness: opts.harness,
       });
     }
-    // Append to the workspace REGISTRY (workspaces.json) — the source of truth for sweeps + the
-    // dashboard switcher. This is registration, NOT a global-default write (the old `workspace` file
-    // is gone).
+    // Register the repo into the workspace REGISTRY (workspaces.json) — the source of truth for
+    // sweeps + the dashboard switcher. This is registration, NOT a global-default write (the old
+    // `workspace` file is gone). `p` is always a repo path; the workspace it joins defaults to
+    // basename(p) — a single-repo workspace, preserving today's behavior — unless an explicit
+    // bind.workspace names a group. registry.addRepo migrates any legacy v1 array, is atomic, and
+    // is idempotent (re-adding the same repo is a no-op).
     try {
       fs.mkdirSync(BASE, { recursive: true });
-      let known = [];
-      try { known = JSON.parse(fs.readFileSync(WORKSPACES_FILE, 'utf8')); } catch { /* first write */ }
-      if (!Array.isArray(known)) known = [];
-      if (!known.includes(p)) { known.push(p); fs.writeFileSync(WORKSPACES_FILE, JSON.stringify(known)); }
+      const workspace = (opts && opts.workspace) || path.basename(p);
+      registry.addRepo(WORKSPACES_FILE, { workspace, repo: p });
     } catch { /* best effort */ }
     const harnessName = opts.harness || (sessionId && state.sessions[sessionId] && state.sessions[sessionId].harness) || 'claude';
     try {
@@ -2318,6 +2323,18 @@ const ctx = {
     if (!sessionId) return;
     state.sessions = sessionBindings.bindSession(state.sessions, sessionId, patch);
   },
+  // Workspace-registry ctx contract (consumed by U3 / routes/meta.js):
+  //   - WORKSPACES_FILE                : path to the v2 registry file.
+  //   - registeredWorkspaces()         : flat Set of REPO PATHS (de-duped, union of registry + active loops).
+  //   - loadRegistry(WORKSPACES_FILE)  : the grouped v2 registry { version:2, workspaces:{ name:{ repos:[] } } }
+  //                                      (lazily migrates a legacy v1 flat array in place).
+  //   - repoToWorkspace(reg)           : Map<repoPath, workspaceName> reverse index over a loaded registry.
+  //   - workspaceForRepo(repoPath)     : convenience reverse lookup (loads + indexes the registry), name|null.
+  //   - repoRoot(startDir)             : walk up to the containing repo dir (.graph preferred), excludes worktrees.
+  loadRegistry: () => registry.loadRegistry(WORKSPACES_FILE),
+  repoToWorkspace: registry.repoToWorkspace,
+  workspaceForRepo: (repoPath) => registry.repoToWorkspace(registry.loadRegistry(WORKSPACES_FILE)).get(repoPath) || null,
+  repoRoot: registry.repoRoot,
   send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, overlayFor, resolveRepo, nodeExistsInGraph, registeredWorkspaces,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
