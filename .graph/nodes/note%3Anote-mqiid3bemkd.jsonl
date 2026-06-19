@@ -10,3 +10,4 @@
 {"evt":"knowledge_added","id":"note-mqiid3bemkd","workspace":"/Users/imyu/Desktop/zonoid","item":"exit:0","actor":"overlay-sync","ts":"2026-06-17T20:15:56.504Z"}
 {"evt":"knowledge_added","id":"note-mqiid3bemkd","workspace":"/Users/imyu/Desktop/zonoid","item":"drain:followup/harness-label-drain","actor":"overlay-sync","ts":"2026-06-17T20:18:46.819Z"}
 {"evt":"knowledge_added","id":"note-mqiid3bemkd","workspace":"/Users/imyu/Desktop/zonoid","item":"exit:0","actor":"overlay-sync","ts":"2026-06-17T20:18:46.819Z"}
+{"evt":"note_superseded","id":"note-mqiid3bemkd","supersededBy":"note-mqiivd4lyt6","validTo":"2026-06-17T20:27:18.453Z","ts":"2026-06-17T20:27:18.453Z","actor":"supersede"}

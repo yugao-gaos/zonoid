@@ -7,3 +7,9 @@ ORCH_PORT = "8787"
 ORCH_RERANK_ALPHA = "0.5"
 ORCH_RERANK_K = "50"
 ORCH_HEADLESS_DRAINS = "0"
+
+[mcp_servers.orchestrator-graph.tools.get_task_detail]
+approval_mode = "approve"
+
+[mcp_servers.orchestrator-graph.tools.get_dependency_summaries]
+approval_mode = "approve"

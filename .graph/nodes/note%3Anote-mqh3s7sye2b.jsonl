@@ -9,3 +9,4 @@
 {"evt":"knowledge_added","id":"note-mqh3s7sye2b","workspace":"D:\\zonoid","item":"drain:followup/harness-judge-drain","actor":"overlay-sync","ts":"2026-06-16T20:51:36.738Z"}
 {"evt":"knowledge_added","id":"note-mqh3s7sye2b","workspace":"D:\\zonoid","item":"exit:1","actor":"overlay-sync","ts":"2026-06-16T20:51:36.738Z"}
 {"evt":"edge_added","from":"note:note-mqh3s7sye2b","to":"note:note-mqhbveqejgj","kind":"context","actor":"overlay-sync","ts":"2026-06-17T01:42:36.081Z","weight":0,"by":"autowire","judged":false,"score":0.966,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqh3s7sye2b","to":"note:note-mqi4zmqea5r","kind":"context","actor":"overlay-sync","ts":"2026-06-18T21:12:56.880Z","weight":0,"by":"autowire","judged":false,"score":0.966,"origin":"autowire-semantic"}
