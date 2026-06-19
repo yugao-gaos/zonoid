@@ -2,7 +2,8 @@
   "task_key": "opencode/opencode-json-portable",
   "agent_id": "worker-opencode-json-portable",
   "branch": "orch/attempt/opencode-opencode-json-portable",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-19T22:19:32.607Z",
-  "lease_until": "2026-06-19T23:19:32.607Z"
+  "lease_until": "2026-06-19T23:19:32.607Z",
+  "completed_at": "2026-06-19T22:21:47.214Z"
 }
