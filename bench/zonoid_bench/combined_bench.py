@@ -51,19 +51,15 @@ replicates the production memory-retrieval path call-for-call:
      candidate; ``keepEdge`` promotes the weight-0 candidate IN PLACE (it re-enters ranked retrieval),
      ``pruneEdge`` deletes it — posted via ``POST /judge/verdict``. This is exactly how production
      freezes a task's judged DAG context BEFORE the task goes ready.
-  4. ``GET /task/context`` (= the ``get_dependency_summaries`` MCP tool / Tier-1 DAG summaries) reads
-     the FROZEN judged DAG context (weight>0 kept edges, sorted highest-first).
-  5. RAG fill: ``GET /search`` (note-only) catches relevant notes not kept by the DAG tier —
-     mirroring ``search_knowledge(task_key)`` = DAG tier injects first, RAG fills the
-     remaining slots. (arms.run_retrieve_and_answer does this DAG-then-RAG fill internally.)
+  4. ``GET /search?q=<question>&task_key=<probe>`` reads the production task-scoped result. A settled
+     probe returns system notes plus frozen judged DAG context; semantic RAG is omitted. If a probe
+     remains provisional, an actual RAG tier is preserved exactly as the daemon returned it.
 
-WE retrieve + inject the resulting context (DAG-kept + RAG-fill) and the answerer is a tool-less
-``claude -p`` completion run in an ISOLATED EMPTY DIR (no repo access — see "ISOLATION" below) —
-this is faithful because production ``search_knowledge`` / ``get_dependency_summaries`` ALSO return
-the context to the agent, which then answers; the retrieval seam is what we are measuring, and it is
-identical. The honesty bar: gold answers / evidence labels are used ONLY by the grader — they NEVER
-enter any ON or OFF retrieve/answer step. A note surfaces only via the production retrieval path, or
-is legitimately missed (judge_idle or pruned, reported).
+WE retrieve + inject that production result and the answerer is a tool-less ``claude -p`` completion
+run in an ISOLATED EMPTY DIR (no repo access — see "ISOLATION" below). The honesty bar: gold answers
+/ evidence labels are used ONLY by the grader — they NEVER enter any ON or OFF retrieve/answer step.
+A note surfaces only via the production retrieval path, or is legitimately missed (judge_idle or
+pruned, reported).
 
 ISOLATION (the load-bearing honesty guard): BOTH arms' answer completions run in a FRESH EMPTY TEMP
 DIR with built-in file/web tools denied — NEVER the repo/worktree cwd. This is verified-necessary:
@@ -73,12 +69,9 @@ OFF arm cheat and would let the ON arm bypass the retrieval seam. Running both i
 scripts/bench-economy.js mkdtempSync discipline) means the ON arm's knowledge comes ONLY from the
 injected retrieved context and the OFF arm's ONLY from world knowledge.
 
-GATE-FIRST/TIERED + abstain note: production search_knowledge(gated:true, task_key) injects the DAG
-tier first (tier:"dag", score 1.0, bypass gate) then RAG fills UNDER the context-need gate; on
-decision:"abstain" the agent proceeds with NO injected context and does not re-call gated. The
-canonical wiring models this structurally: the DAG tier is the eager-judge-KEPT context_deps (always
-injected); the RAG fill is the remaining-slot fill. When autowire seeds nothing and RAG finds nothing
-relevant, the answerer honestly sees empty context (the abstain-equivalent: answer with no memory).
+GATE-FIRST/TIERED + abstain note: after eager judgment a settled task-scoped search is DAG-only
+(plus system context), so the canonical wiring does not append a separate RAG result. When autowire
+seeds nothing, the answerer honestly sees only system context, if any, or otherwise empty context.
 
 ================================================================================================
 TOKEN-CAP ENFORCEMENT  (real-time kill vs post-hoc — honest limitation)
@@ -356,13 +349,13 @@ def run_on_arm(
     data_dir: str,
     model: Optional[str],
     on_ceiling: float,
-    rag_k: int = 5,
+    context_k: int = 5,
 ) -> dict[str, Any]:
     """Run the PRODUCTION-FAITHFUL ON arm and measure actual token spend.
 
-    Retrieval is arms.run_canonical_wiring (mint probe → autowire → eager judge → frozen /task/context
-    + RAG fill — see module docstring "ON-ARM PRODUCTION PARITY"). The answer is a tool-less
-    ``claude -p`` completion over the retrieved context, measured for FULL token usage.
+    Retrieval is arms.run_canonical_wiring followed by the production task-scoped search surface
+    (mint probe → autowire → eager judge → system + frozen task context for a settled probe). The
+    answer is a tool-less ``claude -p`` completion over that context, measured for FULL token usage.
 
     Returns a dict with: predicted, cost (weighted), usage (4-class), cost_usd, ctx_chars,
     context_keys, wiring diagnostics, over_ceiling flag.
@@ -372,41 +365,38 @@ def run_on_arm(
     # --- Step A: production-faithful retrieval (the seam under test) ---
     # arms.run_canonical_wiring is the audited production path. It mints the probe TASK, drives
     # autowire (NOTE→probe candidates under daemon candidate policy), pulls /judge/next, runs the EdgeJudge
-    # keep/prune, posts keepEdge/pruneEdge, then read_wired_context reads the frozen /task/context.
+    # keep/prune, posts keepEdge/pruneEdge, then reads the production task-scoped search response.
     wiring = arms_mod.run_canonical_wiring(client, unit_id, summary, data_dir=data_dir)
-    ctx_deps = arms_mod.read_wired_context(client, wiring.task_key)
 
-    # DAG tier (eager-judge KEPT edges, weight>0) — always injected first (tier:"dag" in production).
+    # Production task context: settled probes return system + frozen DAG tiers and no semantic RAG fill.
     dag_keys: set[str] = set()
     context_blocks: list[str] = []
     context_keys: list[str] = []
-    for d in ctx_deps:
-        key = d.get("key") or ""
-        text = str(d.get("summary") or "")
-        if text.strip():
-            context_blocks.append(f"[DAG] {text}")
-        if key:
-            dag_keys.add(key)
-            context_keys.append(key)
-
-    # RAG fill (note-only, dedupe vs DAG) — mirrors search_knowledge RAG slots beneath the DAG tier.
+    seen_keys: set[str] = set()
     try:
-        raw_hits = client.search(question, k=rag_k * 3, gated=False)
-        note_hits = [h for h in raw_hits if arms_mod._is_note_hit(h)][:rag_k]  # noqa: SLF001
-        for h in note_hits:
+        raw_hits = arms_mod.read_task_search_context(
+            client, wiring.task_key, question, k=context_k
+        )
+        for h in raw_hits:
             key = h.get("key") or ""
-            if key and key not in dag_keys:
-                text = str(h.get("summary") or "")
-                if text.strip():
-                    context_blocks.append(f"[RAG] {text}")
-                    context_keys.append(key)
-    except Exception as exc:  # noqa: BLE001 — RAG fill is best-effort
-        print(f"[combined_bench] ON RAG fill failed (non-fatal): {exc}", file=sys.stderr)
+            if not key or key in seen_keys:
+                continue
+            text = str(h.get("summary") or "")
+            if not text.strip():
+                continue
+            label = arms_mod.task_search_context_label(h)
+            context_blocks.append(f"[{label}] {text}")
+            seen_keys.add(key)
+            context_keys.append(key)
+            if label == "DAG":
+                dag_keys.add(key)
+    except Exception as exc:  # noqa: BLE001 — task-context retrieval is best-effort
+        print(f"[combined_bench] task-scoped context search failed (non-fatal): {exc}", file=sys.stderr)
 
     # --- Step B: answer over the retrieved context, measured ---
     context = "\n\n---\n\n".join(b for b in context_blocks if b and b.strip())
     if not context.strip():
-        # abstain-equivalent: no memory surfaced (autowire idle + RAG empty). Answer honestly with
+        # abstain-equivalent: no memory surfaced (autowire idle + task context empty). Answer honestly with
         # no context — exactly what a production agent does on search_knowledge decision:"abstain".
         context = "(no relevant memory was retrieved)"
     prompt = _ANSWER_TEMPLATE.format(context=context, question=question)
@@ -1049,7 +1039,7 @@ def render_report(agg: dict[str, Any], records: list[dict[str, Any]], path_md: s
         _ON_CONFIG_RAW_DAG: (
             "production-faithful memory retrieval (mint probe TASK -> autowire "
             "NOTE->probe context_deps -> eager-judge keep/prune -> frozen "
-            "/task/context (= get_dependency_summaries) + RAG fill = search_knowledge tiered). "
+            "task-scoped /search (system + DAG for settled probes)). "
             f"Token CEILING {on_ceiling:.0f} weighted tok-eq = runaway guard ONLY, not a target."
         ),
         _ON_CONFIG_DAG_DISTILL: (

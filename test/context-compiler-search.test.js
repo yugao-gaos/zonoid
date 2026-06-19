@@ -22,6 +22,7 @@ function node(id, label, extra = {}) {
     context_weights: extra.context_weights || {},
     summary: extra.summary || `${label} summary`,
     kind: extra.kind,
+    category: extra.category,
     provisional: extra.provisional,
   };
 }
@@ -84,7 +85,7 @@ async function runSearch(graph, params) {
   return result.body;
 }
 
-test('task_key search returns structural task context nodes', async () => {
+test('settled task_key search returns only system and structural task context', async () => {
   const graph = {
     tasks: [
       node('task/target', 'Target task', {
@@ -101,6 +102,15 @@ test('task_key search returns structural task context nodes', async () => {
         context_weights: { 'note:support': 0.7 },
       }),
       node('note:support', 'Support note', { kind: 'note' }),
+      node('note:system', 'System constraint', {
+        kind: 'note',
+        category: 'system',
+        summary: 'System context must always be present.',
+      }),
+      node('note:semantic-rag', 'Semantic RAG-only match', {
+        kind: 'note',
+        summary: 'needle query exact semantic match that must not leak into a settled task.',
+      }),
       node('task/sibling', 'Sibling wired task', {
         context_deps: ['note:direct'],
         context_weights: { 'note:direct': 0.8 },
@@ -108,9 +118,15 @@ test('task_key search returns structural task context nodes', async () => {
     ],
   };
 
-  const body = await runSearch(graph, { q: 'unrelated query', task_key: 'task/target', k: '3' });
+  const body = await runSearch(graph, {
+    q: 'needle query exact semantic match',
+    task_key: 'task/target',
+    k: '3',
+  });
   const byKey = new Map(body.results.map((item) => [item.key, item]));
 
+  assert(byKey.has('note:system'));
+  assert.equal(byKey.get('note:system').tier, 'system');
   assert(byKey.has('task/blocker'));
   assert.equal(byKey.get('task/blocker').tier, 'dag');
   assert.equal(byKey.get('task/blocker').via, 'blocking');
@@ -118,7 +134,9 @@ test('task_key search returns structural task context nodes', async () => {
   assert.equal(byKey.get('note:direct').weight, 0.9);
   assert.equal(byKey.get('note:support').tier, 'dag-note');
   assert.equal(byKey.get('task/sibling').tier, 'surrounding');
+  assert.equal(byKey.has('note:semantic-rag'), false);
   assert.equal(body.results.some((item) => item.tier === 'rag'), false);
+  assert.equal(body.continue, false);
 });
 
 test('conversational query promotes a wired neighbor through activation', async () => {

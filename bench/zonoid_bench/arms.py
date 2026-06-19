@@ -35,10 +35,10 @@ REAL LLM eager-judge over autowire candidates, NOT a ceScore threshold):
                                               candidate IN PLACE (judged:true + real weight off the
                                               recall score) so it re-enters ranked retrieval;
                                               pruneEdge deletes it. Posted via client.post_verdict.
-  5. read = frozen judged DAG context  ...... client.get_task_context (GET /task/context) — the
-                                              kept context_deps (weight>0) are now the probe's frozen
-                                              context, exactly as a production task reads them once
-                                              the eager judge has run BEFORE the task goes ready.
+  5. read = production task search  ......... client.search(..., task_key=<probe>) — after eager
+                                              judgment, a settled probe returns system context plus
+                                              frozen task context. It is DAG-only: semantic RAG is
+                                              not appended to that response.
 
 WHY a TASK probe + a LIVE-bound daemon (note-mqgwrh5a63x, note-mqh0gwz1mxc):
   - The eager judge is task-centric: /judge/next?node=, markEagerJudge, and the judging→ready gate
@@ -548,6 +548,32 @@ def read_wired_context(client: ZonoidClient, node_key: str) -> list[dict[str, An
     ]
 
 
+def read_task_search_context(
+    client: ZonoidClient,
+    node_key: str,
+    query: str,
+    *,
+    k: int = 5,
+) -> list[dict[str, Any]]:
+    """Read the task-scoped production search response after eager judgment.
+
+    A settled probe is non-provisional, so ``/search?task_key=`` returns system notes plus
+    frozen task context and omits semantic RAG. A provisional probe may legitimately return a
+    RAG tier; callers preserve the daemon's tier instead of manufacturing a separate fill.
+    """
+    return client.search(query, k=k, gated=False, task_key=node_key)
+
+
+def task_search_context_label(hit: dict[str, Any]) -> str:
+    """Map production search tiers to answer-context labels without relabeling them as RAG."""
+    tier = str(hit.get("tier") or "dag")
+    if tier == "system":
+        return "SYSTEM"
+    if tier in {"dag", "dag-note", "surrounding"}:
+        return "DAG"
+    return tier.upper()
+
+
 # ---------------------------------------------------------------------------
 # Executor (a): agent_in_container — build AGENTS.md for a real agent
 # ---------------------------------------------------------------------------
@@ -711,69 +737,52 @@ def run_retrieve_and_answer(
     task_summary: Optional[str] = None,
     data_dir: Optional[str] = None,
     model: Optional[str] = None,
-    rag_k: int = 5,
+    context_k: int = 5,
 ) -> ArmResult:
-    """ON arm, executor (b): wire the DAG + RAG fill, read combined context, answer via claude_p.
+    """ON arm, executor (b): wire the DAG, read production task context, answer via claude_p.
 
     For QA benches that can't spawn a real agent per probe (500+ units). The unit is minted as a
     TASK PROBE so the read comes cleanly off GET /task/context; the question itself is the task
     summary (so autowire ranks NOTE providers against the question's embedding and the eager judge
     keeps/prunes them).
 
-    After the DAG wiring step we ALSO run a workspace-scoped, task-aware RAG search (/search with
-    the question and task_key=wiring.task_key, note-only via _is_note_hit filter) to catch relevant
-    session notes not kept by the DAG tier. We dedupe by note key and tag DAG-vs-RAG provenance in
-    the diagnostics on the returned WiringResult.
+    After eager judgment, the answerer makes the same task-scoped ``/search`` call as production.
+    A settled probe receives system context plus frozen DAG context; it does not get a hand-added
+    semantic RAG fill. If a probe remains provisional, any RAG tier is preserved only because the
+    daemon returned it.
 
-    The combined (DAG-kept + RAG-fill) context blocks are injected into the answer prompt.  The
-    answerer remains tool-less/MCP-off: WE retrieve and inject; the answer agent calls no tools.
-
-    Mirrors production search_knowledge(task_key) = DAG tier + RAG fill.
+    The returned production context blocks are injected into the answer prompt. The answerer
+    remains tool-less/MCP-off: WE retrieve and inject; the answer agent calls no tools.
 
     *task_summary* defaults to *question* (the FB convention — embed against the unit's text).
     *data_dir* is required (the file-drop stub destination); defaults to CLAUDE_PLUGIN_DATA or the
     standard orchestrator data dir.
-    *rag_k* is the top-k for the RAG fill search (default 5).
+    *context_k* is forwarded to the production task-scoped search (default 5).
     """
     summary = task_summary or question
     dd = data_dir or os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.join(
         os.path.expanduser("~"), ".claude", "orchestrator"
     )
     wiring = run_canonical_wiring(client, unit_id, summary, data_dir=dd)
-    ctx_deps = read_wired_context(client, wiring.task_key)
-
-    # --- DAG tier (eager-judge kept edges) ---
-    dag_keys: set[str] = set()
     context_blocks: list[str] = []
     all_context_keys: list[str] = []
-    for d in ctx_deps:
-        key = d.get("key") or ""
-        text = str(d.get("summary") or "")
-        if text.strip():
-            context_blocks.append(f"[DAG] {text}")
-        if key:
-            dag_keys.add(key)
-            all_context_keys.append(key)
-
-    # --- RAG fill (semantic search, note-only, dedupe against DAG tier) ---
-    rag_keys: list[str] = []
+    seen_keys: set[str] = set()
     try:
-        raw_hits = client.search(question, k=rag_k * 3, gated=False, task_key=wiring.task_key)
-        note_hits = [h for h in raw_hits if _is_note_hit(h)][:rag_k]
-        for h in note_hits:
+        raw_hits = read_task_search_context(
+            client, wiring.task_key, question, k=context_k
+        )
+        for h in raw_hits:
             key = h.get("key") or ""
-            if key and key not in dag_keys:
-                text = str(h.get("summary") or "")
-                if text.strip():
-                    context_blocks.append(f"[RAG] {text}")
-                    rag_keys.append(key)
-                    all_context_keys.append(key)
-    except Exception as exc:  # noqa: BLE001 — RAG fill is best-effort
-        print(f"[arms] RAG fill search failed (non-fatal): {exc}", file=sys.stderr)
-
-    # Record RAG fill provenance on the wiring result for diagnostics.
-    if wiring is not None:
-        wiring.search_hits = list(dag_keys) + rag_keys  # dag kept + rag fill, for provenance
+            if not key or key in seen_keys:
+                continue
+            text = str(h.get("summary") or "")
+            if not text.strip():
+                continue
+            context_blocks.append(f"[{task_search_context_label(h)}] {text}")
+            seen_keys.add(key)
+            all_context_keys.append(key)
+    except Exception as exc:  # noqa: BLE001 — task-context retrieval is best-effort
+        print(f"[arms] task-scoped context search failed (non-fatal): {exc}", file=sys.stderr)
 
     ctx_chars = sum(len(b) for b in context_blocks if b and b.strip())
     predicted, usage = _answer_from_context(question, context_blocks, model)
