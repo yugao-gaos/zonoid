@@ -6,11 +6,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { TOOLS, handleRpc, makeCall, formatToolsList } = require('../lib/mcp-core');
 const { extraToolsForClient, resolveSession } = require('../lib/mcp-harness-tools');
 const filedrop = require('../lib/filedrop-tasks');
 const scheduleWakeup = require('../lib/schedule-wakeup');
+const codexSessionBridge = require('../lib/codex-session-bridge');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-mcp-harness-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
@@ -103,6 +104,38 @@ async function waitForPing(ms = 8000) {
     ok('resolveSession does not leak CODEX_THREAD_ID to cursor', resolveSession({ client: 'cursor' }) === '');
     ok('handleRpc injects CODEX_THREAD_ID-only session into start_task', codexCaptured && codexCaptured.session_id === 'codex-thread-only');
   });
+  await withEnv({
+    ORCH_SESSION: null,
+    ZONOID_SESSION: null,
+    CLAUDE_CODE_SESSION_ID: null,
+    CODEX_THREAD_ID: null,
+  }, async () => {
+    const fallback = resolveSession({ client: 'codex' });
+    ok('Codex fallback is stable in one MCP process', fallback === resolveSession({ client: 'codex' }) && /^codex-mcp-\d+-[a-f0-9]{32}$/.test(fallback));
+    ok('Codex fallback does not apply to cursor', resolveSession({ client: 'cursor' }) === '');
+    const desktopWake = await extraToolsForClient('codex', WS)[1].run({ delaySeconds: 60, reason: 'test', prompt: 'wake' });
+    ok('ScheduleWakeup works for Codex Desktop without a session', desktopWake.ok === true && desktopWake.command.includes(`${fallback}.fire`));
+    ok('Codex fallback wake is timer-only', desktopWake.delivery && desktopWake.delivery.supported === false && desktopWake.delivery.method === 'timer-only');
+    scheduleWakeup.cancelWakeup(fallback);
+
+    codexSessionBridge.writeLatestSession({ workspace: WS, session_id: 'real-codex-session', transcript: '/tmp/real-codex.jsonl' });
+    const bridgedWake = await extraToolsForClient('codex', WS, { session: fallback })[1].run({ delaySeconds: 60, reason: 'test', prompt: 'wake' });
+    ok('Codex ScheduleWakeup prefers bridged real session over MCP fallback', bridgedWake.ok === true && bridgedWake.command.includes('real-codex-session.fire') && bridgedWake.session_source === 'codex-bridge');
+    ok('Codex bridged wake returns resume delivery command', bridgedWake.delivery && bridgedWake.delivery.supported === true && bridgedWake.delivery.session_id === 'real-codex-session' && bridgedWake.delivery.command.includes('wakeup-monitor.js'));
+    scheduleWakeup.cancelWakeup('real-codex-session');
+  });
+  await withEnv({ CODEX_THREAD_ID: 'codex-thread', ORCH_SESSION: 'orch-session' }, async () => {
+    ok('Codex context session keeps precedence over environment', resolveSession({ client: 'codex', session: 'context-session' }) === 'context-session');
+    ok('Codex ORCH_SESSION keeps precedence over CODEX_THREAD_ID', resolveSession({ client: 'codex' }) === 'orch-session');
+  });
+  const fallbackChild = () => spawnSync(process.execPath, ['-e', "process.stdout.write(require('./lib/mcp-harness-tools').resolveSession({ client: 'codex' }))"], {
+    cwd: path.join(__dirname, '..'),
+    encoding: 'utf8',
+    env: { ...process.env, ORCH_SESSION: '', ZONOID_SESSION: '', CLAUDE_CODE_SESSION_ID: '', CODEX_THREAD_ID: '' },
+  }).stdout.trim();
+  const fallbackA = fallbackChild();
+  const fallbackB = fallbackChild();
+  ok('Codex fallback is isolated across MCP processes', fallbackA !== fallbackB && /^codex-mcp-\d+-[a-f0-9]{32}$/.test(fallbackA) && /^codex-mcp-\d+-[a-f0-9]{32}$/.test(fallbackB));
 
   const judgeNextTool = TOOLS.find((t) => t.name === 'get_judge_next');
   ok('get_judge_next is on default MCP surface', !!judgeNextTool);

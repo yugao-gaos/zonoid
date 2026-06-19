@@ -3,10 +3,12 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
+const codexSessionBridge = require('../lib/codex-session-bridge');
 
 const HOOK = path.join(__dirname, '..', 'adapters', 'codex', 'hooks', 'agent-done.sh');
+const SESSION_START = path.join(__dirname, '..', 'hooks', 'start-daemon.js');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-hooks-'));
 
 let pass = 0, fail = 0;
@@ -14,6 +16,15 @@ const ok = (label, cond) => {
   if (cond) { console.log(`PASS  ${label}`); pass++; }
   else { console.log(`FAIL  ${label}`); fail++; }
 };
+
+function waitForFile(file, ms = 5000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    if (fs.existsSync(file)) return true;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  }
+  return false;
+}
 
 try {
   const codexHome = path.join(TMP, 'codex-home');
@@ -56,6 +67,34 @@ try {
   ok('agent-done forwards reported_usage from rollout fallback', args.includes('reported_usage'));
   ok('agent-done normalizes uncached input tokens', args.includes('"input_tokens":700'));
   ok('agent-done forwards output tokens', args.includes('"output_tokens":50'));
+
+  const configPath = path.join(TMP, 'hook-stub-config.json');
+  const readyPath = path.join(TMP, 'hook-stub-ready.json');
+  fs.writeFileSync(configPath, JSON.stringify({}));
+  const stub = spawn(process.execPath, [path.join(__dirname, 'support', 'hook-http-stub-child.js'), configPath, readyPath], {
+    stdio: 'ignore',
+  });
+  try {
+    ok('hook HTTP stub ready', waitForFile(readyPath));
+    const port = JSON.parse(fs.readFileSync(readyPath, 'utf8')).port;
+    const ws = path.join(TMP, 'repo');
+    fs.mkdirSync(path.join(ws, '.graph'), { recursive: true });
+    const start = spawnSync(process.execPath, [SESSION_START], {
+      input: JSON.stringify({
+        cwd: ws,
+        session_id: 'codex-hook-session',
+        transcript_path: '/tmp/codex-hook-session.jsonl',
+        harness: 'codex',
+      }),
+      encoding: 'utf8',
+      env: { ...process.env, CLAUDE_PLUGIN_DATA: TMP, ORCH_PORT: String(port) },
+    });
+    const bridged = codexSessionBridge.latestSession({ workspace: ws }, path.join(TMP, 'codex', 'session-bridge.json'));
+    ok('SessionStart exits 0', start.status === 0);
+    ok('SessionStart writes Codex session bridge', bridged && bridged.session_id === 'codex-hook-session' && bridged.workspace === path.resolve(ws));
+  } finally {
+    stub.kill();
+  }
 } finally {
   fs.rmSync(TMP, { recursive: true, force: true });
 }

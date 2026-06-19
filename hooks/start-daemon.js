@@ -7,12 +7,13 @@ const path = require('path');
 const { spawn } = require('child_process');
 const k = require('./lib/hookkit');
 const { repoRoot } = require('../lib/workspace-registry');
+const codexSessionBridge = require('../lib/codex-session-bridge');
 
 (async () => {
   const input = await k.readInput();
   const tx = input.transcript_path || '';
   const sid = input.session_id || '';
-  const harness = input.harness || '';
+  const harness = input.harness || process.env.ZONOID_HARNESS || '';
   // Resolve the workspace as the repo CONTAINING cwd (note:note-mqj0wcabtxh): the old
   // ~/.claude/orchestrator/workspace pointer and the raw-cwd-as-workspace fallback are gone.
   // repoRoot returns null when cwd is not inside a repo — we then skip POST /workspace.
@@ -31,6 +32,9 @@ const { repoRoot } = require('../lib/workspace-registry');
   if (cwd) {
     const body = { path: cwd, transcript: tx, session_id: sid };
     if (harness) body.harness = harness;
+    if (harness === 'codex' && sid) {
+      try { codexSessionBridge.writeLatestSession({ workspace: cwd, session_id: sid, transcript: tx }); } catch { /* best effort */ }
+    }
     await k.post('/workspace', body, 500);
     await k.post('/usage/reconcile', { harness: harness || 'claude', workspace: cwd, session: sid }, 2000);
   }
