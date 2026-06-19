@@ -19,6 +19,19 @@ ScheduleWakeup(delaySeconds, reason, prompt)
 - **Monitor:** run the tool-returned `command` (typically `tail -n0 -F <fire path>`) and match
   stdout against `notify_pattern` (`^ORCH_SCHEDULED_TASK`).
 
+## Codex Desktop sessions
+
+Codex hooks can expose a `session_id`, but that hook process does not share request-scoped state
+with the MCP subprocess. The Codex MCP server therefore prefers an explicit `session_id`, hook or
+context data, `ORCH_SESSION`, `ZONOID_SESSION`, and `CODEX_THREAD_ID`; when all are absent, it
+generates a cryptographically random session key local to that MCP process. The key is stable for
+that process only, collision-resistant across MCP processes, and neither workspace-global nor
+persisted as a cross-thread identity.
+
+Arming a wake guarantees only timer delivery to the `.fire` file. The MCP server cannot cause
+Codex Desktop to re-prompt a conversation; the host must monitor the returned `command` and deliver
+the prompt after observing `notify_pattern`.
+
 ## Where it lives
 
 | Layer | Path |

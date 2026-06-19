@@ -22,9 +22,9 @@ const DAEMON = path.join(__dirname, 'daemon.js');
 // cwd is not inside a repo (callers tolerate null — see makeCall in lib/mcp-core.js).
 const WS = process.env.ORCH_WORKSPACE || repoRoot(process.cwd());
 const CALL = core.makeCall(PORT, WS);
-// Harness session fallback: Claude Desktop exposes CLAUDE_CODE_SESSION_ID and Codex exposes
-// CODEX_THREAD_ID. Without this, ctx.session is null and session-bound tools such as start_task
-// cannot inject the worker's real harness session into the claim.
+// Harness session fallback: Claude Desktop exposes CLAUDE_CODE_SESSION_ID and Codex may expose
+// CODEX_THREAD_ID. When Codex Desktop exposes neither, resolveSession creates a random key scoped
+// to this MCP process so session-bound tools can still use the shared timer substrate.
 const SESSION = resolveSession({ client: CLIENT }) || null;
 const CLIENT_EXTRA = extraToolsForClient(CLIENT, WS, { session: SESSION });
 
