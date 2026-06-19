@@ -15,3 +15,5 @@
 {"evt":"edge_promoted","from":"codex/judge-bench-canonical-sdk-on-arms","to":"codex/judge-bench-canonical-sdk-on-arms-kickback-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-19T01:40:46.071Z","weight":1,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/judge-bench-canonical-sdk-on-arms","to":"codex/judge-bench-canonical-sdk-on-arms-kickback-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-19T12:23:57.475Z","weight":1,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/judge-bench-canonical-sdk-on-arms","to":"codex/judge-bench-canonical-sdk-on-arms-kickback-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-19T12:28:15.021Z","weight":1,"origin":"asserted"}
+{"evt":"edge_added","from":"codex/judge-bench-canonical-sdk-on-arms","to":"codex/verify-featurebench-production-faithful","kind":"context","actor":"overlay-sync","ts":"2026-06-19T14:12:20.292Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_added","from":"codex/judge-bench-canonical-sdk-on-arms","to":"codex/judge-verify-featurebench-production-faithful","kind":"context","actor":"overlay-sync","ts":"2026-06-19T14:12:41.361Z","weight":0.8,"origin":"asserted"}
