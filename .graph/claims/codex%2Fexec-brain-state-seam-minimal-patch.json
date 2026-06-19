@@ -1,0 +1,11 @@
+{
+  "task_key": "codex/exec-brain-state-seam-minimal-patch",
+  "agent_id": "worker-exec-brain-state-seam-minimal-patch",
+  "session_id": "019edc72-1ede-7c50-8430-bf59bd21d91d",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-exec-brain-state-seam-minimal-patch",
+  "status": "done",
+  "claimed_at": "2026-06-18T20:36:28.524Z",
+  "lease_until": "2026-06-18T21:36:28.524Z",
+  "completed_at": "2026-06-18T20:38:45.535Z"
+}
