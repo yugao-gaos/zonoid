@@ -15,6 +15,8 @@ const {
   resolveInstallDir,
   linkSkill,
   installRepoSkill,
+  installOpencodeRepoSkills,
+  opencodePluginDepVersion,
   writeMcp,
   writeCodexMcp,
   writeOpencodeMcp,
@@ -304,6 +306,50 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
   }
 }
 
+// ── Client-repo skill install: OpenCode guidance belongs in target repo ──────
+// Mirrors the Codex block above but asserts the .opencode/skills destination
+// AND opencode-specific wording (task_create tool, opencode/<id> keys).
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-opencode-skill-'));
+  try {
+    const cwd = path.join(base, 'client-repo')
+    fs.mkdirSync(cwd, { recursive: true })
+    const installed = installRepoSkill(cwd, 'zonoid-orchestrator-opencode', 'opencode')
+    const skillPath = path.join(cwd, '.opencode', 'skills', 'zonoid-orchestrator-opencode', 'SKILL.md')
+    ok('installRepoSkill installs zonoid-orchestrator-opencode into client .opencode/skills',
+      installed && fs.existsSync(skillPath))
+    ok('installRepoSkill opencode does NOT touch .codex/skills',
+      !fs.existsSync(path.join(cwd, '.codex', 'skills')))
+    const text = fs.readFileSync(skillPath, 'utf8')
+    ok('opencode repo skill documents task_create file-drop task minting',
+      text.includes('task_create') && text.includes('opencode/<id>'))
+    ok('opencode repo skill surfaces the dashboard URL', text.includes('localhost:8787/graph'))
+
+    // installOpencodeRepoSkills() wrapper hits the same path.
+    const cwd2 = path.join(base, 'client-repo-2')
+    fs.mkdirSync(cwd2, { recursive: true })
+    const installed2 = installOpencodeRepoSkills(cwd2)
+    const skillPath2 = path.join(cwd2, '.opencode', 'skills', 'zonoid-orchestrator-opencode', 'SKILL.md')
+    ok('installOpencodeRepoSkills installs the opencode repo skill', installed2 && fs.existsSync(skillPath2))
+
+    // Idempotent: a second install is byte-identical.
+    const before = fs.readFileSync(skillPath, 'utf8')
+    installRepoSkill(cwd, 'zonoid-orchestrator-opencode', 'opencode')
+    const after = fs.readFileSync(skillPath, 'utf8')
+    ok('installRepoSkill opencode is idempotent', before === after)
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true })
+  }
+}
+
+// ── OpenCode plugin dep pin: never 'latest' (opencode rewrites it to a broken @local) ──
+{
+  const v = opencodePluginDepVersion()
+  ok('opencodePluginDepVersion never returns latest', v !== 'latest' && v !== '*')
+  ok('opencodePluginDepVersion is a pinned range (~X.Y.0 when detected, else ^1.15.0)',
+    /^(~\d+\.\d+\.0|\^\d+\.\d+\.\d+)$/.test(v))
+}
+
 // ── CDX-2: Claude + Codex coexistence in ONE repo ────────────────────────────
 // Wire the claude MCP store (.mcp.json) then the codex MCP store
 // (~/.codex/config.toml, injected path) and assert BOTH client identities
@@ -410,6 +456,8 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     ok('opencode wiring enables orchestrator MCP', entry.enabled === true);
     ok('opencode wiring injects ORCH_CLIENT=opencode',
       entry.environment && entry.environment.ORCH_CLIENT === 'opencode');
+    ok('opencode wiring explicitly registers the zonoid plugin (no auto-discovery in 1.15.x)',
+      Array.isArray(config.plugin) && config.plugin.includes('./.opencode/plugins/zonoid.ts'));
 
     fs.writeFileSync(opencodePath, JSON.stringify({
       theme: 'system',

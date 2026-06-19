@@ -10,6 +10,7 @@ const http = require('http');
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
 const CODEX_REPO_SKILLS_DIR = path.join('.codex', 'skills');
+const OPENCODE_REPO_SKILLS_DIR = path.join('.opencode', 'skills');
 
 // ── Invariant 3: Resolve install dir — prefer local checkout ─────────────────
 
@@ -362,6 +363,17 @@ function writeOpencodeMcp(cwd) {
   existing.mcp = existing.mcp || {};
   existing.mcp['orchestrator-graph'] = opencodeMcpEntry();
 
+  // Explicitly register the plugin in opencode.json. opencode 1.15.x does NOT
+  // auto-discover .opencode/plugins/*.ts — without this entry the plugin never
+  // loads (no write-gate / task_create / classify), even when its deps are
+  // installed and the file is symlinked into .opencode/plugins/.
+  existing.plugin = Array.isArray(existing.plugin) ? existing.plugin : [];
+  const pluginPath = './.opencode/plugins/zonoid.ts';
+  if (!existing.plugin.includes(pluginPath)) {
+    existing.plugin.push(pluginPath);
+    log('Registered zonoid plugin in opencode.json (plugin entry)');
+  }
+
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, JSON.stringify(existing, null, 2) + '\n');
   ok(`${had ? 'Merged' : 'Written'} OpenCode MCP config: ${dest}`);
@@ -481,7 +493,9 @@ function installRepoSkill(cwd, skill, harness = 'codex') {
 
   const destRoot = harness === 'codex'
     ? path.join(cwd, CODEX_REPO_SKILLS_DIR)
-    : path.join(cwd, '.zonoid', 'skills');
+    : harness === 'opencode'
+      ? path.join(cwd, OPENCODE_REPO_SKILLS_DIR)
+      : path.join(cwd, '.zonoid', 'skills');
   const dest = path.join(destRoot, skill);
   fs.mkdirSync(destRoot, { recursive: true });
 
@@ -503,6 +517,10 @@ function installRepoSkill(cwd, skill, harness = 'codex') {
 
 function installCodexRepoSkills(cwd) {
   installRepoSkill(cwd, 'zonoid-orchestrator', 'codex');
+}
+
+function installOpencodeRepoSkills(cwd) {
+  return installRepoSkill(cwd, 'zonoid-orchestrator-opencode', 'opencode');
 }
 
 function checkDaemon() {
@@ -958,10 +976,34 @@ function checkCursorHooks(cwd) {
   log('Trust the workspace in Cursor so project hooks run.');
 }
 
+// opencode rewrites "@opencode-ai/plugin": "latest" to a "@local" tag that
+// fails to resolve (NpmInstallFailedError), which makes opencode SILENTLY SKIP
+// the plugin entirely — so the write-gate, task_create, and classify injection
+// never load. Pin to the INSTALLED opencode's minor so npm resolves a real
+// published SDK version instead.
+function installedOpencodeVersion() {
+  try {
+    const res = spawnSync('npm', ['root', '-g'], { encoding: 'utf8' });
+    const root = (res.stdout || '').trim();
+    if (!root) return null;
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'opencode-ai', 'package.json'), 'utf8'));
+    return pkg.version || null;
+  } catch { return null; }
+}
+function opencodePluginDepVersion() {
+  const v = installedOpencodeVersion();
+  if (v) {
+    const m = String(v).match(/^(\d+)\.(\d+)\./);
+    if (m) return `~${m[1]}.${m[2]}.0`;
+  }
+  return '^1.15.0'; // fallback: never 'latest' (opencode's @local rewrite breaks it)
+}
+
 function checkOpencodePlugin(cwd) {
   const srcDir = path.join(INSTALL_DIR, 'packages', 'opencode-plugin');
   const pluginDir = path.join(cwd, '.opencode', 'plugins');
   const opencodeDir = path.join(cwd, '.opencode');
+  const depVersion = opencodePluginDepVersion();
   if (!fs.existsSync(path.join(srcDir, 'zonoid.ts'))) {
     warn(`OpenCode plugin missing at ${srcDir}`);
     return;
@@ -986,15 +1028,18 @@ function checkOpencodePlugin(cwd) {
   }
   verifyOpencodeScheduleWakeup();
   const pkgPath = path.join(opencodeDir, 'package.json');
-  const defaultPkg = JSON.stringify({ dependencies: { '@opencode-ai/plugin': 'latest' } }, null, 2) + '\n';
+  const defaultPkg = JSON.stringify({ dependencies: { '@opencode-ai/plugin': depVersion } }, null, 2) + '\n';
   if (fs.existsSync(pkgPath)) {
     try {
       const existing = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-      if (existing.dependencies && existing.dependencies['@opencode-ai/plugin']) {
-        ok('.opencode/package.json already has @opencode-ai/plugin');
+      const current = existing.dependencies && existing.dependencies['@opencode-ai/plugin'];
+      if (current === depVersion) {
+        ok(`.opencode/package.json already pins @opencode-ai/plugin@${depVersion}`);
       } else {
-        fix('Merging @opencode-ai/plugin into .opencode/package.json...');
-        existing.dependencies = { ...(existing.dependencies || {}), '@opencode-ai/plugin': 'latest' };
+        fix(current
+          ? `Repinning @opencode-ai/plugin '${current}' → '${depVersion}' ('latest' triggers opencode's broken @local resolution)`
+          : 'Merging @opencode-ai/plugin into .opencode/package.json...');
+        existing.dependencies = { ...(existing.dependencies || {}), '@opencode-ai/plugin': depVersion };
         fs.writeFileSync(pkgPath, JSON.stringify(existing, null, 2) + '\n');
         ok('Updated .opencode/package.json');
       }
@@ -1007,7 +1052,20 @@ function checkOpencodePlugin(cwd) {
     fs.writeFileSync(pkgPath, defaultPkg);
     ok('Written .opencode/package.json');
   }
-  log('OpenCode runs bun install in .opencode/ at startup.');
+  // Install plugin deps now so the plugin loads on opencode's next start.
+  // opencode's own background install is unreliable here: it rewrites the dep
+  // to a failing "@local" tag and skips when bun is absent, leaving the plugin
+  // unloaded (no gate / task_create / classify). Pre-installing makes
+  // `zonoid init --harness opencode` self-contained.
+  const pluginInstalled = fs.existsSync(path.join(opencodeDir, 'node_modules', '@opencode-ai', 'plugin', 'package.json'));
+  if (pluginInstalled) {
+    ok('.opencode deps already installed (@opencode-ai/plugin present)');
+  } else {
+    fix(`Installing .opencode deps (@opencode-ai/plugin@${depVersion})...`);
+    const install = spawnSync('npm', ['install', '--no-audit', '--no-fund'], { cwd: opencodeDir, encoding: 'utf8' });
+    if (install.status === 0) ok('.opencode deps installed — plugin loads on next opencode restart');
+    else warn(`npm install in .opencode exited ${install.status} — plugin may not load until deps resolve`);
+  }
 }
 
 function codexHookCommands(sample) {
@@ -1212,6 +1270,7 @@ function wireHarness(harness, cwd) {
   } else if (harness === 'opencode') {
     checkOpencodePlugin(cwd);
     writeOpencodeMcp(cwd);
+    installOpencodeRepoSkills(cwd);
     warn('OpenCode init skips Claude hooks — restart OpenCode after native opencode.json MCP wiring');
   }
 }
@@ -1241,8 +1300,10 @@ function printNextSteps(harness, cwd = process.cwd()) {
     console.log('  Next steps (opencode):');
     console.log('    1. Restart OpenCode in this directory after opencode.json MCP wiring');
     console.log(`    2. Open the dashboard: ${dash}`);
-    console.log('    3. Use task_create (file-drop stub + /sync) to mint, then start_task before editing');
+    console.log('    3. Mint tasks with the task_create tool (file-drop stub + /sync), then start_task before editing');
     console.log('    4. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
+    console.log('    5. Repo skill installed at .opencode/skills/zonoid-orchestrator-opencode for task-mint workflow');
+    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else {
     console.log('  Next steps (claude):');
     console.log('    1. Restart Claude Code in this directory');
@@ -1397,6 +1458,8 @@ if (require.main === module) {
     linkSkill,
     installRepoSkill,
     installCodexRepoSkills,
+    installOpencodeRepoSkills,
+    opencodePluginDepVersion,
     // CDX-2: Claude+Codex coexistence — MCP store split + multi-harness init
     writeMcp,
     writeCodexMcp,
