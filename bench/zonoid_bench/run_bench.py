@@ -1,8 +1,12 @@
 """bench/zonoid_bench/run_bench.py — Zonoid Feature Bench multi-trial runner.
 
-Connects to an existing daemon (default http://localhost:8787) with the onboard KB already
-loaded, and runs N trials from the KB queue, writing results per-trial so partial runs can
-be assembled into a final score later.
+Connects to an existing daemon (default http://localhost:8787) whose workspace has already been
+populated with the onboard KB, and runs N trials from the KB queue, writing results per-trial so
+partial runs can be assembled into a final score later.
+
+This runner does not spawn or prepopulate an isolated daemon by itself. For the canonical isolated
+task/container path, start a local bench daemon with ``zonoid_bench.daemon.start(workspace=...)``
+and explicitly load a snapshot/onboarding data into that workspace before running ON arms.
 
 Partial-run workflow
 --------------------
@@ -20,8 +24,9 @@ Partial-run workflow
 
 Prerequisites
 -------------
-  The onboard KB must already be loaded into the daemon (batch-inject the onboard-queue.json
-  entries via the standard ingest path) before running this bench.
+  The onboard KB must already be loaded into the daemon's selected workspace (batch-inject the
+  onboard-queue.json entries via the standard ingest path or load a snapshot) before running this
+  bench. The daemon does not start prepopulated.
 
 Flags
 -----

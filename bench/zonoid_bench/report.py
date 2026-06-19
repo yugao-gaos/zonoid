@@ -716,12 +716,12 @@ def fidelity_counters_section(
 
     These counters are exposed per WiringResult (arms.py) and aggregated across a batch run:
       - timeout_kills    : total claude_p calls that hit the per-call timeout and were retried.
-      - judge_idle       : total probes where /judge/next returned no >=0.55 candidates (hollow).
+      - judge_idle       : total probes where /judge/next returned no candidates (hollow).
       - provisional_kept : total edges kept PROVISIONAL because all retries timed out.
 
     A run with timeout_kills=0 and provisional_kept=0 is provably fully faithful to production
-    (no retry path or fallback was exercised). A run with judge_idle>0 honestly reports that
-    some evidence notes fell below the 0.55 autowire threshold.
+    (no retry path or fallback was exercised). A run with judge_idle>0 honestly reports that the
+    daemon's configured candidate policy returned no candidate edge-set for some probes.
 
     Args:
         timeout_kills    : aggregated count from WiringResult.timeout_kills across all units.
@@ -742,8 +742,8 @@ def fidelity_counters_section(
     )
     lines.append(
         f"| `judge_idle` | {judge_idle} | "
-        f"probes where /judge/next returned no >=0.55 candidates "
-        f"(evidence sub-threshold; wired nothing, production-correct) |"
+        f"probes where /judge/next returned no candidates "
+        f"(wired nothing; honest idle result) |"
     )
     lines.append(
         f"| `provisional_kept` | {provisional_kept} | "

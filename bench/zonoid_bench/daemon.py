@@ -290,10 +290,11 @@ def start(
         # Without this, the embedded daemon's drain loop blocks indefinitely
         # when there are no tasks — observed to hang bench runs for hours.
         "ORCH_HEADLESS_DRAINS": "0",
-        # Drop the 0.55 cosine floor so the eager-judge sees all top-K reranked candidates
+        # Drop the production cosine floor so the eager-judge sees all top-K reranked candidates
         # instead of a hard cosine cutoff. Cost is bounded by TASK_CREATE_FANOUT (5 per kind)
         # and the ORCH_AUTOWIRE_K cap (top-K pre-filter before fan-out). Production daemon stays
-        # at 0.55 (env not set). Bench uses ~0 to maximise recall for the eager-judge to arbitrate.
+        # at its default (env not set). Bench uses ~0 to maximise recall for the eager-judge to
+        # arbitrate.
         "ORCH_AUTOWIRE_THRESHOLD": os.environ.get("ORCH_AUTOWIRE_THRESHOLD", "0.0"),
         # Top-K cosine candidates passed to the fan-out before the per-kind TASK_CREATE_FANOUT cap
         # applies. Bounds cost: at most K cosine scores + fan-out cap kept edges, not all 114 notes.

@@ -8,7 +8,7 @@ probe THREE ways, sharing one answerer model + one answer-prompt template:
       PRODUCTION-FAITHFUL: delegates to the SDK canonical arm
       ``arms.run_retrieve_and_answer`` (bench/zonoid_bench/arms.py), which does the
       EXACT production eager-judge pipeline:
-        mint probe task → autowire (≥0.55 cosine seeds weight-0 NOTE→probe candidates) →
+        mint probe task → autowire (daemon-configured top-K candidate seeding) →
         judge_next pull → LLM EdgeJudge keep/prune → keepEdge (promote in place) →
         get_task_context → answer from ONLY kept context summaries.
 
@@ -17,10 +17,10 @@ probe THREE ways, sharing one answerer model + one answer-prompt template:
       into that embedded daemon so judge_next + keepEdge resolve against them.  The
       embedded daemon is stopped after all probes for the conversation complete.
 
-      The 0.55 gate is RESPECTED: a session whose cosine to the probe is below
-      SEMANTIC_AUTOWIRE_THRESHOLD (0.55) is NEVER an autowire candidate, so keepEdge
-      does not promote it — that miss is the HONEST production result, not a bug.
-      There is NO createEdge workaround, NO blind-keep-decision over ALL sessions.
+      The SDK bench daemon drops the old hard cosine floor with ORCH_AUTOWIRE_THRESHOLD=0.0
+      and bounds candidate cost with ORCH_AUTOWIRE_K/top-K; keepEdge still only promotes a
+      real candidate returned by judge_next. There is NO createEdge workaround and NO
+      blind-keep-decision over ALL sessions.
 
   ARM ``search``   (retrieval-time control — "normal RAG memory")
       Same ingested graph; GET /search?q=<question> -> top-k session summaries ->
@@ -44,7 +44,8 @@ Production-faithful arm (per /25 decision, SDK arms.py)
 The ``our-way`` arm delegates ENTIRELY to ``arms.run_retrieve_and_answer``, which:
 1. Mints the probe as a TASK PROBE (file-drop stub) so the eager-judge is task-centric.
 2. Fires the ingest funnel (embed → setTaskVec → autowireNewTaskWholeGraph → markEagerJudge):
-   autowire seeds weight-0 NOTE→probe candidate edges at cosine >= 0.55.
+   autowire seeds weight-0 NOTE→probe candidate edges according to the daemon's configured
+   candidate policy (canonical bench default: threshold 0.0 + top-K cap).
 3. Pulls the autowire candidate set via client.judge_next(node=<probe>).
 4. Runs the LLM EdgeJudge (keep/prune, DEFAULT prune) — keepEdge promotes weight-0
    candidate IN PLACE (judged:true + real weight); pruneEdge deletes it.
@@ -410,19 +411,18 @@ def run_our_way(
     """ARM our-way: PRODUCTION-FAITHFUL eager-judge pipeline via the SDK canonical arm.
 
     Delegates to ``arms.run_retrieve_and_answer`` which does:
-      mint probe task → autowire (≥0.55 cosine seeds weight-0 NOTE→probe candidates) →
-      judge_next pull → LLM EdgeJudge keep/prune → keepEdge (promote in place, respects
-      the 0.55 gate) → get_task_context (read kept context) → answer.
+      mint probe task → autowire (daemon-configured top-K candidate seeding) →
+      judge_next pull → LLM EdgeJudge keep/prune → keepEdge (promote in place) →
+      get_task_context (read kept context) → answer.
 
     If *_embedded_client* is provided (pre-started embedded daemon, see
     ``run_probe_with_sdk_daemon``), it is used directly.  Otherwise a fresh embedded
     daemon is spawned just for this probe (slower, but backward-compatible with
     callers that haven't been updated yet).
 
-    The 0.55 gate IS respected: a session note whose cosine to the probe is below
-    SEMANTIC_AUTOWIRE_THRESHOLD (0.55) is NEVER an autowire candidate, so keepEdge
-    does not promote it.  A score drop vs the old inflated run is the HONEST result;
-    the old run inflated recall via createEdge which forced sub-0.55 sessions into
+    The SDK bench daemon broadens candidate recall with ORCH_AUTOWIRE_THRESHOLD=0.0 plus
+    ORCH_AUTOWIRE_K/top-K bounds; keepEdge still promotes only real judge_next candidates.
+    The old run inflated recall via createEdge by forcing non-candidate sessions into
     context — that bypass is now gone.
 
     Returns a diagnostics dict: {predicted, kept_sids, context_keys, candidate_sids}.
@@ -635,7 +635,7 @@ def run_probe_dag_combined(
     """ARM dag-combined: DAG wiring (eager-judge) over raw notes + distill fact search, merged context.
 
     Merges three independent retrieval tiers then answers ONCE:
-      1. DAG tier    : autowire >= 0.55 → LLM EdgeJudge → kept raw session note summaries.
+      1. DAG tier    : autowire candidate set → LLM EdgeJudge → kept raw session note summaries.
       2. RAG fill    : top-k vector search over raw notes, dedupe against DAG tier.
       3. Distill tier: top-k vector search over atomic fact notes (*distill_workspace*).
 
@@ -983,9 +983,8 @@ def _verify(daemon: str = DEFAULT_DAEMON) -> int:  # noqa: ARG001 — daemon arg
             ok = ok and ctx_ok
         else:
             print(
-                f"[verify]   [INFO] our-way judge IDLE (all sessions below 0.55 cosine "
-                f"threshold — no candidates to keep). This is correct/expected: the "
-                f"fixture notes may not clear the threshold for this probe. "
+                f"[verify]   [INFO] our-way judge IDLE (daemon returned no candidates). "
+                f"This is an honest no-context result under the current candidate policy. "
                 f"Check that relevant sessions were ingested."
             )
             # Idle is not a hard failure (it's the honest production result) but warn loudly.
