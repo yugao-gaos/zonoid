@@ -1,0 +1,8 @@
+{
+  "task_key": "codex/judge-git-claim-lock-git-user-session",
+  "agent_id": "judge-git-claim-lock-git-user-session",
+  "branch": "orch/attempt/codex-judge-git-claim-lock-git-user-session",
+  "status": "claimed",
+  "claimed_at": "2026-06-19T01:38:53.295Z",
+  "lease_until": "2026-06-19T02:38:53.295Z"
+}
