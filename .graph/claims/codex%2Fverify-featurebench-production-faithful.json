@@ -1,0 +1,8 @@
+{
+  "task_key": "codex/verify-featurebench-production-faithful",
+  "agent_id": "worker-verify-featurebench-production-faithful",
+  "branch": "orch/attempt/codex-verify-featurebench-production-faithful",
+  "status": "claimed",
+  "claimed_at": "2026-06-19T14:14:26.770Z",
+  "lease_until": "2026-06-19T15:14:26.770Z"
+}
