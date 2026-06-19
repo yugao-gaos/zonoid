@@ -336,10 +336,14 @@ function writeMcp(cwd, overwrite = false, orchClient = null) {
   ok(`${had ? 'Merged' : 'Written'}: ${dest}`);
 }
 
-function opencodeMcpEntry() {
+function opencodeMcpEntry(cwd) {
+  // Relative when the install dir IS the target workspace (committable, like
+  // .mcp.json); absolute for global installs used across many workspaces.
+  const inWorkspace = cwd && fwdSlash(cwd) === fwdSlash(INSTALL_DIR);
+  const scriptArg = inWorkspace ? 'mcp-graph.js' : `${fwdSlash(INSTALL_DIR)}/mcp-graph.js`;
   return {
     type: 'local',
-    command: ['node', `${fwdSlash(INSTALL_DIR)}/mcp-graph.js`],
+    command: ['node', scriptArg],
     enabled: true,
     environment: {
       ORCH_PORT: ORCH_PORT,
@@ -361,7 +365,7 @@ function writeOpencodeMcp(cwd) {
   }
 
   existing.mcp = existing.mcp || {};
-  existing.mcp['orchestrator-graph'] = opencodeMcpEntry();
+  existing.mcp['orchestrator-graph'] = opencodeMcpEntry(cwd);
 
   // Explicitly register the plugin in opencode.json. opencode 1.15.x does NOT
   // auto-discover .opencode/plugins/*.ts — without this entry the plugin never
