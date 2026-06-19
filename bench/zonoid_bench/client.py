@@ -163,8 +163,8 @@ def search(
     gated=False (default): always returns ranked top-k regardless of the context-need gate.
     Appropriate for evaluation harnesses that always want hits.
 
-    task_key (optional): if provided, /search returns a structured bundle for that task
-    (dag + rag tiers). With a non-provisional task this returns dag-only (RAG-fill closed).
+    task_key (optional): if provided, /search returns the daemon's task-aware bundle for
+    that task, including structural DAG tiers and any daemon-selected RAG fill.
 
     Returns the ``results`` list (empty list on error or no results).
     """
@@ -314,8 +314,9 @@ def judge_next(
     autowire candidate edge-set in one slice (routes/judge.js EAGER MODE). Each item is an edge
     ``{kind:"edge", id, from:{key,...}, to:{key,...}, neighborhood, ...}`` where ``from`` is the
     candidate PROVIDER and ``to`` is *node* (the consumer). These are the weight-0, judged:false
-    edges autowire seeded at cosine >= SEMANTIC_AUTOWIRE_THRESHOLD (0.55); until a keepEdge verdict
-    promotes them they contribute ZERO retrieval relevance.
+    edges seeded by the daemon's configured autowire candidate policy (for the bench daemon:
+    broad candidate threshold plus top-K bounds); until a keepEdge verdict promotes them they
+    contribute ZERO retrieval relevance.
 
     CRITICAL (note-mqgwrh5a63x): /judge/next is hard-bound to the daemon's LIVE ``state.workspace``
     (routes/judge.js:48,58 — it does NOT honour an isolated ``?workspace=`` for the candidate read).

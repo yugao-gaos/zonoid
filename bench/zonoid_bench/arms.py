@@ -720,10 +720,10 @@ def run_retrieve_and_answer(
     summary (so autowire ranks NOTE providers against the question's embedding and the eager judge
     keeps/prunes them).
 
-    After the DAG wiring step we ALSO run a workspace-scoped RAG search (/search with the question,
-    note-only via _is_note_hit filter) to catch relevant session notes not kept by the DAG tier.
-    We dedupe by note key and tag DAG-vs-RAG provenance in the diagnostics on the returned
-    WiringResult.
+    After the DAG wiring step we ALSO run a workspace-scoped, task-aware RAG search (/search with
+    the question and task_key=wiring.task_key, note-only via _is_note_hit filter) to catch relevant
+    session notes not kept by the DAG tier. We dedupe by note key and tag DAG-vs-RAG provenance in
+    the diagnostics on the returned WiringResult.
 
     The combined (DAG-kept + RAG-fill) context blocks are injected into the answer prompt.  The
     answerer remains tool-less/MCP-off: WE retrieve and inject; the answer agent calls no tools.
@@ -758,7 +758,7 @@ def run_retrieve_and_answer(
     # --- RAG fill (semantic search, note-only, dedupe against DAG tier) ---
     rag_keys: list[str] = []
     try:
-        raw_hits = client.search(question, k=rag_k * 3, gated=False)
+        raw_hits = client.search(question, k=rag_k * 3, gated=False, task_key=wiring.task_key)
         note_hits = [h for h in raw_hits if _is_note_hit(h)][:rag_k]
         for h in note_hits:
             key = h.get("key") or ""
