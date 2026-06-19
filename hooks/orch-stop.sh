@@ -10,13 +10,16 @@
 #   - sessions/<id>.off present  -> orchestrator disabled for this conversation -> allow
 #   - daemon unreachable / empty -> fail open (don't brick a worker when the daemon is down)
 PORT="${ORCH_PORT:-8787}"
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/runtime-paths.sh
+. "$HOOK_DIR/lib/runtime-paths.sh"
 
 [ "$ORCH_GATE_OFF" = "1" ] && exit 0   # escape hatch
 
 INPUT=$(cat)
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
 [ -z "$SID" ] && exit 0                # no session id -> can't correlate; don't block
-DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
+DIR="$(orch_data_dir)/sessions"
 [ -f "$DIR/$SID.off" ] && exit 0       # orchestrator disabled for this conversation
 
 # agent_id is present only when this tool call fires inside a SUBAGENT's context; absent for the

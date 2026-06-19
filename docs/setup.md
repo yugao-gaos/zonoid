@@ -61,7 +61,9 @@ available but Claude won't use them automatically.
 | `ORCH_TOKEN` | _(unset)_ | Bearer token if daemon auth is enabled |
 | `ORCH_GATE_OFF` | _(unset)_ | Set to `1` to bypass the orch-gate hook |
 | `ZONOID_SKIP_LIVE` | _(unset)_ | Set to `1` to skip live-KB-dependent tests |
-| `CLAUDE_PLUGIN_DATA` | `~/.claude/orchestrator` | Runtime data dir (overlay, sessions, worktrees) |
+| `ORCH_DATA` | unset | Exact runtime data-dir override; wins over all other data-dir env vars |
+| `ZONOID_DATA` | `~/.claude/orchestrator/.zonoid` | Runtime data dir for universal and adapter runtime artifacts |
+| `CLAUDE_PLUGIN_DATA` | unset | Legacy runtime data-dir override; if it points at the Zonoid install root, state is redirected into `.zonoid` |
 
 ## First run
 

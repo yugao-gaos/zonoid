@@ -23,7 +23,6 @@
 // candidate repos are drawn from the workspace registry (workspaces.json) rather than a global pointer.
 'use strict';
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const http = require('http');
 const { execFileSync } = require('child_process');
@@ -31,9 +30,11 @@ const overlayStore = require('../lib/overlay');
 const nt = require('../lib/native-tasks');
 const mcpCore = require('../lib/mcp-core');
 const wsRegistry = require('../lib/workspace-registry');
+const runtimePaths = require('../lib/runtime-paths');
 
-const BASE = process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'orchestrator');
-const WORKSPACES_FILE = path.join(BASE, 'workspaces.json');
+const INSTALL_ROOT = path.resolve(__dirname, '..');
+const RUNTIME_DIR = runtimePaths.resolveDataDir();
+const WORKSPACES_FILE = path.join(RUNTIME_DIR, 'workspaces.json');
 
 // --- args ---------------------------------------------------------------------------------------
 const argv = process.argv.slice(2);
@@ -98,7 +99,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // --- main ---------------------------------------------------------------------------------------
 (async () => {
   // Workspace = the repo whose overlay/tasks we backfill. The old single global pointer
-  // (BASE/'workspace') is gone (note:note-mqj0wcabtxh): take --workspace verbatim, else resolve
+  // (runtimeDir/'workspace') is gone (note:note-mqj0wcabtxh): take --workspace verbatim, else resolve
   // cwd -> its containing repo root via the registry's repoRoot.
   const ws = opt('--workspace') || wsRegistry.repoRoot(process.cwd());
   if (!ws) { console.error('no workspace (pass --workspace, or run from inside a repo)'); process.exit(1); }
@@ -133,7 +134,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const registeredRepos = (() => { try { return wsRegistry.allRepos(wsRegistry.loadRegistry(WORKSPACES_FILE)); } catch { return []; } })();
   const candidates = repoArgs.length
     ? repoArgs
-    : [...new Set([...Object.values(ov.repos || {}), ...registeredRepos, BASE, ws])];
+    : [...new Set([...Object.values(ov.repos || {}), ...registeredRepos, INSTALL_ROOT, ws])];
   const repos = candidates.filter((r) => isRepo(r) && hasMain(r));
   if (!repos.length) { console.error('no candidate git repos with a main branch'); process.exit(1); }
 

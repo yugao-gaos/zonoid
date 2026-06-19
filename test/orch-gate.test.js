@@ -67,6 +67,8 @@ function runMainBlocked(filePath, extra) {
   const home = process.env.HOME || '/Users/x';
   const r = runBlocked(`${home}/.claude/orchestrator/tasks/ws-abc/cursor/t1.json`);
   ok('filedrop task path ~/.claude/orchestrator/tasks/ws-abc/cursor/t1.json → exit 0', r.status === 0);
+  const r2 = runBlocked(`${home}/repo/.zonoid/tasks/ws-abc/cursor/t1.json`);
+  ok('filedrop task path .zonoid/tasks/ws-abc/cursor/t1.json → exit 0', r2.status === 0);
 }
 
 // 3. Regular source file → not exempt → subagent blocked → exit 2

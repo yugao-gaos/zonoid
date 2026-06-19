@@ -10,12 +10,12 @@
 // Conventions preserved from the bash hooks:
 //   - exit 0 = allow / no-op, exit 2 = deny (stderr carries the reason).
 //   - daemon unreachable / timed out => fail OPEN (return null, caller allows).
-//   - data dir = CLAUDE_PLUGIN_DATA or ~/.claude/orchestrator ; sessions/<id>.off = opted out.
+//   - data dir = ORCH_DATA, ZONOID_DATA, or legacy CLAUDE_PLUGIN_DATA; sessions/<id>.off = opted out.
 
 const http = require('http');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
+const runtimePaths = require('../../lib/runtime-paths');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const IS_WIN = process.platform === 'win32';
@@ -76,7 +76,7 @@ function ping(timeoutMs) {
 
 // ── paths / opt-out marker ───────────────────────────────────────────────────
 function dataDir() {
-  return process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'orchestrator');
+  return runtimePaths.resolveDataDir();
 }
 function sessionsDir() { return path.join(dataDir(), 'sessions'); }
 function offMarker(sid) { return path.join(sessionsDir(), `${sid}.off`); }

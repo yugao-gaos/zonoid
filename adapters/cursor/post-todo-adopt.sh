@@ -7,10 +7,13 @@ set -euo pipefail
 PORT="${ORCH_PORT:-8787}"
 HARNESS="cursor"
 INPUT=$(cat)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=../../hooks/lib/runtime-paths.sh
+. "$SCRIPT_DIR/../../hooks/lib/runtime-paths.sh"
 
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // empty')
 if [ -n "$SID" ]; then
-  OFF="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions/$SID.off"
+  OFF="$(orch_data_dir)/sessions/$SID.off"
   [ -f "$OFF" ] && exit 0
 fi
 
@@ -23,13 +26,12 @@ esac
 WS=$(printf '%s' "$INPUT" | jq -r '.workspace_roots[0] // .cwd // empty')
 [ -z "$WS" ] && WS="${CURSOR_PROJECT_DIR:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # Windows/Cygwin: `pwd` yields a Cygwin path (/d/zonoid) that the native Windows `node` cannot
 # require(). Convert to a node-friendly mixed path (D:/zonoid) when cygpath is present; no-op on POSIX.
 REPO_ROOT_NODE="$REPO_ROOT"
 if command -v cygpath >/dev/null 2>&1; then REPO_ROOT_NODE="$(cygpath -m "$REPO_ROOT")"; fi
-DATA="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}"
+DATA="$(orch_data_dir)"
 STUB_DIR="$DATA/tasks/$(node -e "console.log(require('$REPO_ROOT_NODE/lib/filedrop-tasks').workspaceKey(process.argv[1]))" "$WS")/$HARNESS"
 mkdir -p "$STUB_DIR"
 

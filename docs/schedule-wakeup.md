@@ -10,7 +10,7 @@ ScheduleWakeup(delaySeconds, reason, prompt)
 ```
 
 - **Cancel + arm:** each call kills any prior wake for the session, then starts one new timer.
-- **Fire line:** after `delaySeconds`, append to `$ORCH_DATA/wake/<session-slug>.fire`:
+- **Fire line:** after `delaySeconds`, append to `<runtime-data-dir>/wake/<session-slug>.fire`:
 
   ```
   ORCH_SCHEDULED_TASK {"delaySeconds":7200,"reason":"idle heartbeat","prompt":"<<autonomous-loop-dynamic>>"}
@@ -48,7 +48,10 @@ to resume.
 | Adapter scheduler | `lib/adapters/scheduler-substrate.js` |
 | Claude native | Built-in — no MCP duplicate |
 
-`ORCH_DATA` defaults to `CLAUDE_PLUGIN_DATA` or `~/.claude/orchestrator`.
+Wake pid/fire files live under the Zonoid runtime data dir's `wake/` folder.
+`ORCH_DATA` wins exactly when set; otherwise `ZONOID_DATA`, legacy
+`CLAUDE_PLUGIN_DATA`, or `~/.claude/orchestrator/.zonoid` is used. Durable graph
+state remains in workspace `.graph/`.
 
 ## Heartbeat nudge (classify)
 

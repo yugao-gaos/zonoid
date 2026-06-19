@@ -145,6 +145,12 @@ expectExit('shell write gate allows file-drop mint path', SHELL_WRITE, mintWrite
 expectExit('Cursor write relay allows file-drop mint path', CURSOR_WRITE, mintWrite, blocked, 0);
 expectCodexAllow('Codex write relay allows file-drop mint path', CODEX_WRITE, mintWrite, blocked);
 
+const zonoidMintWrite = writeInput('/Users/x/repo/.zonoid/tasks/ws/codex/t1.json');
+expectExit('direct Node write gate allows .zonoid file-drop mint path', DIRECT_WRITE, zonoidMintWrite, blocked, 0);
+expectExit('shell write gate allows .zonoid file-drop mint path', SHELL_WRITE, zonoidMintWrite, blocked, 0);
+expectExit('Cursor write relay allows .zonoid file-drop mint path', CURSOR_WRITE, zonoidMintWrite, blocked, 0);
+expectCodexAllow('Codex write relay allows .zonoid file-drop mint path', CODEX_WRITE, zonoidMintWrite, blocked);
+
 const insideClaim = writeInput(`${WT}/src/main.js`);
 expectExit('direct Node write gate allows claimed worktree path', DIRECT_WRITE, insideClaim, claimedConfig(), 0);
 expectExit('shell write gate allows claimed worktree path', SHELL_WRITE, insideClaim, claimedConfig(), 0);

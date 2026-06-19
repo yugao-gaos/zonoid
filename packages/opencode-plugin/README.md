@@ -60,7 +60,9 @@ EOF
 | Variable | Default | Purpose |
 |---|---|---|
 | `ORCH_PORT` | `8787` | Daemon HTTP port |
-| `CLAUDE_PLUGIN_DATA` | `~/.claude/orchestrator` | File-drop root (same as daemon) |
+| `ORCH_DATA` | unset | Exact runtime data-dir override; wins over the other data-dir env vars |
+| `ZONOID_DATA` | `~/.claude/orchestrator/.zonoid` | Runtime data dir; file-drop stubs live under `tasks/` |
+| `CLAUDE_PLUGIN_DATA` | unset | Legacy runtime data-dir override |
 | `ZONOID_ROOT` | `~/.claude/orchestrator` fallback | Zonoid install root; required for copied OpenCode plugins that are not symlinked by the CLI |
 
 5. Wire orchestrator MCP in `opencode.json` so agents can `branch_task` / `start_task` / `complete_task` after minting. `npx @zonoid/cli init --harness opencode` writes this automatically; manual installs should add:

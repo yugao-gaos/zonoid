@@ -89,8 +89,10 @@ try {
       encoding: 'utf8',
       env: { ...process.env, CLAUDE_PLUGIN_DATA: TMP, ORCH_PORT: String(port) },
     });
-    const bridged = codexSessionBridge.latestSession({ workspace: ws }, path.join(TMP, 'codex', 'session-bridge.json'));
+    const bridgePath = path.join(TMP, 'adapters', 'codex', 'session-bridge.json');
+    const bridged = codexSessionBridge.latestSession({ workspace: ws }, bridgePath);
     ok('SessionStart exits 0', start.status === 0);
+    ok('SessionStart writes Codex adapter bridge path', fs.existsSync(bridgePath));
     ok('SessionStart writes Codex session bridge', bridged && bridged.session_id === 'codex-hook-session' && bridged.workspace === path.resolve(ws));
   } finally {
     stub.kill();

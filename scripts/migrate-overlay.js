@@ -15,25 +15,34 @@ const os         = require('os');
 const path       = require('path');
 const crypto     = require('crypto');
 const graphStore = require('../lib/graph-store');
+const runtimePaths = require('../lib/runtime-paths');
 
 // ── resolve overlay file (mirrors overlay.js) ────────────────────────────────
 
-const BASE = process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'orchestrator');
-const DIR  = path.join(BASE, 'overlay');
+const DIR = runtimePaths.runtimePath('overlay');
+
+function overlayDirs() {
+  const dirs = [DIR];
+  const legacyRoots = [];
+  if (process.env.CLAUDE_PLUGIN_DATA) legacyRoots.push(path.resolve(process.env.CLAUDE_PLUGIN_DATA));
+  legacyRoots.push(runtimePaths.legacyBaseDir());
+  for (const root of legacyRoots) dirs.push(path.join(root, 'overlay'));
+  return [...new Set(dirs)];
+}
 
 function encodeWorkspace(workspace) {
   // Mirrors lib/native-tasks encodeWorkspace: replace non-alphanum chars with '-'
   return String(workspace || '').replace(/[^A-Za-z0-9]/g, '-');
 }
 
-function fileFor(workspace) {
+function fileFor(workspace, dir = DIR) {
   const h    = crypto.createHash('sha1').update(String(workspace || '')).digest('hex').slice(0, 16);
   const base = (path.basename(String(workspace || '')) || 'ws').replace(/[^A-Za-z0-9._-]/g, '_');
-  return path.join(DIR, `${base}-${h}.json`);
+  return path.join(dir, `${base}-${h}.json`);
 }
 
-function legacyFileFor(workspace) {
-  return path.join(DIR, `${encodeWorkspace(workspace)}.json`);
+function legacyFileFor(workspace, dir = DIR) {
+  return path.join(dir, `${encodeWorkspace(workspace)}.json`);
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
@@ -46,15 +55,16 @@ function main() {
   }
 
   // 1. Resolve overlay file path (hash-based first, then legacy fallback)
-  let overlayFile = fileFor(workspace);
-  if (!fs.existsSync(overlayFile)) {
-    const legacy = legacyFileFor(workspace);
-    if (fs.existsSync(legacy)) {
-      overlayFile = legacy;
-    } else {
-      console.log('No overlay found for this workspace');
-      process.exit(0);
-    }
+  let overlayFile = null;
+  for (const dir of overlayDirs()) {
+    const current = fileFor(workspace, dir);
+    if (fs.existsSync(current)) { overlayFile = current; break; }
+    const legacy = legacyFileFor(workspace, dir);
+    if (fs.existsSync(legacy)) { overlayFile = legacy; break; }
+  }
+  if (!overlayFile) {
+    console.log('No overlay found for this workspace');
+    process.exit(0);
   }
 
   // 2. Read and parse overlay

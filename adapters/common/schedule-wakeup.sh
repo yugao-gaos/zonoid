@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Shared ScheduleWakeup substrate: cancel prior wake for a session, arm a delayed re-prompt.
-# Pidfiles live under $ORCH_DATA/wake/<session>.pid (ORCH_DATA defaults to CLAUDE_PLUGIN_DATA
-# or ~/.claude/orchestrator). On fire, prints:
+# Pidfiles live under the Zonoid runtime dir's wake/<session>.pid. On fire, prints:
 #   ORCH_SCHEDULED_TASK {"delaySeconds":N,"reason":"...","prompt":"..."}
 set -euo pipefail
 
-ORCH_DATA="${ORCH_DATA:-${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}}"
-WAKE_DIR="$ORCH_DATA/wake"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../hooks/lib/runtime-paths.sh
+. "$SCRIPT_DIR/../../hooks/lib/runtime-paths.sh"
+WAKE_DIR="$(orch_data_dir)/wake"
 
 session_slug() {
   printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'

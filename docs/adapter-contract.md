@@ -159,7 +159,7 @@ Required: `id`, `subject`. Optional: `description`, `status` (`pending` | `in_pr
 <dataDir>/tasks/<workspace-key>/<harness>/<id>.json
 ```
 
-- `dataDir` = `CLAUDE_PLUGIN_DATA` or `~/.claude/orchestrator`
+- `dataDir` = `ORCH_DATA`, `ZONOID_DATA`, legacy `CLAUDE_PLUGIN_DATA`, or `~/.claude/orchestrator/.zonoid`
 - `workspace-key` = sanitized basename + sha1 prefix of absolute workspace path (same scheme as overlay files)
 - `harness` = namespace folder: `cursor`, `codex`, `opencode`, `local`, … (not hardcoded; avoid `followup` and uuid-like names)
 - Task key in graph = `<harness>/<id>` (never collides with Claude's `<session-uuid>/<id>`)
@@ -400,9 +400,9 @@ See also [schedule-wakeup.md](./schedule-wakeup.md) for monitor workflow and fir
 ### Cancel + arm semantics
 
 1. **Cancel first:** any call cancels the prior wake for the same session (SIGTERM on pid in
-   `$ORCH_DATA/wake/<session-slug>.pid`; pidfile removed).
+   `<runtime-data-dir>/wake/<session-slug>.pid`; pidfile removed).
 2. **Arm next:** a detached sleeper waits `delaySeconds`, then appends one line to
-   `$ORCH_DATA/wake/<session-slug>.fire`:
+   `<runtime-data-dir>/wake/<session-slug>.fire`:
    ```
    ORCH_SCHEDULED_TASK {"delaySeconds":N,"reason":"...","prompt":"..."}
    ```

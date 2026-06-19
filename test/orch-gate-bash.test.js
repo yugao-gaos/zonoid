@@ -299,6 +299,8 @@ function runMainBlocked(cmd, extra) {
   const home = process.env.HOME || '/Users/x';
   const r = runBlocked(`cp /tmp/t.json ${home}/.claude/orchestrator/tasks/ws-abc/cursor/t1.json`);
   ok('cp to filedrop task path → exempt → exit 0', r.status === 0);
+  const r2 = runBlocked(`cp /tmp/t.json ${home}/repo/.zonoid/tasks/ws-abc/cursor/t1.json`);
+  ok('cp to .zonoid filedrop task path → exempt → exit 0', r2.status === 0);
 }
 
 // 30. cp to native Claude task path → exempt → exit 0
