@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/judge-fix-strict-git-claim-finalize-owner",
+  "agent_id": "judge-fix-strict-git-claim-finalize-owner",
+  "session_id": "judge-fix-strict-git-claim-finalize-owner-session",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-judge-fix-strict-git-claim-finalize-owner",
+  "status": "claimed",
+  "claimed_at": "2026-06-19T00:02:15.533Z",
+  "lease_until": "2026-06-19T01:02:15.533Z"
+}
