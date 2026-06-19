@@ -169,6 +169,11 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     fs.mkdirSync(path.join(withWorktrees, 'worktrees'), { recursive: true });
     ok('dirHasLiveData: worktrees/ detected', dirHasLiveData(withWorktrees));
 
+    // Dir with .zonoid/ runtime dir → live data
+    const withZonoid = path.join(base, 'with-zonoid');
+    fs.mkdirSync(path.join(withZonoid, '.zonoid'), { recursive: true });
+    ok('dirHasLiveData: .zonoid/ detected', dirHasLiveData(withZonoid));
+
     // Dir with `workspace` file → live data
     const withWorkspace = path.join(base, 'with-workspace');
     fs.mkdirSync(withWorkspace, { recursive: true });

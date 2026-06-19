@@ -15,12 +15,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { startHookStub } = require('./support/hook-http-stub');
+const runtimePaths = require('../lib/runtime-paths');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const ROOT = path.join(__dirname, '..');
 const HOOKS = path.join(ROOT, 'hooks');
 const CODEX_HOOKS = path.join(ROOT, 'adapters', 'codex', 'hooks');
-const SESS = path.join(process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'orchestrator'), 'sessions');
+const SESS = path.join(runtimePaths.resolveDataDir(), 'sessions');
 
 let pass = 0, fail = 0; const fails = [];
 function check(label, cond, detail) {

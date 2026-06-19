@@ -8,7 +8,10 @@ PORT="${ORCH_PORT:-8787}"
 INPUT=$(cat)
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
 [ -z "$SID" ] && exit 0
-DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/runtime-paths.sh
+. "$HOOK_DIR/lib/runtime-paths.sh"
+DIR="$(orch_data_dir)/sessions"
 [ -f "$DIR/$SID.off" ] && exit 0   # skip only when orchestrator is disabled for this conversation (default on)
 
 # new native task id from the TaskCreate response text ("Task #12 created successfully: ...")

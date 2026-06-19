@@ -4,7 +4,10 @@
 # Run this yourself in a terminal: bash scripts/setup-https.sh   (it will ask for your password
 # once, for `mkcert -install`, which adds a local CA to your system trust store).
 set -e
-CERT_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/certs"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../hooks/lib/runtime-paths.sh
+. "$SCRIPT_DIR/../hooks/lib/runtime-paths.sh"
+CERT_DIR="$(orch_data_dir)/certs"
 
 if ! command -v mkcert >/dev/null 2>&1; then
   echo "Installing mkcert (Homebrew)…"

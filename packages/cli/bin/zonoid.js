@@ -33,6 +33,7 @@ function resolveInstallDir() {
 
 // Computed once at startup; exported for tests.
 const INSTALL_DIR = resolveInstallDir();
+const ZONOID_DATA_DIR = path.join(INSTALL_DIR, '.zonoid');
 
 // ── output helpers ──────────────────────────────────────────────────────────
 
@@ -77,11 +78,11 @@ function runCapture(cmd, args, opts = {}) {
 
 /**
  * Returns true if `dir` contains live orchestrator data that must not be
- * deleted: overlay/, sessions/, worktrees/, a `workspace` file, or a `token`
- * file at the root level.
+ * deleted: legacy root runtime state, a `.zonoid/` runtime dir, or root-level
+ * `workspace` / `token` files.
  */
 function dirHasLiveData(dir) {
-  const liveSubdirs = ['overlay', 'sessions', 'worktrees'];
+  const liveSubdirs = ['.zonoid', 'overlay', 'sessions', 'worktrees'];
   const liveFiles   = ['workspace', 'token'];
   for (const sub of liveSubdirs) {
     if (fs.existsSync(path.join(dir, sub))) return true;
@@ -114,7 +115,8 @@ function checkInstallDir() {
         runChecked('git', ['clone', REPO_URL, tmpDir]);
         // Copy source files from the temp clone into INSTALL_DIR,
         // but skip the data subdirs so they are left untouched.
-        // Runtime-state entries written by daemon.js + lib/* under CLAUDE_PLUGIN_DATA:
+        // Runtime-state entries written by daemon.js + lib/* under ZONOID_DATA / CLAUDE_PLUGIN_DATA:
+        //   .zonoid/    — current runtime layout for universal + adapter runtime artifacts
         //   agents.json  — registered agent registry
         //   loops.json   — loop/heartbeat registry  (loop.json = legacy migration source)
         //   op-cache.json — operation idempotency cache
@@ -126,7 +128,7 @@ function checkInstallDir() {
         //   *.sock       — IPC socket files (lib/ipc-path.js)
         const protectedNames = new Set([
           // Existing live-data guards
-          'overlay', 'sessions', 'worktrees', 'workspace', 'token', 'node_modules',
+          '.zonoid', 'overlay', 'sessions', 'worktrees', 'workspace', 'token', 'node_modules',
           // Daemon runtime-state entries (C2)
           'agents.json', 'loops.json', 'loop.json', 'op-cache.json',
           'tool-analytics.json', 'certs', 'models', 'tasks',
@@ -628,8 +630,8 @@ function installLaunchdService() {
   <dict>
     <key>ORCH_PORT</key>
     <string>${ORCH_PORT}</string>
-    <key>CLAUDE_PLUGIN_DATA</key>
-    <string>${INSTALL_DIR}</string>
+    <key>ZONOID_DATA</key>
+    <string>${ZONOID_DATA_DIR}</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
@@ -665,7 +667,7 @@ After=network.target
 Type=simple
 ExecStart=${nodeBin} ${daemonJs}
 Environment=ORCH_PORT=${ORCH_PORT}
-Environment=CLAUDE_PLUGIN_DATA=${INSTALL_DIR}
+Environment=ZONOID_DATA=${ZONOID_DATA_DIR}
 Restart=always
 RestartSec=5
 StandardOutput=append:/tmp/zonoid-daemon.log
