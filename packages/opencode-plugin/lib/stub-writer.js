@@ -7,9 +7,25 @@ const crypto = require('crypto');
 
 const HARNESS = 'opencode';
 
+function resolveDataDir() {
+  try {
+    return require('../../../lib/runtime-paths').resolveDataDir();
+  } catch {
+    if (process.env.ORCH_DATA) return path.resolve(process.env.ORCH_DATA);
+    if (process.env.ZONOID_DATA) return path.resolve(process.env.ZONOID_DATA);
+    if (process.env.CLAUDE_PLUGIN_DATA) {
+      const legacy = path.resolve(process.env.CLAUDE_PLUGIN_DATA);
+      const isInstall = fs.existsSync(path.join(legacy, 'daemon.js'))
+        && fs.existsSync(path.join(legacy, 'mcp-graph.js'))
+        && fs.existsSync(path.join(legacy, 'package.json'));
+      return isInstall ? path.join(legacy, '.zonoid') : legacy;
+    }
+    return path.join(require('os').homedir(), '.claude', 'orchestrator', '.zonoid');
+  }
+}
+
 function baseDir() {
-  const base = process.env.CLAUDE_PLUGIN_DATA || path.join(require('os').homedir(), '.claude', 'orchestrator');
-  return path.join(base, 'tasks');
+  return path.join(resolveDataDir(), 'tasks');
 }
 
 function workspaceKey(workspace) {

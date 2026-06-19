@@ -11,6 +11,7 @@ function isPathExempt(p) {
   if (s.endsWith('/.claude/keybindings.json') || s.endsWith('/.claude/launch.json')) return true;
   if (s.endsWith('/.mcp.json')) return true;
   if (s.endsWith('/CLAUDE.md')) return true;
+  if (s.includes('/.zonoid/tasks/')) return true;
   if (s.includes('/.claude/orchestrator/tasks/')) return true;
   if (s.includes('/.claude/tasks/')) return true;
   if (s.includes('/scratch/')) return true;

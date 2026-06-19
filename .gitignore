@@ -6,10 +6,15 @@ token
 .fb-infer-config*.toml
 
 # Per-machine runtime state (not source)
+.zonoid/
 overlay/
 sessions/
 worktrees/
+scheduled-tasks/
+codex/
 workspace
+workspaces.json
+scheduled-wakeups.json
 loop.json
 loops.json
 *.log
@@ -54,9 +59,11 @@ bench/*.log
 # runtime artifacts (never commit)
 embed.pid
 embed.sock
+rerank.pid
+rerank.sock
 logs/
 
-# Schedule-wakeup pidfiles (ORCH_DATA → ~/.claude/orchestrator, which symlinks to this repo in dev)
+# Legacy root schedule-wakeup pidfiles (current layout: .zonoid/wake/)
 wake/
 
 # Agent scratch debris (gate-exempt sandbox; keep tracked spike tools)
