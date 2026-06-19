@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-verify-featurebench-production-faithful",
+  "agent_id": "judge-featurebench-production-faithful-20260619",
+  "branch": "orch/attempt/codex-judge-verify-featurebench-production-faithful",
+  "status": "done",
+  "claimed_at": "2026-06-19T18:59:07.841Z",
+  "lease_until": "2026-06-19T19:59:07.841Z",
+  "completed_at": "2026-06-19T19:02:38.151Z"
+}

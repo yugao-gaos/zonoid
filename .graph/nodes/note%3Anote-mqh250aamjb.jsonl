@@ -18,3 +18,4 @@
 {"evt":"edge_added","from":"note:note-mqh250aamjb","to":"judge/bench-combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-18T16:53:12.893Z","weight":0,"by":"autowire","judged":false,"score":0.554,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqh250aamjb","to":"judge/bench-combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:47:41.509Z","weight":0,"by":"autowire","judged":false,"score":0.554,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqh250aamjb","to":"judge/bench-combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z","weight":0,"by":"autowire","judged":false,"score":0.554,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqh250aamjb","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-18T22:59:41.522Z","weight":0,"by":"autowire","judged":false,"score":0.641,"origin":"autowire-semantic"}

@@ -1,11 +1,9 @@
 {
   "task_key": "followup/harness-learner-drain",
-  "agent_id": "worker-learner-drain-impl",
-  "session_id": "680e9dd1-876a-4bc4-9267-d218ff5d33c2",
-  "workspace": "D:/zonoid",
+  "agent_id": "dispatcher-frontier-closeout",
   "branch": "orch/attempt/followup-harness-learner-drain",
   "status": "done",
   "claimed_at": "2026-06-18T12:21:36.256Z",
   "lease_until": "2026-06-18T13:21:36.256Z",
-  "completed_at": "2026-06-18T15:12:31.574Z"
+  "completed_at": "2026-06-19T13:49:39.983Z"
 }
