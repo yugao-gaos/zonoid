@@ -1,0 +1,85 @@
+{
+  "title": "Agent-Memory Benchmark Report — LoCoMo",
+  "arms": {
+    "dag-combined": {
+      "total": 50,
+      "judge_correct": 27,
+      "judge_failed": 0,
+      "accuracy": 0.54,
+      "f1_mean": 0.5015897183578671,
+      "pass_rate": null,
+      "by_category": {
+        "1": {
+          "total": 19,
+          "judge_correct": 5,
+          "judge_failed": 0,
+          "accuracy": 0.2631578947368421,
+          "f1_mean": 0.37734004501245877,
+          "pass_rate": null
+        },
+        "2": {
+          "total": 24,
+          "judge_correct": 20,
+          "judge_failed": 0,
+          "accuracy": 0.8333333333333334,
+          "f1_mean": 0.7140873015873016,
+          "pass_rate": null
+        },
+        "3": {
+          "total": 7,
+          "judge_correct": 2,
+          "judge_failed": 0,
+          "accuracy": 0.2857142857142857,
+          "f1_mean": 0.11027568922305764,
+          "pass_rate": null
+        }
+      }
+    },
+    "distill": {
+      "total": 50,
+      "judge_correct": 26,
+      "judge_failed": 0,
+      "accuracy": 0.52,
+      "f1_mean": 0.49091466866466865,
+      "pass_rate": null,
+      "by_category": {
+        "1": {
+          "total": 19,
+          "judge_correct": 4,
+          "judge_failed": 0,
+          "accuracy": 0.21052631578947367,
+          "f1_mean": 0.3574195541300805,
+          "pass_rate": null
+        },
+        "2": {
+          "total": 24,
+          "judge_correct": 19,
+          "judge_failed": 0,
+          "accuracy": 0.7916666666666666,
+          "f1_mean": 0.7120039682539683,
+          "pass_rate": null
+        },
+        "3": {
+          "total": 7,
+          "judge_correct": 3,
+          "judge_failed": 0,
+          "accuracy": 0.42857142857142855,
+          "f1_mean": 0.09523809523809523,
+          "pass_rate": null
+        }
+      }
+    }
+  },
+  "competitor_bar": {
+    "Mem0": {
+      "LongMemEval-Oracle": "92.5%",
+      "LongMemEval-S": "94.4%",
+      "LoCoMo": "~84% (disputed)"
+    },
+    "Zep": {
+      "LongMemEval-Oracle": "91.6%",
+      "LongMemEval-S": "94.8%",
+      "LoCoMo": "~75.1% (corrected)"
+    }
+  }
+}
