@@ -3,11 +3,12 @@
 //
 // THE BUG IT GUARDS: the held-out bench used to fire its first queries before the MiniLM sidecar
 // (lib/embed.js) had warmed in the daemon process, so /search silently fell back to LEXICAL-only
-// ranking (qvec===null at routes/graph.js) and the whole recall ladder was measured against an
-// under-scored cold baseline. warmupGate() now blocks until /search returns SEMANTIC results
-// (detected via the per-result `via` field) and HARD-FAILS if the embedder never warms.
+// ranking (qvec===null in compiler-backed memory search) and the whole recall ladder was measured
+// against an under-scored cold baseline. warmupGate() now blocks until /search returns SEMANTIC
+// results (detected via the per-result `via` field) and HARD-FAILS if the embedder never warms.
 //
 //   - module surface: warmupGate is exported and is a function; WARMUP_PROBE is a non-empty string.
+//   - local: warmupGate uses the same workspace-aware search helper path the benchmark uses.
 //   - (live, skippable) boots the isolated snapshot daemon, runs warmupGate against it, and asserts
 //     it returns { warm:true } with all probe hits via='semantic' (NOT lexical fallback).
 //
@@ -38,42 +39,56 @@ function getJSON(port, p) {
 }
 
 (async () => {
-  // ── module surface ──────────────────────────────────────────────────────────
+  // -- module surface ---------------------------------------------------------
   ok('export warmupGate is a function', typeof rb.warmupGate === 'function');
   ok('export WARMUP_PROBE is a non-empty string', typeof rb.WARMUP_PROBE === 'string' && rb.WARMUP_PROBE.length > 0);
+  ok('export buildSearchPath is a function', typeof rb.buildSearchPath === 'function');
 
-  // ── live: warmupGate reaches a warm SEMANTIC state (skippable) ────────────────
+  {
+    const p = rb.buildSearchPath('query with spaces', 7, '/tmp/work space');
+    const u = new URL(`http://127.0.0.1${p}`);
+    ok('buildSearchPath includes workspace', u.searchParams.get('workspace') === '/tmp/work space');
+    ok('buildSearchPath includes query and k', u.searchParams.get('q') === 'query with spaces' && u.searchParams.get('k') === '7');
+  }
+
+  {
+    let calls = 0;
+    const r = await rb.warmupGate({
+      probe: 'local warmup probe',
+      timeoutMs: 1000,
+      pollMs: 1,
+      searchFn: async () => {
+        calls++;
+        return { results: [{ via: calls === 1 ? 'lexical' : 'semantic' }] };
+      },
+    });
+    ok('warmupGate polls until semantic via', r.warm === true && r.attempts === 2 && calls === 2);
+  }
+
+  // -- live: warmupGate reaches a warm SEMANTIC state (skippable) --------------
   if (process.env.ZONOID_SKIP_LIVE === '1') {
     skipped('live: warmupGate blocks until /search serves semantic', 'ZONOID_SKIP_LIVE=1');
   } else if (!fs.existsSync(path.join(REPO, '.graph'))) {
     skipped('live: warmupGate', 'no live .graph to snapshot');
   } else {
     const createdSnapshot = !fs.existsSync(snap.SNAPSHOT_WS);
-    let port = null;
     try {
       snap.teardown();  // ensure a fresh daemon so warmup timing is predictable, not a stale reuse
-      port = await snap.ensureRunning();
-      // Point retrieval-bench's module-internal warmupGate at this isolated daemon by overriding
-      // ORCH_DAEMON is not possible post-require; instead probe the gate's CONTRACT directly:
-      // poll /search ourselves with the SAME probe and assert it converges to all-semantic, which
-      // is exactly the condition warmupGate waits on. This proves the warm-detection signal is
-      // real (not a constant) without depending on bench's module-level DAEMON binding.
-      const deadline = Date.now() + 90_000;
-      let vias = null, sawLexical = false;
-      while (Date.now() < deadline) {
-        // P3: /search requires ?workspace= — pass the snapshot workspace so the daemon
-        // can resolve which overlay to search against.
-        const r = await getJSON(port, `/search?workspace=${encodeURIComponent(snap.SNAPSHOT_WS)}&q=${encodeURIComponent(rb.WARMUP_PROBE)}&k=5`);
-        vias = (r && r.results || []).map((x) => x.via).filter(Boolean);
-        if (vias.includes('lexical')) sawLexical = true;
-        if (vias.length > 0 && vias.every((v) => v === 'semantic')) break;
-        await new Promise((res) => setTimeout(res, 300));
-      }
-      ok('live: /search converges to all-semantic (embedder warm)', vias && vias.length > 0 && vias.every((v) => v === 'semantic'));
+      const port = await snap.ensureRunning();
+      let sawLexical = false;
+      const r = await rb.warmupGate({
+        searchFn: async (q, k) => {
+          const body = await getJSON(port, rb.buildSearchPath(q, k, snap.SNAPSHOT_WS));
+          const vias = (body && body.results || []).map((x) => x.via).filter(Boolean);
+          if (vias.includes('lexical')) sawLexical = true;
+          return body;
+        },
+      });
+      ok('live: warmupGate converges to all-semantic (embedder warm)', r && r.warm === true && r.vias.every((v) => v === 'semantic'));
       // Not strictly required (sidecar may already be warm from a prior run), but when observed it
       // confirms the gate is guarding a real cold->warm transition rather than a no-op.
       if (sawLexical) ok('live: observed cold lexical fallback before warming (gate is load-bearing)', true);
-      else skipped('live: cold lexical fallback observation', 'sidecar already warm — transition not observable this run');
+      else skipped('live: cold lexical fallback observation', 'sidecar already warm - transition not observable this run');
     } finally {
       snap.teardown();
       if (createdSnapshot) { try { fs.rmSync(snap.SNAPSHOT_WS, { recursive: true, force: true }); } catch { /* best effort */ } }

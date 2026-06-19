@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Isolated snapshot-daemon for bench reproducibility.
+// Isolated snapshot-daemon for legacy JS bench reproducibility.
+// Active canonical SDK ON arms use bench/zonoid_bench/daemon.py + warm.py instead.
 //
 // Boots a private daemon on a private port, pointed at a FROZEN copy of .graph so
 // the gated/search arms RAG against a stable KB — not the live churning :8787 daemon.

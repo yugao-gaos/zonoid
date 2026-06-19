@@ -22,18 +22,18 @@ HONESTY BAR
 The gold answer is used ONLY for assertion [4] after the full retrieval cycle completes.
 It NEVER enters the ingest / retrieve / keep / answer path. The EdgeJudge receives only:
   - anchor: the probe task key + question text
-  - candidates: the note keys + titles/summaries that autowired at cosine >= 0.55
+  - candidates: the note keys + titles/summaries returned by the daemon's autowire policy
 The gold answer is withheld from all of these.
 
 ASSERTIONS (4 original STEP 3 requirements + 1 new idle-case assertion)
 ------------------------------------------------------------------------
-[1] autowire seeded >=1 candidate edge at cosine >=0.55 (judge_next returns non-empty items).
+[1] autowire seeded >=1 candidate edge (judge_next returns non-empty items).
     If always empty, the arm is HOLLOW — we say so loudly.
 [2] the LLM EdgeJudge returned at least one REAL `keep` verdict (not deterministic-fallback prune)
     on a RELEVANT note.  "Real" = the judge was called (not idle) and verdicts has >=1 "keep".
 [3] an IRRELEVANT note was pruned (distractor note NOT in /task/context context_keys).
 [4] keepEdge persisted: get_task_context returns the kept dep, and the answer used it.
-[5] IDLE-case: a probe engineered so NO note clears cosine 0.55 → arm wires NOTHING
+[5] IDLE-case: if the daemon returns no autowire candidates, the arm wires NOTHING
     (judge_idle=True, wired_edges=[], context_keys=[]). NEVER a ceScore→overlay_edge fallback.
     This is the /28 fidelity fix: production Zonoid wires nothing when judge_next is idle.
 
@@ -304,12 +304,13 @@ def run_idle_probe(
     daemon: str,
     settle_s: float = 8.0,
 ) -> dict[str, Any]:
-    """Assertion [5]: an IDLE-case probe — no note clears cosine 0.55.
+    """Assertion [5]: an IDLE-case probe — the daemon returns no candidates.
 
     Design: ingest a note about a highly specific domain topic (e.g. rare fungal taxonomy),
     then ask a question about a COMPLETELY unrelated domain (e.g. marine engineering).
-    The semantic gap ensures cosine < 0.55 so autowire seeds NO candidate — judge_next returns
-    idle:true, items:[]. The arm MUST wire nothing (wired_edges=[], context_keys=[]).
+    The semantic gap is intended to make autowire seed NO candidate under the current daemon
+    candidate policy — judge_next returns idle:true, items:[]. The arm MUST wire nothing
+    (wired_edges=[], context_keys=[]).
 
     The /28 fidelity fix: production Zonoid wires nothing when judge_next is idle. The old
     S8 arms.py had a ceScore→overlay_edge fallback in this path — that inflated the score vs
@@ -318,8 +319,8 @@ def run_idle_probe(
     Returns a result dict with 'a5_idle_wires_nothing': True iff judge_idle=True AND
     context_keys=[] (no edges wired). Also asserts no ceScore edge was created.
     """
-    # A note about obscure mycology — high specificity, very unlikely to clear 0.55 cosine to
-    # the marine-engineering question below.
+    # A note about obscure mycology — high specificity, intended to stay outside the candidate set
+    # for the marine-engineering question below.
     note_title = "Cordyceps militaris sporulation under controlled humidity conditions"
     note_summary = (
         "A laboratory study of Cordyceps militaris cultivation found that stromata formation "
@@ -484,7 +485,7 @@ def run_smoke(daemon: str = "http://localhost:8787", n_probes: int = 3) -> int:
         if not a1:
             any_hollow = True
             overall_ok = False
-            print(f"        HOLLOW: judge_next returned no >=0.55 cosine candidates for this probe.")
+            print(f"        HOLLOW: judge_next returned no candidates for this probe.")
             print(f"        => production-faithful: arm wired nothing (no ceScore fallback).")
 
         keep_keys = [c['key'] for c in keeps]
@@ -500,7 +501,7 @@ def run_smoke(daemon: str = "http://localhost:8787", n_probes: int = 3) -> int:
             if not a1:
                 print(f"        (no candidates to judge — hollow probe)")
             elif idle:
-                print(f"        (judge_next was idle — no candidates passed the 0.55 threshold)")
+                print(f"        (judge_next was idle — no candidates under the configured policy)")
             else:
                 print(f"        EdgeJudge pruned ALL candidates on this probe.")
             overall_ok = False
@@ -536,7 +537,7 @@ def run_smoke(daemon: str = "http://localhost:8787", n_probes: int = 3) -> int:
     idle_wired = idle_result.get("wired_edges", [])
     idle_ctx = idle_result.get("context_keys", [])
 
-    print(f"\n  Assertion [5] — idle-case probe (no note clears 0.55)")
+    print(f"\n  Assertion [5] — idle-case probe (daemon returns no candidates)")
     print(f"    [{'PASS' if a5 else 'FAIL'}] [5] judge_idle=True AND arm wired NOTHING  "
           f"(judge_idle={idle_judge_idle}, idle_count={idle_idle_count}, "
           f"wired={idle_wired}, ctx={idle_ctx})")
@@ -545,9 +546,8 @@ def run_smoke(daemon: str = "http://localhost:8787", n_probes: int = 3) -> int:
     if not a5:
         overall_ok = False
         if not idle_judge_idle:
-            print(f"        DIAGNOSIS: judge_next was NOT idle — the cosine gap was smaller than")
-            print(f"        expected. The mycology note cleared 0.55 for the marine question.")
-            print(f"        Adjust the idle probe design to increase semantic distance.")
+            print(f"        DIAGNOSIS: judge_next was NOT idle under the configured candidate policy.")
+            print(f"        Adjust the idle probe design or run it against the intended daemon config.")
         elif idle_wired:
             print(f"        DIAGNOSIS: judge_idle=True but wired_edges={idle_wired}.")
             print(f"        This would indicate a ceScore fallback bug — arms.py must NEVER")
@@ -560,7 +560,7 @@ def run_smoke(daemon: str = "http://localhost:8787", n_probes: int = 3) -> int:
     print("FIDELITY COUNTERS (aggregated across all probes, excl. idle probe)")
     print(f"  timeout_kills    = {total_timeout_kills}  (0 = fully faithful, no retries needed)")
     print(f"  provisional_kept = {total_provisional}  (0 = all verdicts committed, none deferred)")
-    print(f"  judge_idle       = {total_idle}  (probes with no >=0.55 candidates — hollow but correct)")
+    print(f"  judge_idle       = {total_idle}  (probes with no candidates — hollow but correct)")
     if total_timeout_kills == 0 and total_provisional == 0:
         print("  => CLEAN: no timeout_kills, no provisional edges.")
     else:
@@ -568,14 +568,14 @@ def run_smoke(daemon: str = "http://localhost:8787", n_probes: int = 3) -> int:
             print(f"  => WARN: {total_provisional} provisional edge(s) kept (production-faithful retry path).")
 
     if any_hollow:
-        print("\nWARNING: at least one probe was HOLLOW (judge_next idle — no >=0.55 candidates).")
-        print("  This means the relevant note did not clear the autowire seed threshold for that probe.")
+        print("\nWARNING: at least one probe was HOLLOW (judge_next idle — no candidates).")
+        print("  This means the configured autowire policy returned no relevant candidate for that probe.")
         print("  No ceScore fallback was used — this IS the production-faithful behaviour.")
     if any_real_keep:
         print("\nCONFIRMED: the LLM EdgeJudge returned at least one REAL `keep` verdict on realistic content.")
     else:
         print("\nWARN: the LLM EdgeJudge did NOT return any real `keep` verdicts across all probes.")
-        print("  Possible causes: all probes hollow (no >=0.55 candidates), or judge always pruned.")
+        print("  Possible causes: all probes hollow (no candidates), or judge always pruned.")
         overall_ok = False
 
     print(f"\nOVERALL: {'PASS' if overall_ok else 'FAIL'}")

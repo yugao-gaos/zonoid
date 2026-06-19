@@ -8,7 +8,11 @@
 // Cold and warm run the IDENTICAL solve+freeze+grade; the ONLY difference is graph/MCP access.
 //
 // Usage:
-//   node scripts/bench-heldout.js --candidate silent-cap --arm on|off --trial 0 [--consult=search] [--model opus]
+//   node scripts/bench-heldout.js --candidate silent-cap --arm off --trial 0 [--model opus]
+//
+// The old JS ON arm is retired. Active ON bench runs must use the canonical Python SDK path
+// (bench/zonoid_bench/arms.py), which starts an isolated daemon/workspace and uses the real
+// judge_next + EdgeJudge pipeline.
 'use strict';
 const { spawnSync } = require('child_process');
 const fs = require('fs');
@@ -185,7 +189,14 @@ async function main() {
   const trial = parseInt(arg('trial', '0'), 10);
   const cfg = CANDIDATES[candidate];
   if (!cfg || !['on', 'off'].includes(arm)) {
-    console.error('usage: bench-heldout.js --candidate <name> --arm on|off --trial <int> [--consult=search] [--model opus]');
+    console.error('usage: bench-heldout.js --candidate <name> --arm off --trial <int> [--model opus]');
+    process.exit(2);
+  }
+  if (arm === 'on') {
+    console.error(
+      'bench-heldout.js ON arm is retired. Use the canonical Python SDK ON path: ' +
+      'bench/zonoid_bench/arms.py run_agent_in_container/run_canonical_wiring with an isolated daemon.'
+    );
     process.exit(2);
   }
   const cm = consultMode();

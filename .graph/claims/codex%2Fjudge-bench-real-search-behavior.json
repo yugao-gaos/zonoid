@@ -1,0 +1,11 @@
+{
+  "task_key": "codex/judge-bench-real-search-behavior",
+  "agent_id": "judge-bench-real-search-behavior",
+  "session_id": "019edd00-ae6a-7c82-a639-1892f8130e05",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-judge-bench-real-search-behavior",
+  "status": "done",
+  "claimed_at": "2026-06-18T23:12:35.895Z",
+  "lease_until": "2026-06-19T00:12:35.895Z",
+  "completed_at": "2026-06-18T23:14:33.490Z"
+}

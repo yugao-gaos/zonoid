@@ -44,7 +44,7 @@ replicates the production memory-retrieval path call-for-call:
   1. The probe is minted as a TASK PROBE (``workspace.drop_task_stub`` + ``POST /overlay/status``
      status=not_ready, summary=question). That status write drives the SAME daemon ingest funnel a
      real task triggers: embed → setTaskVec → autowireNewTaskWholeGraph (SEED weight-0 NOTE→probe
-     candidate context edges at cosine >= SEMANTIC_AUTOWIRE_THRESHOLD 0.55) → markEagerJudge.
+     candidate context edges according to the daemon candidate policy) → markEagerJudge.
   2. ``GET /judge/next?node=<probe>`` pulls the probe's whole unjudged autowire candidate edge-set —
      the production eager-judge read (routes/judge.js EAGER MODE).
   3. The LLM eager judge (``judge.EdgeJudge``, keep/prune rubric, DEFAULT prune) adjudicates each
@@ -53,8 +53,8 @@ replicates the production memory-retrieval path call-for-call:
      freezes a task's judged DAG context BEFORE the task goes ready.
   4. ``GET /task/context`` (= the ``get_dependency_summaries`` MCP tool / Tier-1 DAG summaries) reads
      the FROZEN judged DAG context (weight>0 kept edges, sorted highest-first).
-  5. RAG fill: ``GET /search`` (note-only) catches relevant notes below the 0.55 autowire seed
-     threshold — mirroring ``search_knowledge(task_key)`` = DAG tier injects first, RAG fills the
+  5. RAG fill: ``GET /search`` (note-only) catches relevant notes not kept by the DAG tier —
+     mirroring ``search_knowledge(task_key)`` = DAG tier injects first, RAG fills the
      remaining slots. (arms.run_retrieve_and_answer does this DAG-then-RAG fill internally.)
 
 WE retrieve + inject the resulting context (DAG-kept + RAG-fill) and the answerer is a tool-less
@@ -63,7 +63,7 @@ this is faithful because production ``search_knowledge`` / ``get_dependency_summ
 the context to the agent, which then answers; the retrieval seam is what we are measuring, and it is
 identical. The honesty bar: gold answers / evidence labels are used ONLY by the grader — they NEVER
 enter any ON or OFF retrieve/answer step. A note surfaces only via the production retrieval path, or
-is legitimately missed (sub-0.55 → judge_idle, reported).
+is legitimately missed (judge_idle or pruned, reported).
 
 ISOLATION (the load-bearing honesty guard): BOTH arms' answer completions run in a FRESH EMPTY TEMP
 DIR with built-in file/web tools denied — NEVER the repo/worktree cwd. This is verified-necessary:
@@ -371,7 +371,7 @@ def run_on_arm(
 
     # --- Step A: production-faithful retrieval (the seam under test) ---
     # arms.run_canonical_wiring is the audited production path. It mints the probe TASK, drives
-    # autowire (NOTE→probe candidates at cosine>=0.55), pulls /judge/next, runs the EdgeJudge
+    # autowire (NOTE→probe candidates under daemon candidate policy), pulls /judge/next, runs the EdgeJudge
     # keep/prune, posts keepEdge/pruneEdge, then read_wired_context reads the frozen /task/context.
     wiring = arms_mod.run_canonical_wiring(client, unit_id, summary, data_dir=data_dir)
     ctx_deps = arms_mod.read_wired_context(client, wiring.task_key)
@@ -1048,7 +1048,7 @@ def render_report(agg: dict[str, Any], records: list[dict[str, Any]], path_md: s
     on_arm_desc = {
         _ON_CONFIG_RAW_DAG: (
             "production-faithful memory retrieval (mint probe TASK -> autowire "
-            "NOTE->probe context_deps at cosine>=0.55 -> eager-judge keep/prune -> frozen "
+            "NOTE->probe context_deps -> eager-judge keep/prune -> frozen "
             "/task/context (= get_dependency_summaries) + RAG fill = search_knowledge tiered). "
             f"Token CEILING {on_ceiling:.0f} weighted tok-eq = runaway guard ONLY, not a target."
         ),

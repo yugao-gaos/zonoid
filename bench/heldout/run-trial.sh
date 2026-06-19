@@ -14,7 +14,7 @@
 #
 # Flags:
 #   --candidate <name>       Candidate key (matches CANDIDATES in bench-heldout.js)
-#   --arm <on|off>           Graph access arm
+#   --arm <off>              JS heldout OFF arm. ON is retired; use canonical Python SDK arms.
 #   --trial <int>            Trial index (0-based)
 #   --consult <mode>         Consult mode for ON arm (default: search)
 #   --model <model>          Claude model (default: opus)
@@ -50,7 +50,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$CANDIDATE" || -z "$ARM" ]]; then
-  echo "usage: run-trial.sh --candidate <name> --arm on|off --trial <int> [--consult <mode>] [--model <model>] [--context-note <key>]" >&2
+  echo "usage: run-trial.sh --candidate <name> --arm off --trial <int> [--model <model>] [--context-note <key>]" >&2
+  exit 2
+fi
+
+if [[ "$ARM" == "on" ]]; then
+  echo "run-trial.sh no longer runs the JS ON arm; use bench/zonoid_bench/arms.py canonical SDK ON path with an isolated daemon/workspace." >&2
   exit 2
 fi
 
