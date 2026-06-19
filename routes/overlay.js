@@ -147,14 +147,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (cur === 'canceled' && b.status !== 'canceled' && !b.force && !b.reopen) {
       send(res, 409, { ok: false, error: 'task is canceled (terminal): pass force/reopen to override', current: cur, attempted: b.status }); return true;
     }
+    const resolveClaimSid = (allowDaemonFallback) => {
+      let sid = b.session_id ? String(b.session_id) : null;
+      if (!sid && b.agent_id && ctx.state.agents[b.agent_id]) {
+        const ag = ctx.state.agents[b.agent_id];
+        if (ag.subagent_session && ag.subagent_session !== ag.session) sid = ag.subagent_session;
+        else if (ag.session) sid = ag.session;
+      }
+      if (!sid && allowDaemonFallback && process.env.CLAUDE_CODE_SESSION_ID) sid = String(process.env.CLAUDE_CODE_SESSION_ID);
+      return sid;
+    };
     let claimSid = null;
     if (b.status === 'in_progress') {
-      claimSid = b.session_id ? String(b.session_id) : null;
-      if (!claimSid && b.agent_id && ctx.state.agents[b.agent_id]) {
-        const ag = ctx.state.agents[b.agent_id];
-        if (ag.subagent_session && ag.subagent_session !== ag.session) claimSid = ag.subagent_session;
-        else if (ag.session) claimSid = ag.session;
-      }
+      claimSid = resolveClaimSid(true);
       // DAEMON-SIDE harness-session fallback: when a worker claims without a resolvable session, use
       // the daemon's own CLAUDE_CODE_SESSION_ID (inherited via daemonEnv from the MCP server). Under
       // the claude-desktop entrypoint that equals the worker's harness .session_id — the value the
@@ -162,7 +167,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       // worker writes are no longer wrongly denied (note-mqftffo7f2b). Mirrors the mcp-graph SESSION
       // fix but activates on a DAEMON restart, not an MCP-server reload. A worker that DOES pass a
       // real session_id is unaffected. (Relies on workers sharing the harness session id, probe-verified.)
-      if (!claimSid && process.env.CLAUDE_CODE_SESSION_ID) claimSid = String(process.env.CLAUDE_CODE_SESSION_ID);
       if (!claimSid) {
         send(res, 400, { ok: false, error: 'session_id required on in_progress claim when not inferable from agent registry' }); return true;
       }
@@ -196,6 +200,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (!hasWorktree) {
         send(res, 409, { ok: false, error: 'call branch_task(task_key) before start_task — subagents must work in an isolated worktree' }); return true;
       }
+    } else if (newlyReady.isTerminalStatus(b.status)) {
+      claimSid = resolveClaimSid(false) || (T.ov.claimSessions && T.ov.claimSessions[b.key]) || null;
     }
     if (b.status === 'in_progress' && b.force) {
       // Force-claim cap: max 3 per task key. Counter persisted in overlay so daemon restarts don't reset it.
@@ -262,6 +268,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         try {
           gitClaim = gitClaims.acquire(repo, b.key, {
             agentId: b.agent_id || null,
+            sessionId: claimSid,
             branch: gitInfo && gitInfo.branch,
             leaseMinutes: gitClaims.claimLeaseMinutes(T.ov),
           });
@@ -298,6 +305,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         try {
           gitClaimFinalize = gitClaims.finalize(repo, b.key, {
             agentId: b.agent_id || null,
+            sessionId: claimSid,
             status: b.status,
             strict: gitClaimMode.strict,
           });
@@ -358,7 +366,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           ok: !!gitClaim.ok,
           conflict: !!gitClaim.conflict,
           error: gitClaim.error || null,
-          agent_id: claim.agent_id || b.agent_id || null,
+          agent_id: b.agent_id || null,
+          git_user: claim.git_user || null,
+          session_id: claim.session_id || claimSid || null,
           branch: claim.branch || null,
           claimed_at: claim.claimed_at || null,
           lease_until: claim.lease_until || null,
