@@ -496,6 +496,10 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
   ok('opencodeMcpEntry: native local command array',
     opencodeEntry.type === 'local' && opencodeEntry.command[0] === 'node');
   ok('opencodeMcpEntry: environment injects ORCH_CLIENT', opencodeEntry.environment.ORCH_CLIENT === 'opencode');
+  const opencodeRel = opencodeMcpEntry(INSTALL_DIR);
+  ok('opencodeMcpEntry: relative mcp-graph.js when cwd is install dir (portable)', opencodeRel.command[1] === 'mcp-graph.js');
+  const opencodeAbs = opencodeMcpEntry('/some/other/repo');
+  ok('opencodeMcpEntry: absolute mcp-graph.js for out-of-workspace install', /\/mcp-graph\.js$/.test(opencodeAbs.command[1]) && opencodeAbs.command[1] !== 'mcp-graph.js');
 
   // stripCodexOrchTable must drop ONLY the orchestrator-graph table + its .env
   // subtable, preserving a sibling [mcp_servers.other] entirely.
