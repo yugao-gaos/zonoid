@@ -1,0 +1,8 @@
+{
+  "task_key": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+  "agent_id": "worker-bench-canonical-sdk-on-arms-kickback-fix",
+  "branch": "orch/attempt/codex-bench-canonical-sdk-on-arms-kickback-fix",
+  "status": "claimed",
+  "claimed_at": "2026-06-19T01:31:37.814Z",
+  "lease_until": "2026-06-19T02:31:37.814Z"
+}
