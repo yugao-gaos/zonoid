@@ -2,7 +2,8 @@
   "task_key": "codex/codex-desktop-wakeup-e2e",
   "agent_id": "worker-codex-desktop-wakeup-e2e",
   "branch": "orch/attempt/codex-codex-desktop-wakeup-e2e",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-19T21:17:52.745Z",
-  "lease_until": "2026-06-19T22:17:52.745Z"
+  "lease_until": "2026-06-19T22:17:52.745Z",
+  "completed_at": "2026-06-19T21:28:28.898Z"
 }
