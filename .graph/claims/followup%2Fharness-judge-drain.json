@@ -2,7 +2,8 @@
   "task_key": "followup/harness-judge-drain",
   "agent_id": "worker-harness-judge-drain-codex-20260619",
   "branch": "orch/attempt/followup-harness-judge-drain",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-19T13:51:58.860Z",
-  "lease_until": "2026-06-19T14:51:58.860Z"
+  "lease_until": "2026-06-19T14:51:58.860Z",
+  "completed_at": "2026-06-19T13:54:57.579Z"
 }
