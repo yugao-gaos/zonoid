@@ -2,7 +2,8 @@
   "task_key": "codex/judge-fix-codex-desktop-wakeup-session",
   "agent_id": "judge-fix-codex-desktop-wakeup-session",
   "branch": "orch/attempt/codex-judge-fix-codex-desktop-wakeup-session",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-19T19:41:04.231Z",
-  "lease_until": "2026-06-19T20:41:04.231Z"
+  "lease_until": "2026-06-19T20:41:04.231Z",
+  "completed_at": "2026-06-19T19:42:10.111Z"
 }
