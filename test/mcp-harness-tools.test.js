@@ -11,6 +11,7 @@ const { TOOLS, handleRpc, makeCall, formatToolsList } = require('../lib/mcp-core
 const { extraToolsForClient, resolveSession } = require('../lib/mcp-harness-tools');
 const filedrop = require('../lib/filedrop-tasks');
 const scheduleWakeup = require('../lib/schedule-wakeup');
+const codexSessionBridge = require('../lib/codex-session-bridge');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-mcp-harness-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
@@ -114,7 +115,14 @@ async function waitForPing(ms = 8000) {
     ok('Codex fallback does not apply to cursor', resolveSession({ client: 'cursor' }) === '');
     const desktopWake = await extraToolsForClient('codex', WS)[1].run({ delaySeconds: 60, reason: 'test', prompt: 'wake' });
     ok('ScheduleWakeup works for Codex Desktop without a session', desktopWake.ok === true && desktopWake.command.includes(`${fallback}.fire`));
+    ok('Codex fallback wake is timer-only', desktopWake.delivery && desktopWake.delivery.supported === false && desktopWake.delivery.method === 'timer-only');
     scheduleWakeup.cancelWakeup(fallback);
+
+    codexSessionBridge.writeLatestSession({ workspace: WS, session_id: 'real-codex-session', transcript: '/tmp/real-codex.jsonl' });
+    const bridgedWake = await extraToolsForClient('codex', WS, { session: fallback })[1].run({ delaySeconds: 60, reason: 'test', prompt: 'wake' });
+    ok('Codex ScheduleWakeup prefers bridged real session over MCP fallback', bridgedWake.ok === true && bridgedWake.command.includes('real-codex-session.fire') && bridgedWake.session_source === 'codex-bridge');
+    ok('Codex bridged wake returns resume delivery command', bridgedWake.delivery && bridgedWake.delivery.supported === true && bridgedWake.delivery.session_id === 'real-codex-session' && bridgedWake.delivery.command.includes('wakeup-monitor.js'));
+    scheduleWakeup.cancelWakeup('real-codex-session');
   });
   await withEnv({ CODEX_THREAD_ID: 'codex-thread', ORCH_SESSION: 'orch-session' }, async () => {
     ok('Codex context session keeps precedence over environment', resolveSession({ client: 'codex', session: 'context-session' }) === 'context-session');

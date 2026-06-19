@@ -22,15 +22,19 @@ ScheduleWakeup(delaySeconds, reason, prompt)
 ## Codex Desktop sessions
 
 Codex hooks can expose a `session_id`, but that hook process does not share request-scoped state
-with the MCP subprocess. The Codex MCP server therefore prefers an explicit `session_id`, hook or
-context data, `ORCH_SESSION`, `ZONOID_SESSION`, and `CODEX_THREAD_ID`; when all are absent, it
-generates a cryptographically random session key local to that MCP process. The key is stable for
-that process only, collision-resistant across MCP processes, and neither workspace-global nor
-persisted as a cross-thread identity.
+with the MCP subprocess. Codex `SessionStart` persists the latest real session id for the current
+workspace in an adapter-owned bridge file. Codex `ScheduleWakeup` resolves the session at call time:
+explicit `session_id` first, then hook/context/env ids, then the workspace bridge, and finally a
+cryptographically random session key local to that MCP process. The fallback key is stable for that
+process only, collision-resistant across MCP processes, and neither workspace-global nor persisted
+as a cross-thread identity.
 
-Arming a wake guarantees only timer delivery to the `.fire` file. The MCP server cannot cause
-Codex Desktop to re-prompt a conversation; the host must monitor the returned `command` and deliver
-the prompt after observing `notify_pattern`.
+Arming a wake always guarantees timer delivery to the `.fire` file. When the resolved Codex session
+is real, the tool also returns `delivery.supported: true`, `delivery.session_id`, and a
+`delivery.command` pipeline that feeds matching fire lines into `adapters/codex/wakeup-monitor.js`;
+the monitor invokes `codex resume <session-id> <prompt>`. When only the random fallback is available,
+`delivery.supported` is `false`: the timer is armed, but there is no Codex Desktop thread identity
+to resume.
 
 ## Where it lives
 
@@ -39,6 +43,7 @@ the prompt after observing `notify_pattern`.
 | Core substrate | `lib/schedule-wakeup.js` |
 | Shell CLI | `adapters/common/schedule-wakeup.sh` (`arm` / `cancel`) |
 | MCP (cursor, codex) | `lib/mcp-harness-tools.js` → tool name `ScheduleWakeup` |
+| Codex delivery monitor | `adapters/codex/wakeup-monitor.js` → `codex resume <session-id> <prompt>` |
 | OpenCode plugin | `packages/opencode-plugin` → tool `schedule_wakeup` |
 | Adapter scheduler | `lib/adapters/scheduler-substrate.js` |
 | Claude native | Built-in — no MCP duplicate |

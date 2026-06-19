@@ -1225,7 +1225,7 @@ function printNextSteps(harness, cwd = process.cwd()) {
     console.log(`    3. Open the dashboard: ${dash}`);
     console.log('    4. Mint tasks with Codex MCP create_task (file-drop stub + /sync), then start_task before editing');
     console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — run the returned');
-    console.log('       tail command on the session .fire file; on ORCH_SCHEDULED_TASK, re-inject the prompt');
+    console.log('       delivery.command when delivery.supported is true; otherwise the fallback is timer-only');
     console.log('    6. Repo skill installed at .codex/skills/zonoid-orchestrator for task-mint workflow');
     console.log('    7. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else if (harness === 'cursor') {

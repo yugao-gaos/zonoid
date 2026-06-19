@@ -26,7 +26,7 @@ const CALL = core.makeCall(PORT, WS);
 // CODEX_THREAD_ID. When Codex Desktop exposes neither, resolveSession creates a random key scoped
 // to this MCP process so session-bound tools can still use the shared timer substrate.
 const SESSION = resolveSession({ client: CLIENT }) || null;
-const CLIENT_EXTRA = extraToolsForClient(CLIENT, WS, { session: SESSION });
+const CLIENT_EXTRA = extraToolsForClient(CLIENT, WS, { session: SESSION, workspace: WS });
 
 function daemonEnv() {
   const env = { ...process.env };
