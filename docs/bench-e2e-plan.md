@@ -1,12 +1,12 @@
 # Product E2E bench — design (v1)
 
-End-to-end benchmark for the **full orchestrator product** (graph + DAG context edges + RAG + gate + workers) versus a **plain agent** with no orchestrator. This complements `scripts/bench-heldout.js`, which is a **gate unit test** on a single task with RAG only.
+End-to-end benchmark for the **full orchestrator product** (graph + DAG context edges + RAG + gate + workers) versus a **plain agent** with no orchestrator. This complements the canonical Python SDK ON bench path in `bench/zonoid_bench/arms.py`; the old JS `scripts/bench-heldout.js` runner is OFF-only/legacy for active ON comparisons.
 
 ## Goals
 
 | Layer | What it tests |
 | --- | --- |
-| **Held-out bench** (`bench-heldout.js`) | Does RAG/gate retrieval help on one isolated coding task? |
+| **SDK held-out ON bench** (`bench/zonoid_bench/arms.py`) | Does canonical DAG wiring + API-only memory access help on one isolated task? |
 | **Product E2E bench** (`bench-e2e.js`) | Does the orchestrator **multi-task workflow** help — especially DAG context propagation? |
 
 Primary v1 signal: **Task B fails OFF and passes ON** when the answer exists only in Task A's `complete_task` summary, delivered via a **context edge**.
@@ -86,7 +86,7 @@ node scripts/bench-e2e.js --scenario dag-chain --dry-run
 # Single live trial (requires claude CLI + API)
 node scripts/bench-e2e.js --scenario dag-chain --trials 1
 
-# Refresh frozen KB snapshot before ON arm
+# Refresh/load frozen KB snapshot before ON arm
 ZONOID_BENCH_ISOLATED=1 node scripts/bench-e2e.js --scenario dag-chain --trials 3
 ```
 
@@ -97,7 +97,8 @@ Flags:
 - `--dry-run` — mock agent outputs; validate grader + arm comparison logic
 - `--model <name>` — Claude model (default `sonnet`)
 
-Reuses `scripts/bench-snapshot-daemon.js` when `ZONOID_BENCH_ISOLATED=1` (same as held-out bench).
+Reuses `scripts/bench-snapshot-daemon.js` when `ZONOID_BENCH_ISOLATED=1`; SDK ON arms use
+`bench/zonoid_bench/daemon.py`/`warm.py` for the canonical isolated-daemon path.
 
 ## Path to public-bench integration
 
@@ -121,6 +122,7 @@ v1 validates the **harness skeleton** on one hand-authored DAG scenario before w
 
 ## Related
 
-- `scripts/bench-heldout.js` — single-task RAG/gate A/B
+- `bench/zonoid_bench/arms.py` — canonical SDK ON arms
+- `scripts/bench-heldout.js` — legacy/off-only single-task runner
 - `scripts/bench-arm.js` — early single-spec A/B (acceptance test visible to agent)
 - `docs/swe-bench-eval.md` — public benchmark eval runbook
