@@ -250,21 +250,25 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         send(res, 409, { ok: false, error: 'self-learning mode: task has a metric spec — call branch_task first before editing' }); return true;
       }
     }
+    const gitClaimMode = gitClaims.claimMode(T.ov);
     let gitClaim = null;
-    if (b.status === 'in_progress' && !b.force && gitClaims.claimModeEnabled(T.ov)) {
+    let gitClaimFinalize = null;
+    if (b.status === 'in_progress' && !b.force && gitClaimMode.enabled) {
       const repo = ctx.resolveRepo ? ctx.resolveRepo(b.key, b.repo_path, T.ov, T.ws) : T.ws;
       if (!gitClaims.shouldAcquire(repo, T.ov)) {
         gitClaim = null;
       } else {
         const gitInfo = T.ov.git && T.ov.git[b.key];
-        gitClaim = gitClaims.acquire(repo, b.key, {
-          agentId: b.agent_id || null,
-          sessionId: b.session_id || null,
-          workspace: T.ws,
-          branch: gitInfo && gitInfo.branch,
-          leaseMinutes: gitClaims.claimLeaseMinutes(T.ov),
-        });
-        if (!gitClaim.ok) {
+        try {
+          gitClaim = gitClaims.acquire(repo, b.key, {
+            agentId: b.agent_id || null,
+            branch: gitInfo && gitInfo.branch,
+            leaseMinutes: gitClaims.claimLeaseMinutes(T.ov),
+          });
+        } catch (e) {
+          gitClaim = { ok: false, error: 'git claim acquire failed', detail: String(e.stderr || e.message || e).slice(0, 500) };
+        }
+        if (!gitClaim.ok && gitClaimMode.strict) {
           send(res, gitClaim.conflict ? 409 : 503, { ok: false, error: gitClaim.error, git_claim: gitClaim }); return true;
         }
       }
@@ -285,6 +289,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         const hasMeasurements = mm != null && (Array.isArray(mm) ? mm.length > 0 : Object.keys(mm).length > 0);
         if (!hasMeasurements) {
           send(res, 409, { ok: false, error: 'incomplete task_result: task carries a metric spec — terminal status requires task_result.metric_measurements (run measure_task and report the value)', key: b.key, missing: 'metric_measurements' }); return true;
+        }
+      }
+    }
+    if (newlyReady.isTerminalStatus(b.status) && gitClaimMode.enabled) {
+      const repo = ctx.resolveRepo ? ctx.resolveRepo(b.key, b.repo_path, T.ov, T.ws) : T.ws;
+      if (gitClaims.shouldAcquire(repo, T.ov)) {
+        try {
+          gitClaimFinalize = gitClaims.finalize(repo, b.key, {
+            agentId: b.agent_id || null,
+            status: b.status,
+            strict: gitClaimMode.strict,
+          });
+        } catch (e) {
+          gitClaimFinalize = { ok: false, error: 'git claim release failed', detail: String(e.stderr || e.message || e).slice(0, 500) };
+        }
+        if (!gitClaimFinalize.ok && gitClaimMode.strict) {
+          send(res, gitClaimFinalize.conflict ? 409 : 503, { ok: false, error: gitClaimFinalize.error, git_claim: gitClaimFinalize }); return true;
         }
       }
     }
@@ -328,14 +349,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (!T.ov.claimSessions) T.ov.claimSessions = {};
         T.ov.claimSessions[b.key] = claimSid;
       }
-      if (gitClaim && gitClaim.claim) {
+      if (gitClaim) {
         if (!T.ov.git_claims) T.ov.git_claims = {};
+        const claim = gitClaim.claim || {};
         T.ov.git_claims[b.key] = {
-          mode: 'git',
-          agent_id: b.agent_id || null,
-          branch: gitClaim.claim.branch || null,
-          claimed_at: gitClaim.claim.claimed_at,
-          lease_until: gitClaim.claim.lease_until,
+          mode: gitClaimMode.mode,
+          advisory: !gitClaimMode.strict,
+          ok: !!gitClaim.ok,
+          conflict: !!gitClaim.conflict,
+          error: gitClaim.error || null,
+          agent_id: claim.agent_id || b.agent_id || null,
+          branch: claim.branch || null,
+          claimed_at: claim.claimed_at || null,
+          lease_until: claim.lease_until || null,
         };
       }
     } else {
@@ -349,12 +375,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       }
       if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && T.ov.git_claims) {
         delete T.ov.git_claims[b.key];
-      }
-      if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && gitClaims.claimModeEnabled(T.ov)) {
-        try {
-          const repo = ctx.resolveRepo ? ctx.resolveRepo(b.key, b.repo_path, T.ov, T.ws) : T.ws;
-          gitClaims.finalize(repo, b.key, { agentId: b.agent_id || null, status: b.status });
-        } catch { /* best effort: terminal graph status must not be blocked by claim cleanup */ }
       }
     }
     if (b.summary != null) T.ov.summaries[b.key] = String(b.summary).slice(0, 2000);
@@ -498,7 +518,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const FORCE_CAP = 3;
       statusResp.force_claims_remaining = Math.max(0, FORCE_CAP - ((T.ov.forceClaims && T.ov.forceClaims[b.key]) || 0));
     }
-    if (gitClaim) statusResp.git_claim = { ok: true, already_claimed: !!gitClaim.already_claimed, pushed: !!gitClaim.pushed };
+    if (gitClaim) statusResp.git_claim = { ok: !!gitClaim.ok, already_claimed: !!gitClaim.already_claimed, pushed: !!gitClaim.pushed, conflict: !!gitClaim.conflict, advisory: !gitClaimMode.strict, error: gitClaim.error || null };
+    if (gitClaimFinalize) statusResp.git_claim_finalize = { ok: !!gitClaimFinalize.ok, pushed: !!gitClaimFinalize.pushed, skipped: !!gitClaimFinalize.skipped, conflict: !!gitClaimFinalize.conflict, advisory: !gitClaimMode.strict, error: gitClaimFinalize.error || null };
     if (readyBefore) {
       statusResp.newly_ready = newlyReady.diffNewlyReady(readyBefore, newlyReady.readyKeys(buildGraph(T.ws)));
     }

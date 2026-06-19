@@ -8,6 +8,7 @@ const verdicts = require('../lib/verdicts');
 const judge = require('../lib/judge');
 const { listDispatcherChildren } = require('../lib/dispatcher-children');
 const { attributionMeta } = require('../lib/dispatcher-attribution');
+const gitClaims = require('../lib/git-claims');
 
 // Auto-resolve a guidance escalation by spawning an Opus CLI process.
 // Returns the trimmed answer string, or null if Opus is unavailable or fails.
@@ -122,10 +123,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.cost_gate != null) T.ov.config.cost_gate = !!b.cost_gate;
     if (b.automode != null) T.ov.config.automode = !!b.automode;
     if (b.claim_mode != null) {
-      const mode = String(b.claim_mode || '').toLowerCase();
-      if (mode && mode !== 'git' && mode !== 'local') { send(res, 400, { ok: false, error: 'claim_mode must be "git", "local", or empty' }); return true; }
-      if (mode === 'git') T.ov.config.claim_mode = 'git';
-      else if (mode === 'local') T.ov.config.claim_mode = 'local';
+      const mode = gitClaims.normalizeClaimMode(b.claim_mode);
+      if (!mode.valid) { send(res, 400, { ok: false, error: 'claim_mode must be "git", "git-strict", "strict", "local", or empty' }); return true; }
+      if (String(b.claim_mode).trim() === '') delete T.ov.config.claim_mode;
+      else if (mode.enabled) T.ov.config.claim_mode = mode.mode;
+      else if (mode.mode === 'local') T.ov.config.claim_mode = 'local';
       else delete T.ov.config.claim_mode;
     }
     if (b.claim_lease_minutes != null) T.ov.config.claim_lease_minutes = Number(b.claim_lease_minutes);
