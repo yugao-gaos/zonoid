@@ -2,7 +2,8 @@
   "task_key": "codex/git-claim-lock-git-user-session",
   "agent_id": "worker-git-claim-lock-git-user-session",
   "branch": "orch/attempt/codex-git-claim-lock-git-user-session",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-19T00:55:26.162Z",
-  "lease_until": "2026-06-19T01:55:26.162Z"
+  "lease_until": "2026-06-19T01:55:26.162Z",
+  "completed_at": "2026-06-19T01:14:43.123Z"
 }
