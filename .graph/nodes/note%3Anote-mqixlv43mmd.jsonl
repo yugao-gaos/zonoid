@@ -20,3 +20,4 @@
 {"evt":"note_supersedes","id":"note-mqixlv43mmd","supersedes":"note-mqivmpsymqf","ts":"2026-06-18T03:19:49.443Z","actor":"supersede"}
 {"evt":"note_supersedes","id":"note-mqixlv43mmd","supersedes":"note-mqiw8yvx1o0","ts":"2026-06-18T03:19:49.443Z","actor":"supersede"}
 {"evt":"note_supersedes","id":"note-mqixlv43mmd","supersedes":"note-mqiumm0uqyo","ts":"2026-06-18T03:19:49.443Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mqixlv43mmd","to":"opencode/opencode-parity-verify","kind":"context","actor":"overlay-sync","ts":"2026-06-19T22:09:28.495Z","weight":0,"by":"autowire","judged":false,"score":0.602,"origin":"autowire-semantic"}
