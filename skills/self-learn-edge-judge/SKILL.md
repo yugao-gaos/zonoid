@@ -36,7 +36,7 @@ through incrementally, a handful per tick, across many ticks.
 
 ## Item kinds
 
-`/judge/next` returns three kinds:
+`/judge/next` returns these kinds:
 
 - **`edge`** — an UNVERIFIED blind similarity edge (`{judged:false, by:'autowire'}`) anchor(`from`)
   → candidate `N`(`to`), with both endpoints' `{title, summary, key, kind}`. Decide **keep** or
@@ -59,6 +59,13 @@ through incrementally, a handful per tick, across many ticks.
   (~0.80), carrying `keys[]` + `notes[]` (`{key, title, summary, created_at}`). RECALL is loose by
   design (it WILL over-merge a related series into one cluster); YOU supply precision: decide whether
   the cluster is genuinely ONE fact and **consolidate** it, or **surface** an ambiguous/distinct one.
+- **`decay`** — a CURRENT note that passed the age/opportunity necessity gate and correlated with
+  losing outcomes. The daemon only surfaces high-confidence retire candidates here; low-confidence
+  and borderline rows stay in preview/diagnostics. If the evidence still looks sound, emit
+  **`retireNote`** for a soft retire. This appends `note_superseded` with `validTo` and no
+  `supersededBy`; it never deletes the note, so history/as-of recovery still works.
+- **`reinforce`** — a CURRENT note with enough successful recall evidence to receive a positive
+  boost. Emit `boostNote` with the provided boost/winRate/total when the evidence is coherent.
 
 ## Reasoning criteria (CONSERVATIVE — default is NO edge)
 
@@ -148,6 +155,10 @@ measurements from different runs/regimes, are DISTINCT — do NOT consolidate th
   { "consolidate": { "keep": "note:…", "supersede": ["note:…", "note:…"], "why": "three re-statements of one fact; keep newest" } },
   // SURFACE one ambiguous/distinct cluster as a SINGLE guidance item (never per-pair):
   { "surfaceCluster": { "keys": ["note:…", "note:…"], "why": "related benchmark series of DISTINCT verdicts, not duplicates" } },
+  // SOFT-retire a decay candidate; no deletion, no supersededBy:
+  { "retireNote": { "noteKey": "note:…", "reason": "low-win-rate after age/opportunity gate" } },
+  // apply a positive usage-derived boost:
+  { "boostNote": { "noteKey": "note:…", "boost": 0.12, "winRate": 0.9, "total": 10 } },
   // a 'NO edge' verdict for an orphan still marks it judged so it isn't re-pulled until epoch grows:
   { "markJudged": "note:…" }
 ] }
@@ -180,3 +191,5 @@ directly. The verdict endpoint is idempotent.
 - **Budget discipline.** ≤ N items/tick. The cursor handles continuity — don't try to drain it in one
   pass.
 - **No new daemon behavior.** Only `/judge/next` + `/judge/verdict`. All intelligence is here.
+- **Decay is soft-retire only.** Never delete a note or mutate files directly. For `decay`, the only
+  retire action is `retireNote`, which preserves temporal recoverability through `note_superseded`.
