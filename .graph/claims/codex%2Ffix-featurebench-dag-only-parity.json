@@ -2,8 +2,8 @@
   "task_key": "codex/fix-featurebench-dag-only-parity",
   "agent_id": "worker-fix-featurebench-dag-only-parity",
   "branch": "orch/attempt/codex-fix-featurebench-dag-only-parity",
-  "status": "done",
+  "status": "failed",
   "claimed_at": "2026-06-19T19:16:50.446Z",
   "lease_until": "2026-06-19T20:16:50.446Z",
-  "completed_at": "2026-06-19T19:22:53.781Z"
+  "completed_at": "2026-06-19T19:44:00.172Z"
 }
