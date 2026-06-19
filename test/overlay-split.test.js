@@ -121,6 +121,13 @@ try {
   ok('3. load() rehydrated edge.to correct',   ov3b.edges[0] && ov3b.edges[0].to   === 'task/dst');
   ok('3. load() rehydrated edge.kind correct', ov3b.edges[0] && ov3b.edges[0].kind === 'context');
 
+  // ── Test 3b: edge removals are durable in graph-store ────────────────────
+
+  overlayStore.removeEdge(ov3b, 'task/src', 'task/dst', null, 'context');
+  overlayStore.save(WS3, ov3b);
+  const ov3c = overlayStore.load(WS3);
+  ok('3b. load() preserves removed edge count === 0', ov3c.edges.length === 0);
+
   // ── Test 4: load() rehydrates status from graph-store ────────────────────
 
   const WS4 = path.join(TMP, 'ws4');
