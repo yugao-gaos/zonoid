@@ -182475,8 +182475,1205 @@
       "assignee": "judge-fix-strict-git-claim-finalize-owner",
       "timestamps": {
         "firstSeen": "2026-06-18T23:52:44.496Z",
-        "lastChanged": "2026-06-18T23:52:44.496Z",
-        "lastStatus": "not_ready"
+        "lastChanged": "2026-06-19T00:07:18.061Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/bench-canonical-sdk-on-arms-kickback-fix": {
+      "id": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Fixed the SDK kickback issues: client docs now describe daemon-configured autowire candidate policy/top-K instead of a fixed 0.55 threshold, and retrieve_and_answer now passes task_key into the task-aware RAG-fill /search path. Committed as d5e4e947.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix canonical SDK ON bench kickback issues",
+        "description": "Apply the judge kickback fixes on top of orch/attempt/codex-bench-canonical-sdk-on-arms. Fix active SDK stale 0.55 documentation in bench/zonoid_bench/client.py. Fix run_retrieve_and_answer so the RAG-fill search path matches the new search_knowledge(task_key) behavior by passing the probe task_key/workspace context, or adjust implementation/docs only if task_key search would duplicate/break diagnostics. Keep JS heldout OFF-only deprecation intact. Run focused py_compile and diff checks. This task replaces the failed codex/bench-canonical-sdk-on-arms attempt and should include its committed changes plus the two fixes.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/judge-bench-canonical-sdk-on-arms"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T01:33:49.312Z"
+      },
+      "assignee": "worker-bench-canonical-sdk-on-arms-kickback-fix",
+      "timestamps": {
+        "firstSeen": "2026-06-19T01:29:56.306Z",
+        "lastChanged": "2026-06-19T01:33:48.689Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/codex-desktop-wakeup-e2e": {
+      "id": "codex/codex-desktop-wakeup-e2e",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented Codex Desktop wake delivery in commit 76808bcf: Codex SessionStart writes a workspace-scoped real-session bridge, ScheduleWakeup resolves that bridge at call time before falling back to timer-only MCP ids, and a Codex wake monitor consumes ORCH_SCHEDULED_TASK fire lines to run codex resume. Updated docs/CLI next steps and added focused bridge/delivery tests.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Add Codex Desktop wakeup e2e delivery",
+        "description": "Implement end-to-end Codex Desktop wakeup support beyond timer arming. Build on the approved orch/attempt/codex-fix-codex-desktop-wakeup-session fallback. Add a Codex-side monitor/delivery path so a ScheduleWakeup .fire event can be consumed and delivered as a Codex prompt/tick where the host supports it, with tests that simulate fired ORCH_SCHEDULED_TASK lines. Preserve the honest contract that the core timer only writes .fire; e2e support must include the adapter/CLI/install surface that runs or documents the monitor and delivery command.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T21:28:25.319Z"
+      },
+      "assignee": "worker-codex-desktop-wakeup-e2e",
+      "timestamps": {
+        "firstSeen": "2026-06-19T21:14:28.324Z",
+        "lastChanged": "2026-06-19T21:29:14.106Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-codex-desktop-wakeup-session": {
+      "id": "codex/fix-codex-desktop-wakeup-session",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Added a 128-bit random Codex MCP-process fallback session after existing session sources, plus precedence/isolation/Desktop wake tests and delivery-limit docs. Committed 3ce4b13e; focused MCP, wakeup, and Codex-hook tests pass.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Support Codex Desktop wakeup sessions",
+        "description": "Make ScheduleWakeup work safely in Codex Desktop when the MCP subprocess lacks CODEX_THREAD_ID and no session context is injected. Implement a deterministic, collision-resistant desktop fallback that remains stable over one MCP process/conversation and never uses a workspace-global shared session. Preserve explicit session_id and existing CLI behavior. Add focused regression tests for fallback stability, isolation, and ScheduleWakeup success. Update Codex adapter docs as needed. No live benchmarks.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T19:33:57.691Z"
+      },
+      "assignee": "worker-fix-codex-desktop-wakeup-session",
+      "timestamps": {
+        "firstSeen": "2026-06-19T19:27:29.753Z",
+        "lastChanged": "2026-06-19T19:33:57.182Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-featurebench-canonical-arm-docs-followup": {
+      "id": "codex/fix-featurebench-canonical-arm-docs-followup",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Updated bench/zonoid_bench/arms.py comments/docstrings so retrieve_and_answer and related canonical-arm docs describe the settled read as production /search?task_key returning system notes plus frozen DAG context, not wired DAG or GET /task/context. Verified with targeted rg stale-wording check (no matches) and python3 -m py_compile bench/zonoid_bench/arms.py. Commit: 00d4c1e9203d8a273460ba3e8712039460a1bcd2.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix FeatureBench canonical arm docs followup",
+        "description": "Docs-only correction after codex/fix-featurebench-dag-only-parity was kicked back. Update bench/zonoid_bench/arms.py canonical-arm comments/docstrings so retrieve_and_answer is described as using the production /search?task_key settled task-scoped search surface returning system plus frozen DAG context, not wired DAG / GET /task/context. Keep behavior unchanged. Verify no stale retrieve_and_answer canonical-arm docs still claim /task/context for the settled task-scoped search path, then commit the docs-only change on the attempt branch.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T20:54:27.706Z"
+      },
+      "assignee": "worker-fix-featurebench-canonical-arm-docs-followup",
+      "timestamps": {
+        "firstSeen": "2026-06-19T20:49:40.918Z",
+        "lastChanged": "2026-06-19T20:54:27.272Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-featurebench-canonical-arm-docs": {
+      "id": "codex/fix-featurebench-canonical-arm-docs",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Fix FeatureBench canonical arm docs",
+        "description": "Docs-only correction after codex/fix-featurebench-dag-only-parity kickback. Update bench/zonoid_bench/arms.py canonical-arm comments/docstrings so retrieve_and_answer is described as using the production /search?task_key settled task-scoped search surface returning system plus frozen DAG context, not wired DAG / GET /task/context. Keep behavior unchanged. Verify no stale retrieve_and_answer canonical-arm docs still claim /task/context for the settled task-scoped search path, then commit the docs-only change on the attempt branch.",
+        "status": "pending",
+        "blockedBy": [
+          "codex/fix-featurebench-dag-only-parity"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T20:49:34.308Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-19T20:49:00.975Z",
+        "lastChanged": "2026-06-19T20:49:34.308Z",
+        "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/git-claim-lock-git-user-session": {
+      "id": "codex/git-claim-lock-git-user-session",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented git-synced claim lock identity as (git_user, session_id) instead of agent_id. Claim files now write git_user/session_id, omit agent_id, compare conflicts by tuple, fail closed when identity is missing, preserve legacy claims as conflicts, and pass session_id through overlay acquire/finalize. Attempt commit: 35eadc66. Verified in attempt worktree: node test/git-claims.test.js (36 passed), node --check lib/git-claims.js, node --check routes/overlay.js, git diff --check, escalated node test/self-register-on-claim.test.js (9 passed), escalated node test/per-repo-workspace-scoping.test.js (42 passed).",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Use git user plus session id for git claim lock identity",
+        "description": "Implement the user decision that git-synced claim locks are owned by the pair (git_user, session_id), not agent_id alone. agent_id should remain local execution identity. Update lib/git-claims.js and overlay status call sites so acquire/finalize write and compare git_user + session_id in claim files. Preserve advisory/default behavior and strict conflict behavior. Add/adjust tests in test/git-claims.test.js for: same git_user+session_id can observe/release its claim; same git_user with a different session_id conflicts while live; different git_user conflicts; missing session_id in strict mode fails closed or conflicts rather than releasing another live claim.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T01:14:40.439Z"
+      },
+      "assignee": "worker-git-claim-lock-git-user-session",
+      "timestamps": {
+        "firstSeen": "2026-06-19T00:52:18.076Z",
+        "lastChanged": "2026-06-19T01:16:46.230Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-bench-canonical-sdk-on-arms-kickback-fix": {
+      "id": "codex/judge-bench-canonical-sdk-on-arms-kickback-fix",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVE: merged codex/bench-canonical-sdk-on-arms-kickback-fix into feature branch. The replacement fixes the prior stale 0.55 /judge/next floor docs in client.py and makes run_retrieve_and_answer use task_key-aware RAG fill. JS heldout ON now fails fast, canonical Python SDK ON surfaces remain active, API-only AGENTS.md includes workspace+task_key, isolated daemon/workspace binding is preserved, and KB prepopulation is documented as explicit.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge canonical SDK ON bench kickback fix",
+        "description": "Review codex/bench-canonical-sdk-on-arms-kickback-fix, which is based on the original implementation plus the judge kickback fixes. Verify stale 0.55 active SDK docs are gone, run_retrieve_and_answer uses task_key/workspace-aware search consistently with new search_knowledge(task_key) behavior, JS heldout remains OFF-only with ON fail-fast, and heldout anti-cheat isolation is preserved in canonical SDK ON behavior. If approved, merge this replacement attempt into the bench-real-search-behavior feature worktree with merge_attempt. Do not merge feature->main.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/bench-canonical-sdk-on-arms-kickback-fix"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T01:38:04.953Z"
+      },
+      "assignee": "judge-bench-canonical-sdk-on-arms-kickback-fix",
+      "timestamps": {
+        "firstSeen": "2026-06-19T01:34:29.550Z",
+        "lastChanged": "2026-06-19T01:38:04.430Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-bench-canonical-sdk-on-arms": {
+      "id": "codex/judge-bench-canonical-sdk-on-arms",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "KICKBACK: did not merge codex/bench-canonical-sdk-on-arms. Syntax checks passed, but active SDK client docs still claim a fixed 0.55 autowire floor, and the retrieve_and_answer ON QA executor still omits task_key from its RAG-fill /search despite claiming search_knowledge(task_key) parity.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge canonical SDK ON bench arm refactor",
+        "description": "Review the implementation for codex/bench-canonical-sdk-on-arms. Use self-learn-judge single-attempt review mode if available; otherwise use strict code-review stance. Verify JS heldout is removed/deprecated as an active ON runner, heldout anti-cheat isolation is preserved in canonical SDK behavior, docs/comments match current autowire/search behavior, executor path includes workspace/task context, scope is surgical, and relevant tests/checks pass. Do not force-merge; approve or kick back with concrete issues.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/bench-canonical-sdk-on-arms"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T01:29:08.655Z"
+      },
+      "assignee": "judge-bench-canonical-sdk-on-arms",
+      "timestamps": {
+        "firstSeen": "2026-06-19T01:00:03.127Z",
+        "lastChanged": "2026-06-19T01:29:08.647Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-codex-desktop-wakeup-e2e": {
+      "id": "codex/judge-codex-desktop-wakeup-e2e",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVE: Attempt 76808bcf closes the Codex Desktop wake gap by bridging real Codex sessions into ScheduleWakeup, keeping process-local fallback timer-only, preserving command/notify_pattern compatibility, and adding a fire-line monitor that invokes codex resume with injectable tests. Tests run: node test/codex-wakeup-delivery.test.js; node test/mcp-schedule-wakeup.test.js; node test/codex-hooks.test.js; node test/mcp-harness-tools.test.js; node test/session-bindings.test.js; node test/cli-init.test.js; git diff --check.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge Codex Desktop wakeup e2e delivery",
+        "description": "Review codex/codex-desktop-wakeup-e2e in single-attempt review mode. Fetch the attempt diff and verify it actually closes the Codex Desktop end-to-end gap: ScheduleWakeup should still arm/dedup timers, but the Codex adapter/CLI/install surface must provide a concrete monitor/delivery path for fired .fire ORCH_SCHEDULED_TASK lines to become a prompt/tick where supported. Check correctness, scope discipline, tests, docs, and compatibility with the approved process-local session fallback. Do not merge; APPROVE only records hold-merge verdict, KICKBACK records concrete blockers.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/codex-desktop-wakeup-e2e"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T21:32:40.603Z"
+      },
+      "assignee": "judge-codex-desktop-wakeup-e2e",
+      "timestamps": {
+        "firstSeen": "2026-06-19T21:14:35.062Z",
+        "lastChanged": "2026-06-19T21:32:40.575Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-exec-brain-state-seam-minimal-patch": {
+      "id": "codex/judge-exec-brain-state-seam-minimal-patch",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "No-op review closeout: dependency codex/exec-brain-state-seam-minimal-patch failed before edits due the Codex PreToolUse claim gate, leaving no attempt diff or tests to judge. Review gate cleared without approval or merge.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Review minimal local git state seam patch",
+        "description": "Judge the minimal patch attempt for execution-vs-brain and local-vs-git state separation. Inspect the attempt diff, run or trust the recorded required tests only if present, and verify scope discipline. Approve only if git claims omit local session/workspace paths, advisory vs strict claim behavior is correct, local overlay stores live session state and git diagnostics separately, config accepts strict mode, and tests cover the semantics.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/exec-brain-state-seam-minimal-patch"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T13:42:33.800Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-18T20:34:07.397Z",
+        "lastChanged": "2026-06-19T13:49:52.826Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-fix-codex-desktop-wakeup-session": {
+      "id": "codex/judge-fix-codex-desktop-wakeup-session",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVE: Reviewed orch/attempt/codex-fix-codex-desktop-wakeup-session. Codex fallback is crypto.randomBytes(16)-backed, module/process-local, stable within one MCP process, isolated across child processes, and only used after ctx/session/env precedence. Docs state ScheduleWakeup only writes the fire line and requires a host monitor for Codex Desktop. Verified node test/mcp-harness-tools.test.js passed 44/44. No merge performed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge Codex Desktop wakeup session support",
+        "description": "Use self-learn-judge single-attempt review against orch/attempt/codex-fix-codex-desktop-wakeup-session. Approve only if the Codex Desktop fallback is stable for the same Desktop MCP server/conversation, collision-resistant across independent sessions, preserves explicit session_id and CODEX_THREAD_ID, does not silently introduce a workspace-global identity, and has focused tests proving ScheduleWakeup works without host session variables. Verify scope and docs; do not force merge.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/fix-codex-desktop-wakeup-session"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T19:42:12.457Z"
+      },
+      "assignee": "judge-fix-codex-desktop-wakeup-session",
+      "timestamps": {
+        "firstSeen": "2026-06-19T19:28:23.650Z",
+        "lastChanged": "2026-06-19T19:42:11.930Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-fix-featurebench-dag-only-parity": {
+      "id": "codex/judge-fix-featurebench-dag-only-parity",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "KICKBACK: behavior and tests pass, but canonical-arm docs still mention wired DAG / GET /task/context for retrieve_and_answer instead of the required single /search?task_key settled task surface. Ran local node tests and py_compile only; no live FeatureBench or Claude inference, no merge.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge FeatureBench DAG only parity correction",
+        "description": "Use self-learn-judge in single-attempt review mode against orch/attempt/codex-fix-featurebench-dag-only-parity. Approve only if the ON harness truly matches settled production behavior: after eager judgement, task_key search is DAG-only, no synthetic semantic RAG fill, docs report this accurately, and a behavioral/static compiler contract covers it. Verify non-Claude tests and scope. Do not run live FeatureBench or Claude inference.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/fix-featurebench-dag-only-parity"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T19:42:06.235Z"
+      },
+      "assignee": "judge-fix-featurebench-dag-only-parity",
+      "timestamps": {
+        "firstSeen": "2026-06-19T19:11:50.131Z",
+        "lastChanged": "2026-06-19T19:44:18.402Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-git-claim-lock-git-user-session": {
+      "id": "codex/judge-git-claim-lock-git-user-session",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVE: Attempt 35eadc66 safely implements git-synced claim identity as the (git_user, session_id) tuple. Durable claim files now record git_user/session_id and remove agent_id/workspace, conflict checks compare the tuple rather than agent_id, same tuple can re-observe a live claim, different user/session and legacy live claims conflict, and missing identity fails closed in acquire/strict finalize while overlay advisory mode remains caller-nonblocking. Tests cover claim contents, tuple conflict cases, missing identity, finalize behavior, and legacy claims; diff scope is limited to lib/git-claims.js, routes/overlay.js, and test/git-claims.test.js.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge git user plus session id claim lock implementation",
+        "description": "Review codex/git-claim-lock-git-user-session. Confirm git-synced claim lock identity is the pair (git_user, session_id), not agent_id. Verify claim files write git_user and session_id; conflicts compare the pair; strict mode fails closed on missing lock identity; advisory/default remains non-blocking; local execution/session state remains local where appropriate. Check focused tests and do not merge.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/git-claim-lock-git-user-session"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T01:40:45.910Z"
+      },
+      "assignee": "judge-git-claim-lock-git-user-session",
+      "timestamps": {
+        "firstSeen": "2026-06-19T00:52:27.601Z",
+        "lastChanged": "2026-06-19T01:40:44.599Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-migrate-runtime-artifacts-to-zonoid-r2": {
+      "id": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "KICKBACK: reviewed attempt 07be60f0 and did not merge. Required regression chain passed, git diff --check passed, setup-https.sh now writes $(orch_data_dir)/certs and daemon reads runtimePaths.resolveDataDir()/certs. Blockers remain: skills/setup/SKILL.md still instructs manual cert generation under $BASE/certs, and bin/backfill-merged.js still reads workspaces.json from the legacy install root instead of .zonoid runtime data. Implementation task marked failed; finding recorded as note:note-mqljsmkubpa.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge repaired runtime artifact .zonoid migration",
+        "description": "Second-pass judge for codex/migrate-runtime-artifacts-to-zonoid after repairing setup-https.sh to write certs under the resolved runtime data dir. Review final attempt commit 07be60f0 and merge attempt -> feature only if approved.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/migrate-runtime-artifacts-to-zonoid"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T23:16:55.795Z"
+      },
+      "assignee": "judge-runtime-artifacts-zonoid-r2",
+      "timestamps": {
+        "firstSeen": "2026-06-19T23:11:07.984Z",
+        "lastChanged": "2026-06-19T23:16:55.365Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-migrate-runtime-artifacts-to-zonoid-r3": {
+      "id": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVED: reviewed attempt 12c48405 and merged it into feature branch via merge_attempt (feature head 7543b881). Stored regression chain passed, targeted runtime path checks passed, and impacted file-drop/wake/gate tests passed. Prior kickbacks fixed: setup certs use runtime data dir, setup skill uses $DATA/certs, backfill reads runtime workspaces.json while keeping install root as repo candidate, migrate-overlay reads runtime overlay with legacy fallback only.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge final runtime artifact .zonoid migration",
+        "description": "Third-pass judge for codex/migrate-runtime-artifacts-to-zonoid after repairing setup skill cert instructions, backfill workspaces.json runtime path, and migrate-overlay runtime overlay path. Review final attempt commit 12c48405 and merge attempt -> feature only if approved.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/migrate-runtime-artifacts-to-zonoid"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T23:26:16.986Z"
+      },
+      "assignee": "judge-runtime-artifacts-zonoid-r3",
+      "timestamps": {
+        "firstSeen": "2026-06-19T23:20:53.745Z",
+        "lastChanged": "2026-06-19T23:20:53.745Z",
+        "lastStatus": "ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-migrate-runtime-artifacts-to-zonoid": {
+      "id": "codex/judge-migrate-runtime-artifacts-to-zonoid",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "KICKBACK: did not merge attempt db546d56. Required and targeted tests passed, but review found scripts/setup-https.sh still writes TLS certs to the legacy root while daemon.js now reads certs from .zonoid runtime data; default HTTPS setup would silently fail after migration. Recorded note:note-mqlji214g5l and set implementation task failed.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge runtime artifact .zonoid migration",
+        "description": "Review the implementation attempt for migrating non-.graph runtime artifacts into .zonoid. Verify correctness, backward compatibility, scope discipline, tests, and that .graph remains unchanged. Judge only; do not force-merge. Use self-learn-judge single-attempt review mode against orch/attempt/codex-migrate-runtime-artifacts-to-zonoid.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/migrate-runtime-artifacts-to-zonoid"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T23:08:30.331Z"
+      },
+      "assignee": "judge-runtime-artifacts-zonoid",
+      "timestamps": {
+        "firstSeen": "2026-06-19T22:42:22.247Z",
+        "lastChanged": "2026-06-19T23:08:29.829Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-verify-featurebench-production-faithful": {
+      "id": "codex/judge-verify-featurebench-production-faithful",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "KICKBACK: task_key propagation is present, but settled task probes are DAG-only; the attempt still treats the second lookup as semantic RAG fill and tests only text presence.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge FeatureBench production-faithfulness update",
+        "description": "Judge task for codex/verify-featurebench-production-faithful. Use self-learn-judge in single-attempt review mode against the attempt branch for codex/verify-featurebench-production-faithful. Review only static/contract work: correctness versus current production algorithm, no Claude-consuming live FeatureBench run, no stale fixed-threshold or legacy heldout active path, task_key-scoped retrieval where production requires it, EdgeJudge/autowire behavior accurately represented, tests/static checks present and meaningful, scope discipline. APPROVE only if the harness/docs now reflect production behavior and non-Claude verification passes; otherwise KICK BACK with exact issues.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/verify-featurebench-production-faithful"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T19:02:42.718Z"
+      },
+      "assignee": "judge-featurebench-production-faithful-20260619",
+      "timestamps": {
+        "firstSeen": "2026-06-19T14:12:29.507Z",
+        "lastChanged": "2026-06-19T19:11:09.153Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/migrate-runtime-artifacts-to-zonoid": {
+      "id": "codex/migrate-runtime-artifacts-to-zonoid",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented runtime artifact layout audit and migration, including both judge kickback repairs. Added shared Node and shell runtime path helpers; moved universal non-.graph state under the resolved Zonoid runtime data dir; moved Codex Desktop bridge state to adapters/codex/session-bridge.json under that dir with legacy fallback; updated Cursor/Codex/OpenCode hooks, service env wiring, sidecars, file-drop paths, gate exemptions, setup-https cert output, setup skill docs, overlay/backfill scripts, and runtime-path tests; documented universal vs adapter-specific artifacts. Final repaired attempt commit 12c48405.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Migrate non-.graph Zonoid runtime artifacts into .zonoid",
+        "description": "Audit and implement a central runtime artifact layout for Zonoid. Classify non-.graph disk artifacts as universal daemon/runtime versus adapter-specific, then move runtime outputs under a .zonoid data root. Keep .graph unchanged. Codex session bridge should become adapter-specific under the Zonoid runtime layout, not repo-root codex/session-bridge.json. Preserve backward compatibility with existing ORCH_DATA/CLAUDE_PLUGIN_DATA where needed and update ignore/docs/tests.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T22:59:34.471Z"
+      },
+      "assignee": "worker-runtime-artifacts-zonoid",
+      "timestamps": {
+        "firstSeen": "2026-06-19T22:42:20.666Z",
+        "lastChanged": "2026-06-19T23:20:47.178Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "d42ebe37-ee9f-46b6-ae21-f6f82464d482/11": {
+      "id": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/11",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Dispatcher closeout: note-decay E subsumption is already landed in git history. Feature/main history contains merge 89eb1951 (attempt d42...-11) and implementation a5f98163 for FadeMem subsumption. Stale ready state came from old dependency/status drift.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Note-decay E: subsumption (FadeMem) — merge/refine when a new note is more specific/general than an existing one",
+        "description": "Borrow FadeMem's Subsumptive/Subsumed classes. Forks off orch/feature/note-decay.\n\nSCOPE: Today the dup-cluster pass (lib/judge.js dupClusters) handles SAME-fact consolidation (supersede). Extend it to detect DIRECTIONAL subsumption — a new note strictly MORE SPECIFIC or MORE GENERAL than an existing current note — and MERGE/REFINE (produce a consolidated note that supersedes both, or refine the keeper) rather than treating them as independent duplicates. Reuse the soft-retire/supersede primitive (note_superseded); keep full history. Tests. Commit onto orch/attempt/<key> before complete_task.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T14:57:07.604Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-16T14:57:07.603Z",
+        "lastChanged": "2026-06-19T13:49:52.827Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2": {
+      "id": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Dispatcher correction after KICK BACK: d42.../1 was already merged before review retry (main merge 3e9fa7a0; feature line contains 8bf11f1c/1fcadce2). The missing attempt branch is stale cleanup, not a failed implementation; judge gate is closed with no new merge needed.",
+      "knowledge": [
+        {
+          "type": "note",
+          "value": "{\"winner\":null,\"why\":\"KICK BACK: attempt branch was missing, so the required get_attempt_diff review could not run and merge_attempt was not safe.\",\"losers\":[{\"key\":\"d42ebe37-ee9f-46b6-ae21-f6f82464d482/1\",\"reason\":\"get_attempt_diff failed: branch not found in the feature repo; attempt artifact must be restored or re-run.\"}],\"merged\":false,\"target\":\"feature\",\"needs_attention\":true,\"code_review\":{\"winner_notes\":\"No winner: diff unavailable because the recorded attempt branch is missing.\",\"concerns\":[\"d42ebe37-ee9f-46b6-ae21-f6f82464d482/1: unreviewable artifact; get_attempt_diff failed with branch not found, so correctness/scope/tests/style could not be assessed.\"]},\"date\":\"2026-06-19\"}",
+          "_vec": [
+            -0.06188041344285011,
+            0.0660000592470169,
+            -0.00034335011150687933,
+            0.023006919771432877,
+            0.08052897453308105,
+            -0.01733270473778248,
+            -0.018585767596960068,
+            -0.005980389192700386,
+            -0.058619797229766846,
+            0.02678266353905201,
+            0.02539430372416973,
+            -0.06733373552560806,
+            -0.02858184091746807,
+            0.027568956837058067,
+            -0.0019920989871025085,
+            0.06626974791288376,
+            -0.03766433149576187,
+            -0.0483342707157135,
+            -0.061433225870132446,
+            0.03881317004561424,
+            0.0023252833634614944,
+            0.05174557864665985,
+            0.03269354626536369,
+            0.004354668781161308,
+            0.022743819281458855,
+            0.040814634412527084,
+            -0.05986841022968292,
+            0.03626379743218422,
+            -0.021401699632406235,
+            -0.04459027200937271,
+            0.04501180723309517,
+            0.08148321509361267,
+            -0.08898220956325531,
+            0.037620771676301956,
+            0.07342299073934555,
+            0.09798035770654678,
+            -0.01293440442532301,
+            -0.03920730575919151,
+            0.020550737157464027,
+            -0.008421867154538631,
+            -0.01889558508992195,
+            0.06480494141578674,
+            -0.03358110785484314,
+            -0.0594446025788784,
+            -0.013747619464993477,
+            -0.05518358573317528,
+            -0.036393411457538605,
+            -0.039307646453380585,
+            -0.03497743234038353,
+            -0.010255132801830769,
+            -0.022127939388155937,
+            -0.03937111422419548,
+            0.026492435485124588,
+            -0.04324757307767868,
+            0.06113876774907112,
+            0.06265213340520859,
+            0.011879471130669117,
+            0.03941231966018677,
+            0.004309683106839657,
+            -0.032124005258083344,
+            0.07825623452663422,
+            -0.05474890023469925,
+            -0.03836239129304886,
+            -0.036862246692180634,
+            -0.04195422679185867,
+            -0.0013881211634725332,
+            0.006399311125278473,
+            0.0029853254090994596,
+            -0.017434339970350266,
+            -0.022496385499835014,
+            0.04059571400284767,
+            -0.001963402144610882,
+            0.001083951792679727,
+            -0.0367048941552639,
+            0.03736448660492897,
+            0.08781784772872925,
+            -0.019908735528588295,
+            -0.0025508911348879337,
+            0.01157243363559246,
+            -0.07982788234949112,
+            -0.05259331315755844,
+            -0.0901900976896286,
+            0.0069907852448523045,
+            0.06393229216337204,
+            0.08162698149681091,
+            0.0644938051700592,
+            0.0008190653170458972,
+            -0.036311738193035126,
+            0.007484494708478451,
+            0.005846499465405941,
+            -0.013256301172077656,
+            -0.004718073643743992,
+            0.022869592532515526,
+            -0.01820794679224491,
+            0.07173938304185867,
+            0.04882277548313141,
+            -0.006876365747302771,
+            -0.007321500219404697,
+            0.011421402916312218,
+            0.13969212770462036,
+            0.025522062554955482,
+            -0.014237035065889359,
+            0.042126696556806564,
+            -0.06125877425074577,
+            0.05535208061337471,
+            0.029155610129237175,
+            0.01718570850789547,
+            -0.0013373224064707756,
+            -0.034969575703144073,
+            -0.01450961735099554,
+            0.058300551027059555,
+            0.03796252980828285,
+            0.05375976487994194,
+            -0.022015636786818504,
+            0.047558002173900604,
+            0.029053175821900368,
+            -0.03387783467769623,
+            -0.02575855515897274,
+            0.001042764401063323,
+            0.03906727582216263,
+            0.08958073705434799,
+            -0.03628633916378021,
+            -0.028658291324973106,
+            -0.0378011129796505,
+            0.016867486760020256,
+            0.050329070538282394,
+            0.026818525046110153,
+            6.379016990040906e-33,
+            0.07005450129508972,
+            -0.05576552450656891,
+            -0.09665820002555847,
+            -0.01802978292107582,
+            0.07190602272748947,
+            0.03282660245895386,
+            -0.04535437747836113,
+            -0.020016463473439217,
+            -0.09477519989013672,
+            -0.06163051351904869,
+            -0.021548444405198097,
+            0.013082883320748806,
+            -0.025173230096697807,
+            -0.08658728748559952,
+            -0.03608337417244911,
+            -0.02540493570268154,
+            0.0057222372852265835,
+            0.07458813488483429,
+            -0.0314626581966877,
+            0.060425274074077606,
+            0.024896591901779175,
+            -0.041601426899433136,
+            -0.057137470692396164,
+            -0.014153854921460152,
+            -0.031644515693187714,
+            -0.0025849174708127975,
+            0.013220857828855515,
+            0.01262342743575573,
+            -0.054351747035980225,
+            -0.002074474934488535,
+            -0.0642905905842781,
+            -0.01529722847044468,
+            0.08980783075094223,
+            0.02449934557080269,
+            -0.028427904471755028,
+            -0.024086901918053627,
+            -0.030481845140457153,
+            -0.020189931616187096,
+            -0.0782470777630806,
+            -0.07564999163150787,
+            0.03951762989163399,
+            0.024452917277812958,
+            -0.10210714489221573,
+            0.007442442234605551,
+            0.03752625733613968,
+            -0.03322147950530052,
+            0.050386980175971985,
+            -0.0569319985806942,
+            0.10346366465091705,
+            0.08089487999677658,
+            -0.026654386892914772,
+            0.06529935449361801,
+            0.04676876589655876,
+            -0.04701747000217438,
+            -0.06358379870653152,
+            0.004368014167994261,
+            0.014060371555387974,
+            0.007513144053518772,
+            0.015080155804753304,
+            -0.039641257375478745,
+            0.05503444746136665,
+            0.08480583876371384,
+            -0.04949190467596054,
+            -0.02481171302497387,
+            0.05114781856536865,
+            -0.0011600449215620756,
+            0.03375811502337456,
+            0.037059418857097626,
+            0.016154389828443527,
+            -0.12613888084888458,
+            -0.07472740113735199,
+            -0.014635554514825344,
+            0.00595787912607193,
+            0.008564379997551441,
+            -0.00786631740629673,
+            -0.12459658086299896,
+            0.025983039289712906,
+            0.05018533766269684,
+            0.09106464684009552,
+            -0.1343248039484024,
+            0.04190170019865036,
+            -0.07307168841362,
+            -0.08060856908559799,
+            -0.04351558908820152,
+            -0.019900314509868622,
+            0.029690181836485863,
+            0.013347633183002472,
+            -0.09206664562225342,
+            -0.06571328639984131,
+            0.00585747929289937,
+            -0.040720436722040176,
+            0.07067257165908813,
+            -0.030104823410511017,
+            -0.05686499550938606,
+            0.062484752386808395,
+            -7.410079819345597e-33,
+            0.02483297884464264,
+            -0.04866337031126022,
+            -0.006165172439068556,
+            0.04720420390367508,
+            -0.015267055481672287,
+            -0.011378269642591476,
+            0.011499972082674503,
+            0.02628706768155098,
+            0.0640515387058258,
+            -0.009439179673790932,
+            0.01788477599620819,
+            -0.05385088548064232,
+            -0.026894565671682358,
+            -0.057065449655056,
+            -0.05191471800208092,
+            -0.00047670150524936616,
+            -0.06206938996911049,
+            -0.02020602859556675,
+            0.04337087646126747,
+            0.003016369417309761,
+            0.10804449766874313,
+            0.11223844438791275,
+            0.00638000899925828,
+            0.038930755108594894,
+            -0.0873074010014534,
+            0.04817495122551918,
+            0.03709517791867256,
+            -0.11120454967021942,
+            0.03965524211525917,
+            -0.07433007657527924,
+            0.10961595177650452,
+            0.0015992294065654278,
+            -0.08396375179290771,
+            0.04761557653546333,
+            0.05172786861658096,
+            -0.09348997473716736,
+            0.03598173335194588,
+            -0.07630046457052231,
+            -0.04130493476986885,
+            0.04193113371729851,
+            0.06534688919782639,
+            0.06304549425840378,
+            -0.034597598016262054,
+            0.018779125064611435,
+            -0.01338278315961361,
+            0.027511635795235634,
+            0.058263689279556274,
+            0.06379152834415436,
+            -0.017231982201337814,
+            -0.0748150646686554,
+            0.02137988805770874,
+            -0.018669767305254936,
+            -0.0010430174879729748,
+            0.03729332610964775,
+            -0.06323263794183731,
+            -0.004597064573317766,
+            0.06908732652664185,
+            -0.02893887087702751,
+            -0.028682228177785873,
+            0.08995294570922852,
+            0.03720792010426521,
+            -0.004016384482383728,
+            -0.06286103278398514,
+            -0.04855422303080559,
+            0.06421895325183868,
+            -0.023576540872454643,
+            -0.06366703659296036,
+            0.05019073560833931,
+            0.0324552021920681,
+            0.05128439888358116,
+            -0.07248956710100174,
+            0.016086896881461143,
+            -0.04765374958515167,
+            -0.07559382915496826,
+            0.08304353803396225,
+            0.04875155910849571,
+            -0.06956120580434799,
+            -0.05047834292054176,
+            0.02429935894906521,
+            0.0026639746502041817,
+            -0.04880596324801445,
+            0.024438627064228058,
+            -0.028577055782079697,
+            0.04064594581723213,
+            0.0425649918615818,
+            -0.008841237053275108,
+            -0.05200812220573425,
+            0.04959483817219734,
+            -0.02276587300002575,
+            -0.020311549305915833,
+            -0.034056901931762695,
+            -0.09789226949214935,
+            0.03653028979897499,
+            0.05393024906516075,
+            0.037375226616859436,
+            -7.137791868672139e-8,
+            -0.06385684013366699,
+            0.05685434862971306,
+            -0.09496816247701645,
+            0.01494823582470417,
+            0.02767280489206314,
+            -0.0822807028889656,
+            0.0165269672870636,
+            -0.05090748518705368,
+            0.01672983728349209,
+            -0.046011313796043396,
+            0.02275879867374897,
+            0.04032507538795471,
+            -0.1816694587469101,
+            0.00006167659012135118,
+            -0.028020137920975685,
+            -0.11390326917171478,
+            -0.07160404324531555,
+            0.07876729965209961,
+            -0.05388385057449341,
+            -0.02525267004966736,
+            0.021547725424170494,
+            -0.04770782217383385,
+            -0.0005795293836854398,
+            -0.000371247879229486,
+            -0.025916511192917824,
+            0.0377926379442215,
+            0.037344273179769516,
+            0.14362971484661102,
+            -0.014556224457919598,
+            -0.011403168551623821,
+            0.007575256749987602,
+            0.01920422352850437,
+            -0.021367669105529785,
+            -0.070998415350914,
+            -0.04149097576737404,
+            -0.0112847201526165,
+            0.05184151977300644,
+            0.030399080365896225,
+            0.05701013654470444,
+            0.00040395473479293287,
+            0.03035699762403965,
+            0.03673345968127251,
+            -0.035745151340961456,
+            0.030444534495472908,
+            -0.06233610957860947,
+            -0.04753830283880234,
+            0.034616656601428986,
+            -0.005089046899229288,
+            0.037651821970939636,
+            -0.04980367794632912,
+            -0.00392661290243268,
+            -0.030002299696207047,
+            -0.07400593161582947,
+            0.048634402453899384,
+            -0.05139913782477379,
+            0.037043631076812744,
+            0.07502490282058716,
+            0.03326130285859108,
+            -0.02667449228465557,
+            -0.011729641817510128,
+            0.19560925662517548,
+            -0.04733293876051903,
+            0.013720461167395115,
+            0.024523859843611717
+          ]
+        }
+      ],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge: review note-decay impl (self-learn-judge, single-attempt)",
+        "description": "SKILL: invoke self-learn-judge in SINGLE-ATTEMPT review mode against the impl attempt branch orch/attempt/<note-decay-impl-key>.\n\nFetch the attempt diff (get_attempt_diff) and apply the code-review rubric — correctness, scope discipline, dead/redundant code, test presence/quality, style — PLUS note-decay-specific safety gates:\n- SOFT-RETIRE ONLY: verdict path must emit note_superseded (validTo, no successor), never a hard delete / file rm.\n- AGE/OPPORTUNITY GATE present: no retire-candidate before k opportunities or d days; necessity lane must NOT be on the eager path.\n- Confidence threshold + surface-borderline-to-guidance + user-veto (distinctClusters-style) all present.\n- Temporal recoverability preserved (retired note reachable via history/as_of).\n\nUnder the feature, an APPROVE auto-merges the attempt into orch/feature/note-decay; a KICK BACK = set_status failed + a wired record_decision. NEVER force-merge (merge --no-ff, auto-abort on conflict → escalate).",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T14:42:52.086Z"
+      },
+      "assignee": "judge-note-decay-d42-2-codex",
+      "timestamps": {
+        "firstSeen": "2026-06-16T14:42:52.086Z",
+        "lastChanged": "2026-06-19T13:49:52.828Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "d42ebe37-ee9f-46b6-ae21-f6f82464d482/3": {
+      "id": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/3",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Dispatcher closeout: note-decay A shadow-verify is already landed in git history. Feature/main history contains merge 32484c93 (attempt d42...-3) and implementation af367ba7 with dry-run necessity scoring, decay-preview endpoint, and focused tests. Stale ready state came from old dependency/status drift.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Note-decay A: shadow-verify — dry-run the necessity scorer over the live KB before any auto-retire",
+        "description": "Shadow→enforce safety gate for the decay lane. Forks off orch/feature/note-decay (after #1 lands).\n\nSCOPE: Run the necessity scorer (built in task #1) over the CURRENT live note set and produce a REVIEW report of every note it WOULD retire — {noteKey, title, reason (dead-weight/stale/subsumed), confidence, recallCount, winCount, opportunities} — to an artifact (e.g. .graph/necessity-shadow.jsonl + a summary) and/or surface top candidates to guidance. RETIRE NOTHING. Add a config flag gating auto-retire (default OFF = shadow-only); enforcement flips on only after the shadow report clears a precision bar — mirror the lib/promotion.js shadow→enforce comparator (window + margin). RATIONALE: the competitive analysis (note-mqgrel2bjak) warns proactive decay 'kills valid-but-quiet facts'; never enable auto-retire blind. Tests. Commit onto orch/attempt/<key> before complete_task.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T14:56:45.498Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-16T14:56:45.497Z",
+        "lastChanged": "2026-06-19T13:49:52.829Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "d42ebe37-ee9f-46b6-ae21-f6f82464d482/7": {
+      "id": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/7",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Dispatcher closeout: note-decay C corroboration threshold is already landed in git history. Feature/main history contains merge 32362aea (attempt d42...-7) and implementation d79381e6 for the corroboration threshold gate. Stale ready state came from old dependency/status drift.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Note-decay C: corroboration threshold (RGMem θ_inf) — inject-eligible only after N independent observations",
+        "description": "Borrow RGMem's θ_inf. Forks off orch/feature/note-decay.\n\nSCOPE: A freshly-recorded / curious_candidate note becomes INJECT-eligible (clears the gated-search inject bar) only after N independent observations corroborate it; single-shot noisy events stay sub-threshold and retrieval-quiet until corroborated. Add a corroboration counter on the note + threshold config (default N=3, tunable) and wire it into the context-need / inject gate (lib/context-gate.js + routes/graph.js gated path). Suppresses single-shot noise BEFORE it reaches the inject bar. Tests. Commit onto orch/attempt/<key> before complete_task.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T14:56:58.080Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-16T14:56:58.080Z",
+        "lastChanged": "2026-06-19T13:49:52.830Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "d42ebe37-ee9f-46b6-ae21-f6f82464d482/9": {
+      "id": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/9",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Dispatcher closeout: note-decay D scalar confidence floor is already landed in git history. Feature/main history contains implementation 362f6524 for the scalar confidence floor gate (DEG-RAG), present alongside the note-decay C/D feature line. Stale ready state came from old dependency/status drift.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Note-decay D: scalar confidence floor (DEG-RAG) — graded reliability for a tunable inject gate",
+        "description": "Borrow DEG-RAG's graded reliability. Forks off orch/feature/note-decay.\n\nSCOPE: Augment the ~binary judge verdict with a SCALAR reliability/confidence score on the note (and/or its edges); persist it; let the inject gate threshold on it to tune precision/recall instead of all-or-nothing, and let retrieval ranking read it. Keep backward-compatible (absent score ⇒ current behavior). Tests. Commit onto orch/attempt/<key> before complete_task.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T14:57:01.825Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-16T14:57:01.824Z",
+        "lastChanged": "2026-06-19T13:49:52.831Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4": {
+      "id": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Dispatcher closeout: approved DAG+distill attempt e90ac60e-.../3 is already landed on main as commit bed1f131; merge_attempt now reports the attempt branch missing because the approved code is no longer pending. No further merge action required.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Judge DAG+distill ON config + comparison (self-learn-judge single-attempt)",
+        "description": "Single-attempt code-review judge (self-learn-judge in single-attempt review mode) of the DAG+distill increment attempt branch. Fetch the diff (get_attempt_diff). Verify: (1) the DAG+distill ON config distills via bench/agent-memory/distill.py then retrieves through the SAME production gate-first path (search_knowledge gated:true + get_dependency_summaries) — NOT a shortcut and NOT hand-pasted distilled gold; (2) the raw-DAG vs DAG+distill TOGGLE actually runs both and the per-category comparison report is correct; (3) honesty bar held (no gold/evidence in either ON config or OFF); (4) OFF still capped at ON's actual spend. Plus the standard rubric (correctness, scope, dead code, tests, style). APPROVE (hold-merge; in automode include {action:\"merge\", task_key:\"<impl-key>\", reason:\"APPROVE: ...\"}) or KICK BACK (set_status failed + wired record_decision). Never force-merge.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-18T17:07:15.609Z"
+      },
+      "assignee": "judge-dag-distill-v3",
+      "timestamps": {
+        "firstSeen": "2026-06-18T15:49:56.021Z",
+        "lastChanged": "2026-06-19T13:42:31.204Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "opencode/opencode-json-portable": {
+      "id": "opencode/opencode-json-portable",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Made opencode.json portable: opencodeMcpEntry(cwd) now emits a relative \"mcp-graph.js\" command arg when cwd equals INSTALL_DIR (committable in-repo opencode.json), and the absolute path otherwise (global installs across workspaces). Updated the writeOpencodeMcp call site to pass cwd. Commit c068ff7d on orch/attempt/opencode-opencode-json-portable; full test/cli-init.test.js suite passes (exit 0), including 2 new portable-path assertions.",
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "Make opencode.json portable (relative mcp-graph.js path when in-workspace)",
+        "description": "writeOpencodeMcp currently emits an absolute /Users/.../mcp-graph.js command path even when the install dir IS the workspace, making opencode.json machine-specific and uncommittable. Mirror writeMcp (claude/.mcp.json): when INSTALL_DIR resolves to the target workspace, emit a relative \"mcp-graph.js\" so opencode.json is portable like .mcp.json. Files: packages/cli/bin/zonoid.js (opencodeMcpEntry + writeOpencodeMcp call site), test/cli-init.test.js (assert relative path when in-workspace), and the local opencode.json (repin to relative). Exercising the opencode dispatcher→worker loop end-to-end.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T22:21:50.917Z"
+      },
+      "assignee": "worker-opencode-json-portable",
+      "timestamps": {
+        "firstSeen": "2026-06-19T22:15:12.350Z",
+        "lastChanged": "2026-06-19T22:21:50.506Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "opencode/opencode-parity-verify": {
+      "id": "opencode/opencode-parity-verify",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "knowledge": [],
+      "note": null,
+      "snapshot": {
+        "subject": "opencode adapter parity verification",
+        "description": "Smoke task minted to confirm the opencode plugin's task_create tool works end-to-end (file-drop stub + POST /sync).",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T22:09:48.768Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-19T22:09:26.884Z",
+        "lastChanged": "2026-06-19T22:09:48.768Z",
+        "lastStatus": "canceled"
       },
       "metrics": null,
       "measurements": null,
@@ -233667,8 +234864,11 @@
       "from": "note:note-mqjr2dikjs9",
       "to": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
       "kind": "context",
-      "weight": 1,
-      "judged": true
+      "weight": 0,
+      "judged": false,
+      "by": "autowire",
+      "score": 0.587,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqjr2dikjs9",
@@ -233694,8 +234894,11 @@
       "from": "note:note-mqjr2oh0n9k",
       "to": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
       "kind": "context",
-      "weight": 1,
-      "judged": true
+      "weight": 0,
+      "judged": false,
+      "by": "autowire",
+      "score": 0.587,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqjr2oh0n9k",
@@ -238504,18 +239707,18 @@
       "to": "codex/exec-brain-state-seam-post-gate-fix",
       "kind": "context",
       "weight": 0.95,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqjx2nj5gav",
       "to": "codex/judge-exec-brain-state-seam-post-gate-fix",
       "kind": "context",
       "weight": 0.5,
+      "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "by": "judge"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqjyqrg5t5f",
@@ -238682,9 +239885,9 @@
       "to": "codex/judge-exec-brain-state-seam-post-gate-fix",
       "kind": "context",
       "weight": 0.5,
+      "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "by": "judge"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqk41uozhf6",
@@ -238938,9 +240141,9 @@
       "from": "codex/exec-brain-state-seam-post-gate-fix",
       "to": "codex/judge-exec-brain-state-seam-post-gate-fix",
       "kind": "blocking",
-      "origin": "blocking-dep-seed",
       "by": "judge",
-      "judged": true
+      "judged": true,
+      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/exec-brain-state-seam-post-gate-fix",
@@ -239429,36 +240632,36 @@
       "to": "codex/fix-strict-git-claim-finalize-owner",
       "kind": "context",
       "weight": 0.75,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqjx2nj5gav",
       "to": "codex/judge-fix-strict-git-claim-finalize-owner",
       "kind": "context",
       "weight": 0.5,
+      "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "by": "judge"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqk0pyjpxtc",
       "to": "codex/fix-strict-git-claim-finalize-owner",
       "kind": "context",
       "weight": 0.55,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqk0pyjpxtc",
       "to": "codex/judge-fix-strict-git-claim-finalize-owner",
       "kind": "context",
       "weight": 0.5,
+      "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "by": "judge"
+      "origin": "asserted"
     },
     {
       "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/2",
@@ -239480,9 +240683,9 @@
       "from": "codex/exec-brain-state-seam-post-gate-fix",
       "to": "codex/fix-strict-git-claim-finalize-owner",
       "kind": "blocking",
-      "origin": "blocking-dep-seed",
       "by": "judge",
-      "judged": true
+      "judged": true,
+      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/exec-brain-state-seam-post-gate-fix",
@@ -239525,9 +240728,9 @@
       "from": "codex/fix-strict-git-claim-finalize-owner",
       "to": "codex/judge-fix-strict-git-claim-finalize-owner",
       "kind": "blocking",
-      "origin": "blocking-dep-seed",
       "by": "judge",
-      "judged": true
+      "judged": true,
+      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/fix-strict-git-claim-finalize-owner",
@@ -239542,9 +240745,9 @@
       "from": "codex/judge-exec-brain-state-seam-post-gate-fix",
       "to": "codex/fix-strict-git-claim-finalize-owner",
       "kind": "blocking",
-      "origin": "blocking-dep-seed",
       "by": "judge",
-      "judged": true
+      "judged": true,
+      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/judge-exec-brain-state-seam-post-gate-fix",
@@ -239592,7 +240795,2212 @@
       "judged": false,
       "score": 0.585,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqeolw11e46",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/11",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.579,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqf7j1hinjg",
+      "to": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.569,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqf9al6pjvv",
+      "to": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.568,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqf9plgeajc",
+      "to": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.583,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgodf6qjvs",
+      "to": "codex/migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0.568,
+      "by": "judge",
+      "judged": true,
+      "score": 0.568,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgol6tu84d",
+      "to": "codex/migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0.57,
+      "by": "judge",
+      "judged": true,
+      "score": 0.57,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgr5ehxqv4",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/11",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.552,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh2rlsnl9q",
+      "to": "opencode/fix-heartbeat-harness-spawn-leak",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.558,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh5r4fxl5t",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/11",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.67,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh920at728",
+      "to": "opencode/fix-heartbeat-harness-spawn-leak",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.556,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqhi1c6qwvr",
+      "to": "opencode/fix-heartbeat-harness-spawn-leak",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.552,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicfdkrknk",
+      "to": "opencode/fix-heartbeat-harness-spawn-leak",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.561,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqicz2g835c",
+      "to": "codex/judge-fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqih1mkgbt7",
+      "to": "opencode/fix-heartbeat-harness-spawn-leak",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.556,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqitz7bosgt",
+      "to": "codex/judge-verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0.574,
+      "by": "judge",
+      "judged": true,
+      "score": 0.574,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiumm0uqyo",
+      "to": "opencode/opencode-json-portable",
+      "kind": "context",
+      "weight": 0.59,
+      "by": "judge",
+      "judged": true,
+      "score": 0.59,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiw8yvx1o0",
+      "to": "opencode/opencode-parity-verify",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.555,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqixlv43mmd",
+      "to": "opencode/opencode-parity-verify",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.602,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqjx2nj5gav",
+      "to": "codex/git-claim-lock-git-user-session",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqjyqrg5t5f",
+      "to": "codex/judge-exec-brain-state-seam-minimal-patch",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.57,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk0pyjpxtc",
+      "to": "codex/judge-exec-brain-state-seam-minimal-patch",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.571,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk70rcwbxq",
+      "to": "codex/git-claim-lock-git-user-session",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.709,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk70rcwbxq",
+      "to": "codex/judge-git-claim-lock-git-user-session",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.617,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk7rq1nkmt",
+      "to": "note:note-mqk70rcwbxq",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.856,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk7rq1nkmt",
+      "to": "codex/git-claim-lock-git-user-session",
+      "kind": "context",
+      "weight": 0.816,
+      "by": "judge",
+      "judged": true,
+      "score": 0.816,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqk7rq1nkmt",
+      "to": "codex/judge-git-claim-lock-git-user-session",
+      "kind": "context",
+      "weight": 0.779,
+      "by": "judge",
+      "judged": true,
+      "score": 0.779,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqk931v48y3",
+      "to": "codex/judge-bench-canonical-sdk-on-arms",
+      "kind": "context",
+      "weight": 0,
+      "judged": false,
+      "by": "autowire",
+      "score": 0.606,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk931v48y3",
+      "to": "note:note-mqgufbod1fe",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.613,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk931v48y3",
+      "to": "note:note-mqhha58fz9k",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.606,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk931v48y3",
+      "to": "note:note-mqh0t20gx45",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.603,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk931v48y3",
+      "to": "note:note-mqfh9nmj87j",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.592,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk931v48y3",
+      "to": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "kind": "context",
+      "weight": 0.623,
+      "by": "judge",
+      "judged": true,
+      "score": 0.623,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk931v48y3",
+      "to": "codex/judge-bench-canonical-sdk-on-arms-kickback-fix",
+      "kind": "context",
+      "weight": 0.689,
+      "by": "judge",
+      "judged": true,
+      "score": 0.689,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzbyez8m4",
+      "to": "codex/headroom-eval",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqkzd9i1t3s",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqkzd9i1t3s",
+      "to": "note:note-mqh5r4fxl5t",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.665,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzd9i1t3s",
+      "to": "note:note-mqgt2bjvle5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.596,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzd9i1t3s",
+      "to": "note:note-mqf7j1hinjg",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.561,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzd9i1t3s",
+      "to": "note:note-mqg9mzarifw",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.56,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzd9i1t3s",
+      "to": "note:note-mqjdz46xm7b",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.554,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzes2dwxe",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqkzes2dwxe",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqkzes2dwxe",
+      "to": "note:note-mqkzd9i1t3s",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.848,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzes2dwxe",
+      "to": "note:note-mqh5r4fxl5t",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.754,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzes2dwxe",
+      "to": "note:note-mqeolw11e46",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.61,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzes2dwxe",
+      "to": "note:note-mqgt2bjvle5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.601,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzes2dwxe",
+      "to": "note:note-mqgr5ehxqv4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.599,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzes2dwxe",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.576,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzes2dwxe",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/7",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.568,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzes2dwxe",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/11",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.69,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkztsjzig3",
+      "to": "note:note-mqkzqfld4id",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.73,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzwjw3s0q",
+      "to": "note:note-mqkztsjzig3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.813,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzwjw3s0q",
+      "to": "note:note-mqkzqfld4id",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.799,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzz1q4okw",
+      "to": "note:note-mqkzqfld4id",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.688,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzz1q4okw",
+      "to": "note:note-mqkzwjw3s0q",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.686,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzz1q4okw",
+      "to": "note:note-mqkztsjzig3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.637,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql03ljetqg",
+      "to": "note:note-mqkztsjzig3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.771,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql03ljetqg",
+      "to": "note:note-mqkzz1q4okw",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.756,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql03ljetqg",
+      "to": "note:note-mqkzqfld4id",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.743,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql03ljetqg",
+      "to": "note:note-mqkzwjw3s0q",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.733,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql0cbookug",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mql0cbookug",
+      "to": "codex/judge-verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0.56,
+      "by": "judge",
+      "judged": true,
+      "score": 0.56,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mql0g5bob88",
+      "to": "codex/architecture-seam-audit",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.559,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql0g5bob88",
+      "to": "note:note-mqgvsc4wtct",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.556,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql0g5bob88",
+      "to": "note:note-mqgu5ovs60x",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.551,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql0g5bob88",
+      "to": "codex/headroom-eval",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.769,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mql0g5bob88",
+      "to": "codex/migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.556,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql0nv0w8dp",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0,
+      "judged": false,
+      "by": "autowire",
+      "score": 0.572,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql0nv0w8dp",
+      "to": "note:note-mqhg00za1ld",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.594,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql0nv0w8dp",
+      "to": "note:note-mqk931v48y3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.589,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql0nv0w8dp",
+      "to": "note:note-mqbftisxmkr",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.575,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mql0nv0w8dp",
+      "to": "note:note-mqfh9nmj87j",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.56,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqla6xpun8e",
+      "to": "codex/headroom-eval",
+      "kind": "context",
+      "weight": 0,
+      "judged": false,
+      "by": "autowire",
+      "score": 0.689,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqla6xpun8e",
+      "to": "note:note-mql0g5bob88",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.76,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqla8jyscw3",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqla8jyscw3",
+      "to": "note:note-mql0nv0w8dp",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.619,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqla8jyscw3",
+      "to": "codex/fix-featurebench-dag-only-parity",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqla8jyscw3",
+      "to": "codex/judge-fix-featurebench-dag-only-parity",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqlapu0wi63",
+      "to": "codex/judge-verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqlapu0wi63",
+      "to": "note:note-mqla8jyscw3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.808,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqlapu0wi63",
+      "to": "note:note-mqk931v48y3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.578,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqlapu0wi63",
+      "to": "codex/fix-featurebench-dag-only-parity",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqlc786kcl2",
+      "to": "codex/judge-fix-featurebench-dag-only-parity",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqlc786kcl2",
+      "to": "codex/fix-featurebench-dag-only-parity",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqlc786kcl2",
+      "to": "note:note-mqlapu0wi63",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.709,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqlc786kcl2",
+      "to": "note:note-mqla8jyscw3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.697,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqlc786kcl2",
+      "to": "note:note-mqk931v48y3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.618,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqlc786kcl2",
+      "to": "note:note-mql0nv0w8dp",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.595,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqlc786kcl2",
+      "to": "note:note-mqfd8f7jofo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.569,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqlc786kcl2",
+      "to": "codex/fix-featurebench-canonical-arm-docs",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqlc786kcl2",
+      "to": "codex/fix-featurebench-canonical-arm-docs-followup",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqlji214g5l",
+      "to": "codex/migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqlji214g5l",
+      "to": "note:note-mq4jxzj2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.559,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqlji214g5l",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqlji214g5l",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqljsmkubpa",
+      "to": "codex/migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqljsmkubpa",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqljsmkubpa",
+      "to": "note:note-mqlji214g5l",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.644,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqljsmkubpa",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "091a4bf1-b671-4ff9-854d-993775faa5ee/28",
+      "to": "codex/migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/17",
+      "to": "codex/bench-canonical-sdk-on-arms",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/19",
+      "to": "codex/bench-canonical-sdk-on-arms",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/25",
+      "to": "codex/bench-canonical-sdk-on-arms",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/25",
+      "to": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "9195fb5e-f196-497d-962f-69616733d2e9/5",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/8",
+      "to": "opencode/opencode-json-portable",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "to": "codex/judge-bench-canonical-sdk-on-arms",
+      "kind": "context",
+      "weight": 0.574,
+      "by": "judge",
+      "judged": true,
+      "score": 0.574,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "to": "codex/bench-canonical-sdk-on-arms",
+      "kind": "context",
+      "weight": 0.556,
+      "by": "judge",
+      "judged": true,
+      "score": 0.556,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "to": "codex/judge-bench-canonical-sdk-on-arms-kickback-fix",
+      "kind": "blocking",
+      "origin": "blocking-dep-seed",
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "to": "codex/judge-bench-canonical-sdk-on-arms-kickback-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "to": "codex/judge-verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/bench-canonical-sdk-on-arms",
+      "to": "codex/judge-bench-canonical-sdk-on-arms",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/bench-canonical-sdk-on-arms",
+      "to": "codex/judge-bench-canonical-sdk-on-arms",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/bench-canonical-sdk-on-arms",
+      "to": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/bench-canonical-sdk-on-arms",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/bench-real-search-behavior",
+      "to": "codex/bench-canonical-sdk-on-arms",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/bench-real-search-behavior",
+      "to": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/bench-real-search-behavior",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/codex-desktop-wakeup-e2e",
+      "to": "codex/fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.651,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/codex-desktop-wakeup-e2e",
+      "to": "codex/judge-fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.586,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/codex-desktop-wakeup-e2e",
+      "to": "codex/judge-codex-desktop-wakeup-e2e",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/codex-desktop-wakeup-e2e",
+      "to": "codex/judge-codex-desktop-wakeup-e2e",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/codex-desktop-wakeup-e2e",
+      "to": "codex/migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/exec-brain-state-seam-post-gate-fix",
+      "to": "codex/git-claim-lock-git-user-session",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/exec-brain-state-seam-post-gate-fix",
+      "to": "codex/judge-git-claim-lock-git-user-session",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-desktop-wakeup-session",
+      "to": "codex/judge-fix-codex-desktop-wakeup-session",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/fix-codex-desktop-wakeup-session",
+      "to": "codex/judge-fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-desktop-wakeup-session",
+      "to": "codex/codex-desktop-wakeup-e2e",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-desktop-wakeup-session",
+      "to": "codex/judge-codex-desktop-wakeup-e2e",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-session-propagation",
+      "to": "codex/fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-codex-support",
+      "to": "codex/fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-featurebench-canonical-arm-docs-followup",
+      "to": "codex/fix-featurebench-canonical-arm-docs",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.965,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-featurebench-dag-only-parity",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0.601,
+      "by": "judge",
+      "judged": true,
+      "score": 0.601,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-featurebench-dag-only-parity",
+      "to": "codex/judge-verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0.552,
+      "by": "judge",
+      "judged": true,
+      "score": 0.552,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-featurebench-dag-only-parity",
+      "to": "codex/judge-fix-featurebench-dag-only-parity",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/fix-featurebench-dag-only-parity",
+      "to": "codex/judge-fix-featurebench-dag-only-parity",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-featurebench-dag-only-parity",
+      "to": "codex/fix-featurebench-canonical-arm-docs",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/fix-featurebench-dag-only-parity",
+      "to": "codex/fix-featurebench-canonical-arm-docs",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/fix-featurebench-dag-only-parity",
+      "to": "codex/fix-featurebench-canonical-arm-docs-followup",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/git-claim-lock-git-user-session",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/33",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.615,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/git-claim-lock-git-user-session",
+      "to": "codex/judge-git-claim-lock-git-user-session",
+      "kind": "blocking",
+      "origin": "blocking-dep-seed",
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "codex/git-claim-lock-git-user-session",
+      "to": "codex/judge-git-claim-lock-git-user-session",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/integrate-session-propagation-after-fastpath",
+      "to": "codex/fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-bench-canonical-sdk-on-arms-kickback-fix",
+      "to": "codex/judge-bench-canonical-sdk-on-arms",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.64,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-bench-canonical-sdk-on-arms-kickback-fix",
+      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/16",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.612,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-bench-canonical-sdk-on-arms",
+      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/16",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.612,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-bench-canonical-sdk-on-arms",
+      "to": "codex/bench-canonical-sdk-on-arms",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.574,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-bench-canonical-sdk-on-arms",
+      "to": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/judge-bench-canonical-sdk-on-arms",
+      "to": "codex/bench-canonical-sdk-on-arms-kickback-fix",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/judge-bench-canonical-sdk-on-arms",
+      "to": "codex/judge-bench-canonical-sdk-on-arms-kickback-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-bench-canonical-sdk-on-arms",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-bench-canonical-sdk-on-arms",
+      "to": "codex/judge-verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-codex-desktop-wakeup-e2e",
+      "to": "codex/codex-desktop-wakeup-e2e",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.865,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-codex-desktop-wakeup-e2e",
+      "to": "codex/judge-fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.672,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-codex-desktop-wakeup-e2e",
+      "to": "codex/fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.642,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-exec-brain-state-seam-minimal-patch",
+      "to": "codex/exec-brain-state-seam-minimal-patch",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.708,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-exec-brain-state-seam-minimal-patch",
+      "to": "codex/exec-brain-state-seam-agent-impl",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.642,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-exec-brain-state-seam-minimal-patch",
+      "to": "codex/exec-brain-state-seam-post-gate-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.627,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-exec-brain-state-seam-minimal-patch",
+      "to": "codex/judge-exec-brain-state-seam-agent-impl",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.621,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-exec-brain-state-seam-minimal-patch",
+      "to": "f1653e44-5863-4644-bebc-963582c76510/11",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.594,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-codex-desktop-wakeup-session",
+      "to": "codex/fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.894,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-codex-desktop-wakeup-session",
+      "to": "codex/codex-desktop-wakeup-e2e",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-fix-codex-desktop-wakeup-session",
+      "to": "codex/judge-codex-desktop-wakeup-e2e",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-fix-codex-session-propagation",
+      "to": "codex/judge-fix-codex-desktop-wakeup-session",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-fix-featurebench-dag-only-parity",
+      "to": "codex/fix-featurebench-dag-only-parity",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.638,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-featurebench-dag-only-parity",
+      "to": "795f9614-a20d-4c3d-8aff-e297696f4938/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.582,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-featurebench-dag-only-parity",
+      "to": "codex/judge-verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.578,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-fix-featurebench-dag-only-parity",
+      "to": "codex/fix-featurebench-canonical-arm-docs",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-fix-featurebench-dag-only-parity",
+      "to": "codex/fix-featurebench-canonical-arm-docs-followup",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-git-claim-lock-git-user-session",
+      "to": "codex/git-claim-lock-git-user-session",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.838,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-git-claim-lock-git-user-session",
+      "to": "codex/exec-brain-state-seam-post-gate-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.633,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "to": "codex/migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0.754,
+      "by": "judge",
+      "judged": true,
+      "score": 0.754,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0.718,
+      "by": "judge",
+      "judged": true,
+      "score": 0.718,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "to": "d236bffd-b312-4a53-89ab-6961cfba56a2/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.641,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/11",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.601,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/7",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.601,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "kind": "context",
+      "weight": 0.752,
+      "by": "judge",
+      "judged": true,
+      "score": 0.752,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0.741,
+      "by": "judge",
+      "judged": true,
+      "score": 0.741,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "to": "codex/migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0.724,
+      "by": "judge",
+      "judged": true,
+      "score": 0.724,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "to": "d236bffd-b312-4a53-89ab-6961cfba56a2/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.626,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/11",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.62,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid",
+      "to": "codex/migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.735,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid",
+      "to": "d236bffd-b312-4a53-89ab-6961cfba56a2/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.63,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/11",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.614,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/7",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.614,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-migrate-runtime-artifacts-to-zonoid",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-verify-featurebench-production-faithful",
+      "to": "codex/fix-featurebench-verdict-review-issues",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.604,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-verify-featurebench-production-faithful",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.59,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-verify-featurebench-production-faithful",
+      "to": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.581,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-verify-featurebench-production-faithful",
+      "to": "codex/judge-bench-canonical-sdk-on-arms-kickback-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.559,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-verify-featurebench-production-faithful",
+      "to": "codex/fix-featurebench-dag-only-parity",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-verify-featurebench-production-faithful",
+      "to": "codex/judge-fix-featurebench-dag-only-parity",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/migrate-runtime-artifacts-to-zonoid",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/11",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.639,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/migrate-runtime-artifacts-to-zonoid",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/7",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.639,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/migrate-runtime-artifacts-to-zonoid",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/25",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.591,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/migrate-runtime-artifacts-to-zonoid",
+      "to": "47d3826e-756a-4722-8110-2c07888d4f0f/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.584,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/migrate-runtime-artifacts-to-zonoid",
+      "to": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/9",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.581,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/migrate-runtime-artifacts-to-zonoid",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid",
+      "kind": "blocking",
+      "origin": "native-blockedBy",
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "codex/migrate-runtime-artifacts-to-zonoid",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/migrate-runtime-artifacts-to-zonoid",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "kind": "blocking",
+      "origin": "blocking-dep-seed",
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "codex/migrate-runtime-artifacts-to-zonoid",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/migrate-runtime-artifacts-to-zonoid",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "kind": "blocking",
+      "origin": "native-blockedBy"
+    },
+    {
+      "from": "codex/migrate-runtime-artifacts-to-zonoid",
+      "to": "codex/judge-migrate-runtime-artifacts-to-zonoid-r3",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/trace-codex-session-claims",
+      "to": "codex/migrate-runtime-artifacts-to-zonoid",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/verify-featurebench-production-faithful",
+      "to": "codex/judge-verify-featurebench-production-faithful",
+      "kind": "blocking",
+      "origin": "native-blockedBy",
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "codex/verify-featurebench-production-faithful",
+      "to": "codex/judge-verify-featurebench-production-faithful",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/verify-featurebench-production-faithful",
+      "to": "codex/fix-featurebench-dag-only-parity",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/11",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.649,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/11",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/7",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.637,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/11",
+      "to": "aac736f1-e893-4f79-b145-881150b4ada4/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.571,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.889,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.843,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.843,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/6",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.843,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.843,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/3",
+      "to": "aac736f1-e893-4f79-b145-881150b4ada4/1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.578,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/3",
+      "to": "aac736f1-e893-4f79-b145-881150b4ada4/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.577,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/7",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.681,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/9",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.714,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/9",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/7",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.665,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
+      "to": "795f9614-a20d-4c3d-8aff-e297696f4938/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.7,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
+      "to": "f1653e44-5863-4644-bebc-963582c76510/7",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.69,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
+      "to": "f1653e44-5863-4644-bebc-963582c76510/11",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.672,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
+      "to": "f1653e44-5863-4644-bebc-963582c76510/5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.66,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
+      "to": "f1653e44-5863-4644-bebc-963582c76510/12",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.597,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "local/hb2",
+      "to": "codex/codex-desktop-wakeup-e2e",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "opencode/opencode-json-portable",
+      "to": "af585417-07f3-4b6f-8c96-d9b784271d32/8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.676,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-json-portable",
+      "to": "af585417-07f3-4b6f-8c96-d9b784271d32/7",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.648,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-parity-verify",
+      "to": "codex/opencode-core-adapter-parity",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.598,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-parity-verify",
+      "to": "codex/opencode-core-adapter-review",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.588,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-parity-verify",
+      "to": "codex/opencode-prompt-workspace-parity-review",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.568,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-parity-verify",
+      "to": "codex/complete-hook-enforcement-parity",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.567,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-parity-verify",
+      "to": "codex/opencode-arm-review",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.554,
+      "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-19T00:12:16.657Z"
+  "compacted_at": "2026-06-20T00:07:16.774Z"
 }
