@@ -1,0 +1,4 @@
+{"evt":"edge_promoted","from":"codex/judge-migrate-runtime-artifacts-to-zonoid","to":"codex/judge-migrate-runtime-artifacts-to-zonoid-r2","kind":"context","actor":"overlay-sync","ts":"2026-06-20T02:30:29.300Z","weight":1,"origin":"asserted"}
+{"evt":"edge_promoted","from":"codex/judge-migrate-runtime-artifacts-to-zonoid","to":"codex/judge-migrate-runtime-artifacts-to-zonoid-r3","kind":"context","actor":"overlay-sync","ts":"2026-06-20T02:30:29.300Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_promoted","from":"codex/judge-migrate-runtime-artifacts-to-zonoid","to":"codex/judge-migrate-runtime-artifacts-to-zonoid-r2","kind":"context","actor":"overlay-sync","ts":"2026-06-20T02:46:36.515Z","weight":1,"origin":"asserted"}
+{"evt":"edge_promoted","from":"codex/judge-migrate-runtime-artifacts-to-zonoid","to":"codex/judge-migrate-runtime-artifacts-to-zonoid-r3","kind":"context","actor":"overlay-sync","ts":"2026-06-20T02:46:36.515Z","weight":0.8,"origin":"asserted"}
