@@ -11,6 +11,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { URL } = require('url');
 const harnessRegistry = require('./lib/harness');
+const { isStandingHarnessTask } = require('./lib/harness-task');
 const claudeHarness = harnessRegistry.get('claude');
 const filedrop = require('./lib/filedrop-tasks');
 const filedropGc = require('./lib/filedrop-gc');
@@ -1218,7 +1219,7 @@ function decideOne(L, ctx) {
   const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
   // Blocked tasks are excluded from the spawn pool entirely. The block is sticky (overlay flag,
   // not derived from deps) and cleared only by unblock_task — never by dep re-derivation.
-  let ready = readyAll.filter((t) => !isUnwired(t) && !isExplicitlyBlocked(t));
+  let ready = readyAll.filter((t) => !isUnwired(t) && !isExplicitlyBlocked(t) && !isStandingHarnessTask(ov, t.id));
   const wire = readyAll.filter(isUnwired).map((t) => ({ key: t.id, label: t.label }));
   const withWire = (dec) => (wire.length ? { ...dec, wire } : dec);
   const running = g.tasks.filter((t) => t.status === 'in_progress').length;
