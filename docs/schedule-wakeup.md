@@ -44,7 +44,7 @@ to resume.
 | Shell CLI | `adapters/common/schedule-wakeup.sh` (`arm` / `cancel`) |
 | MCP (cursor, codex) | `lib/mcp-harness-tools.js` → tool name `ScheduleWakeup` |
 | Codex delivery monitor | `adapters/codex/wakeup-monitor.js` → `codex resume <session-id> <prompt>` |
-| OpenCode plugin | `packages/opencode-plugin` → tool `schedule_wakeup` |
+| OpenCode plugin | `packages/opencode-plugin` → tool `schedule_wakeup`; in-plugin delivery via `packages/opencode-plugin/lib/wake-delivery.js` → SDK `client.session.promptAsync` (self-driving heartbeat) |
 | Adapter scheduler | `lib/adapters/scheduler-substrate.js` |
 | Claude native | Built-in — no MCP duplicate |
 

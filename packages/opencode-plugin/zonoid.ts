@@ -11,11 +11,13 @@ import { injectClassifiedContext, postWorkspace } from './lib/prompt-context.js'
 
 const require = createRequire(import.meta.url);
 const scheduleWakeup = require('./lib/schedule-wakeup.js');
+const { createWakeDelivery } = require('./lib/wake-delivery.js');
 
 const sessionAgents = new Map();
 
-export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
+export const ZonoidPlugin: Plugin = async ({ client, directory, worktree }) => {
   const workspace = worktree || directory;
+  const wakeDelivery = createWakeDelivery({ client });
   await postWorkspace(workspace, orchPost);
 
   return {
@@ -125,6 +127,7 @@ export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
           if (!result.ok) {
             return JSON.stringify(result, null, 2);
           }
+          const delivery = wakeDelivery.arm(session);
           const payload = { delaySeconds, reason, prompt };
           return JSON.stringify({
             ok: true,
@@ -133,6 +136,7 @@ export const ZonoidPlugin: Plugin = async ({ directory, worktree }) => {
             session: result.session,
             command: `ORCH_SCHEDULED_TASK ${JSON.stringify(payload)}`,
             notify_pattern: 'ORCH_SCHEDULED_TASK',
+            delivery: { supported: delivery.ok === true, via: 'sdk-promptAsync' },
           }, null, 2);
         },
       }),
