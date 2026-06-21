@@ -1,0 +1,9 @@
+{
+  "task_key": "fc-cap-test-8ce2e839/1",
+  "git_user": "YU GAO <yu.gao@gaos.ca>",
+  "session_id": "8ac0e526-219d-46a8-b31d-a55b3628d996",
+  "branch": "orch/attempt/fc-cap-test-8ce2e839-1",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:30:15.753Z",
+  "lease_until": "2026-06-21T04:30:15.753Z"
+}
