@@ -155,6 +155,58 @@ test('subconscious loop store keeps bounded observations isolated by identity', 
   assert.equal(store.readLoopState({ workspace: otherWs, loop_id: 'central', agent_id: 'daemon' }).loop_state, null);
 });
 
+test('subconscious session companion store keeps bounded observations isolated by workspace and session', async () => {
+  const ws = makeWorkspace();
+  const otherWs = makeWorkspace();
+  const store = createSubconsciousStore({ maxSessionCompanionObservations: 2 });
+
+  const upsert = store.upsertSessionCompanion({
+    workspace: ws,
+    session_id: 'foreground-session',
+    foreground_agent_id: 'foreground-agent',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    status: 'paired',
+    now: '2026-06-21T11:00:00.000Z',
+  });
+  assert.equal(upsert.ok, true);
+  assert.equal(upsert.session_companion.foreground_agent_id, 'foreground-agent');
+  assert.equal(upsert.session_companion.companion_agent_id, 'companion-agent');
+  assert.equal(upsert.session_companion.companion_loop_id, 'companion-loop');
+
+  store.recordSessionCompanionObservation({
+    workspace: ws,
+    session_id: 'foreground-session',
+    type: 'observation',
+    text: 'first',
+    now: '2026-06-21T11:00:01.000Z',
+  });
+  store.recordSessionCompanionObservation({
+    workspace: ws,
+    session_id: 'foreground-session',
+    type: 'progress',
+    text: 'second',
+    now: '2026-06-21T11:00:02.000Z',
+  });
+  store.recordSessionCompanionObservation({
+    workspace: ws,
+    session_id: 'foreground-session',
+    type: 'progress',
+    text: 'third',
+    now: '2026-06-21T11:00:03.000Z',
+  });
+
+  const state = store.readSessionCompanion({ workspace: ws, session_id: 'foreground-session' });
+  assert.equal(state.ok, true);
+  assert.equal(state.session_companion.status, 'paired');
+  assert.equal(state.session_companion.observation_count, 3);
+  assert.equal(state.session_companion.latest_observation.text, 'third');
+  assert.deepEqual(state.recent_session_companion_observations.map((event) => event.text), ['second', 'third']);
+
+  assert.equal(store.readSessionCompanion({ workspace: ws, session_id: 'other-session' }).session_companion, null);
+  assert.equal(store.readSessionCompanion({ workspace: otherWs, session_id: 'foreground-session' }).session_companion, null);
+});
+
 test('subconscious loop routes upsert observe and read loop state', async () => {
   const ws = makeWorkspace();
   const store = createSubconsciousStore({ maxLoopObservations: 3 });
@@ -218,6 +270,65 @@ test('subconscious loop routes upsert observe and read loop state', async () => 
   assert.deepEqual(missing.body.recent_loop_observations, []);
 });
 
+test('subconscious session companion routes upsert observe and read pairing state', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxSessionCompanionObservations: 3 });
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null });
+
+  const upsert = await callRoute(ctx, '/subconscious/session-companion', {
+    workspace: ws,
+    session_id: 'session-a',
+    foreground_agent_id: 'foreground-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    status: 'paired',
+    payload: { source: 'test' },
+    now: '2026-06-21T11:10:00.000Z',
+  });
+
+  assert.equal(upsert.status, 200);
+  assert.equal(upsert.body.ok, true);
+  assert.equal(upsert.body.session_companion.session_id, 'session-a');
+  assert.equal(upsert.body.session_companion.status, 'paired');
+  assert.deepEqual(upsert.body.recent_session_companion_observations, []);
+
+  const observation = await callRoute(ctx, '/subconscious/session-companion/observation', {
+    workspace: ws,
+    session_id: 'session-a',
+    task_key: 'task/target',
+    type: 'progress',
+    text: 'foreground reached next step',
+    confidence: 0.8,
+    now: '2026-06-21T11:10:01.000Z',
+  });
+
+  assert.equal(observation.status, 200);
+  assert.equal(observation.body.session_companion.observation_count, 1);
+  assert.equal(observation.body.session_companion.latest_observation.type, 'progress');
+  assert.equal(observation.body.session_companion_observation.task_key, 'task/target');
+
+  const read = await callRoute(
+    ctx,
+    `/subconscious/session-companion?workspace=${encodeURIComponent(ws)}&session_id=session-a&limit=1`,
+    null,
+    'GET'
+  );
+  assert.equal(read.status, 200);
+  assert.equal(read.body.session_companion.companion_agent_id, 'companion-a');
+  assert.equal(read.body.session_companion.latest_observation.text, 'foreground reached next step');
+  assert.equal(read.body.recent_session_companion_observations.length, 1);
+
+  const missing = await callRoute(
+    ctx,
+    `/subconscious/session-companion?workspace=${encodeURIComponent(ws)}&session_id=missing`,
+    null,
+    'GET'
+  );
+  assert.equal(missing.status, 200);
+  assert.equal(missing.body.session_companion, null);
+  assert.deepEqual(missing.body.recent_session_companion_observations, []);
+});
+
 test('subconscious_loop MCP tool forwards to loop routes', async () => {
   const tool = TOOLS.find((candidate) => candidate.name === 'subconscious_loop');
   assert(tool, 'subconscious_loop tool exists');
@@ -256,6 +367,46 @@ test('subconscious_loop MCP tool forwards to loop routes', async () => {
   assert.equal(calls[1].method, 'GET');
   assert(calls[1].p.startsWith('/subconscious/loop?'));
   assert(calls[1].p.includes('loop_id=central'));
+  assert.equal(calls[1].body, undefined);
+});
+
+test('subconscious_session_companion MCP tool forwards to companion routes', async () => {
+  const tool = TOOLS.find((candidate) => candidate.name === 'subconscious_session_companion');
+  assert(tool, 'subconscious_session_companion tool exists');
+
+  const calls = [];
+  const update = await tool.run({
+    action: 'update',
+    workspace: '/tmp/ws',
+    session_id: 'session-a',
+    foreground_agent_id: 'foreground-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    status: 'paired',
+  }, (method, p, body) => {
+    calls.push({ method, p, body });
+    return { ok: true, forwarded: true };
+  });
+
+  assert.equal(update.forwarded, true);
+  assert.equal(calls[0].method, 'POST');
+  assert.equal(calls[0].p, '/subconscious/session-companion');
+  assert.equal(calls[0].body.session_id, 'session-a');
+  assert.equal(calls[0].body.companion_agent_id, 'companion-a');
+
+  await tool.run({
+    action: 'read',
+    workspace: '/tmp/ws',
+    session_id: 'session-a',
+    limit: 1,
+  }, (method, p, body) => {
+    calls.push({ method, p, body });
+    return { ok: true, forwarded: true };
+  });
+
+  assert.equal(calls[1].method, 'GET');
+  assert(calls[1].p.startsWith('/subconscious/session-companion?'));
+  assert(calls[1].p.includes('session_id=session-a'));
   assert.equal(calls[1].body, undefined);
 });
 
