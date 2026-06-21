@@ -31,3 +31,4 @@
 {"evt":"edge_promoted","from":"note:note-mq74lpeq","to":"codex/long-note-cluster-ingest-hardening","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:39:28.467Z","weight":0.7,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq74lpeq","to":"codex/long-note-cluster-ingest-hardening","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:39:43.296Z","weight":0.7,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq74lpeq","to":"codex/long-note-cluster-ingest-hardening","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:40:21.733Z","weight":0.7,"by":"autowire","judged":false,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mq74lpeq","to":"codex/long-note-cluster-ingest-hardening","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:45:54.979Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
