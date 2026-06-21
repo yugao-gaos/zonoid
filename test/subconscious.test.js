@@ -45,7 +45,7 @@ function scoreNodeAgainstTokens(item, qt) {
   return { shared, score };
 }
 
-function makeCtx({ graph, workspace, store, body }) {
+function makeCtx({ graph, workspace, store, body, gateTask }) {
   return {
     subconscious: store,
     buildGraph: () => graph,
@@ -59,7 +59,7 @@ function makeCtx({ graph, workspace, store, body }) {
     scoreNodeAgainstTokens,
     knowledgeText: () => '',
     noteCurrentAsOf: () => true,
-    gateTask: async () => ({
+    gateTask: gateTask || (async () => ({
       decision: 'inject',
       reason: 'test injection',
       via: 'lexical',
@@ -69,7 +69,7 @@ function makeCtx({ graph, workspace, store, body }) {
       locality: 1,
       topType: 'note',
       topKey: 'note:direct',
-    }),
+    })),
     gatedSearchCounts: new Map(),
     checkGatedRateLimit: () => false,
     EMBED_MODEL: 'test',
@@ -141,9 +141,142 @@ test('subconscious ask uses deterministic search context and recent agent events
   assert.equal(res.status, 200);
   assert.equal(res.body.ok, true);
   assert.equal(res.body.verdict, 'inject_relevant_context');
+  assert.equal(res.body.planner.strategy, 'task_gated_context');
+  assert.equal(res.body.planner.gated, true);
+  assert.equal(res.body.planner.searches.length, 1);
+  assert.equal(res.body.planner.searches[0].task_key, 'task/target');
   assert.equal(res.body.recent_agent_events.length, 1);
+  assert.equal(res.body.recent_agent_state.event_count, 1);
+  assert.equal(res.body.evidence.results[0].key, 'note:direct');
   assert(res.body.evidence.results.some((r) => r.key === 'note:direct'));
   assert.equal(res.body.recommended_next_action, 'review_injected_context');
+  assert.equal(res.body.predicted_consequence, 'using_injected_context_should_reduce_rework');
+});
+
+test('subconscious ask makes recent risk the verdict while preserving task context', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('task/target', 'Target task', {
+        status: 'ready',
+        context_deps: ['note:direct'],
+        context_weights: { 'note:direct': 0.9 },
+        provisional: true,
+      }),
+      node('note:direct', 'Recovery context', {
+        kind: 'note',
+        summary: 'Resolve the deterministic retry conflict before continuing implementation.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  await callRoute(ctx, '/subconscious/event', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    type: 'risk',
+    text: 'blocked by retry conflict in the context compiler path',
+    confidence: 0.9,
+  });
+
+  const res = await callRoute(ctx, '/subconscious/ask', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'choose next implementation step',
+    situation: 'Need deterministic retry context',
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.verdict, 'recent_agent_risk');
+  assert.equal(res.body.planner.strategy, 'risk_aware_task_context');
+  assert.equal(res.body.planner.signals.has_recent_risk, true);
+  assert.equal(res.body.recent_agent_state.risk_event.type, 'risk');
+  assert(res.body.evidence.results.some((r) => r.key === 'note:direct'));
+  assert.equal(res.body.recommended_next_action, 'account_for_recent_agent_event');
+});
+
+test('subconscious ask reports insufficient context when search and state are empty', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const ctx = makeCtx({
+    graph: { tasks: [] },
+    workspace: ws,
+    store,
+    body: null,
+    gateTask: async () => ({
+      decision: 'inject',
+      reason: 'test injection without candidates',
+      via: 'lexical',
+      top1: 0.9,
+      margin: 0,
+      gap: 0,
+      locality: 0,
+      topType: null,
+      topKey: 'note:missing',
+    }),
+  });
+
+  const res = await callRoute(ctx, '/subconscious/ask', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    intent: 'choose next step',
+    situation: 'No graph context matches this request',
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.verdict, 'insufficient_context');
+  assert.equal(res.body.planner.strategy, 'broad_context_probe');
+  assert.equal(res.body.planner.gated, false);
+  assert.equal(res.body.recent_agent_state.event_count, 0);
+  assert.equal(res.body.evidence.results.length, 0);
+  assert.equal(res.body.recommended_next_action, null);
+});
+
+test('subconscious ask isolates recent state by agent', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('task/target', 'Target task', {
+        status: 'ready',
+        context_deps: ['note:direct'],
+        context_weights: { 'note:direct': 0.9 },
+        provisional: true,
+      }),
+      node('note:direct', 'Agent B safe context', {
+        kind: 'note',
+        summary: 'Agent B should receive graph context without Agent A risk state.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  await callRoute(ctx, '/subconscious/event', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    type: 'risk',
+    text: 'failed attempt belongs only to agent a',
+    confidence: 0.8,
+  });
+
+  const res = await callRoute(ctx, '/subconscious/ask', {
+    workspace: ws,
+    agent_id: 'agent-b',
+    task_key: 'task/target',
+    intent: 'choose next implementation step',
+    situation: 'Need safe context for Agent B',
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.verdict, 'inject_relevant_context');
+  assert.equal(res.body.planner.strategy, 'task_gated_context');
+  assert.equal(res.body.recent_agent_events.length, 0);
+  assert.equal(res.body.recent_agent_state.risk_event, null);
+  assert.equal(res.body.planner.signals.has_recent_risk, false);
 });
 
 (async () => {
