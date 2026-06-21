@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-retrieval-cluster-expansion",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "019eeadc-2f36-72d3-bb67-a22c3268f4cf",
+  "branch": "orch/attempt/codex-judge-retrieval-cluster-expansion",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T15:46:53.599Z",
+  "lease_until": "2026-06-21T16:46:53.599Z"
+}
