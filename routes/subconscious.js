@@ -73,6 +73,52 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     return true;
   }
 
+  if (p === '/subconscious/anchor' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    const result = store.readAnchorAllocation({
+      workspace: T.ws || (u && u.searchParams.get('workspace')),
+      session_id: u && u.searchParams.get('session_id'),
+      companion_agent_id: u && u.searchParams.get('companion_agent_id'),
+      companion_loop_id: u && u.searchParams.get('companion_loop_id'),
+      limit: u && u.searchParams.get('limit'),
+      decision_limit: u && u.searchParams.get('decision_limit'),
+    });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
+  if (p === '/subconscious/anchor' && m === 'POST') {
+    const b = await readBody(req) || {};
+    const T = targetOverlay(b, u);
+    const result = store.upsertAnchorAllocation({ ...b, workspace: T.ws || b.workspace });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
+  if (p === '/subconscious/anchor/observation' && m === 'POST') {
+    const b = await readBody(req) || {};
+    const T = targetOverlay(b, u);
+    const result = store.recordAnchorObservation({ ...b, workspace: T.ws || b.workspace });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
+  if (p === '/subconscious/anchor/decision' && m === 'POST') {
+    const b = await readBody(req) || {};
+    const T = targetOverlay(b, u);
+    const result = store.recordAnchorDecision({ ...b, workspace: T.ws || b.workspace });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
   if (p === '/subconscious/event' && m === 'POST') {
     const b = await readBody(req) || {};
     const T = targetOverlay(b, u);

@@ -207,6 +207,115 @@ test('subconscious session companion store keeps bounded observations isolated b
   assert.equal(store.readSessionCompanion({ workspace: otherWs, session_id: 'foreground-session' }).session_companion, null);
 });
 
+test('subconscious anchor allocator store keeps bounded observations and decisions isolated by identity', async () => {
+  const ws = makeWorkspace();
+  const otherWs = makeWorkspace();
+  const store = createSubconsciousStore({ maxAnchorObservations: 2, maxAnchorDecisions: 2 });
+
+  const upsert = store.upsertAnchorAllocation({
+    workspace: ws,
+    session_id: 'foreground-session',
+    foreground_agent_id: 'foreground-agent',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    task_key: 'task/anchor',
+    reason: 'Keep foreground work attached to the claimed DAG task',
+    status: 'proposed',
+    parent_task_keys: ['task/parent', 'task/parent'],
+    context_task_keys: ['note:context'],
+    now: '2026-06-21T12:00:00.000Z',
+  });
+  assert.equal(upsert.ok, true);
+  assert.equal(upsert.anchor_allocation.task_key, 'task/anchor');
+  assert.equal(upsert.anchor_allocation.reason, 'Keep foreground work attached to the claimed DAG task');
+  assert.deepEqual(upsert.anchor_allocation.parent_task_keys, ['task/parent']);
+  assert.deepEqual(upsert.anchor_allocation.wiring.context_task_keys, ['note:context']);
+
+  store.recordAnchorObservation({
+    workspace: ws,
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    type: 'observation',
+    text: 'first',
+    now: '2026-06-21T12:00:01.000Z',
+  });
+  store.recordAnchorObservation({
+    workspace: ws,
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    type: 'observation',
+    text: 'second',
+    now: '2026-06-21T12:00:02.000Z',
+  });
+  store.recordAnchorObservation({
+    workspace: ws,
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    type: 'observation',
+    text: 'third',
+    now: '2026-06-21T12:00:03.000Z',
+  });
+
+  store.recordAnchorDecision({
+    workspace: ws,
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    decision: 'proposed',
+    reason: 'first decision',
+    now: '2026-06-21T12:00:04.000Z',
+  });
+  store.recordAnchorDecision({
+    workspace: ws,
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    decision: 'selected',
+    reason: 'second decision',
+    now: '2026-06-21T12:00:05.000Z',
+  });
+  store.recordAnchorDecision({
+    workspace: ws,
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    decision: 'confirmed',
+    reason: 'third decision',
+    now: '2026-06-21T12:00:06.000Z',
+  });
+
+  const state = store.readAnchorAllocation({
+    workspace: ws,
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+  });
+  assert.equal(state.ok, true);
+  assert.equal(state.anchor_allocation.status, 'proposed');
+  assert.equal(state.anchor_allocation.observation_count, 3);
+  assert.equal(state.anchor_allocation.decision_count, 3);
+  assert.equal(state.anchor_allocation.latest_observation.text, 'third');
+  assert.equal(state.anchor_allocation.latest_decision.decision, 'confirmed');
+  assert.deepEqual(state.recent_anchor_observations.map((event) => event.text), ['second', 'third']);
+  assert.deepEqual(state.recent_anchor_decisions.map((event) => event.decision), ['selected', 'confirmed']);
+
+  assert.equal(store.readAnchorAllocation({
+    workspace: ws,
+    session_id: 'foreground-session',
+    companion_agent_id: 'other-companion',
+    companion_loop_id: 'companion-loop',
+  }).anchor_allocation, null);
+  assert.equal(store.readAnchorAllocation({
+    workspace: otherWs,
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+  }).anchor_allocation, null);
+});
+
 test('subconscious loop routes upsert observe and read loop state', async () => {
   const ws = makeWorkspace();
   const store = createSubconsciousStore({ maxLoopObservations: 3 });
@@ -329,6 +438,87 @@ test('subconscious session companion routes upsert observe and read pairing stat
   assert.deepEqual(missing.body.recent_session_companion_observations, []);
 });
 
+test('subconscious anchor allocator routes upsert observe decide and read anchor state', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxAnchorObservations: 3, maxAnchorDecisions: 3 });
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null });
+
+  const upsert = await callRoute(ctx, '/subconscious/anchor', {
+    workspace: ws,
+    session_id: 'session-a',
+    foreground_agent_id: 'foreground-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    task_key: 'task/anchor',
+    reason: 'Session should stay anchored to the implementation task',
+    status: 'selected',
+    parent_task_keys: ['task/parent'],
+    context_task_keys: ['note:context'],
+    payload: { source: 'test' },
+    now: '2026-06-21T12:10:00.000Z',
+  });
+
+  assert.equal(upsert.status, 200);
+  assert.equal(upsert.body.ok, true);
+  assert.equal(upsert.body.anchor_allocation.session_id, 'session-a');
+  assert.equal(upsert.body.anchor_allocation.task_key, 'task/anchor');
+  assert.equal(upsert.body.anchor_allocation.status, 'selected');
+  assert.deepEqual(upsert.body.anchor_allocation.wiring.parent_task_keys, ['task/parent']);
+
+  const observation = await callRoute(ctx, '/subconscious/anchor/observation', {
+    workspace: ws,
+    session_id: 'session-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    type: 'context',
+    text: 'allocator saw companion context',
+    confidence: 0.8,
+    now: '2026-06-21T12:10:01.000Z',
+  });
+
+  assert.equal(observation.status, 200);
+  assert.equal(observation.body.anchor_allocation.observation_count, 1);
+  assert.equal(observation.body.anchor_observation.task_key, 'task/anchor');
+
+  const decision = await callRoute(ctx, '/subconscious/anchor/decision', {
+    workspace: ws,
+    session_id: 'session-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    decision: 'confirmed',
+    reason: 'anchor matches active DAG task',
+    confidence: 0.9,
+    now: '2026-06-21T12:10:02.000Z',
+  });
+
+  assert.equal(decision.status, 200);
+  assert.equal(decision.body.anchor_allocation.decision_count, 1);
+  assert.equal(decision.body.anchor_decision.decision, 'confirmed');
+
+  const read = await callRoute(
+    ctx,
+    `/subconscious/anchor?workspace=${encodeURIComponent(ws)}&session_id=session-a&companion_agent_id=companion-a&companion_loop_id=loop-a&limit=1&decision_limit=1`,
+    null,
+    'GET'
+  );
+  assert.equal(read.status, 200);
+  assert.equal(read.body.anchor_allocation.companion_agent_id, 'companion-a');
+  assert.equal(read.body.anchor_allocation.latest_decision.reason, 'anchor matches active DAG task');
+  assert.equal(read.body.recent_anchor_observations.length, 1);
+  assert.equal(read.body.recent_anchor_decisions.length, 1);
+
+  const missing = await callRoute(
+    ctx,
+    `/subconscious/anchor?workspace=${encodeURIComponent(ws)}&session_id=session-a&companion_agent_id=other&companion_loop_id=loop-a`,
+    null,
+    'GET'
+  );
+  assert.equal(missing.status, 200);
+  assert.equal(missing.body.anchor_allocation, null);
+  assert.deepEqual(missing.body.recent_anchor_observations, []);
+  assert.deepEqual(missing.body.recent_anchor_decisions, []);
+});
+
 test('subconscious_loop MCP tool forwards to loop routes', async () => {
   const tool = TOOLS.find((candidate) => candidate.name === 'subconscious_loop');
   assert(tool, 'subconscious_loop tool exists');
@@ -407,6 +597,55 @@ test('subconscious_session_companion MCP tool forwards to companion routes', asy
   assert.equal(calls[1].method, 'GET');
   assert(calls[1].p.startsWith('/subconscious/session-companion?'));
   assert(calls[1].p.includes('session_id=session-a'));
+  assert.equal(calls[1].body, undefined);
+});
+
+test('subconscious_anchor_allocator MCP tool forwards to anchor routes', async () => {
+  const tool = TOOLS.find((candidate) => candidate.name === 'subconscious_anchor_allocator');
+  assert(tool, 'subconscious_anchor_allocator tool exists');
+
+  const calls = [];
+  const update = await tool.run({
+    action: 'update',
+    workspace: '/tmp/ws',
+    session_id: 'session-a',
+    foreground_agent_id: 'foreground-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    task_key: 'task/anchor',
+    reason: 'anchor active foreground work',
+    status: 'selected',
+    parent_task_keys: ['task/parent'],
+    context_task_keys: ['note:context'],
+  }, (method, p, body) => {
+    calls.push({ method, p, body });
+    return { ok: true, forwarded: true };
+  });
+
+  assert.equal(update.forwarded, true);
+  assert.equal(calls[0].method, 'POST');
+  assert.equal(calls[0].p, '/subconscious/anchor');
+  assert.equal(calls[0].body.session_id, 'session-a');
+  assert.equal(calls[0].body.task_key, 'task/anchor');
+  assert.deepEqual(calls[0].body.context_task_keys, ['note:context']);
+
+  await tool.run({
+    action: 'read',
+    workspace: '/tmp/ws',
+    session_id: 'session-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    limit: 1,
+    decision_limit: 1,
+  }, (method, p, body) => {
+    calls.push({ method, p, body });
+    return { ok: true, forwarded: true };
+  });
+
+  assert.equal(calls[1].method, 'GET');
+  assert(calls[1].p.startsWith('/subconscious/anchor?'));
+  assert(calls[1].p.includes('session_id=session-a'));
+  assert(calls[1].p.includes('companion_agent_id=companion-a'));
   assert.equal(calls[1].body, undefined);
 });
 
