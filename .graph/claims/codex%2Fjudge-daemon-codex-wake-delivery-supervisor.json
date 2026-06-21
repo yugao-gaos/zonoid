@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-daemon-codex-wake-delivery-supervisor",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "codex-mcp-68679-07ac864b4959152cd6ade8217da7ed6a",
+  "branch": "orch/attempt/codex-judge-daemon-codex-wake-delivery-supervisor",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T18:51:46.795Z",
+  "lease_until": "2026-06-21T19:51:46.795Z"
+}
