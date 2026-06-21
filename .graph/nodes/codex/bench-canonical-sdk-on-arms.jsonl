@@ -23,3 +23,6 @@
 {"evt":"status_changed","id":"codex/bench-canonical-sdk-on-arms","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-19T12:28:15.021Z"}
 {"evt":"timestamps_set","id":"codex/bench-canonical-sdk-on-arms","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-19T00:59:32.984Z","lastChanged":"2026-06-19T12:28:16.548Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-19T13:42:31.580Z"}
 {"evt":"edge_added","from":"codex/bench-canonical-sdk-on-arms","to":"codex/verify-featurebench-production-faithful","kind":"context","actor":"overlay-sync","ts":"2026-06-19T14:12:18.025Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_promoted","from":"codex/bench-canonical-sdk-on-arms","to":"codex/judge-bench-canonical-sdk-on-arms","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T19:18:28.699Z","by":"judge","judged":true,"origin":"blocking-dep-seed"}
+{"evt":"edge_removed","from":"codex/bench-canonical-sdk-on-arms","to":"codex/judge-bench-canonical-sdk-on-arms","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:18:28.699Z"}
+{"evt":"edge_promoted","from":"codex/bench-canonical-sdk-on-arms","to":"codex/judge-bench-canonical-sdk-on-arms","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T19:18:29.485Z","origin":"native-blockedBy"}
