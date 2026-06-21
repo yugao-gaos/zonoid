@@ -75,3 +75,4 @@
 {"evt":"edge_removed","from":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/12","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:20:10.641Z"}
 {"evt":"edge_removed","from":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","to":"ddccf8ca-a541-49a7-8912-43ff5c7ccc63/6","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:20:10.641Z"}
 {"evt":"edge_removed","from":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","to":"9195fb5e-f196-497d-962f-69616733d2e9/24","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:20:10.641Z"}
+{"evt":"edge_removed","from":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/1","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:20:39.462Z"}
