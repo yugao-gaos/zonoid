@@ -7,3 +7,5 @@
 {"evt":"assignee_set","id":"22","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-subagent-task22","actor":"overlay-sync","ts":"2026-06-15T05:24:45.905Z"}
 {"evt":"timestamps_set","id":"22","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T13:22:18.001Z","lastChanged":"2026-06-15T05:29:01.750Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T05:29:01.796Z"}
 {"evt":"status_changed","id":"22","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T11:35:04.179Z"}
+{"evt":"edge_removed","from":"22","to":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/16","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:13:44.551Z"}
+{"evt":"edge_removed","from":"22","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/1","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:13:44.551Z"}
