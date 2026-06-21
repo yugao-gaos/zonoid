@@ -1,0 +1,9 @@
+{
+  "task_key": "nc-tag-test-8376cb41/1",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "76bdeca9-8d8e-4354-ab6c-ff54b2b0b616",
+  "branch": "orch/attempt/nc-tag-test-8376cb41-1",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T04:00:59.654Z",
+  "lease_until": "2026-06-21T05:00:59.654Z"
+}
