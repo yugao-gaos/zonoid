@@ -17,3 +17,4 @@
 {"evt":"edge_promoted","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"codex/force-cloud-cascade-search-animation","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:45:54.979Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"codex/force-cloud-cascade-search-animation","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:46:02.325Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"codex/force-cloud-cascade-search-animation","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:46:46.832Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_promoted","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"codex/force-cloud-cascade-search-animation","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:47:01.252Z","weight":0.9,"origin":"asserted"}
