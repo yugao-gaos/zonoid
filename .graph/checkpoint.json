@@ -225482,6 +225482,72 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/judge-breathing-learning-cloud-live-inject-recovery-fix": {
+      "id": "codex/judge-breathing-learning-cloud-live-inject-recovery-fix",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVE. Previous kickback is fixed: stored outDir recovery now treats recovered/inactive/incomplete queue status as resumable, keeps the onboarding landing visible, and resumes via ensureOnboardLearning(), which POSTs /onboard/drain-queue with autoInject:true and liveInject:true instead of polling forever. Route GET recovery returns recovered:true active:false from queue-status; direct route simulation confirmed done:false/remaining queue recovery. Shared renderer remains shared: onboarding calls renderCloud(buildOnboardCloudState(...), { mode:'onboard', svgEl, breathe:true }); the real cloud still uses the same renderCloud path with depth/3D/interaction behavior unchanged by the recovery commit. Focused verification passed: node --check routes/onboard.js; node --check scripts/onboard-learn.js; node test/onboarding-landing.test.js; node test/onboard-live-inject-route.test.js; node test/onboard-doc-structure-miner.test.js; node test/learner-queue.test.js; git diff --check main...HEAD; plus a read-only dynamic route recovery simulation. No merge performed.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge recovery-fixed breathing onboarding cloud attempt",
+        "description": "Single-attempt judge for `codex/breathing-learning-cloud-live-inject-recovery-fix`. Verify the shared breathing cloud UX, live auto-inject, no dashboard before completion, and specifically that recovered incomplete queue status resumes/restarts drain/live-inject after daemon restart or page reload. Do not merge.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/breathing-learning-cloud-live-inject-recovery-fix"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T22:26:37.318Z"
+      },
+      "assignee": "judge-breathing-learning-cloud-live-inject-recovery-fix",
+      "timestamps": {
+        "firstSeen": "2026-06-21T22:06:26.391Z",
+        "lastChanged": "2026-06-21T22:26:36.201Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-subconscious-permit-gate-kickback-fix": {
+      "id": "codex/judge-subconscious-permit-gate-kickback-fix",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVED. Reviewed attempt 4b9ca68a for permit-gate kickback fix: accepted start_task claims now auto-issue/reuse a scoped Subconscious execution permit for the registered session/task/agent/worktree/branch, and hooks still deny missing, revoked, expired, wrong-session/task, and wrong-scope permits. Verification passed: node --test test/subconscious.test.js test/orch-gate.test.js test/orch-gate-bash.test.js test/self-register-on-claim.test.js test/mcp-harness-tools.test.js test/hook-policy-parity.test.js; git diff --check clean. merge_attempt into feature worktree succeeded at 8f66104b30bc27a276105a519c9c64d2f27c86a7.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge Subconscious permit gate kickback fix",
+        "description": "Review the kickback fix for codex/subconscious-permit-gate-kickback-fix. Confirm the normal worker flow is not deadlocked by permit enforcement; permits are either auto-issued from valid claim/task/worktree state or explicitly acquired in the documented worker flow; installer allowlist exposes the needed MCP tool; tests cover standard worker claim->write, wrong session/path/revoked/expired permit failures. If approved, merge the fix attempt into the feature branch. Do not force merge.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/subconscious-permit-gate-kickback-fix"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T22:29:21.718Z"
+      },
+      "assignee": "judge-subconscious-permit-gate-kickback-fix",
+      "timestamps": {
+        "firstSeen": "2026-06-21T22:13:00.163Z",
+        "lastChanged": "2026-06-21T22:29:21.420Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -269396,35 +269462,35 @@
       "to": "codex/judge-breathing-learning-cloud-live-inject",
       "kind": "context",
       "weight": 0.8,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqoasni3beh",
       "to": "codex/breathing-learning-cloud-live-inject",
       "kind": "context",
       "weight": 0.95,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqoasni3beh",
       "to": "codex/breathing-learning-cloud-live-inject-recovery-fix",
       "kind": "context",
       "weight": 0.5,
+      "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "by": "judge"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqobjpjb5bh",
       "to": "codex/subconscious-permit-gate",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.718,
       "origin": "autowire-semantic"
     },
@@ -269443,9 +269509,9 @@
       "to": "codex/subconscious-permit-gate-kickback-fix",
       "kind": "context",
       "weight": 0.5,
+      "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "by": "judge"
+      "origin": "asserted"
     },
     {
       "from": "a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4",
@@ -269508,14 +269574,6 @@
       "weight": 0.95,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "codex/embed-provider-contract",
-      "to": "codex/embed-provider-local-adapter",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/exec-brain-state-seam",
@@ -269757,7 +269815,42 @@
       "weight": 0.6,
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqod16m7vun",
+      "to": "codex/breathing-learning-cloud-live-inject-recovery-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqod16m7vun",
+      "to": "note:note-mqoasni3beh",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.727,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqod16m7vun",
+      "to": "codex/breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.634,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/embed-provider-contract",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
     }
   ],
-  "compacted_at": "2026-06-21T22:25:39.540Z"
+  "compacted_at": "2026-06-21T22:36:11.579Z"
 }
