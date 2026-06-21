@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/subconscious-anchor-real-task-filter",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "codex-mcp-66337-13bb8a46bb33ca4ce32a37a8d8413525",
+  "branch": "orch/attempt/codex-subconscious-anchor-real-task-filter",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T21:01:36.900Z",
+  "lease_until": "2026-06-21T22:01:36.900Z"
+}
