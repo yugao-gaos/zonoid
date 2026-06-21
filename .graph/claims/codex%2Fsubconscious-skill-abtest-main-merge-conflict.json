@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/subconscious-skill-abtest-main-merge-conflict",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "merge-conflict-resolver-codex",
+  "branch": "orch/attempt/codex-subconscious-skill-abtest-main-merge-conflict",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T21:25:13.581Z",
+  "lease_until": "2026-06-21T22:25:13.581Z"
+}
