@@ -117,7 +117,9 @@ fire for `run_in_background` Agent-tool spawns, so a background worker never car
 that bears an `agent_id` AND is backed by a registered worktree (proof `branch_task` ran — the
 dispatcher never calls it) as a legitimate hook-less worker, registers it, and allows the claim.
 The registered worktree is the security boundary: a claim with no worktree is still refused. So the
-`branch_task` → `start_task` order IS the registration — nothing else to carry.
+`branch_task` → `start_task` order IS the registration — nothing else to carry. When `start_task`
+accepts a registered worker claim, the daemon also mints or renews the scoped Subconscious execution
+permit for that claim; normal workers must not add a separate manual permit step before writing.
 
 Do the work inline only for genuinely trivial edits (a one-liner, a doc tweak, a config change).
 Where the hooks are installed (`node bin/install.js`), a PreToolUse exit-2 gate hard-blocks **both**

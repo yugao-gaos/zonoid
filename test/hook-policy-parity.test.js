@@ -80,6 +80,18 @@ function claimedConfig() {
         task: { metric: null, git: { branch: 'orch/attempt/parity-task', worktree: WT } },
       },
     },
+    executionPermits: [{
+      id: 'permit-parity-task',
+      session_id: 'parity-session',
+      task_key: 'parity/task',
+      worktree: WT,
+      branch: 'orch/attempt/parity-task',
+      scope: 'worktree',
+      allowed_paths: [WT],
+      status: 'active',
+      issued_at: '2026-06-21T00:00:00.000Z',
+      expires_at: '2099-01-01T00:00:00.000Z',
+    }],
   };
 }
 
