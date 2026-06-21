@@ -25,3 +25,4 @@
 {"evt":"edge_promoted","from":"note:note-mq7fm2f2","to":"codex/long-note-cluster-ingest-hardening","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:39:43.296Z","weight":0.65,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq7fm2f2","to":"codex/long-note-cluster-ingest-hardening","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:40:21.733Z","weight":0.65,"by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq7fm2f2","to":"codex/long-note-cluster-ingest-hardening","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:45:54.979Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mq7fm2f2","to":"codex/embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:53:53.906Z","weight":0.8,"origin":"asserted"}
