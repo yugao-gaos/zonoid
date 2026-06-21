@@ -26,3 +26,4 @@
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:56:07.746Z","weight":0.996,"origin":"asserted"}
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:56:18.445Z","weight":0.996,"origin":"asserted"}
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:57:03.784Z","weight":0.996,"origin":"asserted"}
+{"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:57:41.361Z","weight":0.996,"origin":"asserted"}
