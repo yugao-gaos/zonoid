@@ -3,7 +3,8 @@
   "git_user": "YU GAO <yu.gao@gaos.ca>",
   "session_id": "019ee7d9-abf1-7ac2-b541-4419aef5ce1f",
   "branch": "orch/attempt/codex-consolidate-universal-skills",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T01:45:13.458Z",
-  "lease_until": "2026-06-21T02:45:13.458Z"
+  "lease_until": "2026-06-21T02:45:13.458Z",
+  "completed_at": "2026-06-21T02:02:09.941Z"
 }
