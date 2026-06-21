@@ -2044,26 +2044,25 @@ function buildGraph(ws) {
     const _judging = _adoptHold || (_js.judging && !_js.timedOut);
     return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: _js.judging && _js.timedOut, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: (ovWs.taskVecs && Array.isArray(ovWs.taskVecs[t.key])) ? ovWs.taskVecs[t.key] : null, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
-  // KEPT note context edges → context_deps for note nodes. The structBoost reranker (/search) and
-  // the BFS path tier read each node's context_deps as its graph adjacency; note nodes shipped with a
-  // hardcoded context_deps:[], so a judge-KEPT note→note edge never boosted its neighbor. Mirror the
-  // task-side convention (depRefs): a context edge e.to=<note> contributes e.from to that note's
-  // context_deps. JUDGED-KEPT ONLY — same filter as depRefs: kind==='context' AND weight!==0, so raw
-  // weight-0 autowire candidates (unjudged) are excluded; only a judge-promoted edge (keepEdge lifts
-  // weight off 0) registers. Built once into a key→from[] map so the note loop is O(1) per note.
-  const keptNoteCtxDeps = {}; // 'note:<id>' -> [from-key, ...] of judged-kept context edges
+  // KEPT context edges → context_deps for overlay-only graph nodes. The structBoost reranker
+  // (/search) and BFS path tier read each node's context_deps as graph adjacency. Mirror the task-side
+  // convention (depRefs): a context edge e.to=<node> contributes e.from to that node's context_deps.
+  // JUDGED-KEPT ONLY — same filter as depRefs: kind==='context' AND weight!==0, so raw weight-0
+  // autowire candidates are excluded; only a judge-promoted/asserted edge registers.
+  const keptCtxDeps = {};     // node key -> [from-key, ...] of kept context edges
+  const keptCtxWeights = {};  // node key -> { from-key: weight }
   for (const e of (ovWs.edges || [])) {
     if (e.kind !== 'context' || e.toWorkspace) continue;
-    if (typeof e.to !== 'string' || !e.to.startsWith('note:')) continue;
     if (overlayStore.edgeWeight(e) === 0) continue;   // unjudged autowire candidate — excluded
-    (keptNoteCtxDeps[e.to] || (keptNoteCtxDeps[e.to] = [])).push(e.from);
+    (keptCtxDeps[e.to] || (keptCtxDeps[e.to] = [])).push(e.from);
+    (keptCtxWeights[e.to] || (keptCtxWeights[e.to] = {}))[e.from] = overlayStore.edgeWeight(e);
   }
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
   for (const [noteId, n] of Object.entries(ovWs.note_nodes || {})) {
     const bareNoteId = n.id || noteId;
     const noteKey = 'note:' + bareNoteId;
-    tasks.push({ id: noteKey, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptNoteCtxDeps[noteKey] || [], note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null, vecs: Array.isArray(n.vecs) ? n.vecs : null,
+    tasks.push({ id: noteKey, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptCtxDeps[noteKey] || [], context_weights: keptCtxWeights[noteKey] || {}, note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null, vecs: Array.isArray(n.vecs) ? n.vecs : null,
       // Temporal/state-change fields (null on pre-temporal notes — back-compat): validFrom/validTo
       // bound when the fact was true; supersedes/supersededBy chain it to the note it replaced / was
       // replaced by. The dashboard reads these for the superseded indicator; /search for as-of.
@@ -2077,6 +2076,34 @@ function buildGraph(ws) {
       pending_dup: !!(ovWs.pendingDup && ovWs.pendingDup[noteKey]),
       dup_match: (ovWs.pendingDup && ovWs.pendingDup[noteKey] && ovWs.pendingDup[noteKey].match) || null,
       category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [] });
+  }
+  // Append typed knowledge nodes for source/provenance structure. They are graph/search nodes only:
+  // no native status lifecycle, no assignee/session/todo semantics.
+  for (const [nodeKey, n] of Object.entries(ovWs.knowledge_nodes || {})) {
+    if (!overlayStore.isKnowledgeNodeKind(n && n.type)) continue;
+    const key = n.key || nodeKey;
+    tasks.push({
+      id: key,
+      label: n.label || n.title || key,
+      kind: n.type,
+      status: 'knowledge',
+      session: null,
+      deps: [],
+      context_deps: keptCtxDeps[key] || [],
+      context_weights: keptCtxWeights[key] || {},
+      note: '',
+      agent_id: null,
+      summary: n.summary || '',
+      vec: Array.isArray(n.vec) ? n.vec : null,
+      vecs: Array.isArray(n.vecs) ? n.vecs : null,
+      metadata: n.metadata || {},
+      source_path: n.source_path || null,
+      section_ref: n.section_ref || null,
+      chunk_ref: n.chunk_ref || null,
+      cluster_ref: n.cluster_ref || null,
+      created_at: n.created_at || null,
+      updated_at: n.updated_at || null,
+    });
   }
   // A node was first seen THIS build ⇒ bump the graph-change epoch so the edge-judge re-pulls notes
   // whose neighborhood may now have a new candidate (judgedAtEpoch < epoch becomes true again). One
@@ -2114,8 +2141,9 @@ function buildGraph(ws) {
 }
 
 function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
-  const real = tasks.filter((t) => t.kind !== 'note'); // note nodes aren't tasks — keep counts honest
-  const notes = tasks.length - real.length;
+  const real = tasks.filter((t) => !overlayStore.isNonTaskNode(t)); // note/knowledge nodes aren't tasks
+  const notes = tasks.filter((t) => t.kind === 'note').length;
+  const knowledge_nodes = tasks.length - real.length - notes;
   const c = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0]));
   for (const t of real) c[t.status] = (c[t.status] || 0) + 1;
   c.local_in_progress = localInProgressCount(real, ov);
@@ -2123,6 +2151,7 @@ function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
   return {
     tasks_total: real.length,
     notes,
+    knowledge_nodes,
     statuses: c,
     sessions: new Set(real.map((t) => t.session)).size,
     edges: ov.edges.length,
