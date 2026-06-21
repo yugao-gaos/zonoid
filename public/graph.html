@@ -5258,7 +5258,7 @@ function scheduleCloudSearch(){
     const ctl=new AbortController();
     const timeout=setTimeout(()=>ctl.abort(),30000);
     try{
-      const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50',{ signal:ctl.signal });
+      const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50&node_first=1',{ signal:ctl.signal });
       const data=await res.json();
       items=Array.isArray(data)?data:(data.results||[]);
       if(seq!==cloudSearchSeq) return;

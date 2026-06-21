@@ -54,15 +54,16 @@ function makeWorkspace() {
   return ws;
 }
 
-function makeCtx(graph, workspace) {
+function makeCtx(graph, workspace, overlay = {}) {
+  const ov = { knowledge: {}, edges: [], entity_nodes: {}, ...overlay };
   return {
     buildGraph: () => graph,
-    overlayFor: () => ({ knowledge: {}, edges: [], entity_nodes: {} }),
+    overlayFor: () => ov,
     isTruthy: (value) => value != null && value !== '' && value !== '0' && value !== 'false' && value !== 'no',
     embed: async () => null,
     suggestToks,
     scoreNodeAgainstTokens,
-    knowledgeText: () => '',
+    knowledgeText: (item) => typeof item === 'string' ? item : String((item && (item.value || item.text || item.summary)) || ''),
     noteCurrentAsOf,
     gateTask: async () => ({ decision: 'abstain', reason: 'test', via: 'lexical', top1: 0, margin: 0, gap: 0, locality: 0, topType: null }),
     gatedSearchCounts: new Map(),
@@ -72,12 +73,12 @@ function makeCtx(graph, workspace) {
   };
 }
 
-async function runSearch(graph, params) {
+async function runSearch(graph, params, overlay) {
   const workspace = makeWorkspace();
   const u = new URL('http://127.0.0.1/search');
   u.searchParams.set('workspace', workspace);
   for (const [key, value] of Object.entries(params || {})) u.searchParams.set(key, value);
-  const result = await compileSearchContext(makeCtx(graph, workspace), {
+  const result = await compileSearchContext(makeCtx(graph, workspace, overlay), {
     req: { socket: { remoteAddress: '127.0.0.1' } },
     u,
   });
@@ -165,6 +166,32 @@ test('conversational query promotes a wired neighbor through activation', async 
   assert(neighbor, 'expected wired neighbor in conversational results');
   assert(neighbor.graphActivation > 0, 'expected activation metadata on wired neighbor');
   assert((neighbor.path || []).some((part) => part.startsWith('activation:')));
+});
+
+test('node_first query promotes exact node label before chunk evidence', async () => {
+  const graph = {
+    tasks: [
+      node('task/subconscious-mcp', 'Subconscious MCP tool implementation', {
+        summary: 'plumbing task',
+      }),
+      node('task/research', 'Memory competitor research', {
+        summary: 'research parent',
+      }),
+    ],
+  };
+  const overlay = {
+    knowledge: {
+      'task/research': [
+        { value: 'subconscious memory self learning agent recall competitor evidence with rich context' },
+      ],
+    },
+  };
+
+  const body = await runSearch(graph, { q: 'subconscious', k: '5', node_first: '1' }, overlay);
+
+  assert.equal(body.results[0].key, 'task/subconscious-mcp');
+  assert.equal(body.results[0].nodeFirst, true);
+  assert(body.results.some((item) => item.key === 'task/research#k0'), 'expected chunk evidence to remain present');
 });
 
 test('conversational query keeps structural graph expansion beyond direct k', async () => {
