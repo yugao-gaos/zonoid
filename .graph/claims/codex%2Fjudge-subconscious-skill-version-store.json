@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-subconscious-skill-version-store",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "judge-subconscious-skill-version-store-codex",
+  "branch": "orch/attempt/codex-judge-subconscious-skill-version-store",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T18:52:06.912Z",
+  "lease_until": "2026-06-21T19:52:06.912Z"
+}
