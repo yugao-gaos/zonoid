@@ -76,6 +76,10 @@ function loadJSON(p, def) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '')); } catch { return def; }
 }
 
+function normalizeSourcePath(s) {
+  return String(s || '').replace(/\\/g, '/').replace(/:\d+(?::\d+)?$/, '');
+}
+
 // Atomic write: write to a temp file then rename so readers never see a partial file.
 function writeJSONAtomic(filePath, data) {
   const tmp = filePath + '.tmp.' + process.pid;
@@ -152,6 +156,63 @@ function gatherCandidates(inDir) {
   // without drowning in 1-per-file noise.
   for (const n of (struct.nodes || [])) out.push({ title: n.id, summary: n.role, kind: 'structure', _origin: 'struct', source: 'structure.json' });
   return out;
+}
+
+function tokenSet(s) {
+  return new Set(String(s || '').toLowerCase().match(/[a-z0-9]{3,}/g) || []);
+}
+
+function tokenOverlapScore(a, b) {
+  const aa = tokenSet(a);
+  if (!aa.size) return 0;
+  let score = 0;
+  for (const t of tokenSet(b)) if (aa.has(t)) score++;
+  return score;
+}
+
+function structureNodesForSource(structure, sourcePath) {
+  const src = normalizeSourcePath(sourcePath);
+  if (!src) return [];
+  return (Array.isArray(structure.nodes) ? structure.nodes : [])
+    .filter((n) => normalizeSourcePath(n.source_path) === src && n.key);
+}
+
+function evidenceRefsForNote(note, candidates, structure) {
+  const refs = new Set(Array.isArray(note.evidence_refs) ? note.evidence_refs.filter(Boolean) : []);
+  const sourceIndex = Number.parseInt(String(note.source || ''), 10);
+  const sourceCandidate = Number.isInteger(sourceIndex) && sourceIndex >= 0 ? candidates[sourceIndex] : null;
+  const sourcePaths = [
+    sourceCandidate && sourceCandidate.source,
+    note.evidence,
+  ].map(normalizeSourcePath).filter(Boolean);
+
+  const query = [note.title, note.summary, note.evidence, sourceCandidate && sourceCandidate.summary].filter(Boolean).join(' ');
+  for (const sourcePath of sourcePaths) {
+    const nodes = structureNodesForSource(structure, sourcePath);
+    if (!nodes.length) continue;
+    const ranked = nodes.map((n) => ({
+      key: n.key,
+      type: n.type,
+      score: tokenOverlapScore(query, `${n.label || ''} ${n.summary || ''} ${n.section_ref || ''}`),
+    })).sort((a, b) => (b.score - a.score) || ((a.type === 'source_chunk' ? 0 : 1) - (b.type === 'source_chunk' ? 0 : 1)));
+    const matched = ranked.filter((n) => n.score > 0 && n.type !== 'source_doc').slice(0, 3);
+    for (const n of (matched.length ? matched : ranked.filter((n) => n.type === 'source_chunk').slice(0, 3))) refs.add(n.key);
+    if (!refs.size) {
+      const doc = ranked.find((n) => n.type === 'source_doc') || ranked[0];
+      if (doc) refs.add(doc.key);
+    }
+  }
+  return Array.from(refs);
+}
+
+function enrichLearnerResultWithEvidenceRefs(result, candidates, inDir) {
+  if (!result || !Array.isArray(result.kept)) return result;
+  const structure = loadJSON(path.join(inDir, 'doc-structure.json'), { nodes: [], edges: [] });
+  const kept = result.kept.map((n) => {
+    const refs = evidenceRefsForNote(n, candidates, structure);
+    return refs.length ? { ...n, evidence_refs: refs } : n;
+  });
+  return { ...result, kept };
 }
 
 // Sort candidates by origin priority: config > asset > doc > git > struct.
@@ -266,6 +327,10 @@ function request(method, urlPath, body) {
 // workspace (back-compat). For a FOREIGN repo's KB, pass an isolated workspace (e.g. the repo path)
 // so its notes never land in — and can't pollute — the live graph (note nodes have no delete API).
 async function inject(notesFile, confirm, workspace) {
+  return injectOnboardNotes(notesFile, confirm, workspace, request);
+}
+
+async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = request) {
   const data = loadJSON(notesFile, null);
   if (!data || !Array.isArray(data.kept)) {
     console.error(`No validated notes at ${notesFile}. Run the learn pass first.`); process.exit(1);
@@ -283,7 +348,7 @@ async function inject(notesFile, confirm, workspace) {
     return;
   }
   console.log('=== onboard-learn --inject CONFIRMED ===');
-  const structureResult = await injectDocumentStructure(path.dirname(notesFile), workspace);
+  const structureResult = await injectDocumentStructure(path.dirname(notesFile), workspace, httpRequest);
   const existing = new Set();
   if (workspace) {
     // /state reflects only the live workspace; for a foreign workspace there is no cheap exhaustive
@@ -295,20 +360,34 @@ async function inject(notesFile, confirm, workspace) {
       for (const t of state.tasks || []) if (typeof t.label === 'string' && t.label.startsWith(PREFIX)) existing.add(t.label);
     } catch (e) { console.error(`WARN: could not read /state (${e.message}); proceeding without skip-set.`); }
   }
-  let created = 0, skipped = 0;
+  let created = 0, skipped = 0, evidenceEdges = 0;
   for (const n of kept) {
     const title = PREFIX + n.title;
     if (existing.has(title)) { skipped++; continue; }
-    await request('POST', '/overlay/note', {
+    const noteResp = await httpRequest('POST', '/overlay/note', {
       title, summary: n.summary,
-      knowledge: [`evidence:${n.evidence || '?'}`, `kind:${n.kind}`, `origin:onboard-learn`],
+      knowledge: [`evidence:${n.evidence || '?'}`, `kind:${n.kind}`, `origin:onboard-learn`]
+        .concat((Array.isArray(n.evidence_refs) ? n.evidence_refs : []).map((ref) => `evidence_ref:${ref}`)),
       created_by: 'onboard-learn',
       ...(workspace ? { workspace } : {}),
     });
+    const noteKey = noteResp && (noteResp.key || (noteResp.id ? `note:${noteResp.id}` : null));
+    if (noteKey) {
+      for (const ref of evidenceRefsForNote(n, [], structure)) {
+        await httpRequest('POST', '/overlay/edge', {
+          from: ref,
+          to: noteKey,
+          kind: 'context',
+          weight: 1.0,
+          ...(workspace ? { workspace } : {}),
+        });
+        evidenceEdges++;
+      }
+    }
     created++;
   }
   console.log(`document structure nodes upserted: ${structureResult.nodes}, provenance edges upserted: ${structureResult.edges}`);
-  console.log(`notes created: ${created}, skipped (already present): ${skipped}`);
+  console.log(`notes created: ${created}, skipped (already present): ${skipped}, evidence edges: ${evidenceEdges}`);
   console.log(`Reversible: every injected node is titled '${PREFIX}…' — filter/remove like other ingest nodes.`);
 }
 
@@ -385,10 +464,11 @@ function drain(repoAbs, outDir, model, maxKeep, batchSize, maxCandidates) {
     console.error(`[learn] FAILED: agent did not produce a valid ${batchOutFile} (exit=${status}).`);
     process.exit(1);
   }
+  const enrichedResult = enrichLearnerResultWithEvidenceRefs(result, batch, outDir);
 
   // Merge results back into queue and advance cursor.
-  queue.kept = queue.kept.concat(result.kept || []);
-  queue.rejected = queue.rejected.concat(result.rejected || []);
+  queue.kept = queue.kept.concat(enrichedResult.kept || []);
+  queue.rejected = queue.rejected.concat(enrichedResult.rejected || []);
   queue.cursor += effectiveBatch;
 
   // Write queue back atomically.
@@ -474,10 +554,12 @@ async function main() {
     console.error(`[learn] FAILED: agent did not produce a valid ${notesFile} (exit=${status}).`);
     process.exit(1);
   }
+  const enrichedResult = enrichLearnerResultWithEvidenceRefs(result, candidates, inDir);
+  if (enrichedResult !== result) writeJSONAtomic(notesFile, enrichedResult);
   // Write a small report alongside for review.
   fs.writeFileSync(path.join(inDir, 'onboard-learn-report.json'),
-    JSON.stringify({ repo: repoAbs, candidates: candidates.length, kept: result.kept.length, rejected: (result.rejected || []).length, model }, null, 2) + '\n');
-  console.error(`[learn] DONE: ${candidates.length} candidates -> kept ${result.kept.length}, rejected ${(result.rejected || []).length}. Wrote ${notesFile}`);
+    JSON.stringify({ repo: repoAbs, candidates: candidates.length, kept: enrichedResult.kept.length, rejected: (enrichedResult.rejected || []).length, model }, null, 2) + '\n');
+  console.error(`[learn] DONE: ${candidates.length} candidates -> kept ${enrichedResult.kept.length}, rejected ${(enrichedResult.rejected || []).length}. Wrote ${notesFile}`);
   console.error('[learn] Review onboard-notes.json, then: node scripts/onboard-learn.js --repo <abs> --inject [--confirm]');
 }
 
@@ -488,4 +570,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { gatherCandidates, injectDocumentStructure, loadJSON };
+module.exports = { gatherCandidates, injectDocumentStructure, injectOnboardNotes, loadJSON, enrichLearnerResultWithEvidenceRefs, evidenceRefsForNote };
