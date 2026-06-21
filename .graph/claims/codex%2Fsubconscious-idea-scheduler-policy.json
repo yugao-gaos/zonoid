@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "019eead9-b622-7500-91b0-a3789adb68af",
   "branch": "orch/attempt/codex-subconscious-idea-scheduler-policy",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T15:43:58.969Z",
-  "lease_until": "2026-06-21T16:43:58.969Z"
+  "lease_until": "2026-06-21T16:43:58.969Z",
+  "completed_at": "2026-06-21T15:56:15.032Z"
 }
