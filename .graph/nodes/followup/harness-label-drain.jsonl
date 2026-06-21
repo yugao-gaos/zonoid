@@ -251,3 +251,13 @@
 {"evt":"assignee_set","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","assignee":"dispatcher-frontier-closeout","actor":"overlay-sync","ts":"2026-06-19T13:49:33.675Z"}
 {"evt":"status_changed","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-19T13:49:34.016Z"}
 {"evt":"status_changed","id":"followup/harness-label-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-19T13:49:51.462Z"}
+{"evt":"edge_added","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:38:14.455Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:38:47.218Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:39:10.642Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:39:17.255Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:39:34.877Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:39:39.160Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:40:16.892Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:41:05.995Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:42:09.396Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:42:22.057Z","weight":0.7,"origin":"asserted"}
