@@ -92,6 +92,8 @@ can load the shared gate policy.
 
 ## Workflow
 
+Use the canonical repo skill at `.opencode/skills/zonoid-orchestrator`. `npx @zonoid/cli init --harness opencode` installs it automatically.
+
 1. Plugin init and `session.created` register the OpenCode workspace with the daemon.
 2. Each user prompt runs through `chat.message`, which appends `/classify` context when the daemon returns one.
 3. Every tool call runs through cooperative stop before write gating; canceled workers are blocked by throwing OpenCode's hook error.
