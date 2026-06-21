@@ -3,7 +3,8 @@
   "git_user": "YU GAO <yu.gao@gaos.ca>",
   "session_id": "019ee80d-fb9a-7091-ac0b-8f74f06bc9be",
   "branch": "orch/attempt/codex-judge-graph-loop-owner-watchdog-review",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T02:42:20.462Z",
-  "lease_until": "2026-06-21T03:42:20.462Z"
+  "lease_until": "2026-06-21T03:42:20.462Z",
+  "completed_at": "2026-06-21T02:45:44.471Z"
 }
