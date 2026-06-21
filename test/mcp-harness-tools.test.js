@@ -177,6 +177,8 @@ async function waitForPing(ms = 8000) {
     subconsciousTool.inputSchema.properties.session_id &&
     subconsciousTool.inputSchema.properties.companion_agent_id &&
     subconsciousTool.inputSchema.properties.approval_signals &&
+    subconsciousTool.inputSchema.properties.include_internal &&
+    subconsciousTool.inputSchema.properties.debug &&
     subconsciousTool.inputSchema.properties.intent &&
     subconsciousTool.inputSchema.properties.situation &&
     subconsciousTool.inputSchema.properties.query);
@@ -198,20 +200,23 @@ async function waitForPing(ms = 8000) {
     situation: 'Need the relevant context before editing',
     approval_signals: ['deployment'],
     k: 4,
+    include_internal: true,
   }, (method, path, body) => {
     capturedSubconsciousAsk = { method, path, body };
     return {
       ok: true,
       verdict: 'inject_relevant_context',
+      selected_task_key: 'local/task',
+      next_action: 'review_context_then_work_selected_anchor',
       subconscious: {
         kind: 'subconscious_agent_surface',
         verdict: 'inject_relevant_context',
         prediction: 'relevant_context_likely',
-        context: { summary: { anchored_task_key: 'local/task' }, evidence: { results: [{ key: 'note:context' }] } },
+        context: { summary: { anchored_task_key: 'local/task' } },
         anchor: { selected_task_key: 'local/task' },
-        pressure: { execution_owner: 'foreground_agent' },
         approval_posture: { requires_approval: false },
       },
+      internal: { evidence: { results: [{ key: 'note:context' }] } },
     };
   });
   ok('ask_subconscious runs POST /subconscious/ask',
@@ -225,16 +230,19 @@ async function waitForPing(ms = 8000) {
     capturedSubconsciousAsk.body.intent === 'choose next implementation step' &&
     capturedSubconsciousAsk.body.situation === 'Need the relevant context before editing' &&
     capturedSubconsciousAsk.body.approval_signals[0] === 'deployment' &&
-    capturedSubconsciousAsk.body.k === 4);
+    capturedSubconsciousAsk.body.k === 4 &&
+    capturedSubconsciousAsk.body.include_internal === true);
   ok('ask_subconscious returns route output', subconsciousOut && subconsciousOut.verdict === 'inject_relevant_context');
   ok('ask_subconscious forwards Subconscious-first output shape',
     subconsciousOut &&
     subconsciousOut.subconscious &&
     subconsciousOut.subconscious.kind === 'subconscious_agent_surface' &&
-    subconsciousOut.subconscious.context.evidence.results[0].key === 'note:context' &&
+    subconsciousOut.subconscious.context.summary.anchored_task_key === 'local/task' &&
+    !subconsciousOut.subconscious.context.evidence &&
     subconsciousOut.subconscious.anchor.selected_task_key === 'local/task' &&
-    subconsciousOut.subconscious.pressure.execution_owner === 'foreground_agent' &&
-    subconsciousOut.subconscious.approval_posture.requires_approval === false);
+    !subconsciousOut.subconscious.pressure &&
+    subconsciousOut.subconscious.approval_posture.requires_approval === false &&
+    subconsciousOut.internal.evidence.results[0].key === 'note:context');
 
   const searchTool = TOOLS.find((t) => t.name === 'search_knowledge');
   ok('search_knowledge remains available as a lower-level primitive',
