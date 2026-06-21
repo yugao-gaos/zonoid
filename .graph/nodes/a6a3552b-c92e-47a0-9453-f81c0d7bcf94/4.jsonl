@@ -18,3 +18,7 @@
 {"evt":"edge_promoted","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:01:48.553Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:02:00.879Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:05:19.571Z","weight":0.75,"origin":"asserted"}
+{"evt":"edge_promoted","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:05:30.431Z","weight":0.75,"origin":"asserted"}
+{"evt":"edge_promoted","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:05:36.171Z","weight":0.75,"origin":"asserted"}
+{"evt":"edge_promoted","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:05:36.851Z","weight":0.75,"judged":true,"origin":"asserted"}
+{"evt":"edge_promoted","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:05:37.554Z","weight":0.75,"origin":"asserted"}
