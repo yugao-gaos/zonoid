@@ -73,6 +73,7 @@ async function waitForPing(ms = 8000) {
   ok('default tools/list byte-identical to formatToolsList(TOOLS)', JSON.stringify(defaultList.result.tools) === baselinePayload);
   ok('default surface has no create_task', !defaultList.result.tools.some((t) => t.name === 'create_task'));
   ok('default surface includes ask_subconscious', defaultList.result.tools.some((t) => t.name === 'ask_subconscious'));
+  ok('default surface includes subconscious_idea_scheduler', defaultList.result.tools.some((t) => t.name === 'subconscious_idea_scheduler'));
 
   const startTaskTool = TOOLS.find((t) => t.name === 'start_task');
   ok('start_task schema has session_id', startTaskTool && startTaskTool.inputSchema.properties.session_id && startTaskTool.inputSchema.properties.session_id.type === 'string');
@@ -264,6 +265,42 @@ async function waitForPing(ms = 8000) {
     capturedAnchorAllocator.body.parent_task_keys[0] === 'local/parent' &&
     capturedAnchorAllocator.body.context_task_keys[0] === 'note:context');
   ok('subconscious_anchor_allocator returns route output', anchorAllocatorOut && anchorAllocatorOut.anchor_allocation.task_key === 'local/task');
+
+  const ideaSchedulerTool = TOOLS.find((t) => t.name === 'subconscious_idea_scheduler');
+  ok('subconscious_idea_scheduler is on default MCP surface', !!ideaSchedulerTool);
+  ok('subconscious_idea_scheduler schema exposes policy and anchor fields',
+    ideaSchedulerTool &&
+    ideaSchedulerTool.inputSchema.properties.agent_id &&
+    ideaSchedulerTool.inputSchema.properties.idea &&
+    ideaSchedulerTool.inputSchema.properties.approval_signals &&
+    ideaSchedulerTool.inputSchema.properties.task_key &&
+    ideaSchedulerTool.description.includes('requiring approval'));
+  let capturedIdeaScheduler = null;
+  const ideaSchedulerOut = await ideaSchedulerTool.run({
+    action: 'schedule',
+    workspace: '/tmp/ws',
+    agent_id: 'daemon-agent',
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    task_key: 'local/task',
+    source: 'daemon_loop',
+    idea: 'Schedule a local context review for current task.',
+    context_task_keys: ['note:context'],
+    confidence: 0.6,
+  }, (method, path, body) => {
+    capturedIdeaScheduler = { method, path, body };
+    return { ok: true, subconscious_idea: { idea: body.idea } };
+  });
+  ok('subconscious_idea_scheduler runs POST /subconscious/idea-scheduler',
+    capturedIdeaScheduler && capturedIdeaScheduler.method === 'POST' && capturedIdeaScheduler.path === '/subconscious/idea-scheduler');
+  ok('subconscious_idea_scheduler passes expected request shape',
+    capturedIdeaScheduler &&
+    capturedIdeaScheduler.body.agent_id === 'daemon-agent' &&
+    capturedIdeaScheduler.body.session_id === 'foreground-session' &&
+    capturedIdeaScheduler.body.task_key === 'local/task' &&
+    capturedIdeaScheduler.body.context_task_keys[0] === 'note:context');
+  ok('subconscious_idea_scheduler returns route output', ideaSchedulerOut && ideaSchedulerOut.subconscious_idea.idea === 'Schedule a local context review for current task.');
 
   const codexExtra = extraToolsForClient('codex', WS);
   ok('codex extraTools has create_task + ScheduleWakeup', codexExtra.length === 2 && codexExtra[0].name === 'create_task' && codexExtra[1].name === 'ScheduleWakeup');

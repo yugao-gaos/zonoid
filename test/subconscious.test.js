@@ -519,6 +519,73 @@ test('subconscious anchor allocator routes upsert observe decide and read anchor
   assert.deepEqual(missing.body.recent_anchor_decisions, []);
 });
 
+test('subconscious idea scheduler records ordinary ideas and gates approval-worthy ideas', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxIdeas: 5 });
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null });
+
+  const ordinary = await callRoute(ctx, '/subconscious/idea-scheduler', {
+    workspace: ws,
+    agent_id: 'daemon',
+    session_id: 'session-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    task_key: 'task/anchor',
+    source: 'daemon_loop',
+    title: 'Check recent formatter failures',
+    idea: 'Schedule a lightweight follow-up to inspect formatter failures in the current task.',
+    context_task_keys: ['note:formatting'],
+    confidence: 0.6,
+  });
+
+  assert.equal(ordinary.status, 200);
+  assert.equal(ordinary.body.ok, true);
+  assert.equal(ordinary.body.scheduled, true);
+  assert.equal(ordinary.body.requires_approval, false);
+  assert.equal(ordinary.body.idea_policy.disposition, 'schedule');
+  assert.equal(ordinary.body.subconscious_idea.status, 'scheduled');
+  assert.deepEqual(ordinary.body.subconscious_idea.context_task_keys, ['note:formatting']);
+
+  const risky = await callRoute(ctx, '/subconscious/idea-scheduler', {
+    workspace: ws,
+    agent_id: 'daemon',
+    session_id: 'session-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    task_key: 'task/anchor',
+    source: 'daemon_loop',
+    idea: 'Publish an outward-facing high-impact irreversible scope expansion: delete cached production data, deploy a production API schema change after the same failure keeps failing.',
+    confidence: 0.8,
+  });
+
+  assert.equal(risky.status, 200);
+  assert.equal(risky.body.ok, true);
+  assert.equal(risky.body.scheduled, false);
+  assert.equal(risky.body.requires_approval, true);
+  assert.equal(risky.body.subconscious_idea.status, 'requires_approval');
+  assert(risky.body.idea_policy.approval_reasons.includes('high_impact'));
+  assert(risky.body.idea_policy.approval_reasons.includes('outward_facing'));
+  assert(risky.body.idea_policy.approval_reasons.includes('irreversible'));
+  assert(risky.body.idea_policy.approval_reasons.includes('scope_expanding'));
+  assert(risky.body.idea_policy.approval_reasons.includes('destructive'));
+  assert(risky.body.idea_policy.approval_reasons.includes('deployment'));
+  assert(risky.body.idea_policy.approval_reasons.includes('api_change'));
+  assert(risky.body.idea_policy.approval_reasons.includes('repeated_failure'));
+  assert.equal(risky.body.idea_schedule.scheduled_count, 1);
+  assert.equal(risky.body.idea_schedule.approval_required_count, 1);
+
+  const read = await callRoute(
+    ctx,
+    `/subconscious/idea-scheduler?workspace=${encodeURIComponent(ws)}&agent_id=daemon&session_id=session-a&companion_agent_id=companion-a&companion_loop_id=loop-a&task_key=task%2Fanchor&limit=1`,
+    null,
+    'GET'
+  );
+  assert.equal(read.status, 200);
+  assert.equal(read.body.idea_schedule.idea_count, 2);
+  assert.equal(read.body.recent_ideas.length, 1);
+  assert.equal(read.body.recent_ideas[0].status, 'requires_approval');
+});
+
 test('subconscious_loop MCP tool forwards to loop routes', async () => {
   const tool = TOOLS.find((candidate) => candidate.name === 'subconscious_loop');
   assert(tool, 'subconscious_loop tool exists');
@@ -646,6 +713,56 @@ test('subconscious_anchor_allocator MCP tool forwards to anchor routes', async (
   assert(calls[1].p.startsWith('/subconscious/anchor?'));
   assert(calls[1].p.includes('session_id=session-a'));
   assert(calls[1].p.includes('companion_agent_id=companion-a'));
+  assert.equal(calls[1].body, undefined);
+});
+
+test('subconscious_idea_scheduler MCP tool forwards to idea scheduler routes', async () => {
+  const tool = TOOLS.find((candidate) => candidate.name === 'subconscious_idea_scheduler');
+  assert(tool, 'subconscious_idea_scheduler tool exists');
+
+  const calls = [];
+  const schedule = await tool.run({
+    action: 'schedule',
+    workspace: '/tmp/ws',
+    agent_id: 'daemon',
+    session_id: 'session-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    task_key: 'task/anchor',
+    source: 'daemon_loop',
+    idea: 'Schedule a lightweight context check for this anchored task.',
+    context_task_keys: ['note:context'],
+    confidence: 0.7,
+  }, (method, p, body) => {
+    calls.push({ method, p, body });
+    return { ok: true, forwarded: true };
+  });
+
+  assert.equal(schedule.forwarded, true);
+  assert.equal(calls[0].method, 'POST');
+  assert.equal(calls[0].p, '/subconscious/idea-scheduler');
+  assert.equal(calls[0].body.agent_id, 'daemon');
+  assert.equal(calls[0].body.idea, 'Schedule a lightweight context check for this anchored task.');
+  assert.deepEqual(calls[0].body.context_task_keys, ['note:context']);
+
+  await tool.run({
+    action: 'read',
+    workspace: '/tmp/ws',
+    agent_id: 'daemon',
+    session_id: 'session-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    task_key: 'task/anchor',
+    limit: 1,
+  }, (method, p, body) => {
+    calls.push({ method, p, body });
+    return { ok: true, forwarded: true };
+  });
+
+  assert.equal(calls[1].method, 'GET');
+  assert(calls[1].p.startsWith('/subconscious/idea-scheduler?'));
+  assert(calls[1].p.includes('agent_id=daemon'));
+  assert(calls[1].p.includes('task_key=task%2Fanchor'));
   assert.equal(calls[1].body, undefined);
 });
 
