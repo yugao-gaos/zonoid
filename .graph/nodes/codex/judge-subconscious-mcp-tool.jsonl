@@ -5,3 +5,5 @@
 {"evt":"edge_removed","from":"codex/judge-subconscious-mcp-tool","to":"codex/subconscious-mcp-tool","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:58:06.513Z"}
 {"evt":"edge_removed","from":"codex/judge-subconscious-mcp-tool","to":"codex/judge-subconscious-agentic-verdict","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:58:06.513Z"}
 {"evt":"timestamps_set","id":"codex/judge-subconscious-mcp-tool","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-21T03:19:26.737Z","lastChanged":"2026-06-21T19:30:01.530Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-21T19:31:26.887Z"}
+{"evt":"status_changed","id":"codex/judge-subconscious-mcp-tool","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-21T19:31:35.258Z"}
+{"evt":"assignee_set","id":"codex/judge-subconscious-mcp-tool","workspace":"/Users/imyu/Desktop/zonoid","assignee":"judge-subconscious-mcp-tool-codex","actor":"overlay-sync","ts":"2026-06-21T19:31:35.258Z"}
