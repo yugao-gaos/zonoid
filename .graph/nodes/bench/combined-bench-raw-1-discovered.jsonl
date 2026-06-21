@@ -1,0 +1,2 @@
+{"evt":"edge_removed","from":"bench/combined-bench-raw-1-discovered","to":"bench/combined-bench-raw-0-6","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:17:35.081Z"}
+{"evt":"edge_removed","from":"bench/combined-bench-raw-1-discovered","to":"bench/combined-bench-1-1","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:17:35.081Z"}
