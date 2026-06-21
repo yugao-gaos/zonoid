@@ -15,7 +15,7 @@ embed(title+summary)
   → markEagerJudge      (stamp judgingSince; gate task to not_ready until edges are adjudicated)
 ```
 
-The pipeline is null-safe and best-effort: if the embedding sidecar is unavailable, `embed()` returns `null`, the remaining steps are skipped, and the node falls back to lexical-only retrieval. Errors never propagate to the caller.
+The pipeline is null-safe and best-effort: if the active embedding provider is unavailable, `embed()` returns `null`, the remaining steps are skipped, and the node falls back to lexical-only retrieval. Errors never propagate to the caller.
 
 ---
 
@@ -44,11 +44,11 @@ On subsequent status updates where the summary changes but a vector already exis
 
 ### Step 1 — `embed(taskEmbedText({ title, summary }))`
 
-Calls the local MiniLM sidecar (`lib/embed.js`) to produce a dense float32 vector from the concatenated title and summary. Returns `null` if the sidecar is unavailable; the remaining steps are skipped.
+Calls the active provider through `lib/embed.js` to produce a dense vector from the concatenated title and summary. MiniLM is the default compatibility provider; configured alternatives must be instruction-aware for retrieval and tunable/customizable. Returns `null` if the provider is unavailable; the remaining steps are skipped.
 
-### Step 2 — `setTaskVec(overlay, key, vec)`
+### Step 2 — `setTaskVec(overlay, key, vec, meta)`
 
-Stores the vector in `overlay.taskVecs[key]`. Idempotent: re-embedding a task just overwrites the prior vector.
+Stores the raw vector in `overlay.taskVecs[key]` and the provider/model/dimension identity in `overlay.taskVecMeta[key]`. Idempotent: re-embedding a task overwrites the prior vector and metadata. Semantic search ignores vectors whose metadata does not match the active provider identity, except legacy 384-dim MiniLM vectors under the default MiniLM provider.
 
 ### Step 3 — `autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec)`
 
@@ -77,8 +77,8 @@ After `markEagerJudge`, the node enters the **judging** lifecycle phase:
 
 Note nodes (`POST /overlay/note`) do **not** go through `ingestNode`. They have their own birth path:
 
-1. `embed(noteEmbedText({ title, category, tags, summary }))` is called inline in the route handler.
-2. The vector is stored directly on the note object (`n.vec`).
+1. `embed(noteEmbedText({ title, category, tags, summary }), { mode: 'document' })` is called inline in the route handler.
+2. The vector is stored directly on the note object (`n.vec`) with `n.vecMeta`; field-level vectors use `n.vecs` plus `n.vecsMeta`.
 3. `markEagerJudge(overlay, 'note:' + id)` is called unconditionally — the mark self-prunes if the note carries no unverified edges, so it is a no-op for hand-wired notes.
 
 Task-side `ingestNode` seeds note→task edges at task birth via `autowireNewTaskWholeGraph`; the note POST handler does not run `autowireNoteProvider` (that function is now a demoted no-op; the judge queue subsumes its role).
@@ -89,8 +89,8 @@ Task-side `ingestNode` seeds note→task edges at task birth via `autowireNewTas
 
 | Site | What fires | Missing |
 |------|------------|---------|
-| `POST /overlay/backfill-embeddings` | `embed` + `setTaskVec` | no re-autowire, no re-mark |
-| Note vec retry (~L358) | `embed` + `n.vec` patch | no autowire, no mark |
-| `POST /overlay/reembed` | `embed` + `setTaskVec` for notes | no pipeline steps |
+| `POST /overlay/backfill-embeddings` | document-mode `embed` + vector metadata refresh for stale/missing notes, knowledge, and tasks | no re-autowire, no re-mark |
+| Note vec retry (~L358) | document-mode `embed` + `n.vec`/`n.vecMeta` patch | no autowire, no mark |
+| `POST /overlay/reembed` | document-mode `embed` + vector metadata refresh for notes and task vectors | no pipeline steps |
 
 All three are admin/migration paths, not runtime hot paths. No known runtime bypass exists for the standard task birth path as of `unify/ingest-node-unify`.

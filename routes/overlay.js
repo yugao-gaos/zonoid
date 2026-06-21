@@ -21,6 +21,30 @@ function noteKnowledge(overlay, n) {
   return Array.isArray(side) ? side : [];
 }
 
+async function embedDocument(ctx, overlay, text) {
+  if (typeof ctx.embedWithMeta === 'function') return ctx.embedWithMeta(text, { mode: 'document', overlay });
+  const vec = await ctx.embed(text);
+  return { vec, meta: null };
+}
+
+async function embedDocumentVec(ctx, overlay, text) {
+  const r = await embedDocument(ctx, overlay, text);
+  return r && Array.isArray(r.vec) ? r.vec : null;
+}
+
+async function embedDocumentFields(ctx, overlay, fields) {
+  const out = [];
+  const metas = [];
+  for (const text of fields) {
+    const r = await embedDocument(ctx, overlay, text);
+    if (r && Array.isArray(r.vec)) {
+      out.push(r.vec);
+      metas.push(r.meta || null);
+    }
+  }
+  return { vecs: out, vecsMeta: metas };
+}
+
 function isAdmissibleOverlayTaskKey(key) {
   return typeof key === 'string'
     && (/^[^/\s]+\/[^/\s]+$/.test(key) || /^[A-Za-z][A-Za-z0-9_.-]*$/.test(key));
@@ -480,8 +504,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           // Already ingested, but the interface text (summary) changed ⇒ re-embed ONLY so retrieval
           // tracks the new text. No re-autowire / no re-mark — candidate seeding is a one-shot at birth
           // (the prior !_hasVec gate enforced exactly this), the judge owns edge evolution thereafter.
-          const tvec = await embed(taskEmbedText({ title, summary: T.ov.summaries[b.key] }));
-          if (tvec) overlayStore.setTaskVec(T.ov, b.key, tvec);
+          const tr = await embedDocument(ctx, T.ov, taskEmbedText({ title, summary: T.ov.summaries[b.key] }));
+          if (tr.vec) overlayStore.setTaskVec(T.ov, b.key, tr.vec, tr.meta);
         }
       } catch { /* best effort — never block the status write on embedding/recall */ }
     }
@@ -631,8 +655,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
     }
     ensureTaskSnapshot(T, b.key);
-    const kvec = await embed(knowledgeText(b.item));
-    if (kvec) b.item._vec = kvec;
+    const kr = await embedDocument(ctx, T.ov, knowledgeText(b.item));
+    if (kr.vec) { b.item._vec = kr.vec; if (kr.meta) b.item._vecMeta = kr.meta; }
     (T.ov.knowledge[b.key] = T.ov.knowledge[b.key] || []).push(b.item);
     T.save(); notifyChange(T.ws);
     sendOp(res, b, 200, { ok: true, count: T.ov.knowledge[b.key].length }); return true;
@@ -654,8 +678,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     ].map((x) => String(x || '').trim()).filter(Boolean);
     const payload = { ...b };
     if (fields.length) {
-      payload.vec = await embed(fields.join(' '));
-      payload.vecs = (await Promise.all(fields.map(embed))).filter(Boolean);
+      const pr = await embedDocument(ctx, T.ov, fields.join(' '));
+      const fieldResult = await embedDocumentFields(ctx, T.ov, fields);
+      payload.vec = pr.vec;
+      payload.vecMeta = pr.meta;
+      payload.vecs = fieldResult.vecs;
+      payload.vecsMeta = fieldResult.vecsMeta;
     }
     const r = overlayStore.upsertKnowledgeNode(T.ov, payload);
     if (!r.ok) { send(res, 400, r); return true; }
@@ -679,11 +707,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (noteSourceCluster.shouldClusterNote(rawNotePayload)) {
       b.summary = noteSourceCluster.compactNoteSummary(b.summary);
     }
-    b.vec = await embed(noteEmbedText({ title: b.title, category: b.category, tags: b.tags, summary: b.summary }));
+    const pooled = await embedDocument(ctx, T.ov, noteEmbedText({ title: b.title, category: b.category, tags: b.tags, summary: b.summary }));
+    b.vec = pooled.vec;
+    b.vecMeta = pooled.meta;
     // FIELD-LEVEL multi-vec set (note.vecs): embed each salient field (title/summary/each knowledge[]
     // entry) on its own so a knowledge item is retrievable without being diluted into the pooled vec.
     // The pooled b.vec above stays the gate/dedup vector; b.vecs only upgrades corpus scoring.
-    b.vecs = (await Promise.all(noteFieldTexts({ title: b.title, summary: b.summary, knowledge: b.knowledge }).map(embed))).filter(Boolean);
+    const fieldResult = await embedDocumentFields(ctx, T.ov, noteFieldTexts({ title: b.title, summary: b.summary, knowledge: b.knowledge }));
+    b.vecs = fieldResult.vecs;
+    b.vecsMeta = fieldResult.vecsMeta;
 
     // Near-duplicate guard: reject if a current note has cosine(title-vec) >= DUP_THRESHOLD,
     // unless the caller already resolved the conflict with `supersedes` or `force:true`.
@@ -707,7 +739,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const { cosine } = ctx;
       let bestMatch = null;
       for (const n of Object.values(T.ov.note_nodes || {})) {
-        if (!n.validTo && Array.isArray(n.vec)) {
+        if (!n.validTo && Array.isArray(n.vec) && (!ctx.vectorMatchesMeta || ctx.vectorMatchesMeta(n.vec, n.vecMeta || null, b.vecMeta || null))) {
           const score = cosine(b.vec, n.vec);
           if (score >= DUP_THRESHOLD && (!bestMatch || score > bestMatch.score)) {
             bestMatch = { key: 'note:' + n.id, title: n.title, summary: String(n.summary || '').slice(0, 200), score };
@@ -722,14 +754,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const _retryText = b.title;
       setTimeout(async () => {
         try {
-          const v = await embed(_retryText);
+          const retry = await embedDocument(ctx, T.ov, _retryText);
+          const v = retry.vec;
           if (!v) return;
           const node = T.ov.note_nodes && T.ov.note_nodes[id];
           if (node && !node.vec) {
             node.vec = v;
+            node.vecMeta = retry.meta || null;
             // P3: resolve the graph-store per request workspace (no daemon-global state.graphStore).
             const gs = T.ws ? graphStore.open(path.join(T.ws, '.graph')) : null;
-            if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'note_vec_set', id, vec: v, actor: 'retry', ts: Date.now() });
+            if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'note_vec_set', id, vec: v, vecMeta: node.vecMeta, actor: 'retry', ts: Date.now() });
           }
         } catch { /* best effort */ }
       }, 45000);
@@ -780,8 +814,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         ].map((x) => String(x || '').trim()).filter(Boolean);
         const payload = { ...node };
         if (fields.length) {
-          payload.vec = await embed(fields.join(' '));
-          payload.vecs = (await Promise.all(fields.map(embed))).filter(Boolean);
+          const pr = await embedDocument(ctx, T.ov, fields.join(' '));
+          const fieldResult = await embedDocumentFields(ctx, T.ov, fields);
+          payload.vec = pr.vec;
+          payload.vecMeta = pr.meta;
+          payload.vecs = fieldResult.vecs;
+          payload.vecsMeta = fieldResult.vecsMeta;
         }
         overlayStore.upsertKnowledgeNode(T.ov, payload);
       }
@@ -923,6 +961,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req).catch(() => ({}));
     const T = targetOverlay(b, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : null;
+    const vecOk = (vec, meta) => Array.isArray(vec) && (!expectedMeta || (ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(vec, meta, expectedMeta) : vec.length === DIMS));
+    const vecsOk = (vecs, metas) => Array.isArray(vecs) && vecs.length > 0
+      && (!expectedMeta || vecs.every((v, i) => ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(v, Array.isArray(metas) ? metas[i] : null, expectedMeta) : v.length === DIMS));
     let notesEmbedded = 0, notesSkipped = 0, knEmbedded = 0, knSkipped = 0, failed = 0;
     // P3: resolve the graph-store per request workspace (no daemon-global state.graphStore).
     const gs = graphStore.open(path.join(T.ws, '.graph'));
@@ -930,31 +972,31 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     for (const n of Object.values(T.ov.note_nodes || {})) {
       // Upgrade a note that is missing EITHER the pooled `.vec` OR the field-level `.vecs` set.
       // (Previously only notes missing `.vec` were touched, so existing notes never gained `.vecs`.)
-      const hasVec = Array.isArray(n.vec);
-      const hasVecs = Array.isArray(n.vecs) && n.vecs.length > 0;
+      const hasVec = vecOk(n.vec, n.vecMeta);
+      const hasVecs = vecsOk(n.vecs, n.vecsMeta);
       if (hasVec && hasVecs) { notesSkipped++; continue; }
       let touched = false;
       if (!hasVec) {
-        const v = await embed(noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
-        if (v) {
-          n.vec = v; touched = true;
-          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
+        const r = await embedDocument(ctx, T.ov, noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
+        if (r.vec) {
+          n.vec = r.vec; n.vecMeta = r.meta || null; touched = true;
+          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: r.vec, vecMeta: n.vecMeta, actor: 'backfill', ts });
         } else failed++;
       }
       if (!hasVecs) {
-        const vecs = (await Promise.all(noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }).map(embed))).filter(Boolean);
-        if (vecs.length) {
-          n.vecs = vecs; touched = true;
-          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs, actor: 'backfill', ts });
+        const fieldResult = await embedDocumentFields(ctx, T.ov, noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }));
+        if (fieldResult.vecs.length) {
+          n.vecs = fieldResult.vecs; n.vecsMeta = fieldResult.vecsMeta; touched = true;
+          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs: n.vecs, vecsMeta: n.vecsMeta, actor: 'backfill', ts });
         }
       }
       if (touched) notesEmbedded++;
     }
     for (const items of Object.values(T.ov.knowledge || {})) {
       for (const it of (items || [])) {
-        if (it && Array.isArray(it._vec)) { knSkipped++; continue; }
-        const v = await embed(knowledgeText(it));
-        if (v && it && typeof it === 'object') { it._vec = v; knEmbedded++; } else failed++;
+        if (it && vecOk(it._vec, it._vecMeta)) { knSkipped++; continue; }
+        const r = await embedDocument(ctx, T.ov, knowledgeText(it));
+        if (r.vec && it && typeof it === 'object') { it._vec = r.vec; if (r.meta) it._vecMeta = r.meta; knEmbedded++; } else failed++;
       }
     }
     // TASK backfill (multi-vec schema): every real (non-note) task node that lacks a vec gets one
@@ -964,9 +1006,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     for (const node of g.tasks) {
       if (overlayStore.isNonTaskNode(node)) continue;
       const existing = T.ov.taskVecs && T.ov.taskVecs[node.id];
-      if (Array.isArray(existing) && existing.length) { tasksSkipped++; continue; }
-      const v = await embed(taskEmbedText({ title: node.label, summary: node.summary }));
-      if (v) { overlayStore.setTaskVec(T.ov, node.id, v); tasksEmbedded++; } else failed++;
+      const existingMeta = T.ov.taskVecMeta && T.ov.taskVecMeta[node.id];
+      if (vecsOk(existing, existingMeta)) { tasksSkipped++; continue; }
+      const r = await embedDocument(ctx, T.ov, taskEmbedText({ title: node.label, summary: node.summary }));
+      if (r.vec) { overlayStore.setTaskVec(T.ov, node.id, r.vec, r.meta); tasksEmbedded++; } else failed++;
     }
     overlayStore.save(T.ws, T.ov);
     notifyChange(T.ws);
@@ -978,6 +1021,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(body2, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const force2 = body2 && body2.force;
+    const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : null;
+    const isFreshVec = (vec, meta) => Array.isArray(vec) && (!expectedMeta || (ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(vec, meta, expectedMeta) : vec.length === DIMS));
+    const isFreshVecs = (vecs, metas) => Array.isArray(vecs) && vecs.length > 0
+      && (!expectedMeta || vecs.every((v, i) => ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(v, Array.isArray(metas) ? metas[i] : null, expectedMeta) : v.length === DIMS));
     let embedded = 0, skipped = 0, failed = 0;
     // P3: resolve the graph-store per request workspace (no daemon-global state.graphStore).
     const gs2 = graphStore.open(path.join(T.ws, '.graph'));
@@ -985,19 +1032,29 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     for (const n of Object.values(T.ov.note_nodes || {})) {
       // Skip only when BOTH the pooled `.vec` and the field-level `.vecs` set are already present at
       // full DIMS (and not forced) — so existing single-vec notes get upgraded to multivec.
-      const vecOk = Array.isArray(n.vec) && n.vec.length === DIMS;
-      const vecsOk = Array.isArray(n.vecs) && n.vecs.length > 0;
-      if (!force2 && vecOk && vecsOk) { skipped++; continue; }
+      const vecOk2 = isFreshVec(n.vec, n.vecMeta);
+      const vecsOk2 = isFreshVecs(n.vecs, n.vecsMeta);
+      if (!force2 && vecOk2 && vecsOk2) { skipped++; continue; }
       let touched = false;
-      const v = await embed(noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
-      if (v) { n.vec = v; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'reembed', ts: ts2 }); } else failed++;
-      const vecs = (await Promise.all(noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }).map(embed))).filter(Boolean);
-      if (vecs.length) { n.vecs = vecs; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs, actor: 'reembed', ts: ts2 }); }
+      const r = await embedDocument(ctx, T.ov, noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
+      if (r.vec) { n.vec = r.vec; n.vecMeta = r.meta || null; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: r.vec, vecMeta: n.vecMeta, actor: 'reembed', ts: ts2 }); } else failed++;
+      const fieldResult = await embedDocumentFields(ctx, T.ov, noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }));
+      if (fieldResult.vecs.length) { n.vecs = fieldResult.vecs; n.vecsMeta = fieldResult.vecsMeta; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs: n.vecs, vecsMeta: n.vecsMeta, actor: 'reembed', ts: ts2 }); }
       if (touched) embedded++;
+    }
+    let tasksEmbedded = 0, tasksSkipped = 0;
+    const g2 = buildGraph(T.ws);
+    for (const node of g2.tasks) {
+      if (overlayStore.isNonTaskNode(node)) continue;
+      const existing = T.ov.taskVecs && T.ov.taskVecs[node.id];
+      const existingMeta = T.ov.taskVecMeta && T.ov.taskVecMeta[node.id];
+      if (!force2 && isFreshVecs(existing, existingMeta)) { tasksSkipped++; continue; }
+      const r = await embedDocument(ctx, T.ov, taskEmbedText({ title: node.label, summary: node.summary }));
+      if (r.vec) { overlayStore.setTaskVec(T.ov, node.id, r.vec, r.meta); tasksEmbedded++; } else failed++;
     }
     overlayStore.save(T.ws, T.ov);
     notifyChange(T.ws);
-    send(res, 200, { ok: true, embedded, skipped, failed }); return true;
+    send(res, 200, { ok: true, embedded, skipped, failed, tasks: { embedded: tasksEmbedded, skipped: tasksSkipped } }); return true;
   }
 
   if (p === '/supersede' && m === 'POST') {
@@ -1031,10 +1088,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     // Embed the entity name for semantic retrieval (same embed path as notes; best-effort).
     let vec = null;
-    try { vec = await embed(String(b.name)); } catch { /* embedding sidecar unavailable — lexical fallback */ }
+    try { const er = await embedDocument(ctx, T.ov, String(b.name)); vec = er.vec; b.vecMeta = er.meta; } catch { /* embedding provider unavailable — lexical fallback */ }
     let entity;
     try {
-      entity = overlayStore.createEntity(T.ov, { name: b.name, type: b.type, aliases: b.aliases, vec });
+      entity = overlayStore.createEntity(T.ov, { name: b.name, type: b.type, aliases: b.aliases, vec, vecMeta: b.vecMeta || null });
     } catch (err) {
       send(res, 400, { ok: false, error: err.message }); return true;
     }

@@ -68,6 +68,25 @@ test('overlay: config.backend persists across save → load (round-trip on disk)
     'config.backend survives the save/load round-trip (config is in LOCAL_FIELDS)');
 });
 
+test('overlay: setEmbeddingConfig writes config.embedding; getEmbeddingConfig reads it back', () => {
+  const ov = overlayStore.EMPTY();
+  assert.equal(overlayStore.getEmbeddingConfig(ov), null, 'unset ⇒ null (= MiniLM default)');
+  overlayStore.setEmbeddingConfig(ov, { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 });
+  assert.deepEqual(overlayStore.getEmbeddingConfig(ov), { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 });
+  overlayStore.setEmbeddingConfig(ov, {});
+  assert.equal(overlayStore.getEmbeddingConfig(ov), null, 'falsy provider clears selection');
+});
+
+test('overlay: config.embedding persists across save → load (round-trip on disk)', () => {
+  const ws = freshWorkspace();
+  const ov = overlayStore.load(ws);
+  overlayStore.setEmbeddingConfig(ov, { provider: 'cohere', model: 'embed-v4.0', dimensions: 1536 });
+  overlayStore.save(ws, ov);
+  const reloaded = overlayStore.load(ws);
+  assert.deepEqual(overlayStore.getEmbeddingConfig(reloaded), { provider: 'cohere', model: 'embed-v4.0', dimensions: 1536 },
+    'config.embedding survives the save/load round-trip');
+});
+
 // ---------------------------------------------------------------------------
 // Route harness: a synthetic ctx that backs targetOverlay with a real sandboxed overlay,
 // captures send(), and injects a backend registry into routes/config.js via lib/llm-backend.
@@ -91,6 +110,7 @@ function makeCtx(ws) {
 
 // Minimal URL stand-in (the route only reads u.searchParams via targetOverlay, which ignores it here).
 const U = new URL('http://localhost:8787/config/backend');
+const UE = new URL('http://localhost:8787/config/embedding');
 
 // ---------------------------------------------------------------------------
 // (b) GET /config/backend → active backend + per-provider readiness
@@ -182,9 +202,70 @@ test('POST /config/backend: a falsy provider clears the selection (back to claud
   assert.equal(overlayStore.getBackendConfig(reloaded), null, 'selection cleared on disk');
 });
 
+test('GET /config/embedding: defaults to MiniLM and lists narrowed providers', async () => {
+  const ws = freshWorkspace();
+  const { route, captured } = makeCtx(ws);
+  const handled = await route('/config/embedding', 'GET', {}, {}, UE, null);
+  assert.equal(handled, true, 'route handled the GET');
+  assert.equal(captured.code, 200);
+  assert.equal(captured.body.ok, true);
+  assert.equal(captured.body.active.provider, 'minilm', 'active defaults to MiniLM');
+  assert.equal(captured.body.active.model, 'Xenova/all-MiniLM-L6-v2');
+  const ids = captured.body.providers.map((p) => p.id);
+  assert.deepEqual(ids.includes('openai'), false, 'generic OpenAI provider is not exposed');
+  for (const id of ['minilm', 'local-instruct', 'voyage', 'cohere', 'gemini']) {
+    assert.ok(ids.includes(id), `${id} provider listed`);
+  }
+  const cohere = captured.body.providers.find((p) => p.id === 'cohere');
+  assert.deepEqual(cohere.supportedModels.map((m) => m.id), ['embed-v4.0'], 'Cohere list is narrowed to embed-v4.0');
+});
+
+test('POST /config/embedding: sets a known narrowed provider and persists it', async () => {
+  const ws = freshWorkspace();
+  const { route, captured } = makeCtx(ws);
+  const req = { __body: { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 } };
+  const handled = await route('/config/embedding', 'POST', req, {}, UE, null);
+  assert.equal(handled, true, 'route handled the POST');
+  assert.equal(captured.code, 200);
+  assert.equal(captured.body.ok, true);
+  assert.equal(captured.body.active.provider, 'voyage');
+  assert.equal(captured.body.active.model, 'voyage-4-lite');
+  assert.equal(captured.body.active.dimensions, 1024);
+  assert.ok(captured.notified >= 1, 'notifyChange called on a successful write');
+  const reloaded = overlayStore.load(ws);
+  assert.deepEqual(overlayStore.getEmbeddingConfig(reloaded), { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 });
+});
+
+test('POST /config/embedding: rejects generic OpenAI embeddings and unknown models', async () => {
+  const ws = freshWorkspace();
+  const { route, captured } = makeCtx(ws);
+  await route('/config/embedding', 'POST', { __body: { provider: 'openai', model: 'text-embedding-3-small' } }, {}, UE, null);
+  assert.equal(captured.code, 400, 'generic OpenAI provider ⇒ 400');
+  assert.equal(captured.body.ok, false);
+
+  const ctx2 = makeCtx(ws);
+  await ctx2.route('/config/embedding', 'POST', { __body: { provider: 'cohere', model: 'embed-english-v3.0' } }, {}, UE, null);
+  assert.equal(ctx2.captured.code, 400, 'non-narrowed Cohere model ⇒ 400');
+  assert.equal(overlayStore.getEmbeddingConfig(overlayStore.load(ws)), null, 'rejected POSTs do not write selection');
+});
+
+test('POST /config/embedding: a falsy provider clears the selection (back to MiniLM default)', async () => {
+  const ws = freshWorkspace();
+  const ov = overlayStore.load(ws);
+  overlayStore.setEmbeddingConfig(ov, { provider: 'gemini', model: 'gemini-embedding-001', dimensions: 3072 });
+  overlayStore.save(ws, ov);
+
+  const { route, captured } = makeCtx(ws);
+  await route('/config/embedding', 'POST', { __body: { provider: '' } }, {}, UE, null);
+  assert.equal(captured.code, 200);
+  assert.equal(captured.body.active.provider, 'minilm', 'cleared ⇒ active reverts to MiniLM');
+  assert.equal(overlayStore.getEmbeddingConfig(overlayStore.load(ws)), null, 'embedding selection cleared on disk');
+});
+
 test('config route ignores unrelated paths/methods (returns false to fall through)', async () => {
   const ws = freshWorkspace();
   const { route } = makeCtx(ws);
   assert.equal(await route('/config/backend', 'DELETE', {}, {}, U, null), false, 'unsupported method falls through');
+  assert.equal(await route('/config/embedding', 'DELETE', {}, {}, UE, null), false, 'unsupported embedding method falls through');
   assert.equal(await route('/some/other/path', 'GET', {}, {}, U, null), false, 'unrelated path falls through');
 });
