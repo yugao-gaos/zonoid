@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/subconscious-permit-gate-kickback-fix",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "019eec40-f129-70a0-b71b-7941001eef9a",
+  "branch": "orch/attempt/codex-subconscious-permit-gate-kickback-fix",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T22:18:26.486Z",
+  "lease_until": "2026-06-21T23:18:26.486Z"
+}
