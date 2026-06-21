@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/retrieval-cluster-expansion",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "019ee841-3372-7c51-bf6b-199d2fdc0340",
+  "branch": "orch/attempt/codex-retrieval-cluster-expansion",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T15:37:02.944Z",
+  "lease_until": "2026-06-21T16:37:02.944Z"
+}
