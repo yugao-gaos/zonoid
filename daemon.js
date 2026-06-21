@@ -1451,7 +1451,7 @@ function baseStatus(s) { return s === 'completed' ? 'done' : s === 'in_progress'
 // Relevance scoring shared by /task/suggest and auto-wiring: rank every other node in the graph
 // by token-overlap of label+summary against `target`. Returns matches sorted desc by score, each
 // { key, label, status, score, shared, suggest_kind, duplicate }. suggest_kind is 'context' for
-// done/note providers (summary flows in) and 'blocking' for open tasks (a real prerequisite).
+// done/non-task providers (summary flows in) and 'blocking' for open tasks (a real prerequisite).
 // One source of truth so auto-wiring uses the IDENTICAL relevance the agent sees from suggest_links.
 const SUGGEST_STOP = new Set(['the', 'and', 'for', 'task', 'with', 'that', 'this', 'from', 'into', 'use', 'run', 'add', 'all', 'new', 'via', 'its']);
 const suggestToks = (s) => new Set((String(s || '').toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter((w) => !SUGGEST_STOP.has(w)));
@@ -1576,7 +1576,8 @@ function scoreMatchesSemantic(g, target, targetVec) {
       // pairs keep SUGGEST_DUP_THRESHOLD (token-overlap scale).
       const dupBar = semantic ? SEMANTIC_DUP_THRESHOLD : SUGGEST_DUP_THRESHOLD;
       const duplicate = score >= dupBar && OPEN.has(x.status) && x.kind !== 'note';
-      return { key: x.id, label: x.label, status: x.status, score: Math.round(score * 1000) / 1000, shared: shared.slice(0, 8), suggest_kind: (x.kind === 'note' || x.status === 'done') ? 'context' : 'blocking', duplicate, via: semantic ? 'semantic' : 'lexical' };
+      const suggestKind = (overlayStore.isNonTaskNodeKind(x.kind) || x.status === 'done') ? 'context' : 'blocking';
+      return { key: x.id, label: x.label, status: x.status, score: Math.round(score * 1000) / 1000, shared: shared.slice(0, 8), suggest_kind: suggestKind, duplicate, via: semantic ? 'semantic' : 'lexical' };
     })
     .filter((c) => c.score > 0)
     .sort((a, b) => b.score - a.score);
