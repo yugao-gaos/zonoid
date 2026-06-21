@@ -526,7 +526,7 @@ function installCodexRepoSkills(cwd) {
 }
 
 function installOpencodeRepoSkills(cwd) {
-  return installRepoSkill(cwd, 'zonoid-orchestrator-opencode', 'opencode');
+  return installRepoSkill(cwd, 'zonoid-orchestrator', 'opencode');
 }
 
 function checkDaemon() {
@@ -1292,7 +1292,7 @@ function printNextSteps(harness, cwd = process.cwd()) {
     console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — run the returned');
     console.log('       delivery.command when delivery.supported is true; otherwise the fallback is timer-only');
     console.log('    6. Repo skill installed at .codex/skills/zonoid-orchestrator for task-mint workflow');
-    console.log('    7. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
+    console.log('    7. orchestrator-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else if (harness === 'cursor') {
     console.log('  Next steps (cursor):');
     console.log('    1. Trust the workspace in Cursor so project hooks run');
@@ -1301,15 +1301,15 @@ function printNextSteps(harness, cwd = process.cwd()) {
     console.log('    4. Mint tasks via todo adoption or MCP, then start_task before editing');
     console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — monitor stdout with');
     console.log('       the returned tail command (notify_pattern ORCH_SCHEDULED_TASK) and re-inject the prompt');
-    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
+    console.log('    6. orchestrator-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else if (harness === 'opencode') {
     console.log('  Next steps (opencode):');
     console.log('    1. Restart OpenCode in this directory after opencode.json MCP wiring');
     console.log(`    2. Open the dashboard: ${dash}`);
     console.log('    3. Mint tasks with the task_create tool (file-drop stub + /sync), then start_task before editing');
     console.log('    4. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
-    console.log('    5. Repo skill installed at .opencode/skills/zonoid-orchestrator-opencode for task-mint workflow');
-    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
+    console.log('    5. Repo skill installed at .opencode/skills/zonoid-orchestrator for task-mint workflow');
+    console.log('    6. orchestrator-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else {
     console.log('  Next steps (claude):');
     console.log('    1. Restart Claude Code in this directory');

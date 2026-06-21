@@ -299,8 +299,12 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     const skillPath = path.join(cwd, '.codex', 'skills', 'zonoid-orchestrator', 'SKILL.md');
     ok('installRepoSkill installs zonoid-orchestrator into client .codex/skills', installed && fs.existsSync(skillPath));
     const text = fs.readFileSync(skillPath, 'utf8');
-    ok('repo skill documents create_task file-drop task minting',
-      text.includes('create_task') && text.includes('file-drop'));
+    ok('repo skill points to client adapter mappings',
+      text.includes('client-adapters.md'));
+    const adapterPath = path.join(cwd, '.codex', 'skills', 'zonoid-orchestrator', 'references', 'client-adapters.md');
+    const adapterText = fs.readFileSync(adapterPath, 'utf8');
+    ok('codex repo skill adapter reference documents create_task file-drop task minting',
+      adapterText.includes('create_task') && adapterText.includes('codex/<id>'));
 
     const before = fs.readFileSync(skillPath, 'utf8');
     const second = installRepoSkill(cwd, 'zonoid-orchestrator', 'codex');
@@ -313,33 +317,37 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
 
 // ── Client-repo skill install: OpenCode guidance belongs in target repo ──────
 // Mirrors the Codex block above but asserts the .opencode/skills destination
-// AND opencode-specific wording (task_create tool, opencode/<id> keys).
+// uses the canonical skill name.
 {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-opencode-skill-'));
   try {
     const cwd = path.join(base, 'client-repo')
     fs.mkdirSync(cwd, { recursive: true })
-    const installed = installRepoSkill(cwd, 'zonoid-orchestrator-opencode', 'opencode')
-    const skillPath = path.join(cwd, '.opencode', 'skills', 'zonoid-orchestrator-opencode', 'SKILL.md')
-    ok('installRepoSkill installs zonoid-orchestrator-opencode into client .opencode/skills',
+    const installed = installRepoSkill(cwd, 'zonoid-orchestrator', 'opencode')
+    const skillPath = path.join(cwd, '.opencode', 'skills', 'zonoid-orchestrator', 'SKILL.md')
+    ok('installRepoSkill installs zonoid-orchestrator into client .opencode/skills',
       installed && fs.existsSync(skillPath))
     ok('installRepoSkill opencode does NOT touch .codex/skills',
       !fs.existsSync(path.join(cwd, '.codex', 'skills')))
     const text = fs.readFileSync(skillPath, 'utf8')
-    ok('opencode repo skill documents task_create file-drop task minting',
-      text.includes('task_create') && text.includes('opencode/<id>'))
+    ok('opencode repo skill points to client adapter mappings',
+      text.includes('client-adapters.md'))
+    const adapterPath = path.join(cwd, '.opencode', 'skills', 'zonoid-orchestrator', 'references', 'client-adapters.md')
+    const adapterText = fs.readFileSync(adapterPath, 'utf8')
+    ok('opencode repo skill adapter reference documents task_create file-drop task minting',
+      adapterText.includes('task_create') && adapterText.includes('opencode/<id>'))
     ok('opencode repo skill surfaces the dashboard URL', text.includes('localhost:8787/graph'))
 
     // installOpencodeRepoSkills() wrapper hits the same path.
     const cwd2 = path.join(base, 'client-repo-2')
     fs.mkdirSync(cwd2, { recursive: true })
     const installed2 = installOpencodeRepoSkills(cwd2)
-    const skillPath2 = path.join(cwd2, '.opencode', 'skills', 'zonoid-orchestrator-opencode', 'SKILL.md')
+    const skillPath2 = path.join(cwd2, '.opencode', 'skills', 'zonoid-orchestrator', 'SKILL.md')
     ok('installOpencodeRepoSkills installs the opencode repo skill', installed2 && fs.existsSync(skillPath2))
 
     // Idempotent: a second install is byte-identical.
     const before = fs.readFileSync(skillPath, 'utf8')
-    installRepoSkill(cwd, 'zonoid-orchestrator-opencode', 'opencode')
+    installRepoSkill(cwd, 'zonoid-orchestrator', 'opencode')
     const after = fs.readFileSync(skillPath, 'utf8')
     ok('installRepoSkill opencode is idempotent', before === after)
   } finally {
