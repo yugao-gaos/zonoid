@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "019ee9ef-76a8-7d43-844f-fc940af81492",
   "branch": "orch/attempt/codex-judge-subconscious-mcp-tool",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T11:46:04.018Z",
-  "lease_until": "2026-06-21T12:46:04.018Z"
+  "lease_until": "2026-06-21T12:46:04.018Z",
+  "completed_at": "2026-06-21T11:49:26.485Z"
 }
