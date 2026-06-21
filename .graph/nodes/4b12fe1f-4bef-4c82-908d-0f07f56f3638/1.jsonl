@@ -22,3 +22,4 @@
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:54:44.954Z","weight":0.996,"origin":"asserted"}
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:54:54.022Z","weight":0.996,"origin":"asserted"}
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:55:41.776Z","weight":0.996,"origin":"asserted"}
+{"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:55:49.544Z","weight":0.996,"origin":"asserted"}
