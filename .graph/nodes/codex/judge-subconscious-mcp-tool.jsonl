@@ -16,3 +16,4 @@
 {"evt":"edge_promoted","from":"codex/judge-subconscious-mcp-tool","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:38:23.623Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/judge-subconscious-mcp-tool","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:38:58.425Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/judge-subconscious-mcp-tool","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:39:01.866Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_promoted","from":"codex/judge-subconscious-mcp-tool","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:39:10.572Z","weight":0.8,"origin":"asserted"}
