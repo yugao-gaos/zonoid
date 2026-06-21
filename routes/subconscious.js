@@ -119,6 +119,33 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     return true;
   }
 
+  if (p === '/subconscious/idea-scheduler' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    const result = store.readIdeas({
+      workspace: T.ws || (u && u.searchParams.get('workspace')),
+      agent_id: u && u.searchParams.get('agent_id'),
+      session_id: u && u.searchParams.get('session_id'),
+      companion_agent_id: u && u.searchParams.get('companion_agent_id'),
+      companion_loop_id: u && u.searchParams.get('companion_loop_id'),
+      task_key: u && u.searchParams.get('task_key'),
+      limit: u && u.searchParams.get('limit'),
+    });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
+  if (p === '/subconscious/idea-scheduler' && m === 'POST') {
+    const b = await readBody(req) || {};
+    const T = targetOverlay(b, u);
+    const result = store.scheduleIdea({ ...b, workspace: T.ws || b.workspace });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
   if (p === '/subconscious/event' && m === 'POST') {
     const b = await readBody(req) || {};
     const T = targetOverlay(b, u);
