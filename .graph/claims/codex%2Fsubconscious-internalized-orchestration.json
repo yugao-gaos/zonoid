@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/subconscious-internalized-orchestration",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "codex-mcp-34512-ad7a9a99071c4f4cd463b414fb3406ca",
+  "branch": "orch/attempt/codex-subconscious-internalized-orchestration",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T19:39:54.431Z",
+  "lease_until": "2026-06-21T20:39:54.431Z"
+}
