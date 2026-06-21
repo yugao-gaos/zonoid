@@ -46,19 +46,23 @@ function scoreNodeAgainstTokens(item, qt) {
   return { shared, score };
 }
 
-function makeCtx({ graph, workspace, store, body, gateTask }) {
+function makeCtx({ graph, workspace, store, body, gateTask, overlay, knowledgeText }) {
+  const ov = overlay || { knowledge: {}, edges: [], entity_nodes: {} };
   return {
     subconscious: store,
     buildGraph: () => graph,
-    overlayFor: () => ({ knowledge: {}, edges: [], entity_nodes: {} }),
-    targetOverlay: (b, u) => ({ ws: (b && b.workspace) || (u && u.searchParams.get('workspace')) || workspace, ov: {}, save() {} }),
+    overlayFor: () => ov,
+    targetOverlay: (b, u) => ({ ws: (b && b.workspace) || (u && u.searchParams.get('workspace')) || workspace, ov, save() {} }),
     readBody: async () => body,
     send: (res, status, payload) => { res.status = status; res.body = payload; },
     isTruthy: (value) => value != null && value !== '' && value !== '0' && value !== 'false' && value !== 'no',
     embed: async () => null,
     suggestToks,
     scoreNodeAgainstTokens,
-    knowledgeText: () => '',
+    knowledgeText: knowledgeText || ((item) => {
+      if (typeof item === 'string') return item;
+      return String((item && (item.text || item.summary || item.value || item.content)) || '');
+    }),
     noteCurrentAsOf: () => true,
     gateTask: gateTask || (async () => ({
       decision: 'inject',
@@ -1039,6 +1043,72 @@ test('subconscious ask reports insufficient context when search and state are em
   assert.match(res.body.directive, /instead of fabricating or claiming blindly/);
   assert.equal(res.body.identity.session_id, null);
   assert.match(res.body.identity.missing_reasons.session_id, /not provided/);
+});
+
+test('subconscious ask does not recommend RAG knowledge chunk evidence as an anchor', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const chunkBase = '59fc18e1-744e-4f7a-9093-a8e12d43087b/42';
+  const ctx = makeCtx({
+    graph: { tasks: [] },
+    workspace: ws,
+    store,
+    body: null,
+    overlay: {
+      knowledge: {
+        [chunkBase]: [{ text: 'Compact Subconscious response polish needs a real task anchor before editing.' }],
+      },
+      edges: [],
+      entity_nodes: {},
+    },
+  });
+
+  const res = await callRoute(ctx, '/subconscious/ask', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    intent: 'choose next implementation step',
+    situation: 'Need compact Subconscious response polish before editing',
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert(res.body.internal.evidence.results.some((r) => r.key === `${chunkBase}#k0` && r.kind === 'knowledge'));
+  assert.equal(res.body.selected_task_key, null);
+  assert.equal(res.body.recommended_task_key, null);
+  assert.equal(res.body.anchor.status, 'none');
+  assert.match(res.body.directive, /No foreground anchor is selected/);
+  assert.match(res.body.directive, /instead of fabricating or claiming blindly/);
+});
+
+test('subconscious ask ignores chunk-shaped note evidence unless it is a task node', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const chunkKey = '59fc18e1-744e-4f7a-9093-a8e12d43087b/42#k12';
+  const graph = {
+    tasks: [
+      node(chunkKey, 'Chunk-shaped note evidence', {
+        kind: 'note',
+        status: 'ready',
+        summary: 'Compact Subconscious response polish needs a real task anchor before editing.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/ask', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    intent: 'choose next implementation step',
+    situation: 'Need compact Subconscious response polish before editing',
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert(res.body.internal.evidence.results.some((r) => r.key === chunkKey && r.kind === 'note'));
+  assert.equal(res.body.selected_task_key, null);
+  assert.equal(res.body.recommended_task_key, null);
+  assert.equal(res.body.anchor.status, 'none');
+  assert.match(res.body.directive, /No foreground anchor is selected/);
 });
 
 test('subconscious ask recommends a real task anchor when no session anchor is selected', async () => {
