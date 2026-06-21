@@ -5,6 +5,11 @@
 // slimNode projection, and projectFrontier payload filtering (the /state route is a thin wrapper).
 'use strict';
 const F = require('../lib/frontier');
+const {
+  HARNESS_JUDGE_DRAIN_KEY,
+  HARNESS_LABEL_DRAIN_KEY,
+  HARNESS_LEARNER_DRAIN_KEY,
+} = require('../lib/harness-task');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -20,6 +25,21 @@ const T = (id, status, extra = {}) => ({ id, label: id, status, deps: [], contex
   const keep = F.frontierKeep(tasks);
   ok('live seed kept', keep.has('a'));
   ok('unconnected done node dropped', !keep.has('far'));
+}
+
+// --- frontierKeep: standing harness drains hidden from frontier seeds ---
+{
+  const tasks = [
+    T(HARNESS_JUDGE_DRAIN_KEY, 'ready'),
+    T(HARNESS_LABEL_DRAIN_KEY, 'ready'),
+    T(HARNESS_LEARNER_DRAIN_KEY, 'ready'),
+    T('ordinary-ready', 'ready'),
+  ];
+  const keep = F.frontierKeep(tasks);
+  ok('standing judge drain omitted from frontier', !keep.has(HARNESS_JUDGE_DRAIN_KEY));
+  ok('standing label drain omitted from frontier', !keep.has(HARNESS_LABEL_DRAIN_KEY));
+  ok('standing learner drain omitted from frontier', !keep.has(HARNESS_LEARNER_DRAIN_KEY));
+  ok('ordinary ready task remains visible', keep.has('ordinary-ready'));
 }
 
 // --- frontierKeep: hop-weight formula (blocking) ---
@@ -199,6 +219,7 @@ const T = (id, status, extra = {}) => ({ id, label: id, status, deps: [], contex
 {
   const tasks = [
     T('a', 'ready', { deps: ['b', 'ghost:other|x'], summary: 'live' }),
+    T(HARNESS_JUDGE_DRAIN_KEY, 'ready'),
     T('b', 'done', { summary: 'dep summary' }),
     T('far', 'done', { lastChanged: iso(30) }),    // outside frontier AND stale ⇒ archived
     T('meh', 'done', { lastChanged: iso(1) }),     // outside frontier, recent ⇒ just not in digest
@@ -211,6 +232,7 @@ const T = (id, status, extra = {}) => ({ id, label: id, status, deps: [], contex
   const f = F.projectFrontier(tasks, ghosts, edges, { now: NOW, windowMs: 14 * DAY });
   const ids = new Set(f.tasks.map((t) => t.id));
   ok('digest keeps frontier only', ids.has('a') && ids.has('b') && !ids.has('far') && !ids.has('meh'));
+  ok('digest omits standing harness drains', !ids.has(HARNESS_JUDGE_DRAIN_KEY));
   ok('digest filters edges to kept nodes', f.edges.length === 1 && f.edges[0].from === 'b');
   ok('digest keeps only referenced ghosts', f.ghosts.length === 1 && f.ghosts[0].key === 'x');
   ok('digest reports archived count', f.archived === 1);

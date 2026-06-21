@@ -120,6 +120,10 @@ function emitContext(eventName, additionalContext) {
 const TRIVIAL_MAX_LINES = 20;
 const TRIVIAL_MAX_CHARS = 800;
 function trivialCounterPath(sid) { return path.join(sessionsDir(), `${sid}.trivial-edit`); }
+function trivialCounterCount(sid) {
+  try { return parseInt(String(fs.readFileSync(trivialCounterPath(sid), 'utf8')).trim(), 10) || 0; }
+  catch { return 0; }
+}
 function resetTrivialCounter(sid) {
   if (!sid) return;
   try { fs.mkdirSync(sessionsDir(), { recursive: true }); fs.writeFileSync(trivialCounterPath(sid), '0\n'); } catch { /* ignore */ }
@@ -160,8 +164,7 @@ async function tryTrivialMainAllow(sid, content) {
   if (!(await hasInflightWorkers(sid))) return { ok: false, denyReason: 'no_workers' };
   const { attribution, denyReason } = await trivialAttribution(sid);
   if (!attribution) return { ok: false, denyReason: denyReason || 'focus' };
-  let count = 0;
-  try { count = parseInt(String(fs.readFileSync(trivialCounterPath(sid), 'utf8')).trim(), 10) || 0; } catch { count = 0; }
+  const count = trivialCounterCount(sid);
   if (count >= 1) return { ok: false, denyReason: 'budget', attribution };
   try { fs.mkdirSync(sessionsDir(), { recursive: true }); fs.writeFileSync(trivialCounterPath(sid), '1\n'); }
   catch { return { ok: false, denyReason: '', attribution }; }
@@ -188,6 +191,6 @@ module.exports = {
   slash, cmp, isUnder, normalizePath,
   allow, deny, emitContext,
   TRIVIAL_MAX_LINES, TRIVIAL_MAX_CHARS,
-  resetTrivialCounter, patchWithinLimits, dispatcherChildren, hasInflightWorkers,
+  trivialCounterCount, resetTrivialCounter, patchWithinLimits, dispatcherChildren, hasInflightWorkers,
   trivialAttribution, reportDispatcherEdit, tryTrivialMainAllow, mainSessionDenyMessage,
 };

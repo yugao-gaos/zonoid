@@ -167,6 +167,66 @@ test('conversational query promotes a wired neighbor through activation', async 
   assert((neighbor.path || []).some((part) => part.startsWith('activation:')));
 });
 
+test('conversational query keeps structural graph expansion beyond direct k', async () => {
+  const sourceKey = 'knowledge:source_chunk:guide#chunk-1';
+  const graph = {
+    tasks: [
+      node('note:seed', 'Alpha omega visibility seed', {
+        kind: 'note',
+        summary: 'alpha omega visibility distilled fact',
+        context_deps: [sourceKey],
+        context_weights: { [sourceKey]: 0.001 },
+      }),
+      node('note:distractor-a', 'Alpha omega direct match A', {
+        kind: 'note',
+        summary: 'alpha omega visibility distractor',
+      }),
+      node('note:distractor-b', 'Alpha omega direct match B', {
+        kind: 'note',
+        summary: 'alpha omega visibility distractor',
+      }),
+      node('note:distractor-c', 'Alpha omega direct match C', {
+        kind: 'note',
+        summary: 'alpha omega visibility distractor',
+      }),
+      node('note:sibling', 'Sibling source fact', {
+        kind: 'note',
+        summary: 'same evidence chunk contains a second fact',
+        context_deps: [sourceKey],
+        context_weights: { [sourceKey]: 0.001 },
+      }),
+      node(sourceKey, 'Evidence chunk', {
+        kind: 'source_chunk',
+        summary: 'supporting evidence text',
+        context_deps: ['knowledge:source_section:guide#section-1'],
+        context_weights: { 'knowledge:source_section:guide#section-1': 0.001 },
+      }),
+      node('knowledge:source_section:guide#section-1', 'Evidence section', {
+        kind: 'source_section',
+        summary: 'parent evidence section',
+        context_deps: ['knowledge:source_doc:guide'],
+        context_weights: { 'knowledge:source_doc:guide': 0.001 },
+      }),
+      node('knowledge:source_doc:guide', 'Evidence document', {
+        kind: 'source_doc',
+        summary: 'parent evidence document',
+      }),
+    ],
+  };
+
+  const body = await runSearch(graph, { q: 'alpha omega visibility', k: '1' });
+  const direct = body.results.filter((item) => item.tier === 'rag');
+  const expanded = body.results.filter((item) => item.tier === 'graph_expanded');
+  const expandedKeys = new Set(expanded.map((item) => item.key));
+
+  assert.equal(direct.length, 1);
+  assert(body.results.length > 1, 'expected supplemental expanded rows beyond direct k');
+  assert(expandedKeys.has(sourceKey), 'expected exact evidence chunk to survive slicing');
+  assert(expandedKeys.has('knowledge:source_section:guide#section-1'), 'expected source parent to survive slicing');
+  assert(expandedKeys.has('note:sibling'), 'expected exact-source sibling fact to survive slicing');
+  assert(expanded.every((item) => item.expanded_from === 'note:seed'));
+});
+
 (async () => {
   const oldRerank = process.env.ORCH_RERANK;
   process.env.ORCH_RERANK = '0';

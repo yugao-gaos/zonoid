@@ -1,6 +1,9 @@
 # @zonoid/opencode-plugin
 
-OpenCode bridge for the [Zonoid](https://github.com/yugao-gaos/zonoid) orchestrator daemon (`http://localhost:8787`).
+OpenCode bridge for [Zonoid](https://github.com/yugao-gaos/zonoid), the agent's subconscious
+for coding work. It connects OpenCode sessions to the local Zonoid daemon
+(`http://localhost:8787`) for context injection, write gating, lifecycle tracking, task creation,
+and scheduled wakeups.
 
 ## Capabilities
 

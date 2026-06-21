@@ -1,7 +1,7 @@
 {
   "name": "@zonoid/cli",
   "version": "0.1.0",
-  "description": "Zonoid orchestrator installer",
+  "description": "Installer for Zonoid, the agent's subconscious for coding work",
   "bin": { "zonoid": "./bin/zonoid.js" },
   "main": "./bin/zonoid.js",
   "engines": { "node": ">=18" },

@@ -9,6 +9,7 @@ const codexSessionBridge = require('../lib/codex-session-bridge');
 
 const HOOK = path.join(__dirname, '..', 'adapters', 'codex', 'hooks', 'agent-done.sh');
 const SESSION_START = path.join(__dirname, '..', 'hooks', 'start-daemon.js');
+const CODEX_SESSION_START = path.join(__dirname, '..', 'adapters', 'codex', 'hooks', 'session-start.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-hooks-'));
 
 let pass = 0, fail = 0;
@@ -67,6 +68,25 @@ try {
   ok('agent-done forwards reported_usage from rollout fallback', args.includes('reported_usage'));
   ok('agent-done normalizes uncached input tokens', args.includes('"input_tokens":700'));
   ok('agent-done forwards output tokens', args.includes('"output_tokens":50'));
+
+  const skippedBridgePath = path.join(TMP, 'adapters', 'codex', 'session-bridge.json');
+  const skipStart = spawnSync('bash', [CODEX_SESSION_START], {
+    input: JSON.stringify({
+      cwd: TMP,
+      session_id: 'headless-drain-session',
+      transcript_path: '/tmp/headless-drain-session.jsonl',
+    }),
+    encoding: 'utf8',
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: TMP, ORCH_PORT: '9', ZONOID_HEADLESS_DRAIN: '1' },
+  });
+  ok('Codex SessionStart skips headless drain children', skipStart.status === 0);
+  ok('Codex SessionStart skip does not write session bridge', !fs.existsSync(skippedBridgePath));
+
+  const daemonSkip = spawnSync(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
+    encoding: 'utf8',
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: TMP, ORCH_PORT: '18889', ZONOID_HEADLESS_DRAIN: '1' },
+  });
+  ok('daemon exits under headless drain children', daemonSkip.status === 0 && !daemonSkip.stdout.includes('orchestrator daemon on'));
 
   const configPath = path.join(TMP, 'hook-stub-config.json');
   const readyPath = path.join(TMP, 'hook-stub-ready.json');

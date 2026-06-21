@@ -66,13 +66,17 @@ If the loop continued past r2: ~50k tokens per round, 0 expected new probes — 
 
 ## Competitive Position
 
+This is one visible part of the agent-subconscious claim: Zonoid does not just store memory.
+It decides when task history, judge output, token cost, and plateau signals should affect the
+next move.
+
 Devin Knowledge / Windsurf Memories / Augment Context Engine all lack:
 
 1. **Honest judge with external metrics** — they use self-reported pass/fail, not a held-out grader the agent never sees.
 2. **Plateau detection** — no mechanism to stop the loop when it stops earning; tokens bleed without bound.
 3. **Token economy accounting** — no ON/OFF cost comparison; no negative-economy cutoff.
 
-Zonoid's loop is the only one that knows when to stop.
+Zonoid's subconscious loop is the only one that knows when to stop.
 
 ---
 

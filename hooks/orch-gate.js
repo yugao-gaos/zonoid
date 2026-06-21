@@ -27,7 +27,10 @@ const policy = require('./lib/gate-policy');
   if (k.isOff(sid)) k.allow();               // orchestrator disabled for this conversation
 
   const resp = await k.getJson(`/active-claim?session=${encodeURIComponent(sid)}`, 600);
-  if (!resp) k.allow();                       // daemon unreachable -> fail open
+  if (!resp) {                                 // daemon unreachable -> fail open unless local budget is already spent
+    if (k.trivialCounterCount(sid) >= 1) k.deny(k.mainSessionDenyMessage('budget'));
+    k.allow();
+  }
 
   if (resp.claimed === true) {
     // A session may hold several claims (different worktrees). Allow if ANY claim's worktree is an

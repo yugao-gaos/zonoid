@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/fix-note-vecs-rehydrate",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "worker-fix-note-vecs-rehydrate-codex",
+  "branch": "orch/attempt/codex-fix-note-vecs-rehydrate",
+  "status": "done",
+  "claimed_at": "2026-06-21T13:01:35.839Z",
+  "lease_until": "2026-06-21T14:01:35.839Z",
+  "completed_at": "2026-06-21T13:06:38.926Z"
+}

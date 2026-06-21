@@ -1,30 +1,50 @@
 # Zonoid
 
-An agent that knows what it knows, what it costs, and is learning when memory actually pays.
+The agent's subconscious for coding work.
+
+Zonoid gives AI coding agents a project-local layer that activates relevant task history,
+decisions, failures, risks, costs, and learned skills exactly when they should affect the
+next move. It is not a chat log and not a memory dump. It is the experience graph behind
+the agent's reasoning.
 
 Most AI coding agents start every session cold. The ones that add memory inject everything
-they've ever seen — burning tokens on context the current task doesn't need. Zonoid does neither.
+they've ever seen, burning tokens on context the current task doesn't need. Zonoid does
+neither.
 
 It is a local daemon that makes the work graph and the knowledge graph the same structure.
-When a task completes, it leaves a knowledge note on the graph. When a new task starts, it
-inherits only the notes its dependency edges point to — under a token budget, summary-tier
-first, full-knowledge on demand. The agent retrieves what this task's edges point to and sees
-what it costs — while a shadow gate measures, on every search, whether that retrieval paid off
-(the groundwork for retrieving only when it helps).
+When a task completes, it leaves a knowledge note on the graph. When a new task starts, the
+Subconscious activates only the notes its dependency edges point to, under a token budget:
+summary-tier first, full knowledge on demand. The agent sees what this task depends on,
+what previous attempts cost, and what actually worked, while a shadow gate measures whether
+each retrieval paid off.
+
+```
+agent prompt
+   |
+   v
+Zonoid Subconscious
+   |-- task history and decisions
+   |-- failures, risks, costs, verdicts
+   |-- learned skills and reusable patterns
+   v
+next action with relevant context
+```
 
 ```
 without Zonoid                       with Zonoid
 
-agent starts cold every run    →     inherits knowledge from every task
-                                      that preceded this one in the DAG
+agent starts cold every run    ->    subconscious activation from the
+                                      task's prior experience graph
 
-memory = inject everything     →     memory = traverse the dependency edges
+memory = inject everything     ->    memory = traverse the dependency edges
                                       that point to this task, within budget
 
-"did memory help?" = unknown   →     cold 0/8 → warm 8/8 on held-out bench
+"did memory help?" = unknown   ->    cold 0/8 -> warm 8/8 on held-out bench
                                       (published, with the nulls)
 ```
 
+- **Agent subconscious:** relevant task history, risks, decisions, and learned skills activate
+  at the moment of decision, rather than flooding every session up front
 - **DAG = RAG:** the dependency graph routes knowledge — no separate retrieval index, no
   annotation step; completing a task IS writing memory
 - **Token-aware:** two-tier handoff (2k-token summaries first, full knowledge on demand),
@@ -150,7 +170,7 @@ http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>
 
 ## MCP tools
 
-46 tools, served identically over both transports (stdio and the daemon's `/mcp` endpoint). The
+47 tools, served identically over both transports (stdio and the daemon's `/mcp` endpoint). The
 live registry is the `TOOLS` array in `lib/mcp-core.js`. (Tasks themselves are created with
 Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 
@@ -184,6 +204,8 @@ Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 |---|---|
 | `search_knowledge` | Retrieve the most relevant knowledge notes (decisions / gotchas / constraints) for a free-text query |
 | `ask_subconscious` | Ask a per-agent Subconscious for a verdict or prediction using internal context search and recent agent state |
+| `subconscious_loop` | Record or read daemon-owned Subconscious loop state and bounded tick/observation history |
+| `subconscious_anchor_allocator` | Record or read process-local Subconscious task anchors and proposed DAG wiring metadata |
 | `record_decision` | Capture a durable decision, rationale, or finding as a note node in the graph |
 | `supersede_note` | Mark an existing note as superseded by a newer one without deleting history |
 | `attach_knowledge` | Attach a Tier-2 knowledge item (file / snippet / link / note) to a task |
