@@ -53,6 +53,22 @@ function runMainBlocked(filePath, extra) {
   return runWithConfig(mkInput(filePath), MAIN_BLOCKED, extra);
 }
 
+function executionPermit(taskKey, worktree, branch, overrides = {}) {
+  return {
+    id: `permit-${taskKey}`,
+    session_id: 'test-session-x',
+    task_key: taskKey,
+    worktree,
+    branch,
+    scope: 'worktree',
+    allowed_paths: [worktree],
+    status: 'active',
+    issued_at: '2026-06-21T00:00:00.000Z',
+    expires_at: '2099-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 // ── Test cases ──────────────────────────────────────────────────────────────
 
 // 1. Native Claude TaskCreate path → exempt → exit 0
@@ -190,24 +206,52 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   return {
     activeClaim: { claimed: true, claims: [{ key: 'task-a' }, { key: 'task-b' }] },
     taskDetails: { 'task-a': detailA, 'task-b': detailB },
+    executionPermits: [
+      ...(noWtA ? [] : [executionPermit('task-a', WT_A, 'orch/attempt/task-a')]),
+      ...(noWtB ? [] : [executionPermit('task-b', WT_B, 'orch/attempt/task-b')]),
+    ],
   };
 }
 
-// 10. Multi-claim: write to FIRST claim's worktree → allowed
+function makeSingleClaimConfig(permit = executionPermit('task-a', WT_A, 'orch/attempt/task-a')) {
+  return {
+    activeClaim: { claimed: true, claims: [{ key: 'task-a' }] },
+    taskDetails: {
+      'task-a': { task: { metric: null, git: { branch: 'orch/attempt/task-a', worktree: WT_A } } },
+    },
+    executionPermit: { ok: true, execution_permit: permit },
+  };
+}
+
+// 10. Claimed worktree without a Subconscious permit → denied
+{
+  const targetInA = `${WT_A}/src.js`;
+  const config = {
+    activeClaim: { claimed: true, claims: [{ key: 'task-a' }] },
+    taskDetails: {
+      'task-a': { task: { metric: null, git: { branch: 'orch/attempt/task-a', worktree: WT_A } } },
+    },
+  };
+  const r = runWithConfig(mkInput(targetInA), config);
+  ok('claimed worktree without Subconscious permit → exit 2', r.status === 2);
+  ok('claimed worktree without Subconscious permit → permit message', r.stderr.includes('Subconscious execution permit'));
+}
+
+// 11. Multi-claim: write to FIRST claim's worktree with permit → allowed
 {
   const targetInA = `${WT_A}/src.js`;
   const r = runWithConfig(mkInput(targetInA), makeMultiClaimConfig());
-  ok('multi-claim: write to first claim worktree → exit 0', r.status === 0);
+  ok('multi-claim: write to first claim worktree with permit → exit 0', r.status === 0);
 }
 
-// 11. Multi-claim: write to SECOND claim's worktree → allowed (this was the fixed bug)
+// 12. Multi-claim: write to SECOND claim's worktree with permit → allowed
 {
   const targetInB = `${WT_B}/lib.js`;
   const r = runWithConfig(mkInput(targetInB), makeMultiClaimConfig());
-  ok('multi-claim: write to second claim worktree → exit 0 (fixed bug)', r.status === 0);
+  ok('multi-claim: write to second claim worktree with permit → exit 0', r.status === 0);
 }
 
-// 12. Multi-claim: write outside BOTH worktrees → denied
+// 13. Multi-claim: write outside BOTH worktrees → denied
 {
   const targetOutside = '/Users/x/other-project/main.js';
   const r = runWithConfig(mkInput(targetOutside), makeMultiClaimConfig());
@@ -215,11 +259,51 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('multi-claim: write outside both worktrees → worktree path message', r.stderr.includes('worktree path'));
 }
 
-// 13. Multi-claim: first claim has NO worktree, second does → write to second's worktree → allowed
+// 14. Multi-claim: first claim has NO worktree, second does → write to second's permitted worktree → allowed
 {
   const targetInB = `${WT_B}/index.js`;
   const r = runWithConfig(mkInput(targetInB), makeMultiClaimConfig({ noWtA: true }));
   ok('multi-claim: first claim no worktree, second has worktree, write to second → exit 0', r.status === 0);
+}
+
+// 15. Wrong session in permit → denied
+{
+  const config = makeSingleClaimConfig(executionPermit('task-a', WT_A, 'orch/attempt/task-a', { session_id: 'other-session' }));
+  const r = runWithConfig(mkInput(`${WT_A}/wrong-session.js`), config);
+  ok('permit with wrong session → exit 2', r.status === 2);
+  ok('permit with wrong session → message', r.stderr.includes('session mismatch'));
+}
+
+// 16. Wrong task in permit → denied
+{
+  const config = makeSingleClaimConfig(executionPermit('other-task', WT_A, 'orch/attempt/task-a'));
+  const r = runWithConfig(mkInput(`${WT_A}/wrong-task.js`), config);
+  ok('permit with wrong task → exit 2', r.status === 2);
+  ok('permit with wrong task → message', r.stderr.includes('task mismatch'));
+}
+
+// 17. Expired permit → denied
+{
+  const config = makeSingleClaimConfig(executionPermit('task-a', WT_A, 'orch/attempt/task-a', { expires_at: '2000-01-01T00:00:00.000Z' }));
+  const r = runWithConfig(mkInput(`${WT_A}/expired.js`), config);
+  ok('expired permit → exit 2', r.status === 2);
+  ok('expired permit → message', r.stderr.includes('expired'));
+}
+
+// 18. Revoked permit → denied
+{
+  const config = makeSingleClaimConfig(executionPermit('task-a', WT_A, 'orch/attempt/task-a', { status: 'revoked', revoked_at: '2026-06-21T00:10:00.000Z' }));
+  const r = runWithConfig(mkInput(`${WT_A}/revoked.js`), config);
+  ok('revoked permit → exit 2', r.status === 2);
+  ok('revoked permit → message', r.stderr.includes('revoked'));
+}
+
+// 19. Permit allowed_paths narrower than worktree → outside scope denied
+{
+  const config = makeSingleClaimConfig(executionPermit('task-a', WT_A, 'orch/attempt/task-a', { scope: 'paths', allowed_paths: [`${WT_A}/allowed`] }));
+  const r = runWithConfig(mkInput(`${WT_A}/outside-scope.js`), config);
+  ok('permit path scope mismatch → exit 2', r.status === 2);
+  ok('permit path scope mismatch → message', r.stderr.includes('permit scope'));
 }
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────

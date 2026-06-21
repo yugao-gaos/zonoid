@@ -188,6 +188,8 @@ async function waitForPing(ms = 8000) {
     subconsciousTool &&
     subconsciousTool.description.includes('single Subconscious envelope') &&
     subconsciousTool.description.includes('approval posture'));
+  ok('ask_subconscious description advertises execution permit requirement',
+    subconsciousTool && subconsciousTool.description.includes('execution permit requirement'));
   let capturedSubconsciousAsk = null;
   const subconsciousOut = await subconsciousTool.run({
     agent_id: 'agent-a',
@@ -215,7 +217,9 @@ async function waitForPing(ms = 8000) {
         context: { summary: { anchored_task_key: 'local/task' } },
         anchor: { selected_task_key: 'local/task' },
         approval_posture: { requires_approval: false },
+        execution_permit: { required: true, status: 'required_before_write' },
       },
+      execution_permit: { required: true, status: 'required_before_write' },
       internal: { evidence: { results: [{ key: 'note:context' }] } },
     };
   });
@@ -242,7 +246,48 @@ async function waitForPing(ms = 8000) {
     subconsciousOut.subconscious.anchor.selected_task_key === 'local/task' &&
     !subconsciousOut.subconscious.pressure &&
     subconsciousOut.subconscious.approval_posture.requires_approval === false &&
+    subconsciousOut.subconscious.execution_permit.status === 'required_before_write' &&
+    subconsciousOut.execution_permit.required === true &&
     subconsciousOut.internal.evidence.results[0].key === 'note:context');
+
+  const permitTool = TOOLS.find((t) => t.name === 'subconscious_execution_permit');
+  ok('subconscious_execution_permit is on default MCP surface', !!permitTool);
+  ok('subconscious_execution_permit schema exposes issue read revoke and permit fields',
+    permitTool &&
+    permitTool.inputSchema.properties.action.enum.includes('issue') &&
+    permitTool.inputSchema.properties.action.enum.includes('read') &&
+    permitTool.inputSchema.properties.action.enum.includes('revoke') &&
+    permitTool.inputSchema.properties.session_id &&
+    permitTool.inputSchema.properties.task_key &&
+    permitTool.inputSchema.properties.worktree &&
+    permitTool.inputSchema.properties.branch &&
+    permitTool.inputSchema.properties.allowed_paths);
+  let capturedPermit = null;
+  const permitOut = await permitTool.run({
+    action: 'issue',
+    workspace: '/tmp/ws',
+    session_id: 'foreground-session',
+    agent_id: 'agent-a',
+    foreground_agent_id: 'foreground-agent',
+    task_key: 'local/task',
+    worktree: '/tmp/ws/wt',
+    branch: 'orch/attempt/local-task',
+    allowed_paths: ['/tmp/ws/wt/src'],
+  }, (method, path, body) => {
+    capturedPermit = { method, path, body };
+    return { ok: true, execution_permit: { id: 'permit-a', task_key: body.task_key } };
+  });
+  ok('subconscious_execution_permit issue runs POST /subconscious/permit',
+    capturedPermit && capturedPermit.method === 'POST' && capturedPermit.path === '/subconscious/permit');
+  ok('subconscious_execution_permit issue passes expected body',
+    capturedPermit &&
+    capturedPermit.body.action === 'issue' &&
+    capturedPermit.body.session_id === 'foreground-session' &&
+    capturedPermit.body.task_key === 'local/task' &&
+    capturedPermit.body.worktree === '/tmp/ws/wt' &&
+    capturedPermit.body.branch === 'orch/attempt/local-task' &&
+    capturedPermit.body.allowed_paths[0] === '/tmp/ws/wt/src');
+  ok('subconscious_execution_permit returns route output', permitOut && permitOut.execution_permit.id === 'permit-a');
 
   const searchTool = TOOLS.find((t) => t.name === 'search_knowledge');
   ok('search_knowledge remains available as a lower-level primitive',

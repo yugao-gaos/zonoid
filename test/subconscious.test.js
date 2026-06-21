@@ -599,6 +599,101 @@ test('subconscious idea scheduler records ordinary ideas and gates approval-wort
   assert.equal(read.body.recent_ideas[0].status, 'requires_approval');
 });
 
+test('subconscious execution permit store issues reads and revokes scoped permits', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore();
+  const issue = store.issueExecutionPermit({
+    workspace: ws,
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    foreground_agent_id: 'foreground-a',
+    task_key: 'task/anchor',
+    worktree: `${ws}/wt`,
+    branch: 'orch/attempt/task-anchor',
+    scope: 'paths',
+    allowed_paths: ['src'],
+    ttl_seconds: 60,
+    reason: 'foreground write permit for anchored task',
+    now: '2026-06-21T13:00:00.000Z',
+  });
+
+  assert.equal(issue.ok, true);
+  assert.equal(issue.execution_permit.status, 'active');
+  assert.equal(issue.execution_permit.session_id, 'session-a');
+  assert.equal(issue.execution_permit.task_key, 'task/anchor');
+  assert.equal(issue.execution_permit.allowed_paths[0], `${ws}/wt/src`);
+  assert.equal(issue.execution_permit.expires_at, '2026-06-21T13:01:00.000Z');
+
+  const read = store.readExecutionPermit({
+    workspace: ws,
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    foreground_agent_id: 'foreground-a',
+    task_key: 'task/anchor',
+    now: '2026-06-21T13:00:30.000Z',
+  });
+  assert.equal(read.valid, true);
+  assert.equal(read.execution_permit.id, issue.execution_permit.id);
+
+  const expired = store.readExecutionPermit({
+    permit_id: issue.execution_permit.id,
+    now: '2026-06-21T13:02:00.000Z',
+  });
+  assert.equal(expired.valid, false);
+  assert.equal(expired.execution_permit.status, 'expired');
+
+  const revoked = store.revokeExecutionPermit({
+    permit_id: issue.execution_permit.id,
+    reason: 'test revoke',
+    now: '2026-06-21T13:00:40.000Z',
+  });
+  assert.equal(revoked.ok, true);
+  assert.equal(revoked.execution_permit.status, 'revoked');
+  assert.equal(revoked.execution_permit.revocation_reason, 'test revoke');
+});
+
+test('subconscious execution permit routes issue read and revoke permits', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore();
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null });
+
+  const issued = await callRoute(ctx, '/subconscious/permit', {
+    workspace: ws,
+    action: 'issue',
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
+    worktree: `${ws}/wt`,
+    branch: 'orch/attempt/task-anchor',
+    allowed_paths: [`${ws}/wt/src`],
+    now: '2026-06-21T13:10:00.000Z',
+  });
+
+  assert.equal(issued.status, 200);
+  assert.equal(issued.body.valid, true);
+  assert.equal(issued.body.execution_permit.task_key, 'task/anchor');
+
+  const read = await callRoute(
+    ctx,
+    `/subconscious/permit?workspace=${encodeURIComponent(ws)}&session_id=session-a&task_key=task%2Fanchor&agent_id=agent-a&now=2026-06-21T13%3A10%3A30.000Z`,
+    null,
+    'GET'
+  );
+  assert.equal(read.status, 200);
+  assert.equal(read.body.valid, true);
+  assert.equal(read.body.execution_permit.id, issued.body.execution_permit.id);
+
+  const revoked = await callRoute(ctx, '/subconscious/permit', {
+    workspace: ws,
+    action: 'revoke',
+    permit_id: issued.body.execution_permit.id,
+    reason: 'done',
+    now: '2026-06-21T13:11:00.000Z',
+  });
+  assert.equal(revoked.status, 200);
+  assert.equal(revoked.body.execution_permit.status, 'revoked');
+});
+
 test('subconscious_loop MCP tool forwards to loop routes', async () => {
   const tool = TOOLS.find((candidate) => candidate.name === 'subconscious_loop');
   assert(tool, 'subconscious_loop tool exists');
@@ -779,6 +874,65 @@ test('subconscious_idea_scheduler MCP tool forwards to idea scheduler routes', a
   assert.equal(calls[1].body, undefined);
 });
 
+test('subconscious_execution_permit MCP tool forwards issue read and revoke routes', async () => {
+  const tool = TOOLS.find((candidate) => candidate.name === 'subconscious_execution_permit');
+  assert(tool, 'subconscious_execution_permit tool exists');
+
+  const calls = [];
+  const issued = await tool.run({
+    action: 'issue',
+    workspace: '/tmp/ws',
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    foreground_agent_id: 'foreground-a',
+    task_key: 'task/anchor',
+    worktree: '/tmp/ws/wt',
+    branch: 'orch/attempt/task-anchor',
+    allowed_paths: ['/tmp/ws/wt/src'],
+    ttl_seconds: 60,
+    reason: 'test permit',
+  }, (method, p, body) => {
+    calls.push({ method, p, body });
+    return { ok: true, execution_permit: { id: 'permit-a', task_key: body.task_key } };
+  });
+
+  assert.equal(issued.execution_permit.id, 'permit-a');
+  assert.equal(calls[0].method, 'POST');
+  assert.equal(calls[0].p, '/subconscious/permit');
+  assert.equal(calls[0].body.action, 'issue');
+  assert.equal(calls[0].body.session_id, 'session-a');
+  assert.deepEqual(calls[0].body.allowed_paths, ['/tmp/ws/wt/src']);
+
+  await tool.run({
+    action: 'read',
+    workspace: '/tmp/ws',
+    session_id: 'session-a',
+    task_key: 'task/anchor',
+  }, (method, p, body) => {
+    calls.push({ method, p, body });
+    return { ok: true, execution_permit: { id: 'permit-a' } };
+  });
+  assert.equal(calls[1].method, 'GET');
+  assert(calls[1].p.startsWith('/subconscious/permit?'));
+  assert(calls[1].p.includes('session_id=session-a'));
+  assert(calls[1].p.includes('task_key=task%2Fanchor'));
+  assert.equal(calls[1].body, undefined);
+
+  await tool.run({
+    action: 'revoke',
+    workspace: '/tmp/ws',
+    permit_id: 'permit-a',
+    reason: 'done',
+  }, (method, p, body) => {
+    calls.push({ method, p, body });
+    return { ok: true, execution_permit: { id: body.permit_id, status: 'revoked' } };
+  });
+  assert.equal(calls[2].method, 'POST');
+  assert.equal(calls[2].p, '/subconscious/permit');
+  assert.equal(calls[2].body.action, 'revoke');
+  assert.equal(calls[2].body.permit_id, 'permit-a');
+});
+
 test('subconscious ask uses deterministic search context and recent agent events', async () => {
   const ws = makeWorkspace();
   const store = createSubconsciousStore({ maxEvents: 5 });
@@ -908,12 +1062,18 @@ test('subconscious ask returns foreground pressure from existing session anchor 
   assert.equal(res.body.context_summary.anchored_task_key, 'task/anchor');
   assert.equal(res.body.context_summary.foreground_agent_id, 'foreground-a');
   assert.equal(res.body.approval_posture.requires_approval, false);
+  assert.equal(res.body.execution_permit.required, true);
+  assert.equal(res.body.execution_permit.status, 'required_before_write');
+  assert.equal(res.body.execution_permit.can_issue, true);
+  assert.equal(res.body.execution_permit.session_id, 'session-a');
+  assert.equal(res.body.execution_permit.task_key, 'task/anchor');
   assert.equal(res.body.subconscious.kind, 'subconscious_agent_surface');
   assert.equal(res.body.subconscious.verdict, 'inject_relevant_context');
   assert.equal(res.body.subconscious.prediction, 'relevant_context_likely');
   assert.equal(res.body.subconscious.context.summary.anchored_task_key, 'task/anchor');
   assert.equal(res.body.subconscious.anchor.selected_task_key, 'task/anchor');
   assert.equal(res.body.subconscious.approval_posture.requires_approval, false);
+  assert.equal(res.body.subconscious.execution_permit.status, 'required_before_write');
   assert.equal(res.body.planner, undefined);
   assert.equal(res.body.evidence, undefined);
   assert.equal(res.body.recent_agent_events, undefined);

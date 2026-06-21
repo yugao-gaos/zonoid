@@ -83,6 +83,53 @@ function allTargetsExempt(targets) {
   return Array.isArray(targets) && targets.length > 0 && targets.every(isPathExempt);
 }
 
+function permitStatus(permit, nowMs = Date.now()) {
+  if (!permit) return 'missing';
+  if (permit.status === 'revoked') return 'revoked';
+  const expiresMs = Date.parse(String(permit.expires_at || ''));
+  if (Number.isFinite(expiresMs) && expiresMs <= nowMs) return 'expired';
+  return permit.status || 'active';
+}
+
+function permitAllowedPaths(permit, wt) {
+  const raw = permit && Array.isArray(permit.allowed_paths) && permit.allowed_paths.length
+    ? permit.allowed_paths
+    : [permit && permit.worktree ? permit.worktree : wt];
+  return raw.map((p) => resolveTarget(p, wt)).filter(Boolean);
+}
+
+function firstOutsidePermitScope(targets, wt, permit) {
+  const allowed = permitAllowedPaths(permit, wt);
+  for (const t of targets || []) {
+    if (!t || isPathExempt(t)) continue;
+    const target = resolveTarget(t, wt);
+    const inside = allowed.some((p) => p && k.isUnder(target, p));
+    if (!inside) return t;
+  }
+  return '';
+}
+
+function validateExecutionPermit(permit, ctx = {}) {
+  if (!permit) return { ok: false, reason: 'no Subconscious execution permit found for this session/task' };
+  const status = permitStatus(permit, ctx.nowMs || Date.now());
+  if (status !== 'active') return { ok: false, reason: `Subconscious execution permit is ${status}` };
+  if (ctx.sessionId && permit.session_id !== ctx.sessionId) return { ok: false, reason: 'Subconscious execution permit session mismatch' };
+  if (ctx.taskKey && permit.task_key !== ctx.taskKey) return { ok: false, reason: 'Subconscious execution permit task mismatch' };
+  if (ctx.branch && permit.branch !== ctx.branch) return { ok: false, reason: 'Subconscious execution permit branch mismatch' };
+  if (ctx.worktree) {
+    const permitWorktree = k.normalizePath(resolveTarget(permit.worktree || '', ctx.worktree)).replace(/\/+$/, '');
+    const claimWorktree = k.normalizePath(ctx.worktree).replace(/\/+$/, '');
+    if (permitWorktree !== claimWorktree) return { ok: false, reason: 'Subconscious execution permit worktree mismatch' };
+  }
+  if (permit.agent_id && ctx.agentId && permit.agent_id !== ctx.agentId) {
+    return { ok: false, reason: 'Subconscious execution permit agent mismatch' };
+  }
+  if (permit.foreground_agent_id && ctx.foregroundAgentId && permit.foreground_agent_id !== ctx.foregroundAgentId) {
+    return { ok: false, reason: 'Subconscious execution permit foreground agent mismatch' };
+  }
+  return { ok: true, reason: 'Subconscious execution permit valid' };
+}
+
 function isGitCommandExempt(cmd) {
   const gitVerbs = /(^|[;&|]|&&|\|\|)\s*git\s+(-C\s+\S+\s+)?(commit|merge|add|push|pull|fetch|branch|tag|worktree|rebase|cherry-pick|log|status|diff|show|rev-parse|describe|remote)\b/;
   const gitMutators = /\bgit\s+(-C\s+\S+\s+)?(checkout|restore|reset|clean|rm|stash)\b/;
@@ -397,6 +444,10 @@ module.exports = {
   firstOutsideWorktree,
   firstOutsideAnyWorktree,
   allTargetsExempt,
+  permitStatus,
+  permitAllowedPaths,
+  firstOutsidePermitScope,
+  validateExecutionPermit,
   isGitCommandExempt,
   isLocalDaemonCommand,
   tokenizeShellCommand,
