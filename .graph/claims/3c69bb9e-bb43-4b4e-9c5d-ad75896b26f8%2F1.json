@@ -1,10 +1,9 @@
 {
   "task_key": "3c69bb9e-bb43-4b4e-9c5d-ad75896b26f8/1",
   "git_user": "YU GAO <yu.gao@gaos.ca>",
-  "session_id": "8f7aecfa-347b-4383-ae69-6b64ed213a1a",
+  "session_id": "37f0bcea-f3cc-42ee-93ab-f66b3d763b27",
   "branch": "orch/attempt/3c69bb9e-bb43-4b4e-9c5d-ad75896b26f8-1",
-  "status": "done",
-  "claimed_at": "2026-06-21T03:29:55.339Z",
-  "lease_until": "2026-06-21T04:29:55.339Z",
-  "completed_at": "2026-06-21T03:29:58.728Z"
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:30:05.453Z",
+  "lease_until": "2026-06-21T04:30:05.453Z"
 }
