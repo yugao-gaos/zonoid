@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/subconscious-live-polish",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "codex-mcp-66518-d4bf68e2886a9fb306f726dcb13f1c83",
+  "branch": "orch/attempt/codex-subconscious-live-polish",
+  "status": "done",
+  "claimed_at": "2026-06-21T20:40:47.283Z",
+  "lease_until": "2026-06-21T21:40:47.283Z",
+  "completed_at": "2026-06-21T20:52:02.265Z"
+}
