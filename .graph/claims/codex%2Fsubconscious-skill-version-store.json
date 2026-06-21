@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "codex-mcp-87653-bfc1c11da431d7a58205545eb287c298",
   "branch": "orch/attempt/codex-subconscious-skill-version-store",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T17:02:37.412Z",
-  "lease_until": "2026-06-21T18:02:37.412Z"
+  "lease_until": "2026-06-21T18:02:37.412Z",
+  "completed_at": "2026-06-21T17:09:16.446Z"
 }
