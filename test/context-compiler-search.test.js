@@ -168,7 +168,7 @@ test('conversational query promotes a wired neighbor through activation', async 
   assert((neighbor.path || []).some((part) => part.startsWith('activation:')));
 });
 
-test('node_first query promotes exact node label before chunk evidence', async () => {
+test('default query promotes exact node label before chunk evidence', async () => {
   const graph = {
     tasks: [
       node('task/subconscious-mcp', 'Subconscious MCP tool implementation', {
@@ -187,11 +187,60 @@ test('node_first query promotes exact node label before chunk evidence', async (
     },
   };
 
-  const body = await runSearch(graph, { q: 'subconscious', k: '5', node_first: '1' }, overlay);
+  const body = await runSearch(graph, { q: 'subconscious', k: '5' }, overlay);
 
   assert.equal(body.results[0].key, 'task/subconscious-mcp');
   assert.equal(body.results[0].nodeFirst, true);
   assert(body.results.some((item) => item.key === 'task/research#k0'), 'expected chunk evidence to remain present');
+});
+
+test('node_first can be disabled for raw rank diagnostics', async () => {
+  const graph = {
+    tasks: [
+      node('task/subconscious-mcp', 'Subconscious MCP tool implementation', {
+        summary: 'plumbing task',
+      }),
+      node('task/research', 'Memory competitor research', {
+        summary: 'research parent',
+      }),
+    ],
+  };
+  const overlay = {
+    knowledge: {
+      'task/research': [
+        { value: 'subconscious memory self learning agent recall competitor evidence with rich context' },
+      ],
+    },
+  };
+
+  const body = await runSearch(graph, { q: 'subconscious', k: '5', node_first: '0' }, overlay);
+
+  assert.equal(body.results.some((item) => item.nodeFirst), false);
+});
+
+test('default query promotes quoted node search term inside verbose prompt', async () => {
+  const graph = {
+    tasks: [
+      node('task/subconscious-mcp', 'Subconscious MCP tool implementation', {
+        summary: 'plumbing task',
+      }),
+      node('task/research', 'Memory competitor research', {
+        summary: 'research parent',
+      }),
+    ],
+  };
+  const overlay = {
+    knowledge: {
+      'task/research': [
+        { value: 'subconscious memory self learning agent recall competitor evidence with rich context' },
+      ],
+    },
+  };
+
+  const body = await runSearch(graph, { q: "For query 'subconscious', report top graph context", k: '5' }, overlay);
+
+  assert.equal(body.results[0].key, 'task/subconscious-mcp');
+  assert.equal(body.results[0].nodeFirst, true);
 });
 
 test('conversational query keeps structural graph expansion beyond direct k', async () => {

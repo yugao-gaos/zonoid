@@ -132,13 +132,23 @@
   #cloudsvg text { font: 11px ui-monospace, Menlo, monospace; fill: #e6edf3; pointer-events: none; user-select: none; }
   #cloudsvg circle { cursor: pointer; }
   #cloudsvg circle, #cloudsvg line, #cloudsvg text { transition: fill-opacity 450ms ease, stroke-opacity 450ms ease; }
-  #cloudSearchWrap { position: absolute; top: 10px; right: 10px; z-index: 5; display: none; background: #161b2299; border: 1px solid #30363d; border-radius: 8px; padding: 3px 8px; align-items: center; gap: 6px; }
+  #cloudSearchHud { position: absolute; top: 10px; right: 10px; z-index: 5; width: min(520px, calc(100vw - 24px)); display: none; }
+  #cloudSearchHud.show { display: block; }
+  #cloudSearchWrap { display: none; background: #161b2299; border: 1px solid #30363d; border-radius: 8px; padding: 3px 8px; align-items: center; gap: 6px; }
   #cloudSearchWrap.show { display: flex; }
-  #cloudSearchInput { background: transparent; border: none; color: #e6edf3; padding: 2px 4px; font-size: 12px; width: 160px; outline: none; }
+  #cloudSearchInput { background: transparent; border: none; color: #e6edf3; padding: 2px 4px; font-size: 12px; min-width: 0; flex: 1; outline: none; }
   #cloudSearchInput::placeholder { color: #6e7681; }
   #cloudMatchCount { color: #8b949e; font-size: 11px; white-space: nowrap; min-width: 60px; }
-  #cloudTraceLegend { position: absolute; top: 43px; right: 10px; z-index: 5; display: none; background: #0d1117cc; border: 1px solid #30363d; border-radius: 6px; padding: 3px 7px; color: #8b949e; font-size: 11px; white-space: nowrap; }
+  #cloudTraceLegend { display: none; margin-top: 6px; background: #0d1117cc; border: 1px solid #30363d; border-radius: 6px; padding: 3px 7px; color: #8b949e; font-size: 11px; white-space: nowrap; }
   #cloudTraceLegend.show { display: block; }
+  #cloudSearchSummary { display: none; margin-top: 6px; background: #0d1117e6; border: 1px solid #30363d; border-radius: 8px; padding: 8px 10px; color: #adbac7; font-size: 11px; line-height: 1.42; box-shadow: 0 10px 24px #0006; }
+  #cloudSearchSummary.show { display: block; }
+  #cloudSearchSummary .css-title { color: #e6edf3; font-weight: 700; margin-bottom: 3px; }
+  #cloudSearchSummary .css-meta { color: #8b949e; margin-bottom: 5px; }
+  #cloudSearchSummary .css-hit { display: flex; gap: 6px; min-width: 0; }
+  #cloudSearchSummary .css-rank { color: #6e7681; flex: 0 0 auto; }
+  #cloudSearchSummary .css-kind { color: #79c0ff; flex: 0 0 auto; }
+  #cloudSearchSummary .css-text { color: #c9d1d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #cloudsvg circle.cloud-search-hit { animation: cloudHitPulse 500ms ease-out both; }
   #cloudsvg circle.cloud-search-final { filter: drop-shadow(0 0 7px rgba(247,129,102,.8)); }
   #cloudsvg circle.cloud-search-reranked { filter: drop-shadow(0 0 8px rgba(125,211,252,.75)); }
@@ -479,7 +489,7 @@
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
     <div id="wsPickerWrap" style="padding:0 16px 8px;display:none"><select id="wsPicker" style="font-size:11px;background:#161b22;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 6px;cursor:pointer;max-width:220px"></select></div>
-    <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><svg id="cloudsvg"></svg></div>
+    <div id="cloud"><div id="cloudSearchHud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
     <div id="flowstats"></div>
   </div>
@@ -4496,6 +4506,7 @@ let cloudSearchError=false;
 let cloudSearchSeq=0;
 let cloudSearchTimer=null;
 let cloudSearchTrace=null;     // visual-only trace of the last /search result set
+let cloudSearchSummary=null;
 let cloudSearchFrameTimers=[];
 let cloudSearchFitKey='';
 let cloudZoom=null;
@@ -5142,6 +5153,7 @@ function setView(v){
   currentView=v;
   if(v!=='focus') localStorage.setItem('orchView',v);   // focus is never persisted
   document.getElementById('cloud').classList.toggle('show', v==='cloud');
+  document.getElementById('cloudSearchHud').classList.toggle('show', v==='cloud');
   document.getElementById('cloudSearchWrap').classList.toggle('show', v==='cloud');
   if(v!=='cloud'){
     cloudSearchText='';
@@ -5150,8 +5162,10 @@ function setView(v){
     cloudSearchPending=false;
     cloudSearchError=false;
     cloudSearchTrace=null;
+    cloudSearchSummary=null;
     if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
     const si=document.getElementById('cloudSearchInput'); if(si) si.value='';
+    renderCloudSearchSummary();
   } else if(cloudSearchText.trim()) {
     scheduleCloudSearch();
   }
@@ -5183,6 +5197,73 @@ document.querySelectorAll('#viewToggle button').forEach(b=> b.addEventListener('
 function cloudNodeKey(raw){
   const key=String(raw||'');
   return key.includes('#')?key.split('#')[0]:key;
+}
+function cloudSearchKind(item){
+  const key=String(item&&item.key||'');
+  if((item&&item.kind)==='knowledge'||key.includes('#')) return 'evidence';
+  return String((item&&item.kind)||'node');
+}
+function buildCloudSearchSummary(items, query){
+  const rows=[];
+  const seen=new Set();
+  const counts={ task:0, note:0, evidence:0, other:0 };
+  let nodeFirst=0, reranked=0;
+  for(const item of (items||[])){
+    const rawKey=String(item&&item.key||'');
+    if(!rawKey) continue;
+    const key=cloudNodeKey(rawKey);
+    const kind=cloudSearchKind(item);
+    if(kind==='task') counts.task++;
+    else if(kind==='note') counts.note++;
+    else if(kind==='evidence') counts.evidence++;
+    else counts.other++;
+    if(item&&item.nodeFirst) nodeFirst++;
+    if(item&&(item.reranked||item.ceScore!=null)) reranked++;
+    if(seen.has(key)) continue;
+    seen.add(key);
+    rows.push({
+      key,
+      kind,
+      score:Number(item&&item.score)||0,
+      title:String((item&&item.title)||key),
+      via:String((item&&item.via)||''),
+    });
+  }
+  rows.sort((a,b)=>b.score-a.score);
+  return { query, total:(items||[]).length, unique:seen.size, counts, nodeFirst, reranked, rows:rows.slice(0,5) };
+}
+function renderCloudSearchSummary(meta={}){
+  const el=document.getElementById('cloudSearchSummary');
+  if(!el) return;
+  const q=cloudSearchText.trim();
+  if(!q){ el.classList.remove('show'); el.innerHTML=''; return; }
+  if(cloudSearchPending){
+    el.innerHTML='<div class="css-title">Agent RAG summary</div><div class="css-meta">Searching graph memory...</div>';
+    el.classList.add('show');
+    return;
+  }
+  if(cloudSearchError){
+    el.innerHTML='<div class="css-title">Agent RAG summary</div><div class="css-meta">Search failed; showing local label fallback only.</div>';
+    el.classList.add('show');
+    return;
+  }
+  const s=cloudSearchSummary;
+  if(!s||s.query!==q.toLowerCase()){ el.classList.remove('show'); el.innerHTML=''; return; }
+  const counts=[];
+  if(s.counts.task) counts.push(s.counts.task+' task'+(s.counts.task===1?'':'s'));
+  if(s.counts.note) counts.push(s.counts.note+' note'+(s.counts.note===1?'':'s'));
+  if(s.counts.evidence) counts.push(s.counts.evidence+' evidence chunk'+(s.counts.evidence===1?'':'s'));
+  if(s.counts.other) counts.push(s.counts.other+' other');
+  const phase=meta.phase?('phase '+meta.phase):'phase pending';
+  const boost=s.nodeFirst?(' · node matches promoted '+s.nodeFirst):'';
+  const rerank=s.reranked?(' · rerank '+s.reranked):'';
+  const rows=s.rows.map((row,i)=>
+    '<div class="css-hit"><span class="css-rank">'+(i+1)+'.</span><span class="css-kind">'+esc(row.kind)+'</span><span class="css-text">'+esc(truncate(row.title,64))+'</span></div>'
+  ).join('');
+  el.innerHTML='<div class="css-title">Agent RAG summary</div>'+
+    '<div class="css-meta">'+esc(s.unique+' shown from '+s.total+' ranked · '+(counts.join(', ')||'no typed hits')+' · '+phase+boost+rerank)+'</div>'+
+    (rows||'<div class="css-meta">No ranked items returned.</div>');
+  el.classList.add('show');
 }
 function cloudEdgeKey(a,b){
   a=cloudNodeKey(a); b=cloudNodeKey(b);
@@ -5242,6 +5323,8 @@ function scheduleCloudSearch(){
     cloudSearchPending=false;
     cloudSearchError=false;
     cloudSearchTrace=null;
+    cloudSearchSummary=null;
+    renderCloudSearchSummary();
     if(lastState) renderCloud(lastState);
     return;
   }
@@ -5250,6 +5333,8 @@ function scheduleCloudSearch(){
   cloudSearchPending=true;
   cloudSearchError=false;
   cloudSearchTrace=null;
+  cloudSearchSummary=null;
+  renderCloudSearchSummary();
   if(lastState) renderCloud(lastState);
   const seq=++cloudSearchSeq;
   cloudSearchTimer=setTimeout(async()=>{
@@ -5258,7 +5343,7 @@ function scheduleCloudSearch(){
     const ctl=new AbortController();
     const timeout=setTimeout(()=>ctl.abort(),30000);
     try{
-      const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50&node_first=1',{ signal:ctl.signal });
+      const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50',{ signal:ctl.signal });
       const data=await res.json();
       items=Array.isArray(data)?data:(data.results||[]);
       if(seq!==cloudSearchSeq) return;
@@ -5275,6 +5360,8 @@ function scheduleCloudSearch(){
       cloudSearchPending=false;
       cloudSearchError=false;
       cloudSearchTrace=buildCloudSearchTrace(items,q);
+      cloudSearchSummary=buildCloudSearchSummary(items,q);
+      renderCloudSearchSummary({ phase:'hits' });
       scheduleCloudSearchFrames(seq);
     }catch(e){
       if(seq!==cloudSearchSeq) return;
@@ -5284,6 +5371,8 @@ function scheduleCloudSearch(){
       cloudSearchPending=false;
       cloudSearchError=true;
       cloudSearchTrace=null;
+      cloudSearchSummary=null;
+      renderCloudSearchSummary();
     }finally{
       clearTimeout(timeout);
     }
@@ -5614,6 +5703,7 @@ function renderCloud(d){
       traceEl.classList.remove('show');
     }
   }
+  renderCloudSearchSummary({ phase:searchPhase });
   const showCloudLabel=n=> q?(!n.archive&&activatedSearch(n)):(n.archive||n.tier==='fg');
   nodeAll.select('title')
     .text(n=> n.archive?'Archived — stale done/canceled and superseded notes':'');
