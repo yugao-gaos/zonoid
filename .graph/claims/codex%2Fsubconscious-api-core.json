@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/subconscious-api-core",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "019ee833-2494-7ae1-ab28-4866ad059ce4",
+  "branch": "orch/attempt/codex-subconscious-api-core",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:22:46.154Z",
+  "lease_until": "2026-06-21T04:22:46.154Z"
+}
