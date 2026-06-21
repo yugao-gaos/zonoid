@@ -41,6 +41,18 @@ test('[Loop] directive present for non-solo heuristic decisions', () => {
   assert.ok(ctx.includes('[Loop]'), 'expected [Loop] directive for team-routed prompt');
 });
 
+test('scaffold guidance points foreground agents at Subconscious first', () => {
+  const ctx = assemble('continue the current task', {
+    complexity: 0.3,
+    gate_decision: 'scaffold',
+    scaffold_keys: [{ key: 'task/anchor', label: 'Anchored task' }],
+  }).additional_context;
+  assert.ok(ctx.includes('[Subconscious scaffold]'), 'expected Subconscious scaffold block');
+  assert.ok(ctx.includes('ask_subconscious for the verdict, context, anchor, pressure, and approval posture'));
+  assert.ok(ctx.includes('task/anchor'));
+  assert.ok(!ctx.includes('consult search_knowledge'), 'raw search should not be the foreground scaffold primitive');
+});
+
 test('[Loop] directive ABSENT for a trivial prompt', () => {
   // solo + low complexity + abstain → trivial.
   const ctx = assemble('fix typo', { complexity: 0.2 }).additional_context;

@@ -182,6 +182,10 @@ async function waitForPing(ms = 8000) {
     subconsciousTool.inputSchema.properties.query);
   ok('ask_subconscious description advertises next-action pressure',
     subconsciousTool && subconsciousTool.description.includes('next-action pressure'));
+  ok('ask_subconscious description advertises the Subconscious-first envelope',
+    subconsciousTool &&
+    subconsciousTool.description.includes('single Subconscious envelope') &&
+    subconsciousTool.description.includes('approval posture'));
   let capturedSubconsciousAsk = null;
   const subconsciousOut = await subconsciousTool.run({
     agent_id: 'agent-a',
@@ -196,7 +200,19 @@ async function waitForPing(ms = 8000) {
     k: 4,
   }, (method, path, body) => {
     capturedSubconsciousAsk = { method, path, body };
-    return { ok: true, verdict: 'inject_relevant_context' };
+    return {
+      ok: true,
+      verdict: 'inject_relevant_context',
+      subconscious: {
+        kind: 'subconscious_agent_surface',
+        verdict: 'inject_relevant_context',
+        prediction: 'relevant_context_likely',
+        context: { summary: { anchored_task_key: 'local/task' }, evidence: { results: [{ key: 'note:context' }] } },
+        anchor: { selected_task_key: 'local/task' },
+        pressure: { execution_owner: 'foreground_agent' },
+        approval_posture: { requires_approval: false },
+      },
+    };
   });
   ok('ask_subconscious runs POST /subconscious/ask',
     capturedSubconsciousAsk && capturedSubconsciousAsk.method === 'POST' && capturedSubconsciousAsk.path === '/subconscious/ask');
@@ -211,6 +227,21 @@ async function waitForPing(ms = 8000) {
     capturedSubconsciousAsk.body.approval_signals[0] === 'deployment' &&
     capturedSubconsciousAsk.body.k === 4);
   ok('ask_subconscious returns route output', subconsciousOut && subconsciousOut.verdict === 'inject_relevant_context');
+  ok('ask_subconscious forwards Subconscious-first output shape',
+    subconsciousOut &&
+    subconsciousOut.subconscious &&
+    subconsciousOut.subconscious.kind === 'subconscious_agent_surface' &&
+    subconsciousOut.subconscious.context.evidence.results[0].key === 'note:context' &&
+    subconsciousOut.subconscious.anchor.selected_task_key === 'local/task' &&
+    subconsciousOut.subconscious.pressure.execution_owner === 'foreground_agent' &&
+    subconsciousOut.subconscious.approval_posture.requires_approval === false);
+
+  const searchTool = TOOLS.find((t) => t.name === 'search_knowledge');
+  ok('search_knowledge remains available as a lower-level primitive',
+    searchTool &&
+    searchTool.description.includes('Lower-level knowledge retrieval primitive') &&
+    searchTool.description.includes('call ask_subconscious first') &&
+    !searchTool.description.includes('default consult path'));
 
   const sessionCompanionTool = TOOLS.find((t) => t.name === 'subconscious_session_companion');
   ok('subconscious_session_companion is on default MCP surface', !!sessionCompanionTool);
