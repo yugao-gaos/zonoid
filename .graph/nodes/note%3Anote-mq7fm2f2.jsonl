@@ -32,3 +32,4 @@
 {"evt":"edge_promoted","from":"note:note-mq7fm2f2","to":"codex/embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:54:21.341Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq7fm2f2","to":"codex/embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:54:23.163Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq7fm2f2","to":"codex/embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:54:44.954Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mq7fm2f2","to":"codex/embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:54:54.022Z","weight":0.8,"origin":"asserted"}
