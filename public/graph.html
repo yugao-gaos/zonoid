@@ -4496,6 +4496,8 @@ let cloudSearchSeq=0;
 let cloudSearchTimer=null;
 let cloudSearchTrace=null;     // visual-only trace of the last /search result set
 let cloudSearchFrameTimers=[];
+let cloudSearchFitKey='';
+let cloudZoom=null;
 const CLOUD_SEARCH_HIT_MS=500;
 const CLOUD_SEARCH_EDGE_MS=500;
 const CLOUD_SEARCH_FINAL_TOP_K=5;
@@ -4515,6 +4517,19 @@ function scheduleCloudSearchFrames(seq){
       if(currentView==='cloud'&&lastState) renderCloud(lastState);
     }, delay+20));
   }
+}
+function fitCloudToNodes(svg,W,H,nodes,key){
+  if(!cloudZoom||!key||cloudSearchFitKey===key||!nodes.length) return;
+  const xs=nodes.map(n=>n.x).filter(Number.isFinite), ys=nodes.map(n=>n.y).filter(Number.isFinite);
+  if(!xs.length||!ys.length) return;
+  let minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+  if(maxX-minX<80){ minX-=40; maxX+=40; }
+  if(maxY-minY<80){ minY-=40; maxY+=40; }
+  const pad=110;
+  const k=Math.max(0.25,Math.min(2.2,(W-pad*2)/(maxX-minX),(H-pad*2)/(maxY-minY)));
+  const tx=W/2-k*(minX+maxX)/2, ty=H/2-k*(minY+maxY)/2;
+  svg.call(cloudZoom.transform,d3.zoomIdentity.translate(tx,ty).scale(k));
+  cloudSearchFitKey=key;
 }
 function truncate(s,n){ s=String(s||''); return s.length>n?s.slice(0,n)+'…':s; }
 function wrapLabel(s,perLine){ s=String(s||''); const lines=[]; while(s.length>perLine){ let cut=s.lastIndexOf(' ',perLine); if(cut<Math.floor(perLine*0.5)) cut=perLine; lines.push(s.slice(0,cut)); s=s.slice(cut).trimStart(); } if(s) lines.push(s); return lines; }
@@ -5214,6 +5229,8 @@ function scheduleCloudSearch(){
   if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
   if(!query){
     clearCloudSearchFrames();
+    cloudSearchFitKey='';
+    cloudSig='';
     cloudSearchSeq++;
     cloudSearchKeys=new Set();
     cloudSearchResolvedText='';
@@ -5224,6 +5241,7 @@ function scheduleCloudSearch(){
     return;
   }
   clearCloudSearchFrames();
+  cloudSearchFitKey='';
   cloudSearchPending=true;
   cloudSearchError=false;
   cloudSearchTrace=null;
@@ -5402,6 +5420,7 @@ function renderCloud(d){
   }
   const searchEdgeRelated=l=>stagedRelatedKeys.has(edgeKey(l))||finalRelatedKeys.has(edgeKey(l));
   const searchEdgeFinal=l=>finalRelatedKeys.has(edgeKey(l));
+  const renderedLinks=q?simLinks.filter(searchEdgeRelated):simLinks;
   const linkOpacity=l=>{
     const a=tierOfId(endId(l.source)), b=tierOfId(endId(l.target));
     const w=x=>x==='fg'?0.9:x==='mid'?0.4:0.07;
@@ -5424,12 +5443,20 @@ function renderCloud(d){
   let root=svg.select('g.zoomroot');
   if(root.empty()){
     root=svg.append('g').attr('class','zoomroot');
-    svg.call(d3.zoom().scaleExtent([0.2,4]).on('zoom',ev=>root.attr('transform',ev.transform)));
+    cloudZoom=d3.zoom().scaleExtent([0.2,4]).on('zoom',ev=>root.attr('transform',ev.transform));
+    svg.call(cloudZoom);
+  } else if(!cloudZoom){
+    cloudZoom=d3.zoom().scaleExtent([0.2,4]).on('zoom',ev=>root.attr('transform',ev.transform));
+    svg.call(cloudZoom);
   }
   let linkG=root.select('g.links'); if(linkG.empty()) linkG=root.append('g').attr('class','links');
   let nodeG=root.select('g.nodes'); if(nodeG.empty()) nodeG=root.append('g').attr('class','nodes');
+  if(q&&trace){
+    const fitNodes=simNodes.filter(n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n)));
+    fitCloudToNodes(svg,W,H,fitNodes,q+'|'+(trace.startedAt||''));
+  }
 
-  const linkSel=linkG.selectAll('line').data(simLinks, edgeKey);
+  const linkSel=linkG.selectAll('line').data(renderedLinks, edgeKey);
   linkSel.exit().remove();
   const linkAll=linkSel.enter().append('line').attr('stroke-width',1.2).merge(linkSel)
     .attr('stroke', l=>traceWalkIndex(l)!==undefined?'#e3b341':(searchEdgeFinal(l)?'#f78166':(searchEdgeRelated(l)?'#e3b341':(l.kind==='context'?'#39c5cf':'#6e7681'))))
@@ -5508,19 +5535,31 @@ function renderCloud(d){
 
   // only reheat the simulation when the node/link set actually changes
   const sig=simNodes.map(n=>n.id).sort().join(',')+'|'+simLinks.map(l=>endId(l.source)+'>'+endId(l.target)).sort().join(',')+'|archOpen:'+cloudArchiveOpen+'|archIds:'+archivedList.map(t=>t.id).sort().join(',');
-  if(cloudSim) cloudSim.stop();
-  cloudSim=d3.forceSimulation(simNodes)
-    .force('link', d3.forceLink(simLinks).id(n=>n.id).distance(70).strength(0.35))
-    .force('charge', d3.forceManyBody().strength(-200))
-    .force('collide', d3.forceCollide().radius(n=>radiusOf(n)+4))
-    .force('radial', d3.forceRadial(targetRadius, cx, cy).strength(n=>n.tier==='fg'?0.05:0.22))
-    .force('center', d3.forceCenter(cx,cy).strength(0.02))
-    .on('tick', ()=>{
-      linkAll.attr('x1',l=>l.source.x).attr('y1',l=>l.source.y).attr('x2',l=>l.target.x).attr('y2',l=>l.target.y);
-      nodeAll.attr('transform', n=>{ cloudPos[n.id]={x:n.x,y:n.y}; return `translate(${n.x},${n.y})`; });
-    });
-  cloudSim.alpha(sig!==cloudSig?0.6:0).restart();   // fresh layout only on change; otherwise static
-  cloudSig=sig;
+  const placeCloud=()=>{
+    const endpoint=e=>typeof e==='object'?e:byNode[e];
+    linkAll
+      .attr('x1',l=>endpoint(l.source)?.x).attr('y1',l=>endpoint(l.source)?.y)
+      .attr('x2',l=>endpoint(l.target)?.x).attr('y2',l=>endpoint(l.target)?.y);
+    nodeAll.attr('transform', n=>{ cloudPos[n.id]={x:n.x,y:n.y}; return `translate(${n.x},${n.y})`; });
+  };
+  if(q){
+    if(cloudSim) cloudSim.stop();
+    placeCloud();
+    cloudSig=sig;
+  } else if(sig!==cloudSig||!cloudSim){
+    if(cloudSim) cloudSim.stop();
+    cloudSim=d3.forceSimulation(simNodes)
+      .force('link', d3.forceLink(simLinks).id(n=>n.id).distance(70).strength(0.35))
+      .force('charge', d3.forceManyBody().strength(-200))
+      .force('collide', d3.forceCollide().radius(n=>radiusOf(n)+4))
+      .force('radial', d3.forceRadial(targetRadius, cx, cy).strength(n=>n.tier==='fg'?0.05:0.22))
+      .force('center', d3.forceCenter(cx,cy).strength(0.02))
+      .on('tick', placeCloud);
+    cloudSim.alpha(0.6).restart();
+    cloudSig=sig;
+  } else {
+    placeCloud();
+  }
   const statsElC = document.getElementById('flowstats');
   if (statsElC) {
     if (currentView === 'cloud' && orphans.length > 0) {
