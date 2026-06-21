@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/onboard-drain-headless",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "codex-mcp-99434-ee435bbc1b3ec6efdffb69632aed0e85",
+  "branch": "orch/attempt/codex-onboard-drain-headless",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T22:49:06.324Z",
+  "lease_until": "2026-06-21T23:49:06.324Z"
+}
