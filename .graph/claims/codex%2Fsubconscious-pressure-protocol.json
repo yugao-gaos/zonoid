@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "subconscious-pressure-protocol-worker-codex",
   "branch": "orch/attempt/codex-subconscious-pressure-protocol",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T16:56:38.423Z",
-  "lease_until": "2026-06-21T17:56:38.423Z"
+  "lease_until": "2026-06-21T17:56:38.423Z",
+  "completed_at": "2026-06-21T17:11:07.814Z"
 }
