@@ -15,6 +15,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const SELF_REPO = path.resolve(__dirname, '..');
 const SKIP_DIRS = new Set(['node_modules', 'worktrees', '.git', 'dist', 'build', 'coverage', 'vendor']);
@@ -87,6 +88,135 @@ function titleFrom(sent) {
   return t;
 }
 
+function slug(s) {
+  return String(s || 'section')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'section';
+}
+
+function stableId(parts) {
+  const raw = parts.join('\0');
+  return slug(parts.filter(Boolean).join('-')) + '-' + crypto.createHash('sha1').update(raw).digest('hex').slice(0, 10);
+}
+
+function keyFor(type, id) {
+  return `knowledge:${type}:${id}`;
+}
+
+function cleanMarkdownText(line) {
+  return String(line || '')
+    .replace(/^[-*+>]\s+/, '')
+    .replace(/^\d+\.\s+/, '')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/\*\*?([^*]+)\*\*?/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .trim();
+}
+
+function extractSections(md) {
+  const sections = [];
+  let current = null;
+  let paragraph = [];
+  let inFence = false;
+
+  function ensureSection() {
+    if (!current) {
+      current = { heading: 'Document', level: 0, chunks: [] };
+      sections.push(current);
+    }
+    return current;
+  }
+
+  function flushParagraph() {
+    const text = paragraph.join(' ').replace(/\s+/g, ' ').trim();
+    paragraph = [];
+    if (text.length >= 30) ensureSection().chunks.push(text.slice(0, 1200));
+  }
+
+  for (const raw of md.split('\n')) {
+    const line = raw.trim();
+    if (/^```/.test(line)) { inFence = !inFence; continue; }
+    if (inFence) continue;
+    const heading = line.match(/^(#{1,6})\s+(.+?)\s*#*$/);
+    if (heading) {
+      flushParagraph();
+      current = { heading: cleanMarkdownText(heading[2]), level: heading[1].length, chunks: [] };
+      sections.push(current);
+      continue;
+    }
+    if (!line || /^\|/.test(line) || /^[-=]{3,}$/.test(line)) {
+      flushParagraph();
+      continue;
+    }
+    const clean = cleanMarkdownText(line);
+    if (clean) paragraph.push(clean);
+  }
+  flushParagraph();
+  return sections.filter((s) => s.heading || s.chunks.length);
+}
+
+function firstSummary(sections, fallback) {
+  for (const s of sections) {
+    for (const c of s.chunks) return c.slice(0, 500);
+  }
+  return fallback;
+}
+
+function buildDocStructure(repoAbs, docs) {
+  const nodes = [];
+  const edges = [];
+  for (const rel of docs) {
+    let md;
+    try { md = fs.readFileSync(path.join(repoAbs, rel), 'utf8'); } catch { continue; }
+    const sections = extractSections(md);
+    const docId = stableId(['doc', rel]);
+    const docKey = keyFor('source_doc', docId);
+    nodes.push({
+      key: docKey,
+      type: 'source_doc',
+      id: docId,
+      label: rel,
+      summary: firstSummary(sections, `Source document ${rel}`),
+      source_path: rel,
+      metadata: { origin: 'onboard-doc-miner' },
+    });
+    sections.forEach((section, si) => {
+      const sectionId = stableId(['section', rel, String(si), section.heading]);
+      const sectionKey = keyFor('source_section', sectionId);
+      nodes.push({
+        key: sectionKey,
+        type: 'source_section',
+        id: sectionId,
+        label: `${rel}#${section.heading}`,
+        summary: section.chunks[0] || section.heading,
+        source_path: rel,
+        section_ref: `${si}:${section.heading}`,
+        metadata: { origin: 'onboard-doc-miner', parent_key: docKey, level: section.level },
+      });
+      edges.push({ from: docKey, to: sectionKey, kind: 'context', weight: 1.0 });
+      section.chunks.forEach((chunk, ci) => {
+        const chunkId = stableId(['chunk', rel, String(si), String(ci), chunk]);
+        const chunkKey = keyFor('source_chunk', chunkId);
+        nodes.push({
+          key: chunkKey,
+          type: 'source_chunk',
+          id: chunkId,
+          label: `${rel}#${section.heading} chunk ${ci + 1}`,
+          summary: chunk,
+          source_path: rel,
+          section_ref: `${si}:${section.heading}`,
+          chunk_ref: `${ci + 1}`,
+          metadata: { origin: 'onboard-doc-miner', parent_key: sectionKey },
+        });
+        edges.push({ from: sectionKey, to: chunkKey, kind: 'context', weight: 1.0 });
+      });
+    });
+  }
+  return { nodes, edges };
+}
+
 function main() {
   const repo = arg('repo');
   if (!repo || !fs.existsSync(repo)) {
@@ -96,6 +226,7 @@ function main() {
   const repoAbs = path.resolve(repo);
   const outDir = path.resolve(arg('out', path.join(SELF_REPO, 'bench', 'onboard', path.basename(repoAbs))));
   const OUT = path.join(outDir, 'doc-notes.json');
+  const STRUCTURE_OUT = path.join(outDir, 'doc-structure.json');
   const max = parseInt(arg('max', '0'), 10) || 0;
 
   const docs = globDocs(repoAbs, repoAbs, []);
@@ -116,8 +247,12 @@ function main() {
 
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(notes, null, 2) + '\n');
-  console.error(`repo=${repoAbs} docs=${docs.length} emitted=${notes.length} -> ${OUT}`);
+  const structure = buildDocStructure(repoAbs, docs);
+  fs.writeFileSync(STRUCTURE_OUT, JSON.stringify(structure, null, 2) + '\n');
+  console.error(`repo=${repoAbs} docs=${docs.length} emitted=${notes.length} structure_nodes=${structure.nodes.length} -> ${OUT}`);
   notes.slice(0, 3).forEach((n, i) => console.error(`\n[${i + 1}] (${n.kind}) ${n.title}\n    ${n.summary}`));
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = { buildDocStructure, extractSections, keyFor };
