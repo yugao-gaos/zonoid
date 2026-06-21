@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "subconscious-agent-facing-migration-worker-codex",
   "branch": "orch/attempt/codex-subconscious-agent-facing-migration",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T18:56:45.036Z",
-  "lease_until": "2026-06-21T19:56:45.036Z"
+  "lease_until": "2026-06-21T19:56:45.036Z",
+  "completed_at": "2026-06-21T19:02:48.916Z"
 }
