@@ -4,6 +4,6 @@
   "session_id": "aaaaaaaa-feedface-0000-4000-800000000003",
   "branch": "orch/attempt/aaaaaaaa-feedface-0000-4000-800000000003-1",
   "status": "claimed",
-  "claimed_at": "2026-06-21T03:04:18.105Z",
-  "lease_until": "2026-06-21T04:04:18.105Z"
+  "claimed_at": "2026-06-21T03:04:20.817Z",
+  "lease_until": "2026-06-21T04:04:20.817Z"
 }
