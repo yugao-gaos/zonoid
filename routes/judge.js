@@ -3,6 +3,7 @@ const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
 const { computeNoteUsageEvidence, scoreNoteNecessity, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-journal');
+const { nodeVecs, embeddingMeta } = require('../lib/embed');
 
 const { JUDGE_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 const { appendShadow } = require('../lib/shadow-journal');
@@ -95,9 +96,10 @@ function scoreShadow(ws, { from, to, verdict, cosine, fromKind, toKind }) {
 function clusterMaxCosine(overlay, keys) {
   try {
     const judgeLib = require('../lib/judge');
+    const expectedMeta = embeddingMeta(overlay);
     const vecs = keys.map(k => {
       const n = overlay.note_nodes && overlay.note_nodes[String(k).replace(/^note:/, '')];
-      return n && Array.isArray(n.vec) && n.vec.length ? n.vec : null;
+      return nodeVecs(n, { expectedMeta })[0] || null;
     }).filter(Boolean);
     if (vecs.length < 2) return null;
     let max = -1;
@@ -251,7 +253,8 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         };
       }
       const note = byId.get(it.id) || { id: it.id, label: it.id, summary: '', vec: null };
-      const candidates = noteRagCandidates(T.ov, g, it.id, note.label, note.summary, note.vec, 8)
+      const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : embeddingMeta(T.ov);
+      const candidates = noteRagCandidates(T.ov, g, it.id, note.label, note.summary, note.vec, 8, { expectedMeta, targetVecMeta: note.vecMeta || null })
         .map((c) => ({ key: c.key, title: c.title, summary: c.summary, score: c.score, status: c.status, via: c.via }));
       return { kind: 'orphan', id: it.id, note: detail(it.id), candidates };
     });

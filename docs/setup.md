@@ -64,11 +64,28 @@ available but Claude won't use them automatically.
 | `ORCH_DATA` | unset | Exact runtime data-dir override; wins over all other data-dir env vars |
 | `ZONOID_DATA` | `~/.claude/orchestrator/.zonoid` | Runtime data dir for universal and adapter runtime artifacts |
 | `CLAUDE_PLUGIN_DATA` | unset | Legacy runtime data-dir override; if it points at the Zonoid install root, state is redirected into `.zonoid` |
+| `ZONOID_EMBED_PROVIDER` | `minilm` | Optional embedding provider override. Supported values are intentionally limited to MiniLM compatibility plus instruction-aware/tunable providers: `local-instruct`, `voyage`, `cohere`, `gemini`. |
+| `ZONOID_EMBED_MODEL` | provider default | Optional embedding model override. Unknown/generic models are rejected by `/config/embedding`. |
+| `ZONOID_EMBED_DIMENSIONS` | provider default | Optional output dimension where the selected provider/model supports it. |
+| `ZONOID_EMBED_LOCAL_BASE_URL` / `OLLAMA_HOST` | `http://127.0.0.1:11434` | Local instruct embedding endpoint for Ollama-style or OpenAI-compatible local servers. |
+| `ZONOID_EMBED_LOCAL_API_STYLE` | inferred | `ollama` or `openai` for the local instruct provider. |
+| `ZONOID_EMBED_LOCAL_API_KEY` | unset | Optional bearer token for local OpenAI-compatible embedding servers. |
+| `VOYAGE_API_KEY` / `COHERE_API_KEY` / `GEMINI_API_KEY` | unset | Hosted embedding provider credentials. Missing keys make the provider return `null` and retrieval falls back lexically. |
 
 ## First run
 
 The daemon starts automatically via the `SessionStart` hook. On first use with semantic search
 enabled, MiniLM downloads (~90MB) and loads (~90s cold boot). Subsequent starts are instant.
+
+Embedding provider selection is exposed at `GET/POST /config/embedding`. MiniLM remains the default
+compatibility provider. Additional providers are admitted only when they support retrieval
+query/document instruction semantics and have a credible customization path (custom, fine-tune, or
+LoRA). Generic raw-vector providers such as OpenAI text embeddings are intentionally not listed in
+this slice.
+
+Changing provider, model, or dimensions changes vector identity. Existing vectors are ignored for
+semantic scoring until `/overlay/backfill-embeddings` or `/overlay/reembed` refreshes them; lexical
+fallback remains active during the transition.
 
 Daemon logs: `/tmp/orch-daemon.log`
 

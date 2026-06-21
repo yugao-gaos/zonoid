@@ -37,7 +37,19 @@ const mcpCore = require('./lib/mcp-core');
 const git = require('./lib/git');
 const measure = require('./lib/measure');
 const optimize = require('./lib/optimize');
-const { embed, cosine, nodeVecs, maxCosine, embedStatus, ping: embedPing, DIMS, MODEL: EMBED_MODEL } = require('./lib/embed');
+const {
+  embed,
+  embedWithMeta,
+  cosine,
+  nodeVecs,
+  maxCosine,
+  embedStatus,
+  ping: embedPing,
+  embeddingMeta,
+  vectorMatchesMeta,
+  DIMS,
+  MODEL: EMBED_MODEL,
+} = require('./lib/embed');
 const { rerank } = require('./lib/rerank');
 const { haikusGate } = require('./lib/embed-haiku');
 const judge = require('./lib/judge');
@@ -1579,11 +1591,15 @@ async function suggestForTask(g, target) {
 // pairs below 0.25 and left them orphaned). Used by suggestForTask + autowireNoteProvider +
 // autowireNewTaskWholeGraph; `target` is the consuming task/note node, `targetVec` its embedding
 // (may be null ⇒ everything falls back to lexical).
-function scoreMatchesSemantic(g, target, targetVec) {
+function scoreMatchesSemantic(g, target, targetVec, options = {}) {
   const tg = suggestToks(`${target.label} ${target.summary || ''}`);
   const linked = new Set([...(target.deps || []), ...(target.context_deps || [])]);
   const OPEN = new Set(['not_ready', 'ready', 'in_progress']);
-  const tvec = Array.isArray(targetVec) ? targetVec : null;
+  const expectedMeta = options.expectedMeta || null;
+  const tvec = Array.isArray(targetVec)
+    && (!expectedMeta || (typeof vectorMatchesMeta === 'function' && vectorMatchesMeta(targetVec, options.targetVecMeta || null, expectedMeta)))
+    ? targetVec
+    : null;
   return g.tasks
     .filter((x) => x.id !== target.id && !linked.has(x.id))
     .filter((x) => !(x.kind === 'note' && x.validTo != null))
@@ -1595,8 +1611,21 @@ function scoreMatchesSemantic(g, target, targetVec) {
       // Candidate side uses the MULTI-VEC schema: nodeVecs(x) is x.vecs ?? [x.vec] (notes stay on
       // .vec, tasks carry .vecs), scored MAX cosine over the set — identical to single-vec cosine
       // when the node carries exactly one vector, so note pairs score unchanged.
-      const semantic = tvec && nodeVecs(x).length > 0;
-      const score = semantic ? maxCosine(tvec, x) : lex;
+      let semantic = false;
+      let score = lex;
+      if (tvec && expectedMeta && nodeVecs(x, { expectedMeta }).length > 0) {
+        semantic = true;
+        score = maxCosine(tvec, x, { expectedMeta });
+      } else if (tvec && !expectedMeta) {
+        const vecs = nodeVecs(x);
+        if (vecs.length > 0) {
+          semantic = true;
+          score = maxCosine(tvec, x);
+        } else if (Array.isArray(x.vec)) {
+          semantic = true;
+          score = cosine(tvec, x.vec);
+        }
+      }
       // Scale-aware duplicate bar: cosine and token-overlap live on different scales, so one constant
       // mis-flags. Semantic pairs use SEMANTIC_DUP_THRESHOLD (near-paraphrase cosine); lexical-fallback
       // pairs keep SUGGEST_DUP_THRESHOLD (token-overlap scale).
@@ -1626,14 +1655,14 @@ const SEMANTIC_AUTOWIRE_THRESHOLD = process.env.ORCH_AUTOWIRE_THRESHOLD !== unde
 // an incoming context edge from ANOTHER note, knitting the knowledge notes into a navigable web
 // (this intentionally reverses the earlier "no incoming edge on a note" rule). Cap to top-5 by score
 // so a noisy note can't spam the graph. Pure on (overlay, g, noteKey, ...) ⇒ unit-testable; idempotent.
-function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD) {
+function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD, options = {}) {
   const sourceNote = typeof noteKey === 'string' && noteKey.startsWith('note:')
     ? (overlay.note_nodes || {})[noteKey.slice('note:'.length)]
     : null;
   if (sourceNote && sourceNote.validTo != null) return 0;
   const target = { id: noteKey, label: title, summary: summary || '', deps: [], context_deps: [] };
   let added = 0;
-  const kept = scoreMatchesSemantic(g, target, targetVec)
+  const kept = scoreMatchesSemantic(g, target, targetVec, options)
     .filter((m) => m.score >= threshold)                          // relevance bar (semantic cosine scale)
     .filter((m) => m.status !== 'done')                           // skip done (feeding finished work is useless); note->note IS now allowed
     .slice(0, 5);                                                 // cap fan-out — a noisy note can't spam the graph
@@ -1667,7 +1696,7 @@ const TASK_CREATE_FANOUT = 5;
 // All seeded edges are weight 0 (retrieval-invisible) + {by:'autowire', judged:false, origin:'autowire-semantic'}
 // so they surface on /judge/next and stay invisible to retrieval until the neighborhood-aware judge
 // promotes them. Pure on (overlay, g, anchorKey, ...) ⇒ unit-testable; idempotent (addEdge dedupes).
-async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD) {
+async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD, options = {}) {
   const target = { id: anchorKey, label: title, summary: summary || '', deps: [], context_deps: [] };
   // CROSS-ENCODER GATE (opt-in via ORCH_RERANK) — "cross-encoder first, then gate". When on, take the
   // top-K cosine candidates as the recall pool (ORCH_RERANK_K, default 50 — a rank-based COST CAP, not
@@ -1682,7 +1711,7 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
   let scored;
   if (isTruthy(process.env.ORCH_RERANK)) {
     const K = Math.max(1, parseInt(process.env.ORCH_RERANK_K || '50', 10) || 50);
-    const pool = scoreMatchesSemantic(g, target, targetVec).slice(0, K);
+    const pool = scoreMatchesSemantic(g, target, targetVec, options).slice(0, K);
     const byKey = new Map(g.tasks.map((t) => [t.id, t]));
     const ce = pool.length
       ? await rerank(`${title}\n${summary || ''}`.trim(),
@@ -1696,7 +1725,7 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
         .sort((a, b) => b.ceScore - a.ceScore);
     } else {
       // rerank unavailable ⇒ degrade to the cosine gate (current behavior, no throw)
-      scored = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= threshold);
+      scored = scoreMatchesSemantic(g, target, targetVec, options).filter((m) => m.score >= threshold);
     }
   } else {
     // ORCH_AUTOWIRE_K: optional top-K cap on the cosine pool BEFORE the per-kind fan-out.
@@ -1704,7 +1733,7 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
     // ORCH_AUTOWIRE_K bounds cost by capping how many candidates reach the judge (default:
     // no cap in production, preserving existing behaviour; bench sets it to 20 via daemon.py).
     const awK = parseInt(process.env.ORCH_AUTOWIRE_K || '0', 10) || 0;
-    const allScored = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= threshold);
+    const allScored = scoreMatchesSemantic(g, target, targetVec, options).filter((m) => m.score >= threshold);
     scored = awK > 0 ? allScored.slice(0, awK) : allScored;
   }
   const isNote = (k) => typeof k === 'string' && k.startsWith('note:');
@@ -1793,15 +1822,18 @@ async function ingestNode(overlay, g, key, { title, summary } = {}, ws = null) {
       if (!vec) return out;
       out.vec = vec;
       // Notes are PROVIDERS: seed note -> neighbor candidate edges (mirrors autowireNoteProvider direction).
-      const seeded = autowireNoteProvider(overlay, g, key, title, summary, vec);
+      const seeded = autowireNoteProvider(overlay, g, key, title, summary, vec, undefined, { expectedMeta: noteNode && noteNode.vecMeta });
       out.seeded = seeded;
       if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
     } else {
-      const vec = await embed(taskEmbedText({ title, summary }));
+      const er = typeof embedWithMeta === 'function'
+        ? await embedWithMeta(taskEmbedText({ title, summary }), { mode: 'document', overlay })
+        : { vec: await embed(taskEmbedText({ title, summary })), meta: null };
+      const vec = er.vec;
       if (!vec) return out;                                 // no embedding ⇒ lexical fallback, nothing to seed
-      overlayStore.setTaskVec(overlay, key, vec);
+      overlayStore.setTaskVec(overlay, key, vec, er.meta);
       out.vec = vec;
-      const seeded = await autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec);
+      const seeded = await autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec, undefined, { expectedMeta: er.meta });
       out.seeded = seeded;
       if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
       // Seed context edges from existing blocking deps (covers tasks adopted after their block edges exist).
@@ -1819,10 +1851,10 @@ async function ingestNode(overlay, g, key, { title, summary } = {}, ws = null) {
 // endpoint's title+summary+key+score+via so the judge can reason without extra reads. Skips candidates
 // the note ALREADY has a context edge to (no point re-proposing an existing edge). Pure read of `g`.
 const RAG_RECALL_THRESHOLD = 0.40;   // RECALL bar — deliberately below the old 0.55 precision bar
-function noteRagCandidates(overlay, g, noteKey, title, summary, targetVec = null, top = 8) {
+function noteRagCandidates(overlay, g, noteKey, title, summary, targetVec = null, top = 8, options = {}) {
   const target = { id: noteKey, label: title, summary: summary || '', deps: [], context_deps: [] };
   const existing = new Set(overlay.edges.filter((e) => e.from === noteKey && e.kind === 'context').map((e) => e.to));
-  return scoreMatchesSemantic(g, target, targetVec)
+  return scoreMatchesSemantic(g, target, targetVec, options)
     .filter((m) => m.score >= RAG_RECALL_THRESHOLD)
     .filter((m) => !existing.has(m.key))                          // don't re-propose an edge we already have
     .slice(0, top)
@@ -2073,7 +2105,7 @@ function buildGraph(ws) {
     const _adoptHold = newlyAdoptedSet.has(t.key) && status === 'ready';
     const _status = (_adoptHold || (_js.judging && !_js.timedOut && status === 'ready')) ? 'not_ready' : status;
     const _judging = _adoptHold || (_js.judging && !_js.timedOut);
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: _js.judging && _js.timedOut, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: (ovWs.taskVecs && Array.isArray(ovWs.taskVecs[t.key])) ? ovWs.taskVecs[t.key] : null, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: _js.judging && _js.timedOut, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: (ovWs.taskVecs && Array.isArray(ovWs.taskVecs[t.key])) ? ovWs.taskVecs[t.key] : null, vecsMeta: (ovWs.taskVecMeta && Array.isArray(ovWs.taskVecMeta[t.key])) ? ovWs.taskVecMeta[t.key] : null, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
   // KEPT context edges → context_deps for overlay-only graph nodes. The structBoost reranker
   // (/search) and BFS path tier read each node's context_deps as graph adjacency. Mirror the task-side
@@ -2093,7 +2125,7 @@ function buildGraph(ws) {
   for (const [noteId, n] of Object.entries(ovWs.note_nodes || {})) {
     const bareNoteId = n.id || noteId;
     const noteKey = 'note:' + bareNoteId;
-    tasks.push({ id: noteKey, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptCtxDeps[noteKey] || [], context_weights: keptCtxWeights[noteKey] || {}, note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null, vecs: Array.isArray(n.vecs) ? n.vecs : null,
+    tasks.push({ id: noteKey, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptCtxDeps[noteKey] || [], context_weights: keptCtxWeights[noteKey] || {}, note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null, vecMeta: n.vecMeta || null, vecs: Array.isArray(n.vecs) ? n.vecs : null, vecsMeta: Array.isArray(n.vecsMeta) ? n.vecsMeta : null,
       // Temporal/state-change fields (null on pre-temporal notes — back-compat): validFrom/validTo
       // bound when the fact was true; supersedes/supersededBy chain it to the note it replaced / was
       // replaced by. The dashboard reads these for the superseded indicator; /search for as-of.
@@ -2126,7 +2158,9 @@ function buildGraph(ws) {
       agent_id: null,
       summary: n.summary || '',
       vec: Array.isArray(n.vec) ? n.vec : null,
+      vecMeta: n.vecMeta || null,
       vecs: Array.isArray(n.vecs) ? n.vecs : null,
+      vecsMeta: Array.isArray(n.vecsMeta) ? n.vecsMeta : null,
       metadata: n.metadata || {},
       source_path: n.source_path || null,
       section_ref: n.section_ref || null,
@@ -2414,7 +2448,7 @@ const ctx = {
   mainTranscriptForSession: (sid) => sessionBindings.mainTranscriptForSession(state, sid),
   sessionCount: () => sessionBindings.sessionCount(state),
   snapshotNative, now, isTruthy,
-  embed, cosine, embedStatus, DIMS, EMBED_MODEL,
+  embed, embedWithMeta, embeddingMeta, vectorMatchesMeta, cosine, embedStatus, DIMS, EMBED_MODEL,
   gateTask, haikusGate,
   scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks, suggestForTask,
   SUGGEST_DUP_THRESHOLD, SEMANTIC_DUP_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,
