@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-subconscious-live-polish",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "judge-subconscious-live-polish-codex",
+  "branch": "orch/attempt/codex-judge-subconscious-live-polish",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T20:54:37.466Z",
+  "lease_until": "2026-06-21T21:54:37.466Z"
+}
