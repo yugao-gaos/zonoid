@@ -27,3 +27,5 @@
 {"evt":"edge_promoted","from":"note:note-mq7fm2f2","to":"codex/long-note-cluster-ingest-hardening","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:45:54.979Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
 {"evt":"edge_added","from":"note:note-mq7fm2f2","to":"codex/embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:53:53.906Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq7fm2f2","to":"codex/embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:53:57.679Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mq7fm2f2","to":"codex/embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:54:09.019Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mq7fm2f2","to":"codex/embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:54:12.146Z","weight":0.8,"origin":"asserted"}
