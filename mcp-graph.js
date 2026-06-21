@@ -4,7 +4,7 @@
 'use strict';
 const http = require('http');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
 const core = require('./lib/mcp-core');
 const { extraToolsForClient, resolveSession } = require('./lib/mcp-harness-tools');
 const { repoRoot } = require('./lib/workspace-registry');
@@ -35,6 +35,38 @@ function daemonEnv() {
   return env;
 }
 
+function hasHeadlessDrainAncestor() {
+  let pid = process.ppid;
+  for (let i = 0; i < 6 && pid && pid > 1; i++) {
+    let cmd = '';
+    try { cmd = execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }); } catch { cmd = ''; }
+    if (cmd.includes('edge-judge single-pass headless mode')
+        || cmd.includes('headless mode against the orchestrator daemon')) return true;
+    let next = '';
+    try { next = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8' }).trim(); } catch { next = ''; }
+    const parsed = Number(next);
+    if (!Number.isFinite(parsed) || parsed === pid) break;
+    pid = parsed;
+  }
+  return false;
+}
+
+function hasDaemonProcess() {
+  if (PORT !== 8787) return false;
+  try {
+    const out = execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' });
+    return out.split(/\r?\n/).some((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      const m = trimmed.match(/^(\d+)\s+(.+)$/);
+      if (!m || Number(m[1]) === process.pid) return false;
+      return /(?:^|\s)\S*\/daemon\.js(?:\s|$)/.test(m[2]);
+    });
+  } catch {
+    return false;
+  }
+}
+
 // ---- boot the daemon if it isn't up (hookless environments) ----
 function ping() {
   return new Promise((r) => {
@@ -45,7 +77,15 @@ function ping() {
 }
 let ensuring = null;
 async function ensureDaemon() {
+  if (process.env.ZONOID_HEADLESS_DRAIN === '1' || hasHeadlessDrainAncestor()) return;
   if (await ping()) return;
+  if (hasDaemonProcess()) {
+    for (let i = 0; i < 20; i++) {
+      if (await ping()) return;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return;
+  }
   if (!ensuring) ensuring = (async () => {
     try { spawn(process.execPath, [DAEMON], { detached: true, stdio: 'ignore', env: daemonEnv(), windowsHide: true }).unref(); } catch { /* ignore */ }
     for (let i = 0; i < 40; i++) { if (await ping()) break; await new Promise((r) => setTimeout(r, 100)); }

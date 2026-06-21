@@ -7,6 +7,24 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
+if (require.main === module && fs.existsSync(path.join(__dirname, '.orch-off'))) process.exit(0);
+function hasHeadlessDrainAncestor() {
+  let pid = process.ppid;
+  for (let i = 0; i < 6 && pid && pid > 1; i++) {
+    let cmd = '';
+    try { cmd = execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }); } catch { cmd = ''; }
+    if (cmd.includes('edge-judge single-pass headless mode')
+        || cmd.includes('headless mode against the orchestrator daemon')) return true;
+    let next = '';
+    try { next = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8' }).trim(); } catch { next = ''; }
+    const parsed = Number(next);
+    if (!Number.isFinite(parsed) || parsed === pid) break;
+    pid = parsed;
+  }
+  return false;
+}
+if (require.main === module && (process.env.ZONOID_HEADLESS_DRAIN === '1' || hasHeadlessDrainAncestor())) process.exit(0);
 const crypto = require('crypto');
 const { URL } = require('url');
 const harnessRegistry = require('./lib/harness');
@@ -346,6 +364,7 @@ const analyticsFlush = analytics.makeFlusher(ANALYTICS_FILE, analyticsState);
 
 // SSE: push a "changed" event to connected dashboards on every mutation (live updates without polling).
 const sseClients = new Set();
+let requestHeadlessDrainWake = null;
 // notifyChange(ws?): push a 'changed' event to connected dashboards on every mutation.
 // When `ws` is given, emits `data: changed:<ws>\n\n` so workspace-specific clients can skip
 // refetches that don't affect their selected workspace. Bare call (no ws) emits the legacy
@@ -354,6 +373,9 @@ function notifyChange(ws) {
   respCache.clear();
   const payload = ws ? `data: changed:${ws}\n\n` : 'data: changed\n\n';
   for (const r of sseClients) { try { r.write(payload); } catch { sseClients.delete(r); } }
+  if (requestHeadlessDrainWake) {
+    try { requestHeadlessDrainWake('graph-change'); } catch { /* best effort */ }
+  }
 }
 
 // Heartbeat loop: the daemon is the decider. The agent polls next_action on a schedule; the
@@ -1561,6 +1583,7 @@ function scoreMatchesSemantic(g, target, targetVec) {
   const tvec = Array.isArray(targetVec) ? targetVec : null;
   return g.tasks
     .filter((x) => x.id !== target.id && !linked.has(x.id))
+    .filter((x) => !(x.kind === 'note' && x.validTo != null))
     .map((x) => {
       const xt = suggestToks(`${x.label} ${x.summary || ''}`);
       const shared = [...tg].filter((w) => xt.has(w));
@@ -1600,6 +1623,10 @@ const SEMANTIC_AUTOWIRE_THRESHOLD = process.env.ORCH_AUTOWIRE_THRESHOLD !== unde
 // (this intentionally reverses the earlier "no incoming edge on a note" rule). Cap to top-5 by score
 // so a noisy note can't spam the graph. Pure on (overlay, g, noteKey, ...) ⇒ unit-testable; idempotent.
 function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD) {
+  const sourceNote = typeof noteKey === 'string' && noteKey.startsWith('note:')
+    ? (overlay.note_nodes || {})[noteKey.slice('note:'.length)]
+    : null;
+  if (sourceNote && sourceNote.validTo != null) return 0;
   const target = { id: noteKey, label: title, summary: summary || '', deps: [], context_deps: [] };
   let added = 0;
   const kept = scoreMatchesSemantic(g, target, targetVec)
@@ -2579,21 +2606,92 @@ if (require.main === module) {
   // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepStaleLoops(); } catch { /* best effort */ } }, 60000).unref();
 
-  // Headless drain runner: unless ORCH_HEADLESS_DRAINS explicitly opts out, runs due background maintenance drains
-  // (learner, and later judge/label) via headless `node scripts/onboard-learn.js --drain` child
-  // processes. This is the NO-SESSION path — real ready-task impl work remains session-dispatched.
-  // Default ON. Cadence: configurable (HEADLESS_DRAIN_INTERVAL_MS, default 2 min) + a small
-  // boot-time jitter so instances don't align; unref'd so it never holds the
-  // process open. AUGMENTS the existing loop-based dispatch; does not replace or alter it. The
-  // governor's rate-limit backoff (lib/headless-drain.js) additionally skips ticks under 429/529.
-  const HEADLESS_DRAIN_INTERVAL_MS =
-    (Number(process.env.HEADLESS_DRAIN_INTERVAL_MS) || 2 * 60 * 1000) + Math.floor(Math.random() * 60 * 1000);
-  setInterval(() => {
-    // runDueDrains is async (spawns drain children via async child_process.spawn so the event loop
-    // stays free during each child run — the deadlock fix). Fire-and-forget: do NOT await it inside
-    // this timer, just swallow any rejection so a drain failure never crashes the daemon.
-    try { headlessDrain.runDueDrains(state).catch(() => {}); } catch { /* best effort — never crash the daemon */ }
-  }, HEADLESS_DRAIN_INTERVAL_MS).unref();
+  // Headless drain runner: unless ORCH_HEADLESS_DRAINS explicitly opts out, runs due background
+  // maintenance drains (learner/judge/label). This is the NO-SESSION path; real ready-task impl
+  // work remains session-dispatched. The runner is a self-scheduling pump: graph mutations wake it
+  // immediately, successful passes keep it pumping while queues have content, and no_due_drains
+  // returns it to idle. A low-frequency idle poll remains as a fallback for external file writes
+  // that do not pass through notifyChange(). Governor/backoff limits in lib/headless-drain.js still
+  // cap fork rate, token budget, timeouts, and 429/529 retry behavior.
+  const HEADLESS_DRAIN_IDLE_POLL_MS =
+    (Number(process.env.HEADLESS_DRAIN_IDLE_POLL_MS)
+      || Number(process.env.HEADLESS_DRAIN_INTERVAL_MS)
+      || 2 * 60 * 1000)
+    + Math.floor(Math.random() * 60 * 1000);
+  const HEADLESS_DRAIN_CONTINUOUS_DELAY_MS =
+    Number(process.env.HEADLESS_DRAIN_CONTINUOUS_DELAY_MS) || 1000;
+  const HEADLESS_DRAIN_RETRY_DELAY_MS =
+    Number(process.env.HEADLESS_DRAIN_RETRY_DELAY_MS) || 5000;
+  let headlessDrainTimer = null;
+  let headlessDrainNextAt = 0;
+  let headlessDrainRunning = false;
+  let headlessDrainWakePending = false;
+
+  function scheduleHeadlessDrain(delayMs, reason) {
+    if (!headlessDrain.isHeadlessEnabled()) return;
+    const delay = Math.max(0, Number(delayMs) || 0);
+    if (headlessDrainRunning) {
+      headlessDrainWakePending = true;
+      return;
+    }
+    const nextAt = Date.now() + delay;
+    if (headlessDrainTimer && headlessDrainNextAt <= nextAt) return;
+    if (headlessDrainTimer) clearTimeout(headlessDrainTimer);
+    headlessDrainNextAt = nextAt;
+    headlessDrainTimer = setTimeout(() => runHeadlessDrainPump(reason), delay);
+    if (headlessDrainTimer && typeof headlessDrainTimer.unref === 'function') headlessDrainTimer.unref();
+  }
+
+  function nextHeadlessDrainDelay(result) {
+    const backoffUntil = headlessDrain._governor && headlessDrain._governor.backoffUntil;
+    if (backoffUntil && Date.now() < backoffUntil) {
+      return Math.max(HEADLESS_DRAIN_RETRY_DELAY_MS, backoffUntil - Date.now());
+    }
+    if (result && result.ran > 0) return HEADLESS_DRAIN_CONTINUOUS_DELAY_MS;
+    if (result && result.skipped === 'backoff') {
+      return backoffUntil && Date.now() < backoffUntil
+        ? Math.max(HEADLESS_DRAIN_RETRY_DELAY_MS, backoffUntil - Date.now())
+        : HEADLESS_DRAIN_RETRY_DELAY_MS;
+    }
+    if (result && (result.skipped === 'concurrency_cap' || result.skipped === 'global_concurrency_cap' || result.skipped === 'global_lease_lock_busy')) {
+      return HEADLESS_DRAIN_RETRY_DELAY_MS;
+    }
+    return HEADLESS_DRAIN_IDLE_POLL_MS;
+  }
+
+  async function runHeadlessDrainPump(reason) {
+    headlessDrainTimer = null;
+    headlessDrainNextAt = 0;
+    if (headlessDrainRunning) {
+      headlessDrainWakePending = true;
+      return;
+    }
+    headlessDrainRunning = true;
+    let result = null;
+    try {
+      result = await headlessDrain.runDueDrains(state);
+    } catch (e) {
+      result = { ran: 0, skipped: 'error', error: e && e.message ? e.message : String(e) };
+    } finally {
+      headlessDrainRunning = false;
+    }
+    if (headlessDrainWakePending) {
+      headlessDrainWakePending = false;
+      const hardPause = result && [
+        'backoff',
+        'iterations_exhausted',
+        'token_budget_exhausted',
+        'no_backend',
+        'flag_off',
+      ].includes(result.skipped);
+      scheduleHeadlessDrain(hardPause ? nextHeadlessDrainDelay(result) : HEADLESS_DRAIN_CONTINUOUS_DELAY_MS, 'pending-change');
+      return;
+    }
+    scheduleHeadlessDrain(nextHeadlessDrainDelay(result), result && result.skipped ? result.skipped : 'drained');
+  }
+
+  requestHeadlessDrainWake = () => scheduleHeadlessDrain(0, 'graph-change');
+  scheduleHeadlessDrain(0, 'boot');
 
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command

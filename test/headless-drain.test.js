@@ -5,7 +5,7 @@
  * Unit tests for lib/headless-drain.js.
  * Run: node --test test/headless-drain.test.js
  *
- * ALL spawn calls are MOCKED — no real `claude -p` or drain process is executed.
+ * ALL spawn calls are MOCKED — no real CLI or drain process is executed.
  * Tests are self-contained and do not touch the filesystem beyond temp dirs.
  */
 'use strict';
@@ -48,6 +48,27 @@ function makePendingQueueDir(opts = {}) {
 function makeCompletedQueueDir() {
   return makePendingQueueDir({ total: 10, cursor: 10 });
 }
+
+let savedLeaseFile;
+let savedIgnoreMarker;
+let leaseDir;
+
+beforeEach(() => {
+  savedLeaseFile = process.env.HEADLESS_DRAIN_LEASE_FILE;
+  savedIgnoreMarker = process.env.HEADLESS_DRAIN_IGNORE_MARKER;
+  leaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-lease-'));
+  process.env.HEADLESS_DRAIN_LEASE_FILE = path.join(leaseDir, 'leases.json');
+  process.env.HEADLESS_DRAIN_IGNORE_MARKER = '1';
+});
+
+afterEach(() => {
+  if (savedLeaseFile === undefined) delete process.env.HEADLESS_DRAIN_LEASE_FILE;
+  else process.env.HEADLESS_DRAIN_LEASE_FILE = savedLeaseFile;
+  if (savedIgnoreMarker === undefined) delete process.env.HEADLESS_DRAIN_IGNORE_MARKER;
+  else process.env.HEADLESS_DRAIN_IGNORE_MARKER = savedIgnoreMarker;
+  if (leaseDir) fs.rmSync(leaseDir, { recursive: true, force: true });
+  leaseDir = null;
+});
 
 // ---------------------------------------------------------------------------
 // Test 1: default ON; explicit opt-out → no spawn
@@ -196,6 +217,39 @@ test('concurrentRunning >= maxConcurrency → runDueDrains skips with concurrenc
     else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+  }
+});
+
+test('host-wide lease cap blocks drains across daemon processes', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '1';
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const tmpDir = makeCompletedQueueDir();
+  const lease = hd._acquireGlobalDrainSlot(hd.effectiveConfig(), 'external-test');
+  try {
+    assert.equal(lease.ok, true, 'test setup should acquire the only host-wide slot');
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: ['note:a'] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mockBackendDeps().deps,
+    });
+    assert.equal(calls.length, 0, 'global cap must prevent spawning');
+    assert.equal(result.ran, 0);
+    assert.equal(result.skipped, 'global_concurrency_cap');
+  } finally {
+    if (lease && typeof lease.release === 'function') lease.release();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
   }
 });
 
@@ -391,18 +445,64 @@ test('HEADLESS_DRAIN_CONFIG has the same structural keys as AUTOSTART_CONFIG', (
   }
 });
 
+test('effectiveConfig defaults maxIterations to Infinity for continuous draining', () => {
+  const saved = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  try {
+    const hd = freshModule();
+    assert.equal(hd.effectiveConfig().maxIterations, Number.POSITIVE_INFINITY);
+  } finally {
+    if (saved === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = saved;
+  }
+});
+
+test('effectiveConfig defaults drain concurrency to 12', () => {
+  const saved = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  try {
+    const hd = freshModule();
+    assert.equal(hd.effectiveConfig().maxConcurrency, 12);
+  } finally {
+    if (saved === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = saved;
+  }
+});
+
+test('default judge drain budget is 20 items per run', () => {
+  const hd = freshModule();
+  assert.equal(hd.DEFAULT_JUDGE_DRAIN_BUDGET, 20);
+});
+
+test('backoffConfig defaults to a short retry window', () => {
+  const savedBase = process.env.HEADLESS_DRAIN_BACKOFF_BASE_MS;
+  const savedCap = process.env.HEADLESS_DRAIN_BACKOFF_CAP_MS;
+  delete process.env.HEADLESS_DRAIN_BACKOFF_BASE_MS;
+  delete process.env.HEADLESS_DRAIN_BACKOFF_CAP_MS;
+  try {
+    const hd = freshModule();
+    assert.equal(hd.backoffConfig().baseMs, 5_000);
+    assert.equal(hd.backoffConfig().capMs, 5_000);
+  } finally {
+    if (savedBase === undefined) delete process.env.HEADLESS_DRAIN_BACKOFF_BASE_MS;
+    else process.env.HEADLESS_DRAIN_BACKOFF_BASE_MS = savedBase;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_BACKOFF_CAP_MS;
+    else process.env.HEADLESS_DRAIN_BACKOFF_CAP_MS = savedCap;
+  }
+});
+
 // ===========================================================================
 // JUDGE DRAIN tests (task /3)
 // ===========================================================================
 //
-// The judge drain drives the self-learn edge-judge mode via a headless `claude -p` against the
+// The judge drain drives the self-learn skill edge-judge mode via the selected backend against the
 // daemon, covering BOTH the periodic (/judge/next?budget=N) and eager (/judge/next?node=<key>)
 // paths. It rides the SAME runner + governor as the learner. ALL spawns are MOCKED — these tests
-// never shell out to a real `claude -p` or hit a live daemon.
+// never shell out to a real CLI or hit a live daemon.
 //
 // Mock seam: lib/headless-drain.js captures `spawn` via a top-level destructure of child_process.
 // Patching child_process.spawn BEFORE freshModule() (which re-requires the module) makes the fresh
-// module capture the patched fn, intercepting runDrain's spawn — no real `claude -p` child runs.
+// module capture the patched fn, intercepting runDrain's spawn — no real CLI child runs.
 
 const child_process = require('child_process');
 const { EventEmitter } = require('events');
@@ -467,6 +567,7 @@ function judgeDeps({ depth = 0, eagerNodes = [] } = {}) {
     judgeDeps: {
       overlayLoad: () => ({ /* sentinel overlay */ }),
       judgeLib: {
+        judgeQueueDepth: () => depth,
         buildQueue: () => Array.from({ length: depth }, (_, i) => ({ kind: 'edge', id: `e${i}` })),
         eagerJudgeNodes: () => eagerNodes.slice(),
       },
@@ -603,6 +704,21 @@ test('findDueJudgeWork reports nothing due on empty queue + no eager nodes', () 
   assert.deepEqual(due.eagerNodes, []);
 });
 
+test('findDueJudgeWork uses judgeQueueDepth without building the full queue', () => {
+  const hd = freshModule();
+  const due = hd.findDueJudgeWork('/irrelevant', {
+    overlayLoad: () => ({ /* sentinel overlay */ }),
+    judgeLib: {
+      judgeQueueDepth: () => 7,
+      buildQueue: () => { throw new Error('buildQueue should not run'); },
+      eagerJudgeNodes: () => ['note:x'],
+    },
+  });
+  assert.equal(due.periodic, true);
+  assert.equal(due.depth, 7);
+  assert.deepEqual(due.eagerNodes, ['note:x']);
+});
+
 test('findDueJudgeWork swallows loader errors and returns no due work', () => {
   const hd = freshModule();
   const due = hd.findDueJudgeWork('/irrelevant', {
@@ -671,6 +787,46 @@ test('flag ON: runDueDrains spawns judge for each eager node + one periodic batc
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
     else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+  }
+});
+
+test('flag ON: periodic judge backlog refills slots up to maxConcurrency until current backlog is drained', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '4';
+  const savedPerTick = process.env.HEADLESS_DRAIN_MAX_PER_TICK;
+  delete process.env.HEADLESS_DRAIN_MAX_PER_TICK; // default should not cap total starts
+  let active = 0;
+  let maxActive = 0;
+  const { hd, calls, restore } = freshModuleWithMockedSpawn(() => {
+    active++;
+    maxActive = Math.max(maxActive, active);
+    const child = makeFakeChild();
+    child.once('close', () => { active--; });
+    return child;
+  });
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 100, eagerNodes: [] }), // 5 batches at default budget=20; cap is 4
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mockBackendDeps().deps,
+    });
+    assert.equal(calls.length, 5, 'periodic backlog should refill slots past the initial cap');
+    assert.equal(maxActive, 4, 'periodic spawns should never exceed maxConcurrency');
+    assert.equal(result.ran, 5, 'ran counts all periodic judge drains');
+    assert.equal(result.drains.every((d) => d.mode === 'periodic'), true, 'all runs are periodic');
+    assert.equal(hd._governor.concurrentRunning, 0, 'concurrency restored after runs');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedPerTick === undefined) delete process.env.HEADLESS_DRAIN_MAX_PER_TICK;
+    else process.env.HEADLESS_DRAIN_MAX_PER_TICK = savedPerTick;
   }
 });
 
@@ -799,6 +955,7 @@ test('flag ON: judge spawn argv is built by getActiveBackend().buildInvocation (
     assert.ok(calls[0].args.includes('--backend-id'), 'spawn argv carries the provider marker');
     assert.equal(calls[0].args[calls[0].args.indexOf('--backend-id') + 1], 'mock-cli', 'argv was built by THIS provider');
     assert.equal(calls[0].opts.env.MOCK_ENV, '1', 'spawn env comes from the provider invocation');
+    assert.equal(calls[0].opts.env.ZONOID_HEADLESS_DRAIN, '1', 'headless judge children suppress daemon autostart hooks');
     assert.ok(mb.calls.buildInvocation >= 1, 'provider.buildInvocation was invoked for the spawn');
     assert.equal(result.ran, 1);
   } finally {
@@ -1001,7 +1158,7 @@ test('flag ON: api runJudgeLoop returning a throttle result feeds the backoff go
 // ===========================================================================
 //
 // The label drain runs the DETERMINISTIC gate-labeler (node scripts/gate-label.js) headless under
-// the SAME runner + governor as the learner — a Node child via process.execPath, NOT a `claude -p`.
+// the SAME runner + governor as the learner — a Node child via process.execPath, NOT an agentic CLI.
 // ALL spawns are MOCKED — these tests never shell out to a real gate-label.js or hit a live daemon.
 // Mock seam is identical to the JUDGE tests: patch child_process.spawn BEFORE freshModule().
 
@@ -1017,9 +1174,9 @@ test('buildLabelArgs builds correct node invocation for gate-label.js (workspace
   assert.equal(args[2], '/some/workspace', 'third arg must be the workspace path');
   assert.equal(args[3], '--port', 'fourth arg must be --port');
   assert.equal(args[4], '9191', 'fifth arg must be the stringified port');
-  // It targets gate-label.js — NOT onboard-learn.js and NOT a claude -p prompt.
+  // It targets gate-label.js — NOT onboard-learn.js and NOT an agentic CLI prompt.
   assert.doesNotMatch(args[0], /onboard-learn/, 'must NOT target the learner script');
-  assert.ok(!args.includes('-p'), 'label drain is a Node script, NOT a claude -p invocation');
+  assert.ok(!args.includes('-p'), 'label drain is a Node script, NOT an agentic CLI invocation');
 });
 
 test('buildLabelArgs defaults the port when not provided', () => {
@@ -1144,12 +1301,12 @@ test('flag ON: runDueDrains spawns ONE label drain (node gate-label.js), governo
     const labelDrains = result.drains.filter((d) => d.drain === hd.LABEL_DRAIN_KEY);
     assert.equal(labelDrains.length, 1, 'one LABEL_DRAIN_KEY summary recorded');
     assert.equal(labelDrains[0].pending, 2, 'summary carries the pending count');
-    // The spawn is `node <gate-label.js> --workspace <ws> --port <n>` — Node child, NOT claude -p.
+    // The spawn is `node <gate-label.js> --workspace <ws> --port <n>` — Node child, NOT agentic CLI.
     const call = calls[0];
     assert.equal(call.bin, process.execPath, 'must spawn via the daemon Node (process.execPath)');
     assert.match(call.args[0], /gate-label\.js$/, 'must target gate-label.js');
     assert.ok(call.args.includes('--workspace') && call.args.includes(tmpDir), 'must pass --workspace <ws>');
-    assert.ok(!call.args.includes('-p'), 'label drain must NOT be a claude -p invocation');
+    assert.ok(!call.args.includes('-p'), 'label drain must NOT be an agentic CLI invocation');
     // governor consumed exactly one iteration, concurrency fully restored.
     assert.equal(hd._governor.iterationsUsed, 1, 'one iteration consumed');
     assert.equal(hd._governor.concurrentRunning, 0, 'concurrency restored after run');
@@ -1224,19 +1381,19 @@ test('isThrottled detects 429/529/overloaded/rate-limit; false for a clean resul
   assert.ok(!hd.isThrottled(null));
 });
 
-test('recordDrainOutcome: a throttle sets an exponentially-growing backoff; a clean run resets it', () => {
+test('recordDrainOutcome: a throttle sets a short fixed backoff; a clean run resets it', () => {
   const hd = freshModule();
   const T0 = 1_000_000;
-  const base = hd.backoffConfig().baseMs;
+  const { baseMs, capMs } = hd.backoffConfig();
   hd.recordDrainOutcome({ stderr: '429' }, T0);
   assert.equal(hd._governor.consecutiveThrottles, 1);
-  assert.equal(hd._governor.backoffUntil, T0 + base, 'first throttle = base window');
+  assert.equal(hd._governor.backoffUntil, T0 + baseMs, 'first throttle = base window');
   hd.recordDrainOutcome({ stdout: '529 overloaded' }, T0);
   assert.equal(hd._governor.consecutiveThrottles, 2);
-  assert.equal(hd._governor.backoffUntil, T0 + base * 2, 'second throttle doubles the window');
+  assert.equal(hd._governor.backoffUntil, T0 + capMs, 'second throttle stays capped');
   hd.recordDrainOutcome({ timedOut: true }, T0); // a timeout is also a backoff trigger
   assert.equal(hd._governor.consecutiveThrottles, 3);
-  assert.equal(hd._governor.backoffUntil, T0 + base * 4);
+  assert.equal(hd._governor.backoffUntil, T0 + capMs);
   hd.recordDrainOutcome({ exitCode: 0, stdout: 'done' }, T0); // clean run resets
   assert.equal(hd._governor.consecutiveThrottles, 0);
   assert.equal(hd._governor.backoffUntil, 0, 'clean run clears the backoff');
@@ -1314,7 +1471,7 @@ test('flag ON: label iteration is suppressed when the iteration cap is exhausted
     });
     assert.equal(calls.length, 1, 'iteration cap bounds total spawns to 1 (judge wins the slot)');
     assert.equal(result.ran, 1);
-    // The single spawn was the judge (claude -p), not the label drain.
+    // The single spawn was the judge backend, not the label drain.
     assert.equal(result.drains.filter((d) => d.drain === hd.LABEL_DRAIN_KEY).length, 0,
       'label drain suppressed once the iteration budget is spent');
   } finally {
@@ -1390,7 +1547,7 @@ test('every runDueDrains spawn (judge fan-out) carries windowsHide:true', async 
 // ===========================================================================
 //
 // THE BUG this guards: runDrain used spawnSync, which blocks the daemon's single-threaded event
-// loop for the ENTIRE child run. The JUDGE drain's `claude -p` child calls BACK into the daemon
+// loop for the ENTIRE child run. The JUDGE backend calls BACK into the daemon
 // (GET /judge/next + POST /judge/verdict) and the LABEL child HTTP-calls it too — but a frozen
 // event loop serves NONE of those, so the child hangs waiting on the daemon while the daemon hangs
 // inside spawnSync waiting on the child: a circular deadlock that only broke at the 10-min timeout.
