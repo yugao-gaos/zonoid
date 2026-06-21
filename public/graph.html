@@ -138,11 +138,12 @@
   #cloudMatchCount { color: #8b949e; font-size: 11px; white-space: nowrap; min-width: 60px; }
   #cloudTraceLegend { position: absolute; top: 43px; right: 10px; z-index: 5; display: none; background: #0d1117cc; border: 1px solid #30363d; border-radius: 6px; padding: 3px 7px; color: #8b949e; font-size: 11px; white-space: nowrap; }
   #cloudTraceLegend.show { display: block; }
-  #cloudsvg circle.cloud-search-hit { animation: cloudHitPulse 900ms ease-out both; }
+  #cloudsvg circle.cloud-search-hit { animation: cloudHitPulse 500ms ease-out both; }
   #cloudsvg circle.cloud-search-final { filter: drop-shadow(0 0 7px rgba(247,129,102,.8)); }
   #cloudsvg circle.cloud-search-reranked { filter: drop-shadow(0 0 8px rgba(125,211,252,.75)); }
-  #cloudsvg line.cloud-search-walk { animation: cloudWalkDash 1200ms ease-out both; }
-  #cloudsvg line.cloud-search-related { animation: cloudNeuronEdge 1400ms ease-out both; filter: drop-shadow(0 0 5px rgba(227,179,65,.55)); }
+  #cloudsvg line.cloud-search-walk { animation: cloudWalkDash 500ms ease-out both; }
+  #cloudsvg line.cloud-search-related { animation: cloudNeuronEdge 500ms ease-out both; }
+  #cloudsvg line.cloud-search-final-edge { filter: drop-shadow(0 0 4px rgba(247,129,102,.55)); }
   @keyframes cloudHitPulse { 0% { stroke-width: 0; filter: drop-shadow(0 0 0 rgba(227,179,65,0)); } 45% { stroke-width: 5px; filter: drop-shadow(0 0 9px rgba(227,179,65,.95)); } 100% { filter: drop-shadow(0 0 4px rgba(227,179,65,.45)); } }
   @keyframes cloudWalkDash { from { stroke-dashoffset: 28; stroke-opacity: .08; } to { stroke-dashoffset: 0; } }
   @keyframes cloudNeuronEdge { 0% { stroke-dashoffset: 34; stroke-opacity: .04; } 40% { stroke-opacity: .85; } 100% { stroke-dashoffset: 0; } }
@@ -4494,8 +4495,27 @@ let cloudSearchError=false;
 let cloudSearchSeq=0;
 let cloudSearchTimer=null;
 let cloudSearchTrace=null;     // visual-only trace of the last /search result set
+let cloudSearchFrameTimers=[];
+const CLOUD_SEARCH_HIT_MS=500;
+const CLOUD_SEARCH_EDGE_MS=500;
+const CLOUD_SEARCH_FINAL_TOP_K=5;
+const CLOUD_SEARCH_EDGE_LIMIT=80;
+const CLOUD_SEARCH_FINAL_EDGES_PER_NODE=4;
 let flowZoom=null;             // shared d3.zoom on the dagre svg (Frontier + Focus)
 const dagState={frontier:{init:false,tf:null}, focus:{init:false,tf:null}};  // per-view pan/zoom, so switching doesn't lose it
+function clearCloudSearchFrames(){
+  for(const timer of cloudSearchFrameTimers) clearTimeout(timer);
+  cloudSearchFrameTimers=[];
+}
+function scheduleCloudSearchFrames(seq){
+  clearCloudSearchFrames();
+  for(const delay of [CLOUD_SEARCH_HIT_MS, CLOUD_SEARCH_HIT_MS+CLOUD_SEARCH_EDGE_MS]){
+    cloudSearchFrameTimers.push(setTimeout(()=>{
+      if(seq!==cloudSearchSeq) return;
+      if(currentView==='cloud'&&lastState) renderCloud(lastState);
+    }, delay+20));
+  }
+}
 function truncate(s,n){ s=String(s||''); return s.length>n?s.slice(0,n)+'…':s; }
 function wrapLabel(s,perLine){ s=String(s||''); const lines=[]; while(s.length>perLine){ let cut=s.lastIndexOf(' ',perLine); if(cut<Math.floor(perLine*0.5)) cut=perLine; lines.push(s.slice(0,cut)); s=s.slice(cut).trimStart(); } if(s) lines.push(s); return lines; }
 async function openDetail(key){
@@ -5185,15 +5205,15 @@ function buildCloudSearchTrace(items, query){
     }
   }
   hits.sort((a,b)=>b.score-a.score);
-  for(const h of hits.slice(0,5)) finalKeys.add(h.key);
-  for(const key of rerankedKeys) finalKeys.add(key);
-  return { query, hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys };
+  for(const h of hits.slice(0,CLOUD_SEARCH_FINAL_TOP_K)) finalKeys.add(h.key);
+  return { query, startedAt:Date.now(), hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys };
 }
 function scheduleCloudSearch(){
   const query=cloudSearchText.trim();
   const q=query.toLowerCase();
   if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
   if(!query){
+    clearCloudSearchFrames();
     cloudSearchSeq++;
     cloudSearchKeys=new Set();
     cloudSearchResolvedText='';
@@ -5203,6 +5223,7 @@ function scheduleCloudSearch(){
     if(lastState) renderCloud(lastState);
     return;
   }
+  clearCloudSearchFrames();
   cloudSearchPending=true;
   cloudSearchError=false;
   cloudSearchTrace=null;
@@ -5231,8 +5252,10 @@ function scheduleCloudSearch(){
       cloudSearchPending=false;
       cloudSearchError=false;
       cloudSearchTrace=buildCloudSearchTrace(items,q);
+      scheduleCloudSearchFrames(seq);
     }catch(e){
       if(seq!==cloudSearchSeq) return;
+      clearCloudSearchFrames();
       cloudSearchKeys=new Set();
       cloudSearchResolvedText=q;
       cloudSearchPending=false;
@@ -5262,6 +5285,8 @@ function renderCloud(d){
   const q=cloudSearchText.trim().toLowerCase();
   const remoteFresh=q&&cloudSearchResolvedText===q&&!cloudSearchError;
   const trace=(cloudSearchTrace&&cloudSearchTrace.query===q)?cloudSearchTrace:null;
+  const traceAge=trace?Math.max(0,Date.now()-(trace.startedAt||Date.now())):0;
+  const searchPhase=trace?(traceAge<CLOUD_SEARCH_HIT_MS?'hits':(traceAge<CLOUD_SEARCH_HIT_MS+CLOUD_SEARCH_EDGE_MS?'edges':'final')):(q?'pending':'idle');
   const localMatch=n=>n.t&&((n.t.label||'').toLowerCase().includes(q)||(n.t.description||'').toLowerCase().includes(q));
   const remoteMatch=n=>remoteFresh&&cloudSearchKeys.has(n.id);
   const traceHit=n=>trace&&!n.archive&&trace.hitRank.has(n.id);
@@ -5271,7 +5296,11 @@ function renderCloud(d){
   const localFallback=q&&!remoteFresh;
   const localSearch=n=>localFallback&&localMatch(n);
   const matchSearch=n=>!q||localSearch(n)||remoteMatch(n)||traceHit(n);
-  const activatedSearch=n=>matchSearch(n)||tracePath(n);
+  const activatedSearch=n=>{
+    if(!q) return true;
+    if(trace&&searchPhase==='final') return traceFinal(n)||tracePath(n);
+    return localSearch(n)||remoteMatch(n)||traceHit(n)||tracePath(n);
+  };
 
   // links from blocking deps, context deps, and overlay edges (skip ghosts/cross-ws)
   const linkSet=[];
@@ -5314,7 +5343,7 @@ function renderCloud(d){
     simNodes.push({ id:'__archive__', archive:true, count:archivedCount, tier:'bg', deg:0, age:null });
   const present=new Set(simNodes.map(n=>n.id));
   const byNode=Object.fromEntries(simNodes.map(n=>[n.id,n]));
-  const simLinks=linkSet.filter(l=>present.has(l.source)&&present.has(l.target));
+  const simLinks=linkSet.filter(l=>present.has(l.source)&&present.has(l.target)).map((l,i)=>({...l,_idx:i}));
 
   const maxAge=Math.max(1, ...simNodes.map(n=>n.age||0));
   const radiusOf=n=>{ if(n.archive) return 16; let r=6+Math.min(12,n.deg*2); if(n.tier==='mid') r*=0.8; if(n.tier==='bg') r*=0.55; if(n.age!=null) r*=(1-0.5*(n.age/maxAge)); return Math.max(3,r); };
@@ -5324,7 +5353,7 @@ function renderCloud(d){
     if(n.age!=null) o*=(1-0.45*(n.age/maxAge));
     if(isInactive(n)) o*=0.25;
     if(q){
-      if(matchSearch(n)) return Math.max(traceFinal(n)||traceReranked(n)?0.9:0.55,o);
+      if(activatedSearch(n)) return Math.max(traceFinal(n)||traceReranked(n)?0.9:0.55,o);
       if(tracePath(n)) return Math.max(0.35,o);
       return 0.035;
     }
@@ -5334,9 +5363,9 @@ function renderCloud(d){
   const targetRadius=n=>{ let b=n.tier==='fg'?0.12:n.tier==='mid'?0.30:0.46; if(n.age!=null) b+=0.18*(n.age/maxAge); return Math.min(W,H)*Math.min(0.49,b); };
   const tierOfId=id=> byNode[id]?byNode[id].tier:'bg';
   const endId=e=> typeof e==='object'?e.id:e;
+  const edgeKey=l=>endId(l.source)+'>'+endId(l.target)+':'+l.kind+':'+(l._idx??'');
   const traceWalkIndex=l=>trace?trace.walkEdges.get(cloudEdgeKey(endId(l.source),endId(l.target))):undefined;
-  const searchEdgeRelated=l=>{ if(!q) return false; const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)]; return !!(ns&&nt2&&(activatedSearch(ns)||activatedSearch(nt2))); };
-  const searchEdgeFinal=l=>{ if(!q) return false; const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)]; return !!(ns&&nt2&&(traceFinal(ns)||traceFinal(nt2)||traceReranked(ns)||traceReranked(nt2))); };
+  const rawSearchEdgeRelated=l=>{ if(!q||!trace) return false; const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)]; return !!(ns&&nt2&&(traceHit(ns)||traceHit(nt2)||tracePath(ns)||tracePath(nt2))); };
   const edgeActivationIndex=l=>{
     const walked=traceWalkIndex(l);
     if(walked!==undefined) return walked;
@@ -5346,6 +5375,33 @@ function renderCloud(d){
     if(ai!==undefined&&bi!==undefined) return Math.min(ai,bi);
     return ai!==undefined?ai:(bi!==undefined?bi:0);
   };
+  const relatedEdgeCandidates=q&&trace
+    ? simLinks.filter(rawSearchEdgeRelated).sort((a,b)=>edgeActivationIndex(a)-edgeActivationIndex(b)||edgeKey(a).localeCompare(edgeKey(b)))
+    : [];
+  const totalRelatedEdges=relatedEdgeCandidates.length;
+  const stagedRelatedKeys=new Set();
+  const finalRelatedKeys=new Set();
+  if(q&&trace&&searchPhase==='edges'){
+    for(const l of relatedEdgeCandidates.slice(0,CLOUD_SEARCH_EDGE_LIMIT)) stagedRelatedKeys.add(edgeKey(l));
+  } else if(q&&trace&&searchPhase==='final'){
+    const perFinal=new Map();
+    for(const l of relatedEdgeCandidates){
+      const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)];
+      const finalIds=[ns,nt2].filter(n=>n&&traceFinal(n)).map(n=>n.id);
+      if(!finalIds.length) continue;
+      let added=false;
+      for(const id of finalIds){
+        const used=perFinal.get(id)||0;
+        if(used>=CLOUD_SEARCH_FINAL_EDGES_PER_NODE) continue;
+        perFinal.set(id,used+1);
+        added=true;
+      }
+      if(added) finalRelatedKeys.add(edgeKey(l));
+    }
+    for(const l of relatedEdgeCandidates) if(traceWalkIndex(l)!==undefined) finalRelatedKeys.add(edgeKey(l));
+  }
+  const searchEdgeRelated=l=>stagedRelatedKeys.has(edgeKey(l))||finalRelatedKeys.has(edgeKey(l));
+  const searchEdgeFinal=l=>finalRelatedKeys.has(edgeKey(l));
   const linkOpacity=l=>{
     const a=tierOfId(endId(l.source)), b=tierOfId(endId(l.target));
     const w=x=>x==='fg'?0.9:x==='mid'?0.4:0.07;
@@ -5373,7 +5429,7 @@ function renderCloud(d){
   let linkG=root.select('g.links'); if(linkG.empty()) linkG=root.append('g').attr('class','links');
   let nodeG=root.select('g.nodes'); if(nodeG.empty()) nodeG=root.append('g').attr('class','nodes');
 
-  const linkSel=linkG.selectAll('line').data(simLinks, l=>endId(l.source)+'>'+endId(l.target)+':'+l.kind);
+  const linkSel=linkG.selectAll('line').data(simLinks, edgeKey);
   linkSel.exit().remove();
   const linkAll=linkSel.enter().append('line').attr('stroke-width',1.2).merge(linkSel)
     .attr('stroke', l=>traceWalkIndex(l)!==undefined?'#e3b341':(searchEdgeFinal(l)?'#f78166':(searchEdgeRelated(l)?'#e3b341':(l.kind==='context'?'#39c5cf':'#6e7681'))))
@@ -5382,7 +5438,8 @@ function renderCloud(d){
     .attr('stroke-opacity', linkOpacity)
     .classed('cloud-search-walk', l=>traceWalkIndex(l)!==undefined)
     .classed('cloud-search-related', l=>searchEdgeRelated(l))
-    .style('animation-delay', l=>searchEdgeRelated(l)?(520+Math.min(edgeActivationIndex(l),12)*90)+'ms':null);
+    .classed('cloud-search-final-edge', l=>searchEdgeFinal(l))
+    .style('animation-delay', l=>searchEdgeRelated(l)?(Math.min(edgeActivationIndex(l),8)*45)+'ms':null);
 
   const nodeSel=nodeG.selectAll('g.cn').data(simNodes, n=>n.id);
   nodeSel.exit().remove();
@@ -5392,14 +5449,18 @@ function renderCloud(d){
   ndEnter.append('text').attr('text-anchor','middle').attr('dy',n=>n.archive?'0.35em':'-0.9em');
   const nodeAll=ndEnter.merge(nodeSel);
   nodeAll.attr('transform', n=>`translate(${n.x},${n.y})`);
+  const stagedTraceHit=n=>traceHit(n)&&activatedSearch(n);
+  const stagedTracePath=n=>tracePath(n)&&activatedSearch(n);
+  const stagedTraceFinal=n=>searchPhase==='final'&&traceFinal(n)&&activatedSearch(n);
+  const stagedTraceReranked=n=>searchPhase==='final'&&traceReranked(n)&&activatedSearch(n);
   nodeAll.select('circle')
     .attr('r', radiusOf).attr('fill', colorOf).attr('fill-opacity', opacityOf)
-    .attr('stroke', n=>traceReranked(n)?'#7dd3fc':(traceFinal(n)?'#f78166':(traceHit(n)||tracePath(n)?'#e3b341':((!n.archive && n.id===selected)?'#58a6ff':'none'))))
-    .attr('stroke-width', n=>traceFinal(n)||traceReranked(n)?3:(traceHit(n)||tracePath(n)?2.2:2))
-    .classed('cloud-search-hit', n=>traceHit(n))
-    .classed('cloud-search-final', n=>traceFinal(n))
-    .classed('cloud-search-reranked', n=>traceReranked(n))
-    .style('animation-delay', n=>traceHit(n)?(Math.min(trace.hitRank.get(n.id)||0,12)*70)+'ms':null);
+    .attr('stroke', n=>stagedTraceReranked(n)?'#7dd3fc':(stagedTraceFinal(n)?'#f78166':(stagedTraceHit(n)||stagedTracePath(n)?'#e3b341':((!n.archive && n.id===selected)?'#58a6ff':'none'))))
+    .attr('stroke-width', n=>stagedTraceFinal(n)||stagedTraceReranked(n)?3:(stagedTraceHit(n)||stagedTracePath(n)?2.2:2))
+    .classed('cloud-search-hit', n=>stagedTraceHit(n))
+    .classed('cloud-search-final', n=>stagedTraceFinal(n))
+    .classed('cloud-search-reranked', n=>stagedTraceReranked(n))
+    .style('animation-delay', n=>stagedTraceHit(n)?(Math.min(trace.hitRank.get(n.id)||0,8)*45)+'ms':null);
   const isDirectSearchMatch=n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n));
   const matchCount=q?simNodes.filter(isDirectSearchMatch).length:0;
   const countEl=document.getElementById('cloudMatchCount');
@@ -5414,10 +5475,16 @@ function renderCloud(d){
     }
     else if(q&&trace){
       const reranked=trace.rerankedKeys.size;
-      const relatedEdges=simLinks.filter(searchEdgeRelated).length;
-      const traceParts=['RAG '+trace.hitRank.size, 'edges '+relatedEdges];
-      if(trace.walkEdges.size) traceParts.push('path walk '+trace.walkEdges.size);
-      traceParts.push(reranked?('rerank '+reranked):('top '+trace.finalKeys.size));
+      const shownEdges=searchPhase==='final'?finalRelatedKeys.size:(searchPhase==='edges'?stagedRelatedKeys.size:0);
+      const traceParts=['RAG '+trace.hitRank.size];
+      if(searchPhase==='hits') traceParts.push('nodes');
+      else {
+        const edgeLabel=searchPhase==='final'?'final edges ':'edges ';
+        traceParts.push(edgeLabel+shownEdges+(totalRelatedEdges&&shownEdges!==totalRelatedEdges?('/'+totalRelatedEdges):''));
+      }
+      if(searchPhase==='final'&&trace.walkEdges.size) traceParts.push('path walk '+trace.walkEdges.size);
+      if(searchPhase==='final') traceParts.push('top '+trace.finalKeys.size);
+      if(searchPhase==='final'&&reranked) traceParts.push('rerank '+reranked);
       traceEl.textContent=traceParts.join(' · ');
       traceEl.classList.add('show');
     } else {
