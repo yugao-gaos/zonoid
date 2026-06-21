@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-subconscious-internalized-orchestration",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "judge-subconscious-internalized-orchestration-codex",
+  "branch": "orch/attempt/codex-judge-subconscious-internalized-orchestration",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T19:55:41.092Z",
+  "lease_until": "2026-06-21T20:55:41.092Z"
+}
