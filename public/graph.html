@@ -5148,7 +5148,7 @@ function cloudEdgeKey(a,b){
   return a<b?a+'|'+b:b+'|'+a;
 }
 function buildCloudSearchTrace(items, query){
-  const hitRank=new Map(), finalKeys=new Set(), rerankedKeys=new Set(), walkEdges=new Map();
+  const hitRank=new Map(), finalKeys=new Set(), rerankedKeys=new Set(), walkEdges=new Map(), pathKeys=new Set();
   const hits=[];
   for(const item of (items||[])){
     const key=cloudNodeKey(item&&item.key);
@@ -5164,6 +5164,7 @@ function buildCloudSearchTrace(items, query){
       const step=String(raw||'');
       if(step.startsWith('activation:')){
         const parts=step.slice('activation:'.length).split('>').map(cloudNodeKey).filter(Boolean);
+        for(const part of parts) pathKeys.add(part);
         for(let i=1;i<parts.length;i++){
           const ek=cloudEdgeKey(parts[i-1],parts[i]);
           if(!walkEdges.has(ek)) walkEdges.set(ek, walkEdges.size);
@@ -5176,13 +5177,15 @@ function buildCloudSearchTrace(items, query){
       if(!next) continue;
       const ek=cloudEdgeKey(prev,next);
       if(!walkEdges.has(ek)) walkEdges.set(ek, walkEdges.size);
+      pathKeys.add(prev);
+      pathKeys.add(next);
       prev=next;
     }
   }
   hits.sort((a,b)=>b.score-a.score);
   for(const h of hits.slice(0,5)) finalKeys.add(h.key);
   for(const key of rerankedKeys) finalKeys.add(key);
-  return { query, hitRank, finalKeys, rerankedKeys, walkEdges };
+  return { query, hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys };
 }
 function scheduleCloudSearch(){
   const query=cloudSearchText.trim();
@@ -5207,7 +5210,7 @@ function scheduleCloudSearch(){
     cloudSearchTimer=null;
     let items=[];
     const ctl=new AbortController();
-    const timeout=setTimeout(()=>ctl.abort(),10000);
+    const timeout=setTimeout(()=>ctl.abort(),30000);
     try{
       const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50',{ signal:ctl.signal });
       const data=await res.json();
@@ -5259,10 +5262,18 @@ function renderCloud(d){
   const trace=(cloudSearchTrace&&cloudSearchTrace.query===q)?cloudSearchTrace:null;
   const localMatch=n=>n.t&&((n.t.label||'').toLowerCase().includes(q)||(n.t.description||'').toLowerCase().includes(q));
   const remoteMatch=n=>remoteFresh&&cloudSearchKeys.has(n.id);
-  const matchSearch=n=>!q||n.archive||localMatch(n)||remoteMatch(n);
   const traceHit=n=>trace&&!n.archive&&trace.hitRank.has(n.id);
+  const tracePath=n=>trace&&!n.archive&&trace.pathKeys&&trace.pathKeys.has(n.id);
   const traceFinal=n=>trace&&!n.archive&&trace.finalKeys.has(n.id);
   const traceReranked=n=>trace&&!n.archive&&trace.rerankedKeys.has(n.id);
+  const localFallback=q&&!remoteFresh;
+  const localSearch=n=>localFallback&&localMatch(n);
+  const matchSearch=n=>!q||n.archive||localSearch(n)||remoteMatch(n)||traceHit(n);
+  const searchDisplayMatch=t=>{
+    const n={id:t.id,t,archive:false};
+    return localSearch(n)||remoteMatch(n)||traceHit(n)||tracePath(n);
+  };
+  const displayTasks=q?tasks.filter(searchDisplayMatch):tasks;
 
   // links from blocking deps, context deps, and overlay edges (skip ghosts/cross-ws)
   const linkSet=[];
@@ -5274,12 +5285,16 @@ function renderCloud(d){
   for(const e of (d.edges||[])){ if(e.fromWorkspace) continue; pushLink(e.from,e.to, e.kind==='context'?'context':'blocking'); }
 
   // degree + adjacency
-  const deg={}, adj={}; tasks.forEach(t=>{ deg[t.id]=0; adj[t.id]=[]; });
-  for(const l of linkSet){ deg[l.source]++; deg[l.target]++; adj[l.source].push(l.target); adj[l.target].push(l.source); }
-  const orphans=tasks.filter(t=>deg[t.id]===0);
+  const deg={}, adj={}; displayTasks.forEach(t=>{ deg[t.id]=0; adj[t.id]=[]; });
+  for(const l of linkSet){
+    if(!(l.source in deg)||!(l.target in deg)) continue;
+    deg[l.source]++; deg[l.target]++;
+    adj[l.source].push(l.target); adj[l.target].push(l.source);
+  }
+  const orphans=displayTasks.filter(t=>deg[t.id]===0);
 
   // relevance tiers: foreground = active + 1-hop; midground = rest of reachable component
-  const active=new Set(tasks.filter(t=>t.status==='ready'||t.status==='in_progress').map(t=>t.id));
+  const active=new Set(displayTasks.filter(t=>t.status==='ready'||t.status==='in_progress').map(t=>t.id));
   const fg=new Set(active);
   for(const id of active) for(const n of adj[id]) fg.add(n);
   const comp=new Set(fg), stack=[...fg];
@@ -5292,12 +5307,12 @@ function renderCloud(d){
 
   // assemble sim nodes (server-archived collapsed into bundle; orphans stay inline at bg tier)
   const simNodes=[];
-  for(const t of tasks)
+  for(const t of displayTasks)
     simNodes.push({ id:t.id, t, tier:tierOf(t.id), deg:deg[t.id], age:ageDays(t) });
-  if(cloudArchiveOpen){
+  if(!q&&cloudArchiveOpen){
     for(const t of archivedList)
       simNodes.push({ id:t.id, t, tier:'bg', archived:true, deg:linkSet.filter(l=>l.source===t.id||l.target===t.id).length, age:ageDays(t) });
-  } else if(archivedCount>0)
+  } else if(!q&&archivedCount>0)
     simNodes.push({ id:'__archive__', archive:true, count:archivedCount, tier:'bg', deg:0, age:null });
   const present=new Set(simNodes.map(n=>n.id));
   const byNode=Object.fromEntries(simNodes.map(n=>[n.id,n]));
@@ -5352,13 +5367,18 @@ function renderCloud(d){
     .classed('cloud-search-final', n=>traceFinal(n))
     .classed('cloud-search-reranked', n=>traceReranked(n))
     .style('animation-delay', n=>traceHit(n)?(Math.min(trace.hitRank.get(n.id)||0,12)*70)+'ms':null);
-  const matchCount=q?simNodes.filter(n=>!n.archive&&matchSearch(n)).length:0;
+  const isDirectSearchMatch=n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n));
+  const matchCount=q?simNodes.filter(isDirectSearchMatch).length:0;
   const countEl=document.getElementById('cloudMatchCount');
   if(countEl) countEl.textContent=q?(cloudSearchPending?'searching...':(matchCount+' match'+(matchCount===1?'':'es'))):'';
   const traceEl=document.getElementById('cloudTraceLegend');
   if(traceEl){
     if(q&&cloudSearchPending){ traceEl.textContent='RAG pending'; traceEl.classList.add('show'); }
-    else if(q&&cloudSearchError){ traceEl.textContent='search failed'; traceEl.classList.add('show'); }
+    else if(q&&cloudSearchError){
+      const localOnly=simNodes.filter(n=>!n.archive&&localMatch(n)).length;
+      traceEl.textContent=localOnly?('local '+localOnly+' · search failed'):'search failed';
+      traceEl.classList.add('show');
+    }
     else if(q&&trace){
       const reranked=trace.rerankedKeys.size;
       traceEl.textContent='RAG '+trace.hitRank.size+' · walk '+trace.walkEdges.size+' · '+(reranked?('rerank '+reranked):('top '+trace.finalKeys.size));
