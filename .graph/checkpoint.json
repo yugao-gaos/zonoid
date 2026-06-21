@@ -224430,6 +224430,165 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/force-cloud-cascade-search-animation": {
+      "id": "codex/force-cloud-cascade-search-animation",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented bounded Force Cloud search cascade/prune animation in public/graph.html. Search now shows RAG hits first, activates capped adjacency/path edges hop-by-hop, prunes by hop distance into final kept nodes/edges, keeps finalKeys at top 15 plus reranked keys, and requires active endpoints for highlighted search/final edges.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Animate Force Cloud search activation and rerank pruning by hop",
+        "description": "Update the Force Cloud search visualization in public/graph.html so search activation cascades visibly over graph/path hops at about 0.5s per step, and the final rerank pruning fades by hop distance toward kept nodes/edges instead of abruptly hiding nodes/edges. Also keep the prior requested behavior: search edges are shown only when both endpoints are highlighted, final top K should be larger than 5, and reranked nodes must remain included in the final kept set. Explain in code/UI terms why DAG edge walk may be zero when /search does not return path entries.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T20:54:58.943Z"
+      },
+      "assignee": "codex-worker-force-cloud-cascade",
+      "timestamps": {
+        "firstSeen": "2026-06-21T20:42:59.249Z",
+        "lastChanged": "2026-06-21T20:54:58.749Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-subconscious-live-polish": {
+      "id": "codex/judge-subconscious-live-polish",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVE: reviewed codex/subconscious-live-polish diff for compact default ask surface, internal diagnostics gated by include_internal/debug, identity null reasons, real-task anchor recommendation, and foreground-only Subconscious pressure. Focused tests passed: node test/subconscious.test.js (19/0) and node test/mcp-harness-tools.test.js (73/0). Merged attempt into orch/feature/subconscious-live-polish at 7fc5bf7.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge: review live Subconscious activation polish",
+        "description": "Review codex/subconscious-live-polish in single-attempt judge mode. Verify response compactness, no duplicate nested pressure payloads, foreground/session/companion/anchor behavior, relevance of no-task activation guidance, tests, and preservation of the product boundary: Subconscious pressures/advises while foreground agents execute. Approve by merge_attempt into the feature branch only; do not merge feature to main.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/subconscious-live-polish"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T20:57:03.431Z"
+      },
+      "assignee": "judge-subconscious-live-polish-codex",
+      "timestamps": {
+        "firstSeen": "2026-06-21T20:36:32.755Z",
+        "lastChanged": "2026-06-21T20:57:03.027Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-subconscious-skill-promotion-gate": {
+      "id": "codex/judge-subconscious-skill-promotion-gate",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVED: promotion gate activates only measured clean winners via manifest versions, preserves SKILL.md, audits rollback, caps/dedups exposed proposal candidates, handles third-party skills non-destructively by default, and focused plus full tests passed. Merged attempt codex/subconscious-skill-promotion-gate into feature branch and unblocked codex/subconscious-auto-skill-integration.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge performance-gated promotion implementation",
+        "description": "Invoke self-learn-judge in single-attempt review mode against impl task codex/subconscious-skill-promotion-gate on branch orch/attempt/codex/subconscious-skill-promotion-gate. Review atomic active-pointer promotion, rollback, metric margin handling, guardrails, and decision provenance. Confirm candidates cannot replace active skills without measured improvement. Never force-merge.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/subconscious-skill-promotion-gate"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T20:57:56.093Z"
+      },
+      "assignee": "judge-subconscious-skill-promotion-gate-codex",
+      "timestamps": {
+        "firstSeen": "2026-06-21T16:47:47.924Z",
+        "lastChanged": "2026-06-21T20:57:55.667Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/long-note-cluster-ingest-hardening": {
+      "id": "codex/long-note-cluster-ingest-hardening",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented long/source-like note clustering for /overlay/note: compact notes remain semantic handles while raw evidence is persisted as source_doc/source_section/source_chunk nodes with provenance context edges; added regression coverage for short notes, explicit wires_to, and structural search expansion.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Harden long note ingestion into structured knowledge clusters",
+        "description": "Implement the remaining ingest hardening pass for the layered knowledge model. Goal: arbitrary long direct notes should be normalized into structured clusters instead of remaining one oversized semantic object. Scope: detect long note/source payloads, preserve a compact distilled note as the semantic handle, create source_doc/source_section/source_chunk knowledge nodes for evidence text where appropriate, wire source_chunk/source_section/source_doc provenance edges and source_chunk -> note evidence/context edges, preserve explicit note -> task wires, and add/adjust tests proving search can retrieve the distilled note directly and expand to evidence chunks, parents, and sibling facts. Keep the change surgical and compatible with existing /overlay/note, /overlay/knowledge-node, onboard-learn, and retrieval-cluster-expansion behavior. Avoid rewriting unrelated ingestion paths.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T20:54:24.790Z"
+      },
+      "assignee": "worker-long-note-cluster-ingest-hardening-codex",
+      "timestamps": {
+        "firstSeen": "2026-06-21T20:38:23.417Z",
+        "lastChanged": "2026-06-21T20:54:22.555Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/subconscious-live-polish": {
+      "id": "codex/subconscious-live-polish",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented compact default Subconscious ask surface with raw planner/search/event diagnostics behind include_internal/debug, explicit identity null reasons, and recommended real task anchors when no session anchor is selected. Added focused Subconscious/MCP tests for no duplicate payloads and compact shape. Committed attempt df08d54a. Focused tests passed; npm test passed 192/194 with unrelated force-claim-cap still failing and filedrop-tasks passing on isolated rerun.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Polish live Subconscious foreground activation edges",
+        "description": "After restarting the daemon on merged main, live POST /subconscious/ask works but exposes rough edges: response payload is very verbose and duplicates nested subconscious/subconscious_pressure data; recent_agent_state remains empty for the foreground dispatcher; session/companion/anchor fields are null; no-task activation guidance says to use an anchor but does not select one; broad activation queries retrieve off-topic evidence. Make a surgical polish pass so ask_subconscious returns a compact agent-facing envelope, preserves useful debug detail only behind an explicit/debug field or internal nesting, binds foreground/session/companion state when available, and improves no-task activation guidance/retrieval relevance without enabling background execution of user implementation work.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T20:52:05.401Z"
+      },
+      "assignee": "worker-subconscious-live-polish-codex",
+      "timestamps": {
+        "firstSeen": "2026-06-21T20:36:26.809Z",
+        "lastChanged": "2026-06-21T20:52:03.543Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -225651,9 +225810,9 @@
       "from": "note:note-mq7d9gyw",
       "to": "6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/5",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
-      "judged": true,
-      "weight": 0.5
+      "judged": true
     },
     {
       "from": "note:note-mq7dy433",
@@ -225953,9 +226112,9 @@
       "from": "note:note-mq7hefbcaq6",
       "to": "b91aecfd-10c5-4538-9daf-212b4d7ab1c8/5",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
-      "judged": true,
-      "weight": 0.5
+      "judged": true
     },
     {
       "from": "note:note-mq7hefbuc4h",
@@ -226430,9 +226589,9 @@
       "from": "note:note-mq7ydrv353p",
       "to": "note:note-mq7yf518r4f",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
-      "judged": true,
-      "weight": 0.5
+      "judged": true
     },
     {
       "from": "note:note-mq7yf518r4f",
@@ -226697,9 +226856,9 @@
       "from": "note:note-mq87ubxn2d4",
       "to": "4e63de07-4fe7-4457-b8b1-c0d3440d30ea/7",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
-      "judged": true,
-      "weight": 0.5
+      "judged": true
     },
     {
       "from": "note:note-mq87ubxn2d4",
@@ -235038,9 +235197,9 @@
       "from": "note:note-mq7hefalghc",
       "to": "3875ca4b-760e-41d4-b17b-98619b23b5e5/2",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
-      "judged": true,
-      "weight": 0.5
+      "judged": true
     },
     {
       "from": "note:note-mqay9nskqcp",
@@ -236738,17 +236897,17 @@
       "from": "note:note-mq7hef5did3",
       "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/2",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
-      "judged": true,
-      "weight": 0.5
+      "judged": true
     },
     {
       "from": "note:note-mq7hef6ged4",
       "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/1",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
-      "judged": true,
-      "weight": 0.5
+      "judged": true
     },
     {
       "from": "note:note-mq7kljz739q",
@@ -237051,9 +237210,9 @@
       "from": "note:note-mq7fm2f2",
       "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/6",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
-      "judged": true,
-      "weight": 0.5
+      "judged": true
     },
     {
       "from": "note:note-mq7hef5did3",
@@ -237594,9 +237753,9 @@
       "from": "note:note-mq7k2s414li",
       "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/14",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
-      "judged": true,
-      "weight": 0.5
+      "judged": true
     },
     {
       "from": "note:note-mqdaz9y2tuh",
@@ -240532,10 +240691,10 @@
       "from": "note:note-mqeanpfebxe",
       "to": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/10",
       "kind": "context",
+      "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "weight": 0.5
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqeapqae6jf",
@@ -251743,9 +251902,9 @@
       "from": "codex/fix-judging-claim-fastpath",
       "to": "codex/judge-fix-judging-claim-fastpath",
       "kind": "blocking",
-      "origin": "native-blockedBy",
       "by": "judge",
-      "judged": true
+      "judged": true,
+      "origin": "native-blockedBy"
     },
     {
       "from": "codex/fix-review-findings",
@@ -254513,10 +254672,10 @@
       "from": "codex/integrate-shell-gate-policy-refactor",
       "to": "codex/judge-integrate-shell-gate-policy-refactor",
       "kind": "blocking",
-      "origin": "native-blockedBy",
       "by": "judge",
       "judged": true,
-      "score": 0.646
+      "score": 0.646,
+      "origin": "native-blockedBy"
     },
     {
       "from": "codex/integrate-shell-gate-policy-refactor",
@@ -258614,9 +258773,9 @@
       "from": "codex/opencode-native-mcp-config",
       "to": "codex/opencode-native-mcp-config-rereview",
       "kind": "blocking",
-      "origin": "native-blockedBy",
       "by": "judge",
-      "judged": true
+      "judged": true,
+      "origin": "native-blockedBy"
     },
     {
       "from": "codex/opencode-native-mcp-config",
@@ -264393,10 +264552,10 @@
       "from": "codex/exec-brain-state-seam-minimal-patch",
       "to": "codex/judge-exec-brain-state-seam-minimal-patch",
       "kind": "blocking",
-      "origin": "native-blockedBy",
       "by": "judge",
       "judged": true,
-      "score": 0.857
+      "score": 0.857,
+      "origin": "native-blockedBy"
     },
     {
       "from": "codex/exec-brain-state-seam-minimal-patch",
@@ -265558,9 +265717,9 @@
       "from": "codex/bench-canonical-sdk-on-arms",
       "to": "codex/judge-bench-canonical-sdk-on-arms",
       "kind": "blocking",
-      "origin": "native-blockedBy",
       "by": "judge",
-      "judged": true
+      "judged": true,
+      "origin": "native-blockedBy"
     },
     {
       "from": "codex/bench-canonical-sdk-on-arms",
@@ -266326,9 +266485,9 @@
       "from": "note:note-mq4jxzjg",
       "to": "codex/long-note-cluster-ingest-hardening",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.572,
+      "by": "judge",
+      "judged": true,
       "score": 0.572,
       "origin": "autowire-semantic"
     },
@@ -266336,18 +266495,18 @@
       "from": "note:note-mq74lpeq",
       "to": "codex/long-note-cluster-ingest-hardening",
       "kind": "context",
-      "weight": 0.7,
-      "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "asserted"
     },
     {
       "from": "note:note-mq75a81h",
       "to": "codex/long-note-cluster-ingest-hardening",
       "kind": "context",
-      "weight": 0.75,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.561,
+      "by": "judge",
+      "judged": true,
       "score": 0.561,
       "origin": "asserted"
     },
@@ -266355,9 +266514,9 @@
       "from": "note:note-mq7e4zpi",
       "to": "codex/long-note-cluster-ingest-hardening",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.561,
+      "by": "judge",
+      "judged": true,
       "score": 0.561,
       "origin": "autowire-semantic"
     },
@@ -266365,18 +266524,18 @@
       "from": "note:note-mq7fm2f2",
       "to": "codex/long-note-cluster-ingest-hardening",
       "kind": "context",
-      "weight": 0.65,
-      "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "asserted"
     },
     {
       "from": "note:note-mq7gpd48",
       "to": "codex/long-note-cluster-ingest-hardening",
       "kind": "context",
-      "weight": 0.9,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.582,
+      "by": "judge",
+      "judged": true,
       "score": 0.582,
       "origin": "asserted"
     },
@@ -266425,9 +266584,9 @@
       "to": "opencode/opencode-wake-reinject",
       "kind": "context",
       "weight": 0.9,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqlapu0wi63",
@@ -266461,34 +266620,34 @@
       "to": "opencode/opencode-wake-reinject",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqn469b34mm",
       "to": "codex/graph-loop-owner-watchdog",
       "kind": "context",
       "weight": 0.5,
+      "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "by": "judge"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqn469b34mm",
       "to": "codex/judge-graph-loop-owner-watchdog",
       "kind": "context",
       "weight": 0.5,
+      "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "by": "judge"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqn5eugc0vj",
       "to": "codex/judge-consolidate-universal-skills",
       "kind": "context",
       "weight": 0.5,
-      "judged": true,
-      "by": "judge"
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "note:note-mqn6vq8mh1k",
@@ -266575,9 +266734,9 @@
       "to": "codex/subconscious-mcp-tool",
       "kind": "context",
       "weight": 0.5,
+      "by": "judge",
       "judged": true,
-      "origin": "asserted",
-      "by": "judge"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqn7r5td3ut",
@@ -266594,8 +266753,8 @@
       "to": "codex/judge-fix-runtime-skill-surfaces-after-adapter-merge",
       "kind": "context",
       "weight": 0.5,
-      "judged": true,
-      "by": "judge"
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "note:note-mqn8peg4rh0",
@@ -266703,16 +266862,16 @@
       "to": "codex/subconscious-skill-promotion-gate",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqo6o29jzgp",
       "to": "codex/subconscious-auto-skill-integration",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.58,
       "origin": "autowire-semantic"
     },
@@ -266721,24 +266880,24 @@
       "to": "codex/subconscious-skill-promotion-gate",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqo6q38bov4",
       "to": "codex/subconscious-auto-skill-integration",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqo6rfs5q4h",
       "to": "codex/judge-subconscious-mcp-tool",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.856,
       "origin": "autowire-semantic"
     },
@@ -266766,9 +266925,9 @@
       "from": "note:note-mqo6rfs5q4h",
       "to": "codex/judge-subconscious-live-polish",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.574,
+      "by": "judge",
+      "judged": true,
       "score": 0.574,
       "origin": "autowire-semantic"
     },
@@ -266777,25 +266936,25 @@
       "to": "codex/judge-subconscious-skill-abtest-evaluator",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqo6uz8pwdn",
       "to": "codex/subconscious-skill-abtest-evaluator",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqo6uz8pwdn",
       "to": "codex/subconscious-skill-evaluator-version-resolution-fix",
       "kind": "context",
       "weight": 1,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "200e8c1e-f491-462e-aa2b-7174b4468475/3",
@@ -267023,14 +267182,6 @@
       "origin": "blocking-dep-seed"
     },
     {
-      "from": "codex/embed-provider-contract",
-      "to": "codex/embed-provider-local-adapter",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
-    },
-    {
       "from": "codex/embed-provider-hosted-adapters",
       "to": "codex/embed-provider-reembed-migration",
       "kind": "context",
@@ -267179,10 +267330,10 @@
       "to": "codex/judge-graph-loop-owner-watchdog",
       "kind": "context",
       "weight": 0,
-      "judged": false,
-      "origin": "autowire-semantic",
       "by": "autowire",
-      "score": 0.73
+      "judged": false,
+      "score": 0.73,
+      "origin": "autowire-semantic"
     },
     {
       "from": "codex/graph-loop-owner-watchdog",
@@ -267191,8 +267342,8 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "origin": "autowire-semantic",
-      "score": 0.73
+      "score": 0.73,
+      "origin": "autowire-semantic"
     },
     {
       "from": "codex/judge-adapter-installer-skill-surfaces",
@@ -267391,46 +267542,6 @@
       "origin": "asserted"
     },
     {
-      "from": "codex/judge-subconscious-live-polish",
-      "to": "codex/judge-subconscious-auto-skill-integration",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.66,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-subconscious-live-polish",
-      "to": "codex/judge-subconscious-internalized-orchestration",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.635,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-subconscious-live-polish",
-      "to": "codex/judge-subconscious-agentic-verdict",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.615,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-subconscious-live-polish",
-      "to": "codex/judge-subconscious-mcp-tool",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.573,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "codex/judge-subconscious-mcp-tool",
       "to": "codex/judge-subconscious-live-polish",
       "kind": "context",
@@ -267487,10 +267598,10 @@
       "from": "codex/judge-subconscious-skill-evaluator-version-resolution-fix",
       "to": "codex/subconscious-auto-skill-integration",
       "kind": "context",
-      "weight": 0,
+      "weight": 1,
       "by": "autowire-blockdep",
       "judged": false,
-      "origin": "blocking-dep-seed"
+      "origin": "asserted"
     },
     {
       "from": "codex/judge-subconscious-skill-evaluator-version-resolution-fix",
@@ -267499,15 +267610,6 @@
       "weight": 1,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "codex/judge-subconscious-skill-promotion-gate",
-      "to": "codex/subconscious-auto-skill-integration",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/judge-subconscious-skill-version-store",
@@ -267534,16 +267636,6 @@
       "weight": 0.8,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "codex/long-note-cluster-ingest-hardening",
-      "to": "codex/backfill-existing-ingest-note-clusters",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.65,
-      "origin": "autowire-semantic"
     },
     {
       "from": "codex/opencode-prompt-workspace-parity-review",
@@ -267672,14 +267764,6 @@
     },
     {
       "from": "codex/subconscious-auto-skill-integration",
-      "to": "codex/judge-subconscious-auto-skill-integration",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/subconscious-auto-skill-integration",
       "to": "codex/research-subconscious-positioning-2026-06-21",
       "kind": "context",
       "weight": 0.8,
@@ -267734,14 +267818,6 @@
       "weight": 1,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "codex/subconscious-live-polish",
-      "to": "codex/judge-subconscious-live-polish",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/subconscious-pressure-protocol",
@@ -268008,7 +268084,239 @@
       "weight": 0.7,
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqen9jm4hyi",
+      "to": "followup/investigate-force-claim-cap-test-judging-yf0n",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.589,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqk0pyjpxtc",
+      "to": "followup/investigate-force-claim-cap-test-judging-yf0n",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.59,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqn7r5td3ut",
+      "to": "codex/judge-subconscious-anchor-real-task-filter",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.584,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqo9auyt3cu",
+      "to": "codex/force-cloud-cascade-search-animation",
+      "kind": "context",
+      "weight": 0,
+      "judged": false,
+      "by": "autowire",
+      "score": 0.582,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqo9t7g6u75",
+      "to": "codex/subconscious-anchor-real-task-filter",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire",
+      "score": 0.703,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqo9t7g6u75",
+      "to": "codex/judge-subconscious-anchor-real-task-filter",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.579,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqo9t7g6u75",
+      "to": "note:note-mq75a81g",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.566,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/brain-search-context-compiler",
+      "to": "codex/force-cloud-cascade-search-animation",
+      "kind": "context",
+      "weight": 0.65,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/embed-provider-contract",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/judge-brain-search-activation-engine",
+      "to": "codex/force-cloud-cascade-search-animation",
+      "kind": "context",
+      "weight": 0.55,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-retrieval-cluster-expansion",
+      "to": "codex/long-note-cluster-ingest-hardening-judge",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-subconscious-anchor-real-task-filter",
+      "to": "codex/judge-subconscious-agentic-verdict",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.666,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-subconscious-anchor-real-task-filter",
+      "to": "codex/judge-subconscious-auto-skill-integration",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.641,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-subconscious-anchor-real-task-filter",
+      "to": "codex/judge-subconscious-live-polish",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.634,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-subconscious-anchor-real-task-filter",
+      "to": "codex/subconscious-anchor-real-task-filter",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.596,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-subconscious-anchor-real-task-filter",
+      "to": "codex/judge-subconscious-internalized-orchestration",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.592,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-subconscious-live-polish",
+      "to": "codex/judge-subconscious-anchor-real-task-filter",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-subconscious-skill-promotion-gate",
+      "to": "codex/subconscious-auto-skill-integration",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/long-note-cluster-ingest-hardening",
+      "to": "codex/long-note-cluster-ingest-hardening-judge",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/long-note-cluster-ingest-hardening",
+      "to": "followup/investigate-force-claim-cap-test-judging-yf0n",
+      "kind": "context"
+    },
+    {
+      "from": "codex/subconscious-anchor-real-task-filter",
+      "to": "codex/judge-subconscious-anchor-real-task-filter",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/subconscious-auto-skill-integration",
+      "to": "codex/judge-subconscious-auto-skill-integration",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/subconscious-live-polish",
+      "to": "codex/judge-subconscious-live-polish",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/subconscious-live-polish",
+      "to": "codex/subconscious-anchor-real-task-filter",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/subconscious-skill-evaluator-version-resolution-fix",
+      "to": "codex/subconscious-auto-skill-integration",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1",
+      "to": "codex/force-cloud-cascade-search-animation",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
     }
   ],
-  "compacted_at": "2026-06-21T20:40:25.618Z"
+  "compacted_at": "2026-06-21T21:03:04.533Z"
 }
