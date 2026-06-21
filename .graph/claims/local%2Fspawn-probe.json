@@ -1,9 +1,9 @@
 {
   "task_key": "local/spawn-probe",
-  "git_user": "YU GAO <yu.gao@gaos.ca>",
+  "git_user": "seed <seed@example.test>",
   "session_id": "disp-sid",
   "branch": "orch/attempt/local-spawn-probe",
   "status": "claimed",
-  "claimed_at": "2026-06-21T03:24:22.336Z",
-  "lease_until": "2026-06-21T04:24:22.336Z"
+  "claimed_at": "2026-06-21T03:31:06.710Z",
+  "lease_until": "2026-06-21T04:31:06.710Z"
 }
