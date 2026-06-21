@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const routeFactory = require('../routes/subconscious');
+const overlayStore = require('../lib/overlay');
 const { createSubconsciousStore } = require('../lib/subconscious');
 const { TOOLS } = require('../lib/mcp-core');
 const {
@@ -692,6 +693,70 @@ test('subconscious execution permit routes issue read and revoke permits', async
   });
   assert.equal(revoked.status, 200);
   assert.equal(revoked.body.execution_permit.status, 'revoked');
+});
+
+test('subconscious assignment prepare creates assignment envelope and wires task judge and worktree', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore();
+  const ov = overlayStore.EMPTY();
+  const calls = [];
+  const ctx = makeCtx({
+    graph: {
+      tasks: [
+        node('codex/parent', 'Parent task', { summary: 'parent summary' }),
+        node('note:ctx', 'Context note', { kind: 'note', summary: 'context summary' }),
+      ],
+    },
+    workspace: ws,
+    store,
+    body: null,
+    overlay: ov,
+  });
+  ctx.now = () => '2026-06-21T12:00:00.000Z';
+  ctx.notifyChange = (workspace) => calls.push({ fn: 'notifyChange', workspace });
+  ctx.resolveRepo = (key, repoPath, overlay, workspace) => repoPath || workspace;
+  ctx.git = {
+    isRepo(repo) { calls.push({ fn: 'isRepo', repo }); return true; },
+    createWorktree(repo, key, options) {
+      calls.push({ fn: 'createWorktree', repo, key, options });
+      return { branch: 'orch/attempt/codex-impl', worktree: path.join(ws, 'attempt'), head: 'abc123' };
+    },
+  };
+
+  const res = await callRoute(ctx, '/subconscious/assignment', {
+    workspace: ws,
+    action: 'prepare',
+    task_key: 'codex/impl',
+    subject: 'Implement assignment facade',
+    parent_task_keys: ['codex/parent'],
+    context_task_keys: ['note:ctx'],
+    create_judge: true,
+    repo_path: ws,
+    test_cmd: 'npm test',
+    base: 'orch/feature/test',
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.assignment.task_key, 'codex/impl');
+  assert.equal(res.body.assignment.judge_task_key, 'codex/impl-judge');
+  assert.equal(res.body.assignment.branch, 'orch/attempt/codex-impl');
+  assert.equal(res.body.assignment.worktree, path.join(ws, 'attempt'));
+  assert.equal(res.body.assignment.repo_path, ws);
+  assert.equal(res.body.assignment.next_expected_worker_action, 'subconscious_assignment.accept');
+  assert.deepEqual(res.body.assignment.context.parent_task_keys, ['codex/parent']);
+  assert.deepEqual(res.body.assignment.context.context_task_keys, ['note:ctx']);
+  assert.equal(ov.snapshots['codex/impl'].subject, 'Implement assignment facade');
+  assert.equal(ov.snapshots['codex/impl-judge'].subject, 'Judge codex/impl');
+  assert(ov.edges.some((e) => e.from === 'codex/parent' && e.to === 'codex/impl' && !e.kind));
+  assert(ov.edges.some((e) => e.from === 'note:ctx' && e.to === 'codex/impl' && e.kind === 'context'));
+  assert(ov.edges.some((e) => e.from === 'codex/impl' && e.to === 'codex/impl-judge' && !e.kind));
+  assert.equal(ov.repos['codex/impl'], ws);
+  assert.equal(ov.repos['codex/impl-judge'], ws);
+  assert.equal(ov.config.test_cmds[ws], 'npm test');
+  assert.equal(ov.git['codex/impl'].worktree, path.join(ws, 'attempt'));
+  assert(calls.some((call) => call.fn === 'createWorktree' && call.key === 'codex/impl' && call.options.base === 'orch/feature/test'));
+  assert(calls.some((call) => call.fn === 'notifyChange' && call.workspace === ws));
 });
 
 test('subconscious_loop MCP tool forwards to loop routes', async () => {

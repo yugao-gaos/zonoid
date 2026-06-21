@@ -29,6 +29,7 @@ them (plus such relay-only helpers as `GET /session-info` and `POST /route` used
 | `/classify` | `POST` | Absorb prompt-submit heuristics; return finished injection text (`{ prompt, session_id?, workspace? }` → `{ additional_context, … }`). |
 | `/ready` | `GET` | Ready frontier: `{ ready: [{ key, label }] }`. Optional `?session=` / `?workspace=` / `?roots=` filters. |
 | `/sync` | `POST` | Immediate file-drop pull (`{ workspace? }` → `{ adopted[], suggestions{} }`). |
+| `/subconscious/assignment` | `GET/POST` | Preferred routine assignment facade. `prepare` creates/selects the anchor, wires deps, optionally creates a judge, configures repo/test command, and allocates the attempt branch/worktree. |
 | `/overlay/status` | `POST` | Authoritative task status / claim / complete (`{ key, status, agent_id?, summary?, … }`). MCP `start_task` / `complete_task` map here. **Dispatcher sessions are refused** on `in_progress` (409). |
 | `/overlay/dispatcher-focus` | `POST` | Pin trivial-edit attribution when multiple workers are in flight (`{ session_id, task_key }`). |
 | `/dispatcher/children` | `GET` | In-flight workers for a parent session (`?session=`): `{ children[], attribution?, needs_focus?, focus? }`. |
@@ -57,11 +58,12 @@ Each row is one **harness lifecycle moment** and the daemon endpoint the adapter
 | **Agent start** | `POST /agent/start` | Observability, subagent session alias for claim lookup, workspace pin per worker. | Advisory |
 | **Agent stop** | `POST /agent/done` | Mark worker done; **primary usage accounting** (`usage.sample` → `usage_records`); release phantom claims when worker exits without `complete_task`. | Advisory |
 | **Usage reconcile (cold)** | `sessionStart` + adapter daily scheduler → `/usage/reconcile` | Per-harness sweep when `usage_reconcile[harness].at` is stale; adapter normalizes to `UsageReport`. Not on `/costflow` reads. | Advisory |
-| **Task claim / progress** | `POST /overlay/status` (`in_progress`) | Claim task (CAS); daemon enforces metric-branch worktree invariant. | Daemon-side refusal (MCP path) + hook defense-in-depth |
-| **Task complete** | `POST /overlay/status` (`done` / `tested` / `failed` / `canceled`) | Terminal status, summary, follow-ups, verdicts; returns `newly_ready` when applicable. | Daemon-side (MCP); hooks may nudge via `GET /ready` |
+| **Assignment prepare** | `POST /subconscious/assignment` (`prepare`) | Normal route for routine orchestration: anchor selection/creation, wiring, judge pairing, repo/test config, worktree allocation. | Daemon-side |
+| **Task claim / progress** | `POST /overlay/status` (`in_progress`) via MCP `subconscious_assignment accept` | Claim task (CAS); daemon enforces metric-branch worktree invariant and auto-issues the scoped Subconscious execution permit. | Daemon-side refusal (MCP path) + hook defense-in-depth |
+| **Task complete** | `POST /overlay/status` (`done` / `tested` / `failed` / `canceled`) via MCP `subconscious_assignment complete` | Terminal status, summary, follow-ups, verdicts; returns `newly_ready` when applicable. | Daemon-side (MCP); hooks may nudge via `GET /ready` |
 | **Task mint (file-drop)** | write stub JSON → `POST /sync` | Adopt new task keys; return link suggestions. | Advisory (runs outside agent tool gate) |
 | **Branch attempt** | `POST /git/worktree` | Self-learning / isolated attempt branch. | Daemon-side refusal without worktree |
-| **Merge attempt** | `POST /git/merge` | Judge merge-back loop. | Daemon-side |
+| **Merge attempt** | `POST /git/merge` via MCP `subconscious_assignment submit_verdict` (`APPROVE`) | Judge merge-back loop. `KICK_BACK` marks the implementation task failed and does not merge. | Daemon-side |
 | **Stop advisory (MCP)** | `GET /should-stop` *(via MCP wrapper)* | Attach `should_stop` + reason to tool responses when stop requested. | Advisory only — does not block |
 
 ---
@@ -83,9 +85,9 @@ harness guarantees interception.
 | **Agent stop** | `SubagentStop` → `subagent-stop.sh` → `/agent/done` | `subagentStop` → relay | `Stop` / lifecycle hook → relay | `event` subscription → relay |
 | **Ready nudge after dispatch** | `PostToolUse` `Agent\|Task` → `post-agent.sh` → `/ready` | `postToolUse` → relay | `PostToolUse` → relay | `tool.execute.after` and `todo.updated` with session id → `/ready` best-effort |
 | **Task mint** | Native `TaskCreate` → Claude task file → daemon pull (no `/sync` required) | `postToolUse` on todo tool → stub under `cursor/` → `/sync` | Shell/hook stub under `codex/` → `/sync`; fallback harness-scoped MCP `create_task` | Custom `task_create` tool → stub under `opencode/` → `/sync` |
-| **Task claim / complete** | MCP `start_task` / `complete_task` → `/overlay/status` | Same MCP surface | Same MCP surface (filtered tool list when MCP spawn sets `ORCH_CLIENT=codex`) | Same MCP + plugin-registered tools |
+| **Task assignment / claim / complete** | MCP `subconscious_assignment` → `/subconscious/assignment` + `/overlay/status` | Same MCP surface | Same MCP surface (filtered tool list when MCP spawn sets `ORCH_CLIENT=codex`) | Same MCP + plugin-registered tools |
 | **Claim session alias** | `PostToolUse` after `start_task` → `/overlay/claim-session` | Same when MCP used | Same when MCP used | Same when MCP used |
-| **Branch / merge** | MCP `branch_task` / `merge_attempt` | Same | Same | Same |
+| **Raw branch / merge escape hatches** | MCP `branch_task` / `merge_attempt` remain for backcompat/internal use; routine agents use `subconscious_assignment prepare` / `submit_verdict` | Same | Same | Same |
 | **Blocking vs advisory** | Exit 2 blocking on gates; MCP + injection advisory | Same pattern; **IDE hook coverage ⊃ CLI** | Partial shell interception; manual trust on hook hash change | Throw-to-block; frozen-args bug makes throw mandatory |
 
 Research note: graph note `note-mqbk7fr1oih` — harness hook capability matrix (Jun 2026):
@@ -246,20 +248,30 @@ The orchestrator distinguishes two agent roles in a conversation:
 
 **Dispatcher duties:** decompose work into graph tasks, wire dependencies (`suggest_links` +
 `add_dependency`), dispatch background subagents, orchestrate — keep the main thread free.
-Workers carry three graph duties: `branch_task` before `start_task`, `start_task` before any
-write, and `complete_task` with a summary at the end.
+Workers normally carry two graph duties: accept a prepared Subconscious assignment before any
+write, and complete that assignment with a summary at the end. Raw `branch_task`, `start_task`,
+and `merge_attempt` remain backcompat/internal escape hatches.
 
 ### Claim gate contract
 
-`branch_task` creates the attempt branch/worktree and records it on the task. `POST
-/overlay/status` with `status: in_progress` (MCP `start_task`) then claims the task. The daemon
-refuses claims that do not have a registered worktree, so the enforced order is:
+`subconscious_assignment prepare` creates/selects the task anchor, wires routine deps, creates
+the judge task when requested, configures repo/test command, and records `git.branch` plus
+`git.worktree` on the task. `subconscious_assignment accept` then posts to `/overlay/status`
+with `status: in_progress`. The daemon refuses claims that do not have a registered worktree, so
+the enforced order is:
 
-1. `branch_task(task_key)` -> records `git.branch` and `git.worktree`.
-2. `start_task(task_key, agent_id, session_id?)` -> claims the task and self-registers hookless
-   workers when the claim carries `agent_id` and the task has a registered worktree.
+1. `subconscious_assignment(action:"prepare", ...)` -> returns an assignment envelope with
+   `task_key`, `judge_task_key`, `branch`, `worktree`, `repo_path`, context, and the next expected
+   worker action.
+2. `subconscious_assignment(action:"accept", task_key, agent_id, session_id?)` -> claims the task
+   through `/overlay/status` and self-registers hookless workers when the claim carries `agent_id`
+   and the task has a registered worktree.
 3. Write gates call `GET /active-claim?session=` and `GET /task/detail?key=`; if the task has a
    registered worktree, non-exempt Write/Edit/apply_patch/Bash file writes must land inside it.
+
+Raw `branch_task` + `start_task` still map to the same primitives for legacy/internal flows.
+Judges normally use `subconscious_assignment submit_verdict`: `APPROVE` calls the existing
+merge path; `KICK_BACK` marks the implementation failed and does not merge.
 
 Parent/dispatcher sessions and unregistered sessions are still refused by the daemon. `force: true`
 does not bypass the gate. Lifecycle hooks (`/agent/start`) remain useful for observability and

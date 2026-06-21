@@ -8,6 +8,7 @@
       "mcp__orchestrator-graph__record_decision",
       "mcp__orchestrator-graph__get_graph",
       "mcp__orchestrator-graph__set_status",
+      "mcp__orchestrator-graph__subconscious_assignment",
       "mcp__orchestrator-graph__subconscious_execution_permit"
     ]
   },
