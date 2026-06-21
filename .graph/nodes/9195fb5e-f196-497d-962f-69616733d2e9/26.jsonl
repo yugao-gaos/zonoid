@@ -1,0 +1,2 @@
+{"evt":"edge_added","from":"9195fb5e-f196-497d-962f-69616733d2e9/26","to":"followup/harness-daemon-restart","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T19:15:19.248Z","by":"judge","judged":true,"score":0.615,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"9195fb5e-f196-497d-962f-69616733d2e9/26","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:15:19.248Z"}
