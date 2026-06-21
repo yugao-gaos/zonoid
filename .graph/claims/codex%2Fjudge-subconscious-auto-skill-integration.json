@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/judge-subconscious-auto-skill-integration",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "judge-subconscious-auto-skill-integration-codex",
+  "branch": "orch/attempt/codex-judge-subconscious-auto-skill-integration",
+  "status": "done",
+  "claimed_at": "2026-06-21T21:14:57.265Z",
+  "lease_until": "2026-06-21T22:14:57.265Z",
+  "completed_at": "2026-06-21T21:18:30.287Z"
+}

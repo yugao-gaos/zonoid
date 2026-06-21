@@ -171,5 +171,15 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     return true;
   }
 
+  if (p === '/subconscious/skill' && m === 'POST') {
+    const b = await readBody(req) || {};
+    const T = targetOverlay(b, u);
+    const result = store.skill({ ...b, workspace: T.ws || b.workspace });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
   return false;
 };
