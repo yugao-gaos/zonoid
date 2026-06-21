@@ -15,6 +15,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const child_process = require('child_process');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -47,6 +48,22 @@ function makePendingQueueDir(opts = {}) {
 /** Create a temp dir with a completed queue (cursor === total). */
 function makeCompletedQueueDir() {
   return makePendingQueueDir({ total: 10, cursor: 10 });
+}
+
+function git(repo, args) {
+  return child_process.execFileSync('git', ['-C', repo, ...args], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  }).trim();
+}
+
+function initGitRepo(repo) {
+  git(repo, ['init']);
+  git(repo, ['config', 'user.name', 'test']);
+  git(repo, ['config', 'user.email', 'test@example.com']);
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '--allow-empty', '-m', 'init']);
 }
 
 let savedLeaseFile;
@@ -270,6 +287,72 @@ test('no pending queue repos → runDueDrains skips with no_due_drains (flag ON,
   } finally {
     if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
     else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Test 2b: clean drains snapshot .graph changes to git
+// ---------------------------------------------------------------------------
+
+test('commitGraphSnapshot commits only .graph changes', () => {
+  const hd = freshModule();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-git-'));
+  try {
+    fs.mkdirSync(path.join(repo, '.graph'), { recursive: true });
+    fs.writeFileSync(path.join(repo, '.graph', 'base.jsonl'), '{"evt":"init"}\n');
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'base\n');
+    initGitRepo(repo);
+
+    fs.appendFileSync(path.join(repo, '.graph', 'base.jsonl'), '{"evt":"drain"}\n');
+    fs.writeFileSync(path.join(repo, 'src.txt'), 'user work\n');
+    git(repo, ['add', 'src.txt']);
+
+    const result = hd.commitGraphSnapshot(repo, 'headless test drain');
+    assert.equal(result.committed, true, 'graph changes should be committed');
+    assert.equal(git(repo, ['log', '-1', '--pretty=%s']), 'chore: headless test drain graph snapshot');
+    assert.equal(git(repo, ['status', '--porcelain', '--', '.graph']), '', '.graph should be clean after snapshot');
+    assert.match(git(repo, ['status', '--porcelain', '--', 'src.txt']), /^M  src\.txt/, 'staged non-graph work must not be committed');
+
+    const noChanges = hd.commitGraphSnapshot(repo, 'headless test drain');
+    assert.equal(noChanges.committed, false, 'second snapshot has no graph changes');
+    assert.equal(noChanges.reason, 'no_graph_changes');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('successful label drain records a graph snapshot commit summary', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
+  const repo = makeCompletedQueueDir();
+  initGitRepo(repo);
+  const { hd, restore } = freshModuleWithMockedSpawn(() => {
+    fs.appendFileSync(path.join(repo, '.graph', 'gate-labeled.jsonl'), '{"label":1}\n');
+    return makeFakeChild();
+  });
+  try {
+    const result = await hd.runDueDrains({ workspace: repo }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
+    });
+    assert.equal(result.ran, 1);
+    const label = result.drains.find((d) => d.drain === hd.LABEL_DRAIN_KEY);
+    assert.ok(label && label.gitCommit, 'label summary should include gitCommit');
+    assert.equal(label.gitCommit.committed, true, 'successful label drain should commit graph changes');
+    assert.equal(git(repo, ['status', '--porcelain', '--', '.graph']), '', '.graph should be clean after label snapshot');
+  } finally {
+    restore();
+    fs.rmSync(repo, { recursive: true, force: true });
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
   }
 });
 
@@ -504,7 +587,6 @@ test('backoffConfig defaults to a short retry window', () => {
 // Patching child_process.spawn BEFORE freshModule() (which re-requires the module) makes the fresh
 // module capture the patched fn, intercepting runDrain's spawn — no real CLI child runs.
 
-const child_process = require('child_process');
 const { EventEmitter } = require('events');
 
 /**
