@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/long-note-cluster-ingest-hardening",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "019eebef-5a38-78c2-b7ca-7c1918e39496",
+  "branch": "orch/attempt/codex-long-note-cluster-ingest-hardening",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T20:46:59.247Z",
+  "lease_until": "2026-06-21T21:46:59.247Z"
+}
