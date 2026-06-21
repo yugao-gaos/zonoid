@@ -1,10 +1,9 @@
 {
   "task_key": "5a8a030a-1624-48a8-a8e8-f244d4afd194/1",
   "git_user": "seed <seed@example.test>",
-  "session_id": "76cf53f7-111e-41bc-bc3f-d2c4f34e1dce",
+  "session_id": "09fa7d06-49f7-4865-9202-eef47873264b",
   "branch": "orch/attempt/5a8a030a-1624-48a8-a8e8-f244d4afd194-1",
-  "status": "done",
-  "claimed_at": "2026-06-21T03:23:12.016Z",
-  "lease_until": "2026-06-21T04:23:12.016Z",
-  "completed_at": "2026-06-21T03:23:15.679Z"
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:23:21.538Z",
+  "lease_until": "2026-06-21T04:23:21.538Z"
 }
