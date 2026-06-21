@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "019eead6-59eb-7110-8177-8ac451d49c8a",
   "branch": "orch/attempt/codex-judge-subconscious-permit-gate",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T22:08:10.795Z",
-  "lease_until": "2026-06-21T23:08:10.795Z"
+  "lease_until": "2026-06-21T23:08:10.795Z",
+  "completed_at": "2026-06-21T22:12:11.367Z"
 }
