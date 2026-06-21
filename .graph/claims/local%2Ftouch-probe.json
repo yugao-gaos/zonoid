@@ -1,10 +1,9 @@
 {
   "task_key": "local/touch-probe",
-  "git_user": "YU GAO <yu.gao@gaos.ca>",
+  "git_user": "seed <seed@example.test>",
   "session_id": "sub-sf",
   "branch": "orch/attempt/local-touch-probe",
-  "status": "done",
-  "claimed_at": "2026-06-21T03:24:16.853Z",
-  "lease_until": "2026-06-21T04:24:16.853Z",
-  "completed_at": "2026-06-21T03:24:20.210Z"
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:31:01.212Z",
+  "lease_until": "2026-06-21T04:31:01.212Z"
 }
