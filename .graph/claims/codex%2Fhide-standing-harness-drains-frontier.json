@@ -3,7 +3,8 @@
   "git_user": "YU GAO <yu.gao@gaos.ca>",
   "session_id": "codex-worker-hide-harness-drains-frontier",
   "branch": "orch/attempt/codex-hide-standing-harness-drains-frontier",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T02:39:09.052Z",
-  "lease_until": "2026-06-21T03:39:09.052Z"
+  "lease_until": "2026-06-21T03:39:09.052Z",
+  "completed_at": "2026-06-21T02:41:43.375Z"
 }
