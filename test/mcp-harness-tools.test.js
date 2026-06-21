@@ -198,6 +198,40 @@ async function waitForPing(ms = 8000) {
     capturedSubconsciousAsk.body.k === 4);
   ok('ask_subconscious returns route output', subconsciousOut && subconsciousOut.verdict === 'inject_relevant_context');
 
+  const subconsciousSkillTool = TOOLS.find((t) => t.name === 'subconscious_skill');
+  ok('subconscious_skill is on default MCP surface', !!subconsciousSkillTool);
+  ok('subconscious_skill schema exposes action enum and lifecycle fields',
+    subconsciousSkillTool &&
+    subconsciousSkillTool.inputSchema.properties.action.enum.includes('propose_candidate') &&
+    subconsciousSkillTool.inputSchema.properties.action.enum.includes('record_evaluation') &&
+    subconsciousSkillTool.inputSchema.properties.action.enum.includes('promote_winner') &&
+    subconsciousSkillTool.inputSchema.properties.action.enum.includes('rollback_promotion') &&
+    subconsciousSkillTool.inputSchema.properties.action.enum.includes('recommend_third_party') &&
+    subconsciousSkillTool.inputSchema.properties.skill_markdown &&
+    subconsciousSkillTool.inputSchema.properties.measurements &&
+    subconsciousSkillTool.inputSchema.properties.policy);
+  ok('subconscious_skill description preserves safety invariant',
+    subconsciousSkillTool && /never overwrites SKILL\.md/i.test(subconsciousSkillTool.description));
+  let capturedSubconsciousSkill = null;
+  const skillOut = await subconsciousSkillTool.run({
+    action: 'list_proposals',
+    workspace: WS,
+    capability: 'planning',
+    limit: 3,
+  }, (method, path, body) => {
+    capturedSubconsciousSkill = { method, path, body };
+    return { ok: true, proposals: [] };
+  });
+  ok('subconscious_skill runs POST /subconscious/skill',
+    capturedSubconsciousSkill && capturedSubconsciousSkill.method === 'POST' && capturedSubconsciousSkill.path === '/subconscious/skill');
+  ok('subconscious_skill passes action body unchanged',
+    capturedSubconsciousSkill &&
+    capturedSubconsciousSkill.body.action === 'list_proposals' &&
+    capturedSubconsciousSkill.body.workspace === WS &&
+    capturedSubconsciousSkill.body.capability === 'planning' &&
+    capturedSubconsciousSkill.body.limit === 3);
+  ok('subconscious_skill returns route output', skillOut && skillOut.ok === true && Array.isArray(skillOut.proposals));
+
   const codexExtra = extraToolsForClient('codex', WS);
   ok('codex extraTools has create_task + ScheduleWakeup', codexExtra.length === 2 && codexExtra[0].name === 'create_task' && codexExtra[1].name === 'ScheduleWakeup');
   ok('ScheduleWakeup schema accepts explicit session_id', codexExtra[1].inputSchema.properties.session_id && codexExtra[1].inputSchema.properties.session_id.type === 'string');
