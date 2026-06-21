@@ -131,11 +131,23 @@
   #cloudsvg:active { cursor: grabbing; }
   #cloudsvg text { font: 11px ui-monospace, Menlo, monospace; fill: #e6edf3; pointer-events: none; user-select: none; }
   #cloudsvg circle { cursor: pointer; }
+  #cloudsvg circle, #cloudsvg line, #cloudsvg text { transition: fill-opacity 450ms ease, stroke-opacity 450ms ease; }
   #cloudSearchWrap { position: absolute; top: 10px; right: 10px; z-index: 5; display: none; background: #161b2299; border: 1px solid #30363d; border-radius: 8px; padding: 3px 8px; align-items: center; gap: 6px; }
   #cloudSearchWrap.show { display: flex; }
   #cloudSearchInput { background: transparent; border: none; color: #e6edf3; padding: 2px 4px; font-size: 12px; width: 160px; outline: none; }
   #cloudSearchInput::placeholder { color: #6e7681; }
   #cloudMatchCount { color: #8b949e; font-size: 11px; white-space: nowrap; min-width: 60px; }
+  #cloudTraceLegend { position: absolute; top: 43px; right: 10px; z-index: 5; display: none; background: #0d1117cc; border: 1px solid #30363d; border-radius: 6px; padding: 3px 7px; color: #8b949e; font-size: 11px; white-space: nowrap; }
+  #cloudTraceLegend.show { display: block; }
+  #cloudsvg circle.cloud-search-hit { animation: cloudHitPulse 500ms ease-out both; }
+  #cloudsvg circle.cloud-search-final { filter: drop-shadow(0 0 7px rgba(247,129,102,.8)); }
+  #cloudsvg circle.cloud-search-reranked { filter: drop-shadow(0 0 8px rgba(125,211,252,.75)); }
+  #cloudsvg line.cloud-search-walk { animation: cloudWalkDash 500ms ease-out both; }
+  #cloudsvg line.cloud-search-related { animation: cloudNeuronEdge 500ms ease-out both; }
+  #cloudsvg line.cloud-search-final-edge { filter: drop-shadow(0 0 4px rgba(247,129,102,.55)); }
+  @keyframes cloudHitPulse { 0% { stroke-width: 0; filter: drop-shadow(0 0 0 rgba(227,179,65,0)); } 45% { stroke-width: 5px; filter: drop-shadow(0 0 9px rgba(227,179,65,.95)); } 100% { filter: drop-shadow(0 0 4px rgba(227,179,65,.45)); } }
+  @keyframes cloudWalkDash { from { stroke-dashoffset: 28; stroke-opacity: .08; } to { stroke-dashoffset: 0; } }
+  @keyframes cloudNeuronEdge { 0% { stroke-dashoffset: 34; stroke-opacity: .04; } 40% { stroke-opacity: .85; } 100% { stroke-dashoffset: 0; } }
   /* dagre pane (shared by Frontier + Focus views) */
   #flow { display: none; width: 100%; height: 100%; }
   #flow.show { display: flex; flex-direction: column; }
@@ -467,7 +479,7 @@
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
     <div id="wsPickerWrap" style="padding:0 16px 8px;display:none"><select id="wsPicker" style="font-size:11px;background:#161b22;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 6px;cursor:pointer;max-width:220px"></select></div>
-    <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><svg id="cloudsvg"></svg></div>
+    <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
     <div id="flowstats"></div>
   </div>
@@ -4483,8 +4495,46 @@ let cloudSearchPending=false;
 let cloudSearchError=false;
 let cloudSearchSeq=0;
 let cloudSearchTimer=null;
+let cloudSearchTrace=null;     // visual-only trace of the last /search result set
+let cloudSearchFrameTimers=[];
+let cloudSearchFitKey='';
+let cloudZoom=null;
+const CLOUD_SEARCH_STEP_MS=500;
+const CLOUD_SEARCH_FINAL_TOP_K=15;
+const CLOUD_SEARCH_EDGE_LIMIT=80;
+const CLOUD_SEARCH_ACTIVATION_MAX_HOPS=4;
+const CLOUD_SEARCH_ACTIVATION_EDGES_PER_NODE=4;
+const CLOUD_SEARCH_FINAL_EDGES_PER_NODE=4;
 let flowZoom=null;             // shared d3.zoom on the dagre svg (Frontier + Focus)
 const dagState={frontier:{init:false,tf:null}, focus:{init:false,tf:null}};  // per-view pan/zoom, so switching doesn't lose it
+function clearCloudSearchFrames(){
+  for(const timer of cloudSearchFrameTimers) clearTimeout(timer);
+  cloudSearchFrameTimers=[];
+}
+function scheduleCloudSearchFrames(seq){
+  clearCloudSearchFrames();
+  const frameCount=3+CLOUD_SEARCH_ACTIVATION_MAX_HOPS*2;
+  for(let i=1;i<=frameCount;i++){
+    const delay=i*CLOUD_SEARCH_STEP_MS;
+    cloudSearchFrameTimers.push(setTimeout(()=>{
+      if(seq!==cloudSearchSeq) return;
+      if(currentView==='cloud'&&lastState) renderCloud(lastState);
+    }, delay+20));
+  }
+}
+function fitCloudToNodes(svg,W,H,nodes,key){
+  if(!cloudZoom||!key||cloudSearchFitKey===key||!nodes.length) return;
+  const xs=nodes.map(n=>n.x).filter(Number.isFinite), ys=nodes.map(n=>n.y).filter(Number.isFinite);
+  if(!xs.length||!ys.length) return;
+  let minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+  if(maxX-minX<80){ minX-=40; maxX+=40; }
+  if(maxY-minY<80){ minY-=40; maxY+=40; }
+  const pad=110;
+  const k=Math.max(0.25,Math.min(2.2,(W-pad*2)/(maxX-minX),(H-pad*2)/(maxY-minY)));
+  const tx=W/2-k*(minX+maxX)/2, ty=H/2-k*(minY+maxY)/2;
+  svg.call(cloudZoom.transform,d3.zoomIdentity.translate(tx,ty).scale(k));
+  cloudSearchFitKey=key;
+}
 function truncate(s,n){ s=String(s||''); return s.length>n?s.slice(0,n)+'…':s; }
 function wrapLabel(s,perLine){ s=String(s||''); const lines=[]; while(s.length>perLine){ let cut=s.lastIndexOf(' ',perLine); if(cut<Math.floor(perLine*0.5)) cut=perLine; lines.push(s.slice(0,cut)); s=s.slice(cut).trimStart(); } if(s) lines.push(s); return lines; }
 async function openDetail(key){
@@ -5099,6 +5149,7 @@ function setView(v){
     cloudSearchResolvedText='';
     cloudSearchPending=false;
     cloudSearchError=false;
+    cloudSearchTrace=null;
     if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
     const si=document.getElementById('cloudSearchInput'); if(si) si.value='';
   } else if(cloudSearchText.trim()) {
@@ -5129,28 +5180,83 @@ function updateFocusBtn(){
   btn.style.borderColor=active?'#f85149':'#30363d';
 }
 document.querySelectorAll('#viewToggle button').forEach(b=> b.addEventListener('click', ()=>setView(b.dataset.view)) );
+function cloudNodeKey(raw){
+  const key=String(raw||'');
+  return key.includes('#')?key.split('#')[0]:key;
+}
+function cloudEdgeKey(a,b){
+  a=cloudNodeKey(a); b=cloudNodeKey(b);
+  return a<b?a+'|'+b:b+'|'+a;
+}
+function buildCloudSearchTrace(items, query){
+  const hitRank=new Map(), finalKeys=new Set(), rerankedKeys=new Set(), walkEdges=new Map(), pathKeys=new Set();
+  const hits=[];
+  for(const item of (items||[])){
+    const key=cloudNodeKey(item&&item.key);
+    if(!key) continue;
+    if(!hitRank.has(key)){
+      hitRank.set(key, hitRank.size);
+      hits.push({ key, score:Number(item.score)||0, reranked:!!(item.reranked||item.ceScore!=null) });
+    }
+    if(item&&(item.reranked||item.ceScore!=null)) rerankedKeys.add(key);
+
+    let prev=key;
+    for(const raw of (Array.isArray(item&&item.path)?item.path:[])){
+      const step=String(raw||'');
+      if(step.startsWith('activation:')){
+        const parts=step.slice('activation:'.length).split('>').map(cloudNodeKey).filter(Boolean);
+        for(const part of parts) pathKeys.add(part);
+        for(let i=1;i<parts.length;i++){
+          const ek=cloudEdgeKey(parts[i-1],parts[i]);
+          if(!walkEdges.has(ek)) walkEdges.set(ek, walkEdges.size);
+        }
+        continue;
+      }
+      const colon=step.indexOf(':');
+      if(colon<0) continue;
+      const next=cloudNodeKey(step.slice(colon+1));
+      if(!next) continue;
+      const ek=cloudEdgeKey(prev,next);
+      if(!walkEdges.has(ek)) walkEdges.set(ek, walkEdges.size);
+      pathKeys.add(prev);
+      pathKeys.add(next);
+      prev=next;
+    }
+  }
+  hits.sort((a,b)=>b.score-a.score);
+  for(const h of hits.slice(0,CLOUD_SEARCH_FINAL_TOP_K)) finalKeys.add(h.key);
+  for(const key of rerankedKeys) finalKeys.add(key);
+  return { query, startedAt:Date.now(), hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys };
+}
 function scheduleCloudSearch(){
   const query=cloudSearchText.trim();
   const q=query.toLowerCase();
   if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
   if(!query){
+    clearCloudSearchFrames();
+    cloudSearchFitKey='';
+    cloudSig='';
     cloudSearchSeq++;
     cloudSearchKeys=new Set();
     cloudSearchResolvedText='';
     cloudSearchPending=false;
     cloudSearchError=false;
+    cloudSearchTrace=null;
     if(lastState) renderCloud(lastState);
     return;
   }
+  clearCloudSearchFrames();
+  cloudSearchFitKey='';
   cloudSearchPending=true;
   cloudSearchError=false;
+  cloudSearchTrace=null;
   if(lastState) renderCloud(lastState);
   const seq=++cloudSearchSeq;
   cloudSearchTimer=setTimeout(async()=>{
     cloudSearchTimer=null;
     let items=[];
     const ctl=new AbortController();
-    const timeout=setTimeout(()=>ctl.abort(),10000);
+    const timeout=setTimeout(()=>ctl.abort(),30000);
     try{
       const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50',{ signal:ctl.signal });
       const data=await res.json();
@@ -5168,12 +5274,16 @@ function scheduleCloudSearch(){
       cloudSearchResolvedText=q;
       cloudSearchPending=false;
       cloudSearchError=false;
+      cloudSearchTrace=buildCloudSearchTrace(items,q);
+      scheduleCloudSearchFrames(seq);
     }catch(e){
       if(seq!==cloudSearchSeq) return;
+      clearCloudSearchFrames();
       cloudSearchKeys=new Set();
       cloudSearchResolvedText=q;
       cloudSearchPending=false;
       cloudSearchError=true;
+      cloudSearchTrace=null;
     }finally{
       clearTimeout(timeout);
     }
@@ -5197,9 +5307,36 @@ function renderCloud(d){
   for(const t of archivedList) byId[t.id]=t;
   const q=cloudSearchText.trim().toLowerCase();
   const remoteFresh=q&&cloudSearchResolvedText===q&&!cloudSearchError;
+  const trace=(cloudSearchTrace&&cloudSearchTrace.query===q)?cloudSearchTrace:null;
+  const traceAge=trace?Math.max(0,Date.now()-(trace.startedAt||Date.now())):0;
+  const searchStep=trace?Math.floor(traceAge/CLOUD_SEARCH_STEP_MS):0;
+  let searchPhase=trace?'hits':(q?'pending':'idle');
+  let searchActivationMaxHop=0, currentActivationHop=0, pruneHopThreshold=0;
+  let activeNodeHops=new Map(), activeEdgeHops=new Map(), finalNodeKeys=new Set(), finalRelatedKeys=new Set();
+  let fadingNodeKeys=new Set(), fadingEdgeKeys=new Set();
   const localMatch=n=>n.t&&((n.t.label||'').toLowerCase().includes(q)||(n.t.description||'').toLowerCase().includes(q));
   const remoteMatch=n=>remoteFresh&&cloudSearchKeys.has(n.id);
-  const matchSearch=n=>!q||n.archive||localMatch(n)||remoteMatch(n);
+  const traceHit=n=>trace&&!n.archive&&trace.hitRank.has(n.id);
+  const traceFinal=n=>trace&&!n.archive&&trace.finalKeys.has(n.id);
+  const traceReranked=n=>trace&&!n.archive&&trace.rerankedKeys.has(n.id);
+  const localFallback=q&&!remoteFresh;
+  const localSearch=n=>localFallback&&localMatch(n);
+  const searchNodeActive=n=>{
+    if(!q) return true;
+    if(!trace) return localSearch(n)||remoteMatch(n);
+    if(!n||n.archive) return false;
+    const hop=activeNodeHops.get(n.id);
+    if(hop===undefined) return false;
+    if(searchPhase==='hits') return hop===0;
+    if(searchPhase==='activate') return hop<=currentActivationHop;
+    if(searchPhase==='prune') return finalNodeKeys.has(n.id)||hop<=pruneHopThreshold;
+    return finalNodeKeys.has(n.id);
+  };
+  const searchNodeVisible=n=>searchNodeActive(n)||(n&&!n.archive&&fadingNodeKeys.has(n.id));
+  const activatedSearch=n=>{
+    if(!q) return true;
+    return trace?searchNodeActive(n):(localSearch(n)||remoteMatch(n));
+  };
 
   // links from blocking deps, context deps, and overlay edges (skip ghosts/cross-ws)
   const linkSet=[];
@@ -5212,7 +5349,11 @@ function renderCloud(d){
 
   // degree + adjacency
   const deg={}, adj={}; tasks.forEach(t=>{ deg[t.id]=0; adj[t.id]=[]; });
-  for(const l of linkSet){ deg[l.source]++; deg[l.target]++; adj[l.source].push(l.target); adj[l.target].push(l.source); }
+  for(const l of linkSet){
+    if(!(l.source in deg)||!(l.target in deg)) continue;
+    deg[l.source]++; deg[l.target]++;
+    adj[l.source].push(l.target); adj[l.target].push(l.source);
+  }
   const orphans=tasks.filter(t=>deg[t.id]===0);
 
   // relevance tiers: foreground = active + 1-hop; midground = rest of reachable component
@@ -5238,17 +5379,156 @@ function renderCloud(d){
     simNodes.push({ id:'__archive__', archive:true, count:archivedCount, tier:'bg', deg:0, age:null });
   const present=new Set(simNodes.map(n=>n.id));
   const byNode=Object.fromEntries(simNodes.map(n=>[n.id,n]));
-  const simLinks=linkSet.filter(l=>present.has(l.source)&&present.has(l.target));
+  const simLinks=linkSet.filter(l=>present.has(l.source)&&present.has(l.target)).map((l,i)=>({...l,_idx:i}));
 
   const maxAge=Math.max(1, ...simNodes.map(n=>n.age||0));
   const radiusOf=n=>{ if(n.archive) return 16; let r=6+Math.min(12,n.deg*2); if(n.tier==='mid') r*=0.8; if(n.tier==='bg') r*=0.55; if(n.age!=null) r*=(1-0.5*(n.age/maxAge)); return Math.max(3,r); };
   const isInactive=n=>n.t&&(n.t.status==='done'||n.t.status==='canceled');
-  const opacityOf=n=>{ if(q&&!matchSearch(n)) return 0.04; let o=n.tier==='fg'?1:n.tier==='mid'?0.55:0.25; if(n.age!=null) o*=(1-0.45*(n.age/maxAge)); if(isInactive(n)) o*=0.25; return Math.max(0.06,o); };
+  const opacityOf=n=>{
+    let o=n.tier==='fg'?1:n.tier==='mid'?0.55:0.25;
+    if(n.age!=null) o*=(1-0.45*(n.age/maxAge));
+    if(isInactive(n)) o*=0.25;
+    if(q){
+      if(searchNodeVisible(n)) return Math.max(traceFinal(n)||traceReranked(n)?0.9:(searchNodeActive(n)?0.55:0.16),o);
+      return 0.035;
+    }
+    return Math.max(0.06,o);
+  };
   const colorOf=n=>{ if(n.archive) return '#8b949e'; if(!n.t) return '#6e7681'; if(n.t.kind==='note') return STATUS_COLOR.note||'#d29922'; return taskDisplayStatus(n.t,byId).color; };
   const targetRadius=n=>{ let b=n.tier==='fg'?0.12:n.tier==='mid'?0.30:0.46; if(n.age!=null) b+=0.18*(n.age/maxAge); return Math.min(W,H)*Math.min(0.49,b); };
   const tierOfId=id=> byNode[id]?byNode[id].tier:'bg';
   const endId=e=> typeof e==='object'?e.id:e;
-  const linkOpacity=l=>{ const a=tierOfId(endId(l.source)), b=tierOfId(endId(l.target)); const w=x=>x==='fg'?0.9:x==='mid'?0.4:0.07; let o=Math.max(w(a),w(b)); const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)]; if(ns&&nt2&&isInactive(ns)&&isInactive(nt2)) o*=0.15; if(q&&!matchSearch(ns)&&!matchSearch(nt2)) o=0.02; return o; };
+  const edgeKey=l=>endId(l.source)+'>'+endId(l.target)+':'+l.kind+':'+(l._idx??'');
+  const traceWalkIndex=l=>trace?trace.walkEdges.get(cloudEdgeKey(endId(l.source),endId(l.target))):undefined;
+  const stagedRelatedKeys=new Set();
+  const activationEdgeMeta=new Map();
+  if(q&&trace){
+    const seedKeys=simNodes
+      .filter(n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n)))
+      .sort((a,b)=>(trace.hitRank.get(a.id)??9999)-(trace.hitRank.get(b.id)??9999)||a.id.localeCompare(b.id))
+      .map(n=>n.id);
+    for(const id of seedKeys) if(!activeNodeHops.has(id)) activeNodeHops.set(id,0);
+    const linkMetas=simLinks.map(l=>{
+      const sourceId=endId(l.source), targetId=endId(l.target);
+      return { link:l, key:edgeKey(l), sourceId, targetId, walkIndex:traceWalkIndex(l) };
+    }).filter(m=>byNode[m.sourceId]&&byNode[m.targetId]&&!byNode[m.sourceId].archive&&!byNode[m.targetId].archive);
+    const nodeRank=id=>trace.hitRank.has(id)?trace.hitRank.get(id):9999;
+    const nodeBoost=id=>(trace.finalKeys.has(id)?-30:0)+(trace.rerankedKeys.has(id)?-20:0)+(trace.pathKeys?.has(id)?-10:0);
+    const linkPriority=m=>[
+      m.walkIndex===undefined?1:0,
+      m.walkIndex??9999,
+      Math.min(nodeRank(m.sourceId),nodeRank(m.targetId)),
+      nodeBoost(m.sourceId)+nodeBoost(m.targetId),
+      m.key
+    ];
+    const linkCmp=(a,b)=>{
+      const ap=linkPriority(a), bp=linkPriority(b);
+      for(let i=0;i<ap.length;i++){ if(ap[i]<bp[i]) return -1; if(ap[i]>bp[i]) return 1; }
+      return 0;
+    };
+    const adjLinks=new Map();
+    for(const meta of linkMetas){
+      if(!adjLinks.has(meta.sourceId)) adjLinks.set(meta.sourceId,[]);
+      if(!adjLinks.has(meta.targetId)) adjLinks.set(meta.targetId,[]);
+      adjLinks.get(meta.sourceId).push(meta);
+      adjLinks.get(meta.targetId).push(meta);
+    }
+    for(const edges of adjLinks.values()) edges.sort(linkCmp);
+    const addActiveEdge=(meta,hop)=>{
+      if(activeEdgeHops.has(meta.key)) return true;
+      if(activeEdgeHops.size>=CLOUD_SEARCH_EDGE_LIMIT) return false;
+      activeEdgeHops.set(meta.key,hop);
+      activationEdgeMeta.set(meta.key,meta);
+      return true;
+    };
+    let frontier=seedKeys;
+    for(let hop=1;hop<=CLOUD_SEARCH_ACTIVATION_MAX_HOPS&&frontier.length&&activeEdgeHops.size<CLOUD_SEARCH_EDGE_LIMIT;hop++){
+      const next=[], nextSeen=new Set();
+      for(const id of frontier){
+        const edges=adjLinks.get(id)||[];
+        let used=0;
+        for(const meta of edges){
+          if(activeEdgeHops.size>=CLOUD_SEARCH_EDGE_LIMIT) break;
+          if(used>=CLOUD_SEARCH_ACTIVATION_EDGES_PER_NODE&&meta.walkIndex===undefined) continue;
+          const other=meta.sourceId===id?meta.targetId:meta.sourceId;
+          const otherNode=byNode[other];
+          if(!otherNode||otherNode.archive) continue;
+          const otherHop=activeNodeHops.get(other);
+          if(!addActiveEdge(meta,hop)) break;
+          used++;
+          if(otherHop===undefined){
+            activeNodeHops.set(other,hop);
+            if(!nextSeen.has(other)){ nextSeen.add(other); next.push(other); }
+          }
+        }
+      }
+      frontier=next;
+    }
+    for(const hop of activeNodeHops.values()) searchActivationMaxHop=Math.max(searchActivationMaxHop,hop);
+    for(const hop of activeEdgeHops.values()) searchActivationMaxHop=Math.max(searchActivationMaxHop,hop);
+    for(const id of trace.finalKeys) if(activeNodeHops.has(id)&&byNode[id]&&!byNode[id].archive) finalNodeKeys.add(id);
+    if(trace.pathKeys) for(const id of trace.pathKeys) if(activeNodeHops.has(id)&&byNode[id]&&!byNode[id].archive) finalNodeKeys.add(id);
+    const perFinal=new Map();
+    for(const meta of [...activationEdgeMeta.values()].sort(linkCmp)){
+      if(!finalNodeKeys.has(meta.sourceId)||!finalNodeKeys.has(meta.targetId)) continue;
+      const sourceUsed=perFinal.get(meta.sourceId)||0, targetUsed=perFinal.get(meta.targetId)||0;
+      if(sourceUsed>=CLOUD_SEARCH_FINAL_EDGES_PER_NODE||targetUsed>=CLOUD_SEARCH_FINAL_EDGES_PER_NODE) continue;
+      perFinal.set(meta.sourceId,sourceUsed+1);
+      perFinal.set(meta.targetId,targetUsed+1);
+      finalRelatedKeys.add(meta.key);
+    }
+    if(searchStep===0){
+      searchPhase='hits';
+    } else if(searchStep<=searchActivationMaxHop){
+      searchPhase='activate';
+      currentActivationHop=searchStep;
+    } else {
+      const pruneStep=searchStep-searchActivationMaxHop;
+      if(pruneStep<=searchActivationMaxHop+1){
+        searchPhase='prune';
+        pruneHopThreshold=searchActivationMaxHop-pruneStep;
+        const fadingHop=pruneHopThreshold+1;
+        for(const [id,hop] of activeNodeHops) if(!finalNodeKeys.has(id)&&hop===fadingHop) fadingNodeKeys.add(id);
+        for(const [key,hop] of activeEdgeHops) if(!finalRelatedKeys.has(key)&&hop===fadingHop) fadingEdgeKeys.add(key);
+      } else {
+        searchPhase='final';
+      }
+    }
+    for(const [key,hop] of activeEdgeHops){
+      if(searchPhase==='activate'&&hop<=currentActivationHop) stagedRelatedKeys.add(key);
+      else if(searchPhase==='prune'&&(finalRelatedKeys.has(key)||hop<=pruneHopThreshold)) stagedRelatedKeys.add(key);
+    }
+  }
+  const totalRelatedEdges=activeEdgeHops.size;
+  const edgeActivationIndex=l=>activeEdgeHops.get(edgeKey(l))??traceWalkIndex(l)??0;
+  const edgeEndpointsActive=l=>{
+    const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)];
+    return !!(ns&&nt2&&searchNodeActive(ns)&&searchNodeActive(nt2));
+  };
+  const edgeEndpointsVisible=l=>{
+    const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)];
+    return !!(ns&&nt2&&searchNodeVisible(ns)&&searchNodeVisible(nt2));
+  };
+  const searchEdgeFinal=l=>(searchPhase==='prune'||searchPhase==='final')&&finalRelatedKeys.has(edgeKey(l))&&edgeEndpointsActive(l);
+  const searchEdgeRelated=l=>stagedRelatedKeys.has(edgeKey(l))&&edgeEndpointsActive(l);
+  const searchEdgeFading=l=>fadingEdgeKeys.has(edgeKey(l))&&edgeEndpointsVisible(l);
+  const searchEdgeWalk=l=>traceWalkIndex(l)!==undefined&&edgeEndpointsActive(l)&&(searchEdgeRelated(l)||searchEdgeFinal(l));
+  const renderedLinks=q?simLinks.filter(l=>searchEdgeRelated(l)||searchEdgeFinal(l)||searchEdgeFading(l)):simLinks;
+  const linkOpacity=l=>{
+    const a=tierOfId(endId(l.source)), b=tierOfId(endId(l.target));
+    const w=x=>x==='fg'?0.9:x==='mid'?0.4:0.07;
+    let o=Math.max(w(a),w(b));
+    const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)];
+    if(ns&&nt2&&isInactive(ns)&&isInactive(nt2)) o*=0.15;
+    if(q){
+      if(searchEdgeFading(l)) return 0.1;
+      if(searchEdgeWalk(l)) return Math.max(0.72,o);
+      if(searchEdgeFinal(l)) return Math.max(0.58,o);
+      if(searchEdgeRelated(l)) return Math.max(0.36,o);
+      return 0.018;
+    }
+    return o;
+  };
 
   // restore prior positions so live polling doesn't re-scramble the layout
   for(const n of simNodes){ const p=cloudPos[n.id]; if(p){ n.x=p.x; n.y=p.y; } else { n.x=cx+(Math.random()-0.5)*60; n.y=cy+(Math.random()-0.5)*60; } }
@@ -5257,17 +5537,30 @@ function renderCloud(d){
   let root=svg.select('g.zoomroot');
   if(root.empty()){
     root=svg.append('g').attr('class','zoomroot');
-    svg.call(d3.zoom().scaleExtent([0.2,4]).on('zoom',ev=>root.attr('transform',ev.transform)));
+    cloudZoom=d3.zoom().scaleExtent([0.2,4]).on('zoom',ev=>root.attr('transform',ev.transform));
+    svg.call(cloudZoom);
+  } else if(!cloudZoom){
+    cloudZoom=d3.zoom().scaleExtent([0.2,4]).on('zoom',ev=>root.attr('transform',ev.transform));
+    svg.call(cloudZoom);
   }
   let linkG=root.select('g.links'); if(linkG.empty()) linkG=root.append('g').attr('class','links');
   let nodeG=root.select('g.nodes'); if(nodeG.empty()) nodeG=root.append('g').attr('class','nodes');
+  if(q&&trace){
+    const fitNodes=simNodes.filter(n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n)));
+    fitCloudToNodes(svg,W,H,fitNodes,q+'|'+(trace.startedAt||''));
+  }
 
-  const linkSel=linkG.selectAll('line').data(simLinks, l=>endId(l.source)+'>'+endId(l.target)+':'+l.kind);
-  linkSel.exit().remove();
+  const linkSel=linkG.selectAll('line').data(renderedLinks, edgeKey);
+  linkSel.exit().transition().duration(CLOUD_SEARCH_STEP_MS).attr('stroke-opacity',0).remove();
   const linkAll=linkSel.enter().append('line').attr('stroke-width',1.2).merge(linkSel)
-    .attr('stroke', l=>l.kind==='context'?'#39c5cf':'#6e7681')
-    .attr('stroke-dasharray', l=>l.kind==='context'?'2 3':null)
-    .attr('stroke-opacity', linkOpacity);
+    .attr('stroke', l=>searchEdgeFading(l)?'#6e7681':(searchEdgeWalk(l)?'#e3b341':(searchEdgeFinal(l)?'#f78166':(searchEdgeRelated(l)?'#e3b341':(l.kind==='context'?'#39c5cf':'#6e7681')))))
+    .attr('stroke-width', l=>searchEdgeFading(l)?1.2:(searchEdgeWalk(l)?2.4:(searchEdgeFinal(l)?2.1:(searchEdgeRelated(l)?1.8:1.2))))
+    .attr('stroke-dasharray', l=>searchEdgeFading(l)?null:(searchEdgeWalk(l)?'6 5':(searchEdgeRelated(l)?'5 4':(l.kind==='context'?'2 3':null))))
+    .attr('stroke-opacity', linkOpacity)
+    .classed('cloud-search-walk', l=>searchEdgeWalk(l))
+    .classed('cloud-search-related', l=>searchEdgeRelated(l))
+    .classed('cloud-search-final-edge', l=>searchEdgeFinal(l))
+    .style('animation-delay', l=>searchEdgeRelated(l)?(Math.min(edgeActivationIndex(l),8)*45)+'ms':null);
 
   const nodeSel=nodeG.selectAll('g.cn').data(simNodes, n=>n.id);
   nodeSel.exit().remove();
@@ -5277,20 +5570,59 @@ function renderCloud(d){
   ndEnter.append('text').attr('text-anchor','middle').attr('dy',n=>n.archive?'0.35em':'-0.9em');
   const nodeAll=ndEnter.merge(nodeSel);
   nodeAll.attr('transform', n=>`translate(${n.x},${n.y})`);
+  const stagedTraceHit=n=>traceHit(n)&&activatedSearch(n);
+  const stagedTracePath=n=>trace&&!traceHit(n)&&activeNodeHops.has(n.id)&&activatedSearch(n);
+  const searchFinalized=searchPhase==='prune'||searchPhase==='final';
+  const stagedTraceFinal=n=>searchFinalized&&traceFinal(n)&&activatedSearch(n);
+  const stagedTraceReranked=n=>searchFinalized&&traceReranked(n)&&activatedSearch(n);
   nodeAll.select('circle')
     .attr('r', radiusOf).attr('fill', colorOf).attr('fill-opacity', opacityOf)
-    .attr('stroke', n=>(!n.archive && n.id===selected)?'#58a6ff':'none').attr('stroke-width',2);
-  const matchCount=q?simNodes.filter(n=>!n.archive&&matchSearch(n)).length:0;
+    .attr('stroke', n=>stagedTraceReranked(n)?'#7dd3fc':(stagedTraceFinal(n)?'#f78166':(stagedTraceHit(n)||stagedTracePath(n)?'#e3b341':((!n.archive && n.id===selected)?'#58a6ff':'none'))))
+    .attr('stroke-width', n=>stagedTraceFinal(n)||stagedTraceReranked(n)?3:(stagedTraceHit(n)||stagedTracePath(n)?2.2:2))
+    .classed('cloud-search-hit', n=>stagedTraceHit(n))
+    .classed('cloud-search-final', n=>stagedTraceFinal(n))
+    .classed('cloud-search-reranked', n=>stagedTraceReranked(n))
+    .style('animation-delay', n=>stagedTraceHit(n)?(Math.min(trace.hitRank.get(n.id)||0,8)*45)+'ms':null);
+  const isDirectSearchMatch=n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n));
+  const matchCount=q?simNodes.filter(isDirectSearchMatch).length:0;
   const countEl=document.getElementById('cloudMatchCount');
   if(countEl) countEl.textContent=q?(cloudSearchPending?'searching...':(matchCount+' match'+(matchCount===1?'':'es'))):'';
+  const traceEl=document.getElementById('cloudTraceLegend');
+  if(traceEl){
+    if(q&&cloudSearchPending){ traceEl.textContent='RAG pending'; traceEl.classList.add('show'); }
+    else if(q&&cloudSearchError){
+      const localOnly=simNodes.filter(n=>!n.archive&&localMatch(n)).length;
+      traceEl.textContent=localOnly?('local '+localOnly+' · search failed'):'search failed';
+      traceEl.classList.add('show');
+    }
+    else if(q&&trace){
+      const reranked=trace.rerankedKeys.size;
+      const shownEdges=searchPhase==='final'?finalRelatedKeys.size:((searchPhase==='activate'||searchPhase==='prune')?stagedRelatedKeys.size:0);
+      const traceParts=['RAG '+trace.hitRank.size];
+      if(searchPhase==='hits') traceParts.push('nodes');
+      else {
+        const edgeLabel=searchPhase==='final'?'final edges ':(searchPhase==='prune'?'pruning ':'edges ');
+        traceParts.push(edgeLabel+shownEdges+(totalRelatedEdges&&shownEdges!==totalRelatedEdges?('/'+totalRelatedEdges):''));
+      }
+      if(searchFinalized&&trace.walkEdges.size) traceParts.push('path walk '+trace.walkEdges.size);
+      if(searchFinalized) traceParts.push('top '+trace.finalKeys.size);
+      if(searchFinalized&&reranked) traceParts.push('rerank '+reranked);
+      traceEl.textContent=traceParts.join(' · ');
+      traceEl.classList.add('show');
+    } else {
+      traceEl.textContent='';
+      traceEl.classList.remove('show');
+    }
+  }
+  const showCloudLabel=n=> q?(!n.archive&&activatedSearch(n)):(n.archive||n.tier==='fg');
   nodeAll.select('title')
     .text(n=> n.archive?'Archived — stale done/canceled and superseded notes':'');
   nodeAll.select('text')
-    .text(n=> n.archive?('🗄 '+n.count):((n.tier==='fg'||(q&&matchSearch(n)))?((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22)):''))
-    .attr('fill-opacity', n=>(n.tier==='fg'||n.archive||(q&&matchSearch(n)))?0.9:0);
+    .text(n=> showCloudLabel(n)?(n.archive?('🗄 '+n.count):((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22))):'')
+    .attr('fill-opacity', n=>showCloudLabel(n)?0.9:0);
   nodeAll.on('click',(ev,n)=>{ if(n.archive){ cloudArchiveOpen=!cloudArchiveOpen; cloudSig=''; renderCloud(lastState); } else openDetail(n.id); })
-    .on('mouseenter',function(ev,n){ if(!n.archive) d3.select(this).select('text').text(truncate(n.t.label,22)).attr('fill-opacity',0.9); })
-    .on('mouseleave',function(ev,n){ if(!n.archive && n.tier!=='fg') d3.select(this).select('text').attr('fill-opacity',0); })
+    .on('mouseenter',function(ev,n){ if(!n.archive&&(!q||activatedSearch(n))) d3.select(this).select('text').text(truncate(n.t.label,22)).attr('fill-opacity',0.9); })
+    .on('mouseleave',function(ev,n){ if(!showCloudLabel(n)) d3.select(this).select('text').attr('fill-opacity',0); })
     .call(d3.drag()
       .on('start',(ev,n)=>{ if(!ev.active) cloudSim.alphaTarget(0.2).restart(); n.fx=n.x; n.fy=n.y; })
       .on('drag', (ev,n)=>{ n.fx=ev.x; n.fy=ev.y; })
@@ -5298,19 +5630,31 @@ function renderCloud(d){
 
   // only reheat the simulation when the node/link set actually changes
   const sig=simNodes.map(n=>n.id).sort().join(',')+'|'+simLinks.map(l=>endId(l.source)+'>'+endId(l.target)).sort().join(',')+'|archOpen:'+cloudArchiveOpen+'|archIds:'+archivedList.map(t=>t.id).sort().join(',');
-  if(cloudSim) cloudSim.stop();
-  cloudSim=d3.forceSimulation(simNodes)
-    .force('link', d3.forceLink(simLinks).id(n=>n.id).distance(70).strength(0.35))
-    .force('charge', d3.forceManyBody().strength(-200))
-    .force('collide', d3.forceCollide().radius(n=>radiusOf(n)+4))
-    .force('radial', d3.forceRadial(targetRadius, cx, cy).strength(n=>n.tier==='fg'?0.05:0.22))
-    .force('center', d3.forceCenter(cx,cy).strength(0.02))
-    .on('tick', ()=>{
-      linkAll.attr('x1',l=>l.source.x).attr('y1',l=>l.source.y).attr('x2',l=>l.target.x).attr('y2',l=>l.target.y);
-      nodeAll.attr('transform', n=>{ cloudPos[n.id]={x:n.x,y:n.y}; return `translate(${n.x},${n.y})`; });
-    });
-  cloudSim.alpha(sig!==cloudSig?0.6:0).restart();   // fresh layout only on change; otherwise static
-  cloudSig=sig;
+  const placeCloud=()=>{
+    const endpoint=e=>typeof e==='object'?e:byNode[e];
+    linkAll
+      .attr('x1',l=>endpoint(l.source)?.x).attr('y1',l=>endpoint(l.source)?.y)
+      .attr('x2',l=>endpoint(l.target)?.x).attr('y2',l=>endpoint(l.target)?.y);
+    nodeAll.attr('transform', n=>{ cloudPos[n.id]={x:n.x,y:n.y}; return `translate(${n.x},${n.y})`; });
+  };
+  if(q){
+    if(cloudSim) cloudSim.stop();
+    placeCloud();
+    cloudSig=sig;
+  } else if(sig!==cloudSig||!cloudSim){
+    if(cloudSim) cloudSim.stop();
+    cloudSim=d3.forceSimulation(simNodes)
+      .force('link', d3.forceLink(simLinks).id(n=>n.id).distance(70).strength(0.35))
+      .force('charge', d3.forceManyBody().strength(-200))
+      .force('collide', d3.forceCollide().radius(n=>radiusOf(n)+4))
+      .force('radial', d3.forceRadial(targetRadius, cx, cy).strength(n=>n.tier==='fg'?0.05:0.22))
+      .force('center', d3.forceCenter(cx,cy).strength(0.02))
+      .on('tick', placeCloud);
+    cloudSim.alpha(0.6).restart();
+    cloudSig=sig;
+  } else {
+    placeCloud();
+  }
   const statsElC = document.getElementById('flowstats');
   if (statsElC) {
     if (currentView === 'cloud' && orphans.length > 0) {

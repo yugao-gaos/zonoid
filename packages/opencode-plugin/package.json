@@ -1,7 +1,7 @@
 {
   "name": "@zonoid/opencode-plugin",
   "version": "0.1.0",
-  "description": "OpenCode plugin bridge for the Zonoid orchestrator (write gate, lifecycle, task_create, schedule_wakeup)",
+  "description": "OpenCode bridge for Zonoid's agent-subconscious layer (context injection, write gate, lifecycle, task_create, schedule_wakeup)",
   "license": "Apache-2.0",
   "main": "zonoid.ts",
   "peerDependencies": {

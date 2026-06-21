@@ -999,3 +999,15 @@
 {"evt":"timestamps_set","id":"followup/harness-judge-drain","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T12:30:14.864Z","lastChanged":1781877301682,"lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-19T14:05:08.809Z"}
 {"evt":"status_changed","id":"followup/harness-judge-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-19T14:11:55.938Z"}
 {"evt":"status_changed","id":"followup/harness-judge-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-19T14:13:30.565Z"}
+{"evt":"edge_added","from":"followup/harness-judge-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:38:12.388Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-judge-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:38:47.218Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-judge-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:39:10.642Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-judge-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:39:17.255Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-judge-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:39:34.877Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-judge-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:39:39.160Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-judge-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:40:16.892Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-judge-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:41:05.995Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-judge-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:42:09.396Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/harness-judge-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:42:22.057Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_removed","from":"followup/harness-judge-drain","to":"3d98f672-2b47-4ef5-8282-f4db45cf1808/2","kind":"context","actor":"overlay-sync","ts":"2026-06-21T18:50:48.619Z"}
+{"evt":"edge_removed","from":"followup/harness-judge-drain","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/9","kind":"context","actor":"overlay-sync","ts":"2026-06-21T18:50:48.619Z"}

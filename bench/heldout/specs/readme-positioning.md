@@ -15,6 +15,7 @@ A markdown file with the following four parts, in order:
 ### 1. One-line positioning
 A single sentence. It should state what zonoid is and for whom, without using the words
 "revolutionary", "powerful", "seamless", or other filler adjectives.
+Use the current canonical claim: zonoid is the agent's subconscious for coding work.
 
 ### 2. Product description (2 paragraphs)
 - Paragraph 1: what the system does in concrete terms — what it stores, when, how agents use it.

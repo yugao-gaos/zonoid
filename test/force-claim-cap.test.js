@@ -97,9 +97,10 @@ test('force-claim cap', async () => {
     assert.equal(r.body.ok, true, 'normal claim 1: ok');
     // release and re-claim many times — should never be refused
     for (let i = 0; i < 5; i++) {
-      await releaseTask(TASK_NORMAL);
+      const released = await releaseTask(TASK_NORMAL);
+      assert.equal(released.body.ok, true, `normal release ${i + 1}: ok ${JSON.stringify(released.body)}`);
       r = await normalClaim(TASK_NORMAL);
-      assert.equal(r.body.ok, true, `normal claim ${i + 2}: ok`);
+      assert.equal(r.body.ok, true, `normal claim ${i + 2}: ok ${JSON.stringify(r.body)}`);
     }
 
     // ── (a) force claims 1-3 succeed with decreasing force_claims_remaining ─

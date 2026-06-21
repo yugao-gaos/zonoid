@@ -1,6 +1,9 @@
 # @zonoid/cli
 
-One-command installer for the [Zonoid](https://github.com/yugao-gaos/zonoid) orchestrator. Run it in any repo to wire up the task-graph daemon, hooks or plugins, and MCP server for your harness.
+One-command installer for [Zonoid](https://github.com/yugao-gaos/zonoid), the agent's
+subconscious for coding work. Run it in any repo to wire up the task-graph daemon, hooks or
+plugins, and MCP server that let agents activate project-local task history, decisions, and
+learned skills.
 
 ## Usage
 

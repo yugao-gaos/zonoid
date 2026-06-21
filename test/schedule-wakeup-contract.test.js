@@ -35,6 +35,7 @@ const ok = (label, cond) => {
     const arm1 = sw.armWakeup({ session: SESSION, delaySeconds: 30, reason: 'idle', prompt: 'a' });
     ok('arm ok', arm1.ok && typeof arm1.pid === 'number');
     ok('pidfile exists', fs.existsSync(sw.pidFile(SESSION)));
+    ok('arm creates fire file for supervisors', fs.existsSync(sw.fireFile(SESSION)));
     const arm2 = sw.armWakeup({ session: SESSION, delaySeconds: 60, reason: 're', prompt: 'b' });
     ok('re-arm replaces pid', arm2.ok && arm2.pid !== arm1.pid);
     const cancel = sw.cancelWakeup(SESSION);
@@ -58,6 +59,21 @@ const ok = (label, cond) => {
     ok('opencode shares armWakeup', opencode.scheduler.armWakeup === cursor.scheduler.armWakeup);
     ok('opencode has writeScheduledTask', typeof opencode.scheduler.writeScheduledTask === 'function');
     ok('claude native arm', claude.scheduler.armWakeup().method === 'native');
+
+    const origCodexSupervise = codex.wakeDelivery.superviseCodexSession;
+    const supervised = [];
+    codex.wakeDelivery.superviseCodexSession = (session) => {
+      supervised.push(session);
+      return { ok: true, supervised: true };
+    };
+    try {
+      const started = codex.usage.onSessionStart({ session: 'codex-real-contract-session', port: 1 });
+      ok('codex sessionStart arms wake', started && started.ok === true);
+      ok('codex sessionStart starts wake delivery supervision', supervised[0] === 'codex-real-contract-session');
+      codex.scheduler.cancelWakeup({ session: 'codex-real-contract-session' });
+    } finally {
+      codex.wakeDelivery.superviseCodexSession = origCodexSupervise;
+    }
   } finally {
     if (prevData === undefined) delete process.env.ORCH_DATA;
     else process.env.ORCH_DATA = prevData;

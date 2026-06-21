@@ -73,6 +73,7 @@ async function waitForPing(ms = 8000) {
   ok('default tools/list byte-identical to formatToolsList(TOOLS)', JSON.stringify(defaultList.result.tools) === baselinePayload);
   ok('default surface has no create_task', !defaultList.result.tools.some((t) => t.name === 'create_task'));
   ok('default surface includes ask_subconscious', defaultList.result.tools.some((t) => t.name === 'ask_subconscious'));
+  ok('default surface includes subconscious_idea_scheduler', defaultList.result.tools.some((t) => t.name === 'subconscious_idea_scheduler'));
 
   const startTaskTool = TOOLS.find((t) => t.name === 'start_task');
   ok('start_task schema has session_id', startTaskTool && startTaskTool.inputSchema.properties.session_id && startTaskTool.inputSchema.properties.session_id.type === 'string');
@@ -173,19 +174,50 @@ async function waitForPing(ms = 8000) {
     subconsciousTool &&
     subconsciousTool.inputSchema.properties.agent_id &&
     subconsciousTool.inputSchema.properties.task_key &&
+    subconsciousTool.inputSchema.properties.session_id &&
+    subconsciousTool.inputSchema.properties.companion_agent_id &&
+    subconsciousTool.inputSchema.properties.approval_signals &&
+    subconsciousTool.inputSchema.properties.include_internal &&
+    subconsciousTool.inputSchema.properties.debug &&
     subconsciousTool.inputSchema.properties.intent &&
     subconsciousTool.inputSchema.properties.situation &&
     subconsciousTool.inputSchema.properties.query);
+  ok('ask_subconscious description advertises next-action pressure',
+    subconsciousTool && subconsciousTool.description.includes('next-action pressure'));
+  ok('ask_subconscious description advertises the Subconscious-first envelope',
+    subconsciousTool &&
+    subconsciousTool.description.includes('single Subconscious envelope') &&
+    subconsciousTool.description.includes('approval posture'));
   let capturedSubconsciousAsk = null;
   const subconsciousOut = await subconsciousTool.run({
     agent_id: 'agent-a',
     task_key: 'local/task',
+    session_id: 'foreground-session',
+    foreground_agent_id: 'foreground-agent',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
     intent: 'choose next implementation step',
     situation: 'Need the relevant context before editing',
+    approval_signals: ['deployment'],
     k: 4,
+    include_internal: true,
   }, (method, path, body) => {
     capturedSubconsciousAsk = { method, path, body };
-    return { ok: true, verdict: 'inject_relevant_context' };
+    return {
+      ok: true,
+      verdict: 'inject_relevant_context',
+      selected_task_key: 'local/task',
+      next_action: 'review_context_then_work_selected_anchor',
+      subconscious: {
+        kind: 'subconscious_agent_surface',
+        verdict: 'inject_relevant_context',
+        prediction: 'relevant_context_likely',
+        context: { summary: { anchored_task_key: 'local/task' } },
+        anchor: { selected_task_key: 'local/task' },
+        approval_posture: { requires_approval: false },
+      },
+      internal: { evidence: { results: [{ key: 'note:context' }] } },
+    };
   });
   ok('ask_subconscious runs POST /subconscious/ask',
     capturedSubconsciousAsk && capturedSubconsciousAsk.method === 'POST' && capturedSubconsciousAsk.path === '/subconscious/ask');
@@ -193,10 +225,134 @@ async function waitForPing(ms = 8000) {
     capturedSubconsciousAsk &&
     capturedSubconsciousAsk.body.agent_id === 'agent-a' &&
     capturedSubconsciousAsk.body.task_key === 'local/task' &&
+    capturedSubconsciousAsk.body.session_id === 'foreground-session' &&
+    capturedSubconsciousAsk.body.companion_agent_id === 'companion-agent' &&
     capturedSubconsciousAsk.body.intent === 'choose next implementation step' &&
     capturedSubconsciousAsk.body.situation === 'Need the relevant context before editing' &&
-    capturedSubconsciousAsk.body.k === 4);
+    capturedSubconsciousAsk.body.approval_signals[0] === 'deployment' &&
+    capturedSubconsciousAsk.body.k === 4 &&
+    capturedSubconsciousAsk.body.include_internal === true);
   ok('ask_subconscious returns route output', subconsciousOut && subconsciousOut.verdict === 'inject_relevant_context');
+  ok('ask_subconscious forwards Subconscious-first output shape',
+    subconsciousOut &&
+    subconsciousOut.subconscious &&
+    subconsciousOut.subconscious.kind === 'subconscious_agent_surface' &&
+    subconsciousOut.subconscious.context.summary.anchored_task_key === 'local/task' &&
+    !subconsciousOut.subconscious.context.evidence &&
+    subconsciousOut.subconscious.anchor.selected_task_key === 'local/task' &&
+    !subconsciousOut.subconscious.pressure &&
+    subconsciousOut.subconscious.approval_posture.requires_approval === false &&
+    subconsciousOut.internal.evidence.results[0].key === 'note:context');
+
+  const searchTool = TOOLS.find((t) => t.name === 'search_knowledge');
+  ok('search_knowledge remains available as a lower-level primitive',
+    searchTool &&
+    searchTool.description.includes('Lower-level knowledge retrieval primitive') &&
+    searchTool.description.includes('call ask_subconscious first') &&
+    !searchTool.description.includes('default consult path'));
+
+  const sessionCompanionTool = TOOLS.find((t) => t.name === 'subconscious_session_companion');
+  ok('subconscious_session_companion is on default MCP surface', !!sessionCompanionTool);
+  ok('subconscious_session_companion schema exposes session and companion fields',
+    sessionCompanionTool &&
+    sessionCompanionTool.inputSchema.properties.session_id &&
+    sessionCompanionTool.inputSchema.properties.foreground_agent_id &&
+    sessionCompanionTool.inputSchema.properties.companion_agent_id &&
+    sessionCompanionTool.inputSchema.properties.companion_loop_id);
+  let capturedSessionCompanion = null;
+  const sessionCompanionOut = await sessionCompanionTool.run({
+    action: 'update',
+    workspace: '/tmp/ws',
+    session_id: 'foreground-session',
+    foreground_agent_id: 'foreground-agent',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    status: 'paired',
+  }, (method, path, body) => {
+    capturedSessionCompanion = { method, path, body };
+    return { ok: true, session_companion: { session_id: body.session_id } };
+  });
+  ok('subconscious_session_companion runs POST /subconscious/session-companion',
+    capturedSessionCompanion && capturedSessionCompanion.method === 'POST' && capturedSessionCompanion.path === '/subconscious/session-companion');
+  ok('subconscious_session_companion passes expected request shape',
+    capturedSessionCompanion &&
+    capturedSessionCompanion.body.session_id === 'foreground-session' &&
+    capturedSessionCompanion.body.foreground_agent_id === 'foreground-agent' &&
+    capturedSessionCompanion.body.companion_agent_id === 'companion-agent' &&
+    capturedSessionCompanion.body.companion_loop_id === 'companion-loop');
+  ok('subconscious_session_companion returns route output', sessionCompanionOut && sessionCompanionOut.session_companion.session_id === 'foreground-session');
+
+  const anchorAllocatorTool = TOOLS.find((t) => t.name === 'subconscious_anchor_allocator');
+  ok('subconscious_anchor_allocator is on default MCP surface', !!anchorAllocatorTool);
+  ok('subconscious_anchor_allocator schema exposes anchor and wiring fields',
+    anchorAllocatorTool &&
+    anchorAllocatorTool.inputSchema.properties.session_id &&
+    anchorAllocatorTool.inputSchema.properties.companion_agent_id &&
+    anchorAllocatorTool.inputSchema.properties.task_key &&
+    anchorAllocatorTool.inputSchema.properties.parent_task_keys &&
+    anchorAllocatorTool.inputSchema.properties.context_task_keys);
+  let capturedAnchorAllocator = null;
+  const anchorAllocatorOut = await anchorAllocatorTool.run({
+    action: 'update',
+    workspace: '/tmp/ws',
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    task_key: 'local/task',
+    reason: 'anchor foreground session to current task',
+    status: 'selected',
+    parent_task_keys: ['local/parent'],
+    context_task_keys: ['note:context'],
+  }, (method, path, body) => {
+    capturedAnchorAllocator = { method, path, body };
+    return { ok: true, anchor_allocation: { task_key: body.task_key } };
+  });
+  ok('subconscious_anchor_allocator runs POST /subconscious/anchor',
+    capturedAnchorAllocator && capturedAnchorAllocator.method === 'POST' && capturedAnchorAllocator.path === '/subconscious/anchor');
+  ok('subconscious_anchor_allocator passes expected request shape',
+    capturedAnchorAllocator &&
+    capturedAnchorAllocator.body.session_id === 'foreground-session' &&
+    capturedAnchorAllocator.body.companion_agent_id === 'companion-agent' &&
+    capturedAnchorAllocator.body.task_key === 'local/task' &&
+    capturedAnchorAllocator.body.parent_task_keys[0] === 'local/parent' &&
+    capturedAnchorAllocator.body.context_task_keys[0] === 'note:context');
+  ok('subconscious_anchor_allocator returns route output', anchorAllocatorOut && anchorAllocatorOut.anchor_allocation.task_key === 'local/task');
+
+  const ideaSchedulerTool = TOOLS.find((t) => t.name === 'subconscious_idea_scheduler');
+  ok('subconscious_idea_scheduler is on default MCP surface', !!ideaSchedulerTool);
+  ok('subconscious_idea_scheduler schema exposes policy and anchor fields',
+    ideaSchedulerTool &&
+    ideaSchedulerTool.inputSchema.properties.agent_id &&
+    ideaSchedulerTool.inputSchema.properties.idea &&
+    ideaSchedulerTool.inputSchema.properties.approval_signals &&
+    ideaSchedulerTool.inputSchema.properties.task_key &&
+    ideaSchedulerTool.description.includes('requiring approval'));
+  let capturedIdeaScheduler = null;
+  const ideaSchedulerOut = await ideaSchedulerTool.run({
+    action: 'schedule',
+    workspace: '/tmp/ws',
+    agent_id: 'daemon-agent',
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    task_key: 'local/task',
+    source: 'daemon_loop',
+    idea: 'Schedule a local context review for current task.',
+    context_task_keys: ['note:context'],
+    confidence: 0.6,
+  }, (method, path, body) => {
+    capturedIdeaScheduler = { method, path, body };
+    return { ok: true, subconscious_idea: { idea: body.idea } };
+  });
+  ok('subconscious_idea_scheduler runs POST /subconscious/idea-scheduler',
+    capturedIdeaScheduler && capturedIdeaScheduler.method === 'POST' && capturedIdeaScheduler.path === '/subconscious/idea-scheduler');
+  ok('subconscious_idea_scheduler passes expected request shape',
+    capturedIdeaScheduler &&
+    capturedIdeaScheduler.body.agent_id === 'daemon-agent' &&
+    capturedIdeaScheduler.body.session_id === 'foreground-session' &&
+    capturedIdeaScheduler.body.task_key === 'local/task' &&
+    capturedIdeaScheduler.body.context_task_keys[0] === 'note:context');
+  ok('subconscious_idea_scheduler returns route output', ideaSchedulerOut && ideaSchedulerOut.subconscious_idea.idea === 'Schedule a local context review for current task.');
 
   const subconsciousSkillTool = TOOLS.find((t) => t.name === 'subconscious_skill');
   ok('subconscious_skill is on default MCP surface', !!subconsciousSkillTool);

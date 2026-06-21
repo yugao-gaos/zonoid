@@ -7,6 +7,24 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
+if (require.main === module && fs.existsSync(path.join(__dirname, '.orch-off'))) process.exit(0);
+function hasHeadlessDrainAncestor() {
+  let pid = process.ppid;
+  for (let i = 0; i < 6 && pid && pid > 1; i++) {
+    let cmd = '';
+    try { cmd = execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }); } catch { cmd = ''; }
+    if (cmd.includes('edge-judge single-pass headless mode')
+        || cmd.includes('headless mode against the orchestrator daemon')) return true;
+    let next = '';
+    try { next = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8' }).trim(); } catch { next = ''; }
+    const parsed = Number(next);
+    if (!Number.isFinite(parsed) || parsed === pid) break;
+    pid = parsed;
+  }
+  return false;
+}
+if (require.main === module && (process.env.ZONOID_HEADLESS_DRAIN === '1' || hasHeadlessDrainAncestor())) process.exit(0);
 const crypto = require('crypto');
 const { URL } = require('url');
 const harnessRegistry = require('./lib/harness');
@@ -125,9 +143,12 @@ function overlayFor(ws) {
 // Re-stamp a cached overlay AFTER the daemon saved through it, so the next overlayFor lookup keeps
 // the in-memory (coalesced) object instead of treating the daemon's own mtime bump as an
 // out-of-band change and reloading. Idempotent; no-op when the ws isn't cached.
-function refreshOverlayStamp(ws) {
+function refreshOverlayStamp(ws, ov) {
   const cached = overlayCache.get(ws);
-  if (cached) cached.stamp = overlayStamp(ws);
+  if (cached) {
+    if (ov) cached.ov = ov;
+    cached.stamp = overlayStamp(ws);
+  }
 }
 function aggregateCached(ws) {
   const now = Date.now();
@@ -346,6 +367,7 @@ const analyticsFlush = analytics.makeFlusher(ANALYTICS_FILE, analyticsState);
 
 // SSE: push a "changed" event to connected dashboards on every mutation (live updates without polling).
 const sseClients = new Set();
+let requestHeadlessDrainWake = null;
 // notifyChange(ws?): push a 'changed' event to connected dashboards on every mutation.
 // When `ws` is given, emits `data: changed:<ws>\n\n` so workspace-specific clients can skip
 // refetches that don't affect their selected workspace. Bare call (no ws) emits the legacy
@@ -354,6 +376,9 @@ function notifyChange(ws) {
   respCache.clear();
   const payload = ws ? `data: changed:${ws}\n\n` : 'data: changed\n\n';
   for (const r of sseClients) { try { r.write(payload); } catch { sseClients.delete(r); } }
+  if (requestHeadlessDrainWake) {
+    try { requestHeadlessDrainWake('graph-change'); } catch { /* best effort */ }
+  }
 }
 
 // Heartbeat loop: the daemon is the decider. The agent polls next_action on a schedule; the
@@ -512,7 +537,7 @@ function targetOverlay(b, u) {
   if (!explicit) return { ws: null, ov: overlayStore.EMPTY(), save: () => {} };
   const ws = explicit;
   const ov = overlayFor(ws);
-  return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws); } };
+  return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws, ov); } };
 }
 
 // Reject-unknown-key guard: returns true if the key resolves to an EXISTING node in the
@@ -1451,7 +1476,7 @@ function baseStatus(s) { return s === 'completed' ? 'done' : s === 'in_progress'
 // Relevance scoring shared by /task/suggest and auto-wiring: rank every other node in the graph
 // by token-overlap of label+summary against `target`. Returns matches sorted desc by score, each
 // { key, label, status, score, shared, suggest_kind, duplicate }. suggest_kind is 'context' for
-// done/note providers (summary flows in) and 'blocking' for open tasks (a real prerequisite).
+// done/non-task providers (summary flows in) and 'blocking' for open tasks (a real prerequisite).
 // One source of truth so auto-wiring uses the IDENTICAL relevance the agent sees from suggest_links.
 const SUGGEST_STOP = new Set(['the', 'and', 'for', 'task', 'with', 'that', 'this', 'from', 'into', 'use', 'run', 'add', 'all', 'new', 'via', 'its']);
 const suggestToks = (s) => new Set((String(s || '').toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter((w) => !SUGGEST_STOP.has(w)));
@@ -1561,6 +1586,7 @@ function scoreMatchesSemantic(g, target, targetVec) {
   const tvec = Array.isArray(targetVec) ? targetVec : null;
   return g.tasks
     .filter((x) => x.id !== target.id && !linked.has(x.id))
+    .filter((x) => !(x.kind === 'note' && x.validTo != null))
     .map((x) => {
       const xt = suggestToks(`${x.label} ${x.summary || ''}`);
       const shared = [...tg].filter((w) => xt.has(w));
@@ -1576,7 +1602,8 @@ function scoreMatchesSemantic(g, target, targetVec) {
       // pairs keep SUGGEST_DUP_THRESHOLD (token-overlap scale).
       const dupBar = semantic ? SEMANTIC_DUP_THRESHOLD : SUGGEST_DUP_THRESHOLD;
       const duplicate = score >= dupBar && OPEN.has(x.status) && x.kind !== 'note';
-      return { key: x.id, label: x.label, status: x.status, score: Math.round(score * 1000) / 1000, shared: shared.slice(0, 8), suggest_kind: (x.kind === 'note' || x.status === 'done') ? 'context' : 'blocking', duplicate, via: semantic ? 'semantic' : 'lexical' };
+      const suggestKind = (overlayStore.isNonTaskNodeKind(x.kind) || x.status === 'done') ? 'context' : 'blocking';
+      return { key: x.id, label: x.label, status: x.status, score: Math.round(score * 1000) / 1000, shared: shared.slice(0, 8), suggest_kind: suggestKind, duplicate, via: semantic ? 'semantic' : 'lexical' };
     })
     .filter((c) => c.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -1600,6 +1627,10 @@ const SEMANTIC_AUTOWIRE_THRESHOLD = process.env.ORCH_AUTOWIRE_THRESHOLD !== unde
 // (this intentionally reverses the earlier "no incoming edge on a note" rule). Cap to top-5 by score
 // so a noisy note can't spam the graph. Pure on (overlay, g, noteKey, ...) ⇒ unit-testable; idempotent.
 function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD) {
+  const sourceNote = typeof noteKey === 'string' && noteKey.startsWith('note:')
+    ? (overlay.note_nodes || {})[noteKey.slice('note:'.length)]
+    : null;
+  if (sourceNote && sourceNote.validTo != null) return 0;
   const target = { id: noteKey, label: title, summary: summary || '', deps: [], context_deps: [] };
   let added = 0;
   const kept = scoreMatchesSemantic(g, target, targetVec)
@@ -2044,26 +2075,25 @@ function buildGraph(ws) {
     const _judging = _adoptHold || (_js.judging && !_js.timedOut);
     return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: _js.judging && _js.timedOut, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: (ovWs.taskVecs && Array.isArray(ovWs.taskVecs[t.key])) ? ovWs.taskVecs[t.key] : null, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
-  // KEPT note context edges → context_deps for note nodes. The structBoost reranker (/search) and
-  // the BFS path tier read each node's context_deps as its graph adjacency; note nodes shipped with a
-  // hardcoded context_deps:[], so a judge-KEPT note→note edge never boosted its neighbor. Mirror the
-  // task-side convention (depRefs): a context edge e.to=<note> contributes e.from to that note's
-  // context_deps. JUDGED-KEPT ONLY — same filter as depRefs: kind==='context' AND weight!==0, so raw
-  // weight-0 autowire candidates (unjudged) are excluded; only a judge-promoted edge (keepEdge lifts
-  // weight off 0) registers. Built once into a key→from[] map so the note loop is O(1) per note.
-  const keptNoteCtxDeps = {}; // 'note:<id>' -> [from-key, ...] of judged-kept context edges
+  // KEPT context edges → context_deps for overlay-only graph nodes. The structBoost reranker
+  // (/search) and BFS path tier read each node's context_deps as graph adjacency. Mirror the task-side
+  // convention (depRefs): a context edge e.to=<node> contributes e.from to that node's context_deps.
+  // JUDGED-KEPT ONLY — same filter as depRefs: kind==='context' AND weight!==0, so raw weight-0
+  // autowire candidates are excluded; only a judge-promoted/asserted edge registers.
+  const keptCtxDeps = {};     // node key -> [from-key, ...] of kept context edges
+  const keptCtxWeights = {};  // node key -> { from-key: weight }
   for (const e of (ovWs.edges || [])) {
     if (e.kind !== 'context' || e.toWorkspace) continue;
-    if (typeof e.to !== 'string' || !e.to.startsWith('note:')) continue;
     if (overlayStore.edgeWeight(e) === 0) continue;   // unjudged autowire candidate — excluded
-    (keptNoteCtxDeps[e.to] || (keptNoteCtxDeps[e.to] = [])).push(e.from);
+    (keptCtxDeps[e.to] || (keptCtxDeps[e.to] = [])).push(e.from);
+    (keptCtxWeights[e.to] || (keptCtxWeights[e.to] = {}))[e.from] = overlayStore.edgeWeight(e);
   }
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
   for (const [noteId, n] of Object.entries(ovWs.note_nodes || {})) {
     const bareNoteId = n.id || noteId;
     const noteKey = 'note:' + bareNoteId;
-    tasks.push({ id: noteKey, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptNoteCtxDeps[noteKey] || [], note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null,
+    tasks.push({ id: noteKey, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptCtxDeps[noteKey] || [], context_weights: keptCtxWeights[noteKey] || {}, note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null, vecs: Array.isArray(n.vecs) ? n.vecs : null,
       // Temporal/state-change fields (null on pre-temporal notes — back-compat): validFrom/validTo
       // bound when the fact was true; supersedes/supersededBy chain it to the note it replaced / was
       // replaced by. The dashboard reads these for the superseded indicator; /search for as-of.
@@ -2077,6 +2107,34 @@ function buildGraph(ws) {
       pending_dup: !!(ovWs.pendingDup && ovWs.pendingDup[noteKey]),
       dup_match: (ovWs.pendingDup && ovWs.pendingDup[noteKey] && ovWs.pendingDup[noteKey].match) || null,
       category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [] });
+  }
+  // Append typed knowledge nodes for source/provenance structure. They are graph/search nodes only:
+  // no native status lifecycle, no assignee/session/todo semantics.
+  for (const [nodeKey, n] of Object.entries(ovWs.knowledge_nodes || {})) {
+    if (!overlayStore.isKnowledgeNodeKind(n && n.type)) continue;
+    const key = n.key || nodeKey;
+    tasks.push({
+      id: key,
+      label: n.label || n.title || key,
+      kind: n.type,
+      status: 'knowledge',
+      session: null,
+      deps: [],
+      context_deps: keptCtxDeps[key] || [],
+      context_weights: keptCtxWeights[key] || {},
+      note: '',
+      agent_id: null,
+      summary: n.summary || '',
+      vec: Array.isArray(n.vec) ? n.vec : null,
+      vecs: Array.isArray(n.vecs) ? n.vecs : null,
+      metadata: n.metadata || {},
+      source_path: n.source_path || null,
+      section_ref: n.section_ref || null,
+      chunk_ref: n.chunk_ref || null,
+      cluster_ref: n.cluster_ref || null,
+      created_at: n.created_at || null,
+      updated_at: n.updated_at || null,
+    });
   }
   // A node was first seen THIS build ⇒ bump the graph-change epoch so the edge-judge re-pulls notes
   // whose neighborhood may now have a new candidate (judgedAtEpoch < epoch becomes true again). One
@@ -2114,8 +2172,9 @@ function buildGraph(ws) {
 }
 
 function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
-  const real = tasks.filter((t) => t.kind !== 'note'); // note nodes aren't tasks — keep counts honest
-  const notes = tasks.length - real.length;
+  const real = tasks.filter((t) => !overlayStore.isNonTaskNode(t)); // note/knowledge nodes aren't tasks
+  const notes = tasks.filter((t) => t.kind === 'note').length;
+  const knowledge_nodes = tasks.length - real.length - notes;
   const c = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0]));
   for (const t of real) c[t.status] = (c[t.status] || 0) + 1;
   c.local_in_progress = localInProgressCount(real, ov);
@@ -2123,6 +2182,7 @@ function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
   return {
     tasks_total: real.length,
     notes,
+    knowledge_nodes,
     statuses: c,
     sessions: new Set(real.map((t) => t.session)).size,
     edges: ov.edges.length,
@@ -2375,6 +2435,15 @@ const routeModules = [
   sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), subconsciousRoute(ctx), uiRoute(ctx),
 ];
 
+function superviseCodexWakeDeliveryForRegisteredWorkspaces() {
+  try {
+    const codex = harnessRegistry.get('codex');
+    if (codex && codex.wakeDelivery && typeof codex.wakeDelivery.superviseCodexBridgeWorkspaces === 'function') {
+      codex.wakeDelivery.superviseCodexBridgeWorkspaces(registeredWorkspaces());
+    }
+  } catch { /* advisory wake delivery supervision */ }
+}
+
 // Paths served even while the daemon is still in the loading phase.
 // Writes rely on 503 + client retry + op_id idempotency — no queueing needed.
 const LOADING_WHITELIST = new Set(['/health', '/version', '/ping', '/', '/graph']);
@@ -2476,6 +2545,10 @@ if (require.main === module) {
   // SSE/keep-alive sockets so a successor can bind within ~1s of the signal.
   ['SIGINT', 'SIGTERM'].forEach(sig => process.on(sig, () => {
     removeDaemonPort();
+    try {
+      const codex = harnessRegistry.get('codex');
+      if (codex && codex.wakeDelivery && codex.wakeDelivery.defaultSupervisor) codex.wakeDelivery.defaultSupervisor.stopAll();
+    } catch { /* best effort */ }
     server.close(() => process.exit(0));
     if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
     if (httpsServer) {
@@ -2542,7 +2615,10 @@ if (require.main === module) {
       // BIND-EARLY: the port is now held; load state asynchronously so /health (whitelisted
       // through the 503 gate) reports boot progress while everything else gets an honest 503.
       // writeDaemonPort iterates the registered workspaces, so it runs after loadState resolves.
-      loadState().then(() => writeDaemonPort(port))
+      loadState().then(() => {
+        writeDaemonPort(port);
+        superviseCodexWakeDeliveryForRegisteredWorkspaces();
+      })
         .catch((e) => { process.stderr.write(`loadState failed: ${(e && e.stack) || e}\n`); process.exit(1); });
 
       // Optional HTTPS listener for the custom-connector path (needs a locally-trusted cert — run
@@ -2579,21 +2655,92 @@ if (require.main === module) {
   // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
   setInterval(() => { try { sweepStaleLoops(); } catch { /* best effort */ } }, 60000).unref();
 
-  // Headless drain runner: unless ORCH_HEADLESS_DRAINS explicitly opts out, runs due background maintenance drains
-  // (learner, and later judge/label) via headless `node scripts/onboard-learn.js --drain` child
-  // processes. This is the NO-SESSION path — real ready-task impl work remains session-dispatched.
-  // Default ON. Cadence: configurable (HEADLESS_DRAIN_INTERVAL_MS, default 2 min) + a small
-  // boot-time jitter so instances don't align; unref'd so it never holds the
-  // process open. AUGMENTS the existing loop-based dispatch; does not replace or alter it. The
-  // governor's rate-limit backoff (lib/headless-drain.js) additionally skips ticks under 429/529.
-  const HEADLESS_DRAIN_INTERVAL_MS =
-    (Number(process.env.HEADLESS_DRAIN_INTERVAL_MS) || 2 * 60 * 1000) + Math.floor(Math.random() * 60 * 1000);
-  setInterval(() => {
-    // runDueDrains is async (spawns drain children via async child_process.spawn so the event loop
-    // stays free during each child run — the deadlock fix). Fire-and-forget: do NOT await it inside
-    // this timer, just swallow any rejection so a drain failure never crashes the daemon.
-    try { headlessDrain.runDueDrains(state).catch(() => {}); } catch { /* best effort — never crash the daemon */ }
-  }, HEADLESS_DRAIN_INTERVAL_MS).unref();
+  // Headless drain runner: unless ORCH_HEADLESS_DRAINS explicitly opts out, runs due background
+  // maintenance drains (learner/judge/label). This is the NO-SESSION path; real ready-task impl
+  // work remains session-dispatched. The runner is a self-scheduling pump: graph mutations wake it
+  // immediately, successful passes keep it pumping while queues have content, and no_due_drains
+  // returns it to idle. A low-frequency idle poll remains as a fallback for external file writes
+  // that do not pass through notifyChange(). Governor/backoff limits in lib/headless-drain.js still
+  // cap fork rate, token budget, timeouts, and 429/529 retry behavior.
+  const HEADLESS_DRAIN_IDLE_POLL_MS =
+    (Number(process.env.HEADLESS_DRAIN_IDLE_POLL_MS)
+      || Number(process.env.HEADLESS_DRAIN_INTERVAL_MS)
+      || 2 * 60 * 1000)
+    + Math.floor(Math.random() * 60 * 1000);
+  const HEADLESS_DRAIN_CONTINUOUS_DELAY_MS =
+    Number(process.env.HEADLESS_DRAIN_CONTINUOUS_DELAY_MS) || 1000;
+  const HEADLESS_DRAIN_RETRY_DELAY_MS =
+    Number(process.env.HEADLESS_DRAIN_RETRY_DELAY_MS) || 5000;
+  let headlessDrainTimer = null;
+  let headlessDrainNextAt = 0;
+  let headlessDrainRunning = false;
+  let headlessDrainWakePending = false;
+
+  function scheduleHeadlessDrain(delayMs, reason) {
+    if (!headlessDrain.isHeadlessEnabled()) return;
+    const delay = Math.max(0, Number(delayMs) || 0);
+    if (headlessDrainRunning) {
+      headlessDrainWakePending = true;
+      return;
+    }
+    const nextAt = Date.now() + delay;
+    if (headlessDrainTimer && headlessDrainNextAt <= nextAt) return;
+    if (headlessDrainTimer) clearTimeout(headlessDrainTimer);
+    headlessDrainNextAt = nextAt;
+    headlessDrainTimer = setTimeout(() => runHeadlessDrainPump(reason), delay);
+    if (headlessDrainTimer && typeof headlessDrainTimer.unref === 'function') headlessDrainTimer.unref();
+  }
+
+  function nextHeadlessDrainDelay(result) {
+    const backoffUntil = headlessDrain._governor && headlessDrain._governor.backoffUntil;
+    if (backoffUntil && Date.now() < backoffUntil) {
+      return Math.max(HEADLESS_DRAIN_RETRY_DELAY_MS, backoffUntil - Date.now());
+    }
+    if (result && result.ran > 0) return HEADLESS_DRAIN_CONTINUOUS_DELAY_MS;
+    if (result && result.skipped === 'backoff') {
+      return backoffUntil && Date.now() < backoffUntil
+        ? Math.max(HEADLESS_DRAIN_RETRY_DELAY_MS, backoffUntil - Date.now())
+        : HEADLESS_DRAIN_RETRY_DELAY_MS;
+    }
+    if (result && (result.skipped === 'concurrency_cap' || result.skipped === 'global_concurrency_cap' || result.skipped === 'global_lease_lock_busy')) {
+      return HEADLESS_DRAIN_RETRY_DELAY_MS;
+    }
+    return HEADLESS_DRAIN_IDLE_POLL_MS;
+  }
+
+  async function runHeadlessDrainPump(reason) {
+    headlessDrainTimer = null;
+    headlessDrainNextAt = 0;
+    if (headlessDrainRunning) {
+      headlessDrainWakePending = true;
+      return;
+    }
+    headlessDrainRunning = true;
+    let result = null;
+    try {
+      result = await headlessDrain.runDueDrains(state);
+    } catch (e) {
+      result = { ran: 0, skipped: 'error', error: e && e.message ? e.message : String(e) };
+    } finally {
+      headlessDrainRunning = false;
+    }
+    if (headlessDrainWakePending) {
+      headlessDrainWakePending = false;
+      const hardPause = result && [
+        'backoff',
+        'iterations_exhausted',
+        'token_budget_exhausted',
+        'no_backend',
+        'flag_off',
+      ].includes(result.skipped);
+      scheduleHeadlessDrain(hardPause ? nextHeadlessDrainDelay(result) : HEADLESS_DRAIN_CONTINUOUS_DELAY_MS, 'pending-change');
+      return;
+    }
+    scheduleHeadlessDrain(nextHeadlessDrainDelay(result), result && result.skipped ? result.skipped : 'drained');
+  }
+
+  requestHeadlessDrainWake = () => scheduleHeadlessDrain(0, 'graph-change');
+  scheduleHeadlessDrain(0, 'boot');
 
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command
