@@ -1839,9 +1839,12 @@ function makeResolver() {
   function depRefs(ws, key) {
     const { tasks, overlay } = loadWs(ws);
     const t = tasks[key];
-    const local = t ? t.deps.map((k) => ({ ws, key: k, kind: 'blocking' })) : [];
+    const local = t ? t.deps
+      .filter((k) => !overlayStore.isReversePairedJudgeBlockingEdge(overlay, k, key, { tasks }))
+      .map((k) => ({ ws, key: k, kind: 'blocking' })) : [];
     const edges = overlay.edges
       .filter((e) => e.to === key && !e.toWorkspace)
+      .filter((e) => e.kind === 'context' || !overlayStore.isReversePairedJudgeBlockingEdge(overlay, e.from, e.to, { tasks }))
       // Weight is a relevance MULTIPLIER for context edges: a weight-0 edge contributes ZERO and is
       // EXCLUDED from the context_deps payload (DAG-tier injection + structural rerank), not merely
       // deprioritized. This is how unjudged autowire edges (seeded at weight 0) stay retrieval-
@@ -1965,12 +1968,14 @@ function buildGraph(ws) {
   // native status is reflected in this same build (not one poll later). Sweeps the TARGET
   // workspace's overlay, so stale claims release wherever the read lands.
   if (sweepStaleClaims(ws, ovWs)) { cache.agg.delete(ws); cache.aggAt.delete(ws); }
-  const R = makeResolver();
   let native = aggregateCached(ws);
   if (sweepStaleNativeClaims(ws, ovWs, native)) {
     cache.agg.delete(ws); cache.aggAt.delete(ws);
     native = aggregateCached(ws);
   }
+  const nativeByKey = Object.fromEntries(native.map((t) => [t.key, t]));
+  const repairedReverseJudgeEdges = overlayStore.pruneReversePairedJudgeBlockingEdges(ovWs, { tasks: nativeByKey });
+  const R = makeResolver();
   const ghostMap = {}; // "ws|key" -> ghost stub
   const sessionCount = {}; for (const t of native) sessionCount[t.session] = (sessionCount[t.session] || 0) + 1;
   const stWs = { ...state, overlay: ovWs };   // taskTokens reads assignee from the target overlay
@@ -2079,7 +2084,7 @@ function buildGraph(ws) {
   // task->task autowire was removed: it had no agent in its lifecycle, was never judged, and seeded
   // weight-0 edges that stayed permanently invisible — suggest_links + the adoption nudge cover
   // task->task wiring with agent judgment.)
-  let edgesDirty = false;
+  let edgesDirty = repairedReverseJudgeEdges > 0;
   if (own && newlySeen.length) {
     overlayStore.bumpEpoch(ovWs); edgesDirty = true;
   }
