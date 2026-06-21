@@ -85102,6 +85102,7 @@
       "summary": "Hardened worktree isolation (Items 1+4 of 4, required minimum). Item 1 — per-path LEASE in lib/git.js: createWorktree(ws,key,{owner}) atomically acquires <wt>.lease (O_EXCL 'wx') before `git worktree add`; a 2nd agent racing the same path gets {contended,held} not a collision. Stale leases (dead pid + aged past ORCH_LEASE_STALE_MS=1h) reclaimable; removeWorktree frees it; re-entrant same-pid. Exports leasePath/acquireLease/releaseLease/readLease. Item 4 — dirty-GC guard in scripts/gc-worktrees.js gcWorktree: re-probes `git status --porcelain` immediately before the destructive remove, refuses (SKIPPED) on any uncommitted change/probe-fail — closes the scan→reap TOCTOU window. Items 2+3 left untouched (already satisfied: orch/attempt/<slug> = branch-per-task off base; merge_attempt→/git/merge auto-aborts on conflict for the judge); renaming to darwin/task-<id> would break every in-flight worktree + merge/GC paths. Files: lib/git.js, scripts/gc-worktrees.js, test/git.test.js (31/31), test/gc-worktrees.test.js (new, 9/9); git-merge.test.js regression-clean 15/15. HELD FOR MERGE on isolated worktree worktrees/self/worktree-isolation, branch darwin/task-worktree-isolation (1 commit ahead of main, NOT merged). Main checkout + other agent's uncommitted work untouched.",
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4",
         "description": "",
@@ -88830,7 +88831,18 @@
       "summary": "Dashboard reworked to 3 views in public/graph.html. FRONTIER (default; replaces Flow, localStorage 'flow'→'frontier' migrated): dagre over a subset = live seeds (ready/in_progress/failed/tested/not_ready) + all 1-hop neighbors + upward ancestry (blocking deps always to root; context deps only if weight>=0.5 or top-3 per node, recursive, capped ~4 hops); context edges render weight-scaled (width 1+1.5w, opacity 0.3+0.6w); excluded connected nodes live in a collapsed \"N hidden\" chip bar (#flowhidden), deg-0 nodes stay in the Independent tray; zero-live fallback = 15 most-recently-changed. FOCUS: one node's full ancestry+descendants, entered via \"⌖ Focus\" button in the detail panel (focusNode(key)); third toggle button hidden until focused; focusedId kept across view switches, never persisted. CLOUD untouched. Key interfaces for future tasks: buildLinks(d)→{tasks,byId,links[{from,to,kind,w}]} (blocking/context from task fields ONLY — daemon folds overlay edges in; d.edges used solely for supersede), frontierSelect(tasks,links,byId)→Set, focusSelect(links,id)→Set, renderDagSubset(view,nodes,links,byId) shared dagre pipeline with per-view pan/zoom in dagState{frontier,focus}, chipHTML(t) shared chip. Verified: node --check OK; live run selects 31/296 nodes (7 seeds all included, 141 hidden, 124 orphans); daemon serves new HTML per-request.",
       "knowledge": [],
       "note": null,
-      "snapshot": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "e0c18996-aabe-40bb-ab1c-24e7daaa6ccb/1",
+        "description": "",
+        "status": "done",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true
+        },
+        "snapshotted_at": "2026-06-21T21:49:54.106Z"
+      },
       "assignee": null,
       "timestamps": {
         "firstSeen": "2026-06-10T23:48:50.795Z",
@@ -88839,6 +88851,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -94993,6 +95006,7 @@
       "summary": "POST /overlay/status in_progress now resolves session_id (body or agent registry), rejects dispatcher/non-subagent sessions with 409 before claim apply (including force:true), and returns 400 when session_id is missing. Added dispatcher-gate tests in test/endpoints.test.js; all pass.",
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "DG1: Block dispatcher sessions from start_task (claim gate)",
         "description": "Enforce at POST /overlay/status when status=in_progress: resolve caller session_id, GET /session-info; if is_subagent=false return 409 'dispatcher sessions cannot claim tasks'. Reject force:true from dispatcher. Require session_id on claim body when not inferable from agent registry. Tests in test/endpoints.test.js.",
@@ -95146,6 +95160,7 @@
       "summary": "Added test/dispatcher-model.test.js: full dispatcher integration (409 claim gate, subagent ok, /dispatcher/children attribution meta, live-daemon trivial gate + dispatcher-edit). Updated docs/adapter-contract.md with dispatcher vs worker roles, claim gate, Option A trivial gate, dispatcher_focus + usage attribution. All related tests pass (dispatcher-model, endpoints, orch-gate, orch-gate-bash, classify-endpoint).",
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "DG6: Dispatcher model tests + adapter-contract docs",
         "description": "Integration tests: main start_task 409; subagent start_task ok; trivial gate with/without children; dispatcher-edit attribution on correct task_key. Update docs/adapter-contract.md dispatcher vs worker roles and claim gate contract.",
@@ -95167,6 +95182,7 @@
       },
       "metrics": null,
       "measurements": null,
+      "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
     },
@@ -107468,6 +107484,7 @@
       "summary": "Read-only audit traced Codex session/claim flow. branch_task and start_task succeeded when CODEX_THREAD_ID was passed explicitly as session_id. Key fragilities: Codex MCP auto-session fallback omits CODEX_THREAD_ID; hookless self-register allows any agent_id plus registered worktree, so dispatcher denial depends on no worktree; session-info does not classify hookless agent_tool_spawn sessions as subagents after/without an active claim; Bash gate accepts any detected target inside worktree rather than every target. No files edited; no tests executed.",
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "Trace Codex session, agent registration, and claim path",
         "description": "Read-only audit. Trace Codex session identity, worker registration, branch_task/start_task claim flow, hookless/background worker handling, and differences from Claude Code. Identify failure modes where Codex tasks cannot claim or are misattributed. Return evidence with file/line references and tests/docs gaps. Do not edit files.",
@@ -225209,6 +225226,262 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/breathing-learning-cloud-live-inject-recovery-fix": {
+      "id": "codex/breathing-learning-cloud-live-inject-recovery-fix",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Committed 1e1d7677. Stored outDir recovery now resumes incomplete/recovered/inactive onboarding queues through the POST drain path with live auto-inject, keeps the landing visible, and exposes recovered GET statuses as active:false. Added focused static coverage for the recovered resume path and inactive recovered status. Verification passed: node --check routes/onboard.js; node --check scripts/onboard-learn.js; node test/onboarding-landing.test.js; node test/onboard-live-inject-route.test.js; node test/onboard-doc-structure-miner.test.js; node test/learner-queue.test.js; git diff --check. Full npm test was run twice and is 199/200, failing only force-claim-cap.test.js because a normal claim is blocked by the orchestrator judging-gate hold.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Fix breathing onboarding cloud live-inject recovery",
+        "description": "Replacement for the kicked-back breathing onboarding cloud attempt. Start from the prior attempt `codex/breathing-learning-cloud-live-inject` / commit 50e5c652, preserve the shared breathing cloud and live-inject behavior, and fix the blocking judge issue: recovered incomplete queue status after daemon restart/reload must restart/resume drain with live auto-inject instead of polling forever. Keep dashboard hidden until learning is actually complete. Add focused tests for stored outDir/recovered done:false resume behavior.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T22:20:54.639Z"
+      },
+      "assignee": "worker-breathing-learning-cloud-live-inject-recovery-fix",
+      "timestamps": {
+        "firstSeen": "2026-06-21T22:06:20.308Z",
+        "lastChanged": "2026-06-21T22:20:51.583Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/breathing-learning-cloud-live-inject": {
+      "id": "codex/breathing-learning-cloud-live-inject",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "failed",
+      "summary": "Implemented a shared breathing onboarding graph cloud, depth-enhanced Force Cloud rendering, live auto-injection during queue drain, workspace-scoped ingest dedupe, and queue-file status recovery after daemon restarts. Added focused tests for landing UX, route live-inject/recovery, workspace dedupe, and queue behavior.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Replace onboarding progress cards with breathing shared cloud and live inject",
+        "description": "Update onboarding learning UX so the unlearned workspace landing uses the same cloud visualization as the real graph, with a breathing/3D-feeling node-edge cloud where learned nodes/edges appear as learning progresses. Enable live/automatic injection for onboarding learning so users do not need a Review & Inject step. Make incremental injection idempotent. Also make the regular force cloud feel less flat/2D using the shared renderer. Verify with tests and in-app browser screenshot.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T22:00:15.345Z"
+      },
+      "assignee": "worker-breathing-learning-cloud-live-inject",
+      "timestamps": {
+        "firstSeen": "2026-06-21T21:49:35.908Z",
+        "lastChanged": "2026-06-21T22:05:19.562Z",
+        "lastStatus": "failed"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-breathing-learning-cloud-live-inject": {
+      "id": "codex/judge-breathing-learning-cloud-live-inject",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "KICK BACK. Blocking defect: recovered incomplete onboarding queues are displayed/polled but never restarted. In public/graph.html, storedOutDir recovery handles any !onboardStatusComplete status by rendering the landing and calling pollOnboardLearning(); for recovered done:false status it never POSTs /onboard/drain-queue, and routes/onboard.js GET recovery only reads queue status. After daemon restart/reload mid-learning, the landing can stay up forever with no drain/live-inject job running. Implementation task was marked failed. Tests run: node --check routes/onboard.js scripts/onboard-learn.js; git diff --check main...HEAD -- changed files; node test/onboarding-landing.test.js; node test/onboard-live-inject-route.test.js; node test/onboard-doc-structure-miner.test.js; node test/learner-queue.test.js.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge breathing learning cloud and live inject attempt",
+        "description": "Review the implementation for codex/breathing-learning-cloud-live-inject in single-attempt review mode. Use self-learn-judge. Check cloud UX correctness, shared renderer reuse, live/automatic inject safety and dedupe, scope discipline, and tests. Do not force merge.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/breathing-learning-cloud-live-inject"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T22:05:30.424Z"
+      },
+      "assignee": "judge-breathing-learning-cloud-live-inject",
+      "timestamps": {
+        "firstSeen": "2026-06-21T21:50:15.274Z",
+        "lastChanged": "2026-06-21T22:05:29.349Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-subconscious-permit-gate": {
+      "id": "codex/judge-subconscious-permit-gate",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "KICK BACK. Tests pass, but the implementation makes the hooks require a Subconscious permit while the normal worker contract and installer/sample permissions still only support branch_task -> start_task -> write. Existing workers can claim successfully and then be denied on first write. Required: wire permit acquisition/auto-issue into the worker path and update permissions/docs/tests before merge.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge Subconscious permit gate implementation",
+        "description": "Review the attempt for codex/subconscious-permit-gate in single-attempt code-review mode. Fetch the attempt diff, verify correctness, scope discipline, tests, parity between Node and shell gate paths, and that the task DAG remains the internal substrate while foreground writes require a Subconscious-issued permit. Do not force-merge; report APPROVE or KICK BACK.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/subconscious-permit-gate"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T22:12:13.690Z"
+      },
+      "assignee": "judge-subconscious-permit-gate",
+      "timestamps": {
+        "firstSeen": "2026-06-21T21:47:39.585Z",
+        "lastChanged": "2026-06-21T22:12:12.188Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-subconscious-skill-abtest-main-merge-conflict": {
+      "id": "codex/judge-subconscious-skill-abtest-main-merge-conflict",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVED: reviewed merge-conflict repair commit b3d732a in lib/mcp-core.js, lib/subconscious/index.js, and test/subconscious.test.js. No conflict markers or syntax damage found. Subconscious ask/pressure/anchor behavior and skill lifecycle surface are both preserved; skill promotion remains manifest/version activation only with no SKILL.md overwrite path. Focused tests passed and attempt merged into feature branch at ee4cf1c.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge resolved Subconscious skill feature merge conflicts",
+        "description": "Review the attempt for codex/subconscious-skill-abtest-main-merge-conflict in single-attempt review mode. Fetch the attempt diff against the feature branch base, verify the conflict resolution preserves main behavior and the new auto-skill lifecycle APIs without scope creep, run the relevant tests and npm test, then APPROVE and merge the attempt into the feature branch or KICK BACK with concrete findings. Do not force-merge.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/subconscious-skill-abtest-main-merge-conflict"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T21:41:41.589Z"
+      },
+      "assignee": "judge-subconscious-skill-abtest-main-merge-conflict-codex",
+      "timestamps": {
+        "firstSeen": "2026-06-21T21:20:54.886Z",
+        "lastChanged": "2026-06-21T21:41:40.153Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/subconscious-permit-gate-kickback-fix": {
+      "id": "codex/subconscious-permit-gate-kickback-fix",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Fixed Subconscious permit worker-flow deadlock: accepted start_task claims now ensure an active scoped execution permit for the registered worktree/branch/session/agent, so normal branch_task -> start_task -> write no longer needs a manual permit call. Added live regression coverage for auto-issued permit, hook write allow, idempotent permit reuse, and revoked-permit denial; updated permit diagnostic tool permissions/docs. Commit 4b9ca68a4df909923d0e2635a10197fcf75467f4.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Fix Subconscious permit gate worker-flow integration",
+        "description": "Fix the judge kickback for codex/subconscious-permit-gate. The implementation made write gates require Subconscious permits, but normal worker flow still says branch_task -> start_task -> write and installer allowlist does not expose the permit MCP tool. Add a minimal safe integration: either auto-issue a permit from claim/task DAG/worktree state during start_task/in_progress claim, or make permit acquisition part of the normal worker flow; update AGENTS/install permissions and tests so a standard worker can claim then write without being deadlocked, while still enforcing permit/session/task/worktree/path scope.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T22:24:19.948Z"
+      },
+      "assignee": "worker-subconscious-permit-gate-kickback-fix",
+      "timestamps": {
+        "firstSeen": "2026-06-21T22:12:45.837Z",
+        "lastChanged": "2026-06-21T22:24:17.997Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/subconscious-permit-gate": {
+      "id": "codex/subconscious-permit-gate",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "failed",
+      "summary": "Implemented Subconscious execution permits and made Node write gates require a valid permit backed by the active claim/worktree before non-exempt writes. Added permit issue/read/revoke API and MCP surface, ask_subconscious permit requirement output, and focused gate/Subconscious/MCP tests. Commit 88ca9602d2ede2c4d5d21f4fbd0d3fb8546b44c3 passes the requested verification.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Enforce Subconscious execution permits in the write gate",
+        "description": "Implement the architecture shift where foreground agents are authorized by a Subconscious-issued execution permit rather than direct task-claim authority. The permit should be backed by the existing task DAG/worktree/claim state, but the hard gate should validate the permit/session/worktree/path scope. Keep the DAG as Subconscious internal substrate. Update Subconscious API/routes/store, write gates (Node and shell policy parity where applicable), and tests. Keep change scoped and compatible with existing branch_task/start_task worker flow.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T22:05:37.547Z"
+      },
+      "assignee": "worker-subconscious-permit-gate",
+      "timestamps": {
+        "firstSeen": "2026-06-21T21:47:30.538Z",
+        "lastChanged": "2026-06-21T22:12:04.096Z",
+        "lastStatus": "failed"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/subconscious-skill-abtest-main-merge-conflict": {
+      "id": "codex/subconscious-skill-abtest-main-merge-conflict",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Merged main into the feature-based attempt and resolved conflicts in lib/mcp-core.js, lib/subconscious/index.js, and test/subconscious.test.js. Preserved main's expanded Subconscious ask/pressure/anchor surface plus the feature's skill lifecycle MCP/store/test coverage. Commit b3d732ad933afcf7d9fc991f76a06f85b153469c. Focused verification passed; npm test has unrelated full-run ordering/state failures in force-claim-cap.test.js and workspaces-daemon.test.js that pass in isolation.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Resolve Subconscious skill feature merge conflicts against main",
+        "description": "Update feature branch orch/feature/subconscious-skill-abtest against current main by merging main into a feature-based attempt, resolving conflicts in lib/mcp-core.js, lib/subconscious/index.js, and test/subconscious.test.js. Preserve both the existing main Subconscious behavior and the new auto-skill lifecycle surface. Run targeted tests and npm test, commit the resolved integration to the attempt branch, and complete the task with a concise summary.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/judge-subconscious-auto-skill-integration"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T21:36:33.993Z"
+      },
+      "assignee": "merge-conflict-resolver-codex",
+      "timestamps": {
+        "firstSeen": "2026-06-21T21:20:44.581Z",
+        "lastChanged": "2026-06-21T21:36:30.800Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -268931,16 +269204,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mqn5eugc0vj",
-      "to": "codex/judge-subconscious-skill-abtest-main-merge-conflict",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.579,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqo6o29jzgp",
       "to": "codex/subconscious-skill-abtest-main-merge-conflict",
       "kind": "context",
@@ -268977,8 +269240,8 @@
       "to": "codex/judge-learning-landing-autostart",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.645,
       "origin": "autowire-semantic"
     },
@@ -269007,8 +269270,8 @@
       "to": "codex/learning-landing-autostart",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqoasni3beh",
@@ -269019,14 +269282,6 @@
       "judged": false,
       "score": 0.635,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/embed-provider-contract",
-      "to": "codex/embed-provider-local-adapter",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/judge-subconscious-agent-facing-migration",
@@ -269059,36 +269314,6 @@
       "weight": 0.8,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "codex/judge-subconscious-skill-abtest-main-merge-conflict",
-      "to": "codex/judge-subconscious-pressure-protocol",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.602,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-subconscious-skill-abtest-main-merge-conflict",
-      "to": "codex/judge-subconscious-agentic-verdict",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.601,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-subconscious-skill-abtest-main-merge-conflict",
-      "to": "codex/judge-subconscious-idea-scheduler-policy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.589,
-      "origin": "autowire-semantic"
     },
     {
       "from": "codex/subconscious-agent-facing-migration",
@@ -269131,14 +269356,6 @@
       "origin": "asserted"
     },
     {
-      "from": "codex/subconscious-skill-abtest-main-merge-conflict",
-      "to": "codex/judge-subconscious-skill-abtest-main-merge-conflict",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
-    },
-    {
       "from": "codex/subconscious-skill-evaluator-version-resolution-fix",
       "to": "codex/subconscious-skill-abtest-main-merge-conflict",
       "kind": "context",
@@ -269153,7 +269370,394 @@
       "weight": 0.9,
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqitz7bosgt",
+      "to": "codex/judge-subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.637,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqitz7bosgt",
+      "to": "codex/judge-subconscious-permit-gate-kickback-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.591,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoalfsrx01",
+      "to": "codex/judge-breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqoasni3beh",
+      "to": "codex/breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqoasni3beh",
+      "to": "codex/breathing-learning-cloud-live-inject-recovery-fix",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqobjpjb5bh",
+      "to": "codex/subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0,
+      "judged": false,
+      "by": "autowire",
+      "score": 0.718,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqobjpjb5bh",
+      "to": "codex/judge-subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.617,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqobjpjb5bh",
+      "to": "codex/subconscious-permit-gate-kickback-fix",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4",
+      "to": "codex/subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0.75,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "af585417-07f3-4b6f-8c96-d9b784271d32/10",
+      "to": "codex/breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0.55,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/breathing-learning-cloud-live-inject-recovery-fix",
+      "to": "codex/breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0.653,
+      "by": "judge",
+      "judged": true,
+      "score": 0.653,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/breathing-learning-cloud-live-inject-recovery-fix",
+      "to": "codex/judge-breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0.554,
+      "by": "judge",
+      "judged": true,
+      "score": 0.554,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/breathing-learning-cloud-live-inject-recovery-fix",
+      "to": "codex/judge-breathing-learning-cloud-live-inject-recovery-fix",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/breathing-learning-cloud-live-inject",
+      "to": "codex/judge-breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/breathing-learning-cloud-live-inject",
+      "to": "codex/breathing-learning-cloud-live-inject-recovery-fix",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/embed-provider-contract",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/exec-brain-state-seam",
+      "to": "codex/subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-breathing-learning-cloud-live-inject-recovery-fix",
+      "to": "codex/breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.626,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-breathing-learning-cloud-live-inject-recovery-fix",
+      "to": "codex/judge-breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.602,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-breathing-learning-cloud-live-inject",
+      "to": "codex/breathing-learning-cloud-live-inject-recovery-fix",
+      "kind": "context",
+      "weight": 0.98,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-breathing-learning-cloud-live-inject",
+      "to": "codex/judge-breathing-learning-cloud-live-inject-recovery-fix",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-learning-landing-autostart",
+      "to": "codex/judge-breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0.75,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-learning-landing-autostart",
+      "to": "codex/judge-breathing-learning-cloud-live-inject-recovery-fix",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-subconscious-auto-skill-integration",
+      "to": "codex/judge-subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-subconscious-permit-gate-kickback-fix",
+      "to": "codex/judge-subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.596,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-subconscious-permit-gate",
+      "to": "codex/subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.682,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-subconscious-permit-gate",
+      "to": "codex/judge-subconscious-skill-promotion-gate",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.587,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-subconscious-permit-gate",
+      "to": "codex/judge-subconscious-agentic-verdict",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.558,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-subconscious-permit-gate",
+      "to": "codex/subconscious-permit-gate-kickback-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-subconscious-permit-gate",
+      "to": "codex/judge-subconscious-permit-gate-kickback-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/learning-landing-autostart",
+      "to": "codex/breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/learning-landing-autostart",
+      "to": "codex/breathing-learning-cloud-live-inject-recovery-fix",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/subconscious-permit-gate-kickback-fix",
+      "to": "codex/judge-subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0.709,
+      "by": "judge",
+      "judged": true,
+      "score": 0.709,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/subconscious-permit-gate-kickback-fix",
+      "to": "codex/subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0.614,
+      "by": "judge",
+      "judged": true,
+      "score": 0.614,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/subconscious-permit-gate-kickback-fix",
+      "to": "codex/judge-subconscious-permit-gate-kickback-fix",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/subconscious-permit-gate",
+      "to": "codex/judge-subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/subconscious-permit-gate",
+      "to": "codex/subconscious-permit-gate-kickback-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/subconscious-permit-gate",
+      "to": "codex/judge-subconscious-permit-gate-kickback-fix",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/subconscious-skill-abtest-main-merge-conflict",
+      "to": "codex/judge-subconscious-skill-abtest-main-merge-conflict",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/trace-codex-session-claims",
+      "to": "codex/subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/trace-codex-session-claims",
+      "to": "codex/judge-subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0.75,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "e0c18996-aabe-40bb-ab1c-24e7daaa6ccb/1",
+      "to": "codex/breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0.75,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/dg1",
+      "to": "codex/subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "local/dg6",
+      "to": "codex/subconscious-permit-gate-kickback-fix",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": true,
+      "origin": "asserted"
     }
   ],
-  "compacted_at": "2026-06-21T21:28:41.435Z"
+  "compacted_at": "2026-06-21T22:25:39.540Z"
 }
