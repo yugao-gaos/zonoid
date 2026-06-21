@@ -13,3 +13,4 @@
 {"evt":"edge_removed","from":"codex/judge-subconscious-agentic-verdict","to":"codex/subconscious-mcp-tool","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T04:58:54.484Z"}
 {"evt":"edge_removed","from":"codex/judge-subconscious-agentic-verdict","to":"codex/subconscious-agentic-verdict","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T05:17:23.376Z"}
 {"evt":"timestamps_set","id":"codex/judge-subconscious-agentic-verdict","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-21T03:19:09.004Z","lastChanged":"2026-06-21T05:27:48.139Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-21T05:31:28.180Z"}
+{"evt":"timestamps_set","id":"codex/judge-subconscious-agentic-verdict","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-21T03:19:09.004Z","lastChanged":"2026-06-21T19:11:33.640Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-06-21T19:11:36.309Z"}
