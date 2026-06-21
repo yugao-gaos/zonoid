@@ -395,7 +395,7 @@ test('HEADLESS_DRAIN_CONFIG has the same structural keys as AUTOSTART_CONFIG', (
 // JUDGE DRAIN tests (task /3)
 // ===========================================================================
 //
-// The judge drain drives the self-learn-edge-judge skill via a headless `claude -p` against the
+// The judge drain drives the self-learn edge-judge mode via a headless `claude -p` against the
 // daemon, covering BOTH the periodic (/judge/next?budget=N) and eager (/judge/next?node=<key>)
 // paths. It rides the SAME runner + governor as the learner. ALL spawns are MOCKED — these tests
 // never shell out to a real `claude -p` or hit a live daemon.
@@ -547,7 +547,7 @@ test('buildJudgeArgs (PERIODIC): targets /judge/next with a bounded budget, no n
   const pIdx = args.indexOf('-p');
   assert.ok(pIdx >= 0, 'must pass -p');
   const prompt = args[pIdx + 1];
-  assert.match(prompt, /self-learn-edge-judge/, 'prompt must name the skill');
+  assert.match(prompt, /self-learn skill in edge-judge/, 'prompt must name the skill mode');
   assert.match(prompt, /\/judge\/next\?budget=6/, 'periodic prompt must target /judge/next?budget=N');
   assert.doesNotMatch(prompt, /node=/, 'periodic prompt must NOT carry a node param');
   assert.match(prompt, /\/judge\/verdict/, 'prompt must mention applying verdicts');

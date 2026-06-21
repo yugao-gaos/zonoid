@@ -53,7 +53,7 @@ ${HEARTBEAT}`;
 
 ok('BASE_CTX heartbeat matches classify HEARTBEAT constant', BASE_CTX.includes(HEARTBEAT));
 
-const JUDGE_NUDGE = `[Judge] backlog: 35 items (3 dup-clusters) — dispatch ONE background self-learn-edge-judge subagent (model: sonnet — NOT haiku, verdict discrimination degrades; budget 20) this turn; do not block the user's request on it. The subagent MUST: (1) call mcp__orchestrator-graph__start_task with task_key="followup/harness-judge-drain" and agent_id="judge-drain-deadbeef" BEFORE judging; (2) call mcp__orchestrator-graph__complete_task with the same task_key and agent_id, and a summary including the count of items judged, AFTER finishing.`;
+const JUDGE_NUDGE = `[Judge] backlog: 35 items (3 dup-clusters) — dispatch ONE background self-learn edge-judge subagent (model: sonnet — NOT haiku, verdict discrimination degrades; budget 20) this turn; do not block the user's request on it. The subagent MUST: (1) call mcp__orchestrator-graph__start_task with task_key="followup/harness-judge-drain" and agent_id="judge-drain-deadbeef" BEFORE judging; (2) call mcp__orchestrator-graph__complete_task with the same task_key and agent_id, and a summary including the count of items judged, AFTER finishing.`;
 
 function mkClassifyStub(mode) {
   const dir = path.join(TMP, `stub-${mode}`);
@@ -121,7 +121,7 @@ function extractCtx(stdout) {
   ok('nudge:true → line contains "backlog"', ctx.includes('backlog'));
   ok('nudge:true → depth 35 present', ctx.includes('35'));
   ok('nudge:true → dupClusters 3 present', ctx.includes('3 dup-cluster'));
-  ok('nudge:true → dispatch instruction present', ctx.includes('self-learn-edge-judge'));
+  ok('nudge:true → dispatch instruction present', ctx.includes('self-learn edge-judge'));
   // Model pin: judge verdicts degrade to rubber-stamp keeps on haiku (user decision 2026-06-12)
   ok('nudge:true → sonnet model pin present', ctx.includes('model: sonnet'));
   // Claim instruction: subagent must call start_task and complete_task with harness task key

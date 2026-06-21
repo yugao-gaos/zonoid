@@ -61,7 +61,7 @@ const sleeperCmdlineNoDelay = [
   '/tmp/wake/x.fire',
 ].join(' ');
 
-const drainCmdline = 'claude -p "Invoke skill: self-learn-edge-judge ..." --output-format json';
+const drainCmdline = 'claude -p "Invoke skill: self-learn edge-judge ..." --output-format json';
 const daemonCmdline = '/usr/local/bin/node /home/user/zonoid/daemon.js';
 const ordinaryNodeCmdline = 'node server.js --port 3000';
 
