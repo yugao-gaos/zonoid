@@ -762,6 +762,80 @@ function mergeGraphAutocommitFlag(settings, enable) {
   return out;
 }
 
+// ── Pre-push test guard ─────────────────────────────────────────────────────
+
+function prePushTestCommand(cwd) {
+  const pkgPath = path.join(cwd, 'package.json');
+  if (!fs.existsSync(pkgPath)) return null;
+
+  let pkg;
+  try { pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); }
+  catch (_) { return null; }
+
+  const scripts = pkg && pkg.scripts;
+  if (!scripts || typeof scripts !== 'object') return null;
+  if (typeof scripts['test:all'] === 'string' && scripts['test:all'].trim()) return 'npm run test:all';
+  if (typeof scripts.test === 'string' && scripts.test.trim()) return 'npm test';
+  return null;
+}
+
+function prePushTestHookScript(command) {
+  return `#!/bin/sh
+# Zonoid pre-push test guard
+set -eu
+
+echo "zonoid: running ${command} before push"
+${command}
+`;
+}
+
+function checkPrePushTestHook(cwd) {
+  const command = prePushTestCommand(cwd);
+  if (!command) {
+    warn('No package.json test script found — skipping pre-push test guard');
+    return;
+  }
+
+  let hooksDir;
+  try {
+    const raw = runCapture('git', ['rev-parse', '--git-path', 'hooks'], { cwd });
+    hooksDir = path.isAbsolute(raw) ? raw : path.resolve(cwd, raw);
+  } catch (_) {
+    warn('not a git repo — skipping pre-push test guard');
+    return;
+  }
+
+  const hookPath = path.join(hooksDir, 'pre-push');
+  const MARKER = 'Zonoid pre-push test guard';
+
+  if (fs.existsSync(hookPath)) {
+    const existing = fs.readFileSync(hookPath, 'utf8');
+    if (existing.includes(MARKER)) {
+      if (existing.includes(command)) {
+        ok('pre-push test guard already installed');
+      } else {
+        fix('Updating pre-push test guard...');
+        fs.writeFileSync(hookPath, prePushTestHookScript(command));
+        try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+        ok('pre-push test guard updated');
+      }
+    } else if (existing.trim() === '') {
+      fix('Writing pre-push test guard (replacing empty file)...');
+      fs.writeFileSync(hookPath, prePushTestHookScript(command));
+      try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+      ok('pre-push test guard installed');
+    } else {
+      warn('A foreign pre-push hook exists — not overwriting. Add the Zonoid test guard manually.');
+    }
+  } else {
+    fix('Writing pre-push test guard...');
+    fs.mkdirSync(hooksDir, { recursive: true });
+    fs.writeFileSync(hookPath, prePushTestHookScript(command));
+    try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+    ok('pre-push test guard installed');
+  }
+}
+
 /**
  * Check and install the graph auto-commit post-commit hook into the git repo
  * at `cwd`. Also merges ORCH_GRAPH_AUTOCOMMIT into ~/.claude/settings.json.
@@ -1374,7 +1448,10 @@ async function init(opts = {}) {
   section('6. Graph auto-commit hook');
   checkGraphAutocommitHook(cwd, { enable: opts.enableGraphAutocommit });
 
-  section('7. Warmup');
+  section('7. Pre-push test guard');
+  checkPrePushTestHook(cwd);
+
+  section('8. Warmup');
   const warmupScript = path.join(INSTALL_DIR, 'scripts', 'warmup-embeddings.js');
   if (fs.existsSync(warmupScript)) {
     fix('Warming up embedding model (first search_knowledge will be instant)...');
@@ -1398,6 +1475,11 @@ async function init(opts = {}) {
   console.log('    It snapshots .graph/*.jsonl changes after each commit when enabled.');
   console.log('    To enable: set ORCH_GRAPH_AUTOCOMMIT=1 in ~/.claude/settings.json env block,');
   console.log('    or re-run: npx @zonoid/cli init --graph-autocommit');
+  console.log('');
+  console.log('  Pre-push test guard:');
+  console.log('    A local .git/hooks/pre-push guard runs npm run test:all when available,');
+  console.log('    otherwise npm test. Git hooks can be bypassed with --no-verify; keep CI');
+  console.log('    and branch protection as the server-side backstop.');
   console.log('');
 }
 
@@ -1477,6 +1559,9 @@ if (require.main === module) {
     // graph auto-commit hook helpers
     graphAutocommitHookScript,
     mergeGraphAutocommitFlag,
+    prePushTestCommand,
+    prePushTestHookScript,
+    checkPrePushTestHook,
     parseOnboardArgs,
     dashboardUrl,
     renderClaudeInstructions,

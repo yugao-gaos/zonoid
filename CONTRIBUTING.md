@@ -54,6 +54,11 @@ npm run test:all                      # full suite via scripts/run-tests.js
 `scripts/run-tests.js` discovers every `test/*.test.js`, runs each as a child process with
 `ZONOID_SKIP_LIVE=1`, and fails if any file fails.
 
+`npx @zonoid/cli init` installs a local `.git/hooks/pre-push` guard for Node repos with a test
+script. The guard runs `npm run test:all` when present, otherwise `npm test`, and blocks pushes on
+failure. Local hooks can be bypassed with `--no-verify`, so CI and branch protection remain the
+server-side backstop.
+
 **Sandboxed-daemon convention:** tests that need a daemon spawn a private one on a private port
 with a tmp-dir `CLAUDE_PLUGIN_DATA` (see `test/app-restart.test.js` for the pattern) — NEVER the
 live `:8787` daemon. Tests must not read or mutate real graph state.

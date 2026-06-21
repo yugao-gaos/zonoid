@@ -40,7 +40,12 @@ npx @zonoid/cli init
 ```
 
 Adds a task-graph daemon at localhost:8787, a pre-tool hook that gates edits behind task claims,
-and an MCP surface that lets the agent read and write the knowledge graph.
+an MCP surface that lets the agent read and write the knowledge graph, and a local pre-push test
+guard for Node repos with an npm test script.
+
+The pre-push guard runs `npm run test:all` when present, otherwise `npm test`, and blocks pushes on
+failure. Local Git hooks are bypassable with `--no-verify`; CI and branch protection are the
+server-side backstop.
 
 ## How it works
 

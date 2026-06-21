@@ -25,6 +25,9 @@ const {
   stripCodexOrchTable,
   graphAutocommitHookScript,
   mergeGraphAutocommitFlag,
+  prePushTestCommand,
+  prePushTestHookScript,
+  checkPrePushTestHook,
   parseOnboardArgs,
   dashboardUrl,
   renderClaudeInstructions,
@@ -624,6 +627,91 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
   ok('parseInitArgs combined: harness still parsed', combined.harness === 'cursor');
   ok('parseInitArgs combined: service still parsed', combined.service === true);
   ok('parseInitArgs combined: enableGraphAutocommit=true', combined.enableGraphAutocommit === true);
+}
+
+// ── pre-push test guard ─────────────────────────────────────────────────────
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-pre-push-'));
+  try {
+    const repo = path.join(base, 'repo');
+    fs.mkdirSync(repo, { recursive: true });
+    fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({
+      scripts: {
+        test: 'node test/basic.test.js',
+        'test:all': 'node scripts/run-tests.js',
+      },
+    }, null, 2));
+
+    ok('prePushTestCommand prefers test:all',
+      prePushTestCommand(repo) === 'npm run test:all');
+
+    const script = prePushTestHookScript(prePushTestCommand(repo));
+    ok('prePushTestHookScript includes marker',
+      script.includes('Zonoid pre-push test guard'));
+    ok('prePushTestHookScript runs selected command',
+      script.includes('npm run test:all'));
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-pre-push-'));
+  try {
+    const repo = path.join(base, 'repo');
+    fs.mkdirSync(repo, { recursive: true });
+    fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({
+      scripts: { test: 'node test/basic.test.js' },
+    }, null, 2));
+
+    ok('prePushTestCommand falls back to test',
+      prePushTestCommand(repo) === 'npm test');
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-pre-push-'));
+  try {
+    const repo = path.join(base, 'repo');
+    fs.mkdirSync(repo, { recursive: true });
+    fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ scripts: { build: 'node build.js' } }));
+
+    ok('prePushTestCommand skips repos without test scripts',
+      prePushTestCommand(repo) === null);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-pre-push-'));
+  try {
+    const repo = path.join(base, 'repo');
+    fs.mkdirSync(repo, { recursive: true });
+    spawnSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
+    fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({
+      scripts: { 'test:all': 'node scripts/run-tests.js' },
+    }, null, 2));
+
+    checkPrePushTestHook(repo);
+    const hookPath = path.join(repo, '.git', 'hooks', 'pre-push');
+    let hook = fs.readFileSync(hookPath, 'utf8');
+    ok('checkPrePushTestHook writes pre-push hook', fs.existsSync(hookPath));
+    ok('checkPrePushTestHook writes executable test:all guard',
+      hook.includes('Zonoid pre-push test guard') && hook.includes('npm run test:all'));
+    ok('checkPrePushTestHook chmods hook executable',
+      (fs.statSync(hookPath).mode & 0o111) !== 0);
+
+    fs.writeFileSync(hookPath, prePushTestHookScript('npm test'));
+    checkPrePushTestHook(repo);
+    hook = fs.readFileSync(hookPath, 'utf8');
+    ok('checkPrePushTestHook updates managed hook to test:all',
+      hook.includes('npm run test:all') && !hook.includes('npm test\n'));
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
 }
 
 process.exit(failed ? 1 : 0);
