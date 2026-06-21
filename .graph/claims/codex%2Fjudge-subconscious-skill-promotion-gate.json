@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-subconscious-skill-promotion-gate",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "judge-subconscious-skill-promotion-gate-codex",
+  "branch": "orch/attempt/codex-judge-subconscious-skill-promotion-gate",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T20:53:35.816Z",
+  "lease_until": "2026-06-21T21:53:35.816Z"
+}
