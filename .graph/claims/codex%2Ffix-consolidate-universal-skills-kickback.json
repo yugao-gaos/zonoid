@@ -3,8 +3,8 @@
   "git_user": "YU GAO <yu.gao@gaos.ca>",
   "session_id": "019ee7f3-03bf-7962-820e-176c8deaa6d3",
   "branch": "orch/attempt/codex-fix-consolidate-universal-skills-kickback",
-  "status": "done",
+  "status": "failed",
   "claimed_at": "2026-06-21T02:12:53.845Z",
   "lease_until": "2026-06-21T03:12:53.845Z",
-  "completed_at": "2026-06-21T02:17:11.073Z"
+  "completed_at": "2026-06-21T02:21:58.476Z"
 }
