@@ -13,7 +13,7 @@ parallelizable work, with a token-efficient context handoff between dependent ta
 3. **Run it — always via subagents, never on the main thread.** Dispatch each task to a
    **background subagent** (`Agent` tool with `run_in_background: true`) so the main thread
    stays free and the user can keep talking; you're notified when each finishes. Hand each
-   subagent a typed **`handoff_envelope`** ([`schemas/handoff.v1.schema.json`](../../schemas/handoff.v1.schema.json),
+   subagent a typed **`handoff_envelope`** ([`schemas/handoff.v1.schema.json`](../../../schemas/handoff.v1.schema.json),
    plugs into the Agent-tool `schema` option) instead of prose duties: the dispatcher fills the
    slots — `task_key` (the `{session}/{id}` key), `agent_id`, `branch` (`orch/attempt/<key>`),
    `target_repo`, `files_in_scope[]`, and `context_deps[]` (pre-resolved Tier-1 `{task_key, summary}`
@@ -75,7 +75,7 @@ parallelizable work, with a token-efficient context handoff between dependent ta
      onto the `orch/attempt/<key>` branch BEFORE calling `complete_task`. `complete_task` does
      NOT auto-commit your worktree — if you leave changes uncommitted the attempt branch tip
      stays equal to base, and a later `merge_attempt` is a silent no-op (returns `merged:true`
-     with the head unchanged but lands nothing on main). Only after committing call
+     with the head unchanged but lands nothing on the target branch/base). Only after committing call
      `mcp__orchestrator-graph__complete_task(task_key, summary, agent_id)` with
      a SHORT, precise summary — the interface your task exposes (what you produced, key
      decisions, where outputs live). Dependents read this as their Tier-1 base context, so
