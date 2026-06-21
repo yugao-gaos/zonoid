@@ -51,7 +51,7 @@ try {
   ok('doc to section context edges emit', sections.every((s) => structure.edges.some((e) => e.from === docs[0].key && e.to === s.key && e.kind === 'context')));
   ok('section to chunk context edges emit', chunks.every((c) => structure.edges.some((e) => e.to === c.key && e.kind === 'context')));
 
-  const { injectDocumentStructure } = require('../scripts/onboard-learn');
+  const { enrichLearnerResultWithEvidenceRefs, injectDocumentStructure, injectOnboardNotes } = require('../scripts/onboard-learn');
   const calls = [];
   const injected = await injectDocumentStructure(outDir, target, async (method, urlPath, body) => {
     calls.push({ method, urlPath, body });
@@ -64,6 +64,32 @@ try {
   ok('inject targets requested workspace', calls.every((c) => c.body.workspace === target));
   ok('inject uses typed knowledge-node endpoint', calls.slice(0, structure.nodes.length).every((c) => c.method === 'POST' && c.urlPath === '/overlay/knowledge-node'));
   ok('inject uses context edge endpoint for provenance', calls.slice(structure.nodes.length).every((c) => c.method === 'POST' && c.urlPath === '/overlay/edge' && c.body.kind === 'context'));
+
+  const learnerResult = {
+    kept: [{
+      title: 'Preserve document progression',
+      summary: 'Distilled facts lose document progression unless source chunks stay connected.',
+      evidence: 'README.md:3',
+      kind: 'invariant',
+      source: '0',
+    }],
+    rejected: [],
+  };
+  const enriched = enrichLearnerResultWithEvidenceRefs(learnerResult, [{ source: 'README.md', summary: notes[0].summary }], outDir);
+  ok('learner output records evidence refs', Array.isArray(enriched.kept[0].evidence_refs) && enriched.kept[0].evidence_refs.some((ref) => ref.startsWith('knowledge:source_')));
+
+  const notesFile = path.join(outDir, 'onboard-notes.json');
+  fs.writeFileSync(notesFile, JSON.stringify(enriched, null, 2));
+  const noteCalls = [];
+  await injectOnboardNotes(notesFile, true, target, async (method, urlPath, body) => {
+    noteCalls.push({ method, urlPath, body });
+    if (urlPath === '/overlay/note') return { ok: true, key: 'note:distilled-fact' };
+    return { ok: true };
+  });
+  const noteCreate = noteCalls.find((c) => c.urlPath === '/overlay/note');
+  const evidenceEdge = noteCalls.find((c) => c.urlPath === '/overlay/edge' && c.body.to === 'note:distilled-fact');
+  ok('distilled note carries evidence ref knowledge', noteCreate && noteCreate.body.knowledge.some((k) => k.startsWith('evidence_ref:knowledge:source_')));
+  ok('inject wires source evidence to distilled note', evidenceEdge && evidenceEdge.body.kind === 'context' && evidenceEdge.body.from.startsWith('knowledge:source_'));
 } finally {
   fs.rmSync(TMP, { recursive: true, force: true });
 }
