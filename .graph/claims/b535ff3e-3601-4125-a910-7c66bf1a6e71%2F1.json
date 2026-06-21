@@ -1,0 +1,9 @@
+{
+  "task_key": "b535ff3e-3601-4125-a910-7c66bf1a6e71/1",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "b791ec64-cde8-4f52-bd91-f64648d2592f",
+  "branch": "orch/attempt/b535ff3e-3601-4125-a910-7c66bf1a6e71-1",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T05:28:11.810Z",
+  "lease_until": "2026-06-21T06:28:11.810Z"
+}
