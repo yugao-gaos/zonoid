@@ -25,3 +25,4 @@
 {"evt":"edge_promoted","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"codex/force-cloud-cascade-search-animation","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:52:50.407Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"codex/force-cloud-cascade-search-animation","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:53:06.419Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"codex/force-cloud-cascade-search-animation","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:53:27.072Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_promoted","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"codex/force-cloud-cascade-search-animation","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:53:37.118Z","weight":0.9,"origin":"asserted"}
