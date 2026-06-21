@@ -1,0 +1,13 @@
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/15","kind":"context","actor":"overlay-sync","ts":"2026-06-21T15:55:55.322Z"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"8faaa334-b54f-44bf-8be6-b216a058bb7d/2","kind":"context","actor":"overlay-sync","ts":"2026-06-21T15:57:38.464Z"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"8faaa334-b54f-44bf-8be6-b216a058bb7d/1","kind":"context","actor":"overlay-sync","ts":"2026-06-21T15:57:38.464Z"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"c0bd3682-e50c-41f2-b061-4a6d9fbf243a/3","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:02:05.667Z"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"aac736f1-e893-4f79-b145-881150b4ada4/3","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:06:11.533Z"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"aac736f1-e893-4f79-b145-881150b4ada4/1","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:06:11.533Z"}
+{"evt":"edge_added","from":"followup/harness-daemon-restart","to":"followup/drain-final-13-onboarding-learner-candid-l29o","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T16:07:48.045Z","by":"judge","judged":true,"score":0.664,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"followup/drain-final-13-onboarding-learner-candid-l29o","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:07:48.045Z"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"df63dcd1-69b2-48ae-926b-1f360ad2fc0c/2","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:10:58.429Z"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/14","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:18:02.869Z"}
+{"evt":"edge_promoted","from":"followup/harness-daemon-restart","to":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/4","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:18:53.163Z","weight":0.652,"by":"judge","judged":true,"score":0.652,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/7","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:20:11.786Z"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"opencode/fix-heartbeat-harness-spawn-leak","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:33:24.713Z"}

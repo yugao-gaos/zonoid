@@ -261,3 +261,5 @@
 {"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:41:05.995Z","weight":0.7,"origin":"asserted"}
 {"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:42:09.396Z","weight":0.7,"origin":"asserted"}
 {"evt":"edge_promoted","from":"followup/harness-label-drain","to":"codex/hide-standing-harness-drains-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:42:22.057Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_removed","from":"followup/harness-label-drain","to":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/4","kind":"context","actor":"overlay-sync","ts":"2026-06-21T18:50:48.619Z"}
+{"evt":"edge_removed","from":"followup/harness-label-drain","to":"followup/harness-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-21T18:50:48.619Z"}
