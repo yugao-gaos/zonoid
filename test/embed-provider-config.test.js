@@ -10,6 +10,7 @@ const {
   vectorMatchesMeta,
 } = require('../lib/embed');
 const overlayStore = require('../lib/overlay');
+const { scoreMatchesSemantic } = require('../daemon');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -65,6 +66,18 @@ const cohereMeta = { provider: 'cohere', model: 'embed-v4.0', dimensions: 1536, 
   ok('setTaskVec stores metadata sidecar', ov.taskVecMeta['sess/1'][0].identity === voyageMeta.identity);
   overlayStore.setTaskVec(ov, 'sess/1', null);
   ok('setTaskVec(null) clears metadata sidecar', !ov.taskVecMeta['sess/1']);
+}
+
+{
+  const target = { id: 'sess/query', label: 'alpha request', summary: '', deps: [], context_deps: [] };
+  const matching = { id: 'note:matching', label: 'bravo corpus', summary: '', status: 'note', kind: 'note', vec: voyageVec, vecMeta: voyageMeta };
+  const stale = { id: 'note:stale', label: 'charlie corpus', summary: '', status: 'note', kind: 'note', vec: voyageVec, vecMeta: cohereMeta };
+  const g = { tasks: [matching, stale] };
+  const hits = scoreMatchesSemantic(g, target, voyageVec, { expectedMeta: voyageMeta, targetVecMeta: voyageMeta });
+  ok('non-default target meta enables semantic scoring', hits.some((h) => h.key === matching.id && h.via === 'semantic' && h.score > 0.99));
+  ok('stale candidate metadata is filtered out of semantic scoring', !hits.some((h) => h.key === stale.id));
+  const missingTargetMeta = scoreMatchesSemantic(g, target, voyageVec, { expectedMeta: voyageMeta });
+  ok('non-default target without targetVecMeta is treated as stale', !missingTargetMeta.some((h) => h.via === 'semantic'));
 }
 
 console.log('-----');

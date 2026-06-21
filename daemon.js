@@ -1822,7 +1822,8 @@ async function ingestNode(overlay, g, key, { title, summary } = {}, ws = null) {
       if (!vec) return out;
       out.vec = vec;
       // Notes are PROVIDERS: seed note -> neighbor candidate edges (mirrors autowireNoteProvider direction).
-      const seeded = autowireNoteProvider(overlay, g, key, title, summary, vec, undefined, { expectedMeta: noteNode && noteNode.vecMeta });
+      const noteMeta = noteNode && noteNode.vecMeta ? noteNode.vecMeta : null;
+      const seeded = autowireNoteProvider(overlay, g, key, title, summary, vec, undefined, { expectedMeta: noteMeta, targetVecMeta: noteMeta });
       out.seeded = seeded;
       if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
     } else {
@@ -1833,7 +1834,7 @@ async function ingestNode(overlay, g, key, { title, summary } = {}, ws = null) {
       if (!vec) return out;                                 // no embedding ⇒ lexical fallback, nothing to seed
       overlayStore.setTaskVec(overlay, key, vec, er.meta);
       out.vec = vec;
-      const seeded = await autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec, undefined, { expectedMeta: er.meta });
+      const seeded = await autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec, undefined, { expectedMeta: er.meta, targetVecMeta: er.meta });
       out.seeded = seeded;
       if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
       // Seed context edges from existing blocking deps (covers tasks adopted after their block edges exist).
