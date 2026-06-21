@@ -174,15 +174,25 @@ async function waitForPing(ms = 8000) {
     subconsciousTool &&
     subconsciousTool.inputSchema.properties.agent_id &&
     subconsciousTool.inputSchema.properties.task_key &&
+    subconsciousTool.inputSchema.properties.session_id &&
+    subconsciousTool.inputSchema.properties.companion_agent_id &&
+    subconsciousTool.inputSchema.properties.approval_signals &&
     subconsciousTool.inputSchema.properties.intent &&
     subconsciousTool.inputSchema.properties.situation &&
     subconsciousTool.inputSchema.properties.query);
+  ok('ask_subconscious description advertises next-action pressure',
+    subconsciousTool && subconsciousTool.description.includes('next-action pressure'));
   let capturedSubconsciousAsk = null;
   const subconsciousOut = await subconsciousTool.run({
     agent_id: 'agent-a',
     task_key: 'local/task',
+    session_id: 'foreground-session',
+    foreground_agent_id: 'foreground-agent',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
     intent: 'choose next implementation step',
     situation: 'Need the relevant context before editing',
+    approval_signals: ['deployment'],
     k: 4,
   }, (method, path, body) => {
     capturedSubconsciousAsk = { method, path, body };
@@ -194,8 +204,11 @@ async function waitForPing(ms = 8000) {
     capturedSubconsciousAsk &&
     capturedSubconsciousAsk.body.agent_id === 'agent-a' &&
     capturedSubconsciousAsk.body.task_key === 'local/task' &&
+    capturedSubconsciousAsk.body.session_id === 'foreground-session' &&
+    capturedSubconsciousAsk.body.companion_agent_id === 'companion-agent' &&
     capturedSubconsciousAsk.body.intent === 'choose next implementation step' &&
     capturedSubconsciousAsk.body.situation === 'Need the relevant context before editing' &&
+    capturedSubconsciousAsk.body.approval_signals[0] === 'deployment' &&
     capturedSubconsciousAsk.body.k === 4);
   ok('ask_subconscious returns route output', subconsciousOut && subconsciousOut.verdict === 'inject_relevant_context');
 
