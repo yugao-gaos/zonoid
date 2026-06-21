@@ -2,3 +2,4 @@
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:48:12.906Z","weight":0.996,"origin":"asserted"}
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:48:36.640Z","weight":0.996,"origin":"asserted"}
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:49:00.825Z","weight":0.996,"origin":"asserted"}
+{"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:49:07.672Z","weight":0.996,"origin":"asserted"}
