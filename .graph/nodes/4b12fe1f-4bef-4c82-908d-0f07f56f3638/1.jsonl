@@ -6,3 +6,4 @@
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:51:46.636Z","weight":0.996,"origin":"asserted"}
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:51:52.610Z","weight":0.996,"origin":"asserted"}
 {"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:51:55.331Z","weight":0.996,"origin":"asserted"}
+{"evt":"edge_promoted","from":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/1","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:52:19.688Z","weight":0.996,"origin":"asserted"}
