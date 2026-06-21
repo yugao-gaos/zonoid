@@ -7,3 +7,4 @@
 {"evt":"edge_added","from":"note:note-mqh73zazr7k","to":"codex/product-pipeline-surface-review","kind":"context","actor":"overlay-sync","ts":"2026-06-18T18:23:24.910Z","weight":0.567,"by":"judge","judged":true,"score":0.567,"origin":"asserted"}
 {"evt":"edge_added","from":"note:note-mqh73zazr7k","to":"codex/learning-landing-autostart","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:04:41.170Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqh73zazr7k","to":"codex/learning-landing-autostart","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:04:50.258Z","weight":0.75,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mqh73zazr7k","to":"codex/learning-landing-autostart","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:05:07.734Z","weight":0.75,"origin":"asserted"}
