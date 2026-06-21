@@ -19,3 +19,4 @@
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam","to":"codex/judge-exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:17:24.565Z"}
 {"evt":"edge_added","from":"codex/exec-brain-state-seam","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:48:28.282Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:48:33.904Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:48:40.900Z","weight":0.8,"origin":"asserted"}
