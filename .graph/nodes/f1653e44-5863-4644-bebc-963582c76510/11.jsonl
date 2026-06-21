@@ -9,3 +9,4 @@
 {"evt":"edge_promoted","from":"f1653e44-5863-4644-bebc-963582c76510/11","to":"codex/judge-learning-landing-autostart","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:09:32.114Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"f1653e44-5863-4644-bebc-963582c76510/11","to":"codex/judge-learning-landing-autostart","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:09:48.082Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"f1653e44-5863-4644-bebc-963582c76510/11","to":"codex/judge-learning-landing-autostart","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:09:53.283Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_promoted","from":"f1653e44-5863-4644-bebc-963582c76510/11","to":"codex/judge-learning-landing-autostart","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:10:11.471Z","weight":0.8,"origin":"asserted"}
