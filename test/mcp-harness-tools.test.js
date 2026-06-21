@@ -215,6 +215,20 @@ async function waitForPing(ms = 8000) {
     assignmentCalls.some((call) => call.path === '/overlay/status' && call.body.key === 'local/task-judge' && call.body.status === 'done'));
 
   assignmentCalls.length = 0;
+  const failedApproveOut = await assignmentTool.run({ action: 'submit_verdict', verdict: 'APPROVE', workspace: WS, task_key: 'local/missing', judge_task_key: 'local/missing-judge', reason: 'passes' }, (method, path, body) => {
+    assignmentCalls.push({ method, path, body });
+    if (path === '/git/merge') return { merged: false, reason: 'branch not found for local/missing' };
+    return { ok: true, status: body && body.status };
+  });
+  ok('subconscious_assignment submit_verdict APPROVE fails when merge reports not merged',
+    failedApproveOut.ok === false &&
+    failedApproveOut.error === 'branch not found for local/missing' &&
+    failedApproveOut.merge &&
+    failedApproveOut.merge.merged === false);
+  ok('subconscious_assignment submit_verdict APPROVE does not complete judge after failed merge',
+    !assignmentCalls.some((call) => call.path === '/overlay/status' && call.body.key === 'local/missing-judge'));
+
+  assignmentCalls.length = 0;
   const kickBackOut = await assignmentTool.run({ action: 'submit_verdict', verdict: 'KICK_BACK', workspace: WS, task_key: 'local/task', judge_task_key: 'local/task-judge', reason: 'needs fix' }, assignmentCall);
   ok('subconscious_assignment submit_verdict KICK_BACK does not merge',
     !assignmentCalls.some((call) => call.path === '/git/merge') && kickBackOut.ok === true);
