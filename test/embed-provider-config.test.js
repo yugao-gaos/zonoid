@@ -60,6 +60,12 @@ const cohereMeta = { provider: 'cohere', model: 'embed-v4.0', dimensions: 1536, 
 }
 
 {
+  const item = { _vec: voyageVec, _vecMeta: voyageMeta };
+  ok('knowledge item vector sidecar is accepted under hosted provider identity', nodeVecs({ vec: item._vec, vecMeta: item._vecMeta }, { expectedMeta: voyageMeta }).length === 1);
+  ok('knowledge item vector without sidecar is rejected under hosted provider identity', nodeVecs({ vec: item._vec }, { expectedMeta: voyageMeta }).length === 0);
+}
+
+{
   const ov = overlayStore.EMPTY();
   overlayStore.setTaskVec(ov, 'sess/1', voyageVec, voyageMeta);
   ok('setTaskVec preserves raw vector array shape', Array.isArray(ov.taskVecs['sess/1']) && Array.isArray(ov.taskVecs['sess/1'][0]));
