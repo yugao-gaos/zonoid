@@ -33,3 +33,4 @@
 {"evt":"edge_promoted","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:09:18.759Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:09:44.703Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:10:02.851Z","weight":0.75,"origin":"asserted"}
+{"evt":"edge_promoted","from":"a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:10:27.002Z","weight":0.75,"origin":"asserted"}
