@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "sub-sf",
   "branch": "orch/attempt/local-touch-probe",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T03:31:01.212Z",
-  "lease_until": "2026-06-21T04:31:01.212Z"
+  "lease_until": "2026-06-21T04:31:01.212Z",
+  "completed_at": "2026-06-21T03:31:04.730Z"
 }
