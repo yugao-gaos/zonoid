@@ -252,6 +252,12 @@ async function waitForPing(ms = 8000) {
 
   const permitTool = TOOLS.find((t) => t.name === 'subconscious_execution_permit');
   ok('subconscious_execution_permit is on default MCP surface', !!permitTool);
+  const installJs = fs.readFileSync(path.join(__dirname, '..', 'bin', 'install.js'), 'utf8');
+  const cursorSettings = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'adapters', 'cursor', 'settings.sample.json'), 'utf8'));
+  ok('installer allow-list includes permit diagnostic tool',
+    installJs.includes('mcp__orchestrator-graph__subconscious_execution_permit'));
+  ok('Cursor sample permissions include permit diagnostic tool',
+    cursorSettings.permissions.allow.includes('mcp__orchestrator-graph__subconscious_execution_permit'));
   ok('subconscious_execution_permit schema exposes issue read revoke and permit fields',
     permitTool &&
     permitTool.inputSchema.properties.action.enum.includes('issue') &&

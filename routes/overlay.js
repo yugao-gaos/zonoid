@@ -10,6 +10,7 @@ const { requeueStandingHarness } = require('../lib/harness-task');
 const recallJournal = require('../lib/recall-outcome-journal');
 const gitClaims = require('../lib/git-claims');
 const noteSourceCluster = require('../lib/note-source-cluster');
+const { defaultSubconsciousStore } = require('../lib/subconscious');
 
 // Resolve a note's knowledge[] for field-level embedding. addNoteNode stores it inline on the node
 // (n.knowledge), but the /overlay/note route also mirrors it into overlay.knowledge[id]; prefer the
@@ -23,6 +24,49 @@ function noteKnowledge(overlay, n) {
 function isAdmissibleOverlayTaskKey(key) {
   return typeof key === 'string'
     && (/^[^/\s]+\/[^/\s]+$/.test(key) || /^[A-Za-z][A-Za-z0-9_.-]*$/.test(key));
+}
+
+function normalizePermitPath(value, base) {
+  const raw = String(value || '').replace(/\\/g, '/').trim();
+  if (!raw) return '';
+  const absolute = raw.startsWith('/') || /^[A-Za-z]:\//.test(raw);
+  const resolved = absolute ? raw : `${String(base || '').replace(/\\/g, '/').replace(/\/+$/, '')}/${raw}`;
+  return path.posix.normalize(resolved).replace(/\/+$/, '');
+}
+
+function permitCoversClaim(permit, claim) {
+  if (!permit || permit.status !== 'active') return false;
+  if (permit.session_id !== claim.sessionId) return false;
+  if (permit.task_key !== claim.taskKey) return false;
+  if (permit.branch !== claim.branch) return false;
+  if (claim.agentId && permit.agent_id && permit.agent_id !== claim.agentId) return false;
+  return normalizePermitPath(permit.worktree, claim.worktree) === normalizePermitPath(claim.worktree);
+}
+
+function ensureExecutionPermitForClaim(store, claim) {
+  if (!store || !claim.sessionId || !claim.taskKey || !claim.worktree || !claim.branch) return null;
+  if (typeof store.executionPermit !== 'function') return null;
+  const read = typeof store.readExecutionPermit === 'function'
+    ? store.readExecutionPermit({
+      workspace: claim.workspace,
+      session_id: claim.sessionId,
+      agent_id: claim.agentId,
+      task_key: claim.taskKey,
+    })
+    : null;
+  if (read && permitCoversClaim(read.execution_permit, claim)) return read.execution_permit;
+  const issued = store.executionPermit({
+    action: 'issue',
+    workspace: claim.workspace,
+    session_id: claim.sessionId,
+    agent_id: claim.agentId,
+    task_key: claim.taskKey,
+    worktree: claim.worktree,
+    branch: claim.branch,
+    scope: 'worktree',
+    reason: 'auto-issued after accepted worker claim',
+  });
+  return issued && issued.ok ? issued.execution_permit : null;
 }
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
@@ -262,6 +306,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const gitClaimMode = gitClaims.claimMode(T.ov);
     let gitClaim = null;
     let gitClaimFinalize = null;
+    let executionPermit = null;
     if (b.status === 'in_progress' && !b.force && gitClaimMode.enabled) {
       const repo = ctx.resolveRepo ? ctx.resolveRepo(b.key, b.repo_path, T.ov, T.ws) : T.ws;
       if (!gitClaims.shouldAcquire(repo, T.ov)) {
@@ -377,6 +422,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           lease_until: claim.lease_until || null,
         };
       }
+      const gitInfo = T.ov.git && T.ov.git[b.key];
+      executionPermit = ensureExecutionPermitForClaim(ctx.subconscious || defaultSubconsciousStore, {
+        workspace: T.ws,
+        sessionId: claimSid,
+        agentId: b.agent_id || null,
+        taskKey: b.key,
+        worktree: gitInfo && gitInfo.worktree,
+        branch: gitInfo && gitInfo.branch,
+      });
     } else {
       const sessions = T.ov.work_sessions && T.ov.work_sessions[b.key];
       if (sessions) {
@@ -533,6 +587,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (gitClaim) statusResp.git_claim = { ok: !!gitClaim.ok, already_claimed: !!gitClaim.already_claimed, pushed: !!gitClaim.pushed, conflict: !!gitClaim.conflict, advisory: !gitClaimMode.strict, error: gitClaim.error || null };
     if (gitClaimFinalize) statusResp.git_claim_finalize = { ok: !!gitClaimFinalize.ok, pushed: !!gitClaimFinalize.pushed, skipped: !!gitClaimFinalize.skipped, conflict: !!gitClaimFinalize.conflict, advisory: !gitClaimMode.strict, error: gitClaimFinalize.error || null };
+    if (executionPermit) statusResp.execution_permit = executionPermit;
     if (readyBefore) {
       statusResp.newly_ready = newlyReady.diffNewlyReady(readyBefore, newlyReady.readyKeys(buildGraph(T.ws)));
     }
