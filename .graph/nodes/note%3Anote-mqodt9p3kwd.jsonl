@@ -105,3 +105,4 @@
 {"evt":"edge_promoted","from":"note:note-mqodt9p3kwd","to":"codex/embed-provider-eval-docs","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:55:41.776Z","weight":1,"by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqodt9p3kwd","to":"codex/embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:55:41.776Z","weight":1,"by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqodt9p3kwd","to":"codex/judge-embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:55:41.776Z","weight":1,"by":"autowire","judged":false,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mqodt9p3kwd","to":"codex/embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:57:03.784Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
