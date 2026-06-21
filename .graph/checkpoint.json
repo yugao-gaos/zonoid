@@ -224589,6 +224589,169 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/judge-subconscious-anchor-real-task-filter": {
+      "id": "codex/judge-subconscious-anchor-real-task-filter",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVE: Reviewed orch/attempt/codex-subconscious-anchor-real-task-filter at aa287097. The change only recommends anchors from selectable graph task nodes and uses RAG/search evidence only as a boost for those graph candidates, so chunk IDs, knowledge/note/system/gate evidence, and note-like nodes cannot become recommended_task_key unless represented as selectable task nodes. Real task recommendation remains covered. Verification: node test/subconscious.test.js passed 21/21. No merge performed.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge: review real-task Subconscious anchor filtering",
+        "description": "Review codex/subconscious-anchor-real-task-filter in single-attempt mode. Verify the patch prevents RAG chunk IDs (#k suffix, note-like chunk keys, system/note keys) from being recommended_task_key; real graph task nodes can still be recommended; no-anchor guidance remains safe and foreground-owned; compact/default Subconscious response shape stays intact; focused tests cover the live smoke regression. On approve for this flat follow-up, record approval only; do not merge to main yourself.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/subconscious-anchor-real-task-filter"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T21:12:33.046Z"
+      },
+      "assignee": "judge-subconscious-anchor-real-task-filter-codex",
+      "timestamps": {
+        "firstSeen": "2026-06-21T20:59:25.970Z",
+        "lastChanged": "2026-06-21T21:12:32.489Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/learning-landing-autostart": {
+      "id": "codex/learning-landing-autostart",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Replaced the passive onboarding banner with a full-page onboarding landing that hides dashboard UI, auto-starts or resumes enqueue/drain learning, preserves review/inject, restores the dashboard after onboarding, and added a static regression test.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Replace onboarding banner with auto-start learning landing page",
+        "description": "When a workspace/graph has no injected onboarding notes yet, the dashboard must not show the normal graph/dashboard UI. Instead show a full learning-in-progress landing page. The existing onboarding learning flow must auto-start without requiring a Start learning click. Keep changes scoped to the dashboard/onboarding path and verify with tests or static checks.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T21:17:40.814Z"
+      },
+      "assignee": "worker-learning-landing-autostart",
+      "timestamps": {
+        "firstSeen": "2026-06-21T21:04:05.984Z",
+        "lastChanged": "2026-06-21T21:17:39.712Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/long-note-cluster-ingest-hardening-judge": {
+      "id": "codex/long-note-cluster-ingest-hardening-judge",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVE: reviewed long-note source-cluster diff, ran focused syntax and regression tests, and merged implementation attempt into feature branch. No blocking findings.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Review long note cluster ingest hardening attempt",
+        "description": "Judge task for codex/long-note-cluster-ingest-hardening. Use self-learn-judge in single-attempt review mode against the implementation attempt branch orch/attempt/codex/long-note-cluster-ingest-hardening in repo /Users/imyu/.claude/orchestrator/.zonoid/worktrees/62dae274979b8432/feature-long-note-cluster-ingest-hardening. Review the attempt diff with get_attempt_diff and the code-review rubric: correctness, scope discipline, dead/redundant code, tests, and style. If approved under the feature-tier flow, record an APPROVE/merge_attempt verdict so the attempt can merge into orch/feature/long-note-cluster-ingest-hardening; do not merge feature->main. If flawed, KICK BACK with failed status and a wired record_decision explaining the actionable fix. Never force-merge conflicts.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/long-note-cluster-ingest-hardening"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T21:10:11.463Z"
+      },
+      "assignee": "worker-long-note-cluster-ingest-hardening-judge-codex",
+      "timestamps": {
+        "firstSeen": "2026-06-21T20:44:42.362Z",
+        "lastChanged": "2026-06-21T21:10:11.042Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/subconscious-anchor-real-task-filter": {
+      "id": "codex/subconscious-anchor-real-task-filter",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Fixed Subconscious anchor recommendation to build recommendations only from selectable graph task nodes, using search evidence only as a boost for those nodes. Added regressions proving overlay knowledge chunk IDs and chunk-shaped note evidence keep selected_task_key/recommended_task_key null with anchor.status none, while existing real task recommendation still passes. Committed attempt aa287097. Verification: node test/subconscious.test.js 21/21 pass; node test/mcp-harness-tools.test.js 73/73 pass; npm test 193/194 pass with only known unrelated force-claim-cap.test.js failure.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Reject non-task chunk keys as Subconscious anchor recommendations",
+        "description": "Live smoke after merging/restarting subconscious-live-polish showed the compact response is active, but recommended_task_key can be a RAG chunk key such as 59fc18e1-.../42#k12 rather than a real task. Harden recommendTaskAnchor/isTaskKey so Subconscious only recommends actual graph task nodes as anchors. If no real task resolves, return no recommended anchor and keep the safe no-anchor directive. Add a focused regression test that evidence/chunk keys with #k suffix or note-like payloads do not become recommended_task_key, while real graph tasks can still be recommended. Keep the product boundary: Subconscious advises foreground work and does not execute background implementation.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T21:08:46.618Z"
+      },
+      "assignee": "worker-subconscious-anchor-real-task-filter-codex",
+      "timestamps": {
+        "firstSeen": "2026-06-21T20:59:15.227Z",
+        "lastChanged": "2026-06-21T21:08:44.735Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/subconscious-auto-skill-integration": {
+      "id": "codex/subconscious-auto-skill-integration",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Integrated Subconscious skill lifecycle surface: deterministic candidate proposal/version recording, supplied metric evaluation, measured winner promotion, rollback, capped proposal listing, and third-party recommendation actions exposed via route and MCP tool. Added focused route/store and MCP tests; attempt commit 0bff91cfa56be8c2c7d82187e56ccea6dca0b818.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Integrate subconscious auto skill writing with A/B promotion",
+        "description": "Wire the subconscious/learner flow so repeated experience can auto-write generated skill candidate versions, dedup them against existing skills, schedule A/B evaluation, and promote only through the performance gate. Add docs/tests for the lifecycle. Do not bypass the user preference: auto-write candidates is allowed, active promotion requires measured improvement. Depends on storage, evaluator, and promotion gate.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/subconscious-skill-version-store",
+          "codex/subconscious-skill-abtest-evaluator",
+          "codex/subconscious-skill-promotion-gate"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T21:12:57.468Z"
+      },
+      "assignee": "worker-subconscious-auto-skill-integration-codex",
+      "timestamps": {
+        "firstSeen": "2026-06-21T16:47:37.364Z",
+        "lastChanged": "2026-06-21T21:12:57.467Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -268109,9 +268272,9 @@
       "from": "note:note-mqn7r5td3ut",
       "to": "codex/judge-subconscious-anchor-real-task-filter",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.584,
+      "by": "judge",
+      "judged": true,
       "score": 0.584,
       "origin": "autowire-semantic"
     },
@@ -268120,8 +268283,8 @@
       "to": "codex/force-cloud-cascade-search-animation",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.582,
       "origin": "autowire-semantic"
     },
@@ -268130,8 +268293,8 @@
       "to": "codex/subconscious-anchor-real-task-filter",
       "kind": "context",
       "weight": 1,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.703,
       "origin": "asserted"
     },
@@ -268139,9 +268302,9 @@
       "from": "note:note-mqo9t7g6u75",
       "to": "codex/judge-subconscious-anchor-real-task-filter",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.579,
+      "by": "judge",
+      "judged": true,
       "score": 0.579,
       "origin": "autowire-semantic"
     },
@@ -268164,14 +268327,6 @@
       "origin": "asserted"
     },
     {
-      "from": "codex/embed-provider-contract",
-      "to": "codex/embed-provider-local-adapter",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
-    },
-    {
       "from": "codex/judge-brain-search-activation-engine",
       "to": "codex/force-cloud-cascade-search-animation",
       "kind": "context",
@@ -268186,56 +268341,6 @@
       "weight": 0.8,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "codex/judge-subconscious-anchor-real-task-filter",
-      "to": "codex/judge-subconscious-agentic-verdict",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.666,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-subconscious-anchor-real-task-filter",
-      "to": "codex/judge-subconscious-auto-skill-integration",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.641,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-subconscious-anchor-real-task-filter",
-      "to": "codex/judge-subconscious-live-polish",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.634,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-subconscious-anchor-real-task-filter",
-      "to": "codex/subconscious-anchor-real-task-filter",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.596,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-subconscious-anchor-real-task-filter",
-      "to": "codex/judge-subconscious-internalized-orchestration",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.592,
-      "origin": "autowire-semantic"
     },
     {
       "from": "codex/judge-subconscious-live-polish",
@@ -268266,23 +268371,6 @@
       "from": "codex/long-note-cluster-ingest-hardening",
       "to": "followup/investigate-force-claim-cap-test-judging-yf0n",
       "kind": "context"
-    },
-    {
-      "from": "codex/subconscious-anchor-real-task-filter",
-      "to": "codex/judge-subconscious-anchor-real-task-filter",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/subconscious-auto-skill-integration",
-      "to": "codex/judge-subconscious-auto-skill-integration",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/subconscious-live-polish",
@@ -268316,7 +268404,83 @@
       "weight": 0.9,
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "note:note-mq75a80y",
+      "to": "codex/judge-learning-landing-autostart",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mq7iakmckgt",
+      "to": "codex/learning-landing-autostart",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqh73zazr7k",
+      "to": "codex/learning-landing-autostart",
+      "kind": "context",
+      "weight": 0.75,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "codex/embed-provider-contract",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/learning-landing-autostart",
+      "to": "codex/judge-learning-landing-autostart",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/subconscious-anchor-real-task-filter",
+      "to": "codex/judge-subconscious-anchor-real-task-filter",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/subconscious-auto-skill-integration",
+      "to": "codex/judge-subconscious-auto-skill-integration",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "eb25339f-1c71-4fc9-a316-ea83fb6a25d3/4",
+      "to": "codex/learning-landing-autostart",
+      "kind": "context",
+      "weight": 0.95,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "f1653e44-5863-4644-bebc-963582c76510/11",
+      "to": "codex/judge-learning-landing-autostart",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
     }
   ],
-  "compacted_at": "2026-06-21T21:03:04.533Z"
+  "compacted_at": "2026-06-21T21:18:26.974Z"
 }
