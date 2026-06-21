@@ -1,0 +1,9 @@
+{
+  "task_key": "4d90bd10-3a11-4155-8283-8136a67be8cd/hookless",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "0cbc0520-0154-4214-b4a7-d56cd7052199",
+  "branch": "orch/attempt/4d90bd10-3a11-4155-8283-8136a67be8cd-hookless",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T11:49:53.905Z",
+  "lease_until": "2026-06-21T12:49:53.905Z"
+}
