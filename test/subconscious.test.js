@@ -891,6 +891,15 @@ test('subconscious ask returns foreground pressure from existing session anchor 
   assert.equal(res.body.context_summary.anchored_task_key, 'task/anchor');
   assert.equal(res.body.context_summary.foreground_agent_id, 'foreground-a');
   assert.equal(res.body.approval_posture.requires_approval, false);
+  assert.equal(res.body.subconscious.kind, 'subconscious_agent_surface');
+  assert.equal(res.body.subconscious.verdict, 'inject_relevant_context');
+  assert.equal(res.body.subconscious.prediction, 'relevant_context_likely');
+  assert.equal(res.body.subconscious.context.summary.anchored_task_key, 'task/anchor');
+  assert.equal(res.body.subconscious.context.evidence.results[0].key, 'note:direct');
+  assert.equal(res.body.subconscious.anchor.selected_task_key, 'task/anchor');
+  assert.equal(res.body.subconscious.anchor.allocation.task_key, 'task/anchor');
+  assert.equal(res.body.subconscious.pressure.execution_owner, 'foreground_agent');
+  assert.equal(res.body.subconscious.approval_posture.requires_approval, false);
   assert.equal(res.body.subconscious_pressure.execution_owner, 'foreground_agent');
   assert.deepEqual(graph.tasks.map((task) => task.id), taskIdsBefore);
 });
