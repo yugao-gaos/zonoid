@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "019ee9ef-76a8-7d43-844f-fc940af81492",
   "branch": "orch/attempt/codex-judge-subconscious-agentic-verdict",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T11:34:48.006Z",
-  "lease_until": "2026-06-21T12:34:48.006Z"
+  "lease_until": "2026-06-21T12:34:48.006Z",
+  "completed_at": "2026-06-21T11:37:06.460Z"
 }
