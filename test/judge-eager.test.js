@@ -21,6 +21,11 @@
 const ov = require('../lib/overlay');
 const judge = require('../lib/judge');
 const daemon = require('../daemon.js');
+const {
+  HARNESS_JUDGE_DRAIN_KEY,
+  HARNESS_LABEL_DRAIN_KEY,
+  HARNESS_LEARNER_DRAIN_KEY,
+} = require('../lib/harness-task');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -118,6 +123,26 @@ function eagerOverlay(n, budgetPerRun = 6) {
     o.edges.push({ from: `s/e${i}`, to: `note:p${i}`, kind: 'context', judged: false });
   }
   return o;
+}
+
+// === standing harness drains are daemon/headless-owned, not interactive spawns ==================
+{
+  daemon.__setOverlayForTest(ov.EMPTY());
+  const L = makeLoop();
+  const g = {
+    tasks: [
+      { id: HARNESS_JUDGE_DRAIN_KEY, label: 'harness: judge drain', status: 'ready', deps: [] },
+      { id: HARNESS_LABEL_DRAIN_KEY, label: 'harness: label drain', status: 'ready', deps: [] },
+      { id: HARNESS_LEARNER_DRAIN_KEY, label: 'harness: learner drain', status: 'ready', deps: [] },
+      { id: 's/user-ready', label: 'user ready', status: 'ready', deps: [] },
+    ],
+    ghosts: [],
+  };
+  const d = daemon.decideOne(L, ctxFor(g));
+  ok('standing harness drains excluded from interactive spawn pool',
+    d.action === 'spawn' &&
+    d.tasks.length === 1 &&
+    d.tasks[0].key === 's/user-ready');
 }
 
 // === one eager node → judge_eager THIS tick (not periodic judge_edges) =========================
