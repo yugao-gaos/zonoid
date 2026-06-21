@@ -1,0 +1,9 @@
+{
+  "task_key": "fc-cap-test-cd1cb5b9/1",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "b10ff757-9e14-442a-b788-526f29b24e2a",
+  "branch": "orch/attempt/fc-cap-test-cd1cb5b9-1",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T11:37:22.448Z",
+  "lease_until": "2026-06-21T12:37:22.448Z"
+}
