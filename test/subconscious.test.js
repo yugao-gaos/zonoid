@@ -819,6 +819,121 @@ test('subconscious ask uses deterministic search context and recent agent events
   assert.equal(res.body.predicted_consequence, 'using_injected_context_should_reduce_rework');
 });
 
+test('subconscious ask returns foreground pressure from existing session anchor state', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('task/anchor', 'Anchored implementation task', {
+        status: 'ready',
+        context_deps: ['note:direct'],
+        context_weights: { 'note:direct': 0.9 },
+      }),
+      node('note:direct', 'Pressure context', {
+        kind: 'note',
+        summary: 'Review anchor context before continuing the foreground implementation.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+  const taskIdsBefore = graph.tasks.map((task) => task.id);
+
+  await callRoute(ctx, '/subconscious/session-companion', {
+    workspace: ws,
+    session_id: 'session-a',
+    foreground_agent_id: 'foreground-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    status: 'paired',
+  });
+  await callRoute(ctx, '/subconscious/anchor', {
+    workspace: ws,
+    session_id: 'session-a',
+    foreground_agent_id: 'foreground-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    task_key: 'task/anchor',
+    reason: 'foreground session is already wired to this DAG task',
+    status: 'selected',
+    context_task_keys: ['note:direct'],
+  });
+  await callRoute(ctx, '/subconscious/event', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
+    type: 'progress',
+    text: 'foreground worker finished inspection',
+    confidence: 0.7,
+  });
+
+  const res = await callRoute(ctx, '/subconscious/ask', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    session_id: 'session-a',
+    foreground_agent_id: 'foreground-a',
+    companion_agent_id: 'companion-a',
+    companion_loop_id: 'loop-a',
+    task_key: 'task/anchor',
+    intent: 'choose next implementation step',
+    situation: 'Need pressure context before continuing implementation',
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.execution_owner, 'foreground_agent');
+  assert.equal(res.body.selected_task_key, 'task/anchor');
+  assert.equal(res.body.next_action, 'review_context_then_work_selected_anchor');
+  assert.equal(res.body.current_state.status, 'anchored');
+  assert.equal(res.body.current_state.progress, 'recent foreground activity recorded');
+  assert.equal(res.body.current_state.anchor_allocation.task_key, 'task/anchor');
+  assert.equal(res.body.current_state.session_companion.session_id, 'session-a');
+  assert.match(res.body.directive, /foreground-owned work on task\/anchor/);
+  assert(res.body.plan.some((step) => step.includes('task/anchor')));
+  assert.equal(res.body.context_summary.anchored_task_key, 'task/anchor');
+  assert.equal(res.body.context_summary.foreground_agent_id, 'foreground-a');
+  assert.equal(res.body.approval_posture.requires_approval, false);
+  assert.equal(res.body.subconscious_pressure.execution_owner, 'foreground_agent');
+  assert.deepEqual(graph.tasks.map((task) => task.id), taskIdsBefore);
+});
+
+test('subconscious ask flags approval posture without scheduling side effects', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5, maxIdeas: 5 });
+  const graph = {
+    tasks: [
+      node('task/target', 'Target task', {
+        status: 'ready',
+        context_deps: ['note:direct'],
+        context_weights: { 'note:direct': 0.9 },
+      }),
+      node('note:direct', 'Deployment caution', {
+        kind: 'note',
+        summary: 'Production deployment changes require explicit approval before action.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/ask', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'choose next implementation step',
+    situation: 'Deploy a production API schema change after the same failure keeps failing.',
+    approval_signals: ['deployment'],
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.execution_owner, 'foreground_agent');
+  assert.equal(res.body.selected_task_key, 'task/target');
+  assert.equal(res.body.next_action, 'escalate_for_approval');
+  assert.equal(res.body.current_state.status, 'approval_required');
+  assert.equal(res.body.approval_posture.requires_approval, true);
+  assert.equal(res.body.approval_posture.escalation_required, true);
+  assert(res.body.approval_posture.approval_reasons.includes('deployment'));
+  assert.match(res.body.directive, /escalate for user approval/);
+  assert.equal(store.readIdeas({ workspace: ws, agent_id: 'agent-a' }).recent_ideas.length, 0);
+});
+
 test('subconscious ask makes recent risk the verdict while preserving task context', async () => {
   const ws = makeWorkspace();
   const store = createSubconsciousStore({ maxEvents: 5 });
