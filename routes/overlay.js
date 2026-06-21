@@ -9,6 +9,7 @@ const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
 const recallJournal = require('../lib/recall-outcome-journal');
 const gitClaims = require('../lib/git-claims');
+const noteSourceCluster = require('../lib/note-source-cluster');
 
 // Resolve a note's knowledge[] for field-level embedding. addNoteNode stores it inline on the node
 // (n.knowledge), but the /overlay/note route also mirrors it into overlay.knowledge[id]; prefer the
@@ -619,6 +620,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (_bad.length) { send(res, 404, { ok: false, error: `unknown task(s) in wires_to: ${_bad.join(', ')}` }); return true; }
       for (const k of b.wires_to) ensureTaskSnapshot(T, k);
     }
+    const rawNotePayload = { ...b };
+    if (noteSourceCluster.shouldClusterNote(rawNotePayload)) {
+      b.summary = noteSourceCluster.compactNoteSummary(b.summary);
+    }
     b.vec = await embed(noteEmbedText({ title: b.title, category: b.category, tags: b.tags, summary: b.summary }));
     // FIELD-LEVEL multi-vec set (note.vecs): embed each salient field (title/summary/each knowledge[]
     // entry) on its own so a knowledge item is retrievable without being diluted into the pooled vec.
@@ -707,6 +712,28 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, actor: b.actor || 'record-decision', ts: Date.now() });
       }
     }
+    const sourceCluster = noteSourceCluster.buildSourceClusterForNote('note:' + id, rawNotePayload);
+    if (sourceCluster) {
+      for (const node of sourceCluster.nodes) {
+        const fields = [
+          node.type,
+          node.label || node.title,
+          node.summary,
+          node.source_path,
+          node.section_ref,
+          node.chunk_ref,
+        ].map((x) => String(x || '').trim()).filter(Boolean);
+        const payload = { ...node };
+        if (fields.length) {
+          payload.vec = await embed(fields.join(' '));
+          payload.vecs = (await Promise.all(fields.map(embed))).filter(Boolean);
+        }
+        overlayStore.upsertKnowledgeNode(T.ov, payload);
+      }
+      for (const edge of sourceCluster.edges) {
+        overlayStore.addEdge(T.ov, edge.from, edge.to, null, 'context', 1.0, { origin: 'note-source-cluster' });
+      }
+    }
     // Persist the note/supersede event before buildGraph can reload from the local overlay JSON,
     // which intentionally excludes note_nodes and relies on graph-store rehydration.
     T.save();
@@ -738,6 +765,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     T.save(); notifyChange(T.ws);
     const resp = { ok: true, id, key: 'note:' + id, superseded, autowired: ingestResult.seeded, hint };
+    if (sourceCluster) resp.source_cluster = { nodes: sourceCluster.nodes.length, chunks: sourceCluster.chunkCount };
     if (pendingDupMatch) {
       resp.pending_dup = true;
       resp.note_key = 'note:' + id;
