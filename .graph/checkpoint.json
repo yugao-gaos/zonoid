@@ -102046,6 +102046,7 @@
       "summary": "Implemented headless drain runner + governor. (A) Extracted resolveClaudeBin/needsShell/loadEnvForClaude from scripts/onboard-learn.js into new lib/claude-cli.js; onboard-learn.js now imports from there. (B) New lib/headless-drain.js: spawnSync-based runner with governor — ORCH_HEADLESS_DRAINS opt-in flag (default OFF, verified by test), per-drain token/iteration budget and concurrency cap mirroring AUTOSTART_CONFIG shape. (C) daemon.js: unref'd 5-min setInterval calling headlessDrain.runDueDrains(state); existing loop dispatch untouched. (D) followup/harness-learner-drain wired as first consumer via node scripts/onboard-learn.js --drain. (E) test/headless-drain.test.js: 17 tests, all passing — flag-off no-spawn, budget/concurrency caps, learner command shape, runDrain exit/timeout shape. Judge/label drains out of scope.",
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "Headless drain runner + governor (daemon-internal, opt-in) + learner wiring",
         "description": "Build a shared headless-drain runner so the daemon can execute background maintenance via headless `claude -p` child processes (NOT interactive agent sessions), decoupled from any live conversation. Foundation for moving all three standing drains (judge/label/learner) off session/loop dispatch.\n\nScope:\n- New module (e.g. lib/headless-drain.js): spawns `claude -p <prompt>` for a given drain spec, REUSING the cross-platform claude-binary resolver and .env loader already in scripts/onboard-learn.js (extract to a shared lib, do not duplicate). Capture exit/stdout; enforce a per-run timeout.\n- Governor: opt-in env flag ORCH_HEADLESS_DRAINS (default OFF — when unset, nothing spawns). Per-drain token/iteration budget + concurrency cap so a burst cannot fork-bomb claude processes. Mirror the budget/cap shape of lib/loop-autostart.js AUTOSTART_CONFIG.\n- Daemon-internal trigger: an unref'd setInterval (like the sweepStaleLoops timer in daemon.js) that, when the flag is on and budget remains, runs due drains. AUGMENT — do NOT remove the existing loop-based dispatch; headless is the no-session path.\n- First consumer: wire the LEARNER drain (followup/harness-learner-drain) through the runner (it already shells claude -p via onboard-learn.js --drain) to prove the path at lowest risk. Report progress back to the graph so the dashboard still reflects drain activity.\n- Tests: governor gating (flag off = no spawn), budget/concurrency caps, learner-drain invocation (mock spawn).\n\nKeep judge/label drains OUT of this task (tasks 2 and 3, blocked on this). Decision context: note:note-mqgqkxlboi0.",
@@ -107362,6 +107363,7 @@
       "summary": "Implemented headless drains as default-on with explicit ORCH_HEADLESS_DRAINS=0/false/no opt-out, changed daemon drain cadence default from 15 minutes to 2 minutes plus jitter, and suppressed in-session judge/label/learner Agent drain nudges while headless drains are enabled. Updated focused headless-drain and classify assembly tests. Tests: node --test test/headless-drain.test.js test/classify-loop-directive.test.js (passed; rerun with sandbox escalation because the deadlock regression binds 127.0.0.1). Commit: 0110d12 Make headless drains default and frequent.",
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "Make headless CLI drains default and frequent",
         "description": "Change zonoid so standing learner/judge/label drains use the daemon headless CLI path by default, run on a short cadence, and suppress in-session Agent drain nudges when headless drains are active. Keep an explicit opt-out for constrained environments and add focused tests.",
@@ -225548,6 +225550,70 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/onboard-drain-headless": {
+      "id": "codex/onboard-drain-headless",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented onboarding drain handoff to the daemon headless runner. POST /onboard/drain-queue now records queue metadata and wakes the daemon instead of owning a serial browser loop; headless learner discovers bench/onboard queues, drains custom outDir batches, and live-injects via async spawn whenever kept notes advance. Status now preserves kept/keptNotes/injectedKept for the breathing cloud. Commit f20482f5. Focused tests passed: route checks, headless-drain, MCP harness tools, learner queue, node --check.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Make onboarding drain use daemon headless runner",
+        "description": "Change onboarding learning so the browser/dashboard does not own a slow serial drain loop. The route should enqueue/recover status and let the daemon headless drain runner process queued batches, similar to judge drain governance. Ensure live inject remains enabled and non-blocking for dashboard responsiveness. Keep changes scoped to routes/onboard.js, lib/headless-drain.js, scripts/onboard-learn.js only if needed, and focused tests.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T22:55:49.534Z"
+      },
+      "assignee": "codex-onboard-drain-headless",
+      "timestamps": {
+        "firstSeen": "2026-06-21T22:46:56.466Z",
+        "lastChanged": "2026-06-21T22:55:49.078Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/review-onboard-drain-headless": {
+      "id": "codex/review-onboard-drain-headless",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Reviewed final onboarding drain changes. Initial attempt dropped live cloud status and made inject final-only; corrected before applying to live checkout. Final state keeps route non-blocking, preserves kept/keptNotes/injectedKept status, daemon headless runner discovers bench/onboard queues, and live-injects asynchronously when kept notes advance. Focused route/headless/MCP/learner/landing/doc-structure checks passed.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Review onboarding headless drain implementation",
+        "description": "Review the implementation for codex/onboard-drain-headless. Check that onboarding drain no longer blocks the daemon/browser, uses headless drain semantics like judge drain where appropriate, keeps live inject enabled and idempotent, and has focused tests. Do not merge; report approve/kickback findings.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/onboard-drain-headless"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T23:05:10.979Z"
+      },
+      "assignee": "codex-review-onboard-drain-headless",
+      "timestamps": {
+        "firstSeen": "2026-06-21T22:47:40.978Z",
+        "lastChanged": "2026-06-21T23:05:10.935Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -269844,13 +269910,270 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mq7fm2f2",
+      "to": "codex/embedding-provider-instruct-ft-impl",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqb4iejccco",
+      "to": "codex/review-onboard-drain-headless",
+      "kind": "context",
+      "weight": 0.971,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqgsb1mcnid",
+      "to": "codex/review-onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.615,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgsb1mcnid",
+      "to": "codex/onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.599,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgtgbdm0mh",
+      "to": "codex/review-onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.596,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgwhrs2aom",
+      "to": "codex/review-onboard-drain-headless",
+      "kind": "context",
+      "weight": 0.958,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqi6mvx3gip",
+      "to": "codex/onboard-drain-headless",
+      "kind": "context",
+      "weight": 0.861,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqjgxi25g4o",
+      "to": "codex/onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.552,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/embedding-provider-instruct-ft",
+      "kind": "context",
+      "weight": 0,
+      "judged": false,
+      "by": "autowire",
+      "score": 0.658,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/embed-provider-contract",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/embed-provider-hosted-adapters",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/embed-provider-vector-identity",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/embed-provider-reembed-migration",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/embed-provider-eval-docs",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/embedding-provider-instruct-ft-impl",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/judge-embedding-provider-instruct-ft-impl",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "origin": "asserted",
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqoe9lmojot",
+      "to": "codex/onboard-drain-headless",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqoe9lmojot",
+      "to": "note:note-mqgwagrdguj",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.635,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoe9lmojot",
+      "to": "note:note-mqgr5galbxq",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.584,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoe9lmojot",
+      "to": "note:note-mqjgxi25g4o",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.565,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/1",
+      "to": "codex/onboard-drain-headless",
+      "kind": "context",
+      "weight": 0.996,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/15",
+      "to": "codex/judge-embedding-provider-instruct-ft-impl",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
       "from": "codex/embed-provider-contract",
       "to": "codex/embed-provider-local-adapter",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
       "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/embedding-provider-instruct-ft-impl",
+      "to": "codex/embedding-provider-instruct-ft",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/headless-drains-default-often",
+      "to": "codex/onboard-drain-headless",
+      "kind": "context",
+      "weight": 0.984,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-embedding-provider-instruct-ft-impl",
+      "to": "codex/embedding-provider-instruct-ft-impl",
+      "kind": "context",
+      "weight": 0.838,
+      "by": "judge",
+      "judged": true,
+      "score": 0.838,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/onboard-drain-headless",
+      "to": "codex/review-onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "origin": "autowire-semantic",
+      "score": 0.778
     }
   ],
-  "compacted_at": "2026-06-21T22:36:11.579Z"
+  "compacted_at": "2026-06-21T23:14:22.015Z"
 }
