@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "codex-mcp-56233-2fb79e32d1e60c37dc95532f3a522c99",
   "branch": "orch/attempt/codex-judge-subconscious-anchor-real-task-filter",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T21:11:03.559Z",
-  "lease_until": "2026-06-21T22:11:03.559Z"
+  "lease_until": "2026-06-21T22:11:03.559Z",
+  "completed_at": "2026-06-21T21:12:32.130Z"
 }
