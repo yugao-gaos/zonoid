@@ -299,8 +299,8 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     const skillPath = path.join(cwd, '.codex', 'skills', 'zonoid-orchestrator', 'SKILL.md');
     ok('installRepoSkill installs zonoid-orchestrator into client .codex/skills', installed && fs.existsSync(skillPath));
     const text = fs.readFileSync(skillPath, 'utf8');
-    ok('repo skill points to client adapter mappings',
-      text.includes('client-adapters.md'));
+    ok('repo skill points adapter-specific details to client-adapters reference',
+      text.includes('client-adapters.md') && text.includes('http://localhost:8787/graph'));
     const adapterPath = path.join(cwd, '.codex', 'skills', 'zonoid-orchestrator', 'references', 'client-adapters.md');
     const adapterText = fs.readFileSync(adapterPath, 'utf8');
     ok('codex repo skill adapter reference documents create_task file-drop task minting',
@@ -343,13 +343,35 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     fs.mkdirSync(cwd2, { recursive: true })
     const installed2 = installOpencodeRepoSkills(cwd2)
     const skillPath2 = path.join(cwd2, '.opencode', 'skills', 'zonoid-orchestrator', 'SKILL.md')
-    ok('installOpencodeRepoSkills installs the opencode repo skill', installed2 && fs.existsSync(skillPath2))
+    ok('installOpencodeRepoSkills installs the canonical opencode repo skill', installed2 && fs.existsSync(skillPath2))
 
     // Idempotent: a second install is byte-identical.
     const before = fs.readFileSync(skillPath, 'utf8')
     installRepoSkill(cwd, 'zonoid-orchestrator', 'opencode')
     const after = fs.readFileSync(skillPath, 'utf8')
     ok('installRepoSkill opencode is idempotent', before === after)
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true })
+  }
+}
+
+// ── Client-repo skill install: OpenCode compatibility alias stays explicit ───
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-opencode-alias-skill-'));
+  try {
+    const cwd = path.join(base, 'client-repo')
+    fs.mkdirSync(cwd, { recursive: true })
+    const installed = installRepoSkill(cwd, 'zonoid-orchestrator-opencode', 'opencode')
+    const skillPath = path.join(cwd, '.opencode', 'skills', 'zonoid-orchestrator-opencode', 'SKILL.md')
+    ok('installRepoSkill installs zonoid-orchestrator-opencode compatibility alias into client .opencode/skills',
+      installed && fs.existsSync(skillPath))
+    ok('installRepoSkill opencode alias does NOT touch .codex/skills',
+      !fs.existsSync(path.join(cwd, '.codex', 'skills')))
+    const text = fs.readFileSync(skillPath, 'utf8')
+    ok('opencode compatibility alias points to canonical repo skill and adapter reference',
+      text.includes('Compatibility Alias') &&
+      text.includes('zonoid-orchestrator') &&
+      text.includes('client-adapters.md'))
   } finally {
     fs.rmSync(base, { recursive: true, force: true })
   }
