@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "019ee9d5-1ec8-7770-8f81-20d92331b152",
   "branch": "orch/attempt/codex-prevent-judge-reverse-blocking-edges",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T10:59:07.282Z",
-  "lease_until": "2026-06-21T11:59:07.282Z"
+  "lease_until": "2026-06-21T11:59:07.282Z",
+  "completed_at": "2026-06-21T11:07:20.297Z"
 }
