@@ -1,0 +1,9 @@
+{
+  "task_key": "a7c784d9-b88b-4ef6-979d-0da700b4d6fc/hookless",
+  "git_user": "YU GAO <yu.gao@gaos.ca>",
+  "session_id": "371dcaf6-0945-485a-9b85-0a1242ab2809",
+  "branch": "orch/attempt/a7c784d9-b88b-4ef6-979d-0da700b4d6fc-hookless",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:29:38.732Z",
+  "lease_until": "2026-06-21T04:29:38.732Z"
+}
