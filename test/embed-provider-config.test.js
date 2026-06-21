@@ -11,6 +11,8 @@ const {
 } = require('../lib/embed');
 const overlayStore = require('../lib/overlay');
 const { scoreMatchesSemantic } = require('../daemon');
+const { askGate } = require('../lib/ask-gate');
+const { gateTask } = require('../lib/context-gate');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -74,18 +76,40 @@ const cohereMeta = { provider: 'cohere', model: 'embed-v4.0', dimensions: 1536, 
   ok('setTaskVec(null) clears metadata sidecar', !ov.taskVecMeta['sess/1']);
 }
 
-{
-  const target = { id: 'sess/query', label: 'alpha request', summary: '', deps: [], context_deps: [] };
-  const matching = { id: 'note:matching', label: 'bravo corpus', summary: '', status: 'note', kind: 'note', vec: voyageVec, vecMeta: voyageMeta };
-  const stale = { id: 'note:stale', label: 'charlie corpus', summary: '', status: 'note', kind: 'note', vec: voyageVec, vecMeta: cohereMeta };
-  const g = { tasks: [matching, stale] };
-  const hits = scoreMatchesSemantic(g, target, voyageVec, { expectedMeta: voyageMeta, targetVecMeta: voyageMeta });
-  ok('non-default target meta enables semantic scoring', hits.some((h) => h.key === matching.id && h.via === 'semantic' && h.score > 0.99));
-  ok('stale candidate metadata is filtered out of semantic scoring', !hits.some((h) => h.key === stale.id));
-  const missingTargetMeta = scoreMatchesSemantic(g, target, voyageVec, { expectedMeta: voyageMeta });
-  ok('non-default target without targetVecMeta is treated as stale', !missingTargetMeta.some((h) => h.via === 'semantic'));
+async function runAsyncTests() {
+  {
+    const target = { id: 'sess/query', label: 'alpha request', summary: '', deps: [], context_deps: [] };
+    const matching = { id: 'note:matching', label: 'bravo corpus', summary: '', status: 'note', kind: 'note', vec: voyageVec, vecMeta: voyageMeta };
+    const stale = { id: 'note:stale', label: 'charlie corpus', summary: '', status: 'note', kind: 'note', vec: voyageVec, vecMeta: cohereMeta };
+    const g = { tasks: [matching, stale] };
+    const hits = scoreMatchesSemantic(g, target, voyageVec, { expectedMeta: voyageMeta, targetVecMeta: voyageMeta });
+    ok('non-default target meta enables semantic scoring', hits.some((h) => h.key === matching.id && h.via === 'semantic' && h.score > 0.99));
+    ok('stale candidate metadata is filtered out of semantic scoring', !hits.some((h) => h.key === stale.id));
+    const missingTargetMeta = scoreMatchesSemantic(g, target, voyageVec, { expectedMeta: voyageMeta });
+    ok('non-default target without targetVecMeta is treated as stale', !missingTargetMeta.some((h) => h.via === 'semantic'));
+  }
+
+  {
+    const embedQuery = async () => voyageVec;
+    const cosine = () => 1;
+    const missing = { id: 'note:missing-meta', label: 'missing meta', summary: 'SPEC IS INCOMPLETE: vector metadata was missing after provider switch.', vec: voyageVec };
+    const stale = { id: 'note:stale-meta', label: 'stale meta', summary: 'SPEC IS INCOMPLETE: vector metadata came from an old provider.', vec: voyageVec, vecMeta: cohereMeta };
+    const gateMissing = await gateTask({ label: 'provider switch', summary: 'check vector identity' }, [missing], { embedQuery, cosine, expectedMeta: voyageMeta });
+    ok('context gate missing hosted vec metadata does not use raw semantic fallback', gateMissing.via === 'lexical' && gateMissing.top1 === 0);
+    const gateStale = await gateTask({ label: 'provider switch', summary: 'check vector identity' }, [stale], { embedQuery, cosine, expectedMeta: voyageMeta });
+    ok('context gate stale hosted vec metadata does not use raw semantic fallback', gateStale.via === 'lexical' && gateStale.top1 === 0);
+    const askMissing = await askGate('should missing provider metadata be trusted', [missing], { embedQuery, cosine, expectedMeta: voyageMeta });
+    ok('ask gate missing hosted vec metadata does not use raw semantic fallback', askMissing.via === 'lexical' && askMissing.top1 === 0);
+    const askStale = await askGate('should stale provider metadata be trusted', [stale], { embedQuery, cosine, expectedMeta: voyageMeta });
+    ok('ask gate stale hosted vec metadata does not use raw semantic fallback', askStale.via === 'lexical' && askStale.top1 === 0);
+  }
 }
 
-console.log('-----');
-console.log(`${pass} passed, ${fail} failed`);
-process.exit(fail === 0 ? 0 : 1);
+runAsyncTests().then(() => {
+  console.log('-----');
+  console.log(`${pass} passed, ${fail} failed`);
+  process.exit(fail === 0 ? 0 : 1);
+}).catch((err) => {
+  console.error(err && err.stack ? err.stack : err);
+  process.exit(1);
+});
