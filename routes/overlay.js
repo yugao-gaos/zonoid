@@ -707,6 +707,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, actor: b.actor || 'record-decision', ts: Date.now() });
       }
     }
+    // Persist the note/supersede event before buildGraph can reload from the local overlay JSON,
+    // which intentionally excludes note_nodes and relies on graph-store rehydration.
+    T.save();
     // INGEST: route the note through the unified ingestNode funnel (autowireNoteProvider + markEagerJudge).
     // ingestNode detects the note: prefix, skips re-embed (vec already in note_nodes[id].vec via addNoteNode),
     // calls autowireNoteProvider to seed weight-0 candidate edges to relevant tasks/notes, then stamps

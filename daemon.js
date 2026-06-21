@@ -143,9 +143,12 @@ function overlayFor(ws) {
 // Re-stamp a cached overlay AFTER the daemon saved through it, so the next overlayFor lookup keeps
 // the in-memory (coalesced) object instead of treating the daemon's own mtime bump as an
 // out-of-band change and reloading. Idempotent; no-op when the ws isn't cached.
-function refreshOverlayStamp(ws) {
+function refreshOverlayStamp(ws, ov) {
   const cached = overlayCache.get(ws);
-  if (cached) cached.stamp = overlayStamp(ws);
+  if (cached) {
+    if (ov) cached.ov = ov;
+    cached.stamp = overlayStamp(ws);
+  }
 }
 function aggregateCached(ws) {
   const now = Date.now();
@@ -534,7 +537,7 @@ function targetOverlay(b, u) {
   if (!explicit) return { ws: null, ov: overlayStore.EMPTY(), save: () => {} };
   const ws = explicit;
   const ov = overlayFor(ws);
-  return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws); } };
+  return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws, ov); } };
 }
 
 // Reject-unknown-key guard: returns true if the key resolves to an EXISTING node in the
