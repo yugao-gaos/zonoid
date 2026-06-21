@@ -7,3 +7,4 @@
 {"evt":"edge_added","from":"note:note-mqobjpjb5bh","to":"codex/subconscious-permit-gate-kickback-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:15:03.238Z","weight":0.85,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqobjpjb5bh","to":"codex/subconscious-permit-gate-kickback-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:15:08.204Z","weight":0.85,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqobjpjb5bh","to":"codex/subconscious-permit-gate-kickback-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:15:12.666Z","weight":0.85,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mqobjpjb5bh","to":"codex/subconscious-permit-gate-kickback-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:15:42.308Z","weight":0.85,"by":"autowire","judged":false,"origin":"asserted"}
