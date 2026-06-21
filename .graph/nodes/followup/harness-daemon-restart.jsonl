@@ -11,3 +11,6 @@
 {"evt":"edge_promoted","from":"followup/harness-daemon-restart","to":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/4","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:18:53.163Z","weight":0.652,"by":"judge","judged":true,"score":0.652,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"c9d0372b-830c-42b8-a22b-4e4bea7a823e/7","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:20:11.786Z"}
 {"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"opencode/fix-heartbeat-harness-spawn-leak","kind":"context","actor":"overlay-sync","ts":"2026-06-21T16:33:24.713Z"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/23","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:23:23.284Z"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/21","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:23:23.284Z"}
+{"evt":"edge_removed","from":"followup/harness-daemon-restart","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/28","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:23:23.284Z"}
