@@ -229,6 +229,42 @@ async function waitForPing(ms = 8000) {
     capturedSessionCompanion.body.companion_loop_id === 'companion-loop');
   ok('subconscious_session_companion returns route output', sessionCompanionOut && sessionCompanionOut.session_companion.session_id === 'foreground-session');
 
+  const anchorAllocatorTool = TOOLS.find((t) => t.name === 'subconscious_anchor_allocator');
+  ok('subconscious_anchor_allocator is on default MCP surface', !!anchorAllocatorTool);
+  ok('subconscious_anchor_allocator schema exposes anchor and wiring fields',
+    anchorAllocatorTool &&
+    anchorAllocatorTool.inputSchema.properties.session_id &&
+    anchorAllocatorTool.inputSchema.properties.companion_agent_id &&
+    anchorAllocatorTool.inputSchema.properties.task_key &&
+    anchorAllocatorTool.inputSchema.properties.parent_task_keys &&
+    anchorAllocatorTool.inputSchema.properties.context_task_keys);
+  let capturedAnchorAllocator = null;
+  const anchorAllocatorOut = await anchorAllocatorTool.run({
+    action: 'update',
+    workspace: '/tmp/ws',
+    session_id: 'foreground-session',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    task_key: 'local/task',
+    reason: 'anchor foreground session to current task',
+    status: 'selected',
+    parent_task_keys: ['local/parent'],
+    context_task_keys: ['note:context'],
+  }, (method, path, body) => {
+    capturedAnchorAllocator = { method, path, body };
+    return { ok: true, anchor_allocation: { task_key: body.task_key } };
+  });
+  ok('subconscious_anchor_allocator runs POST /subconscious/anchor',
+    capturedAnchorAllocator && capturedAnchorAllocator.method === 'POST' && capturedAnchorAllocator.path === '/subconscious/anchor');
+  ok('subconscious_anchor_allocator passes expected request shape',
+    capturedAnchorAllocator &&
+    capturedAnchorAllocator.body.session_id === 'foreground-session' &&
+    capturedAnchorAllocator.body.companion_agent_id === 'companion-agent' &&
+    capturedAnchorAllocator.body.task_key === 'local/task' &&
+    capturedAnchorAllocator.body.parent_task_keys[0] === 'local/parent' &&
+    capturedAnchorAllocator.body.context_task_keys[0] === 'note:context');
+  ok('subconscious_anchor_allocator returns route output', anchorAllocatorOut && anchorAllocatorOut.anchor_allocation.task_key === 'local/task');
+
   const codexExtra = extraToolsForClient('codex', WS);
   ok('codex extraTools has create_task + ScheduleWakeup', codexExtra.length === 2 && codexExtra[0].name === 'create_task' && codexExtra[1].name === 'ScheduleWakeup');
   ok('ScheduleWakeup schema accepts explicit session_id', codexExtra[1].inputSchema.properties.session_id && codexExtra[1].inputSchema.properties.session_id.type === 'string');

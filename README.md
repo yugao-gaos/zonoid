@@ -180,6 +180,7 @@ Claude Code's native `TaskCreate`; these tools manage them once they exist.)
 | `search_knowledge` | Retrieve the most relevant knowledge notes (decisions / gotchas / constraints) for a free-text query |
 | `ask_subconscious` | Ask a per-agent Subconscious for a verdict or prediction using internal context search and recent agent state |
 | `subconscious_loop` | Record or read daemon-owned Subconscious loop state and bounded tick/observation history |
+| `subconscious_anchor_allocator` | Record or read process-local Subconscious task anchors and proposed DAG wiring metadata |
 | `record_decision` | Capture a durable decision, rationale, or finding as a note node in the graph |
 | `supersede_note` | Mark an existing note as superseded by a newer one without deleting history |
 | `attach_knowledge` | Attach a Tier-2 knowledge item (file / snippet / link / note) to a task |
