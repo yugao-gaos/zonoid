@@ -4513,7 +4513,7 @@ function clearCloudSearchFrames(){
 }
 function scheduleCloudSearchFrames(seq){
   clearCloudSearchFrames();
-  const frameCount=2+CLOUD_SEARCH_ACTIVATION_MAX_HOPS*2;
+  const frameCount=3+CLOUD_SEARCH_ACTIVATION_MAX_HOPS*2;
   for(let i=1;i<=frameCount;i++){
     const delay=i*CLOUD_SEARCH_STEP_MS;
     cloudSearchFrameTimers.push(setTimeout(()=>{
