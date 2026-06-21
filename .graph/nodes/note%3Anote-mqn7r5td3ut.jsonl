@@ -26,3 +26,4 @@
 {"evt":"edge_promoted","from":"note:note-mqn7r5td3ut","to":"codex/judge-subconscious-agentic-verdict","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:46:38.161Z","weight":0.606,"by":"judge","judged":true,"score":0.606,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqn7r5td3ut","to":"codex/subconscious-mcp-tool","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:46:38.161Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
 {"evt":"edge_added","from":"note:note-mqn7r5td3ut","to":"codex/subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:36:28.317Z","weight":0,"by":"autowire","judged":false,"score":0.64,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqn7r5td3ut","to":"codex/subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:37:16.857Z","weight":0.8,"by":"autowire","judged":false,"score":0.64,"origin":"asserted"}
