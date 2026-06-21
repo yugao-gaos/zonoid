@@ -50,3 +50,4 @@
 {"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:08:12.097Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:08:32.901Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:09:18.759Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:09:44.703Z","weight":0.8,"origin":"asserted"}
