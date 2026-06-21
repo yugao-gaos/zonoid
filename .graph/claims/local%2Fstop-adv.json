@@ -1,0 +1,9 @@
+{
+  "task_key": "local/stop-adv",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "stop-adv-worker-sid",
+  "branch": "orch/attempt/local-stop-adv",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:04:24.008Z",
+  "lease_until": "2026-06-21T04:04:24.008Z"
+}
