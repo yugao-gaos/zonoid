@@ -3,7 +3,8 @@
   "git_user": "YU GAO <yu.gao@gaos.ca>",
   "session_id": "657a9576-6d44-492e-b88d-e1f0114ca354",
   "branch": "orch/attempt/ffb8ff37-25cf-4472-89ff-4e8d91d7c37f-1",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T03:03:01.298Z",
-  "lease_until": "2026-06-21T04:03:01.298Z"
+  "lease_until": "2026-06-21T04:03:01.298Z",
+  "completed_at": "2026-06-21T03:03:03.123Z"
 }
