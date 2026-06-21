@@ -1,0 +1,9 @@
+{
+  "task_key": "sessA/claim1",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "claim-session-A",
+  "branch": "orch/attempt/sessA-claim1",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:04:03.731Z",
+  "lease_until": "2026-06-21T04:04:03.731Z"
+}
