@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/judge-fix-retrieval-cluster-expansion-visibility",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "019eeb11-0091-76e0-9e3d-e079a40d5f1a",
+  "branch": "orch/attempt/codex-judge-fix-retrieval-cluster-expansion-visibility",
+  "status": "done",
+  "claimed_at": "2026-06-21T16:45:24.466Z",
+  "lease_until": "2026-06-21T17:45:24.466Z",
+  "completed_at": "2026-06-21T16:50:53.153Z"
+}

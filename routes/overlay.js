@@ -32,7 +32,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (typeof nodeExistsInGraph !== 'function') return true;
     return nodeExistsInGraph(buildGraph(ws), key);
   };
-  const acceptsTaskKey = (T, key) => graphHasKey(T.ws, key) || isAdmissibleOverlayTaskKey(key);
+  const acceptsTaskKey = (T, key) => graphHasKey(T.ws, key)
+    || !!(T.ov.knowledge_nodes && T.ov.knowledge_nodes[key])
+    || isAdmissibleOverlayTaskKey(key);
   const ensureTaskSnapshot = (T, key) => {
     if (!isAdmissibleOverlayTaskKey(key)) return;
     if (T.ov.snapshots && T.ov.snapshots[key]) return;
@@ -580,6 +582,31 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     sendOp(res, b, 200, { ok: true, count: T.ov.knowledge[b.key].length }); return true;
   }
 
+  if (p === '/overlay/knowledge-node' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const fields = [
+      b.type || b.kind,
+      b.label || b.title,
+      b.summary,
+      b.source_path || b.sourcePath,
+      b.section_ref || b.sectionRef,
+      b.chunk_ref || b.chunkRef,
+      b.cluster_ref || b.clusterRef,
+    ].map((x) => String(x || '').trim()).filter(Boolean);
+    const payload = { ...b };
+    if (fields.length) {
+      payload.vec = await embed(fields.join(' '));
+      payload.vecs = (await Promise.all(fields.map(embed))).filter(Boolean);
+    }
+    const r = overlayStore.upsertKnowledgeNode(T.ov, payload);
+    if (!r.ok) { send(res, 400, r); return true; }
+    T.save(); notifyChange(T.ws);
+    sendOp(res, b, 200, { ok: true, key: r.key, node: r.node }); return true;
+  }
+
   if (p === '/overlay/note' && m === 'POST') {
     const b = await readBody(req);
     if (ctx.opReplay(res, b)) return true;
@@ -849,7 +876,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     let tasksEmbedded = 0, tasksSkipped = 0;
     const g = buildGraph(T.ws);
     for (const node of g.tasks) {
-      if ((node.kind || 'task') === 'note') continue;
+      if (overlayStore.isNonTaskNode(node)) continue;
       const existing = T.ov.taskVecs && T.ov.taskVecs[node.id];
       if (Array.isArray(existing) && existing.length) { tasksSkipped++; continue; }
       const v = await embed(taskEmbedText({ title: node.label, summary: node.summary }));
