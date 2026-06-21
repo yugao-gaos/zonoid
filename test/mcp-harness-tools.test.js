@@ -198,6 +198,37 @@ async function waitForPing(ms = 8000) {
     capturedSubconsciousAsk.body.k === 4);
   ok('ask_subconscious returns route output', subconsciousOut && subconsciousOut.verdict === 'inject_relevant_context');
 
+  const sessionCompanionTool = TOOLS.find((t) => t.name === 'subconscious_session_companion');
+  ok('subconscious_session_companion is on default MCP surface', !!sessionCompanionTool);
+  ok('subconscious_session_companion schema exposes session and companion fields',
+    sessionCompanionTool &&
+    sessionCompanionTool.inputSchema.properties.session_id &&
+    sessionCompanionTool.inputSchema.properties.foreground_agent_id &&
+    sessionCompanionTool.inputSchema.properties.companion_agent_id &&
+    sessionCompanionTool.inputSchema.properties.companion_loop_id);
+  let capturedSessionCompanion = null;
+  const sessionCompanionOut = await sessionCompanionTool.run({
+    action: 'update',
+    workspace: '/tmp/ws',
+    session_id: 'foreground-session',
+    foreground_agent_id: 'foreground-agent',
+    companion_agent_id: 'companion-agent',
+    companion_loop_id: 'companion-loop',
+    status: 'paired',
+  }, (method, path, body) => {
+    capturedSessionCompanion = { method, path, body };
+    return { ok: true, session_companion: { session_id: body.session_id } };
+  });
+  ok('subconscious_session_companion runs POST /subconscious/session-companion',
+    capturedSessionCompanion && capturedSessionCompanion.method === 'POST' && capturedSessionCompanion.path === '/subconscious/session-companion');
+  ok('subconscious_session_companion passes expected request shape',
+    capturedSessionCompanion &&
+    capturedSessionCompanion.body.session_id === 'foreground-session' &&
+    capturedSessionCompanion.body.foreground_agent_id === 'foreground-agent' &&
+    capturedSessionCompanion.body.companion_agent_id === 'companion-agent' &&
+    capturedSessionCompanion.body.companion_loop_id === 'companion-loop');
+  ok('subconscious_session_companion returns route output', sessionCompanionOut && sessionCompanionOut.session_companion.session_id === 'foreground-session');
+
   const codexExtra = extraToolsForClient('codex', WS);
   ok('codex extraTools has create_task + ScheduleWakeup', codexExtra.length === 2 && codexExtra[0].name === 'create_task' && codexExtra[1].name === 'ScheduleWakeup');
   ok('ScheduleWakeup schema accepts explicit session_id', codexExtra[1].inputSchema.properties.session_id && codexExtra[1].inputSchema.properties.session_id.type === 'string');

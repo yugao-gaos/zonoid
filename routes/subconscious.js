@@ -40,6 +40,39 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     return true;
   }
 
+  if (p === '/subconscious/session-companion' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    const result = store.readSessionCompanion({
+      workspace: T.ws || (u && u.searchParams.get('workspace')),
+      session_id: u && u.searchParams.get('session_id'),
+      limit: u && u.searchParams.get('limit'),
+    });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
+  if (p === '/subconscious/session-companion' && m === 'POST') {
+    const b = await readBody(req) || {};
+    const T = targetOverlay(b, u);
+    const result = store.upsertSessionCompanion({ ...b, workspace: T.ws || b.workspace });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
+  if (p === '/subconscious/session-companion/observation' && m === 'POST') {
+    const b = await readBody(req) || {};
+    const T = targetOverlay(b, u);
+    const result = store.recordSessionCompanionObservation({ ...b, workspace: T.ws || b.workspace });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
   if (p === '/subconscious/event' && m === 'POST') {
     const b = await readBody(req) || {};
     const T = targetOverlay(b, u);
