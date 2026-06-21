@@ -1,6 +1,7 @@
 # Zonoid Research Papers
 
-Empirical studies on the self-learning task knowledge graph.
+Empirical studies behind Zonoid's agent-subconscious layer: project-local context activation,
+task-graph cost flow, and self-learning.
 
 > **Scope — what these papers measure.** These are **component** studies of **KB injection (RAG
 > retrieval)**: the ON arm makes a single gated `search_knowledge` call into one task's context, the

@@ -1,7 +1,7 @@
 {
   "name": "@zonoid/core",
   "version": "0.9.0",
-  "description": "Execution-coupled memory and self-optimization for AI agent fleets. Traces every token, scores every outcome, routes future work toward what earns its cost.",
+  "description": "The agent's subconscious for coding work: execution-coupled memory that routes task history, decisions, costs, and learned skills into the next move.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
