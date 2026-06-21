@@ -802,20 +802,21 @@ test('subconscious ask uses deterministic search context and recent agent events
     task_key: 'task/target',
     intent: 'choose next implementation step',
     situation: 'Need context compiler evidence for deterministic search',
+    include_internal: true,
   });
 
   assert.equal(res.status, 200);
   assert.equal(res.body.ok, true);
   assert.equal(res.body.verdict, 'inject_relevant_context');
-  assert.equal(res.body.planner.strategy, 'task_gated_context');
-  assert.equal(res.body.planner.gated, true);
-  assert.equal(res.body.planner.searches.length, 1);
-  assert.equal(res.body.planner.searches[0].task_key, 'task/target');
-  assert.equal(res.body.recent_agent_events.length, 1);
-  assert.equal(res.body.recent_agent_state.event_count, 1);
-  assert.equal(res.body.evidence.results[0].key, 'note:direct');
-  assert(res.body.evidence.results.some((r) => r.key === 'note:direct'));
-  assert.equal(res.body.recommended_next_action, 'review_injected_context');
+  assert.equal(res.body.internal.planner.strategy, 'task_gated_context');
+  assert.equal(res.body.internal.planner.gated, true);
+  assert.equal(res.body.internal.planner.searches.length, 1);
+  assert.equal(res.body.internal.planner.searches[0].task_key, 'task/target');
+  assert.equal(res.body.internal.recent_agent_events.length, 1);
+  assert.equal(res.body.internal.recent_agent_state.event_count, 1);
+  assert.equal(res.body.internal.evidence.results[0].key, 'note:direct');
+  assert(res.body.internal.evidence.results.some((r) => r.key === 'note:direct'));
+  assert.equal(res.body.internal.recommended_next_action, 'review_injected_context');
   assert.equal(res.body.predicted_consequence, 'using_injected_context_should_reduce_rework');
 });
 
@@ -884,8 +885,11 @@ test('subconscious ask returns foreground pressure from existing session anchor 
   assert.equal(res.body.next_action, 'review_context_then_work_selected_anchor');
   assert.equal(res.body.current_state.status, 'anchored');
   assert.equal(res.body.current_state.progress, 'recent foreground activity recorded');
-  assert.equal(res.body.current_state.anchor_allocation.task_key, 'task/anchor');
-  assert.equal(res.body.current_state.session_companion.session_id, 'session-a');
+  assert.equal(res.body.anchor.status, 'selected');
+  assert.equal(res.body.anchor.allocation.task_key, 'task/anchor');
+  assert.equal(res.body.identity.session_id, 'session-a');
+  assert.equal(res.body.identity.foreground_agent_id, 'foreground-a');
+  assert.equal(res.body.identity.companion_agent_id, 'companion-a');
   assert.match(res.body.directive, /foreground-owned work on task\/anchor/);
   assert(res.body.plan.some((step) => step.includes('task/anchor')));
   assert.equal(res.body.context_summary.anchored_task_key, 'task/anchor');
@@ -895,12 +899,15 @@ test('subconscious ask returns foreground pressure from existing session anchor 
   assert.equal(res.body.subconscious.verdict, 'inject_relevant_context');
   assert.equal(res.body.subconscious.prediction, 'relevant_context_likely');
   assert.equal(res.body.subconscious.context.summary.anchored_task_key, 'task/anchor');
-  assert.equal(res.body.subconscious.context.evidence.results[0].key, 'note:direct');
   assert.equal(res.body.subconscious.anchor.selected_task_key, 'task/anchor');
-  assert.equal(res.body.subconscious.anchor.allocation.task_key, 'task/anchor');
-  assert.equal(res.body.subconscious.pressure.execution_owner, 'foreground_agent');
   assert.equal(res.body.subconscious.approval_posture.requires_approval, false);
-  assert.equal(res.body.subconscious_pressure.execution_owner, 'foreground_agent');
+  assert.equal(res.body.planner, undefined);
+  assert.equal(res.body.evidence, undefined);
+  assert.equal(res.body.recent_agent_events, undefined);
+  assert.equal(res.body.subconscious_pressure, undefined);
+  assert.equal(res.body.internal, undefined);
+  assert.equal(res.body.subconscious.context.evidence, undefined);
+  assert.equal(res.body.subconscious.pressure, undefined);
   assert.deepEqual(graph.tasks.map((task) => task.id), taskIdsBefore);
 });
 
@@ -977,15 +984,16 @@ test('subconscious ask makes recent risk the verdict while preserving task conte
     task_key: 'task/target',
     intent: 'choose next implementation step',
     situation: 'Need deterministic retry context',
+    include_internal: true,
   });
 
   assert.equal(res.status, 200);
   assert.equal(res.body.verdict, 'recent_agent_risk');
-  assert.equal(res.body.planner.strategy, 'risk_aware_task_context');
-  assert.equal(res.body.planner.signals.has_recent_risk, true);
-  assert.equal(res.body.recent_agent_state.risk_event.type, 'risk');
-  assert(res.body.evidence.results.some((r) => r.key === 'note:direct'));
-  assert.equal(res.body.recommended_next_action, 'account_for_recent_agent_event');
+  assert.equal(res.body.internal.planner.strategy, 'risk_aware_task_context');
+  assert.equal(res.body.internal.planner.signals.has_recent_risk, true);
+  assert.equal(res.body.internal.recent_agent_state.risk_event.type, 'risk');
+  assert(res.body.internal.evidence.results.some((r) => r.key === 'note:direct'));
+  assert.equal(res.body.internal.recommended_next_action, 'account_for_recent_agent_event');
 });
 
 test('subconscious ask reports insufficient context when search and state are empty', async () => {
@@ -1014,15 +1022,58 @@ test('subconscious ask reports insufficient context when search and state are em
     agent_id: 'agent-a',
     intent: 'choose next step',
     situation: 'No graph context matches this request',
+    include_internal: true,
   });
 
   assert.equal(res.status, 200);
   assert.equal(res.body.verdict, 'insufficient_context');
-  assert.equal(res.body.planner.strategy, 'broad_context_probe');
-  assert.equal(res.body.planner.gated, false);
-  assert.equal(res.body.recent_agent_state.event_count, 0);
-  assert.equal(res.body.evidence.results.length, 0);
-  assert.equal(res.body.recommended_next_action, null);
+  assert.equal(res.body.internal.planner.strategy, 'broad_context_probe');
+  assert.equal(res.body.internal.planner.gated, false);
+  assert.equal(res.body.internal.recent_agent_state.event_count, 0);
+  assert.equal(res.body.internal.evidence.results.length, 0);
+  assert.equal(res.body.internal.recommended_next_action, null);
+  assert.equal(res.body.selected_task_key, null);
+  assert.equal(res.body.recommended_task_key, null);
+  assert.equal(res.body.anchor.status, 'none');
+  assert.match(res.body.directive, /No foreground anchor is selected/);
+  assert.match(res.body.directive, /instead of fabricating or claiming blindly/);
+  assert.equal(res.body.identity.session_id, null);
+  assert.match(res.body.identity.missing_reasons.session_id, /not provided/);
+});
+
+test('subconscious ask recommends a real task anchor when no session anchor is selected', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('task/recommended', 'Compiler response polish', {
+        status: 'ready',
+        summary: 'Polish compact Subconscious response shape and response duplication.',
+      }),
+      node('note:context', 'Implementation context', {
+        kind: 'note',
+        summary: 'Compact response shape needs a real task recommendation before edits.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/ask', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    intent: 'choose next implementation step',
+    situation: 'Need compact Subconscious response polish before editing',
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.selected_task_key, null);
+  assert.equal(res.body.recommended_task_key, 'task/recommended');
+  assert.equal(res.body.anchor.status, 'recommended');
+  assert.equal(res.body.anchor.recommendation.task_key, 'task/recommended');
+  assert.match(res.body.directive, /No foreground anchor is selected/);
+  assert.match(res.body.directive, /task\/recommended/);
+  assert(res.body.plan.some((step) => step.includes('task/recommended')));
+  assert.equal(res.body.internal, undefined);
 });
 
 test('subconscious ask isolates recent state by agent', async () => {
@@ -1059,14 +1110,15 @@ test('subconscious ask isolates recent state by agent', async () => {
     task_key: 'task/target',
     intent: 'choose next implementation step',
     situation: 'Need safe context for Agent B',
+    include_internal: true,
   });
 
   assert.equal(res.status, 200);
   assert.equal(res.body.verdict, 'inject_relevant_context');
-  assert.equal(res.body.planner.strategy, 'task_gated_context');
-  assert.equal(res.body.recent_agent_events.length, 0);
-  assert.equal(res.body.recent_agent_state.risk_event, null);
-  assert.equal(res.body.planner.signals.has_recent_risk, false);
+  assert.equal(res.body.internal.planner.strategy, 'task_gated_context');
+  assert.equal(res.body.internal.recent_agent_events.length, 0);
+  assert.equal(res.body.internal.recent_agent_state.risk_event, null);
+  assert.equal(res.body.internal.planner.signals.has_recent_risk, false);
 });
 
 (async () => {
