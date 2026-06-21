@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "019eeaa2-a0f7-7540-9298-927cd7ae1f3e",
   "branch": "orch/attempt/codex-knowledge-typed-node-substrate",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T14:44:53.791Z",
-  "lease_until": "2026-06-21T15:44:53.791Z"
+  "lease_until": "2026-06-21T15:44:53.791Z",
+  "completed_at": "2026-06-21T14:48:54.675Z"
 }
