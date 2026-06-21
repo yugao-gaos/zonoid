@@ -78,6 +78,7 @@ const MCP_ALLOW = [
   'mcp__orchestrator-graph__configure_task', 'mcp__orchestrator-graph__suggest_links',
   'mcp__orchestrator-graph__add_dependency', 'mcp__orchestrator-graph__record_decision',
   'mcp__orchestrator-graph__request_guidance', 'mcp__orchestrator-graph__search_knowledge',
+  'mcp__orchestrator-graph__subconscious_execution_permit',
 ];
 // Any hook command pointing at one of our hook files is "ours" — used to strip stale entries so the
 // install is idempotent (and migrates the old .sh entries to .js).

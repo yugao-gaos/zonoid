@@ -146,6 +146,33 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     return true;
   }
 
+  if (p === '/subconscious/permit' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    const result = store.readExecutionPermit({
+      workspace: T.ws || (u && u.searchParams.get('workspace')),
+      permit_id: u && (u.searchParams.get('permit_id') || u.searchParams.get('id')),
+      session_id: u && u.searchParams.get('session_id'),
+      agent_id: u && u.searchParams.get('agent_id'),
+      foreground_agent_id: u && u.searchParams.get('foreground_agent_id'),
+      task_key: u && u.searchParams.get('task_key'),
+      now: u && u.searchParams.get('now'),
+    });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
+  if (p === '/subconscious/permit' && m === 'POST') {
+    const b = await readBody(req) || {};
+    const T = targetOverlay(b, u);
+    const result = store.executionPermit({ ...b, workspace: T.ws || b.workspace });
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
+    return true;
+  }
+
   if (p === '/subconscious/event' && m === 'POST') {
     const b = await readBody(req) || {};
     const T = targetOverlay(b, u);
