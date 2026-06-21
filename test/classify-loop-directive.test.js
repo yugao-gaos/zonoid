@@ -85,7 +85,7 @@ test('HEARTBEAT remains present and standing drain nudges are suppressed by defa
   }
 });
 
-test('standing drain nudges remain available when headless drains are explicitly disabled', () => {
+test('standing drain pressure remains Subconscious-facing when headless drains are explicitly disabled', () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '0';
   const judgePressure = { nudge: true, depth: 5, dupClusters: 1, harness_task_key: 'followup/harness-judge-drain' };
@@ -98,9 +98,16 @@ test('standing drain nudges remain available when headless drains are explicitly
       judgePressure, labelPressure, learnerPressure,
     }).additional_context;
 
-    assert.ok(ctx.includes('[Judge]'), 'judge nudge should remain as an explicit opt-out fallback');
-    assert.ok(ctx.includes('[Grader]'), 'label nudge should remain as an explicit opt-out fallback');
-    assert.ok(ctx.includes('[Learner]'), 'learner nudge should remain as an explicit opt-out fallback');
+    assert.ok(ctx.includes('[Subconscious pressure]'), 'maintenance backlog should surface as pressure');
+    assert.ok(ctx.includes('judge backlog'), 'judge pressure should remain visible');
+    assert.ok(ctx.includes('grader backlog'), 'label pressure should remain visible');
+    assert.ok(ctx.includes('learner backlog'), 'learner pressure should remain visible');
+    assert.ok(ctx.includes('ask_subconscious'), 'pressure should point foreground agents through Subconscious');
+    assert.ok(!ctx.includes('[Judge]'), 'manual judge nudge should not be injected');
+    assert.ok(!ctx.includes('[Grader]'), 'manual label nudge should not be injected');
+    assert.ok(!ctx.includes('[Learner]'), 'manual learner nudge should not be injected');
+    assert.ok(!ctx.includes('mcp__orchestrator-graph__start_task'), 'manual start_task recipe should not be injected');
+    assert.ok(!ctx.includes('mcp__orchestrator-graph__complete_task'), 'manual complete_task recipe should not be injected');
   } finally {
     if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
     else process.env.ORCH_HEADLESS_DRAINS = saved;
