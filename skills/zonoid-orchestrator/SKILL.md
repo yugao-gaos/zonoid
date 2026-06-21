@@ -1,26 +1,21 @@
 ---
 name: zonoid-orchestrator
-description: Use when working in a repo wired to Zonoid, especially for onboarding, repo learning, Codex adapters, CLI/MCP/HTTP/dashboard surfaces, daemon task minting, or any substantive multi-step code change. Enforces client-repo task minting through the Codex create_task file-drop path before implementation.
+description: Use when working in a repo wired to Zonoid, especially for onboarding, repo learning, CLI/MCP/HTTP/dashboard surfaces, daemon task minting, task-graph coordination, or any substantive multi-step code change. Keeps client-specific task creation and adapter details out of the core workflow.
 ---
 
-# Zonoid Orchestrator Workflow
+# Zonoid Orchestrator
 
-For substantive work, act as the dispatcher first:
+Use the orchestrator graph as the source of truth for substantive work.
 
-1. Mint a task with `mcp__orchestrator_graph.create_task`.
-2. Call `suggest_links` and add relevant `context` or `blocking` edges when those tools are available.
-3. Do not call `start_task` from the main dispatcher session.
-4. Dispatch or move execution into an isolated attempt worktree before editing.
-5. Keep the main session focused on coordination, review, and user communication.
+1. For substantive work, create or claim a graph task before editing.
+2. Wire new tasks with relevant context or blocking edges before dispatch.
+3. Keep dispatcher sessions focused on coordination, review, and user communication.
+4. Do implementation in isolated attempt worktrees, then commit before completing the task.
+5. Leave trivial one-liners, docs-only tweaks, read-only inspection, and test-only verification inline when the workspace rules allow it.
 
-Codex task minting uses the adapter file-drop path:
+For adapter-specific task creation, tool names, file-drop paths, and hook notes, read
+[client-adapters.md](references/client-adapters.md).
 
-- `create_task` writes a `codex/<id>.json` task stub and calls daemon sync.
-- The daemon adopts that file into the unified graph.
-- Do not bypass this with direct multi-file edits in the live client repo.
-
-Inline work is only acceptable for trivial one-liners, docs-only tweaks, read-only inspection, or test-only verification. If a test reveals a new actionable fix, mint a task for that fix.
-
-Always surface the dashboard during orchestrator work:
+Surface the dashboard during orchestrator work:
 
 `http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>`
