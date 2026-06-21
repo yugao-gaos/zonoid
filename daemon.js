@@ -2375,6 +2375,15 @@ const routeModules = [
   sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), subconsciousRoute(ctx), uiRoute(ctx),
 ];
 
+function superviseCodexWakeDeliveryForRegisteredWorkspaces() {
+  try {
+    const codex = harnessRegistry.get('codex');
+    if (codex && codex.wakeDelivery && typeof codex.wakeDelivery.superviseCodexBridgeWorkspaces === 'function') {
+      codex.wakeDelivery.superviseCodexBridgeWorkspaces(registeredWorkspaces());
+    }
+  } catch { /* advisory wake delivery supervision */ }
+}
+
 // Paths served even while the daemon is still in the loading phase.
 // Writes rely on 503 + client retry + op_id idempotency — no queueing needed.
 const LOADING_WHITELIST = new Set(['/health', '/version', '/ping', '/', '/graph']);
@@ -2476,6 +2485,10 @@ if (require.main === module) {
   // SSE/keep-alive sockets so a successor can bind within ~1s of the signal.
   ['SIGINT', 'SIGTERM'].forEach(sig => process.on(sig, () => {
     removeDaemonPort();
+    try {
+      const codex = harnessRegistry.get('codex');
+      if (codex && codex.wakeDelivery && codex.wakeDelivery.defaultSupervisor) codex.wakeDelivery.defaultSupervisor.stopAll();
+    } catch { /* best effort */ }
     server.close(() => process.exit(0));
     if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
     if (httpsServer) {
@@ -2542,7 +2555,10 @@ if (require.main === module) {
       // BIND-EARLY: the port is now held; load state asynchronously so /health (whitelisted
       // through the 503 gate) reports boot progress while everything else gets an honest 503.
       // writeDaemonPort iterates the registered workspaces, so it runs after loadState resolves.
-      loadState().then(() => writeDaemonPort(port))
+      loadState().then(() => {
+        writeDaemonPort(port);
+        superviseCodexWakeDeliveryForRegisteredWorkspaces();
+      })
         .catch((e) => { process.stderr.write(`loadState failed: ${(e && e.stack) || e}\n`); process.exit(1); });
 
       // Optional HTTPS listener for the custom-connector path (needs a locally-trusted cert — run

@@ -16,8 +16,9 @@ ScheduleWakeup(delaySeconds, reason, prompt)
   ORCH_SCHEDULED_TASK {"delaySeconds":7200,"reason":"idle heartbeat","prompt":"<<autonomous-loop-dynamic>>"}
   ```
 
-- **Monitor:** run the tool-returned `command` (typically `tail -n0 -F <fire path>`) and match
-  stdout against `notify_pattern` (`^ORCH_SCHEDULED_TASK`).
+- **Monitor:** hookless clients can run the tool-returned `command` (typically
+  `tail -n0 -F <fire path>`) and match stdout against `notify_pattern`
+  (`^ORCH_SCHEDULED_TASK`). Codex Desktop real-session delivery is also supervised by the daemon.
 
 ## Codex Desktop sessions
 
@@ -30,11 +31,12 @@ process only, collision-resistant across MCP processes, and neither workspace-gl
 as a cross-thread identity.
 
 Arming a wake always guarantees timer delivery to the `.fire` file. When the resolved Codex session
-is real, the tool also returns `delivery.supported: true`, `delivery.session_id`, and a
-`delivery.command` pipeline that feeds matching fire lines into `adapters/codex/wakeup-monitor.js`;
-the monitor invokes `codex resume <session-id> <prompt>`. When only the random fallback is available,
-`delivery.supported` is `false`: the timer is armed, but there is no Codex Desktop thread identity
-to resume.
+is real, the daemon starts an in-process delivery supervisor at Codex `SessionStart` and again on
+daemon boot for bridged workspaces. The supervisor creates the `.fire` file if needed, watches for
+new `ORCH_SCHEDULED_TASK` lines, and invokes `codex resume <session-id> <prompt>`. The tool still
+returns `delivery.supported: true`, `delivery.session_id`, and a `delivery.command` pipeline for
+compatibility and diagnostics. When only the random fallback is available, `delivery.supported` is
+`false`: the timer is armed, but there is no Codex Desktop thread identity to resume.
 
 ## Where it lives
 
@@ -43,7 +45,8 @@ to resume.
 | Core substrate | `lib/schedule-wakeup.js` |
 | Shell CLI | `adapters/common/schedule-wakeup.sh` (`arm` / `cancel`) |
 | MCP (cursor, codex) | `lib/mcp-harness-tools.js` → tool name `ScheduleWakeup` |
-| Codex delivery monitor | `adapters/codex/wakeup-monitor.js` → `codex resume <session-id> <prompt>` |
+| Codex delivery supervisor | `lib/codex-wakeup-delivery.js` daemon-owned watcher → `codex resume <session-id> <prompt>` |
+| Codex delivery monitor CLI | `adapters/codex/wakeup-monitor.js` compatibility pipeline for manual diagnostics |
 | OpenCode plugin | `packages/opencode-plugin` → tool `schedule_wakeup`; in-plugin delivery via `packages/opencode-plugin/lib/wake-delivery.js` → SDK `client.session.promptAsync` (self-driving heartbeat) |
 | Adapter scheduler | `lib/adapters/scheduler-substrate.js` |
 | Claude native | Built-in — no MCP duplicate |

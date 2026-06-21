@@ -415,11 +415,12 @@ See also [schedule-wakeup.md](./schedule-wakeup.md) for monitor workflow and fir
 Hookless MCP and plugin tools return `{ command, notify_pattern }` so the harness can monitor the
 `.fire` file (`notify_pattern`: `^ORCH_SCHEDULED_TASK`; `command`: `tail -n0 -F <fire path>`).
 Codex tools also return `delivery`: when a real Codex session id is available,
-`delivery.supported` is true, `delivery.session_id` carries that id, and `delivery.command` pipes
-the fire stream to `adapters/codex/wakeup-monitor.js`, which runs
-`codex resume <session-id> <prompt>`. When only the process-local fallback key is available,
-`delivery.supported` is false: the timer is armed, but there is no Codex Desktop thread identity to
-resume. Codex's fallback key is never persisted or used as a cross-thread identity.
+`delivery.supported` is true, `delivery.session_id` carries that id, and the daemon supervises the
+fire stream itself from Codex `SessionStart` and daemon boot bridge replay. `delivery.command` still
+pipes the stream to `adapters/codex/wakeup-monitor.js` for compatibility/diagnostics, but Codex
+Desktop wake delivery does not rely on a user-kept shell. When only the process-local fallback key is
+available, `delivery.supported` is false: the timer is armed, but there is no Codex Desktop thread
+identity to resume. Codex's fallback key is never persisted or used as a cross-thread identity.
 
 ### Per-harness exposure
 
@@ -427,7 +428,7 @@ resume. Codex's fallback key is never persisted or used as a cross-thread identi
 |---|---|---|---|
 | **Claude Code** | Native `ScheduleWakeup` (built-in) | Harness session | Native — `lib/adapters/claude.js` returns `{ method: 'native' }`; **not** on default orchestrator MCP |
 | **Cursor** | MCP `ScheduleWakeup` (harness-scoped extra tool) | `ORCH_SESSION` from hook context | `lib/schedule-wakeup.js` via `lib/mcp-harness-tools.js` |
-| **Codex** | MCP `ScheduleWakeup` (+ harness-scoped `create_task`) | Explicit `session_id`, then hook/context/env ids, then the workspace bridge from Codex `SessionStart`; otherwise a random MCP-process-local fallback | Same substrate as Cursor + optional `codex resume` delivery monitor |
+| **Codex** | MCP `ScheduleWakeup` (+ harness-scoped `create_task`) | Explicit `session_id`, then hook/context/env ids, then the workspace bridge from Codex `SessionStart`; otherwise a random MCP-process-local fallback | Same substrate as Cursor + daemon-owned `codex resume` delivery supervisor for real sessions |
 | **OpenCode** | Plugin tool `schedule_wakeup` | Plugin session id | Same substrate via `packages/opencode-plugin/lib/schedule-wakeup.js` |
 | **Default MCP** (`mcp-graph.js`, default `ORCH_CLIENT=claude` or unset) | **Not exposed** | — | Agents use harness-specific MCP config or Claude native |
 
