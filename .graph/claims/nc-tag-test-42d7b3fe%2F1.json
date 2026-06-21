@@ -1,0 +1,9 @@
+{
+  "task_key": "nc-tag-test-42d7b3fe/1",
+  "git_user": "YU GAO <yu.gao@gaos.ca>",
+  "session_id": "2faabc64-3231-42e8-8c3c-6d958942a3b8",
+  "branch": "orch/attempt/nc-tag-test-42d7b3fe-1",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:23:52.143Z",
+  "lease_until": "2026-06-21T04:23:52.143Z"
+}
