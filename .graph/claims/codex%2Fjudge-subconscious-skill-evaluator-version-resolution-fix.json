@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-subconscious-skill-evaluator-version-resolution-fix",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "019eebd1-2b2f-75d3-b9b7-1a66be641141",
+  "branch": "orch/attempt/codex-judge-subconscious-skill-evaluator-version-resolution-fix",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T20:14:31.720Z",
+  "lease_until": "2026-06-21T21:14:31.720Z"
+}
