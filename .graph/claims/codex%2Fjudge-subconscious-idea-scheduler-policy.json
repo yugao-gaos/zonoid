@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-subconscious-idea-scheduler-policy",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "judge-subconscious-idea-scheduler-policy-codex",
+  "branch": "orch/attempt/codex-judge-subconscious-idea-scheduler-policy",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T16:41:18.108Z",
+  "lease_until": "2026-06-21T17:41:18.108Z"
+}
