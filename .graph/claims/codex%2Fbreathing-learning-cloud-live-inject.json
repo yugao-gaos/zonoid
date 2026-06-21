@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "worker-breathing-learning-cloud-live-inject",
   "branch": "orch/attempt/codex-breathing-learning-cloud-live-inject",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T21:52:11.370Z",
-  "lease_until": "2026-06-21T22:52:11.370Z"
+  "lease_until": "2026-06-21T22:52:11.370Z",
+  "completed_at": "2026-06-21T22:00:14.953Z"
 }
