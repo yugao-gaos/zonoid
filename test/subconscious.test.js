@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const routeFactory = require('../routes/subconscious');
 const { createSubconsciousStore } = require('../lib/subconscious');
+const { TOOLS } = require('../lib/mcp-core');
 
 let pass = 0;
 let fail = 0;
@@ -77,10 +78,11 @@ function makeCtx({ graph, workspace, store, body, gateTask }) {
   };
 }
 
-async function callRoute(ctx, p, body) {
+async function callRoute(ctx, p, body, method = 'POST') {
   ctx.readBody = async () => body;
   const res = {};
-  const handled = await routeFactory(ctx)(p, 'POST', { socket: { remoteAddress: '127.0.0.1' } }, res, new URL(`http://127.0.0.1${p}`));
+  const u = new URL(`http://127.0.0.1${p}`);
+  const handled = await routeFactory(ctx)(u.pathname, method, { socket: { remoteAddress: '127.0.0.1' } }, res, u);
   assert.equal(handled, true);
   return res;
 }
@@ -98,6 +100,163 @@ test('subconscious event keeps bounded per-agent recent state', async () => {
   assert.equal(res.body.recent_agent_events.length, 2);
   assert.equal(res.body.recent_agent_events[0].text, 'second');
   assert.equal(res.body.recent_agent_events[1].text, 'third');
+});
+
+test('subconscious loop store keeps bounded observations isolated by identity', async () => {
+  const ws = makeWorkspace();
+  const otherWs = makeWorkspace();
+  const store = createSubconsciousStore({ maxLoopObservations: 2 });
+
+  store.upsertLoopState({
+    workspace: ws,
+    loop_id: 'central',
+    agent_id: 'daemon',
+    status: 'running',
+    phase: 'scan',
+    directive: 'observe graph frontier',
+    now: '2026-06-21T10:00:00.000Z',
+  });
+  store.recordLoopObservation({
+    workspace: ws,
+    loop_id: 'central',
+    agent_id: 'daemon',
+    type: 'observation',
+    text: 'first',
+    now: '2026-06-21T10:00:01.000Z',
+  });
+  store.recordLoopObservation({
+    workspace: ws,
+    loop_id: 'central',
+    agent_id: 'daemon',
+    type: 'tick',
+    text: 'second',
+    now: '2026-06-21T10:00:02.000Z',
+  });
+  store.recordLoopObservation({
+    workspace: ws,
+    loop_id: 'central',
+    agent_id: 'daemon',
+    type: 'tick',
+    text: 'third',
+    now: '2026-06-21T10:00:03.000Z',
+  });
+
+  const state = store.readLoopState({ workspace: ws, loop_id: 'central', agent_id: 'daemon' });
+  assert.equal(state.ok, true);
+  assert.equal(state.loop_state.status, 'running');
+  assert.equal(state.loop_state.phase, 'scan');
+  assert.equal(state.loop_state.observation_count, 3);
+  assert.equal(state.loop_state.tick_count, 2);
+  assert.equal(state.loop_state.latest_observation.text, 'third');
+  assert.equal(state.recent_loop_observations.length, 2);
+  assert.deepEqual(state.recent_loop_observations.map((event) => event.text), ['second', 'third']);
+
+  assert.equal(store.readLoopState({ workspace: ws, loop_id: 'central', agent_id: 'companion' }).loop_state, null);
+  assert.equal(store.readLoopState({ workspace: otherWs, loop_id: 'central', agent_id: 'daemon' }).loop_state, null);
+});
+
+test('subconscious loop routes upsert observe and read loop state', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxLoopObservations: 3 });
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null });
+
+  const upsert = await callRoute(ctx, '/subconscious/loop', {
+    workspace: ws,
+    loop_id: 'central',
+    agent_id: 'daemon',
+    status: 'running',
+    phase: 'scan',
+    directive: 'watch ready tasks',
+    payload: { budget: 2 },
+    now: '2026-06-21T10:10:00.000Z',
+  });
+
+  assert.equal(upsert.status, 200);
+  assert.equal(upsert.body.ok, true);
+  assert.equal(upsert.body.loop_state.status, 'running');
+  assert.equal(upsert.body.loop_state.directive, 'watch ready tasks');
+  assert.deepEqual(upsert.body.recent_loop_observations, []);
+
+  const observation = await callRoute(ctx, '/subconscious/loop/observation', {
+    workspace: ws,
+    loop_id: 'central',
+    agent_id: 'daemon',
+    task_key: 'task/target',
+    type: 'tick',
+    text: 'heartbeat saw ready task',
+    confidence: 0.8,
+    phase: 'pressure',
+    now: '2026-06-21T10:10:01.000Z',
+  });
+
+  assert.equal(observation.status, 200);
+  assert.equal(observation.body.loop_state.phase, 'pressure');
+  assert.equal(observation.body.loop_state.tick_count, 1);
+  assert.equal(observation.body.loop_observation.task_key, 'task/target');
+  assert.equal(observation.body.recent_loop_observations.length, 1);
+
+  const read = await callRoute(
+    ctx,
+    `/subconscious/loop?workspace=${encodeURIComponent(ws)}&loop_id=central&agent_id=daemon&limit=1`,
+    null,
+    'GET'
+  );
+  assert.equal(read.status, 200);
+  assert.equal(read.body.loop_state.loop_id, 'central');
+  assert.equal(read.body.loop_state.agent_id, 'daemon');
+  assert.equal(read.body.loop_state.latest_observation.text, 'heartbeat saw ready task');
+  assert.equal(read.body.recent_loop_observations.length, 1);
+
+  const missing = await callRoute(
+    ctx,
+    `/subconscious/loop?workspace=${encodeURIComponent(ws)}&loop_id=central&agent_id=companion`,
+    null,
+    'GET'
+  );
+  assert.equal(missing.status, 200);
+  assert.equal(missing.body.loop_state, null);
+  assert.deepEqual(missing.body.recent_loop_observations, []);
+});
+
+test('subconscious_loop MCP tool forwards to loop routes', async () => {
+  const tool = TOOLS.find((candidate) => candidate.name === 'subconscious_loop');
+  assert(tool, 'subconscious_loop tool exists');
+
+  const calls = [];
+  const observe = await tool.run({
+    action: 'observe',
+    workspace: '/tmp/ws',
+    loop_id: 'central',
+    agent_id: 'daemon',
+    type: 'tick',
+    text: 'heartbeat',
+    confidence: 0.7,
+  }, (method, p, body) => {
+    calls.push({ method, p, body });
+    return { ok: true, forwarded: true };
+  });
+
+  assert.equal(observe.forwarded, true);
+  assert.equal(calls[0].method, 'POST');
+  assert.equal(calls[0].p, '/subconscious/loop/observation');
+  assert.equal(calls[0].body.loop_id, 'central');
+  assert.equal(calls[0].body.type, 'tick');
+
+  await tool.run({
+    action: 'read',
+    workspace: '/tmp/ws',
+    loop_id: 'central',
+    agent_id: 'daemon',
+    limit: 1,
+  }, (method, p, body) => {
+    calls.push({ method, p, body });
+    return { ok: true, forwarded: true };
+  });
+
+  assert.equal(calls[1].method, 'GET');
+  assert(calls[1].p.startsWith('/subconscious/loop?'));
+  assert(calls[1].p.includes('loop_id=central'));
+  assert.equal(calls[1].body, undefined);
 });
 
 test('subconscious ask uses deterministic search context and recent agent events', async () => {
