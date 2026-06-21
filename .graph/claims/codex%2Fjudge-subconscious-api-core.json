@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "judge-subconscious-api-core",
   "branch": "orch/attempt/codex-judge-subconscious-api-core",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T03:59:47.417Z",
-  "lease_until": "2026-06-21T04:59:47.417Z"
+  "lease_until": "2026-06-21T04:59:47.417Z",
+  "completed_at": "2026-06-21T04:01:41.579Z"
 }
