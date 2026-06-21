@@ -72,6 +72,7 @@ async function waitForPing(ms = 8000) {
   ok('default tools/list count matches TOOLS.length', defaultList.result.tools.length === TOOLS.length);
   ok('default tools/list byte-identical to formatToolsList(TOOLS)', JSON.stringify(defaultList.result.tools) === baselinePayload);
   ok('default surface has no create_task', !defaultList.result.tools.some((t) => t.name === 'create_task'));
+  ok('default surface includes ask_subconscious', defaultList.result.tools.some((t) => t.name === 'ask_subconscious'));
 
   const startTaskTool = TOOLS.find((t) => t.name === 'start_task');
   ok('start_task schema has session_id', startTaskTool && startTaskTool.inputSchema.properties.session_id && startTaskTool.inputSchema.properties.session_id.type === 'string');
@@ -165,6 +166,37 @@ async function waitForPing(ms = 8000) {
   const drainTool = TOOLS.find((t) => t.name === 'drain_kb_queue');
   ok('drain_kb_queue exposes opt-in autoInject', drainTool && drainTool.inputSchema.properties.autoInject && drainTool.description.includes('Default is human-gated'));
   ok('inject_kb is on default MCP surface', TOOLS.some((t) => t.name === 'inject_kb'));
+
+  const subconsciousTool = TOOLS.find((t) => t.name === 'ask_subconscious');
+  ok('ask_subconscious is on default MCP surface', !!subconsciousTool);
+  ok('ask_subconscious schema exposes agent_id and route prompt fields',
+    subconsciousTool &&
+    subconsciousTool.inputSchema.properties.agent_id &&
+    subconsciousTool.inputSchema.properties.task_key &&
+    subconsciousTool.inputSchema.properties.intent &&
+    subconsciousTool.inputSchema.properties.situation &&
+    subconsciousTool.inputSchema.properties.query);
+  let capturedSubconsciousAsk = null;
+  const subconsciousOut = await subconsciousTool.run({
+    agent_id: 'agent-a',
+    task_key: 'local/task',
+    intent: 'choose next implementation step',
+    situation: 'Need the relevant context before editing',
+    k: 4,
+  }, (method, path, body) => {
+    capturedSubconsciousAsk = { method, path, body };
+    return { ok: true, verdict: 'inject_relevant_context' };
+  });
+  ok('ask_subconscious runs POST /subconscious/ask',
+    capturedSubconsciousAsk && capturedSubconsciousAsk.method === 'POST' && capturedSubconsciousAsk.path === '/subconscious/ask');
+  ok('ask_subconscious passes expected request shape',
+    capturedSubconsciousAsk &&
+    capturedSubconsciousAsk.body.agent_id === 'agent-a' &&
+    capturedSubconsciousAsk.body.task_key === 'local/task' &&
+    capturedSubconsciousAsk.body.intent === 'choose next implementation step' &&
+    capturedSubconsciousAsk.body.situation === 'Need the relevant context before editing' &&
+    capturedSubconsciousAsk.body.k === 4);
+  ok('ask_subconscious returns route output', subconsciousOut && subconsciousOut.verdict === 'inject_relevant_context');
 
   const codexExtra = extraToolsForClient('codex', WS);
   ok('codex extraTools has create_task + ScheduleWakeup', codexExtra.length === 2 && codexExtra[0].name === 'create_task' && codexExtra[1].name === 'ScheduleWakeup');

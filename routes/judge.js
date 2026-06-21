@@ -332,13 +332,14 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
             applied.kept++;
             // task→task KIND classification: the agent decided "anchor REQUIRES N" → reclassify the
             // kept context edge as a true blocking prerequisite (the dual of context = non-blocking).
-            if (v.keepEdge.kind === 'blocking' && kept) {
+            const reversePairedJudge = v.keepEdge.kind === 'blocking' && overlayStore.isReversePairedJudgeBlockingEdge(T.ov, v.keepEdge.from, v.keepEdge.to);
+            if (v.keepEdge.kind === 'blocking' && kept && !reversePairedJudge) {
               kept.kind = 'blocking';
               delete kept.weight;            // blocking edges carry no relevance weight
               applied.reclassified = (applied.reclassified || 0) + 1;
             }
             const by = modelVerdict === 'keep' ? 'model' : 'judge';
-            judge.appendVerdict(T.ws, { epoch, verdict: 'keep', from: v.keepEdge.from, to: v.keepEdge.to, edgeKind: v.keepEdge.kind === 'blocking' ? 'blocking' : 'context', cosine: cos, origin, by });
+            judge.appendVerdict(T.ws, { epoch, verdict: 'keep', from: v.keepEdge.from, to: v.keepEdge.to, edgeKind: v.keepEdge.kind === 'blocking' && !reversePairedJudge ? 'blocking' : 'context', cosine: cos, origin, by });
           }
         }
       }
