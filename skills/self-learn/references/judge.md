@@ -14,9 +14,21 @@
 >   feature→main is the dispatcher's gated `merge_feature`, NEVER the judge's call.
 > - **Preserve every flat attempt branch + worktree** — no `remove_worktree`, no cancel — so the human can diff and merge later.
 >   (Under a feature, an APPROVED attempt IS merged into the feature branch, so its worktree may be retired per the normal merge path.)
-> - Record the verdict on the problem P: `{ winner, winner_branch:"orch/attempt/<slug>", why, losers:[{key,reason}], merged:false, awaiting_merge:true, date }` — plus the metric-aware fields from step 6 (`metric_value`, `improvement`, `guardrails_ok`, `vs_benchmark`, …) when P carried a metric spec.
-> - Set P to `done` with a summary that STARTS with `"⏸ MERGE PENDING — <winner_branch>: <one-line why>"` (in metric mode, fold the metric value + improvement + benchmark gap into that one-liner).
-> - `complete_task(J, ...)` and stop. **Do NOT `request_guidance`** (it would halt the loop). No-winner (all attempts failed): record `{winner:null, awaiting_merge:false, needs_attention:true, ...}`, set P `done` with summary `"⚠ NEEDS ATTENTION — all attempts failed: <reasons>"`, complete J, continue. Everything (merges, conflicts, failures) is queued for the morning human review via the verdict + the ⏸/⚠ summary — never escalated mid-run.
+> - Record the verdict on the problem P with the tier-specific merge state: under a FEATURE after a
+>   successful attempt→feature merge, `{ winner, winner_branch:"orch/attempt/<slug>", why,
+>   losers:[{key,reason}], merged:true, target:"feature", awaiting_merge:false, date }`; flat
+>   attempt→main APPROVE records `{ ..., merged:false, target:"main", awaiting_merge:true }`.
+>   Include the metric-aware fields from step 6 (`metric_value`, `improvement`, `guardrails_ok`,
+>   `vs_benchmark`, …) when P carried a metric spec.
+> - Set P to `done` with a tier-specific summary: under a FEATURE, start with
+>   `"MERGED TO FEATURE — <feature_branch>: <one-line why>"`; flat attempt→main starts with
+>   `"⏸ MERGE PENDING — <winner_branch>: <one-line why>"` (in metric mode, fold the metric value +
+>   improvement + benchmark gap into that one-liner).
+> - `complete_task(J, ...)` and stop. **Do NOT `request_guidance`** for a clean APPROVE (it would halt
+>   the loop). No-winner (all attempts failed): record `{winner:null, awaiting_merge:false,
+>   needs_attention:true, ...}`, set P `done` with summary `"⚠ NEEDS ATTENTION — all attempts failed:
+>   <reasons>"`, complete J, continue. Flat main merges, feature→main promotion, conflicts, and
+>   failures remain queued for human/dispatcher review via the verdict + summary — never force them.
 > - Only if `overlay.config.auto_merge === true` do the legacy merge steps 4–5 below apply.
 
 

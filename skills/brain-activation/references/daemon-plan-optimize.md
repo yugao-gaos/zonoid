@@ -1,11 +1,13 @@
 
-> **DEFAULT — structure try-alternatives as graph nodes, let WORKERS make the worktrees.** When you
-> build a problem→attempts→judge subtree, create the attempt TASK NODES with `TaskCreate` and wire the
-> judge `blocked_by` each attempt — but do NOT call `branch_task` (it targets the daemon workspace, not
-> the code repo; see note "Self-learning git substrate is workspace-bound"). The attempt WORKERS create
-> their own worktree off `~/.claude/orchestrator` at spawn time. Prefer BUILDING over escalating: in
-> autonomous hold-merge mode do NOT `request_guidance` for ordinary priority/scope calls (it halts the
-> loop) — pick a sharp initiative, wire it, and let it build; the human reviews merges in the morning.
+> **DEFAULT — structure try-alternatives as graph nodes, let WORKERS claim repo-targeted worktrees.**
+> When you build a problem→attempts→judge subtree, create the attempt TASK NODES with `TaskCreate`,
+> wire the judge `blocked_by` each attempt, and dispatch workers with the target repo/base in their
+> handoff. Do not create the worktrees in the planner: each attempt WORKER calls
+> `branch_task(task_key, repo_path=<target repo>, base=<main-or-feature ref>)` FIRST, then
+> `start_task(task_key, agent_id)` before editing. `branch_task` targets the task's repo/explicit
+> `repo_path`, not a hardcoded daemon workspace. Prefer BUILDING over escalating: in autonomous
+> hold-merge mode do NOT `request_guidance` for ordinary priority/scope calls (it halts the loop) —
+> pick a sharp initiative, wire it, and let it build; the human reviews main merges in the morning.
 
 
 # Self-research planner
@@ -29,8 +31,11 @@ high: a graph with a few sharp initiatives beats a graph buried in speculative b
 - **Research only when it changes the decision.** The deep-research step is expensive; skip it
   unless an external fact would actually flip which initiative you propose (or whether to propose
   one at all).
-- **When you hit a decision that is the user's to make** (priority calls, scope, anything
-  ambiguous or strategic), call `request_guidance` — do NOT guess. Escalate, don't improvise.
+- **When you hit a decision that is the user's to make** (irreversible, outward-facing,
+  high-impact, scope-expanding, repeated-failure, or genuinely ambiguous/strategic), call
+  `request_guidance`; the ask-vs-predict gate may auto-resolve from stored preference notes.
+  For ordinary priority/scope calls with clear project-local preference context, predict and
+  keep the loop moving.
 
 ## Procedure
 

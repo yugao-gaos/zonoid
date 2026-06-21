@@ -33,9 +33,10 @@ parallelizable work, with a token-efficient context handoff between dependent ta
      goes `ready` automatically when the impl completes (reusing the DAG-gate trigger — no new
      machinery). Skill-tag it in the prompt: the judge worker invokes **`self-learn` judge mode in
      single-attempt review mode** against the impl's attempt branch — it reviews the attempt diff
-     against the code-review rubric and either APPROVES (hold-merge verdict) or KICKS BACK, and
-     **never force-merges** (merge auto-aborts on conflict). Genuinely trivial edits (one-liner,
-     doc/config tweak) skip the judge; substantive multi-file work gets it.
+     against the code-review rubric and either APPROVES (feature-tier attempt→feature merge, or
+     flat attempt→main hold verdict) or KICKS BACK, and **never force-merges** (merge auto-aborts
+     on conflict). Genuinely trivial edits (one-liner, doc/config tweak) skip the judge;
+     substantive multi-file work gets it.
    - **Substantial multi-task work gets a two-tier feature branch** (dispatcher-decides, same
      complexity axis as the judge). The dispatcher `create_feature(key)` → `orch/feature/<slug>` +
      worktree, groups tasks under it (`configure_task repo_path=<feature worktree>`, dispatch with
