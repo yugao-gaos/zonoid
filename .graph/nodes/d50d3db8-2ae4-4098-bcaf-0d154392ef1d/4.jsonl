@@ -1,2 +1,0 @@
-{"evt":"edge_added","from":"d50d3db8-2ae4-4098-bcaf-0d154392ef1d/4","to":"d50d3db8-2ae4-4098-bcaf-0d154392ef1d/2","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T19:19:54.592Z","by":"judge","judged":true,"score":0.822,"origin":"autowire-semantic"}
-{"evt":"edge_removed","from":"d50d3db8-2ae4-4098-bcaf-0d154392ef1d/4","to":"d50d3db8-2ae4-4098-bcaf-0d154392ef1d/2","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:19:54.592Z"}

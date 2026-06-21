@@ -1,3 +1,0 @@
-{"evt":"edge_removed","from":"bench/bench-trial-0-1","to":"bench/bench-trial-1-1","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:16:33.622Z"}
-{"evt":"edge_removed","from":"bench/bench-trial-0-1","to":"eeadb38f-7472-4703-9689-fbf24eebee4d/23","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:16:33.622Z"}
-{"evt":"edge_removed","from":"bench/bench-trial-0-1","to":"ab391029-f543-48ba-bcec-7c9e2b9280f9/6","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:16:33.622Z"}

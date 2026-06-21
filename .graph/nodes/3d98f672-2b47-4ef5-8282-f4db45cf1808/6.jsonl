@@ -1,7 +1,0 @@
-{"evt":"edge_removed","from":"3d98f672-2b47-4ef5-8282-f4db45cf1808/6","to":"3d98f672-2b47-4ef5-8282-f4db45cf1808/5","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T19:10:33.866Z"}
-{"evt":"edge_removed","from":"3d98f672-2b47-4ef5-8282-f4db45cf1808/6","to":"3d98f672-2b47-4ef5-8282-f4db45cf1808/5","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:14:30.083Z"}
-{"evt":"edge_removed","from":"3d98f672-2b47-4ef5-8282-f4db45cf1808/6","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/14","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:14:30.083Z"}
-{"evt":"edge_removed","from":"3d98f672-2b47-4ef5-8282-f4db45cf1808/6","to":"b1c48279-9822-4abe-81a5-1b7b2a329970/2","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:14:30.083Z"}
-{"evt":"edge_removed","from":"3d98f672-2b47-4ef5-8282-f4db45cf1808/6","to":"3d98f672-2b47-4ef5-8282-f4db45cf1808/2","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:14:30.083Z"}
-{"evt":"edge_removed","from":"3d98f672-2b47-4ef5-8282-f4db45cf1808/6","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/12","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:14:30.083Z"}
-{"evt":"edge_removed","from":"3d98f672-2b47-4ef5-8282-f4db45cf1808/6","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/2","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:14:30.083Z"}

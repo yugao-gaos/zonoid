@@ -1,5 +1,0 @@
-{"evt":"edge_removed","from":"bench/bench-trial-25-11","to":"bench/bench-trial-11-19","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:16:14.364Z"}
-{"evt":"edge_removed","from":"bench/bench-trial-25-11","to":"bench/bench-trial-23-8","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:16:14.364Z"}
-{"evt":"edge_removed","from":"bench/bench-trial-25-11","to":"bench/bench-trial-2-19","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:16:14.364Z"}
-{"evt":"edge_removed","from":"bench/bench-trial-25-11","to":"bench/bench-trial-24-3,4","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:16:14.364Z"}
-{"evt":"edge_removed","from":"bench/bench-trial-25-11","to":"bench/bench-trial-1-2","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:16:14.364Z"}
