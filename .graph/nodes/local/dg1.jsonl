@@ -18,3 +18,4 @@
 {"evt":"edge_promoted","from":"local/dg1","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:00:15.353Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"local/dg1","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:01:48.553Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"local/dg1","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:02:00.879Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_promoted","from":"local/dg1","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:05:19.571Z","weight":0.8,"origin":"asserted"}
