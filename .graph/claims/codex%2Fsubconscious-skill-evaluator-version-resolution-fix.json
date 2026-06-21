@@ -3,7 +3,8 @@
   "git_user": "seed <seed@example.test>",
   "session_id": "019eebb5-369d-7450-83d3-be197dd4ff6d",
   "branch": "orch/attempt/codex-subconscious-skill-evaluator-version-resolution-fix",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-21T19:43:52.060Z",
-  "lease_until": "2026-06-21T20:43:52.060Z"
+  "lease_until": "2026-06-21T20:43:52.060Z",
+  "completed_at": "2026-06-21T19:47:27.302Z"
 }
