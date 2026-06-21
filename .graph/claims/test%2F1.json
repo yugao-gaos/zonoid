@@ -1,0 +1,9 @@
+{
+  "task_key": "test/1",
+  "git_user": "YU GAO <yu.gao@gaos.ca>",
+  "session_id": "prev-session",
+  "branch": "orch/attempt/test-1",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:02:30.922Z",
+  "lease_until": "2026-06-21T04:02:30.922Z"
+}
