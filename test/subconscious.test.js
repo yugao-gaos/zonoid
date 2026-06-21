@@ -7,11 +7,20 @@ const os = require('os');
 const path = require('path');
 const routeFactory = require('../routes/subconscious');
 const { createSubconsciousStore } = require('../lib/subconscious');
+const {
+  recordGeneratedSkillVersion,
+  setActiveSkillVersion,
+  getActiveSkillVersion,
+} = require('../lib/skill-versions');
 
 let pass = 0;
 let fail = 0;
 const tests = [];
 const test = (label, fn) => tests.push({ label, fn });
+
+function skillMd(name, body) {
+  return `---\nname: ${name}\ndescription: generated skill\n---\n\n# ${name}\n\n${body}\n`;
+}
 
 function node(id, label, extra = {}) {
   return {
@@ -277,6 +286,200 @@ test('subconscious ask isolates recent state by agent', async () => {
   assert.equal(res.body.recent_agent_events.length, 0);
   assert.equal(res.body.recent_agent_state.risk_event, null);
   assert.equal(res.body.planner.signals.has_recent_risk, false);
+});
+
+test('subconscious skill proposes generated candidates without overwriting SKILL.md and lists active inventory', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null });
+  const skillPath = path.join(ws, 'skills', 'planner', 'SKILL.md');
+  fs.mkdirSync(path.dirname(skillPath), { recursive: true });
+  fs.writeFileSync(skillPath, 'installed skill file\n');
+
+  const first = await callRoute(ctx, '/subconscious/skill', {
+    workspace: ws,
+    action: 'propose_candidate',
+    target_path: skillPath,
+    skill_markdown: skillMd('Planner', 'candidate behavior'),
+    capability: 'planning',
+    signature: 'plan-before-edit',
+    evidence_count: 2,
+    policy: { max_active_per_capability: 1, min_evidence_count: 2, stale_after_ms: 60_000 },
+    agent_id: 'agent-skill',
+    task_key: 'codex/skill',
+    now: '2026-06-21T12:00:00.000Z',
+  });
+  const duplicate = await callRoute(ctx, '/subconscious/skill', {
+    workspace: ws,
+    action: 'propose_candidate',
+    target_path: skillPath,
+    skill_markdown: skillMd('Planner', 'duplicate candidate behavior'),
+    capability: 'planning',
+    signature: 'plan-before-edit',
+    evidence_count: 3,
+    policy: { max_active_per_capability: 1, min_evidence_count: 2, stale_after_ms: 60_000 },
+    agent_id: 'agent-skill',
+    task_key: 'codex/skill',
+    now: '2026-06-21T12:00:01.000Z',
+  });
+  const listed = await callRoute(ctx, '/subconscious/skill', {
+    workspace: ws,
+    action: 'list_proposals',
+    capability: 'planning',
+    expire_stale: false,
+  });
+
+  assert.equal(first.status, 200);
+  assert.equal(first.body.ok, true);
+  assert.equal(first.body.proposal.status, 'active_candidate');
+  assert.equal(first.body.proposal.expose_as_skill, true);
+  assert.equal(duplicate.status, 200);
+  assert.equal(duplicate.body.proposal.status, 'duplicate');
+  assert.equal(duplicate.body.proposal.expose_as_skill, false);
+  assert.equal(listed.status, 200);
+  assert.equal(listed.body.proposals.length, 2);
+  assert.equal(listed.body.active_candidates.length, 1);
+  assert.equal(listed.body.active_candidates[0].candidate_version_id, first.body.version.version_id);
+  assert.equal(fs.readFileSync(skillPath, 'utf8'), 'installed skill file\n');
+});
+
+test('subconscious skill records metrics, promotes measured winner, and rolls back via manifest', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null });
+  const skillPath = path.join(ws, 'skills', 'planner', 'SKILL.md');
+  fs.mkdirSync(path.dirname(skillPath), { recursive: true });
+  fs.writeFileSync(skillPath, 'installed skill file\n');
+  const active = recordGeneratedSkillVersion(ws, {
+    target_path: skillPath,
+    skill_markdown: skillMd('Planner', 'active behavior'),
+    agent_id: 'fixture',
+    now: '2026-06-21T12:00:00.000Z',
+  }).record;
+  setActiveSkillVersion(ws, {
+    version_id: active.version_id,
+    activated_by: 'fixture',
+    now: '2026-06-21T12:00:01.000Z',
+  });
+  const candidate = await callRoute(ctx, '/subconscious/skill', {
+    workspace: ws,
+    action: 'propose_candidate',
+    target_path: skillPath,
+    skill_markdown: skillMd('Planner', 'candidate behavior'),
+    capability: 'planning',
+    signature: 'winner',
+    evidence_count: 2,
+    agent_id: 'agent-skill',
+    now: '2026-06-21T12:00:02.000Z',
+  });
+
+  const evaluated = await callRoute(ctx, '/subconscious/skill', {
+    workspace: ws,
+    action: 'record_evaluation',
+    baseline_version_id: active.version_id,
+    candidate_version_id: candidate.body.version.version_id,
+    metric_spec: {
+      metric: 'quality',
+      direction: 'max',
+      guardrails: [{ metric: 'tests_passed', direction: 'max' }],
+    },
+    measurements: {
+      active: { value: 0.7, guardrails: { tests_passed: 1 } },
+      candidate: { value: 0.9, guardrails: { tests_passed: 1 } },
+    },
+    agent_id: 'agent-eval',
+    task_key: 'codex/eval',
+    now: '2026-06-21T12:00:03.000Z',
+  });
+  const promoted = await callRoute(ctx, '/subconscious/skill', {
+    workspace: ws,
+    action: 'promote_winner',
+    evaluation_id: evaluated.body.evaluation.evaluation_id,
+    agent_id: 'agent-promote',
+    task_key: 'codex/promote',
+    now: '2026-06-21T12:00:04.000Z',
+  });
+  assert.equal(evaluated.status, 200);
+  assert.equal(evaluated.body.evaluation.comparison.verdict, 'candidate_won');
+  assert.equal(promoted.status, 200);
+  assert.equal(promoted.body.promoted, true);
+  assert.equal(getActiveSkillVersion(ws, { target_path: skillPath }).version_id, candidate.body.version.version_id);
+
+  const rolledBack = await callRoute(ctx, '/subconscious/skill', {
+    workspace: ws,
+    action: 'rollback_promotion',
+    promotion_id: promoted.body.decision.decision_id,
+    agent_id: 'agent-rollback',
+    task_key: 'codex/rollback',
+    now: '2026-06-21T12:00:05.000Z',
+  });
+
+  assert.equal(rolledBack.status, 200);
+  assert.equal(rolledBack.body.rolled_back, true);
+  assert.equal(getActiveSkillVersion(ws, { target_path: skillPath }).version_id, active.version_id);
+  assert.equal(fs.readFileSync(skillPath, 'utf8'), 'installed skill file\n');
+});
+
+test('subconscious skill records third-party recommendations without applying cleanup', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null });
+  const skillPath = path.join(ws, 'skills', 'third-party-planner', 'SKILL.md');
+  fs.mkdirSync(path.dirname(skillPath), { recursive: true });
+  fs.writeFileSync(skillPath, 'third-party installed skill file\n');
+  const active = recordGeneratedSkillVersion(ws, {
+    target_path: skillPath,
+    skill_markdown: skillMd('Third Party Planner', 'baseline behavior'),
+    agent_id: 'fixture',
+    now: '2026-06-21T12:00:00.000Z',
+  }).record;
+  const candidate = recordGeneratedSkillVersion(ws, {
+    target_path: skillPath,
+    skill_markdown: skillMd('Third Party Planner', 'replacement behavior'),
+    agent_id: 'fixture',
+    now: '2026-06-21T12:00:01.000Z',
+  }).record;
+  setActiveSkillVersion(ws, {
+    version_id: active.version_id,
+    activated_by: 'fixture',
+    now: '2026-06-21T12:00:02.000Z',
+  });
+  const evaluated = await callRoute(ctx, '/subconscious/skill', {
+    workspace: ws,
+    action: 'record_evaluation',
+    baseline_version_id: active.version_id,
+    candidate_version_id: candidate.version_id,
+    metric_spec: { metric: 'quality', direction: 'max' },
+    measurements: {
+      active: { value: 0.62 },
+      candidate: { value: 0.82 },
+    },
+    now: '2026-06-21T12:00:03.000Z',
+  });
+  const recommendation = await callRoute(ctx, '/subconscious/skill', {
+    workspace: ws,
+    action: 'recommend_third_party',
+    evaluation_id: evaluated.body.evaluation.evaluation_id,
+    usage_count: 3,
+    overlap_score: 0.9,
+    stale: true,
+    now: '2026-06-21T12:00:04.000Z',
+  });
+  const listed = await callRoute(ctx, '/subconscious/skill', {
+    workspace: ws,
+    action: 'list_third_party_recommendations',
+  });
+
+  assert.equal(recommendation.status, 200);
+  assert.equal(recommendation.body.recommendation, 'replace');
+  assert.equal(recommendation.body.user_visible, true);
+  assert.equal(recommendation.body.applied, false);
+  assert.equal(recommendation.body.decision.third_party.will_auto_replace, false);
+  assert.equal(listed.status, 200);
+  assert.equal(listed.body.recommendations.length, 1);
+  assert.equal(listed.body.recommendations[0].decision_id, recommendation.body.decision.decision_id);
+  assert.equal(getActiveSkillVersion(ws, { target_path: skillPath }).version_id, active.version_id);
+  assert.equal(fs.readFileSync(skillPath, 'utf8'), 'third-party installed skill file\n');
 });
 
 (async () => {
