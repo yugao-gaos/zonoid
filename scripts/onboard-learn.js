@@ -270,16 +270,20 @@ async function inject(notesFile, confirm, workspace) {
   if (!data || !Array.isArray(data.kept)) {
     console.error(`No validated notes at ${notesFile}. Run the learn pass first.`); process.exit(1);
   }
+  const structureFile = path.join(path.dirname(notesFile), 'doc-structure.json');
+  const structure = loadJSON(structureFile, { nodes: [], edges: [] });
   const kept = data.kept;
   if (!confirm) {
     console.log('=== onboard-learn --inject DRY RUN (no --confirm) ===');
     console.log(`daemon target: ${DAEMON}${workspace ? ` (workspace ${workspace})` : ''}`);
+    console.log(`WOULD UPSERT ${(structure.nodes || []).length} document structure node(s) and ${(structure.edges || []).length} provenance edge(s).`);
     console.log(`WOULD CREATE ${kept.length} note nodes (each title prefixed '${PREFIX}').`);
     kept.slice(0, 8).forEach((n, i) => console.log(`  ${i + 1}. [${n.kind}] ${PREFIX}${n.title}`));
     console.log('\nNo network calls were made. Re-run with --confirm to inject.');
     return;
   }
   console.log('=== onboard-learn --inject CONFIRMED ===');
+  const structureResult = await injectDocumentStructure(path.dirname(notesFile), workspace);
   const existing = new Set();
   if (workspace) {
     // /state reflects only the live workspace; for a foreign workspace there is no cheap exhaustive
@@ -303,8 +307,35 @@ async function inject(notesFile, confirm, workspace) {
     });
     created++;
   }
+  console.log(`document structure nodes upserted: ${structureResult.nodes}, provenance edges upserted: ${structureResult.edges}`);
   console.log(`notes created: ${created}, skipped (already present): ${skipped}`);
   console.log(`Reversible: every injected node is titled '${PREFIX}…' — filter/remove like other ingest nodes.`);
+}
+
+async function injectDocumentStructure(inDir, workspace, httpRequest = request) {
+  const structure = loadJSON(path.join(inDir, 'doc-structure.json'), { nodes: [], edges: [] });
+  const nodes = Array.isArray(structure.nodes) ? structure.nodes : [];
+  const edges = Array.isArray(structure.edges) ? structure.edges : [];
+  let upserted = 0;
+  let wired = 0;
+  for (const n of nodes) {
+    await httpRequest('POST', '/overlay/knowledge-node', {
+      ...n,
+      ...(workspace ? { workspace } : {}),
+    });
+    upserted++;
+  }
+  for (const e of edges) {
+    await httpRequest('POST', '/overlay/edge', {
+      from: e.from,
+      to: e.to,
+      kind: e.kind || 'context',
+      weight: typeof e.weight === 'number' ? e.weight : 1.0,
+      ...(workspace ? { workspace } : {}),
+    });
+    wired++;
+  }
+  return { nodes: upserted, edges: wired };
 }
 
 // ---- --enqueue: assemble all candidates and write queue file (no LLM) ----------------------
@@ -392,7 +423,7 @@ function queueStatus(outDir) {
 }
 
 // ---- main ----------------------------------------------------------------------------------
-(async () => {
+async function main() {
   const repo = arg('repo');
   if (!repo || !fs.existsSync(repo)) {
     console.error('usage: onboard-learn.js --repo <abs> [--in <onboard-dir>] [--max-candidates N] [--inject [--confirm] [--workspace <ws>]]');
@@ -448,4 +479,13 @@ function queueStatus(outDir) {
     JSON.stringify({ repo: repoAbs, candidates: candidates.length, kept: result.kept.length, rejected: (result.rejected || []).length, model }, null, 2) + '\n');
   console.error(`[learn] DONE: ${candidates.length} candidates -> kept ${result.kept.length}, rejected ${(result.rejected || []).length}. Wrote ${notesFile}`);
   console.error('[learn] Review onboard-notes.json, then: node scripts/onboard-learn.js --repo <abs> --inject [--confirm]');
-})();
+}
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err && err.stack ? err.stack : err);
+    process.exit(1);
+  });
+}
+
+module.exports = { gatherCandidates, injectDocumentStructure, loadJSON };
