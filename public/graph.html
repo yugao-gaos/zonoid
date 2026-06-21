@@ -5415,21 +5415,25 @@ function renderCloud(d){
     else if(q&&trace){
       const reranked=trace.rerankedKeys.size;
       const relatedEdges=simLinks.filter(searchEdgeRelated).length;
-      traceEl.textContent='RAG '+trace.hitRank.size+' · edges '+relatedEdges+' · walk '+trace.walkEdges.size+' · '+(reranked?('rerank '+reranked):('top '+trace.finalKeys.size));
+      const traceParts=['RAG '+trace.hitRank.size, 'edges '+relatedEdges];
+      if(trace.walkEdges.size) traceParts.push('path walk '+trace.walkEdges.size);
+      traceParts.push(reranked?('rerank '+reranked):('top '+trace.finalKeys.size));
+      traceEl.textContent=traceParts.join(' · ');
       traceEl.classList.add('show');
     } else {
       traceEl.textContent='';
       traceEl.classList.remove('show');
     }
   }
+  const showCloudLabel=n=> q?(!n.archive&&activatedSearch(n)):(n.archive||n.tier==='fg');
   nodeAll.select('title')
     .text(n=> n.archive?'Archived — stale done/canceled and superseded notes':'');
   nodeAll.select('text')
-    .text(n=> n.archive?('🗄 '+n.count):((n.tier==='fg'||(q&&activatedSearch(n)))?((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22)):''))
-    .attr('fill-opacity', n=>(n.tier==='fg'||n.archive||(q&&activatedSearch(n)))?0.9:0);
+    .text(n=> showCloudLabel(n)?(n.archive?('🗄 '+n.count):((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22))):'')
+    .attr('fill-opacity', n=>showCloudLabel(n)?0.9:0);
   nodeAll.on('click',(ev,n)=>{ if(n.archive){ cloudArchiveOpen=!cloudArchiveOpen; cloudSig=''; renderCloud(lastState); } else openDetail(n.id); })
     .on('mouseenter',function(ev,n){ if(!n.archive) d3.select(this).select('text').text(truncate(n.t.label,22)).attr('fill-opacity',0.9); })
-    .on('mouseleave',function(ev,n){ if(!n.archive && n.tier!=='fg' && !(q&&activatedSearch(n))) d3.select(this).select('text').attr('fill-opacity',0); })
+    .on('mouseleave',function(ev,n){ if(!showCloudLabel(n)) d3.select(this).select('text').attr('fill-opacity',0); })
     .call(d3.drag()
       .on('start',(ev,n)=>{ if(!ev.active) cloudSim.alphaTarget(0.2).restart(); n.fx=n.x; n.fy=n.y; })
       .on('drag', (ev,n)=>{ n.fx=ev.x; n.fy=ev.y; })
