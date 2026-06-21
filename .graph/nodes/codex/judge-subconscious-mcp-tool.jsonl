@@ -13,3 +13,4 @@
 {"evt":"timestamps_set","id":"codex/judge-subconscious-mcp-tool","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-21T03:19:26.737Z","lastChanged":"2026-06-21T19:35:12.043Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-21T19:37:09.924Z"}
 {"evt":"edge_added","from":"codex/judge-subconscious-mcp-tool","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:37:22.679Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/judge-subconscious-mcp-tool","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:37:41.567Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_promoted","from":"codex/judge-subconscious-mcp-tool","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:38:23.623Z","weight":0.8,"origin":"asserted"}
