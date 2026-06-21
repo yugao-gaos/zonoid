@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-subconscious-agent-facing-migration",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "judge-subconscious-agent-facing-migration-codex",
+  "branch": "orch/attempt/codex-judge-subconscious-agent-facing-migration",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T19:15:22.813Z",
+  "lease_until": "2026-06-21T20:15:22.813Z"
+}
