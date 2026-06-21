@@ -64,3 +64,4 @@
 {"evt":"edge_promoted","from":"codex/bench-canonical-sdk-on-arms","to":"codex/judge-bench-canonical-sdk-on-arms","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T19:21:57.640Z","origin":"native-blockedBy"}
 {"evt":"edge_promoted","from":"codex/bench-canonical-sdk-on-arms","to":"codex/judge-bench-canonical-sdk-on-arms","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T19:21:59.963Z","origin":"native-blockedBy"}
 {"evt":"edge_promoted","from":"codex/bench-canonical-sdk-on-arms","to":"codex/judge-bench-canonical-sdk-on-arms","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T19:22:05.201Z","origin":"native-blockedBy"}
+{"evt":"edge_promoted","from":"codex/bench-canonical-sdk-on-arms","to":"codex/judge-bench-canonical-sdk-on-arms","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T19:22:09.388Z","origin":"native-blockedBy"}
