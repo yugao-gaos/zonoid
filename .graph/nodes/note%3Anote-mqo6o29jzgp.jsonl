@@ -10,3 +10,5 @@
 {"evt":"edge_promoted","from":"note:note-mqo6o29jzgp","to":"codex/subconscious-skill-abtest-main-merge-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:22:10.349Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqo6o29jzgp","to":"codex/subconscious-skill-abtest-main-merge-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:22:15.502Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqo6o29jzgp","to":"codex/subconscious-skill-abtest-main-merge-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:22:25.679Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mqo6o29jzgp","to":"codex/subconscious-skill-abtest-main-merge-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:22:42.420Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mqo6o29jzgp","to":"codex/judge-subconscious-skill-abtest-main-merge-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:22:42.420Z","weight":0.8,"origin":"asserted"}
