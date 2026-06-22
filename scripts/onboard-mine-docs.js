@@ -16,8 +16,8 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
-const SELF_REPO = path.resolve(__dirname, '..');
 const SKIP_DIRS = new Set(['node_modules', 'worktrees', '.git', 'dist', 'build', 'coverage', 'vendor']);
 
 // Sentence carries durable rationale if it matches a "why / must / never / tradeoff" cue.
@@ -224,7 +224,7 @@ function main() {
     process.exit(2);
   }
   const repoAbs = path.resolve(repo);
-  const outDir = path.resolve(arg('out', path.join(SELF_REPO, 'bench', 'onboard', path.basename(repoAbs))));
+  const outDir = path.resolve(arg('out', defaultOnboardOutDir(repoAbs)));
   const OUT = path.join(outDir, 'doc-notes.json');
   const STRUCTURE_OUT = path.join(outDir, 'doc-structure.json');
   const max = parseInt(arg('max', '0'), 10) || 0;

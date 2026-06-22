@@ -8,8 +8,8 @@
  * KB-bootstrapped the first time the orchestrator runs there. It chains the pieces built by the
  * earlier onboarding tasks into a single, gated pipeline:
  *
- *   1. MINE  — run the 4 static miners (onboard-mine-{structure,git,docs,assets}.js --repo <abs>) into
- *              bench/onboard/<basename(repo)>/  (no graph mutation, no commit).
+ *   1. MINE  — run the static miners (onboard-mine-{structure,git,docs,assets,config}.js --repo <abs>) into
+ *              <repo>/.zonoid/onboard/<basename(repo)>/  (no graph mutation, no commit).
  *   2. LEARN — run scripts/onboard-learn.js --repo <abs>: a read-only agent validates the noisy
  *              mined candidates against actual source and writes onboard-notes.json (KEPT/REJECTED).
  *              Still NO graph mutation — the learner only writes a JSON file.
@@ -39,6 +39,7 @@
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
 const SELF_REPO = path.resolve(__dirname, '..');
 const SCRIPTS = __dirname;
@@ -123,14 +124,17 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
     console.error(`[onboard] not a git repo: ${repoAbs}`);
     process.exit(2);
   }
-  const outDir = path.resolve(arg('out', path.join(repoAbs, '.graph', 'onboard')));
-  const marker = path.join(repoAbs, '.graph', '.onboarded');
+  const outDir = path.resolve(arg('out', defaultOnboardOutDir(repoAbs)));
+  const marker = path.join(outDir, '.onboarded');
+  const legacyMarker = path.join(repoAbs, '.graph', '.onboarded');
 
   // ---- first-run gate: skip an already-onboarded repo unless --force ----
-  if (fs.existsSync(marker) && !has('force')) {
-    console.log(`[onboard] ${path.basename(repoAbs)} already onboarded (${marker}).`);
+  const existingMarker = fs.existsSync(marker) ? marker : (fs.existsSync(legacyMarker) ? legacyMarker : '');
+  if (existingMarker && !has('force')) {
+    const reviewDir = existingMarker === legacyMarker ? path.join(repoAbs, '.graph', 'onboard') : outDir;
+    console.log(`[onboard] ${path.basename(repoAbs)} already onboarded (${existingMarker}).`);
     console.log('[onboard] Re-run with --force to re-mine, or review the existing bundle:');
-    console.log(`           ${path.join(outDir, 'ONBOARD-REVIEW.md')}`);
+    console.log(`           ${path.join(reviewDir, 'ONBOARD-REVIEW.md')}`);
     process.exit(0);
   }
 
@@ -179,7 +183,7 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
   const bundle = writeReviewBundle(repoAbs, outDir, kept, rejected, injectCmd);
 
   // Mark onboarded so the setup-flow trigger is idempotent.
-  fs.mkdirSync(path.join(repoAbs, '.graph'), { recursive: true });
+  fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(marker, JSON.stringify({ repo: repoAbs, at: new Date().toISOString(), kept: kept.length }) + '\n');
 
   console.error('');

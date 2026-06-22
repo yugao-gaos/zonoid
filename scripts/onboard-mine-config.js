@@ -21,8 +21,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
-const SELF_REPO = path.resolve(__dirname, '..');
 const SKIP_DIRS = new Set(['node_modules', 'worktrees', '.git', 'dist', 'build', 'coverage', 'vendor', '.next', 'out', 'tmp', '__pycache__', 'test', 'bench']);
 const CODE_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx']);
 
@@ -91,7 +91,7 @@ function main() {
   const repo = arg('repo');
   if (!repo || !fs.existsSync(repo)) { console.error('usage: onboard-mine-config.js --repo <abs> [--out <dir>]'); process.exit(2); }
   const repoAbs = path.resolve(repo);
-  const outDir = path.resolve(arg('out', path.join(SELF_REPO, 'bench', 'onboard', path.basename(repoAbs))));
+  const outDir = path.resolve(arg('out', defaultOnboardOutDir(repoAbs)));
   const OUT = path.join(outDir, 'config-notes.json');
 
   const files = walk(repoAbs, repoAbs, []).sort();

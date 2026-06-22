@@ -43,6 +43,7 @@ const os = require('os');
 const SELF_REPO = path.resolve(__dirname, '..');
 const backendLib = require('../lib/llm-backend');
 const overlayStore = require('../lib/overlay');
+const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 // Load secrets from a gitignored .env.local (then .env) at the repo root into process.env without
 // overriding the real environment. Individual backend providers decide which credentials matter.
 try { require('../lib/load-env').loadEnvFiles(SELF_REPO); } catch { /* optional */ }
@@ -903,7 +904,7 @@ async function main() {
     process.exit(2);
   }
   const repoAbs = path.resolve(repo);
-  const inDir = path.resolve(arg('in', path.join(repoAbs, '.graph', 'onboard')));
+  const inDir = path.resolve(arg('in', defaultOnboardOutDir(repoAbs)));
   const outDir = inDir; // output always co-located with input
   const notesFile = path.join(inDir, 'onboard-notes.json');
 

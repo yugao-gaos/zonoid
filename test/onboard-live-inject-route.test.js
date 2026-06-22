@@ -8,6 +8,7 @@ const os = require('os');
 const path = require('path');
 
 const onboardRoute = require('../routes/onboard');
+const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
 function writeQueue(outDir, total, cursor, kept = []) {
   fs.mkdirSync(outDir, { recursive: true });
@@ -125,6 +126,32 @@ test('POST /onboard/enqueue reuses completed route queue instead of overwriting 
     assert.equal(sent[0].payload.outDir, outDir);
     assert.equal(sent[0].payload.reused, true);
     assert.equal(sent[0].payload.completed, true);
+    assert.equal(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8'), before);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('POST /onboard/enqueue defaults to ignored .zonoid onboarding outDir', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-default-'));
+  const repo = tmpDir;
+  const outDir = defaultOnboardOutDir(repo);
+  const sent = [];
+
+  try {
+    writeQueue(outDir, 3, 3, [{ title: 'Already learned', summary: 'Keep this queue', kind: 'decision' }]);
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo, outDir, autoInject: true }));
+    const before = fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8');
+    const route = onboardRoute(makeCtx({ repo }, sent, () => {}));
+    const handled = await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+
+    assert.equal(handled, true);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.ok, true);
+    assert.equal(sent[0].payload.outDir, outDir);
+    assert.equal(sent[0].payload.reused, true);
+    assert.match(outDir, /[/\\]\.zonoid[/\\]onboard[/\\]/);
     assert.equal(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8'), before);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });

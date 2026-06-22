@@ -6883,16 +6883,32 @@ async function checkOnboardingState() {
   }
 
   if (workspace && !storedOutDir) {
-    try {
-      const defaultOutDir = defaultOnboardOutDir(workspace);
-      const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(defaultOutDir));
-      const st = await r.json();
-      if (st.ok && st.status && onboardStatusComplete(st.status)) {
-        completeOnboardLearning();
-        return;
+    for (const candidateOutDir of candidateOnboardOutDirs(workspace)) {
+      try {
+        const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(candidateOutDir));
+        const st = await r.json();
+        if (st.ok && st.status && onboardStatusComplete(st.status)) {
+          completeOnboardLearning();
+          return;
+        }
+        if (st.ok && st.status) {
+          const shouldResumeDrain = onboardStatusNeedsResume(st.status);
+          showOnboardLanding();
+          localStorage.setItem(onboardStoreKey('outdir'), candidateOutDir);
+          const landing = document.getElementById('onboard-landing');
+          if (landing) {
+            landing.dataset.repo = workspace;
+            landing.dataset.outDir = candidateOutDir;
+            landing.dataset.draining = shouldResumeDrain ? '' : '1';
+          }
+          updateOnboardFromStatus(st.status);
+          if (shouldResumeDrain) ensureOnboardLearning(workspace);
+          else pollOnboardLearning();
+          return;
+        }
+      } catch (e) {
+        // No existing default/legacy queue; continue to note detection and auto-start.
       }
-    } catch (e) {
-      // No existing default queue; continue to note detection and auto-start.
     }
   }
 
@@ -6963,11 +6979,28 @@ function onboardCompletedKey() {
   return onboardStoreKey('completed');
 }
 
-function defaultOnboardOutDir(workspace) {
+function onboardPathParts(workspace) {
   const clean = String(workspace || '').replace(/[\\/]+$/, '');
   const name = clean.split(/[\\/]/).filter(Boolean).pop() || 'workspace';
   const sep = clean.includes('\\') ? '\\' : '/';
-  return clean + sep + 'bench' + sep + 'onboard' + sep + name;
+  return { clean, name, sep };
+}
+
+function defaultOnboardOutDir(workspace) {
+  const p = onboardPathParts(workspace);
+  return p.clean + p.sep + '.zonoid' + p.sep + 'onboard' + p.sep + p.name;
+}
+
+function legacyOnboardOutDirs(workspace) {
+  const p = onboardPathParts(workspace);
+  return [
+    p.clean + p.sep + '.graph' + p.sep + 'onboard',
+    p.clean + p.sep + 'bench' + p.sep + 'onboard' + p.sep + p.name,
+  ];
+}
+
+function candidateOnboardOutDirs(workspace) {
+  return Array.from(new Set([defaultOnboardOutDir(workspace), ...legacyOnboardOutDirs(workspace)]));
 }
 
 function showOnboardLanding() {

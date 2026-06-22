@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
 const DRAIN_STATUS_FILE = 'onboard-drain-status.json';
 const DEFAULT_DRAIN_BATCH_SIZE = 20;
@@ -135,7 +136,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req);
     const repo = b.repo;
     if (!repo) { send(res, 400, { ok: false, error: 'repo required' }); return true; }
-    const outDir = b.outDir || path.join(__dirname, '..', 'bench', 'onboard', path.basename(repo));
+    const outDir = b.outDir || defaultOnboardOutDir(repo);
     const existingStatus = queueStatus(outDir);
     const existingMeta = readDrainMeta(outDir);
     if (!b.force && existingStatus && existingStatus.total > 0 && existingStatus.drainDone && existingMeta.repo === repo) {
