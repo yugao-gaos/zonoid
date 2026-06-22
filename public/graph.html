@@ -4635,6 +4635,7 @@ let cloudSim=null;             // live d3 force simulation
 const cloudPos={};             // id -> {x,y} preserved across ticks so it doesn't re-jiggle
 let cloudArchiveOpen=false;    // whether the server-archive bundle is expanded
 let cloudSig='';               // signature of node/link set; only reheat sim when it changes
+let cloudRaf=null;             // projected cloud animation frame
 let cloudSearchText='';        // current force-cloud search query
 let cloudSearchKeys=new Set(); // ids returned by /search for the current force-cloud query
 let cloudSearchResolvedText='';
@@ -4672,7 +4673,7 @@ function scheduleCloudSearchFrames(seq){
 }
 function fitCloudToNodes(svg,W,H,nodes,key){
   if(!cloudZoom||!key||cloudSearchFitKey===key||!nodes.length) return;
-  const xs=nodes.map(n=>n.x).filter(Number.isFinite), ys=nodes.map(n=>n.y).filter(Number.isFinite);
+  const xs=nodes.map(n=>Number.isFinite(n.vx)?n.vx:n.x).filter(Number.isFinite), ys=nodes.map(n=>Number.isFinite(n.vy)?n.vy:n.y).filter(Number.isFinite);
   if(!xs.length||!ys.length) return;
   let minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
   if(maxX-minX<80){ minX-=40; maxX+=40; }
@@ -5452,6 +5453,7 @@ function renderCloud(d, opts={}){
   const shouldAnimateCloud=isOnboard||opts.breathe;
   const svg=d3.select(svgEl);
   const posStore=isOnboard?onboardCloudRenderState.pos:cloudPos;
+  const usePointCloud=true;
   const getSim=()=>isOnboard?onboardCloudRenderState.sim:cloudSim;
   const setSim=v=>{ if(isOnboard) onboardCloudRenderState.sim=v; else cloudSim=v; };
   const getSig=()=>isOnboard?onboardCloudRenderState.sig:cloudSig;
@@ -5544,16 +5546,82 @@ function renderCloud(d, opts={}){
     for(let i=0;i<s.length;i++) h=((h<<5)-h+s.charCodeAt(i))|0;
     return ((Math.abs(h)%2000)/1000)-1;
   };
+  const cloudHashUnit=(id,salt='')=>{
+    let h=0; const s=String(id||'')+'|'+salt;
+    for(let i=0;i<s.length;i++) h=((h<<5)-h+s.charCodeAt(i))|0;
+    return (Math.abs(h)%10000)/10000;
+  };
+  const cloudIndexOf=n=>{
+    const m=String(n.id||'').match(/\/(\d+)$/);
+    return m?Number(m[1]):simNodes.indexOf(n);
+  };
+  const projectCloudNode=(n,elapsed=0)=>{
+    const count=Math.max(1,simNodes.length);
+    const idx=Math.max(0,cloudIndexOf(n));
+    const u=(idx+0.5)/count;
+    const phi=Math.acos(1-2*u);
+    const theta=idx*2.3999632297+cloudHashUnit(n.id,'theta')*1.7+elapsed*(isOnboard?0.2:0.12);
+    const shell=0.58+cloudHashUnit(n.id,'shell')*0.38;
+    const sx=Math.cos(theta)*Math.sin(phi)*shell;
+    const sy=Math.sin(theta)*Math.sin(phi)*shell;
+    const sz=Math.cos(phi)*shell+n.z*0.28;
+    const tilt=-0.42;
+    const ty=sy*Math.cos(tilt)-sz*Math.sin(tilt);
+    const tz=sy*Math.sin(tilt)+sz*Math.cos(tilt);
+    const yaw=elapsed*0.18;
+    const rx=sx*Math.cos(yaw)+tz*Math.sin(yaw);
+    const rz=-sx*Math.sin(yaw)+tz*Math.cos(yaw);
+    const perspective=1.12/(1.35-rz*0.38);
+    const spread=Math.min(W,H);
+    n.vx=cx+rx*Math.min(W*0.43,spread*0.48)*perspective;
+    n.vy=H*0.48+ty*Math.min(H*0.35,spread*0.38)*perspective;
+    n.vz=Math.max(-1,Math.min(1,rz));
+    n.vs=perspective;
+  };
+  const projectedX=n=>n?(usePointCloud&&Number.isFinite(n.vx)?n.vx:n.x):undefined;
+  const projectedY=n=>n?(usePointCloud&&Number.isFinite(n.vy)?n.vy:n.y):undefined;
+  const projectedDepth=n=>n?(usePointCloud&&Number.isFinite(n.vz)?n.vz:n.z):0;
   for(const n of simNodes) n.z=cloudDepth(n.id);
   const maxAge=Math.max(1, ...simNodes.map(n=>n.age||0));
-  const depthScale=n=>0.82+((n.z+1)/2)*0.34;
-  const radiusOf=n=>{ if(n.archive) return 16*depthScale(n); let r=6+Math.min(12,n.deg*2); if(n.tier==='mid') r*=0.8; if(n.tier==='bg') r*=0.55; if(n.age!=null) r*=(1-0.5*(n.age/maxAge)); return Math.max(3,r*depthScale(n)); };
+  if(usePointCloud) for(const n of simNodes) projectCloudNode(n,0);
+  const depthScale=n=>{
+    const z=projectedDepth(n);
+    return usePointCloud?0.62+((z+1)/2)*0.62:0.82+((z+1)/2)*0.34;
+  };
+  const radiusOf=n=>{
+    if(n.archive) return 16*depthScale(n);
+    if(isOnboard){
+      let r=4.2+Math.min(6,n.deg*0.9);
+      if(n.t?.status==='in_progress') r+=2.2;
+      if(n.t?.kind==='note') r+=1.2;
+      return Math.max(2.4,r*depthScale(n));
+    }
+    if(usePointCloud){
+      let r=4.8+Math.min(9,n.deg*1.45);
+      if(n.tier==='fg') r*=1.16;
+      if(n.tier==='mid') r*=0.86;
+      if(n.tier==='bg') r*=0.58;
+      if(n.t?.kind==='note') r+=1;
+      if(n.t?.status==='in_progress') r+=1.6;
+      if(!n.archive && n.id===selected) r+=2.2;
+      if(n.age!=null) r*=(1-0.45*(n.age/maxAge));
+      return Math.max(2.5,r*depthScale(n));
+    }
+    let r=6+Math.min(12,n.deg*2); if(n.tier==='mid') r*=0.8; if(n.tier==='bg') r*=0.55; if(n.age!=null) r*=(1-0.5*(n.age/maxAge)); return Math.max(3,r*depthScale(n));
+  };
   const isInactive=n=>n.t&&(n.t.status==='done'||n.t.status==='canceled');
   const opacityOf=n=>{
+    if(isOnboard){
+      let o=n.t?.status==='in_progress'?0.92:(n.t?.kind==='note'?0.76:0.5);
+      if(isInactive(n)) o*=0.55;
+      o*=0.34+((projectedDepth(n)+1)/2)*0.66;
+      return Math.max(0.1,o);
+    }
     let o=n.tier==='fg'?1:n.tier==='mid'?0.55:0.25;
+    if(usePointCloud) o=n.tier==='fg'?0.92:n.tier==='mid'?0.5:0.22;
     if(n.age!=null) o*=(1-0.45*(n.age/maxAge));
     if(isInactive(n)) o*=0.25;
-    o*=0.72+((n.z+1)/2)*0.28;
+    o*=0.72+((projectedDepth(n)+1)/2)*0.28;
     if(q){
       if(searchNodeVisible(n)) return Math.max(traceFinal(n)||traceReranked(n)?0.9:(searchNodeActive(n)?0.55:0.16),o);
       return 0.035;
@@ -5686,7 +5754,9 @@ function renderCloud(d, opts={}){
     let o=Math.max(w(a),w(b));
     const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)];
     if(ns&&nt2&&isInactive(ns)&&isInactive(nt2)) o*=0.15;
-    const depthAvg=(((ns&&Number.isFinite(ns.z))?ns.z:0)+((nt2&&Number.isFinite(nt2.z))?nt2.z:0))/2;
+    const depthAvg=(((ns&&Number.isFinite(projectedDepth(ns)))?projectedDepth(ns):0)+((nt2&&Number.isFinite(projectedDepth(nt2)))?projectedDepth(nt2):0))/2;
+    if(isOnboard) return (l.kind==='context'?0.2:0.13)*(0.38+((depthAvg+1)/2)*0.62);
+    if(usePointCloud) o*=0.56+((depthAvg+1)/2)*0.44;
     o*=0.72+((depthAvg+1)/2)*0.28;
     if(q){
       if(searchEdgeFading(l)) return 0.1;
@@ -5699,7 +5769,10 @@ function renderCloud(d, opts={}){
   };
 
   // restore prior positions so live polling doesn't re-scramble the layout
-  for(const n of simNodes){ const p=posStore[n.id]; if(p){ n.x=p.x; n.y=p.y; } else { n.x=cx+(Math.random()-0.5)*60; n.y=cy+(Math.random()-0.5)*60; } }
+  for(const n of simNodes){
+    if(usePointCloud){ n.x=cx; n.y=cy; projectCloudNode(n,0); }
+    else { const p=posStore[n.id]; if(p){ n.x=p.x; n.y=p.y; } else { n.x=cx+(Math.random()-0.5)*60; n.y=cy+(Math.random()-0.5)*60; } }
+  }
 
   // persistent zoom/pan container
   let root=svg.select('g.zoomroot');
@@ -5731,7 +5804,7 @@ function renderCloud(d, opts={}){
     .classed('cloud-search-related', l=>searchEdgeRelated(l))
     .classed('cloud-search-final-edge', l=>searchEdgeFinal(l))
     .classed('cloud-breathe', () => shouldAnimateCloud)
-    .style('animation-delay', l=>searchEdgeRelated(l)?(Math.min(edgeActivationIndex(l),8)*45)+'ms':null);
+    .style('animation-delay', l=>searchEdgeRelated(l)?(Math.min(edgeActivationIndex(l),8)*45)+'ms':(isOnboard?((l._idx%9)*120)+'ms':null));
 
   const nodeSel=nodeG.selectAll('g.cn').data(simNodes, n=>n.id);
   nodeSel.exit().remove();
@@ -5740,8 +5813,8 @@ function renderCloud(d, opts={}){
   ndEnter.append('title');
   ndEnter.append('text').attr('text-anchor','middle').attr('dy',n=>n.archive?'0.35em':'-0.9em');
   const nodeAll=ndEnter.merge(nodeSel);
-  nodeAll.sort((a,b)=>(a.z||0)-(b.z||0));
-  nodeAll.attr('transform', n=>`translate(${n.x},${n.y})`);
+  nodeAll.sort((a,b)=>projectedDepth(a)-projectedDepth(b));
+  nodeAll.attr('transform', n=>`translate(${projectedX(n)},${projectedY(n)})`);
   const stagedTraceHit=n=>traceHit(n)&&activatedSearch(n);
   const stagedTracePath=n=>trace&&!traceHit(n)&&activeNodeHops.has(n.id)&&activatedSearch(n);
   const searchFinalized=searchPhase==='prune'||searchPhase==='final';
@@ -5756,7 +5829,7 @@ function renderCloud(d, opts={}){
     .classed('cloud-search-reranked', n=>stagedTraceReranked(n))
     .classed('cloud-depth', true)
     .classed('cloud-breathe', () => shouldAnimateCloud)
-    .style('animation-delay', n=>stagedTraceHit(n)?(Math.min(trace.hitRank.get(n.id)||0,8)*45)+'ms':null);
+    .style('animation-delay', n=>stagedTraceHit(n)?(Math.min(trace.hitRank.get(n.id)||0,8)*45)+'ms':(isOnboard?Math.round(((n.z+1)/2)*900)+'ms':null));
   const isDirectSearchMatch=n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n));
   const matchCount=q?simNodes.filter(isDirectSearchMatch).length:0;
   const countEl=document.getElementById('cloudMatchCount');
@@ -5788,14 +5861,27 @@ function renderCloud(d, opts={}){
       traceEl.classList.remove('show');
     }
   }
-  const showCloudLabel=n=> q?(!n.archive&&activatedSearch(n)):(n.archive||n.tier==='fg');
+  const onboardLabelIds = new Set();
+  if (isOnboard) {
+    const onboardRank = n => n.t?.status === 'in_progress' ? 0 : (n.t?.kind === 'note' ? 1 : 2);
+    const onboardLimit = Math.min(3, Math.max(1, Math.ceil(simNodes.length / 32)));
+    simNodes
+      .filter(n => !n.archive && n.t)
+      .sort((a, b) => onboardRank(a) - onboardRank(b) || projectedDepth(b) - projectedDepth(a) || (b.deg || 0) - (a.deg || 0) || cloudIndexOf(a) - cloudIndexOf(b))
+      .slice(0, onboardLimit)
+      .forEach(n => onboardLabelIds.add(n.id));
+  }
+  const showCloudLabel=n=> isOnboard?onboardLabelIds.has(n.id):(q?(!n.archive&&activatedSearch(n)):(n.archive||n.tier==='fg'));
+  const cloudLabelText=n=> n.archive?('🗄 '+n.count):(isOnboard?truncate(n.t.label,18):((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22)));
   nodeAll.select('title')
-    .text(n=> n.archive?'Archived — stale done/canceled and superseded notes':'');
+    .text(n=> n.archive?'Archived — stale done/canceled and superseded notes':(isOnboard&&n.t?[n.t.label,n.t.description].filter(Boolean).join('\n'):''));
   nodeAll.select('text')
-    .text(n=> showCloudLabel(n)?(n.archive?('🗄 '+n.count):((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22))):'')
+    .text(n=> showCloudLabel(n)?cloudLabelText(n):'')
     .attr('fill-opacity', n=>showCloudLabel(n)?0.9:0);
   if(isOnboard){
-    nodeAll.on('click',null).on('mouseenter',null).on('mouseleave',null);
+    nodeAll.on('click',null)
+      .on('mouseenter',function(ev,n){ if(!n.archive&&n.t) d3.select(this).select('text').text(truncate(n.t.label,18)).attr('fill-opacity',0.82); })
+      .on('mouseleave',function(ev,n){ d3.select(this).select('text').text(showCloudLabel(n)?cloudLabelText(n):'').attr('fill-opacity',showCloudLabel(n)?0.9:0); });
   } else {
     nodeAll.on('click',(ev,n)=>{ if(n.archive){ cloudArchiveOpen=!cloudArchiveOpen; cloudSig=''; renderCloud(lastState); } else openDetail(n.id); })
       .on('mouseenter',function(ev,n){ if(!n.archive&&(!q||activatedSearch(n))) d3.select(this).select('text').text(truncate(n.t.label,22)).attr('fill-opacity',0.9); })
@@ -5809,19 +5895,33 @@ function renderCloud(d, opts={}){
   // only reheat the simulation when the node/link set actually changes
   const sig=simNodes.map(n=>n.id).sort().join(',')+'|'+simLinks.map(l=>endId(l.source)+'>'+endId(l.target)).sort().join(',')+'|archOpen:'+cloudArchiveOpen+'|archIds:'+archivedList.map(t=>t.id).sort().join(',');
   const placeCloud=()=>{
+    const elapsed=q&&!isOnboard?0:Date.now()/1000;
+    if(usePointCloud) for(const n of simNodes) projectCloudNode(n,elapsed);
     const endpoint=e=>typeof e==='object'?e:byNode[e];
     linkAll
-      .attr('x1',l=>endpoint(l.source)?.x).attr('y1',l=>endpoint(l.source)?.y)
-      .attr('x2',l=>endpoint(l.target)?.x).attr('y2',l=>endpoint(l.target)?.y);
+      .attr('x1',l=>projectedX(endpoint(l.source))).attr('y1',l=>projectedY(endpoint(l.source)))
+      .attr('x2',l=>projectedX(endpoint(l.target))).attr('y2',l=>projectedY(endpoint(l.target)));
+    if(usePointCloud){
+      linkAll.attr('stroke-opacity', linkOpacity);
+      nodeAll.sort((a,b)=>projectedDepth(a)-projectedDepth(b));
+      nodeAll.select('circle').attr('r', radiusOf).attr('fill-opacity', opacityOf);
+      nodeAll.select('text').attr('fill-opacity', n=>showCloudLabel(n)?Math.max(0.42,opacityOf(n)):0);
+    }
     const t=Date.now()/1200;
     nodeAll.attr('transform', n=>{
-      posStore[n.id]={x:n.x,y:n.y};
+      const x=projectedX(n), y=projectedY(n);
+      posStore[n.id]={x,y,z:projectedDepth(n)};
+      if(usePointCloud) return `translate(${x},${y})`;
       const px=shouldAnimateCloud?Math.sin(t+n.z*2.7)*n.z*10:0;
       const py=shouldAnimateCloud?Math.cos(t*.8+n.z*2.1)*n.z*6:0;
       return `translate(${n.x+px},${n.y+py})`;
     });
   };
-  if(q){
+  if(usePointCloud){
+    if(getSim()) getSim().stop();
+    placeCloud();
+    setSig(sig);
+  } else if(q){
     if(getSim()) getSim().stop();
     placeCloud();
     setSig(sig);
@@ -5839,21 +5939,28 @@ function renderCloud(d, opts={}){
   } else {
     placeCloud();
   }
-  if(isOnboard){
-    if(onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
+  if(usePointCloud){
+    if(isOnboard&&onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
+    if(!isOnboard&&cloudRaf) cancelAnimationFrame(cloudRaf);
     let lastFrame=0;
-    const animateOnboardCloud=ts=>{
-      if(!svgEl.isConnected || !document.body.classList.contains('onboarding-pending')){
-        onboardCloudRenderState.raf=null;
+    const animateProjectedCloud=ts=>{
+      const inactive=isOnboard?!document.body.classList.contains('onboarding-pending'):currentView!=='cloud';
+      if(!svgEl.isConnected || inactive){
+        if(isOnboard) onboardCloudRenderState.raf=null;
+        else cloudRaf=null;
         return;
       }
-      if(ts-lastFrame>=80){
+      if(ts-lastFrame>=(isOnboard?80:120)){
         placeCloud();
         lastFrame=ts;
       }
-      onboardCloudRenderState.raf=requestAnimationFrame(animateOnboardCloud);
+      const next=requestAnimationFrame(animateProjectedCloud);
+      if(isOnboard) onboardCloudRenderState.raf=next;
+      else cloudRaf=next;
     };
-    onboardCloudRenderState.raf=requestAnimationFrame(animateOnboardCloud);
+    const next=requestAnimationFrame(animateProjectedCloud);
+    if(isOnboard) onboardCloudRenderState.raf=next;
+    else cloudRaf=next;
   }
   const statsElC = document.getElementById('flowstats');
   if (statsElC) {
@@ -6771,11 +6878,34 @@ async function checkOnboardingState() {
   const workspace = currentOnboardWorkspace();
   const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
 
+  if (workspace && !storedOutDir && localStorage.getItem(onboardCompletedKey()) === '1') {
+    completeOnboardLearning();
+    return;
+  }
+
+  if (workspace && !storedOutDir) {
+    try {
+      const defaultOutDir = defaultOnboardOutDir(workspace);
+      const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(defaultOutDir));
+      const st = await r.json();
+      if (st.ok && st.status && onboardStatusComplete(st.status)) {
+        completeOnboardLearning();
+        return;
+      }
+    } catch (e) {
+      // No existing default queue; continue to note detection and auto-start.
+    }
+  }
+
   if (workspace && storedOutDir) {
     try {
       const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(storedOutDir));
       const st = await r.json();
-      if (st.ok && st.status && !onboardStatusComplete(st.status)) {
+      if (st.ok && st.status && onboardStatusComplete(st.status)) {
+        completeOnboardLearning();
+        return;
+      }
+      if (st.ok && st.status) {
         const shouldResumeDrain = onboardStatusNeedsResume(st.status);
         showOnboardLanding();
         const landing = document.getElementById('onboard-landing');
@@ -6830,6 +6960,17 @@ function onboardStoreKey(suffix) {
   return 'onboard_' + suffix + '_' + (currentOnboardWorkspace() || location.hostname || 'local');
 }
 
+function onboardCompletedKey() {
+  return onboardStoreKey('completed');
+}
+
+function defaultOnboardOutDir(workspace) {
+  const clean = String(workspace || '').replace(/[\\/]+$/, '');
+  const name = clean.split(/[\\/]/).filter(Boolean).pop() || 'workspace';
+  const sep = clean.includes('\\') ? '\\' : '/';
+  return clean + sep + 'bench' + sep + 'onboard' + sep + name;
+}
+
 function showOnboardLanding() {
   document.body.classList.add('onboarding-pending');
   const cloud = document.querySelector('.ol-cloud');
@@ -6849,7 +6990,8 @@ function setOnboardStatus(msg, isError) {
 function setOnboardStage(stage) {
   const label = document.getElementById('onboardStageLabel');
   if (label) {
-    label.textContent = stage === 'review' ? 'Finalizing live injection' :
+    label.textContent = stage === 'complete' ? 'Learning complete' :
+      stage === 'review' ? 'Finalizing live injection' :
       stage === 'validate' ? 'Validating learned candidates' :
       'Mining repository candidates';
   }
@@ -6927,6 +7069,7 @@ function completeOnboardLearning() {
   const cloud = document.querySelector('.ol-cloud');
   if (cloud) cloud.classList.remove('is-live');
   onboardAutoStartInFlight = false;
+  localStorage.setItem(onboardCompletedKey(), '1');
   localStorage.removeItem(onboardStoreKey('outdir'));
   document.body.classList.remove('onboarding-pending');
   setOnboardInjectVisible(false, false);
@@ -6935,11 +7078,22 @@ function completeOnboardLearning() {
 }
 
 function onboardStatusComplete(s) {
-  return !!(s && s.done && (s.injected || (!s.autoInject && s.needsReview === false)));
+  return !!(s && (onboardStatusDrained(s) || (s.done === true && (s.injected || (!s.autoInject && s.needsReview === false)))));
+}
+
+function onboardStatusDrained(s) {
+  if (!s || s.error) return false;
+  const total = Math.max(0, Number(s.total) || 0);
+  if (total <= 0) return false;
+  const remaining = Math.max(0, Number(s.remaining) || 0);
+  const processed = typeof s.processed === 'number' ? s.processed : Math.max(0, total - remaining);
+  const visualProcessed = Math.max(processed, Number(s.visualProcessed) || 0);
+  const inflight = Math.max(0, Number(s.inflight) || 0);
+  return remaining === 0 && inflight === 0 && Math.max(processed, visualProcessed) >= total;
 }
 
 function onboardStatusNeedsResume(s) {
-  return !!(s && (s.done !== true || s.recovered || s.active === false || !s.injected));
+  return !!(s && !onboardStatusComplete(s) && (s.done !== true || s.recovered || s.active === false || !s.injected));
 }
 
 async function ensureOnboardLearning(repo) {
@@ -6953,6 +7107,7 @@ async function ensureOnboardLearning(repo) {
 
     let outDir = storedOutDir;
     if (!outDir) {
+      localStorage.removeItem(onboardCompletedKey());
       setOnboardStage('mine');
       setOnboardStatus('Mining candidates...');
       const enq = await (await dfetch('/onboard/enqueue', {
@@ -6978,8 +7133,7 @@ async function ensureOnboardLearning(repo) {
       body: JSON.stringify({repo, outDir, autoInject: true, liveInject: true})
     })).json();
     if (!dr.ok) throw new Error(dr.error || 'drain failed');
-    updateOnboardFromStatus(dr.status || {});
-    pollOnboardLearning();
+    if (!updateOnboardFromStatus(dr.status || {})) pollOnboardLearning();
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
     const landing = document.getElementById('onboard-landing');
@@ -7015,14 +7169,15 @@ function updateOnboardFromStatus(s) {
   const kept = typeof s.kept === 'number' ? s.kept : 0;
   const injected = typeof s.injectedKept === 'number' ? s.injectedKept : (s.injected ? kept : 0);
   const cloud = document.querySelector('.ol-cloud');
-  if (cloud) cloud.classList.toggle('is-live', !s.done && !s.error);
+  const drained = onboardStatusDrained(s);
+  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s) && !s.error);
   setOnboardProgress(processed, total, kept, injected, inflight);
   renderOnboardCloud({ ...s, total, processed, visualProcessed, kept, inflight, injectedKept: injected });
   if (s.error) {
     setOnboardStatus(s.error, true);
     return true;
   }
-  if (!s.done) {
+  if (!s.done && !drained) {
     setOnboardStage('validate');
     const live = inflight ? `; learning ${inflight} live candidates now` : '';
     setOnboardStatus(`Processed ${processed}/${total}${live}; live notes appear as they are kept.`);
@@ -7031,9 +7186,15 @@ function updateOnboardFromStatus(s) {
   const landing = document.getElementById('onboard-landing');
   if (landing) landing.dataset.draining = '';
   if (s.injected) {
-    setOnboardStage('review');
+    setOnboardStage('complete');
     setOnboardStatus('Injected. Refreshing graph...');
     setTimeout(completeOnboardLearning, 800);
+    return true;
+  }
+  if (drained) {
+    setOnboardStage('complete');
+    setOnboardStatus(injected > 0 ? `Learning complete; ${injected} reviewed notes were injected. Opening dashboard...` : 'Learning complete; no reviewed notes were injected. Opening dashboard...');
+    setTimeout(completeOnboardLearning, 1000);
     return true;
   }
   setOnboardStage('review');

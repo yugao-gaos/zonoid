@@ -63,7 +63,11 @@ try {
   ok('buildGraph projects note.category', !!projected && projected.category === 'correction');
   ok('buildGraph projects note.tags', !!projected && same(projected.tags, ['replay', 'vectors']));
 } finally {
-  fs.rmSync(TMP, { recursive: true, force: true });
+  try {
+    const pid = parseInt(fs.readFileSync(path.join(TMP, 'embed.pid'), 'utf8'), 10);
+    if (pid) process.kill(pid, 'SIGTERM');
+  } catch { /* sidecar may not have spawned */ }
+  fs.rmSync(TMP, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

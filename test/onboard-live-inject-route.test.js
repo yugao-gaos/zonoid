@@ -102,3 +102,31 @@ test('GET /onboard/drain-queue recovers status from queue files after in-memory 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('POST /onboard/enqueue reuses completed route queue instead of overwriting it', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-route-enqueue-'));
+  const outDir = path.join(tmpDir, 'bench', 'onboard', path.basename(tmpDir));
+  const repo = tmpDir;
+  const sent = [];
+
+  try {
+    writeQueue(outDir, 4, 4, [{ title: 'Already learned', summary: 'Keep this queue', kind: 'decision' }]);
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo, outDir, autoInject: true }));
+    const before = fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8');
+    const route = onboardRoute(makeCtx({ repo, outDir }, sent, () => {}));
+    const handled = await route('/onboard/enqueue', 'POST', {}, {}, new URL('http://localhost/onboard/enqueue'));
+
+    assert.equal(handled, true);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].status, 200);
+    assert.equal(sent[0].payload.ok, true);
+    assert.equal(sent[0].payload.total, 4);
+    assert.equal(sent[0].payload.remaining, 0);
+    assert.equal(sent[0].payload.outDir, outDir);
+    assert.equal(sent[0].payload.reused, true);
+    assert.equal(sent[0].payload.completed, true);
+    assert.equal(fs.readFileSync(path.join(outDir, 'onboard-queue.json'), 'utf8'), before);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

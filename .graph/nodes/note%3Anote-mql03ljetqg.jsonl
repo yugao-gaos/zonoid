@@ -8,3 +8,5 @@
 {"evt":"edge_removed","from":"note:note-mql03ljetqg","to":"note:note-mqkztsjzig3","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:25:41.744Z"}
 {"evt":"edge_removed","from":"note:note-mql03ljetqg","to":"note:note-mqkzwjw3s0q","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:28:28.000Z"}
 {"evt":"edge_removed","from":"note:note-mql03ljetqg","to":"note:note-mqkzz1q4okw","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:29:21.631Z"}
+{"evt":"edge_added","from":"note:note-mql03ljetqg","to":"codex/subconscious-agentic-search-envelope-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:08.011Z","weight":0,"by":"autowire","judged":false,"score":0.553,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mql03ljetqg","to":"codex/subconscious-agentic-search-envelope-code-review","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:22:36.138Z","weight":0,"by":"autowire","judged":false,"score":0.589,"origin":"autowire-semantic"}

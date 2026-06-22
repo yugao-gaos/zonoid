@@ -785,6 +785,303 @@ test('subconscious assignment prepare creates assignment envelope and wires task
   assert(calls.some((call) => call.fn === 'notifyChange' && call.workspace === ws));
 });
 
+test('subconscious search-context returns filtered multi-step DAG and RAG envelope', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('task/target', 'Agentic context target', {
+        status: 'ready',
+        context_deps: ['note:dag'],
+        context_weights: { 'note:dag': 0.95 },
+      }),
+      node('note:dag', 'DAG assignment context', {
+        kind: 'note',
+        summary: 'Task-gated DAG context says worker assignments should receive judged context.',
+      }),
+      node('note:rag', 'RAG assignment context', {
+        kind: 'note',
+        summary: 'Broad RAG context says Subconscious should filter raw search hits before workers see them.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.subconscious_context.kind, 'subconscious_agentic_search_context');
+  const modes = res.body.subconscious_context.search_steps.map((step) => step.mode);
+  assert.equal(modes[0], 'dag_task_gated');
+  assert(modes.length >= 1 && modes.length <= 4);
+  assert.equal(res.body.subconscious_context.search_steps[0].gated, true);
+  assert(res.body.subconscious_context.decisions.stop_reason);
+  assert(res.body.context_task_keys.includes('note:dag'));
+  assert(res.body.subconscious_context.context.every((item) => item.relevance_verdict === 'valuable_for_task'));
+  assert.equal(res.body.internal.filtered_count, res.body.subconscious_context.filtered_count);
+});
+
+test('subconscious search-context adaptively follows task-adjacent DAG evidence within budget', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('task/target', 'Adaptive target', {
+        status: 'ready',
+        context_deps: ['task/neighbor'],
+        context_weights: { 'task/neighbor': 0.8 },
+      }),
+      node('task/neighbor', 'Nearby task', {
+        status: 'tested',
+        summary: 'Nearby task carries the vesper detail for the adaptive context loop.',
+        context_deps: ['note:neighbor'],
+        context_weights: { 'note:neighbor': 0.95 },
+      }),
+      node('note:neighbor', 'Vesper detail', {
+        kind: 'note',
+        summary: 'The useful context is hidden behind task-adjacent DAG expansion, not the first broad RAG probe.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare adaptive context',
+    situation: 'Need neighboring implementation context',
+    max_rounds: 3,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  const steps = res.body.subconscious_context.search_steps;
+  assert.deepEqual(steps.map((step) => step.mode), ['dag_task_gated', 'rag_broad', 'dag_task_adjacent']);
+  assert.equal(steps[2].task_key, 'task/neighbor');
+  assert.equal(steps[2].followup_from, 'task/neighbor');
+  assert(res.body.subconscious_context.context_task_keys.includes('note:neighbor'));
+  assert.equal(res.body.subconscious_context.decisions.rounds, 3);
+  assert.equal(res.body.subconscious_context.decisions.stop_reason, 'budget_exhausted');
+});
+
+test('subconscious search-context continues from weak task DAG to broad RAG', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('task/target', 'Weak DAG target', {
+        status: 'ready',
+        context_deps: [],
+      }),
+      node('note:broad', 'Hydra broad context', {
+        kind: 'note',
+        summary: 'Hydra broad context is relevant only through the broad RAG pass after weak DAG evidence.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare adaptive context',
+    situation: 'Need hydra broad context for assignment',
+    max_rounds: 3,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  const steps = res.body.subconscious_context.search_steps;
+  assert.equal(steps[0].mode, 'dag_task_gated');
+  assert.equal(steps[1].mode, 'rag_broad');
+  assert(res.body.subconscious_context.context_task_keys.includes('note:broad'));
+  assert.notEqual(res.body.subconscious_context.verdict, 'abstain_no_context');
+});
+
+test('subconscious search-context adaptively follows RAG breadcrumbs', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('note:clue', 'Envelope clue', {
+        kind: 'note',
+        summary: 'The decisive follow-up phrase is lodestar budget.',
+      }),
+      node('note:detail', 'Lodestar budget', {
+        kind: 'note',
+        summary: 'Adaptive Subconscious search should continue with budgeted follow-up retrieval before finalizing context.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    query: 'Need the envelope clue for assignment context',
+    max_rounds: 3,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  const steps = res.body.subconscious_context.search_steps;
+  assert(steps.length > 1 && steps.length <= 3);
+  assert.equal(steps[0].mode, 'rag_broad');
+  assert(steps.some((step) => step.mode === 'rag_followup'));
+  assert(steps.some((step) => step.followup_from === 'note:clue'));
+  assert(res.body.subconscious_context.context_task_keys.includes('note:detail'));
+  assert.notEqual(res.body.subconscious_context.verdict, 'abstain_no_context');
+});
+
+test('subconscious search-context does not treat knowledge chunks as task-adjacent DAG follow-ups', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const ov = {
+    knowledge: {},
+    edges: [],
+    entity_nodes: {},
+  };
+  const graph = {
+    tasks: [
+      {
+        id: 'knowledge:missing-kind',
+        label: 'Missing kind knowledge artifact',
+        status: 'done',
+        deps: [],
+        context_deps: [],
+        context_weights: {},
+        summary: 'Adaptive context artifact is promising but has no kind and must not become task-adjacent DAG.',
+      },
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null, overlay: ov });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    query: 'Need adaptive context artifact',
+    max_rounds: 2,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  const steps = res.body.subconscious_context.search_steps;
+  assert(steps.some((step) => step.mode === 'rag_broad'));
+  assert(!steps.some((step) =>
+    step.mode === 'dag_task_adjacent' ||
+    (step.task_key && step.task_key.startsWith('knowledge:'))
+  ));
+});
+
+test('subconscious search-context abstains when evidence quality is insufficient', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('note:unrelated', 'Completely unrelated note', {
+        kind: 'note',
+        summary: 'Banana invoice archive with no overlap for the requested planning context.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    query: 'Need adaptive confidence controls for assignment context',
+    max_rounds: 3,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.subconscious_context.verdict, 'abstain_no_context');
+  assert.deepEqual(res.body.subconscious_context.context_task_keys, []);
+  assert.deepEqual(res.body.subconscious_context.context_deps, []);
+  assert.deepEqual(res.body.subconscious_context.context, []);
+  assert(res.body.subconscious_context.decisions.stop_reason);
+  assert(res.body.subconscious_context.confidence < 0.42);
+});
+
+test('subconscious assignment prepare carries and wires agentic search context envelope', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore();
+  const ov = overlayStore.EMPTY();
+  const calls = [];
+  const graph = {
+    tasks: [
+      node('codex/impl', 'Implement agentic context assignment', {
+        status: 'ready',
+        context_deps: ['note:dag'],
+        context_weights: { 'note:dag': 0.9 },
+      }),
+      node('note:dag', 'DAG assignment context', {
+        kind: 'note',
+        summary: 'Task-gated context should be selected by Subconscious before worker dispatch.',
+      }),
+      node('note:rag', 'RAG assignment context', {
+        kind: 'note',
+        summary: 'Broad search context should be filtered before entering worker handoff.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null, overlay: ov });
+  ctx.now = () => '2026-06-21T12:00:00.000Z';
+  ctx.notifyChange = (workspace) => calls.push({ fn: 'notifyChange', workspace });
+  ctx.resolveRepo = (key, repoPath, overlay, workspace) => repoPath || workspace;
+  ctx.git = {
+    isRepo(repo) { calls.push({ fn: 'isRepo', repo }); return true; },
+    createWorktree(repo, key, options) {
+      calls.push({ fn: 'createWorktree', repo, key, options });
+      return { branch: 'orch/attempt/codex-impl', worktree: path.join(ws, 'attempt'), head: 'abc123' };
+    },
+  };
+
+  const res = await callRoute(ctx, '/subconscious/assignment', {
+    workspace: ws,
+    action: 'prepare',
+    task_key: 'codex/impl',
+    subject: 'Implement agentic context assignment',
+    agent_id: 'dispatcher-a',
+    search_context: true,
+    context_query: 'Need DAG and broad RAG assignment context before worker dispatch.',
+    repo_path: ws,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.assignment.agentic_search_context.kind, 'subconscious_agentic_search_context');
+  assert.equal(res.body.assignment.context.agentic_search_context.kind, 'subconscious_agentic_search_context');
+  const modes = res.body.assignment.context.agentic_search_context.search_steps.map((step) => step.mode);
+  assert.equal(modes[0], 'dag_task_gated');
+  assert(res.body.assignment.context.agentic_search_context.decisions.stop_reason);
+  assert(res.body.assignment.context.context_task_keys.includes('note:dag'));
+  assert(res.body.assignment.context.dependency_summaries.some((summary) => summary.key === 'note:dag' && summary.via === 'subconscious_agentic_search'));
+  assert(ov.edges.some((edge) =>
+    edge.from === 'note:dag' &&
+    edge.to === 'codex/impl' &&
+    edge.kind === 'context' &&
+    edge.by === 'subconscious' &&
+    edge.judged === true &&
+    edge.origin === 'subconscious-agentic-search'
+  ));
+});
+
 test('subconscious_loop MCP tool forwards to loop routes', async () => {
   const tool = TOOLS.find((candidate) => candidate.name === 'subconscious_loop');
   assert(tool, 'subconscious_loop tool exists');

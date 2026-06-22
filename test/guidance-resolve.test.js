@@ -17,6 +17,13 @@ const judge = require('../lib/judge');
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
 
+const EMBED_DIMS = 384;
+function embedVec(values) {
+  const v = new Array(EMBED_DIMS).fill(0);
+  values.forEach((x, i) => { v[i] = x; });
+  return v;
+}
+
 // Faithful re-implementation of the route's resolve handler decision logic (mirrors daemon
 // /guidance/resolve). Operates on the overlay + the guidance item carrying an `action`.
 function applyResolve(overlay, body) {
@@ -150,8 +157,8 @@ function clusterFixture() {
 {
   // Two near-identical vecs → one recall cluster. Mark it distinct → dupClusters returns nothing.
   const o = ov.EMPTY();
-  const a = ov.addNoteNode(o, { title: 'a', summary: 'x', vec: [1, 0, 0] });
-  const b = ov.addNoteNode(o, { title: 'b', summary: 'x', vec: [0.99, 0.01, 0] });
+  const a = ov.addNoteNode(o, { title: 'a', summary: 'x', vec: embedVec([1, 0, 0]) });
+  const b = ov.addNoteNode(o, { title: 'b', summary: 'x', vec: embedVec([0.99, 0.01, 0]) });
   const before = judge.dupClusters(o);
   ok('dupClusters surfaces the recall cluster before distinct', before.length === 1 && before[0].length === 2);
   ov.markClusterDistinct(o, before[0]);

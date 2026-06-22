@@ -73,6 +73,7 @@ async function waitForPing(ms = 8000) {
   ok('default tools/list byte-identical to formatToolsList(TOOLS)', JSON.stringify(defaultList.result.tools) === baselinePayload);
   ok('default surface has no create_task', !defaultList.result.tools.some((t) => t.name === 'create_task'));
   ok('default surface includes ask_subconscious', defaultList.result.tools.some((t) => t.name === 'ask_subconscious'));
+  ok('default surface includes subconscious_search_context', defaultList.result.tools.some((t) => t.name === 'subconscious_search_context'));
   ok('default surface includes subconscious_idea_scheduler', defaultList.result.tools.some((t) => t.name === 'subconscious_idea_scheduler'));
   ok('default surface includes subconscious_assignment', defaultList.result.tools.some((t) => t.name === 'subconscious_assignment'));
 
@@ -148,6 +149,13 @@ async function waitForPing(ms = 8000) {
     assignmentTool.inputSchema.properties.action.enum.includes('accept') &&
     assignmentTool.inputSchema.properties.action.enum.includes('complete') &&
     assignmentTool.inputSchema.properties.action.enum.includes('submit_verdict'));
+  ok('subconscious_assignment schema exposes agentic search context inputs',
+    assignmentTool &&
+    assignmentTool.inputSchema.properties.search_context &&
+    assignmentTool.inputSchema.properties.context_query &&
+    assignmentTool.inputSchema.properties.query &&
+    assignmentTool.inputSchema.properties.k &&
+    assignmentTool.inputSchema.properties.max_rounds);
   ok('subconscious_assignment description is the preferred path',
     assignmentTool &&
     assignmentTool.description.includes('Preferred facade') &&
@@ -168,6 +176,10 @@ async function waitForPing(ms = 8000) {
     task_key: 'local/task',
     parent_task_keys: ['local/parent'],
     context_task_keys: ['note:ctx'],
+    search_context: true,
+    context_query: 'Need filtered Subconscious context',
+    k: 4,
+    max_rounds: 2,
     create_judge: true,
     repo_path: WS,
     base: 'orch/feature/test',
@@ -178,7 +190,31 @@ async function waitForPing(ms = 8000) {
     assignmentCalls[0].path === '/subconscious/assignment' &&
     assignmentCalls[0].body.action === 'prepare' &&
     assignmentCalls[0].body.create_judge === true &&
+    assignmentCalls[0].body.search_context === true &&
+    assignmentCalls[0].body.context_query === 'Need filtered Subconscious context' &&
+    assignmentCalls[0].body.k === 4 &&
+    assignmentCalls[0].body.max_rounds === 2 &&
     preparedAssignment.assignment.task_key === 'local/task');
+
+  assignmentCalls.length = 0;
+  await assignmentTool.run({
+    action: 'read',
+    workspace: WS,
+    task_key: 'local/task',
+    agent_id: 'dispatcher-a',
+    search_context: true,
+    context_query: 'Read filtered Subconscious context',
+    k: 2,
+    max_rounds: 2,
+  }, assignmentCall);
+  ok('subconscious_assignment read forwards agentic context query params',
+    assignmentCalls[0] &&
+    assignmentCalls[0].method === 'GET' &&
+    assignmentCalls[0].path.startsWith('/subconscious/assignment?') &&
+    assignmentCalls[0].path.includes('search_context=1') &&
+    assignmentCalls[0].path.includes('context_query=Read%20filtered%20Subconscious%20context') &&
+    assignmentCalls[0].path.includes('k=2') &&
+    assignmentCalls[0].path.includes('max_rounds=2'));
 
   assignmentCalls.length = 0;
   await assignmentTool.run({ action: 'accept', workspace: WS, task_key: 'local/task', agent_id: 'worker-a', session_id: 'sess-a' }, assignmentCall);
@@ -297,6 +333,55 @@ async function waitForPing(ms = 8000) {
   const drainTool = TOOLS.find((t) => t.name === 'drain_kb_queue');
   ok('drain_kb_queue exposes autoInject opt-out', drainTool && drainTool.inputSchema.properties.autoInject && drainTool.description.includes('Default auto-injects'));
   ok('inject_kb is on default MCP surface', TOOLS.some((t) => t.name === 'inject_kb'));
+
+  const searchContextTool = TOOLS.find((t) => t.name === 'subconscious_search_context');
+  ok('subconscious_search_context is on default MCP surface', !!searchContextTool);
+  ok('subconscious_search_context schema exposes task and query fields',
+    searchContextTool &&
+    searchContextTool.inputSchema.properties.agent_id &&
+    searchContextTool.inputSchema.properties.task_key &&
+    searchContextTool.inputSchema.properties.intent &&
+    searchContextTool.inputSchema.properties.situation &&
+    searchContextTool.inputSchema.properties.query);
+  ok('subconscious_search_context description advertises DAG and RAG steps',
+    searchContextTool &&
+    searchContextTool.description.includes('task-gated DAG') &&
+    searchContextTool.description.includes('broad RAG'));
+  let capturedSearchContext = null;
+  const searchContextOut = await searchContextTool.run({
+    agent_id: 'agent-a',
+    workspace: WS,
+    task_key: 'local/task',
+    intent: 'prepare worker context',
+    situation: 'Need filtered context before assignment',
+    k: 3,
+    include_internal: true,
+  }, (method, path, body) => {
+    capturedSearchContext = { method, path, body };
+    return {
+      ok: true,
+      subconscious_context: {
+        kind: 'subconscious_agentic_search_context',
+        search_steps: [{ mode: 'dag_task_gated' }, { mode: 'rag_broad' }],
+        context_task_keys: ['note:ctx'],
+      },
+    };
+  });
+  ok('subconscious_search_context runs POST /subconscious/search-context',
+    capturedSearchContext &&
+    capturedSearchContext.method === 'POST' &&
+    capturedSearchContext.path === '/subconscious/search-context');
+  ok('subconscious_search_context passes expected request shape',
+    capturedSearchContext &&
+    capturedSearchContext.body.agent_id === 'agent-a' &&
+    capturedSearchContext.body.task_key === 'local/task' &&
+    capturedSearchContext.body.intent === 'prepare worker context' &&
+    capturedSearchContext.body.k === 3 &&
+    capturedSearchContext.body.include_internal === true);
+  ok('subconscious_search_context returns route output',
+    searchContextOut &&
+    searchContextOut.subconscious_context &&
+    searchContextOut.subconscious_context.context_task_keys[0] === 'note:ctx');
 
   const subconsciousTool = TOOLS.find((t) => t.name === 'ask_subconscious');
   ok('ask_subconscious is on default MCP surface', !!subconsciousTool);
