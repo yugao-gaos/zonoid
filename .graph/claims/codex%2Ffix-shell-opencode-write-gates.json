@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-fix-write-gates",
   "branch": "orch/attempt/codex-fix-shell-opencode-write-gates",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T02:41:50.201Z",
-  "lease_until": "2026-06-22T03:41:50.201Z"
+  "lease_until": "2026-06-22T03:41:50.201Z",
+  "completed_at": "2026-06-22T02:53:42.145Z"
 }
