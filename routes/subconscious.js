@@ -235,7 +235,6 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
 
     const parentKeys = normalizeStringArray(b.parent_task_keys || b.blocked_by || b.blockedBy);
     const contextKeys = normalizeStringArray(b.context_task_keys || b.context_deps);
-    ensureTaskSnapshot(ctx, T, taskKey, b, b.subject || b.title || taskKey);
     let agenticSearchContext = null;
     const agenticContextScores = new Map();
     if (wantsAgenticContext(b)) {
