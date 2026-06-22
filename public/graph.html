@@ -4753,6 +4753,10 @@ function cloudDisplayTriplet(hex,opacity,profile){
   const lit=(profile&&profile.mode==='dashboard'?0.48:0.42)+o*0.52;
   return rgb.map(v=>Math.max(24,Math.min(255,Math.round(v*lit+lift))));
 }
+function cloudSearchTriplet(hex){
+  const rgb=cloudDisplayTriplet(hex,1,{ mode:'dashboard' });
+  return rgb.map(v=>Math.max(v,Math.min(255,Math.round(v*.68+255*.32))));
+}
 function disposeThreeMaterial(mat){
   if(Array.isArray(mat)) for(const m of mat) disposeThreeMaterial(m);
   else if(mat&&typeof mat.dispose==='function') mat.dispose();
@@ -4965,10 +4969,11 @@ function renderCloudThree(ctx){
   st.nodeByInstance=ctx.simNodes;
   const dummy=new THREE.Object3D();
   const nodeGeo=new THREE.SphereGeometry(1,ctx.profile.sphereSegments,ctx.profile.sphereRings);
-  const nodeMat=new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:.96, depthWrite:true, fog:false });
+  const nodeMat=new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:.96, depthWrite:true, fog:false, toneMapped:false });
   const nodeMesh=new THREE.InstancedMesh(nodeGeo,nodeMat,Math.max(1,ctx.simNodes.length));
   const linePositions=[];
   const lineColors=[];
+  const haloEntries=[];
   for(const n of ctx.simNodes){
     const p=ctx.cloudPoint3D(n,0);
     st.localPositions.set(n.id,new THREE.Vector3(p.x,p.y,p.z));
@@ -4989,24 +4994,48 @@ function renderCloudThree(ctx){
     const pos=st.localPositions.get(n.id);
     if(!pos) return;
     dummy.position.copy(pos);
-    dummy.scale.setScalar(Math.max(1.4,ctx.radiusOf(n)*ctx.profile.pointScale));
+    const emphasis=ctx.searchHighlight?ctx.searchHighlight(n):0;
+    const baseRadius=ctx.radiusOf(n)*ctx.profile.pointScale;
+    dummy.scale.setScalar(Math.max(1.4,baseRadius*(1+emphasis*.28)));
     dummy.updateMatrix();
     nodeMesh.setMatrixAt(i,dummy.matrix);
     const opacity=Math.max(0.08,Math.min(1,ctx.opacityOf(n)));
-    const rgb=cloudDisplayTriplet(ctx.colorOf(n),opacity,ctx.profile);
+    const rgb=emphasis?cloudSearchTriplet(ctx.colorOf(n)):cloudDisplayTriplet(ctx.colorOf(n),opacity,ctx.profile);
     const color=new THREE.Color(rgb[0]/255,rgb[1]/255,rgb[2]/255);
     nodeMesh.setColorAt(i,color);
+    if(emphasis>0){
+      haloEntries.push({ pos, radius:Math.max(3.6,baseRadius*(2.25+emphasis*.9)), color:rgb });
+    }
   });
   nodeMesh.instanceMatrix.needsUpdate=true;
   if(nodeMesh.instanceColor) nodeMesh.instanceColor.needsUpdate=true;
+  nodeMesh.renderOrder=2;
   st.nodeMesh=nodeMesh;
   st.root.add(nodeMesh);
   if(linePositions.length){
     const lineGeo=new THREE.BufferGeometry();
     lineGeo.setAttribute('position',new THREE.Float32BufferAttribute(linePositions,3));
     lineGeo.setAttribute('color',new THREE.Float32BufferAttribute(lineColors,3));
-    const lineMat=new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:ctx.profile.edgeOpacity, depthWrite:false, fog:false });
-    st.root.add(new THREE.LineSegments(lineGeo,lineMat));
+    const lineMat=new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:ctx.profile.edgeOpacity, depthWrite:false, fog:false, toneMapped:false });
+    const lines=new THREE.LineSegments(lineGeo,lineMat);
+    lines.renderOrder=1;
+    st.root.add(lines);
+  }
+  if(haloEntries.length){
+    const haloGeo=new THREE.SphereGeometry(1,ctx.profile.sphereSegments,ctx.profile.sphereRings);
+    const haloMat=new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:.34, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, toneMapped:false });
+    const haloMesh=new THREE.InstancedMesh(haloGeo,haloMat,haloEntries.length);
+    haloEntries.forEach((h,i)=>{
+      dummy.position.copy(h.pos);
+      dummy.scale.setScalar(h.radius);
+      dummy.updateMatrix();
+      haloMesh.setMatrixAt(i,dummy.matrix);
+      haloMesh.setColorAt(i,new THREE.Color(h.color[0]/255,h.color[1]/255,h.color[2]/255));
+    });
+    haloMesh.instanceMatrix.needsUpdate=true;
+    if(haloMesh.instanceColor) haloMesh.instanceColor.needsUpdate=true;
+    haloMesh.renderOrder=3;
+    st.root.add(haloMesh);
   }
   buildCloudThreeLabels(st);
   if(!st.raf) renderCloudThreeFrame(st,performance.now());
@@ -5839,7 +5868,7 @@ function renderCloud(d, opts={}){
     if(hop===undefined) return false;
     if(searchPhase==='hits') return hop===0;
     if(searchPhase==='activate') return hop<=currentActivationHop;
-    if(searchPhase==='prune') return finalNodeKeys.has(n.id)||hop<=pruneHopThreshold;
+    if(searchPhase==='prune') return finalNodeKeys.has(n.id)||fallbackFinalNodeKeys.has(n.id)||hop<=pruneHopThreshold;
     return finalNodeKeys.has(n.id)||fallbackFinalNodeKeys.has(n.id);
   };
   const searchNodeVisible=n=>searchNodeActive(n)||(n&&!n.archive&&fadingNodeKeys.has(n.id));
@@ -6090,7 +6119,8 @@ function renderCloud(d, opts={}){
   }
   const totalRelatedEdges=activeEdgeHops.size;
   const fallbackFinalEdgeKeys=new Set();
-  if(q&&searchPhase==='final'&&!finalRelatedKeys.size&&activeEdgeHops.size){
+  const needsSearchEdgeFallback=q&&(searchPhase==='prune'||searchPhase==='final')&&activeEdgeHops.size&&(searchPhase==='final'?!finalRelatedKeys.size:!stagedRelatedKeys.size);
+  if(needsSearchEdgeFallback){
     const addFallbackEdge=meta=>{
       if(!meta||fallbackFinalEdgeKeys.has(meta.key)) return;
       fallbackFinalEdgeKeys.add(meta.key);
@@ -6159,7 +6189,7 @@ function renderCloud(d, opts={}){
     }
     else if(q&&trace){
       const reranked=trace.rerankedKeys.size;
-      const shownEdges=searchPhase==='final'?(finalRelatedKeys.size||fallbackFinalEdgeKeys.size):((searchPhase==='activate'||searchPhase==='prune')?stagedRelatedKeys.size:0);
+      const shownEdges=searchPhase==='final'?(finalRelatedKeys.size||fallbackFinalEdgeKeys.size):((searchPhase==='activate'||searchPhase==='prune')?(stagedRelatedKeys.size||fallbackFinalEdgeKeys.size):0);
       const traceParts=['RAG '+trace.hitRank.size];
       if(searchPhase==='hits') traceParts.push('nodes');
       else {
@@ -6206,6 +6236,16 @@ function renderCloud(d, opts={}){
     const rgb=cloudDisplayTriplet(colorOf(n),Math.max(.42,opacityOf(n)),cloudProfile);
     return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},.62)`;
   };
+  const searchHighlight=n=>{
+    if(!q||!n||n.archive) return 0;
+    if(!trace) return (localSearch(n)||remoteMatch(n)) ? .95 : 0;
+    if(traceFinal(n)||traceReranked(n)) return 1;
+    if(traceHit(n)) return .92;
+    if(fallbackFinalNodeKeys.has(n.id)) return .82;
+    if(searchNodeActive(n)) return .72;
+    if(searchNodeVisible(n)) return .48;
+    return 0;
+  };
   const updateCloudStats=()=>{
     const statsElC = document.getElementById('flowstats');
     if (!statsElC) return;
@@ -6225,7 +6265,7 @@ function renderCloud(d, opts={}){
     surfaceEl:svgEl, hostEl, W, H, profile:cloudProfile, isOnboard,
     simNodes, renderedLinks, endId, cloudPoint3D,
     radiusOf, opacityOf, colorOf, linkOpacity,
-    showCloudLabel, cloudLabelText, hoverLabelText, labelBorder, onNodeClick
+    searchHighlight, showCloudLabel, cloudLabelText, hoverLabelText, labelBorder, onNodeClick
   })){
     if(getSim()) getSim().stop();
     setSig(sig);
