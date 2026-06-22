@@ -1267,66 +1267,10 @@ function decideOne(L, ctx) {
   const running = g.tasks.filter((t) => t.status === 'in_progress').length;
   const ghostWait = g.tasks.filter((t) => t.status === 'not_ready' && t.deps.some((d) => d.startsWith('ghost:'))).length;
 
-  // CAPACITY-FILL: spare concurrency this loop may use this tick. Tasks always win — they're spawned
-  // into headroom FIRST; the edge-judge then fans out PARALLEL efforts into whatever slots are LEFT.
+  // CAPACITY-FILL: spare concurrency this loop may use this tick. Tasks spawned by /next-action are
+  // user/task work only; judge/review queue drains are daemon-owned internal jobs run by headless-drain.
   // headroom = maxConcurrency − running (in-flight workers), floored at 0.
   const headroom = Math.max(0, L.config.maxConcurrency - running);
-
-  // Compute a PARALLEL judge directive that fills `headroom − spawnedThisTick` leftover slots, capped
-  // by the queue depth and judgeParallelCap, then CLAMPED to what the loop's remaining token budget can
-  // afford (≈ estPerTick per parallel effort). Charges L.spent for all K efforts so the loop still STOPS
-  // at tokenBudget even with judge work pending. Returns { parallel, budget } or null when no slots /
-  // empty queue / no budget. The per-effort budget is config.judge.budgetPerRun (items per /judge/next).
-  function judgeDirective(spawnedThisTick) {
-    // Same cap guards as the top of decideOne — never schedule judge work past budget/iteration caps.
-    if (L.spent > L.config.tokenBudget || L.iterations > L.config.maxIterations) return null;
-    const depth = judge.judgeQueueDepth(ov, g);
-    let slots = Math.min(Math.max(0, headroom - spawnedThisTick), depth, L.config.judgeParallelCap);
-    if (slots <= 0) return null;
-    // Token-budget clamp: each parallel judge effort costs ~estPerTick. The current tick already charged
-    // ONE estPerTick (above). Cap K so K × estPerTick fits the remaining budget; never overspend.
-    const est = L.config.estPerTick || 0;
-    if (est > 0) {
-      const affordable = Math.floor(remaining / est);
-      slots = Math.min(slots, Math.max(0, affordable));
-    }
-    if (slots <= 0) return null;
-    L.spent += slots * est;                                   // account for all K efforts so the loop stops at budget
-    const budget = (ov.config.judge?.budgetPerRun) ?? 6;
-    return { parallel: slots, budget };
-  }
-
-  // EAGER judge directive (task C) — the PRIMARY judge trigger, computed BEFORE the periodic drain.
-  // When a node was just added/wired its candidate edge-set was marked in ov.eagerJudge; dispatch a
-  // node-scoped judge for each pending node THIS tick (one dispatch per node's WHOLE edge-set, never
-  // per-edge). CONCURRENCY CAP: a burst of node creation (planner minting 10 tasks) can't fork-bomb
-  // judges — take at most min(leftover slots, judgeParallelCap) nodes; the EXCESS stays queued in
-  // ov.eagerJudge and drains on the next tick as slots free. Token-clamped like judgeDirective so the
-  // loop still STOPS at budget. Returns { nodes:[key,...], budget } or null. eagerJudgeNodes() prunes
-  // already-drained marks as a pure side effect (persisted by the caller's save path).
-  function eagerJudgeDirective(spawnedThisTick) {
-    if (L.spent > L.config.tokenBudget || L.iterations > L.config.maxIterations) return null;
-    const pending = judge.eagerJudgeNodes(ov);   // self-prunes drained marks
-    if (!pending.length) return null;
-    let slots = Math.min(Math.max(0, headroom - spawnedThisTick), pending.length, L.config.judgeParallelCap);
-    if (slots <= 0) return null;
-    const est = L.config.estPerTick || 0;
-    if (est > 0) {
-      const affordable = Math.floor(remaining / est);
-      slots = Math.min(slots, Math.max(0, affordable));
-    }
-    if (slots <= 0) return null;
-    L.spent += slots * est;                                   // account for the K node-judges so the loop stops at budget
-    const budget = (ov.config.judge?.budgetPerRun) ?? 6;
-    const dispatchNodes = pending.slice(0, slots);
-    // Lease each node atomically so concurrent loops skip it (double-dispatch guard, task 27).
-    let leased = false;
-    for (const nodeKey of dispatchNodes) {
-      if (overlayStore.acquireEagerJudgeLease(ov, nodeKey, L.id, 60000)) leased = true;
-    }
-    if (leased) saveDispatchOverlay(ws, ov);
-    return { nodes: dispatchNodes, budget };       // FIFO; excess stays marked for next tick
-  }
 
   // EXPENSIVE-TASK GATE (Lever 2): tasks carrying a metric spec (cost:"high" proxy) are held
   // for explicit user approval when cost_gate is enabled (ov.config.cost_gate:true, default off).
@@ -1381,44 +1325,13 @@ function decideOne(L, ctx) {
         if (overlayStore.acquireSpawnLease(ov, t.id, L.id, 60000)) leased = true;
       }
       if (leased) saveDispatchOverlay(ws, ov);
-      const dec = withWire({ ...base, action: 'spawn', tasks: picked.map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll });
-      // A SINGLE heartbeat does BOTH: tasks first, then judge into the leftover slots. EAGER (task C)
-      // is the PRIMARY judge trigger — node-scoped dispatch for freshly-wired nodes. Account for the
-      // eager nodes' slot use so the periodic drain only fills what eager left. The periodic depth
-      // drain is now a FALLBACK: it runs only with the slots eager did not consume.
-      const eg = eagerJudgeDirective(take);
-      if (eg) dec.eager = eg;
-      const jd = judgeDirective(take + (eg ? eg.nodes.length : 0));
-      if (jd) dec.judge = jd;
-      return dec;
+      return withWire({ ...base, action: 'spawn', tasks: picked.map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll });
     }
     // Pool exhausted by earlier loops this tick — idle briefly and retry next heartbeat.
     return withWire({ ...base, action: 'idle', reason: 'spawn batch exhausted this tick', next_poll_seconds: L.config.minPoll });
   }
-  // CAPACITY-FILL self-learning (LOW priority — strictly after spawn): no ready task spawned this tick
-  // (none ready, or no headroom). If the edge-judge queue has pending work and there are leftover slots
-  // AND the budget/iteration cap is NOT exhausted (judgeDirective re-checks + clamps to budget), fan out
-  // K parallel judge efforts. Token accounting: L.iterations + one estPerTick were advanced above, and
-  // judgeDirective charges the K efforts onto L.spent, so the loop still STOPS at its budget even with
-  // judge work pending (next tick the cap guard fires first). Empty queue / no slots → fall through to
-  // the in-flight / ghost-wait / drained idle branches exactly as before.
-  // EAGER (task C) is the PRIMARY judge trigger: a freshly-wired node is dispatched node-scoped THIS
-  // tick, ahead of the periodic depth drain. One dispatch per node's whole edge-set; the concurrency
-  // cap holds a creation burst to judgeParallelCap, the excess draining on later ticks.
-  const eg = eagerJudgeDirective(0);
-  if (eg) {
-    // Periodic drain becomes a FALLBACK that only fills slots eager left this tick (it may be empty).
-    const jd2 = judgeDirective(eg.nodes.length);
-    const dec = withWire({ ...base, action: 'judge_eager', nodes: eg.nodes, budget: eg.budget, next_poll_seconds: L.config.minPoll });
-    if (jd2) dec.judge = { parallel: jd2.parallel, budget: jd2.budget };
-    return dec;
-  }
-  // FALLBACK: no eager nodes pending — periodic depth-driven drain (task D adds timeout-fallback
-  // semantics; here it is simply no longer the PRIMARY trigger).
-  const jd = judgeDirective(0);
-  if (jd) {
-    return withWire({ ...base, action: 'judge_edges', parallel: jd.parallel, budget: jd.budget, next_poll_seconds: L.config.minPoll });
-  }
+  // Review/edge-judge queues may still have due work here. They are intentionally absent from the
+  // loop action surface: the daemon's headless drain runner owns discovery, leasing, and execution.
   if (running > 0) return withWire({ ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(L.config.maxPoll, L.config.minPoll * 2) });
   if (ghostWait > 0) return withWire({ ...base, action: 'idle', reason: 'waiting on cross-workspace dependencies', next_poll_seconds: L.config.maxPoll });
   // ONLY unwired ready tasks remain: the DAG is NOT drained — they become spawnable once wired.
