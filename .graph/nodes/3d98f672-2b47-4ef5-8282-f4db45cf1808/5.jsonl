@@ -1,3 +1,4 @@
 {"evt":"edge_added","from":"3d98f672-2b47-4ef5-8282-f4db45cf1808/5","to":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:50:59.522Z","weight":0.6,"origin":"asserted"}
 {"evt":"edge_promoted","from":"3d98f672-2b47-4ef5-8282-f4db45cf1808/5","to":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:51:46.305Z","weight":0.6,"origin":"asserted"}
 {"evt":"edge_promoted","from":"3d98f672-2b47-4ef5-8282-f4db45cf1808/5","to":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:53:08.005Z","weight":0.6,"origin":"asserted"}
+{"evt":"edge_promoted","from":"3d98f672-2b47-4ef5-8282-f4db45cf1808/5","to":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:53:28.755Z","weight":0.6,"origin":"asserted"}
