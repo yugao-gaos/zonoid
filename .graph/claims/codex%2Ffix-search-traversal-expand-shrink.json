@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "019eed39-a944-7352-8ff3-007c6ea30cdc",
   "branch": "orch/attempt/codex-fix-search-traversal-expand-shrink",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T17:35:29.023Z",
-  "lease_until": "2026-06-22T18:35:29.023Z"
+  "lease_until": "2026-06-22T18:35:29.023Z",
+  "completed_at": "2026-06-22T17:42:35.912Z"
 }
