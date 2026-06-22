@@ -48,3 +48,6 @@
 {"evt":"status_changed","id":"codex/consolidate-universal-skills","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-21T02:33:32.350Z"}
 {"evt":"timestamps_set","id":"codex/consolidate-universal-skills","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-21T01:40:46.127Z","lastChanged":"2026-06-21T02:33:34.130Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-21T02:38:47.218Z"}
 {"evt":"edge_added","from":"codex/consolidate-universal-skills","to":"codex/consolidate-universal-skills-judge","kind":"blocking","actor":"overlay-sync","ts":"2026-06-22T14:07:57.767Z","origin":"subconscious-assignment"}
+{"evt":"status_changed","id":"codex/consolidate-universal-skills","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-22T14:09:19.114Z"}
+{"evt":"assignee_set","id":"codex/consolidate-universal-skills","workspace":"/Users/imyu/Desktop/zonoid","assignee":"auto-consolidate-universal-skills","actor":"overlay-sync","ts":"2026-06-22T14:09:19.114Z"}
+{"evt":"timestamps_set","id":"codex/consolidate-universal-skills","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-21T01:40:46.127Z","lastChanged":"2026-06-22T14:09:19.088Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-22T14:09:19.114Z"}
