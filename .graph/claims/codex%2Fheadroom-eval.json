@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/headroom-eval",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "019eefb2-0bb5-7053-886f-bc09b422bff0",
+  "branch": "orch/attempt/codex-headroom-eval",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T14:19:27.408Z",
+  "lease_until": "2026-06-22T15:19:27.408Z"
+}
