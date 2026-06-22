@@ -4855,7 +4855,7 @@ function ensureCloudThreeState(ctx){
     if(hover!==st.hoverNode){
       st.hoverNode=hover||null;
       layer.style.cursor=hover&&st.ctx&&!st.ctx.isOnboard?'pointer':'grab';
-      buildCloudThreeLabels(st);
+      if(st.ctx) renderCloudThree(st.ctx);
     }
   });
   layer.addEventListener('pointerup',ev=>{
@@ -4870,7 +4870,7 @@ function ensureCloudThreeState(ctx){
     if(st.hoverNode){
       st.hoverNode=null;
       layer.style.cursor='grab';
-      buildCloudThreeLabels(st);
+      if(st.ctx) renderCloudThree(st.ctx);
     }
   });
   layer.addEventListener('wheel',ev=>{
@@ -4974,7 +4974,6 @@ function renderCloudThree(ctx){
   const linePositions=[];
   const lineColors=[];
   const coreEntries=[];
-  const haloEntries=[];
   for(const n of ctx.simNodes){
     const p=ctx.cloudPoint3D(n,0);
     st.localPositions.set(n.id,new THREE.Vector3(p.x,p.y,p.z));
@@ -4995,7 +4994,8 @@ function renderCloudThree(ctx){
     const pos=st.localPositions.get(n.id);
     if(!pos) return;
     dummy.position.copy(pos);
-    const emphasis=ctx.searchHighlight?ctx.searchHighlight(n):0;
+    const hoverEmphasis=n===st.hoverNode?0.95:0;
+    const emphasis=Math.max(ctx.searchHighlight?ctx.searchHighlight(n):0,hoverEmphasis);
     const baseRadius=ctx.radiusOf(n)*ctx.profile.pointScale;
     dummy.scale.setScalar(Math.max(1.4,baseRadius*(1+emphasis*.28)));
     dummy.updateMatrix();
@@ -5006,7 +5006,6 @@ function renderCloudThree(ctx){
     nodeMesh.setColorAt(i,color);
     if(emphasis>0){
       coreEntries.push({ pos, radius:Math.max(1.8,baseRadius*(0.86+emphasis*.3)) });
-      haloEntries.push({ pos, radius:Math.max(3.6,baseRadius*(2.25+emphasis*.9)) });
     }
   });
   nodeMesh.instanceMatrix.needsUpdate=true;
@@ -5036,20 +5035,6 @@ function renderCloudThree(ctx){
     coreMesh.instanceMatrix.needsUpdate=true;
     coreMesh.renderOrder=4;
     st.root.add(coreMesh);
-  }
-  if(haloEntries.length){
-    const haloGeo=new THREE.SphereGeometry(1,ctx.profile.sphereSegments,ctx.profile.sphereRings);
-    const haloMat=new THREE.MeshBasicMaterial({ color:0xa7f3ff, transparent:true, opacity:.42, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, toneMapped:false });
-    const haloMesh=new THREE.InstancedMesh(haloGeo,haloMat,haloEntries.length);
-    haloEntries.forEach((h,i)=>{
-      dummy.position.copy(h.pos);
-      dummy.scale.setScalar(h.radius);
-      dummy.updateMatrix();
-      haloMesh.setMatrixAt(i,dummy.matrix);
-    });
-    haloMesh.instanceMatrix.needsUpdate=true;
-    haloMesh.renderOrder=3;
-    st.root.add(haloMesh);
   }
   buildCloudThreeLabels(st);
   if(!st.raf) renderCloudThreeFrame(st,performance.now());
