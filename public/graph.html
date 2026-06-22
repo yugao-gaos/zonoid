@@ -6948,12 +6948,13 @@ function completeOnboardLearning() {
 }
 
 function onboardStatusComplete(s) {
-  return !!(s && (s.done === true || s.active === false) && (s.injected || (!s.autoInject && s.needsReview === false) || onboardStatusDrained(s)));
+  return !!(s && (onboardStatusDrained(s) || (s.done === true && (s.injected || (!s.autoInject && s.needsReview === false)))));
 }
 
 function onboardStatusDrained(s) {
-  if (!s || s.error || (s.done !== true && s.active !== false)) return false;
+  if (!s || s.error) return false;
   const total = Math.max(0, Number(s.total) || 0);
+  if (total <= 0) return false;
   const remaining = Math.max(0, Number(s.remaining) || 0);
   const processed = typeof s.processed === 'number' ? s.processed : Math.max(0, total - remaining);
   const visualProcessed = Math.max(processed, Number(s.visualProcessed) || 0);

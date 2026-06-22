@@ -14,6 +14,12 @@ const ok = (label, cond) => {
 };
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'graph.html'), 'utf8');
+const functionBody = (name) => {
+  const match = html.match(new RegExp(`function ${name}\\(s\\) \\{([\\s\\S]*?)\\n\\}`));
+  return match ? match[1] : '';
+};
+const drainedBody = functionBody('onboardStatusDrained');
+const completeBody = functionBody('onboardStatusComplete');
 
 ok('landing root exists', html.includes('id="onboard-landing"'));
 ok('pending mode hides dashboard shell', /body\.onboarding-pending\s+header[\s\S]*body\.onboarding-pending\s+#statusDock[\s\S]*body\.onboarding-pending\s+\.wrap/.test(html));
@@ -35,6 +41,8 @@ ok('resume predicate covers incomplete recovered inactive statuses', /function o
 ok('shared cloud renderer is reused for onboarding', html.includes("renderCloud(buildOnboardCloudState(status), { mode: 'onboard'"));
 ok('manual review inject action hidden from default landing', !html.includes('id="onboardInjectBtn"') && !html.includes('Inject reviewed notes'));
 ok('completed drained auto-inject queue can finish with injected zero', /function onboardStatusDrained\(s\) \{[\s\S]*remaining === 0 && inflight === 0 && Math\.max\(processed, visualProcessed\) >= total[\s\S]*function onboardStatusNeedsResume/.test(html) && /function onboardStatusComplete\(s\) \{[\s\S]*onboardStatusDrained\(s\)/.test(html));
+ok('drained predicate does not require done or inactive status', drainedBody && !/\bs\.done\b|\bs\.active\b/.test(drainedBody) && drainedBody.includes('if (total <= 0) return false') && drainedBody.includes('remaining === 0 && inflight === 0') && drainedBody.includes('Math.max(processed, visualProcessed) >= total'));
+ok('done-false full-drain status completes through drained predicate', completeBody.includes('onboardStatusDrained(s) ||') && html.includes('if (!s.done && !drained)') && /if \(drained\) \{[\s\S]*setTimeout\(completeOnboardLearning, 1000\)/.test(html));
 ok('drained no-injection status opens dashboard with clear copy', html.includes('no reviewed notes were injected. Opening dashboard...') && /if \(drained\) \{[\s\S]*setTimeout\(completeOnboardLearning, 1000\)/.test(html));
 ok('onboarding cloud limits foreground labels', html.includes('const onboardLabelIds = new Set()') && html.includes('isOnboard?onboardLabelIds.has(n.id)'));
 ok('onboarding labels move full titles to hover and title text', html.includes("[n.t.label,n.t.description].filter(Boolean).join('\\n')") && /if\(isOnboard\)\{[\s\S]*on\('mouseenter'[\s\S]*truncate\(n\.t\.label,18\)/.test(html));
