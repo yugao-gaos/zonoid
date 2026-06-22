@@ -48,8 +48,9 @@ ok('done-false full-drain status completes through drained predicate', completeB
 ok('drained no-injection status opens dashboard with clear copy', html.includes('no reviewed notes were injected. Opening dashboard...') && /if \(drained\) \{[\s\S]*setTimeout\(completeOnboardLearning, 1000\)/.test(html));
 ok('completion persists reload latch and clears pending outDir', /function completeOnboardLearning\(\) \{[\s\S]*localStorage\.setItem\(onboardCompletedKey\(\), '1'\);[\s\S]*localStorage\.removeItem\(onboardStoreKey\('outdir'\)\)/.test(html));
 ok('new enqueue clears completed latch before mining', /if \(!outDir\) \{[\s\S]*localStorage\.removeItem\(onboardCompletedKey\(\)\);[\s\S]*dfetch\('\/onboard\/enqueue'/.test(html));
-ok('onboarding cloud uses projected 3d point layout', html.includes('const projectOnboardNode=(n,elapsed=0)=>') && html.includes('n.vz=Math.max(-1,Math.min(1,rz))') && html.includes('projectedDepth(n)'));
-ok('onboarding cloud bypasses force simulation collapse', /if\(isOnboard\)\{[\s\S]*if\(getSim\(\)\) getSim\(\)\.stop\(\);[\s\S]*placeCloud\(\);[\s\S]*setSig\(sig\);[\s\S]*\} else if\(q\)/.test(html));
+ok('cloud uses shared projected 3d point layout', html.includes('const usePointCloud=true') && html.includes('const projectCloudNode=(n,elapsed=0)=>') && html.includes('n.vz=Math.max(-1,Math.min(1,rz))') && html.includes('projectedDepth(n)'));
+ok('dashboard cloud also bypasses force simulation collapse', /if\(usePointCloud\)\{[\s\S]*if\(getSim\(\)\) getSim\(\)\.stop\(\);[\s\S]*placeCloud\(\);[\s\S]*setSig\(sig\);[\s\S]*\} else if\(q\)/.test(html));
+ok('dashboard search fit uses projected coordinates', html.includes('Number.isFinite(n.vx)?n.vx:n.x') && html.includes('Number.isFinite(n.vy)?n.vy:n.y'));
 ok('onboarding point cloud limits labels to sparse foreground', html.includes('const onboardLimit = Math.min(3, Math.max(1, Math.ceil(simNodes.length / 32)))') && html.includes('projectedDepth(b) - projectedDepth(a)'));
 ok('onboarding cloud limits foreground labels', html.includes('const onboardLabelIds = new Set()') && html.includes('isOnboard?onboardLabelIds.has(n.id)'));
 ok('onboarding labels move full titles to hover and title text', html.includes("[n.t.label,n.t.description].filter(Boolean).join('\\n')") && /if\(isOnboard\)\{[\s\S]*on\('mouseenter'[\s\S]*truncate\(n\.t\.label,18\)/.test(html));

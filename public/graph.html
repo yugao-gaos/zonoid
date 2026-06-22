@@ -4628,6 +4628,7 @@ let cloudSim=null;             // live d3 force simulation
 const cloudPos={};             // id -> {x,y} preserved across ticks so it doesn't re-jiggle
 let cloudArchiveOpen=false;    // whether the server-archive bundle is expanded
 let cloudSig='';               // signature of node/link set; only reheat sim when it changes
+let cloudRaf=null;             // projected cloud animation frame
 let cloudSearchText='';        // current force-cloud search query
 let cloudSearchKeys=new Set(); // ids returned by /search for the current force-cloud query
 let cloudSearchResolvedText='';
@@ -4665,7 +4666,7 @@ function scheduleCloudSearchFrames(seq){
 }
 function fitCloudToNodes(svg,W,H,nodes,key){
   if(!cloudZoom||!key||cloudSearchFitKey===key||!nodes.length) return;
-  const xs=nodes.map(n=>n.x).filter(Number.isFinite), ys=nodes.map(n=>n.y).filter(Number.isFinite);
+  const xs=nodes.map(n=>Number.isFinite(n.vx)?n.vx:n.x).filter(Number.isFinite), ys=nodes.map(n=>Number.isFinite(n.vy)?n.vy:n.y).filter(Number.isFinite);
   if(!xs.length||!ys.length) return;
   let minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
   if(maxX-minX<80){ minX-=40; maxX+=40; }
@@ -5445,6 +5446,7 @@ function renderCloud(d, opts={}){
   const shouldAnimateCloud=isOnboard||opts.breathe;
   const svg=d3.select(svgEl);
   const posStore=isOnboard?onboardCloudRenderState.pos:cloudPos;
+  const usePointCloud=true;
   const getSim=()=>isOnboard?onboardCloudRenderState.sim:cloudSim;
   const setSim=v=>{ if(isOnboard) onboardCloudRenderState.sim=v; else cloudSim=v; };
   const getSig=()=>isOnboard?onboardCloudRenderState.sig:cloudSig;
@@ -5542,17 +5544,17 @@ function renderCloud(d, opts={}){
     for(let i=0;i<s.length;i++) h=((h<<5)-h+s.charCodeAt(i))|0;
     return (Math.abs(h)%10000)/10000;
   };
-  const onboardIndexOf=n=>{
+  const cloudIndexOf=n=>{
     const m=String(n.id||'').match(/\/(\d+)$/);
     return m?Number(m[1]):simNodes.indexOf(n);
   };
-  const projectOnboardNode=(n,elapsed=0)=>{
+  const projectCloudNode=(n,elapsed=0)=>{
     const count=Math.max(1,simNodes.length);
-    const idx=Math.max(0,onboardIndexOf(n));
+    const idx=Math.max(0,cloudIndexOf(n));
     const u=(idx+0.5)/count;
     const phi=Math.acos(1-2*u);
-    const theta=idx*2.3999632297+cloudHashUnit(n.id,'theta')*1.7+elapsed*0.2;
-    const shell=0.62+cloudHashUnit(n.id,'shell')*0.34;
+    const theta=idx*2.3999632297+cloudHashUnit(n.id,'theta')*1.7+elapsed*(isOnboard?0.2:0.12);
+    const shell=0.58+cloudHashUnit(n.id,'shell')*0.38;
     const sx=Math.cos(theta)*Math.sin(phi)*shell;
     const sy=Math.sin(theta)*Math.sin(phi)*shell;
     const sz=Math.cos(phi)*shell+n.z*0.28;
@@ -5569,15 +5571,15 @@ function renderCloud(d, opts={}){
     n.vz=Math.max(-1,Math.min(1,rz));
     n.vs=perspective;
   };
-  const projectedX=n=>isOnboard&&Number.isFinite(n.vx)?n.vx:n.x;
-  const projectedY=n=>isOnboard&&Number.isFinite(n.vy)?n.vy:n.y;
-  const projectedDepth=n=>isOnboard&&Number.isFinite(n.vz)?n.vz:n.z;
+  const projectedX=n=>n?(usePointCloud&&Number.isFinite(n.vx)?n.vx:n.x):undefined;
+  const projectedY=n=>n?(usePointCloud&&Number.isFinite(n.vy)?n.vy:n.y):undefined;
+  const projectedDepth=n=>n?(usePointCloud&&Number.isFinite(n.vz)?n.vz:n.z):0;
   for(const n of simNodes) n.z=cloudDepth(n.id);
   const maxAge=Math.max(1, ...simNodes.map(n=>n.age||0));
-  if(isOnboard) for(const n of simNodes) projectOnboardNode(n,0);
+  if(usePointCloud) for(const n of simNodes) projectCloudNode(n,0);
   const depthScale=n=>{
     const z=projectedDepth(n);
-    return isOnboard?0.62+((z+1)/2)*0.62:0.82+((z+1)/2)*0.34;
+    return usePointCloud?0.62+((z+1)/2)*0.62:0.82+((z+1)/2)*0.34;
   };
   const radiusOf=n=>{
     if(n.archive) return 16*depthScale(n);
@@ -5586,6 +5588,17 @@ function renderCloud(d, opts={}){
       if(n.t?.status==='in_progress') r+=2.2;
       if(n.t?.kind==='note') r+=1.2;
       return Math.max(2.4,r*depthScale(n));
+    }
+    if(usePointCloud){
+      let r=4.8+Math.min(9,n.deg*1.45);
+      if(n.tier==='fg') r*=1.16;
+      if(n.tier==='mid') r*=0.86;
+      if(n.tier==='bg') r*=0.58;
+      if(n.t?.kind==='note') r+=1;
+      if(n.t?.status==='in_progress') r+=1.6;
+      if(!n.archive && n.id===selected) r+=2.2;
+      if(n.age!=null) r*=(1-0.45*(n.age/maxAge));
+      return Math.max(2.5,r*depthScale(n));
     }
     let r=6+Math.min(12,n.deg*2); if(n.tier==='mid') r*=0.8; if(n.tier==='bg') r*=0.55; if(n.age!=null) r*=(1-0.5*(n.age/maxAge)); return Math.max(3,r*depthScale(n));
   };
@@ -5598,6 +5611,7 @@ function renderCloud(d, opts={}){
       return Math.max(0.1,o);
     }
     let o=n.tier==='fg'?1:n.tier==='mid'?0.55:0.25;
+    if(usePointCloud) o=n.tier==='fg'?0.92:n.tier==='mid'?0.5:0.22;
     if(n.age!=null) o*=(1-0.45*(n.age/maxAge));
     if(isInactive(n)) o*=0.25;
     o*=0.72+((projectedDepth(n)+1)/2)*0.28;
@@ -5735,6 +5749,7 @@ function renderCloud(d, opts={}){
     if(ns&&nt2&&isInactive(ns)&&isInactive(nt2)) o*=0.15;
     const depthAvg=(((ns&&Number.isFinite(projectedDepth(ns)))?projectedDepth(ns):0)+((nt2&&Number.isFinite(projectedDepth(nt2)))?projectedDepth(nt2):0))/2;
     if(isOnboard) return (l.kind==='context'?0.2:0.13)*(0.38+((depthAvg+1)/2)*0.62);
+    if(usePointCloud) o*=0.56+((depthAvg+1)/2)*0.44;
     o*=0.72+((depthAvg+1)/2)*0.28;
     if(q){
       if(searchEdgeFading(l)) return 0.1;
@@ -5748,7 +5763,7 @@ function renderCloud(d, opts={}){
 
   // restore prior positions so live polling doesn't re-scramble the layout
   for(const n of simNodes){
-    if(isOnboard){ n.x=cx; n.y=cy; projectOnboardNode(n,0); }
+    if(usePointCloud){ n.x=cx; n.y=cy; projectCloudNode(n,0); }
     else { const p=posStore[n.id]; if(p){ n.x=p.x; n.y=p.y; } else { n.x=cx+(Math.random()-0.5)*60; n.y=cy+(Math.random()-0.5)*60; } }
   }
 
@@ -5845,7 +5860,7 @@ function renderCloud(d, opts={}){
     const onboardLimit = Math.min(3, Math.max(1, Math.ceil(simNodes.length / 32)));
     simNodes
       .filter(n => !n.archive && n.t)
-      .sort((a, b) => onboardRank(a) - onboardRank(b) || projectedDepth(b) - projectedDepth(a) || (b.deg || 0) - (a.deg || 0) || onboardIndexOf(a) - onboardIndexOf(b))
+      .sort((a, b) => onboardRank(a) - onboardRank(b) || projectedDepth(b) - projectedDepth(a) || (b.deg || 0) - (a.deg || 0) || cloudIndexOf(a) - cloudIndexOf(b))
       .slice(0, onboardLimit)
       .forEach(n => onboardLabelIds.add(n.id));
   }
@@ -5873,12 +5888,13 @@ function renderCloud(d, opts={}){
   // only reheat the simulation when the node/link set actually changes
   const sig=simNodes.map(n=>n.id).sort().join(',')+'|'+simLinks.map(l=>endId(l.source)+'>'+endId(l.target)).sort().join(',')+'|archOpen:'+cloudArchiveOpen+'|archIds:'+archivedList.map(t=>t.id).sort().join(',');
   const placeCloud=()=>{
-    if(isOnboard) for(const n of simNodes) projectOnboardNode(n,Date.now()/1000);
+    const elapsed=q&&!isOnboard?0:Date.now()/1000;
+    if(usePointCloud) for(const n of simNodes) projectCloudNode(n,elapsed);
     const endpoint=e=>typeof e==='object'?e:byNode[e];
     linkAll
       .attr('x1',l=>projectedX(endpoint(l.source))).attr('y1',l=>projectedY(endpoint(l.source)))
       .attr('x2',l=>projectedX(endpoint(l.target))).attr('y2',l=>projectedY(endpoint(l.target)));
-    if(isOnboard){
+    if(usePointCloud){
       linkAll.attr('stroke-opacity', linkOpacity);
       nodeAll.sort((a,b)=>projectedDepth(a)-projectedDepth(b));
       nodeAll.select('circle').attr('r', radiusOf).attr('fill-opacity', opacityOf);
@@ -5888,13 +5904,13 @@ function renderCloud(d, opts={}){
     nodeAll.attr('transform', n=>{
       const x=projectedX(n), y=projectedY(n);
       posStore[n.id]={x,y,z:projectedDepth(n)};
-      if(isOnboard) return `translate(${x},${y})`;
+      if(usePointCloud) return `translate(${x},${y})`;
       const px=shouldAnimateCloud?Math.sin(t+n.z*2.7)*n.z*10:0;
       const py=shouldAnimateCloud?Math.cos(t*.8+n.z*2.1)*n.z*6:0;
       return `translate(${n.x+px},${n.y+py})`;
     });
   };
-  if(isOnboard){
+  if(usePointCloud){
     if(getSim()) getSim().stop();
     placeCloud();
     setSig(sig);
@@ -5916,21 +5932,28 @@ function renderCloud(d, opts={}){
   } else {
     placeCloud();
   }
-  if(isOnboard){
-    if(onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
+  if(usePointCloud){
+    if(isOnboard&&onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
+    if(!isOnboard&&cloudRaf) cancelAnimationFrame(cloudRaf);
     let lastFrame=0;
-    const animateOnboardCloud=ts=>{
-      if(!svgEl.isConnected || !document.body.classList.contains('onboarding-pending')){
-        onboardCloudRenderState.raf=null;
+    const animateProjectedCloud=ts=>{
+      const inactive=isOnboard?!document.body.classList.contains('onboarding-pending'):currentView!=='cloud';
+      if(!svgEl.isConnected || inactive){
+        if(isOnboard) onboardCloudRenderState.raf=null;
+        else cloudRaf=null;
         return;
       }
-      if(ts-lastFrame>=80){
+      if(ts-lastFrame>=(isOnboard?80:120)){
         placeCloud();
         lastFrame=ts;
       }
-      onboardCloudRenderState.raf=requestAnimationFrame(animateOnboardCloud);
+      const next=requestAnimationFrame(animateProjectedCloud);
+      if(isOnboard) onboardCloudRenderState.raf=next;
+      else cloudRaf=next;
     };
-    onboardCloudRenderState.raf=requestAnimationFrame(animateOnboardCloud);
+    const next=requestAnimationFrame(animateProjectedCloud);
+    if(isOnboard) onboardCloudRenderState.raf=next;
+    else cloudRaf=next;
   }
   const statsElC = document.getElementById('flowstats');
   if (statsElC) {
