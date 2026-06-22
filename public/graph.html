@@ -7616,11 +7616,29 @@ let onboardAutoStartInFlight = false;
 let onboardPollTimer = null;
 const ONBOARD_POLL_MS = 1200;
 
+async function hasInjectedOnboardNotes() {
+  try {
+    const res = await dfetch('/search?q=ingest&k=5');
+    const data = await res.json();
+    // /search returns { results: [...] } or an array directly — handle both.
+    const items = Array.isArray(data) ? data : (data.results || []);
+    return items.some(n => n.kind === 'note' && typeof n.title === 'string' && n.title.startsWith('[ingest]'));
+  } catch (e) {
+    return null;
+  }
+}
+
 async function checkOnboardingState() {
   const workspace = currentOnboardWorkspace();
   const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
 
   if (workspace && !storedOutDir && localStorage.getItem(onboardCompletedKey()) === '1') {
+    completeOnboardLearning();
+    return;
+  }
+
+  const onboardNotesPresent = await hasInjectedOnboardNotes();
+  if (onboardNotesPresent === true) {
     completeOnboardLearning();
     return;
   }
@@ -7650,7 +7668,7 @@ async function checkOnboardingState() {
           return;
         }
       } catch (e) {
-        // No existing default/legacy queue; continue to note detection and auto-start.
+        // No existing default/legacy queue; continue to auto-start.
       }
     }
   }
@@ -7678,25 +7696,12 @@ async function checkOnboardingState() {
         return;
       }
     } catch (e) {
-      // Fall through to note detection and auto-start. The status endpoint may be
+      // Fall through to auto-start. The status endpoint may be
       // unavailable before the queue has been created.
     }
   }
 
-  let notes = [];
-  try {
-    const res = await dfetch('/search?q=ingest&k=5');
-    const data = await res.json();
-    // /search returns { results: [...] } or an array directly — handle both.
-    const items = Array.isArray(data) ? data : (data.results || []);
-    notes = items.filter(n => n.kind === 'note' && typeof n.title === 'string' && n.title.startsWith('[ingest]'));
-  } catch (e) {
-    // If the endpoint fails, skip the check silently.
-    return;
-  }
-
-  if (notes.length > 0) {
-    completeOnboardLearning();
+  if (onboardNotesPresent === null) {
     return;
   }
 
