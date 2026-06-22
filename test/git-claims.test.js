@@ -103,8 +103,12 @@ try {
   ok('same git user and same session can observe its own live remote claim', cbSame.ok === true && cbSame.already_claimed === true, JSON.stringify(cbSame));
   const missingAcquire = claims.acquire(a, 'missing-identity/1', { agentId: 'local-agent-a', branch: 'orch/attempt/missing-identity-1', leaseMinutes: 30 });
   ok('acquire without session fails closed before writing a claim', missingAcquire.ok === false && missingAcquire.conflict === true && /session_id/.test(missingAcquire.error), JSON.stringify(missingAcquire));
+  const prePushHook = path.join(a, '.git', 'hooks', 'pre-push');
+  fs.writeFileSync(prePushHook, '#!/bin/sh\necho pre-push should be bypassed >&2\nexit 42\n');
+  fs.chmodSync(prePushHook, 0o755);
   const fa = claims.finalize(a, task, { agentId: 'different-local-agent', sessionId: 'sess-a', status: 'tested' });
-  ok('finalize releases and pushes claim audit', fa.ok === true && fa.pushed === true, JSON.stringify(fa));
+  fs.rmSync(prePushHook, { force: true });
+  ok('finalize releases and pushes claim audit while bypassing pre-push hooks', fa.ok === true && fa.pushed === true, JSON.stringify(fa));
   const released = JSON.parse(fs.readFileSync(path.join(a, claims.claimRelPath(task)), 'utf8'));
   ok('released git claim file keeps session lock identity', released.session_id === 'sess-a', JSON.stringify(released));
   ok('released git claim file keeps git user lock identity', released.git_user === 'alice <alice@example.test>', JSON.stringify(released));

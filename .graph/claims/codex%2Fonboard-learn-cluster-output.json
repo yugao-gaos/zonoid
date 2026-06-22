@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/onboard-learn-cluster-output",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "worker-onboard-learn-cluster-output-codex",
+  "branch": "orch/attempt/codex-onboard-learn-cluster-output",
+  "status": "done",
+  "claimed_at": "2026-06-21T15:17:42.872Z",
+  "lease_until": "2026-06-21T16:17:42.872Z",
+  "completed_at": "2026-06-21T15:24:26.294Z"
+}

@@ -35,35 +35,36 @@ REAL LLM eager-judge over autowire candidates, NOT a ceScore threshold):
                                               candidate IN PLACE (judged:true + real weight off the
                                               recall score) so it re-enters ranked retrieval;
                                               pruneEdge deletes it. Posted via client.post_verdict.
-  5. read = frozen judged DAG context  ...... client.get_task_context (GET /task/context) — the
-                                              kept context_deps (weight>0) are now the probe's frozen
-                                              context, exactly as a production task reads them once
-                                              the eager judge has run BEFORE the task goes ready.
+  5. read = production task search  ......... client.search(..., task_key=<probe>) — after eager
+                                              judgment, a settled probe returns system notes plus
+                                              frozen DAG context. It is DAG-only: semantic RAG is
+                                              not appended to that response.
 
 WHY a TASK probe + a LIVE-bound daemon (note-mqgwrh5a63x, note-mqh0gwz1mxc):
   - The eager judge is task-centric: /judge/next?node=, markEagerJudge, and the judging→ready gate
     all key off a TASK node, and autowire seeds NOTE→TASK candidate edges. So the unit is minted as
     a task PROBE (the question is its summary), not a note. A note is a context PROVIDER, never the
-    consumer that reads /task/context.
+    consumer that owns task-scoped retrieval.
   - keepEdge promotes a PRE-EXISTING weight-0 autowire candidate edge in place (lib/judge.js). It
     only fires for a candidate the daemon actually seeded. The canonical bench daemon intentionally
     drops the old hard floor via ORCH_AUTOWIRE_THRESHOLD=0.0 and bounds the candidate pool with
     ORCH_AUTOWIRE_K/top-K fan-out, so candidate selection is broad and the LLM EdgeJudge performs
     the keep/prune arbitration. There is still no createEdge rescue path.
   - /judge/next and the keepEdge save are HARD-BOUND to the daemon's live state.workspace
-    (routes/judge.js): a keepEdge on a non-live (isolated) workspace does not surface in
-    /task/context (note-mqgwrh5a63x). So the bench runs ONE embedded daemon per unit whose LIVE
+    (routes/judge.js): a keepEdge on a non-live (isolated) workspace is not visible to the settled
+    task-scoped read (note-mqgwrh5a63x). So the bench runs ONE embedded daemon per unit whose LIVE
     workspace IS the unit dir (daemon.start(workspace=)); the whole pipeline then operates on one
-    consistent in-memory + persisted overlay and the kept edge surfaces in /task/context.
+    consistent in-memory + persisted overlay and the kept edge surfaces through task-scoped
+    retrieval.
 
 Pluggable executor (design §5):
   - ``agent_in_container``   : build the AGENTS.md for a REAL agent with API-only memory/search
                                instructions; the bench spawns the agent and grades by its tests.
                                Returns AGENTS.md text + resolved context provenance (no LLM call
                                here).
-  - ``retrieve_and_answer``  : read the wired DAG context and answer via ``judge.claude_p`` (a
-                               tool-less completion), scored vs a gold answer (QA benches — can't
-                               spawn a real agent per 500 probes).
+  - ``retrieve_and_answer``  : read production ``/search?task_key=`` context and answer via
+                               ``judge.claude_p`` (a tool-less completion), scored vs a gold answer
+                               (QA benches — can't spawn a real agent per 500 probes).
 
 Contrast arms (design §5):
   - ``cold``                 : NO memory at all (rigging guard / floor). If cold scores as well as
@@ -548,6 +549,32 @@ def read_wired_context(client: ZonoidClient, node_key: str) -> list[dict[str, An
     ]
 
 
+def read_task_search_context(
+    client: ZonoidClient,
+    node_key: str,
+    query: str,
+    *,
+    k: int = 5,
+) -> list[dict[str, Any]]:
+    """Read the task-scoped production search response after eager judgment.
+
+    A settled probe is non-provisional, so ``/search?task_key=`` returns system notes plus
+    frozen DAG context and omits semantic RAG. A provisional probe may legitimately return a
+    RAG tier; callers preserve the daemon's tier instead of manufacturing a separate fill.
+    """
+    return client.search(query, k=k, gated=False, task_key=node_key)
+
+
+def task_search_context_label(hit: dict[str, Any]) -> str:
+    """Map production search tiers to answer-context labels without relabeling them as RAG."""
+    tier = str(hit.get("tier") or "dag")
+    if tier == "system":
+        return "SYSTEM"
+    if tier in {"dag", "dag-note", "surrounding"}:
+        return "DAG"
+    return tier.upper()
+
+
 # ---------------------------------------------------------------------------
 # Executor (a): agent_in_container — build AGENTS.md for a real agent
 # ---------------------------------------------------------------------------
@@ -682,7 +709,7 @@ def run_agent_in_container(
 
 
 # ---------------------------------------------------------------------------
-# Executor (b): retrieve_and_answer — read wired DAG + answer via claude_p
+# Executor (b): retrieve_and_answer - read task-scoped /search + answer via claude_p
 # ---------------------------------------------------------------------------
 
 def _answer_from_context(
@@ -711,69 +738,52 @@ def run_retrieve_and_answer(
     task_summary: Optional[str] = None,
     data_dir: Optional[str] = None,
     model: Optional[str] = None,
-    rag_k: int = 5,
+    context_k: int = 5,
 ) -> ArmResult:
-    """ON arm, executor (b): wire the DAG + RAG fill, read combined context, answer via claude_p.
+    """ON arm, executor (b): wire the DAG, read production /search?task_key context, answer via claude_p.
 
     For QA benches that can't spawn a real agent per probe (500+ units). The unit is minted as a
-    TASK PROBE so the read comes cleanly off GET /task/context; the question itself is the task
-    summary (so autowire ranks NOTE providers against the question's embedding and the eager judge
-    keeps/prunes them).
+    TASK PROBE so the settled read uses the production ``/search?task_key=`` task-scoped search
+    surface; the question itself is the task summary (so autowire ranks NOTE providers against the
+    question's embedding and the eager judge keeps/prunes them).
 
-    After the DAG wiring step we ALSO run a workspace-scoped, task-aware RAG search (/search with
-    the question and task_key=wiring.task_key, note-only via _is_note_hit filter) to catch relevant
-    session notes not kept by the DAG tier. We dedupe by note key and tag DAG-vs-RAG provenance in
-    the diagnostics on the returned WiringResult.
+    After eager judgment, the answerer makes the same task-scoped ``/search`` call as production.
+    A settled probe receives system context plus frozen DAG context; it does not get a hand-added
+    semantic RAG fill. If a probe remains provisional, any RAG tier is preserved only because the
+    daemon returned it.
 
-    The combined (DAG-kept + RAG-fill) context blocks are injected into the answer prompt.  The
-    answerer remains tool-less/MCP-off: WE retrieve and inject; the answer agent calls no tools.
-
-    Mirrors production search_knowledge(task_key) = DAG tier + RAG fill.
+    The returned production context blocks are injected into the answer prompt. The answerer
+    remains tool-less/MCP-off: WE retrieve and inject; the answer agent calls no tools.
 
     *task_summary* defaults to *question* (the FB convention — embed against the unit's text).
     *data_dir* is required (the file-drop stub destination); defaults to CLAUDE_PLUGIN_DATA or the
     standard orchestrator data dir.
-    *rag_k* is the top-k for the RAG fill search (default 5).
+    *context_k* is forwarded to the production task-scoped search (default 5).
     """
     summary = task_summary or question
     dd = data_dir or os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.join(
         os.path.expanduser("~"), ".claude", "orchestrator"
     )
     wiring = run_canonical_wiring(client, unit_id, summary, data_dir=dd)
-    ctx_deps = read_wired_context(client, wiring.task_key)
-
-    # --- DAG tier (eager-judge kept edges) ---
-    dag_keys: set[str] = set()
     context_blocks: list[str] = []
     all_context_keys: list[str] = []
-    for d in ctx_deps:
-        key = d.get("key") or ""
-        text = str(d.get("summary") or "")
-        if text.strip():
-            context_blocks.append(f"[DAG] {text}")
-        if key:
-            dag_keys.add(key)
-            all_context_keys.append(key)
-
-    # --- RAG fill (semantic search, note-only, dedupe against DAG tier) ---
-    rag_keys: list[str] = []
+    seen_keys: set[str] = set()
     try:
-        raw_hits = client.search(question, k=rag_k * 3, gated=False, task_key=wiring.task_key)
-        note_hits = [h for h in raw_hits if _is_note_hit(h)][:rag_k]
-        for h in note_hits:
+        raw_hits = read_task_search_context(
+            client, wiring.task_key, question, k=context_k
+        )
+        for h in raw_hits:
             key = h.get("key") or ""
-            if key and key not in dag_keys:
-                text = str(h.get("summary") or "")
-                if text.strip():
-                    context_blocks.append(f"[RAG] {text}")
-                    rag_keys.append(key)
-                    all_context_keys.append(key)
-    except Exception as exc:  # noqa: BLE001 — RAG fill is best-effort
-        print(f"[arms] RAG fill search failed (non-fatal): {exc}", file=sys.stderr)
-
-    # Record RAG fill provenance on the wiring result for diagnostics.
-    if wiring is not None:
-        wiring.search_hits = list(dag_keys) + rag_keys  # dag kept + rag fill, for provenance
+            if not key or key in seen_keys:
+                continue
+            text = str(h.get("summary") or "")
+            if not text.strip():
+                continue
+            context_blocks.append(f"[{task_search_context_label(h)}] {text}")
+            seen_keys.add(key)
+            all_context_keys.append(key)
+    except Exception as exc:  # noqa: BLE001 — task-scoped search retrieval is best-effort
+        print(f"[arms] task-scoped context search failed (non-fatal): {exc}", file=sys.stderr)
 
     ctx_chars = sum(len(b) for b in context_blocks if b and b.strip())
     predicted, usage = _answer_from_context(question, context_blocks, model)
@@ -844,7 +854,7 @@ def run_rag_control(
 
 
 # ---------------------------------------------------------------------------
-# Smoke / verify — proves the eager-judge keepEdge PERSISTS in /task/context
+# Smoke / verify - proves the eager-judge keepEdge surfaces in task-scoped search context
 # ---------------------------------------------------------------------------
 
 def _smoke(daemon: Optional[str] = None) -> int:
@@ -859,11 +869,11 @@ def _smoke(daemon: Optional[str] = None) -> int:
       2. Ingest a planted note + an off-topic distractor note. The embedded canonical bench daemon
          uses threshold 0.0/top-K autowire, then EdgeJudge keeps or prunes candidates.
       3. run_retrieve_and_answer on the planted fact: mint probe → autowire seeds the candidate →
-         EAGER JUDGE keeps it (keepEdge promotes in place) → read /task/context.
+         EAGER JUDGE keeps it (keepEdge promotes in place) → read /search?task_key.
     Assertions:
       A1  ON answer CONTAINS the planted fact.
-      A2  the eager-judge keepEdge PERSISTED — the planted note surfaces in /task/context
-          (on.context_keys), and wiring.wired_edges came from a keepEdge verdict (NOT idle).
+      A2  the eager-judge keepEdge PERSISTED — the planted note surfaces in task-scoped search
+          context (on.context_keys), and wiring.wired_edges came from a keepEdge verdict (NOT idle).
       A3  cold answer does NOT contain the fact (rigging guard).
     Also runs an off-topic probe and REPORTS (does not assert) whether the distractor surfaced under
     the current daemon candidate policy.
@@ -1023,9 +1033,9 @@ def _smoke(daemon: Optional[str] = None) -> int:
         print(f"  [{'PASS' if on_has else 'FAIL'}] A1 ON answer CONTAINS planted fact {secret!r}")
         ok = ok and on_has
 
-        # A2: the eager-judge keepEdge PERSISTED — the planted note is in /task/context AND it was
-        # KEPT by the judge (came via keepEdge, not idle). This is the spike's old failure mode
-        # (empty context_keys) being explicitly guarded.
+        # A2: the eager-judge keepEdge PERSISTED — the planted note is in task-scoped search context
+        # AND it was KEPT by the judge (came via keepEdge, not idle). This is the spike's old failure
+        # mode (empty context_keys) being explicitly guarded.
         kept_planted = bool(note_key and note_key in (on.context_keys or []))
         from_keep = bool(w and w.wired_edges and not w.judge_idle)
         a2 = kept_planted and from_keep

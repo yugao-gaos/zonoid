@@ -21,6 +21,12 @@ A **deterministic** ~15-instance subset of the FeatureBench `fast` split
 Repos: `pandas-dev/pandas`, `astropy/astropy`, `sphinx-doc/sphinx`, `mwaskom/seaborn`,
 `sympy/sympy`.
 
+## Settled task context
+
+The active SDK ON arm uses the production task-scoped search response after eager judgment. A
+settled probe receives system context plus its frozen DAG context; it does not receive an added
+semantic RAG fill. The plain-search RAG control remains a separate arm with no `task_key`.
+
 ## KB blocks — two variants per repo (NOT YET GENERATED — see Blocker)
 
 The pilot needs two ON arms per repo, each a markdown KB block injected as `AGENTS.md`:

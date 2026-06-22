@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Tests for the judge nudge relayed by hooks/classify.sh via POST /classify.
+// Tests for Subconscious pressure relayed by hooks/classify.sh via POST /classify.
 // Strategy: pipe a synthetic prompt JSON into classify.sh with a stub curl on PATH that
-// returns a controlled /classify response. Verify the nudge line appears when present in
+// returns a controlled /classify response. Verify the pressure line appears when present in
 // additional_context, is absent when omitted, and is absent when ORCH_GATE_OFF=1.
 //
 // Pattern mirrors test/orch-gate-bash.test.js: spawnSync the hook, inject stub curl.
@@ -53,12 +53,12 @@ ${HEARTBEAT}`;
 
 ok('BASE_CTX heartbeat matches classify HEARTBEAT constant', BASE_CTX.includes(HEARTBEAT));
 
-const JUDGE_NUDGE = `[Judge] backlog: 35 items (3 dup-clusters) — dispatch ONE background self-learn-edge-judge subagent (model: sonnet — NOT haiku, verdict discrimination degrades; budget 20) this turn; do not block the user's request on it. The subagent MUST: (1) call mcp__orchestrator-graph__start_task with task_key="followup/harness-judge-drain" and agent_id="judge-drain-deadbeef" BEFORE judging; (2) call mcp__orchestrator-graph__complete_task with the same task_key and agent_id, and a summary including the count of items judged, AFTER finishing.`;
+const JUDGE_PRESSURE = '[Subconscious pressure] judge backlog: 35 item(s) (3 duplicate cluster(s)) for followup/harness-judge-drain. Daemon/Subconscious owns maintenance orchestration; keep the foreground request flow and call ask_subconscious if this pressure changes the next action.';
 
 function mkClassifyStub(mode) {
   const dir = path.join(TMP, `stub-${mode}`);
   fs.mkdirSync(dir, { recursive: true });
-  const ctxWithJudge = `${BASE_CTX}\n${JUDGE_NUDGE}`;
+  const ctxWithJudge = `${BASE_CTX}\n${JUDGE_PRESSURE}`;
   const ctxNoJudge = BASE_CTX;
   fs.writeFileSync(path.join(dir, 'with-judge.json'), JSON.stringify({ additional_context: ctxWithJudge }));
   fs.writeFileSync(path.join(dir, 'no-judge.json'), JSON.stringify({ additional_context: ctxNoJudge }));
@@ -110,25 +110,22 @@ function extractCtx(stdout) {
   }
 }
 
-// ── Test 1: nudge:true → nudge line appears in additionalContext with claim instruction ─────────
+// ── Test 1: nudge:true → Subconscious pressure appears without manual drain recipes ────────────
 {
   const r = runHook(mkInput('hello world'), {
     PATH: stubNudgeDir + ':' + process.env.PATH,
     ORCH_GATE_OFF: '',   // explicitly unset
   });
   const ctx = extractCtx(r.stdout);
-  ok('nudge:true → hook output contains [Judge] line', ctx.includes('[Judge]'));
-  ok('nudge:true → line contains "backlog"', ctx.includes('backlog'));
+  ok('nudge:true → hook output contains Subconscious pressure line', ctx.includes('[Subconscious pressure]'));
+  ok('nudge:true → pressure line contains "backlog"', ctx.includes('backlog'));
   ok('nudge:true → depth 35 present', ctx.includes('35'));
-  ok('nudge:true → dupClusters 3 present', ctx.includes('3 dup-cluster'));
-  ok('nudge:true → dispatch instruction present', ctx.includes('self-learn-edge-judge'));
-  // Model pin: judge verdicts degrade to rubber-stamp keeps on haiku (user decision 2026-06-12)
-  ok('nudge:true → sonnet model pin present', ctx.includes('model: sonnet'));
-  // Claim instruction: subagent must call start_task and complete_task with harness task key
-  ok('nudge:true → start_task claim instruction present', ctx.includes('start_task'));
-  ok('nudge:true → harness task key in nudge text', ctx.includes('followup/harness-judge-drain'));
-  ok('nudge:true → complete_task instruction present', ctx.includes('complete_task'));
-  ok('nudge:true → agent_id prefix "judge-drain-" present', ctx.includes('judge-drain-'));
+  ok('nudge:true → dupClusters 3 present', ctx.includes('3 duplicate cluster'));
+  ok('nudge:true → harness task key in pressure text', ctx.includes('followup/harness-judge-drain'));
+  ok('nudge:true → asks foreground to use ask_subconscious', ctx.includes('ask_subconscious'));
+  ok('nudge:true → no direct MCP start_task recipe', !ctx.includes('mcp__orchestrator-graph__start_task'));
+  ok('nudge:true → no direct MCP complete_task recipe', !ctx.includes('mcp__orchestrator-graph__complete_task'));
+  ok('nudge:true → no drain agent_id recipe', !ctx.includes('judge-drain-'));
 }
 
 // ── Test 2: nudge:false → nudge line ABSENT ───────────────────────────────────────────────────
@@ -138,10 +135,10 @@ function extractCtx(stdout) {
     ORCH_GATE_OFF: '',
   });
   const ctx = extractCtx(r.stdout);
-  ok('nudge:false → [Judge] line absent', !ctx.includes('[Judge]'));
+  ok('nudge:false → Subconscious pressure line absent', !ctx.includes('[Subconscious pressure]'));
 }
 
-// ── Test 3: ORCH_GATE_OFF=1 → nudge line absent (bench sandbox protection) ───────────────────
+// ── Test 3: ORCH_GATE_OFF=1 → pressure line absent (bench sandbox protection) ────────────────
 {
   // Use the nudge:true stub — but ORCH_GATE_OFF=1 must suppress the nudge entirely.
   const r = runHook(mkInput('hello world'), {
@@ -149,19 +146,19 @@ function extractCtx(stdout) {
     ORCH_GATE_OFF: '1',
   });
   const ctx = extractCtx(r.stdout);
-  ok('ORCH_GATE_OFF=1 → [Judge] line absent even with nudge:true stub', !ctx.includes('[Judge]'));
+  ok('ORCH_GATE_OFF=1 → pressure line absent even with nudge:true stub', !ctx.includes('[Subconscious pressure]'));
   // The hook should still produce its other output (heartbeat, model routing, etc.)
   ok('ORCH_GATE_OFF=1 → hook still outputs other context (heartbeat)', ctx.includes('[Orchestrator heartbeat]'));
 }
 
-// ── Test 4: curl fails (no response) → fail-silent, no [Judge] line ──────────────────────────
+// ── Test 4: curl fails (no response) → fail-silent, no pressure line ─────────────────────────
 {
   const r = runHook(mkInput('hello world'), {
     PATH: stubNoResponseDir + ':' + process.env.PATH,
     ORCH_GATE_OFF: '',
   });
   const ctx = extractCtx(r.stdout);
-  ok('curl error → fail-silent: [Judge] line absent', !ctx.includes('[Judge]'));
+  ok('curl error → fail-silent: pressure line absent', !ctx.includes('[Subconscious pressure]'));
   ok('curl error → hook still exits 0', r.status === 0);
   ok('curl error → no hook output', ctx === '');
 }

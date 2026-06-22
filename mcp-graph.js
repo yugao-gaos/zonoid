@@ -4,10 +4,11 @@
 'use strict';
 const http = require('http');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
 const core = require('./lib/mcp-core');
 const { extraToolsForClient, resolveSession } = require('./lib/mcp-harness-tools');
 const { repoRoot } = require('./lib/workspace-registry');
+const { hasHeadlessDrainAncestor } = require('./lib/headless-ancestor');
 
 const CLIENT = String(process.env.ORCH_CLIENT || 'claude').trim() || 'claude';
 
@@ -22,17 +23,33 @@ const DAEMON = path.join(__dirname, 'daemon.js');
 // cwd is not inside a repo (callers tolerate null — see makeCall in lib/mcp-core.js).
 const WS = process.env.ORCH_WORKSPACE || repoRoot(process.cwd());
 const CALL = core.makeCall(PORT, WS);
-// Harness session fallback: Claude Desktop exposes CLAUDE_CODE_SESSION_ID and Codex exposes
-// CODEX_THREAD_ID. Without this, ctx.session is null and session-bound tools such as start_task
-// cannot inject the worker's real harness session into the claim.
+// Harness session fallback: Claude Desktop exposes CLAUDE_CODE_SESSION_ID and Codex may expose
+// CODEX_THREAD_ID. When Codex Desktop exposes neither, resolveSession creates a random key scoped
+// to this MCP process so session-bound tools can still use the shared timer substrate.
 const SESSION = resolveSession({ client: CLIENT }) || null;
-const CLIENT_EXTRA = extraToolsForClient(CLIENT, WS, { session: SESSION });
+const CLIENT_EXTRA = extraToolsForClient(CLIENT, WS, { session: SESSION, workspace: WS });
 
 function daemonEnv() {
   const env = { ...process.env };
   delete env.ZONOID_HARNESS;
   delete env.ORCH_CLIENT;
   return env;
+}
+
+function hasDaemonProcess() {
+  if (PORT !== 8787) return false;
+  try {
+    const out = execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' });
+    return out.split(/\r?\n/).some((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      const m = trimmed.match(/^(\d+)\s+(.+)$/);
+      if (!m || Number(m[1]) === process.pid) return false;
+      return /(?:^|\s)\S*\/daemon\.js(?:\s|$)/.test(m[2]);
+    });
+  } catch {
+    return false;
+  }
 }
 
 // ---- boot the daemon if it isn't up (hookless environments) ----
@@ -45,7 +62,15 @@ function ping() {
 }
 let ensuring = null;
 async function ensureDaemon() {
+  if (hasHeadlessDrainAncestor()) return;
   if (await ping()) return;
+  if (hasDaemonProcess()) {
+    for (let i = 0; i < 20; i++) {
+      if (await ping()) return;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return;
+  }
   if (!ensuring) ensuring = (async () => {
     try { spawn(process.execPath, [DAEMON], { detached: true, stdio: 'ignore', env: daemonEnv(), windowsHide: true }).unref(); } catch { /* ignore */ }
     for (let i = 0; i < 40; i++) { if (await ping()) break; await new Promise((r) => setTimeout(r, 100)); }

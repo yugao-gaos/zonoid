@@ -1,0 +1,9 @@
+{
+  "task_key": "cursor/bbb",
+  "git_user": "YU GAO <yu.gao@gaos.ca>",
+  "session_id": "fd-worker-sid",
+  "branch": "orch/attempt/cursor-bbb",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:03:18.198Z",
+  "lease_until": "2026-06-21T04:03:18.198Z"
+}

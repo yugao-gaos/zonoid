@@ -11,7 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const git = require('../lib/git');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-selfreg-base-')));
@@ -58,6 +58,19 @@ async function waitForPing(ms = 8000) {
   return false;
 }
 
+function runWriteGate(filePath) {
+  return spawnSync(process.execPath, [path.join(__dirname, '..', 'hooks', 'orch-gate.js')], {
+    input: JSON.stringify({
+      session_id: SESSION,
+      agent_id: 'hookless-worker',
+      tool_name: 'Write',
+      tool_input: { file_path: filePath, new_string: 'x' },
+    }),
+    encoding: 'utf8',
+    env: { ...process.env, ORCH_PORT: String(PORT), CLAUDE_PLUGIN_DATA: SANDBOX },
+  });
+}
+
 (async () => {
   git.initRepo(WS);
   fs.mkdirSync(PROJ_DIR, { recursive: true });
@@ -82,10 +95,10 @@ async function waitForPing(ms = 8000) {
     // No /agent/start is ever called — these agents are hook-less, exactly like a real
     // run_in_background Agent-tool spawn (agent_tool_spawn never set → isSubagent is false).
 
-    // Claim WITHOUT a worktree → refused, and the message points to branch_task.
+    // Claim WITHOUT a worktree → refused, and the message points to the Subconscious assignment surface.
     const noWt = await req('POST', '/overlay/status', { key: K(2), status: 'in_progress', agent_id: 'hookless-worker', session_id: SESSION, workspace: WS });
     ok('hook-less claim with NO worktree refused 409', noWt.status === 409);
-    ok('409 points to branch_task', /branch_task/.test(String(noWt.body.error)));
+    ok('409 points to Subconscious assignment surface', /subconscious_assignment action:"(accept|prepare)"/.test(String(noWt.body.error)));
 
     // Branch a worktree (proof of delegation) via the real branch_task endpoint, which registers
     // it in overlay.git — then claim → self-register-on-claim allows it.
@@ -95,14 +108,56 @@ async function waitForPing(ms = 8000) {
     // the overlay (and its git registration) is keyed on the repo, not the worktree path.
     const claim = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'hookless-worker', session_id: SESSION, workspace: WS });
     ok('hook-less claim WITH worktree self-registers and succeeds', claim.status === 200 && claim.body.ok === true);
+    const permit = claim.body.execution_permit;
+    ok('accepted worker claim auto-issues active execution permit',
+      permit &&
+      permit.status === 'active' &&
+      permit.session_id === SESSION &&
+      permit.agent_id === 'hookless-worker' &&
+      permit.task_key === K(1) &&
+      permit.worktree === wt.body.worktree &&
+      permit.branch === wt.body.branch);
+    const readPermit = await req(
+      'GET',
+      `/subconscious/permit?session_id=${encodeURIComponent(SESSION)}&agent_id=hookless-worker&task_key=${encodeURIComponent(K(1))}`,
+    );
+    ok('auto-issued permit is readable without manual permit step',
+      readPermit.status === 200 &&
+      readPermit.body.valid === true &&
+      readPermit.body.execution_permit.id === (permit && permit.id));
+    const gateAllow = runWriteGate(path.join(wt.body.worktree, 'normal-worker-write.js'));
+    ok('branch_task -> start_task -> write passes gate without manual permit step',
+      gateAllow.status === 0);
 
     // The claim bound the assignee to this worker (proves it took effect end-to-end): the same
     // worker can re-claim its own in_progress task without the "already claimed by another" 409.
     const reclaim = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'hookless-worker', session_id: SESSION, workspace: WS });
     ok('worker owns its task — idempotent re-claim by same agent succeeds', reclaim.status === 200 && reclaim.body.ok === true);
+    ok('idempotent re-claim reuses valid execution permit',
+      reclaim.body.execution_permit && reclaim.body.execution_permit.id === (permit && permit.id));
     // And a DIFFERENT agent cannot steal the in_progress task without force (boundary intact).
     const steal = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'other-worker', session_id: SESSION, workspace: WS });
     ok('different agent cannot steal the claim without force', steal.status === 409);
+
+    const badCompleteAgent = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'other-worker', session_id: SESSION, summary: 'malicious done', workspace: WS });
+    ok('different agent cannot terminal-complete another worker claim', badCompleteAgent.status === 409 && /agent_id/.test(String(badCompleteAgent.body.error)));
+    const badCompleteSession = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'hookless-worker', session_id: 'wrong-session', summary: 'malicious done', workspace: WS });
+    ok('wrong session cannot terminal-complete active claim', badCompleteSession.status === 409 && /session_id/.test(String(badCompleteSession.body.error)));
+    const missingSessionComplete = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'hookless-worker', summary: 'malicious done', workspace: WS });
+    ok('terminal completion of active claim requires session_id', missingSessionComplete.status === 409 && missingSessionComplete.body.missing === 'session_id');
+
+    const revoke = await req('POST', '/subconscious/permit', {
+      action: 'revoke',
+      permit_id: permit && permit.id,
+      session_id: SESSION,
+      agent_id: 'hookless-worker',
+      task_key: K(1),
+      reason: 'test revoke',
+      workspace: WS,
+    });
+    ok('permit revoke succeeds', revoke.status === 200 && revoke.body.execution_permit.status === 'revoked');
+    const gateDeny = runWriteGate(path.join(wt.body.worktree, 'revoked-worker-write.js'));
+    ok('revoked permit still denies claimed worker write', gateDeny.status === 2 && (gateDeny.stderr || '').includes('revoked'));
   } finally {
     try { child.kill(); } catch { /* already gone */ }
     fs.rmSync(TASKS_DIR, { recursive: true, force: true });

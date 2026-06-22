@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/fix-featurebench-canonical-arm-docs-followup",
+  "agent_id": "worker-fix-featurebench-canonical-arm-docs-followup",
+  "branch": "orch/attempt/codex-fix-featurebench-canonical-arm-docs-followup",
+  "status": "done",
+  "claimed_at": "2026-06-19T20:51:40.298Z",
+  "lease_until": "2026-06-19T21:51:40.298Z",
+  "completed_at": "2026-06-19T20:54:25.138Z"
+}

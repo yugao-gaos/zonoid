@@ -1,6 +1,9 @@
 # @zonoid/opencode-plugin
 
-OpenCode bridge for the [Zonoid](https://github.com/yugao-gaos/zonoid) orchestrator daemon (`http://localhost:8787`).
+OpenCode bridge for [Zonoid](https://github.com/yugao-gaos/zonoid), the agent's subconscious
+for coding work. It connects OpenCode sessions to the local Zonoid daemon
+(`http://localhost:8787`) for context injection, write gating, lifecycle tracking, task creation,
+and scheduled wakeups.
 
 ## Capabilities
 
@@ -35,25 +38,34 @@ ln -sf "$(pwd)/packages/opencode-plugin/lib" .opencode/plugins/lib
 
 3. Add OpenCode plugin dependencies (TypeScript + `@opencode-ai/plugin`):
 
+   **Pin to your installed opencode's minor — do NOT use `latest`.** opencode rewrites
+   `"latest"` to a `@local` tag that fails to resolve (`NpmInstallFailedError`), the
+   background install fails, and opencode silently skips the plugin (no write-gate, no
+   `task_create`, no classify). Find your version with `opencode --version` (e.g. `1.15.10`)
+   and pin the matching minor:
+
 ```sh
 mkdir -p .opencode
 cat > .opencode/package.json <<'EOF'
 {
   "dependencies": {
-    "@opencode-ai/plugin": "latest"
+    "@opencode-ai/plugin": "~1.15.0"
   }
 }
 EOF
 ```
 
-OpenCode runs `bun install` in `.opencode/` at startup.
+   (`npx @zonoid/cli init --harness opencode` detects the installed opencode and writes the
+   correct pin automatically.) OpenCode runs `bun install` in `.opencode/` at startup.
 
 4. Optional env:
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `ORCH_PORT` | `8787` | Daemon HTTP port |
-| `CLAUDE_PLUGIN_DATA` | `~/.claude/orchestrator` | File-drop root (same as daemon) |
+| `ORCH_DATA` | unset | Exact runtime data-dir override; wins over the other data-dir env vars |
+| `ZONOID_DATA` | `~/.claude/orchestrator/.zonoid` | Runtime data dir; file-drop stubs live under `tasks/` |
+| `CLAUDE_PLUGIN_DATA` | unset | Legacy runtime data-dir override |
 | `ZONOID_ROOT` | `~/.claude/orchestrator` fallback | Zonoid install root; required for copied OpenCode plugins that are not symlinked by the CLI |
 
 5. Wire orchestrator MCP in `opencode.json` so agents can `branch_task` / `start_task` / `complete_task` after minting. `npx @zonoid/cli init --harness opencode` writes this automatically; manual installs should add:
@@ -82,6 +94,8 @@ rather than symlinked from the Zonoid install, set `ZONOID_ROOT` to the install 
 can load the shared gate policy.
 
 ## Workflow
+
+Use the canonical repo skill at `.opencode/skills/zonoid-orchestrator`. `npx @zonoid/cli init --harness opencode` installs it automatically.
 
 1. Plugin init and `session.created` register the OpenCode workspace with the daemon.
 2. Each user prompt runs through `chat.message`, which appends `/classify` context when the daemon returns one.

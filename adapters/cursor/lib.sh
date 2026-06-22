@@ -5,7 +5,10 @@
 # Install root: zonoid repo or ~/.claude/orchestrator after `zonoid init`.
 ORCH_ROOT="${ZONOID_ROOT:-${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/orchestrator}}"
 PORT="${ORCH_PORT:-8787}"
-DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}"
+CURSOR_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../hooks/lib/runtime-paths.sh
+. "$CURSOR_LIB_DIR/../../hooks/lib/runtime-paths.sh"
+DATA_DIR="$(orch_data_dir)"
 
 # Extract session id from Claude or Cursor hook JSON (stdin or argument).
 orch_session_id() {

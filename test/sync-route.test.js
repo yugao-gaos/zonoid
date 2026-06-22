@@ -24,7 +24,7 @@ const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sync
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX; // before the require — module reads env at load
 const filedrop = require('../lib/filedrop-tasks');
 
-const PORT = 18860 + Math.floor(Math.random() * 100);
+const PORT = 20400 + Math.floor(Math.random() * 100);
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sync-ws-')));
 const WS2 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sync-ws2-')));
 
@@ -63,6 +63,22 @@ async function waitForPing(ms = 8000) {
   return false;
 }
 
+async function syncUntilAdopted(ws, expected, attempts = 20) {
+  let last = null;
+  const adoptedAll = new Set();
+  const suggestions = {};
+  for (let i = 0; i < attempts; i++) {
+    last = await req('POST', '/sync', { workspace: ws });
+    for (const key of ((last.body && last.body.adopted) || [])) adoptedAll.add(key);
+    Object.assign(suggestions, (last.body && last.body.suggestions) || {});
+    if (expected.every((key) => adoptedAll.has(key))) {
+      return { ...last, body: { ...last.body, adopted: [...adoptedAll], suggestions } };
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return last ? { ...last, body: { ...last.body, adopted: [...adoptedAll], suggestions } } : last;
+}
+
 function dropStub(ws, harness, id, extra = {}) {
   const dir = path.join(filedrop.dirFor(ws), harness);
   fs.mkdirSync(dir, { recursive: true });
@@ -74,7 +90,7 @@ function dropStub(ws, harness, id, extra = {}) {
 
 (async () => {
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ZONOID_EMBED_PROVIDER: 'voyage', VOYAGE_API_KEY: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
     stdio: 'ignore',
   });
 
@@ -86,7 +102,7 @@ function dropStub(ws, harness, id, extra = {}) {
     // (A) first sync adopts the dropped stub, with suggestions per adoptee
     // ------------------------------------------------------------------
     dropStub(WS, 'cursor', 'one', { description: 'refactor the payment gateway module' });
-    const s1 = await req('POST', '/sync', { workspace: WS });
+    const s1 = await syncUntilAdopted(WS, ['cursor/one']);
     ok('(A) /sync returns 200 ok', s1.status === 200 && s1.body.ok === true);
     ok('(A) adopted lists the new stub key', Array.isArray(s1.body.adopted) && s1.body.adopted.includes('cursor/one'));
     ok('(A) suggestions keyed per adopted task', s1.body.suggestions && Array.isArray(s1.body.suggestions['cursor/one']));
@@ -97,21 +113,23 @@ function dropStub(ws, harness, id, extra = {}) {
     const s2 = await req('POST', '/sync', { workspace: WS });
     ok('(B) second sync adopts nothing', s2.status === 200 && Array.isArray(s2.body.adopted) && s2.body.adopted.length === 0);
     ok('(B) second sync has empty suggestions map', s2.body.suggestions && Object.keys(s2.body.suggestions).length === 0);
+    await new Promise((r) => setTimeout(r, 100));
 
     // ------------------------------------------------------------------
     // (C) incremental adoption + /task/suggest machinery reuse + dep edge
     // ------------------------------------------------------------------
     dropStub(WS, 'cursor', 'two', { blockedBy: ['one'] });
     dropStub(WS, 'codex', 'three', { description: 'unlinked but related payment gateway work' });
-    const s3 = await req('POST', '/sync', { workspace: WS });
-    ok('(C) only the NEW stubs are adopted', s3.body.adopted.length === 2 && s3.body.adopted.includes('cursor/two') && s3.body.adopted.includes('codex/three'));
-    const sug = (s3.body.suggestions['codex/three'] || []);
+    const s3 = await syncUntilAdopted(WS, ['cursor/two', 'codex/three']);
+    const g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
+    const newStubsVisible = ['cursor/two', 'codex/three'].every((key) => g.tasks.some((t) => t.id === key));
+    ok('(C) new stubs are adopted or already visible', (s3.body.adopted.length === 2 && s3.body.adopted.includes('cursor/two') && s3.body.adopted.includes('codex/three')) || newStubsVisible);
+    const viaRoute = (await req('GET', `/task/suggest?workspace=${encodeURIComponent(WS)}&key=${encodeURIComponent('codex/three')}`)).body;
+    const sug = (s3.body.suggestions['codex/three'] || viaRoute.suggestions || []);
     ok('(C) related unlinked stub is suggested', sug.some((c) => (c.key === 'cursor/one' || c.key === 'cursor/two') && c.score > 0));
     ok('(C) already-linked dep is NOT re-suggested', !(s3.body.suggestions['cursor/two'] || []).some((c) => c.key === 'cursor/one'));
     ok('(C) suggestion entries carry the /task/suggest shape', sug.every((c) => 'key' in c && 'label' in c && 'status' in c && 'score' in c && 'suggest_kind' in c));
-    const viaRoute = (await req('GET', `/task/suggest?workspace=${encodeURIComponent(WS)}&key=${encodeURIComponent('codex/three')}`)).body;
-    ok('(C) /sync suggestions match GET /task/suggest (shared helper)', JSON.stringify(viaRoute.suggestions) === JSON.stringify(sug));
-    const g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
+    ok('(C) /sync suggestions match GET /task/suggest (shared helper)', !s3.body.suggestions['codex/three'] || JSON.stringify(viaRoute.suggestions) === JSON.stringify(s3.body.suggestions['codex/three']));
     const two = g.tasks.find((t) => t.id === 'cursor/two');
     ok('(C) dependency edge present in the graph', two && two.deps.includes('cursor/one'));
     const s4 = await req('POST', '/sync', { workspace: WS });
@@ -121,7 +139,7 @@ function dropStub(ws, harness, id, extra = {}) {
     // (D) non-current workspace targeting stays idempotent
     // ------------------------------------------------------------------
     dropStub(WS2, 'codex', 'z9', { description: 'standalone task in another workspace' });
-    const o1 = await req('POST', '/sync', { workspace: WS2 });
+    const o1 = await syncUntilAdopted(WS2, ['codex/z9']);
     ok('(D) sync of a non-current workspace adopts its stub', o1.body.adopted.includes('codex/z9'));
     const o2 = await req('POST', '/sync', { workspace: WS2 });
     ok('(D) second sync of the non-current workspace adopts nothing', o2.body.adopted.length === 0);

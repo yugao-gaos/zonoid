@@ -23,6 +23,15 @@
  */
 const overlayStore = require('../lib/overlay');
 const llmBackend = require('../lib/llm-backend');
+const embed = require('../lib/embed');
+
+const NO_WORKSPACE_ERROR = 'no workspace resolved - pass workspace (body or ?workspace=)';
+
+function requireWorkspace(T, send, res) {
+  if (T.ws) return true;
+  send(res, 400, { ok: false, error: NO_WORKSPACE_ERROR });
+  return false;
+}
 
 // Annotate one registry provider with its detected readiness for the dashboard. isAvailable applies
 // only to agentic-cli providers (they resolve a local binary); api providers spawn nothing, so it is
@@ -47,6 +56,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 
   if (p === '/config/backend' && m === 'GET') {
     const T = targetOverlay(null, u);
+    if (!requireWorkspace(T, send, res)) return true;
     // Resolve the ACTIVE backend the same way the drains will (defaults to Claude when unset).
     const active = llmBackend.getActiveBackend(T.ov);
     const providers = llmBackend.listProviders().map(annotateProvider);
@@ -61,6 +71,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/config/backend' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
+    if (!requireWorkspace(T, send, res)) return true;
     const provider = b && b.provider;
     const model = b && b.model;
     // A falsy provider CLEARS the selection (revert to the Claude default) — explicit, not an error.
@@ -84,6 +95,39 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     notifyChange();
     const active = llmBackend.getActiveBackend(T.ov);
     send(res, 200, { ok: true, active: { provider: active.providerId, model: active.model || null } });
+    return true;
+  }
+
+  if (p === '/config/embedding' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    if (!requireWorkspace(T, send, res)) return true;
+    const active = embed.normalizeEmbeddingConfig(T.ov);
+    const providers = embed.listEmbeddingProviders().map(embed.annotateEmbeddingProvider);
+    send(res, 200, { ok: true, active, providers });
+    return true;
+  }
+
+  if (p === '/config/embedding' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!requireWorkspace(T, send, res)) return true;
+    const provider = b && b.provider;
+    if (!provider) {
+      overlayStore.setEmbeddingConfig(T.ov, {});
+      T.save();
+      notifyChange();
+      send(res, 200, { ok: true, active: embed.normalizeEmbeddingConfig(T.ov) });
+      return true;
+    }
+    const valid = embed.validateEmbeddingConfig(b);
+    if (!valid.ok) {
+      send(res, 400, valid);
+      return true;
+    }
+    overlayStore.setEmbeddingConfig(T.ov, valid.config);
+    T.save();
+    notifyChange();
+    send(res, 200, { ok: true, active: embed.normalizeEmbeddingConfig(T.ov) });
     return true;
   }
 

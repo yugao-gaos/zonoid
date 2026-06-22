@@ -174,7 +174,7 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
     ok('writer reports ok + armed', w.ok === true && w.armed === true && w.registryPath === regPath);
     const skill = fs.readFileSync(path.join(claudeDir, 'scheduled-tasks', 'nightly-check-ab12', 'SKILL.md'), 'utf8');
     ok('SKILL.md has name/description frontmatter', /^---\nname: nightly-check-ab12\ndescription: .+\n---\n/.test(skill));
-    ok('SKILL.md instructs claim → prompt → complete', skill.includes('start_task') && skill.includes('Check the things.') && skill.includes('complete_task') && skill.includes('followup/nightly-check-ab12'));
+    ok('SKILL.md instructs assignment → prompt → complete', skill.includes('subconscious_assignment') && skill.includes('Check the things.') && skill.includes('action:"complete"') && skill.includes('followup/nightly-check-ab12'));
     ok('SKILL.md documents the no-stored-approvals limitation', skill.includes('no stored tool approvals'));
     const reg = JSON.parse(fs.readFileSync(regPath, 'utf8'));
     ok('registry keeps the pre-existing entry', reg.scheduledTasks.some((t) => t.id === 'pre-existing'));

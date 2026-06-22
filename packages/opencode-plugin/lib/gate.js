@@ -100,9 +100,11 @@ function hookInputFromToolArgs(tool, args) {
   };
 }
 
-async function taskDetail(key) {
+async function taskDetail(key, workspace) {
   try {
-    return await orchGet(`/task/detail?key=${encodeURIComponent(key)}`);
+    const params = new URLSearchParams({ key });
+    if (workspace) params.set('workspace', workspace);
+    return await orchGet(`/task/detail?${params.toString()}`);
   } catch {
     return null;
   }
@@ -114,28 +116,68 @@ function claimWorktree(detail) {
   return { branch: git.branch, worktree: git.worktree || '' };
 }
 
-async function claimedWorktreeMatch(claim, targets) {
+async function permitForClaim({ sessionID, taskKey, workspace, agentId, foregroundAgentId }) {
+  const params = new URLSearchParams({ session_id: sessionID, task_key: taskKey });
+  if (workspace) params.set('workspace', workspace);
+  if (agentId) params.set('agent_id', agentId);
+  if (foregroundAgentId) params.set('foreground_agent_id', foregroundAgentId);
+  const permitResp = await orchGet(`/subconscious/permit?${params.toString()}`);
+  return permitResp && (permitResp.execution_permit || permitResp.permit);
+}
+
+async function claimedScopeMatch(claim, targets, ctx) {
   const claims = Array.isArray(claim && claim.claims) ? claim.claims : [];
   let anyWorktree = false;
   let mismatchBranch = '';
   let offending = '';
+  let permitDenyReason = 'no Subconscious execution permit found for this session/task';
 
   for (const c of claims) {
     if (!c || !c.key) continue;
-    const wtInfo = claimWorktree(await taskDetail(c.key));
-    if (!wtInfo) continue;
+    const wtInfo = claimWorktree(await taskDetail(c.key, c.workspace));
+    if (!wtInfo) {
+      permitDenyReason = 'claimed assignment is missing a registered worktree; ask Subconscious to re-prepare it with subconscious_assignment action:"prepare" before requesting a permit';
+      continue;
+    }
     anyWorktree = true;
     mismatchBranch = wtInfo.branch;
-    if (!targets.length) return { matched: true, anyWorktree };
     const outside = policy.firstOutsideWorktree(targets, wtInfo.worktree);
-    if (!outside) return { matched: true, anyWorktree };
-    offending = outside;
+    if (outside) {
+      offending = outside;
+      continue;
+    }
+    const permit = await permitForClaim({
+      sessionID: ctx.sessionID,
+      taskKey: c.key,
+      workspace: c.workspace,
+      agentId: ctx.agentId,
+      foregroundAgentId: ctx.foregroundAgentId,
+    });
+    const permitValidation = policy.validateExecutionPermit(permit, {
+      sessionId: ctx.sessionID,
+      taskKey: c.key,
+      branch: wtInfo.branch,
+      worktree: wtInfo.worktree,
+      agentId: ctx.agentId,
+      foregroundAgentId: ctx.foregroundAgentId,
+    });
+    if (!permitValidation.ok) {
+      permitDenyReason = permitValidation.reason;
+      continue;
+    }
+    const outsidePermit = policy.firstOutsidePermitScope(targets, wtInfo.worktree, permit);
+    if (outsidePermit) {
+      offending = outsidePermit;
+      permitDenyReason = 'target is outside the Subconscious execution permit scope';
+      continue;
+    }
+    return { matched: true, anyWorktree };
   }
 
-  return { matched: !anyWorktree, anyWorktree, mismatchBranch, offending };
+  return { matched: false, anyWorktree, mismatchBranch, offending, permitDenyReason };
 }
 
-async function gateWriteTool(sessionID, tool, args) {
+async function gateWriteTool(sessionID, tool, args, options = {}) {
   const normalizedTool = String(tool || '').toLowerCase();
   if (!WRITE_TOOLS.has(normalizedTool)) return;
   if (!policy) {
@@ -146,6 +188,18 @@ async function gateWriteTool(sessionID, tool, args) {
   const targets = policy.writeEditTargets(hookInput);
   if (policy.allTargetsExempt(targets)) return;
   if (!sessionID) return;
+  const agentId = String(
+    options.agentId ||
+    options.agentID ||
+    (args && (args.agent_id || args.agentID)) ||
+    `opencode-${String(sessionID).slice(0, 8)}`,
+  );
+  const foregroundAgentId = String(
+    options.foregroundAgentId ||
+    options.foregroundAgentID ||
+    (args && (args.foreground_agent_id || args.foregroundAgentID)) ||
+    '',
+  );
 
   let claim;
   try {
@@ -155,9 +209,12 @@ async function gateWriteTool(sessionID, tool, args) {
   }
   if (!claim) return;
   if (claim.claimed === true) {
-    const match = await claimedWorktreeMatch(claim, targets);
+    const match = await claimedScopeMatch(claim, targets, { sessionID, agentId, foregroundAgentId });
     if (match.matched) return;
-    throw new Error(`orch-gate: task has a registered worktree (${match.mismatchBranch}) - writes must happen inside the worktree path, not at ${match.offending || targets[0] || '(tool)'}. Use the path returned by branch_task.`);
+    if (match.anyWorktree && match.offending && match.permitDenyReason !== 'target is outside the Subconscious execution permit scope') {
+      throw new Error(`orch-gate: task has a registered worktree (${match.mismatchBranch}) - writes must happen inside the worktree path, not at ${match.offending || targets[0] || '(tool)'}. Use the worktree returned by subconscious_assignment action:"prepare".`);
+    }
+    throw new Error(`orch-gate: ${match.permitDenyReason}${match.offending ? ` (${match.offending})` : ''}. Ask Subconscious for an execution permit before writing.`);
   }
 
   let isSub = false;
@@ -167,8 +224,8 @@ async function gateWriteTool(sessionID, tool, args) {
   } catch { /* ignore */ }
 
   const msg = isSub
-    ? 'orch-gate: no task claimed. Call task_create, then orchestrator MCP start_task before editing.'
-    : 'orch-gate: no task claimed. Mint with task_create or claim via start_task before editing.';
+    ? 'orch-gate: no task claimed. Worker subagents must accept a prepared Subconscious assignment before editing with subconscious_assignment action:"accept". Dispatchers should create or repair the assignment with subconscious_assignment action:"prepare".'
+    : 'orch-gate: no task claimed. Ask Subconscious for an assignment with subconscious_assignment action:"prepare", then accept it before editing.';
   throw new Error(msg);
 }
 

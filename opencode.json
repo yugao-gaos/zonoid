@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "./.opencode/plugins/zonoid.ts"
+  ],
+  "mcp": {
+    "orchestrator-graph": {
+      "type": "local",
+      "command": [
+        "node",
+        "mcp-graph.js"
+      ],
+      "enabled": true,
+      "environment": {
+        "ORCH_PORT": "8787",
+        "ORCH_CLIENT": "opencode"
+      }
+    }
+  }
+}

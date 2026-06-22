@@ -3,6 +3,7 @@ const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
 const { computeNoteUsageEvidence, scoreNoteNecessity, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-journal');
+const { nodeVecs, embeddingMeta } = require('../lib/embed');
 
 const { JUDGE_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 const { appendShadow } = require('../lib/shadow-journal');
@@ -95,9 +96,10 @@ function scoreShadow(ws, { from, to, verdict, cosine, fromKind, toKind }) {
 function clusterMaxCosine(overlay, keys) {
   try {
     const judgeLib = require('../lib/judge');
+    const expectedMeta = embeddingMeta(overlay);
     const vecs = keys.map(k => {
       const n = overlay.note_nodes && overlay.note_nodes[String(k).replace(/^note:/, '')];
-      return n && Array.isArray(n.vec) && n.vec.length ? n.vec : null;
+      return nodeVecs(n, { expectedMeta })[0] || null;
     }).filter(Boolean);
     if (vecs.length < 2) return null;
     let max = -1;
@@ -112,8 +114,8 @@ function clusterMaxCosine(overlay, keys) {
 
 // Stable key for the standing "harness: judge drain" task. Fixed slug so it is findable by label
 // prefix across daemon restarts; the snapshot substrate keeps it in the graph indefinitely.
-// Workers call start_task with this key before judging, complete_task after. Standing harness
-// tasks auto-requeue to ready on complete_task so the next pass is immediately claimable; claim
+// Workers accept a Subconscious assignment with this key before judging, then complete it after.
+// Standing harness tasks auto-requeue to ready on completion so the next pass is immediately claimable; claim
 // conflict is preserved because complete clears in_progress before requeue. The 10-min stale-claim
 // sweep is a secondary safety net for crashed workers.
 const HARNESS_JUDGE_DRAIN_KEY = 'followup/harness-judge-drain';
@@ -251,7 +253,8 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         };
       }
       const note = byId.get(it.id) || { id: it.id, label: it.id, summary: '', vec: null };
-      const candidates = noteRagCandidates(T.ov, g, it.id, note.label, note.summary, note.vec, 8)
+      const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : embeddingMeta(T.ov);
+      const candidates = noteRagCandidates(T.ov, g, it.id, note.label, note.summary, note.vec, 8, { expectedMeta, targetVecMeta: note.vecMeta || null })
         .map((c) => ({ key: c.key, title: c.title, summary: c.summary, score: c.score, status: c.status, via: c.via }));
       return { kind: 'orphan', id: it.id, note: detail(it.id), candidates };
     });
@@ -332,13 +335,14 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
             applied.kept++;
             // task→task KIND classification: the agent decided "anchor REQUIRES N" → reclassify the
             // kept context edge as a true blocking prerequisite (the dual of context = non-blocking).
-            if (v.keepEdge.kind === 'blocking' && kept) {
+            const reversePairedJudge = v.keepEdge.kind === 'blocking' && overlayStore.isReversePairedJudgeBlockingEdge(T.ov, v.keepEdge.from, v.keepEdge.to);
+            if (v.keepEdge.kind === 'blocking' && kept && !reversePairedJudge) {
               kept.kind = 'blocking';
               delete kept.weight;            // blocking edges carry no relevance weight
               applied.reclassified = (applied.reclassified || 0) + 1;
             }
             const by = modelVerdict === 'keep' ? 'model' : 'judge';
-            judge.appendVerdict(T.ws, { epoch, verdict: 'keep', from: v.keepEdge.from, to: v.keepEdge.to, edgeKind: v.keepEdge.kind === 'blocking' ? 'blocking' : 'context', cosine: cos, origin, by });
+            judge.appendVerdict(T.ws, { epoch, verdict: 'keep', from: v.keepEdge.from, to: v.keepEdge.to, edgeKind: v.keepEdge.kind === 'blocking' && !reversePairedJudge ? 'blocking' : 'context', cosine: cos, origin, by });
           }
         }
       }

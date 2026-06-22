@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/review-api-ui-docs-tests",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "review-worker-api-ui-tests",
+  "branch": "orch/attempt/codex-review-api-ui-docs-tests",
+  "status": "tested",
+  "claimed_at": "2026-06-22T02:13:24.771Z",
+  "lease_until": "2026-06-22T03:13:24.771Z",
+  "completed_at": "2026-06-22T02:29:01.863Z"
+}

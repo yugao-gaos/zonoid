@@ -10,6 +10,7 @@ const http = require('http');
 const REPO_URL = 'https://github.com/yugao-gaos/zonoid';
 const SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
 const CODEX_REPO_SKILLS_DIR = path.join('.codex', 'skills');
+const OPENCODE_REPO_SKILLS_DIR = path.join('.opencode', 'skills');
 
 // ── Invariant 3: Resolve install dir — prefer local checkout ─────────────────
 
@@ -32,6 +33,7 @@ function resolveInstallDir() {
 
 // Computed once at startup; exported for tests.
 const INSTALL_DIR = resolveInstallDir();
+const ZONOID_DATA_DIR = path.join(INSTALL_DIR, '.zonoid');
 
 // ── output helpers ──────────────────────────────────────────────────────────
 
@@ -76,11 +78,11 @@ function runCapture(cmd, args, opts = {}) {
 
 /**
  * Returns true if `dir` contains live orchestrator data that must not be
- * deleted: overlay/, sessions/, worktrees/, a `workspace` file, or a `token`
- * file at the root level.
+ * deleted: legacy root runtime state, a `.zonoid/` runtime dir, or root-level
+ * `workspace` / `token` files.
  */
 function dirHasLiveData(dir) {
-  const liveSubdirs = ['overlay', 'sessions', 'worktrees'];
+  const liveSubdirs = ['.zonoid', 'overlay', 'sessions', 'worktrees'];
   const liveFiles   = ['workspace', 'token'];
   for (const sub of liveSubdirs) {
     if (fs.existsSync(path.join(dir, sub))) return true;
@@ -113,7 +115,8 @@ function checkInstallDir() {
         runChecked('git', ['clone', REPO_URL, tmpDir]);
         // Copy source files from the temp clone into INSTALL_DIR,
         // but skip the data subdirs so they are left untouched.
-        // Runtime-state entries written by daemon.js + lib/* under CLAUDE_PLUGIN_DATA:
+        // Runtime-state entries written by daemon.js + lib/* under ZONOID_DATA / CLAUDE_PLUGIN_DATA:
+        //   .zonoid/    — current runtime layout for universal + adapter runtime artifacts
         //   agents.json  — registered agent registry
         //   loops.json   — loop/heartbeat registry  (loop.json = legacy migration source)
         //   op-cache.json — operation idempotency cache
@@ -125,7 +128,7 @@ function checkInstallDir() {
         //   *.sock       — IPC socket files (lib/ipc-path.js)
         const protectedNames = new Set([
           // Existing live-data guards
-          'overlay', 'sessions', 'worktrees', 'workspace', 'token', 'node_modules',
+          '.zonoid', 'overlay', 'sessions', 'worktrees', 'workspace', 'token', 'node_modules',
           // Daemon runtime-state entries (C2)
           'agents.json', 'loops.json', 'loop.json', 'op-cache.json',
           'tool-analytics.json', 'certs', 'models', 'tasks',
@@ -335,10 +338,14 @@ function writeMcp(cwd, overwrite = false, orchClient = null) {
   ok(`${had ? 'Merged' : 'Written'}: ${dest}`);
 }
 
-function opencodeMcpEntry() {
+function opencodeMcpEntry(cwd) {
+  // Relative when the install dir IS the target workspace (committable, like
+  // .mcp.json); absolute for global installs used across many workspaces.
+  const inWorkspace = cwd && fwdSlash(cwd) === fwdSlash(INSTALL_DIR);
+  const scriptArg = inWorkspace ? 'mcp-graph.js' : `${fwdSlash(INSTALL_DIR)}/mcp-graph.js`;
   return {
     type: 'local',
-    command: ['node', `${fwdSlash(INSTALL_DIR)}/mcp-graph.js`],
+    command: ['node', scriptArg],
     enabled: true,
     environment: {
       ORCH_PORT: ORCH_PORT,
@@ -360,7 +367,18 @@ function writeOpencodeMcp(cwd) {
   }
 
   existing.mcp = existing.mcp || {};
-  existing.mcp['orchestrator-graph'] = opencodeMcpEntry();
+  existing.mcp['orchestrator-graph'] = opencodeMcpEntry(cwd);
+
+  // Explicitly register the plugin in opencode.json. opencode 1.15.x does NOT
+  // auto-discover .opencode/plugins/*.ts — without this entry the plugin never
+  // loads (no write-gate / task_create / classify), even when its deps are
+  // installed and the file is symlinked into .opencode/plugins/.
+  existing.plugin = Array.isArray(existing.plugin) ? existing.plugin : [];
+  const pluginPath = './.opencode/plugins/zonoid.ts';
+  if (!existing.plugin.includes(pluginPath)) {
+    existing.plugin.push(pluginPath);
+    log('Registered zonoid plugin in opencode.json (plugin entry)');
+  }
 
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, JSON.stringify(existing, null, 2) + '\n');
@@ -481,7 +499,9 @@ function installRepoSkill(cwd, skill, harness = 'codex') {
 
   const destRoot = harness === 'codex'
     ? path.join(cwd, CODEX_REPO_SKILLS_DIR)
-    : path.join(cwd, '.zonoid', 'skills');
+    : harness === 'opencode'
+      ? path.join(cwd, OPENCODE_REPO_SKILLS_DIR)
+      : path.join(cwd, '.zonoid', 'skills');
   const dest = path.join(destRoot, skill);
   fs.mkdirSync(destRoot, { recursive: true });
 
@@ -503,6 +523,10 @@ function installRepoSkill(cwd, skill, harness = 'codex') {
 
 function installCodexRepoSkills(cwd) {
   installRepoSkill(cwd, 'zonoid-orchestrator', 'codex');
+}
+
+function installOpencodeRepoSkills(cwd) {
+  return installRepoSkill(cwd, 'zonoid-orchestrator', 'opencode');
 }
 
 function checkDaemon() {
@@ -606,8 +630,8 @@ function installLaunchdService() {
   <dict>
     <key>ORCH_PORT</key>
     <string>${ORCH_PORT}</string>
-    <key>CLAUDE_PLUGIN_DATA</key>
-    <string>${INSTALL_DIR}</string>
+    <key>ZONOID_DATA</key>
+    <string>${ZONOID_DATA_DIR}</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
@@ -643,7 +667,7 @@ After=network.target
 Type=simple
 ExecStart=${nodeBin} ${daemonJs}
 Environment=ORCH_PORT=${ORCH_PORT}
-Environment=CLAUDE_PLUGIN_DATA=${INSTALL_DIR}
+Environment=ZONOID_DATA=${ZONOID_DATA_DIR}
 Restart=always
 RestartSec=5
 StandardOutput=append:/tmp/zonoid-daemon.log
@@ -736,6 +760,80 @@ function mergeGraphAutocommitFlag(settings, enable) {
     // If it's already "1", leave it as "1" — no downgrade
   }
   return out;
+}
+
+// ── Pre-push test guard ─────────────────────────────────────────────────────
+
+function prePushTestCommand(cwd) {
+  const pkgPath = path.join(cwd, 'package.json');
+  if (!fs.existsSync(pkgPath)) return null;
+
+  let pkg;
+  try { pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); }
+  catch (_) { return null; }
+
+  const scripts = pkg && pkg.scripts;
+  if (!scripts || typeof scripts !== 'object') return null;
+  if (typeof scripts['test:all'] === 'string' && scripts['test:all'].trim()) return 'npm run test:all';
+  if (typeof scripts.test === 'string' && scripts.test.trim()) return 'npm test';
+  return null;
+}
+
+function prePushTestHookScript(command) {
+  return `#!/bin/sh
+# Zonoid pre-push test guard
+set -eu
+
+echo "zonoid: running ${command} before push"
+${command}
+`;
+}
+
+function checkPrePushTestHook(cwd) {
+  const command = prePushTestCommand(cwd);
+  if (!command) {
+    warn('No package.json test script found — skipping pre-push test guard');
+    return;
+  }
+
+  let hooksDir;
+  try {
+    const raw = runCapture('git', ['rev-parse', '--git-path', 'hooks'], { cwd });
+    hooksDir = path.isAbsolute(raw) ? raw : path.resolve(cwd, raw);
+  } catch (_) {
+    warn('not a git repo — skipping pre-push test guard');
+    return;
+  }
+
+  const hookPath = path.join(hooksDir, 'pre-push');
+  const MARKER = 'Zonoid pre-push test guard';
+
+  if (fs.existsSync(hookPath)) {
+    const existing = fs.readFileSync(hookPath, 'utf8');
+    if (existing.includes(MARKER)) {
+      if (existing.includes(command)) {
+        ok('pre-push test guard already installed');
+      } else {
+        fix('Updating pre-push test guard...');
+        fs.writeFileSync(hookPath, prePushTestHookScript(command));
+        try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+        ok('pre-push test guard updated');
+      }
+    } else if (existing.trim() === '') {
+      fix('Writing pre-push test guard (replacing empty file)...');
+      fs.writeFileSync(hookPath, prePushTestHookScript(command));
+      try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+      ok('pre-push test guard installed');
+    } else {
+      warn('A foreign pre-push hook exists — not overwriting. Add the Zonoid test guard manually.');
+    }
+  } else {
+    fix('Writing pre-push test guard...');
+    fs.mkdirSync(hooksDir, { recursive: true });
+    fs.writeFileSync(hookPath, prePushTestHookScript(command));
+    try { fs.chmodSync(hookPath, 0o755); } catch (_) { /* harmless on Windows */ }
+    ok('pre-push test guard installed');
+  }
 }
 
 /**
@@ -958,10 +1056,34 @@ function checkCursorHooks(cwd) {
   log('Trust the workspace in Cursor so project hooks run.');
 }
 
+// opencode rewrites "@opencode-ai/plugin": "latest" to a "@local" tag that
+// fails to resolve (NpmInstallFailedError), which makes opencode SILENTLY SKIP
+// the plugin entirely — so the write-gate, task_create, and classify injection
+// never load. Pin to the INSTALLED opencode's minor so npm resolves a real
+// published SDK version instead.
+function installedOpencodeVersion() {
+  try {
+    const res = spawnSync('npm', ['root', '-g'], { encoding: 'utf8' });
+    const root = (res.stdout || '').trim();
+    if (!root) return null;
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'opencode-ai', 'package.json'), 'utf8'));
+    return pkg.version || null;
+  } catch { return null; }
+}
+function opencodePluginDepVersion() {
+  const v = installedOpencodeVersion();
+  if (v) {
+    const m = String(v).match(/^(\d+)\.(\d+)\./);
+    if (m) return `~${m[1]}.${m[2]}.0`;
+  }
+  return '^1.15.0'; // fallback: never 'latest' (opencode's @local rewrite breaks it)
+}
+
 function checkOpencodePlugin(cwd) {
   const srcDir = path.join(INSTALL_DIR, 'packages', 'opencode-plugin');
   const pluginDir = path.join(cwd, '.opencode', 'plugins');
   const opencodeDir = path.join(cwd, '.opencode');
+  const depVersion = opencodePluginDepVersion();
   if (!fs.existsSync(path.join(srcDir, 'zonoid.ts'))) {
     warn(`OpenCode plugin missing at ${srcDir}`);
     return;
@@ -986,15 +1108,18 @@ function checkOpencodePlugin(cwd) {
   }
   verifyOpencodeScheduleWakeup();
   const pkgPath = path.join(opencodeDir, 'package.json');
-  const defaultPkg = JSON.stringify({ dependencies: { '@opencode-ai/plugin': 'latest' } }, null, 2) + '\n';
+  const defaultPkg = JSON.stringify({ dependencies: { '@opencode-ai/plugin': depVersion } }, null, 2) + '\n';
   if (fs.existsSync(pkgPath)) {
     try {
       const existing = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-      if (existing.dependencies && existing.dependencies['@opencode-ai/plugin']) {
-        ok('.opencode/package.json already has @opencode-ai/plugin');
+      const current = existing.dependencies && existing.dependencies['@opencode-ai/plugin'];
+      if (current === depVersion) {
+        ok(`.opencode/package.json already pins @opencode-ai/plugin@${depVersion}`);
       } else {
-        fix('Merging @opencode-ai/plugin into .opencode/package.json...');
-        existing.dependencies = { ...(existing.dependencies || {}), '@opencode-ai/plugin': 'latest' };
+        fix(current
+          ? `Repinning @opencode-ai/plugin '${current}' → '${depVersion}' ('latest' triggers opencode's broken @local resolution)`
+          : 'Merging @opencode-ai/plugin into .opencode/package.json...');
+        existing.dependencies = { ...(existing.dependencies || {}), '@opencode-ai/plugin': depVersion };
         fs.writeFileSync(pkgPath, JSON.stringify(existing, null, 2) + '\n');
         ok('Updated .opencode/package.json');
       }
@@ -1007,7 +1132,20 @@ function checkOpencodePlugin(cwd) {
     fs.writeFileSync(pkgPath, defaultPkg);
     ok('Written .opencode/package.json');
   }
-  log('OpenCode runs bun install in .opencode/ at startup.');
+  // Install plugin deps now so the plugin loads on opencode's next start.
+  // opencode's own background install is unreliable here: it rewrites the dep
+  // to a failing "@local" tag and skips when bun is absent, leaving the plugin
+  // unloaded (no gate / task_create / classify). Pre-installing makes
+  // `zonoid init --harness opencode` self-contained.
+  const pluginInstalled = fs.existsSync(path.join(opencodeDir, 'node_modules', '@opencode-ai', 'plugin', 'package.json'));
+  if (pluginInstalled) {
+    ok('.opencode deps already installed (@opencode-ai/plugin present)');
+  } else {
+    fix(`Installing .opencode deps (@opencode-ai/plugin@${depVersion})...`);
+    const install = spawnSync('npm', ['install', '--no-audit', '--no-fund'], { cwd: opencodeDir, encoding: 'utf8' });
+    if (install.status === 0) ok('.opencode deps installed — plugin loads on next opencode restart');
+    else warn(`npm install in .opencode exited ${install.status} — plugin may not load until deps resolve`);
+  }
 }
 
 function codexHookCommands(sample) {
@@ -1212,6 +1350,7 @@ function wireHarness(harness, cwd) {
   } else if (harness === 'opencode') {
     checkOpencodePlugin(cwd);
     writeOpencodeMcp(cwd);
+    installOpencodeRepoSkills(cwd);
     warn('OpenCode init skips Claude hooks — restart OpenCode after native opencode.json MCP wiring');
   }
 }
@@ -1225,9 +1364,9 @@ function printNextSteps(harness, cwd = process.cwd()) {
     console.log(`    3. Open the dashboard: ${dash}`);
     console.log('    4. Mint tasks with Codex MCP create_task (file-drop stub + /sync), then start_task before editing');
     console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — run the returned');
-    console.log('       tail command on the session .fire file; on ORCH_SCHEDULED_TASK, re-inject the prompt');
+    console.log('       delivery.command when delivery.supported is true; otherwise the fallback is timer-only');
     console.log('    6. Repo skill installed at .codex/skills/zonoid-orchestrator for task-mint workflow');
-    console.log('    7. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
+    console.log('    7. orchestrator-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else if (harness === 'cursor') {
     console.log('  Next steps (cursor):');
     console.log('    1. Trust the workspace in Cursor so project hooks run');
@@ -1236,13 +1375,15 @@ function printNextSteps(harness, cwd = process.cwd()) {
     console.log('    4. Mint tasks via todo adoption or MCP, then start_task before editing');
     console.log('    5. Heartbeat: MCP ScheduleWakeup(delaySeconds, reason, prompt) — monitor stdout with');
     console.log('       the returned tail command (notify_pattern ORCH_SCHEDULED_TASK) and re-inject the prompt');
-    console.log('    6. orch-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
+    console.log('    6. orchestrator-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else if (harness === 'opencode') {
     console.log('  Next steps (opencode):');
     console.log('    1. Restart OpenCode in this directory after opencode.json MCP wiring');
     console.log(`    2. Open the dashboard: ${dash}`);
-    console.log('    3. Use task_create (file-drop stub + /sync) to mint, then start_task before editing');
+    console.log('    3. Mint tasks with the task_create tool (file-drop stub + /sync), then start_task before editing');
     console.log('    4. Heartbeat: schedule_wakeup(delaySeconds, reason, prompt) — monitor ORCH_SCHEDULED_TASK on the session .fire file');
+    console.log('    5. Repo skill installed at .opencode/skills/zonoid-orchestrator for task-mint workflow');
+    console.log('    6. orchestrator-loop skill (installed under ~/.claude/skills) documents the full loop pattern');
   } else {
     console.log('  Next steps (claude):');
     console.log('    1. Restart Claude Code in this directory');
@@ -1307,7 +1448,10 @@ async function init(opts = {}) {
   section('6. Graph auto-commit hook');
   checkGraphAutocommitHook(cwd, { enable: opts.enableGraphAutocommit });
 
-  section('7. Warmup');
+  section('7. Pre-push test guard');
+  checkPrePushTestHook(cwd);
+
+  section('8. Warmup');
   const warmupScript = path.join(INSTALL_DIR, 'scripts', 'warmup-embeddings.js');
   if (fs.existsSync(warmupScript)) {
     fix('Warming up embedding model (first search_knowledge will be instant)...');
@@ -1331,6 +1475,11 @@ async function init(opts = {}) {
   console.log('    It snapshots .graph/*.jsonl changes after each commit when enabled.');
   console.log('    To enable: set ORCH_GRAPH_AUTOCOMMIT=1 in ~/.claude/settings.json env block,');
   console.log('    or re-run: npx @zonoid/cli init --graph-autocommit');
+  console.log('');
+  console.log('  Pre-push test guard:');
+  console.log('    A local .git/hooks/pre-push guard runs npm run test:all when available,');
+  console.log('    otherwise npm test. Git hooks can be bypassed with --no-verify; keep CI');
+  console.log('    and branch protection as the server-side backstop.');
   console.log('');
 }
 
@@ -1397,6 +1546,8 @@ if (require.main === module) {
     linkSkill,
     installRepoSkill,
     installCodexRepoSkills,
+    installOpencodeRepoSkills,
+    opencodePluginDepVersion,
     // CDX-2: Claude+Codex coexistence — MCP store split + multi-harness init
     writeMcp,
     writeCodexMcp,
@@ -1408,6 +1559,9 @@ if (require.main === module) {
     // graph auto-commit hook helpers
     graphAutocommitHookScript,
     mergeGraphAutocommitFlag,
+    prePushTestCommand,
+    prePushTestHookScript,
+    checkPrePushTestHook,
     parseOnboardArgs,
     dashboardUrl,
     renderClaudeInstructions,

@@ -146,7 +146,7 @@ const NOTES_BY_SOURCE = {
       kind: 'decision',
     },
   ],
-  'skills/parallel-orchestrate/SKILL.md': [
+  'skills/orchestrator-loop/references/parallel-dispatch.md': [
     {
       title: 'Two-tier context handoff between dependent tasks',
       summary: 'Token-saving contract: on finish, complete_task stores a SHORT interface summary. Dependents read all dep summaries via get_dependency_summaries (Tier 1, cheap, usually enough) and only deep-fetch get_task_detail (Tier 2) for a specific dependency when depth is actually needed. attach_knowledge adds precise reusable items so dependents fetch instead of re-deriving.',
@@ -158,7 +158,7 @@ const NOTES_BY_SOURCE = {
       kind: 'constraint',
     },
   ],
-  'skills/orch-loop/SKILL.md': [
+  'skills/orchestrator-loop/references/heartbeat.md': [
     {
       title: 'Autonomous loop holds every code change; merge is a human decision',
       summary: 'Default hold-merge mode: every code-producing task works in an isolated worktree off the code repo (branch orch/attempt/<slug>), NEVER edits the live checkout and NEVER merges to main. It completes with a "MERGE PENDING" summary so the task reaches done. The loop never merges and never halts on guidance — it queues everything for human review in the morning.',
@@ -175,7 +175,7 @@ const NOTES_BY_SOURCE = {
       kind: 'constraint',
     },
   ],
-  'skills/self-learn-judge/SKILL.md': [
+  'skills/self-learn/references/judge.md': [
     {
       title: 'Judge metric-first when a spec is present, else rationale',
       summary: 'When the problem carries a metric spec + measurements, judge METRIC-FIRST: improvement vs baseline, guardrail regressions (a near-veto), and gap to a researched competitor benchmark (confidence-weighted tiebreaker). Otherwise fall back to test pass/fail then rationale (simplest diff, fewest side effects, matches style). The judge weighs tradeoffs with judgment, NOT a fixed weighted-score formula.',
@@ -192,7 +192,7 @@ const NOTES_BY_SOURCE = {
       kind: 'constraint',
     },
   ],
-  'skills/self-learn-planner/SKILL.md': [
+  'skills/brain-activation/references/daemon-plan-optimize.md': [
     {
       title: 'Planner only ADDs nodes; never touches in-flight work',
       summary: 'The planner caused a runaway once. Hard rules: NEVER cancel/supersede an in-flight task (re-planning live work is the user’s call), NEVER duplicate an existing open task (suggest_links + dedup BEFORE TaskCreate), cap output at 1-3 initiatives, and if nothing is genuinely worth doing, STOP rather than fabricate busywork — graph bloat is failure.',
@@ -209,7 +209,7 @@ const NOTES_BY_SOURCE = {
       kind: 'constraint',
     },
   ],
-  'skills/self-learn-benchmark/SKILL.md': [
+  'skills/self-learn/references/benchmark.md': [
     {
       title: 'Never fabricate a benchmark; degrade to baseline-only',
       summary: 'A wrong benchmark is worse than none — it would mislead the judge. Run bounded research (≤~5 queries, prefer reputable primary sources); a credible figure requires a real source (the daemon rejects a record with no source). No credible source ⇒ record nothing and signal "no benchmark — baseline-only" so the judge degrades gracefully.',

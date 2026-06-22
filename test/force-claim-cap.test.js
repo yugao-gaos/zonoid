@@ -51,6 +51,8 @@ async function waitForPing(ms = 10000) {
   return false;
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Claim a task normally (no force), returns ok:true on success.
 async function normalClaim(key) {
   return post('/overlay/status', { key, status: 'in_progress', agent_id: 'test-agent', session_id: SID, workspace: WS });
@@ -63,14 +65,14 @@ async function forceClaim(key, agentId = 'test-agent') {
 
 // Release a task back to ready.
 async function releaseTask(key) {
-  return post('/overlay/status', { key, status: 'done', agent_id: 'test-agent', summary: 'done', workspace: WS });
+  return post('/overlay/status', { key, status: 'done', agent_id: 'test-agent', session_id: SID, summary: 'done', workspace: WS });
 }
 
 test('force-claim cap', async () => {
   execSync('git init -q', { cwd: WS });
   execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: WS });
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', ORCH_GATE_OFF: '1' },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', ORCH_GATE_OFF: '1', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
     stdio: 'ignore',
   });
   try {
@@ -97,9 +99,11 @@ test('force-claim cap', async () => {
     assert.equal(r.body.ok, true, 'normal claim 1: ok');
     // release and re-claim many times — should never be refused
     for (let i = 0; i < 5; i++) {
-      await releaseTask(TASK_NORMAL);
+      const released = await releaseTask(TASK_NORMAL);
+      assert.equal(released.body.ok, true, `normal release ${i + 1}: ok ${JSON.stringify(released.body)}`);
+      await sleep(10);
       r = await normalClaim(TASK_NORMAL);
-      assert.equal(r.body.ok, true, `normal claim ${i + 2}: ok`);
+      assert.equal(r.body.ok, true, `normal claim ${i + 2}: ok ${JSON.stringify(r.body)}`);
     }
 
     // ── (a) force claims 1-3 succeed with decreasing force_claims_remaining ─

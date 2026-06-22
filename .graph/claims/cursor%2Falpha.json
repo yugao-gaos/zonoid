@@ -1,0 +1,9 @@
+{
+  "task_key": "cursor/alpha",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "p2-cursor-sid",
+  "branch": "orch/attempt/cursor-alpha",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:04:08.019Z",
+  "lease_until": "2026-06-21T04:04:08.019Z"
+}

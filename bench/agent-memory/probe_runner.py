@@ -632,15 +632,15 @@ def run_probe_dag_combined(
     probe: dict[str, Any],
     candidates: list[_SessionCandidate],
 ) -> list[dict[str, Any]]:
-    """ARM dag-combined: DAG wiring (eager-judge) over raw notes + distill fact search, merged context.
+    """ARM dag-combined: settled task context plus distill fact search, merged context.
 
-    Merges three independent retrieval tiers then answers ONCE:
-      1. DAG tier    : autowire candidate set → LLM EdgeJudge → kept raw session note summaries.
-      2. RAG fill    : top-k vector search over raw notes, dedupe against DAG tier.
-      3. Distill tier: top-k vector search over atomic fact notes (*distill_workspace*).
+    Merges two production-faithful retrieval surfaces then answers ONCE:
+      1. Task context : autowire candidate set → LLM EdgeJudge → task-scoped search. A settled
+                        probe yields system + frozen DAG context, not a synthetic RAG fill.
+      2. Distill tier : top-k vector search over atomic fact notes (*distill_workspace*).
 
-    All tiers use the embedded daemon (fresh overlay, no pendingDup) so all notes are visible.
-    Keys are deduped across tiers; blocks are labelled [DAG]/[RAG]/[DISTILL] for the answerer.
+    The task-context tier uses the embedded daemon (fresh overlay, no pendingDup). Keys are deduped
+    across tiers; blocks preserve [SYSTEM]/[DAG] provenance and label [DISTILL] separately.
     """
     question = probe["question"]
     unit_id = f"{probe['qid']}-dc-{int(time.time() * 1000) % 1_000_000}"
@@ -667,7 +667,7 @@ def run_probe_dag_combined(
         seen_keys: set[str] = set()
         context_blocks: list[str] = []
 
-        # ── Tier 1+2: DAG (autowire + EdgeJudge) + RAG fill over raw session notes ─────────
+        # ── Tier 1: production task-scoped context after eager judgment ─────────────────────
         try:
             wiring = _arms.run_canonical_wiring(
                 emb_client,
@@ -676,30 +676,30 @@ def run_probe_dag_combined(
                 data_dir=emb_data_dir,
             )
             dag_count = 0
-            for d in _arms.read_wired_context(emb_client, wiring.task_key):
-                key = d.get("key") or ""
-                text = str(d.get("summary") or "")
-                if text.strip():
-                    context_blocks.append(f"[DAG] {text}")
-                    dag_count += 1
-                if key:
-                    seen_keys.add(key)
-            raw_hits = emb_client.search(question, k=_SEARCH_K * 3, gated=False)
-            rag_count = 0
-            for h in [h for h in raw_hits if _is_session_note_hit(h)][:_SEARCH_K]:
+            system_count = 0
+            raw_hits = _arms.read_task_search_context(
+                emb_client, wiring.task_key, question, k=_SEARCH_K
+            )
+            for h in raw_hits:
                 key = h.get("key") or ""
-                if key and key not in seen_keys:
-                    text = str(h.get("summary") or "")
-                    if text.strip():
-                        context_blocks.append(f"[RAG] {text}")
-                        rag_count += 1
-                    seen_keys.add(key)
+                if not key or key in seen_keys:
+                    continue
+                text = str(h.get("summary") or "")
+                if not text.strip():
+                    continue
+                label = _arms.task_search_context_label(h)
+                context_blocks.append(f"[{label}] {text}")
+                seen_keys.add(key)
+                if label == "DAG":
+                    dag_count += 1
+                elif label == "SYSTEM":
+                    system_count += 1
             print(
-                f"[probe_runner] dag-combined tiers: judge_idle={wiring.judge_idle} dag={dag_count} rag={rag_count}",
+                f"[probe_runner] task context: judge_idle={wiring.judge_idle} dag={dag_count} system={system_count}",
                 file=sys.stderr,
             )
         except Exception as exc:  # noqa: BLE001
-            print(f"[probe_runner] dag-combined DAG/RAG tier failed (non-fatal): {exc}", file=sys.stderr)
+            print(f"[probe_runner] task context tier failed (non-fatal): {exc}", file=sys.stderr)
 
         # ── Tier 3: distill fact search (main daemon — distill facts are not in embedded daemon) ─
         try:

@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/judge-onboard-learn-cluster-output",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "019eeac9-a029-7341-8797-fd647b5d1993",
+  "branch": "orch/attempt/codex-judge-onboard-learn-cluster-output",
+  "status": "done",
+  "claimed_at": "2026-06-21T15:26:41.582Z",
+  "lease_until": "2026-06-21T16:26:41.582Z",
+  "completed_at": "2026-06-21T15:34:48.779Z"
+}

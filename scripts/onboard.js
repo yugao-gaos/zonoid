@@ -8,8 +8,8 @@
  * KB-bootstrapped the first time the orchestrator runs there. It chains the pieces built by the
  * earlier onboarding tasks into a single, gated pipeline:
  *
- *   1. MINE  — run the 4 static miners (onboard-mine-{structure,git,docs,assets}.js --repo <abs>) into
- *              bench/onboard/<basename(repo)>/  (no graph mutation, no commit).
+ *   1. MINE  — run the static miners (onboard-mine-{structure,git,docs,assets,config}.js --repo <abs>) into
+ *              <repo>/.zonoid/onboard/<basename(repo)>/  (no graph mutation, no commit).
  *   2. LEARN — run scripts/onboard-learn.js --repo <abs>: a read-only agent validates the noisy
  *              mined candidates against actual source and writes onboard-notes.json (KEPT/REJECTED).
  *              Still NO graph mutation — the learner only writes a JSON file.
@@ -30,7 +30,7 @@
  * bundle. Re-running is a no-op unless --force is passed, so the setup-flow trigger can call this
  * unconditionally without re-mining an already-onboarded repo.
  *
- *   node scripts/onboard.js --repo <abs> [--out <dir>] [--model opus] [--max-keep 20]
+ *   node scripts/onboard.js --repo <abs> [--out <dir>] [--model <backend-model>] [--max-keep 20]
  *   node scripts/onboard.js --repo <abs> --force          # re-onboard even if marker present
  *   node scripts/onboard.js --repo <abs> --skip-learn     # mine + bundle the raw candidates only
  *                                                          # (no agent spawn; for sandboxed/offline)
@@ -39,6 +39,7 @@
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
 const SELF_REPO = path.resolve(__dirname, '..');
 const SCRIPTS = __dirname;
@@ -115,7 +116,7 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
 (async () => {
   const repo = arg('repo');
   if (!repo) {
-    console.error('usage: onboard.js --repo <abs> [--out <dir>] [--model opus] [--max-keep 20] [--force] [--skip-learn]');
+    console.error('usage: onboard.js --repo <abs> [--out <dir>] [--model <backend-model>] [--max-keep 20] [--force] [--skip-learn]');
     process.exit(2);
   }
   const repoAbs = path.resolve(repo);
@@ -123,19 +124,22 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
     console.error(`[onboard] not a git repo: ${repoAbs}`);
     process.exit(2);
   }
-  const outDir = path.resolve(arg('out', path.join(repoAbs, '.graph', 'onboard')));
-  const marker = path.join(repoAbs, '.graph', '.onboarded');
+  const outDir = path.resolve(arg('out', defaultOnboardOutDir(repoAbs)));
+  const marker = path.join(outDir, '.onboarded');
+  const legacyMarker = path.join(repoAbs, '.graph', '.onboarded');
 
   // ---- first-run gate: skip an already-onboarded repo unless --force ----
-  if (fs.existsSync(marker) && !has('force')) {
-    console.log(`[onboard] ${path.basename(repoAbs)} already onboarded (${marker}).`);
+  const existingMarker = fs.existsSync(marker) ? marker : (fs.existsSync(legacyMarker) ? legacyMarker : '');
+  if (existingMarker && !has('force')) {
+    const reviewDir = existingMarker === legacyMarker ? path.join(repoAbs, '.graph', 'onboard') : outDir;
+    console.log(`[onboard] ${path.basename(repoAbs)} already onboarded (${existingMarker}).`);
     console.log('[onboard] Re-run with --force to re-mine, or review the existing bundle:');
-    console.log(`           ${path.join(outDir, 'ONBOARD-REVIEW.md')}`);
+    console.log(`           ${path.join(reviewDir, 'ONBOARD-REVIEW.md')}`);
     process.exit(0);
   }
 
   fs.mkdirSync(outDir, { recursive: true });
-  const model = arg('model', 'opus');
+  const model = arg('model', null);
   const maxKeep = arg('max-keep', '20');
 
   // ---- 1. MINE (no graph mutation, no commit) ----
@@ -160,8 +164,10 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
     }));
     fs.writeFileSync(notesFile, JSON.stringify({ kept, rejected: [] }, null, 2) + '\n');
   } else {
-    console.error(`[onboard] 2/3 agentic validation (model=${model})…`);
-    const st = node('onboard-learn.js', ['--repo', repoAbs, '--in', outDir, '--model', model, '--max-keep', maxKeep]);
+    console.error(`[onboard] 2/3 agentic validation (${model ? `model=${model}` : 'active backend model'})…`);
+    const learnArgs = ['--repo', repoAbs, '--in', outDir, '--max-keep', maxKeep];
+    if (model) learnArgs.push('--model', model);
+    const st = node('onboard-learn.js', learnArgs);
     if (st !== 0 || !fs.existsSync(notesFile)) {
       console.error('[onboard] FAILED: learner did not produce onboard-notes.json.');
       console.error('[onboard] (sandboxed? retry with --skip-learn to bundle raw candidates for review.)');
@@ -177,7 +183,7 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
   const bundle = writeReviewBundle(repoAbs, outDir, kept, rejected, injectCmd);
 
   // Mark onboarded so the setup-flow trigger is idempotent.
-  fs.mkdirSync(path.join(repoAbs, '.graph'), { recursive: true });
+  fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(marker, JSON.stringify({ repo: repoAbs, at: new Date().toISOString(), kept: kept.length }) + '\n');
 
   console.error('');

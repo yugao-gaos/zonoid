@@ -15,6 +15,8 @@ const {
   resolveInstallDir,
   linkSkill,
   installRepoSkill,
+  installOpencodeRepoSkills,
+  opencodePluginDepVersion,
   writeMcp,
   writeCodexMcp,
   writeOpencodeMcp,
@@ -23,6 +25,9 @@ const {
   stripCodexOrchTable,
   graphAutocommitHookScript,
   mergeGraphAutocommitFlag,
+  prePushTestCommand,
+  prePushTestHookScript,
+  checkPrePushTestHook,
   parseOnboardArgs,
   dashboardUrl,
   renderClaudeInstructions,
@@ -167,6 +172,11 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     fs.mkdirSync(path.join(withWorktrees, 'worktrees'), { recursive: true });
     ok('dirHasLiveData: worktrees/ detected', dirHasLiveData(withWorktrees));
 
+    // Dir with .zonoid/ runtime dir → live data
+    const withZonoid = path.join(base, 'with-zonoid');
+    fs.mkdirSync(path.join(withZonoid, '.zonoid'), { recursive: true });
+    ok('dirHasLiveData: .zonoid/ detected', dirHasLiveData(withZonoid));
+
     // Dir with `workspace` file → live data
     const withWorkspace = path.join(base, 'with-workspace');
     fs.mkdirSync(withWorkspace, { recursive: true });
@@ -292,8 +302,12 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     const skillPath = path.join(cwd, '.codex', 'skills', 'zonoid-orchestrator', 'SKILL.md');
     ok('installRepoSkill installs zonoid-orchestrator into client .codex/skills', installed && fs.existsSync(skillPath));
     const text = fs.readFileSync(skillPath, 'utf8');
-    ok('repo skill documents create_task file-drop task minting',
-      text.includes('create_task') && text.includes('file-drop'));
+    ok('repo skill points adapter-specific details to client-adapters reference',
+      text.includes('client-adapters.md') && text.includes('http://localhost:8787/graph'));
+    const adapterPath = path.join(cwd, '.codex', 'skills', 'zonoid-orchestrator', 'references', 'client-adapters.md');
+    const adapterText = fs.readFileSync(adapterPath, 'utf8');
+    ok('codex repo skill adapter reference documents create_task file-drop task minting',
+      adapterText.includes('create_task') && adapterText.includes('codex/<id>'));
 
     const before = fs.readFileSync(skillPath, 'utf8');
     const second = installRepoSkill(cwd, 'zonoid-orchestrator', 'codex');
@@ -302,6 +316,76 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
   } finally {
     fs.rmSync(base, { recursive: true, force: true });
   }
+}
+
+// ── Client-repo skill install: OpenCode guidance belongs in target repo ──────
+// Mirrors the Codex block above but asserts the .opencode/skills destination
+// uses the canonical skill name.
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-opencode-skill-'));
+  try {
+    const cwd = path.join(base, 'client-repo')
+    fs.mkdirSync(cwd, { recursive: true })
+    const installed = installRepoSkill(cwd, 'zonoid-orchestrator', 'opencode')
+    const skillPath = path.join(cwd, '.opencode', 'skills', 'zonoid-orchestrator', 'SKILL.md')
+    ok('installRepoSkill installs zonoid-orchestrator into client .opencode/skills',
+      installed && fs.existsSync(skillPath))
+    ok('installRepoSkill opencode does NOT touch .codex/skills',
+      !fs.existsSync(path.join(cwd, '.codex', 'skills')))
+    const text = fs.readFileSync(skillPath, 'utf8')
+    ok('opencode repo skill points to client adapter mappings',
+      text.includes('client-adapters.md'))
+    const adapterPath = path.join(cwd, '.opencode', 'skills', 'zonoid-orchestrator', 'references', 'client-adapters.md')
+    const adapterText = fs.readFileSync(adapterPath, 'utf8')
+    ok('opencode repo skill adapter reference documents task_create file-drop task minting',
+      adapterText.includes('task_create') && adapterText.includes('opencode/<id>'))
+    ok('opencode repo skill surfaces the dashboard URL', text.includes('localhost:8787/graph'))
+
+    // installOpencodeRepoSkills() wrapper hits the same path.
+    const cwd2 = path.join(base, 'client-repo-2')
+    fs.mkdirSync(cwd2, { recursive: true })
+    const installed2 = installOpencodeRepoSkills(cwd2)
+    const skillPath2 = path.join(cwd2, '.opencode', 'skills', 'zonoid-orchestrator', 'SKILL.md')
+    ok('installOpencodeRepoSkills installs the canonical opencode repo skill', installed2 && fs.existsSync(skillPath2))
+
+    // Idempotent: a second install is byte-identical.
+    const before = fs.readFileSync(skillPath, 'utf8')
+    installRepoSkill(cwd, 'zonoid-orchestrator', 'opencode')
+    const after = fs.readFileSync(skillPath, 'utf8')
+    ok('installRepoSkill opencode is idempotent', before === after)
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true })
+  }
+}
+
+// ── Client-repo skill install: OpenCode compatibility alias stays explicit ───
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-opencode-alias-skill-'));
+  try {
+    const cwd = path.join(base, 'client-repo')
+    fs.mkdirSync(cwd, { recursive: true })
+    const installed = installRepoSkill(cwd, 'zonoid-orchestrator-opencode', 'opencode')
+    const skillPath = path.join(cwd, '.opencode', 'skills', 'zonoid-orchestrator-opencode', 'SKILL.md')
+    ok('installRepoSkill installs zonoid-orchestrator-opencode compatibility alias into client .opencode/skills',
+      installed && fs.existsSync(skillPath))
+    ok('installRepoSkill opencode alias does NOT touch .codex/skills',
+      !fs.existsSync(path.join(cwd, '.codex', 'skills')))
+    const text = fs.readFileSync(skillPath, 'utf8')
+    ok('opencode compatibility alias points to canonical repo skill and adapter reference',
+      text.includes('Compatibility Alias') &&
+      text.includes('zonoid-orchestrator') &&
+      text.includes('client-adapters.md'))
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true })
+  }
+}
+
+// ── OpenCode plugin dep pin: never 'latest' (opencode rewrites it to a broken @local) ──
+{
+  const v = opencodePluginDepVersion()
+  ok('opencodePluginDepVersion never returns latest', v !== 'latest' && v !== '*')
+  ok('opencodePluginDepVersion is a pinned range (~X.Y.0 when detected, else ^1.15.0)',
+    /^(~\d+\.\d+\.0|\^\d+\.\d+\.\d+)$/.test(v))
 }
 
 // ── CDX-2: Claude + Codex coexistence in ONE repo ────────────────────────────
@@ -410,6 +494,8 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
     ok('opencode wiring enables orchestrator MCP', entry.enabled === true);
     ok('opencode wiring injects ORCH_CLIENT=opencode',
       entry.environment && entry.environment.ORCH_CLIENT === 'opencode');
+    ok('opencode wiring explicitly registers the zonoid plugin (no auto-discovery in 1.15.x)',
+      Array.isArray(config.plugin) && config.plugin.includes('./.opencode/plugins/zonoid.ts'));
 
     fs.writeFileSync(opencodePath, JSON.stringify({
       theme: 'system',
@@ -448,6 +534,10 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
   ok('opencodeMcpEntry: native local command array',
     opencodeEntry.type === 'local' && opencodeEntry.command[0] === 'node');
   ok('opencodeMcpEntry: environment injects ORCH_CLIENT', opencodeEntry.environment.ORCH_CLIENT === 'opencode');
+  const opencodeRel = opencodeMcpEntry(INSTALL_DIR);
+  ok('opencodeMcpEntry: relative mcp-graph.js when cwd is install dir (portable)', opencodeRel.command[1] === 'mcp-graph.js');
+  const opencodeAbs = opencodeMcpEntry('/some/other/repo');
+  ok('opencodeMcpEntry: absolute mcp-graph.js for out-of-workspace install', /\/mcp-graph\.js$/.test(opencodeAbs.command[1]) && opencodeAbs.command[1] !== 'mcp-graph.js');
 
   // stripCodexOrchTable must drop ONLY the orchestrator-graph table + its .env
   // subtable, preserving a sibling [mcp_servers.other] entirely.
@@ -537,6 +627,91 @@ ok('repo opencode plugin has schedule_wakeup', opencodePluginHasScheduleWakeup(f
   ok('parseInitArgs combined: harness still parsed', combined.harness === 'cursor');
   ok('parseInitArgs combined: service still parsed', combined.service === true);
   ok('parseInitArgs combined: enableGraphAutocommit=true', combined.enableGraphAutocommit === true);
+}
+
+// ── pre-push test guard ─────────────────────────────────────────────────────
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-pre-push-'));
+  try {
+    const repo = path.join(base, 'repo');
+    fs.mkdirSync(repo, { recursive: true });
+    fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({
+      scripts: {
+        test: 'node test/basic.test.js',
+        'test:all': 'node scripts/run-tests.js',
+      },
+    }, null, 2));
+
+    ok('prePushTestCommand prefers test:all',
+      prePushTestCommand(repo) === 'npm run test:all');
+
+    const script = prePushTestHookScript(prePushTestCommand(repo));
+    ok('prePushTestHookScript includes marker',
+      script.includes('Zonoid pre-push test guard'));
+    ok('prePushTestHookScript runs selected command',
+      script.includes('npm run test:all'));
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-pre-push-'));
+  try {
+    const repo = path.join(base, 'repo');
+    fs.mkdirSync(repo, { recursive: true });
+    fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({
+      scripts: { test: 'node test/basic.test.js' },
+    }, null, 2));
+
+    ok('prePushTestCommand falls back to test',
+      prePushTestCommand(repo) === 'npm test');
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-pre-push-'));
+  try {
+    const repo = path.join(base, 'repo');
+    fs.mkdirSync(repo, { recursive: true });
+    fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ scripts: { build: 'node build.js' } }));
+
+    ok('prePushTestCommand skips repos without test scripts',
+      prePushTestCommand(repo) === null);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'zonoid-pre-push-'));
+  try {
+    const repo = path.join(base, 'repo');
+    fs.mkdirSync(repo, { recursive: true });
+    spawnSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
+    fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({
+      scripts: { 'test:all': 'node scripts/run-tests.js' },
+    }, null, 2));
+
+    checkPrePushTestHook(repo);
+    const hookPath = path.join(repo, '.git', 'hooks', 'pre-push');
+    let hook = fs.readFileSync(hookPath, 'utf8');
+    ok('checkPrePushTestHook writes pre-push hook', fs.existsSync(hookPath));
+    ok('checkPrePushTestHook writes executable test:all guard',
+      hook.includes('Zonoid pre-push test guard') && hook.includes('npm run test:all'));
+    ok('checkPrePushTestHook chmods hook executable',
+      (fs.statSync(hookPath).mode & 0o111) !== 0);
+
+    fs.writeFileSync(hookPath, prePushTestHookScript('npm test'));
+    checkPrePushTestHook(repo);
+    hook = fs.readFileSync(hookPath, 'utf8');
+    ok('checkPrePushTestHook updates managed hook to test:all',
+      hook.includes('npm run test:all') && !hook.includes('npm test\n'));
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
 }
 
 process.exit(failed ? 1 : 0);

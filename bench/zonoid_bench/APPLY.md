@@ -124,6 +124,10 @@ cold = arms.run_cold("What is X?")
 rag = arms.run_rag_control(client, "What is X?")
 ```
 
+`retrieve_and_answer` reads the production task-scoped search result after eager judgment. For a
+settled probe that result is system context plus frozen DAG context; it does not append semantic
+RAG. `rag_control` remains the explicit plain-search comparison because it omits `task_key`.
+
 ### Step 7 -- collect and score results
 
 ```python

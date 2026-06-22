@@ -5,7 +5,10 @@
 PORT="${ORCH_PORT:-8787}"
 INPUT=$(cat)
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
-[ -f "${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions/$SID.off" ] && exit 0  # gate: skip only if opted out (default on)
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/runtime-paths.sh
+. "$HOOK_DIR/lib/runtime-paths.sh"
+[ -f "$(orch_data_dir)/sessions/$SID.off" ] && exit 0  # gate: skip only if opted out (default on)
 
 READY=$(curl -s --max-time 0.5 "localhost:$PORT/ready?session=$SID" 2>/dev/null | jq -r '[.ready[]?.label] | join(", ")' 2>/dev/null)
 [ -z "$READY" ] && exit 0

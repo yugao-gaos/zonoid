@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/full-system-review-subconscious-landed",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "review-dispatcher-system-review",
+  "branch": "orch/attempt/codex-full-system-review-subconscious-landed",
+  "status": "tested",
+  "claimed_at": "2026-06-22T02:31:05.275Z",
+  "lease_until": "2026-06-22T03:31:05.275Z",
+  "completed_at": "2026-06-22T02:31:33.633Z"
+}

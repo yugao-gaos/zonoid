@@ -8,7 +8,10 @@ PORT="${ORCH_PORT:-8787}"
 INPUT=$(cat)
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
 [ -z "$SID" ] && exit 0
-DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/runtime-paths.sh
+. "$HOOK_DIR/lib/runtime-paths.sh"
+DIR="$(orch_data_dir)/sessions"
 [ -f "$DIR/$SID.off" ] && exit 0   # skip only when orchestrator is disabled for this conversation (default on)
 
 # new native task id from the TaskCreate response text ("Task #12 created successfully: ...")
@@ -24,8 +27,8 @@ for i in 1 2 3; do
   sleep 0.2
 done
 # Quarantine reminder ALWAYS fires (even with zero candidates) — a new task is unwired and
-# cannot be claimed by start_task until it's wired (add_dependency) or declared a root (mark_root).
-QUAR=$(printf 'Task %s created — it is QUARANTINED as unwired. Wire it now: suggest_links + add_dependency (blocking for prerequisites, context for related done work), or mark_root if genuinely standalone. Unwired tasks cannot be claimed by start_task.' "$KEY")
+# cannot be accepted until it's wired (add_dependency) or declared a root (mark_root).
+QUAR=$(printf 'Task %s created — it is QUARANTINED as unwired. Wire it now: suggest_links + add_dependency (blocking for prerequisites, context for related done work), or mark_root if genuinely standalone. Unwired tasks cannot be accepted with subconscious_assignment action:"accept".' "$KEY")
 if printf '%s' "$SUG" | jq -e '.suggestions | length > 0' >/dev/null 2>&1; then
   LINES=$(printf '%s' "$SUG" | jq -r '.suggestions[] | "  - \(.key) [\(.status)] \(.label) (score \(.score), suggest \(.suggest_kind))"' | head -5)
   CTX=$(printf '[Orchestrator] %s\nCandidate links among existing tasks (incl. completed):\n%s\nFor relevant DONE matches call add_dependency(from=<match>, to=%s, kind="context") so their summary becomes Tier-1 context; for a true prerequisite use kind="blocking". Skip unrelated ones.' "$QUAR" "$LINES" "$KEY")

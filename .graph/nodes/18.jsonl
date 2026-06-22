@@ -7,3 +7,8 @@
 {"evt":"edge_added","from":"18","to":"ddccf8ca-a541-49a7-8912-43ff5c7ccc63/9","kind":"context","actor":"overlay-sync","ts":"2026-06-15T02:46:44.719Z","weight":0,"by":"autowire","judged":false,"score":0.57,"origin":"autowire-semantic"}
 {"evt":"timestamps_set","id":"18","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T12:14:46.580Z","lastChanged":"2026-06-15T02:46:44.491Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T02:47:36.680Z"}
 {"evt":"status_changed","id":"18","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T02:57:26.355Z"}
+{"evt":"edge_removed","from":"18","to":"cursor/rb-reembed","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:04:39.451Z"}
+{"evt":"edge_removed","from":"18","to":"ddccf8ca-a541-49a7-8912-43ff5c7ccc63/9","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:04:39.451Z"}
+{"evt":"edge_removed","from":"18","to":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/18","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:13:23.983Z"}
+{"evt":"edge_removed","from":"18","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/7","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:13:23.983Z"}
+{"evt":"edge_removed","from":"18","to":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/15","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:13:23.983Z"}

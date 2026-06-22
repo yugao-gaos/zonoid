@@ -80,6 +80,18 @@ function claimedConfig() {
         task: { metric: null, git: { branch: 'orch/attempt/parity-task', worktree: WT } },
       },
     },
+    executionPermits: [{
+      id: 'permit-parity-task',
+      session_id: 'parity-session',
+      task_key: 'parity/task',
+      worktree: WT,
+      branch: 'orch/attempt/parity-task',
+      scope: 'worktree',
+      allowed_paths: [WT],
+      status: 'active',
+      issued_at: '2026-06-21T00:00:00.000Z',
+      expires_at: '2099-01-01T00:00:00.000Z',
+    }],
   };
 }
 
@@ -144,6 +156,12 @@ expectExit('direct Node write gate allows file-drop mint path', DIRECT_WRITE, mi
 expectExit('shell write gate allows file-drop mint path', SHELL_WRITE, mintWrite, blocked, 0);
 expectExit('Cursor write relay allows file-drop mint path', CURSOR_WRITE, mintWrite, blocked, 0);
 expectCodexAllow('Codex write relay allows file-drop mint path', CODEX_WRITE, mintWrite, blocked);
+
+const zonoidMintWrite = writeInput('/Users/x/repo/.zonoid/tasks/ws/codex/t1.json');
+expectExit('direct Node write gate allows .zonoid file-drop mint path', DIRECT_WRITE, zonoidMintWrite, blocked, 0);
+expectExit('shell write gate allows .zonoid file-drop mint path', SHELL_WRITE, zonoidMintWrite, blocked, 0);
+expectExit('Cursor write relay allows .zonoid file-drop mint path', CURSOR_WRITE, zonoidMintWrite, blocked, 0);
+expectCodexAllow('Codex write relay allows .zonoid file-drop mint path', CODEX_WRITE, zonoidMintWrite, blocked);
 
 const insideClaim = writeInput(`${WT}/src/main.js`);
 expectExit('direct Node write gate allows claimed worktree path', DIRECT_WRITE, insideClaim, claimedConfig(), 0);

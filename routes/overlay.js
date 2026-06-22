@@ -1,5 +1,6 @@
 'use strict';
 const overlayStore = require('../lib/overlay');
+const embeddingStore = require('../lib/embedding-store');
 const filedropGc = require('../lib/filedrop-gc');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
@@ -8,7 +9,44 @@ const { noteEmbedText, noteFieldTexts, taskEmbedText } = require('../lib/node-ta
 const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
 const recallJournal = require('../lib/recall-outcome-journal');
+const retrievalWeights = require('../lib/search/retrieval-weights');
 const gitClaims = require('../lib/git-claims');
+const noteSourceCluster = require('../lib/note-source-cluster');
+const { defaultSubconsciousStore } = require('../lib/subconscious');
+
+const POSITIVE_RECALL_OUTCOMES = new Set(['approve', 'tested']);
+const NEGATIVE_RECALL_OUTCOMES = new Set(['kickback', 'failed']);
+
+function recallOutcomeSignal(outcome) {
+  if (POSITIVE_RECALL_OUTCOMES.has(outcome)) return true;
+  if (NEGATIVE_RECALL_OUTCOMES.has(outcome)) return false;
+  return null;
+}
+
+function hasRecalledNoteSignal(row) {
+  return !!(row && Array.isArray(row.recalled_note_keys) && row.recalled_note_keys.length);
+}
+
+function reinforceRecalledContextEdges(workspace, taskKey, row, outcome) {
+  const positive = recallOutcomeSignal(outcome);
+  if (positive == null || !hasRecalledNoteSignal(row)) return;
+  const edges = recallJournal.recalledContextEdges(row);
+  if (!edges.length) return;
+
+  const seen = new Set();
+  for (const edge of edges) {
+    if (edge.relation !== 'context') continue;
+    if (edge.direct === false) continue;
+    if (edge.result_kind && edge.result_kind !== 'note' && edge.result_kind !== 'task') continue;
+    const canonical = retrievalWeights.canonicalEdge(edge.from, edge.to, edge.relation);
+    if (!canonical || seen.has(canonical.key)) continue;
+    seen.add(canonical.key);
+    retrievalWeights.reinforceEdge(workspace, canonical, {
+      positive,
+      reason: `recall-outcome:${outcome}:${taskKey}`,
+    });
+  }
+}
 
 // Resolve a note's knowledge[] for field-level embedding. addNoteNode stores it inline on the node
 // (n.knowledge), but the /overlay/note route also mirrors it into overlay.knowledge[id]; prefer the
@@ -19,9 +57,187 @@ function noteKnowledge(overlay, n) {
   return Array.isArray(side) ? side : [];
 }
 
+async function embedDocument(ctx, overlay, text) {
+  if (typeof ctx.embedWithMeta === 'function') return ctx.embedWithMeta(text, { mode: 'document', overlay });
+  const vec = await ctx.embed(text);
+  return { vec, meta: null };
+}
+
+async function embedDocumentVec(ctx, overlay, text) {
+  const r = await embedDocument(ctx, overlay, text);
+  return r && Array.isArray(r.vec) ? r.vec : null;
+}
+
+async function embedDocumentFields(ctx, overlay, fields) {
+  const out = [];
+  const metas = [];
+  for (const text of fields) {
+    const r = await embedDocument(ctx, overlay, text);
+    if (r && Array.isArray(r.vec)) {
+      out.push(r.vec);
+      metas.push(r.meta || null);
+    }
+  }
+  return { vecs: out, vecsMeta: metas };
+}
+
 function isAdmissibleOverlayTaskKey(key) {
   return typeof key === 'string'
     && (/^[^/\s]+\/[^/\s]+$/.test(key) || /^[A-Za-z][A-Za-z0-9_.-]*$/.test(key));
+}
+
+function normalizePermitPath(value, base) {
+  const raw = String(value || '').replace(/\\/g, '/').trim();
+  if (!raw) return '';
+  const absolute = raw.startsWith('/') || /^[A-Za-z]:\//.test(raw);
+  const resolved = absolute ? raw : `${String(base || '').replace(/\\/g, '/').replace(/\/+$/, '')}/${raw}`;
+  return path.posix.normalize(resolved).replace(/\/+$/, '');
+}
+
+function permitCoversClaim(permit, claim) {
+  if (!permit || permit.status !== 'active') return false;
+  if (permit.session_id !== claim.sessionId) return false;
+  if (permit.task_key !== claim.taskKey) return false;
+  if (permit.branch !== claim.branch) return false;
+  if (claim.agentId && permit.agent_id && permit.agent_id !== claim.agentId) return false;
+  return normalizePermitPath(permit.worktree, claim.worktree) === normalizePermitPath(claim.worktree);
+}
+
+function ensureExecutionPermitForClaim(store, claim) {
+  if (!store || !claim.sessionId || !claim.taskKey || !claim.worktree || !claim.branch) return null;
+  if (typeof store.executionPermit !== 'function') return null;
+  const read = typeof store.readExecutionPermit === 'function'
+    ? store.readExecutionPermit({
+      workspace: claim.workspace,
+      session_id: claim.sessionId,
+      agent_id: claim.agentId,
+      task_key: claim.taskKey,
+    })
+    : null;
+  if (read && permitCoversClaim(read.execution_permit, claim)) return read.execution_permit;
+  const issued = store.executionPermit({
+    action: 'issue',
+    workspace: claim.workspace,
+    session_id: claim.sessionId,
+    agent_id: claim.agentId,
+    task_key: claim.taskKey,
+    worktree: claim.worktree,
+    branch: claim.branch,
+    scope: 'worktree',
+    reason: 'auto-issued after accepted worker claim',
+  });
+  return issued && issued.ok ? issued.execution_permit : null;
+}
+
+const TASK_RESULT_ALLOWED = new Set([
+  'version',
+  'status',
+  'summary',
+  'files_changed',
+  'tests_run',
+  'decisions',
+  'metric_measurements',
+  'has_metric_spec',
+]);
+const TASK_RESULT_REQUIRED = ['version', 'status', 'summary', 'files_changed', 'tests_run', 'decisions'];
+const TASK_RESULT_STATUSES = new Set(['tested', 'failed']);
+
+function isPlainObject(value) {
+  return !!(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function validateStringArray(value, field) {
+  if (!Array.isArray(value)) return `${field} must be an array`;
+  if (value.some((item) => typeof item !== 'string')) return `${field} must contain only strings`;
+  return null;
+}
+
+function validateTaskResult(taskResult, routeStatus, hasMetricSpec) {
+  if (!isPlainObject(taskResult)) {
+    return { error: 'invalid task_result: expected object', field: 'task_result' };
+  }
+
+  const keys = Object.keys(taskResult);
+  const extra = keys.filter((key) => !TASK_RESULT_ALLOWED.has(key));
+  if (extra.length) {
+    return { error: 'invalid task_result: additional fields are not allowed', extra };
+  }
+
+  const missing = TASK_RESULT_REQUIRED.filter((key) => !Object.prototype.hasOwnProperty.call(taskResult, key));
+  if (missing.length) {
+    return { error: 'invalid task_result: missing required field(s)', missing };
+  }
+
+  if (taskResult.version !== 1) return { error: 'invalid task_result.version: expected 1', field: 'version', expected: 1, actual: taskResult.version };
+  if (!TASK_RESULT_STATUSES.has(taskResult.status)) {
+    return { error: 'invalid task_result.status: expected tested or failed', field: 'status', allowed: [...TASK_RESULT_STATUSES], actual: taskResult.status };
+  }
+  if (taskResult.status !== routeStatus) {
+    return { error: 'task_result.status must match terminal route status', field: 'status', expected: routeStatus, actual: taskResult.status };
+  }
+  if (typeof taskResult.summary !== 'string') return { error: 'invalid task_result.summary: expected string', field: 'summary' };
+  const filesErr = validateStringArray(taskResult.files_changed, 'task_result.files_changed');
+  if (filesErr) return { error: filesErr, field: 'files_changed' };
+  if (typeof taskResult.tests_run !== 'string') return { error: 'invalid task_result.tests_run: expected string', field: 'tests_run' };
+  if (!Array.isArray(taskResult.decisions)) return { error: 'invalid task_result.decisions: expected array', field: 'decisions' };
+  for (let i = 0; i < taskResult.decisions.length; i++) {
+    const decision = taskResult.decisions[i];
+    if (!isPlainObject(decision)) return { error: 'invalid task_result.decisions item: expected object', field: `decisions[${i}]` };
+    const decisionExtra = Object.keys(decision).filter((key) => key !== 'title' && key !== 'wires_to');
+    if (decisionExtra.length) return { error: 'invalid task_result.decisions item: additional fields are not allowed', field: `decisions[${i}]`, extra: decisionExtra };
+    if (typeof decision.title !== 'string') return { error: 'invalid task_result.decisions item: title required', field: `decisions[${i}].title` };
+    const wiresErr = validateStringArray(decision.wires_to, `task_result.decisions[${i}].wires_to`);
+    if (wiresErr) return { error: wiresErr, field: `decisions[${i}].wires_to` };
+  }
+  if (Object.prototype.hasOwnProperty.call(taskResult, 'has_metric_spec') && typeof taskResult.has_metric_spec !== 'boolean') {
+    return { error: 'invalid task_result.has_metric_spec: expected boolean', field: 'has_metric_spec' };
+  }
+
+  if (hasMetricSpec && !Object.prototype.hasOwnProperty.call(taskResult, 'metric_measurements')) {
+    return { error: 'invalid task_result: metric task requires task_result.metric_measurements.value', missing: 'metric_measurements' };
+  }
+  if (Object.prototype.hasOwnProperty.call(taskResult, 'metric_measurements')) {
+    const mm = taskResult.metric_measurements;
+    if (!isPlainObject(mm)) return { error: 'invalid task_result.metric_measurements: expected object', field: 'metric_measurements' };
+    const mmExtra = Object.keys(mm).filter((key) => key !== 'value' && key !== 'guardrails');
+    if (mmExtra.length) return { error: 'invalid task_result.metric_measurements: additional fields are not allowed', field: 'metric_measurements', extra: mmExtra };
+    if (typeof mm.value !== 'number' || !Number.isFinite(mm.value)) {
+      return { error: 'invalid task_result.metric_measurements.value: expected finite number', missing: 'metric_measurements.value', field: 'metric_measurements.value' };
+    }
+    if (Object.prototype.hasOwnProperty.call(mm, 'guardrails')) {
+      if (!isPlainObject(mm.guardrails)) return { error: 'invalid task_result.metric_measurements.guardrails: expected object', field: 'metric_measurements.guardrails' };
+      for (const [key, value] of Object.entries(mm.guardrails)) {
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+          return { error: 'invalid task_result.metric_measurements.guardrails: values must be finite numbers', field: `metric_measurements.guardrails.${key}` };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function validateTerminalClaimOwner(ov, body) {
+  if (!newlyReady.isTerminalStatus(body.status)) return null;
+  const key = body.key;
+  const claimSession = ov.claimSessions && ov.claimSessions[key];
+  const currentStatus = ov.status && ov.status[key];
+  if (currentStatus !== 'in_progress' && !claimSession) return null;
+
+  const sid = body.session_id ? String(body.session_id) : '';
+  if (!sid) {
+    return { error: 'claim-bound completion requires session_id for the active claim', missing: 'session_id', current: currentStatus || null };
+  }
+  if (claimSession && sid !== claimSession) {
+    return { error: 'claim-bound completion session_id does not match the active claim', field: 'session_id', expected: claimSession, actual: sid };
+  }
+
+  const owner = ov.assignee && ov.assignee[key];
+  const agentId = body.agent_id ? String(body.agent_id) : '';
+  if (owner && agentId !== owner) {
+    return { error: 'claim-bound completion agent_id does not match the active assignee', field: 'agent_id', expected: owner, actual: agentId || null };
+  }
+  return null;
 }
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
@@ -32,7 +248,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (typeof nodeExistsInGraph !== 'function') return true;
     return nodeExistsInGraph(buildGraph(ws), key);
   };
-  const acceptsTaskKey = (T, key) => graphHasKey(T.ws, key) || isAdmissibleOverlayTaskKey(key);
+  const acceptsTaskKey = (T, key) => graphHasKey(T.ws, key)
+    || !!(T.ov.snapshots && T.ov.snapshots[key])
+    || !!(T.ov.knowledge_nodes && T.ov.knowledge_nodes[key]);
   const ensureTaskSnapshot = (T, key) => {
     if (!isAdmissibleOverlayTaskKey(key)) return;
     if (T.ov.snapshots && T.ov.snapshots[key]) return;
@@ -184,24 +402,27 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (!isSubagent) {
         // Self-register-on-claim fallback: the SubagentStart hook does NOT fire for run_in_background
         // Agent-tool spawns (note-mqed9vz7vr9), so they never carry agent_tool_spawn:true and isSubagent
-        // is false for them. The proof of delegation we CAN rely on is that branch_task was already
-        // called for this task_key (a worktree is registered) — the dispatcher never calls branch_task.
+        // is false for them. The proof of delegation we CAN rely on is that Subconscious already
+        // prepared this task_key (a worktree is registered) — the dispatcher never hand-prepares
+        // raw worktrees in the routine path.
         // So a claim bearing an agent_id AND backed by a registered worktree is a legitimate hook-less
         // worker: register it (one normalized field) and allow. A claim with NO worktree is still
         // refused — the worktree stays the security boundary that keeps the dispatcher from claiming.
         if (b.agent_id && hasWorktree) {
           ctx.touchAgent(b.agent_id, { state: 'running', agent_tool_spawn: true, session: claimSid, task_key: b.key, agent_type: b.agent_type });
+        } else if (b.agent_id && !hasWorktree) {
+          send(res, 409, { ok: false, error: 'call subconscious_assignment action:"prepare" before action:"accept" — workers must receive an isolated worktree assignment (branch_task registration required)' }); return true;
         } else {
-          send(res, 409, { ok: false, error: 'dispatcher sessions cannot claim tasks — if you are a delegated worker, call branch_task(task_key) then start_task' }); return true;
+          send(res, 409, { ok: false, error: 'dispatcher sessions cannot claim tasks — if you are a delegated worker, use subconscious_assignment action:"accept" on a prepared assignment' }); return true;
         }
       }
-      // Worktree required: subagents must call branch_task before start_task so concurrent
-      // agents cannot write to the same branch and overwrite each other's work.
+      // Worktree required: Subconscious must prepare the assignment before a worker accepts it so
+      // concurrent agents cannot write to the same branch and overwrite each other's work.
       if (!hasWorktree) {
-        send(res, 409, { ok: false, error: 'call branch_task(task_key) before start_task — subagents must work in an isolated worktree' }); return true;
+        send(res, 409, { ok: false, error: 'call subconscious_assignment action:"prepare" before action:"accept" — workers must receive an isolated worktree assignment' }); return true;
       }
     } else if (newlyReady.isTerminalStatus(b.status)) {
-      claimSid = resolveClaimSid(false) || (T.ov.claimSessions && T.ov.claimSessions[b.key]) || null;
+      claimSid = b.session_id ? String(b.session_id) : null;
     }
     if (b.status === 'in_progress' && b.force) {
       // Force-claim cap: max 3 per task key. Counter persisted in overlay so daemon restarts don't reset it.
@@ -253,12 +474,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const wt = gitInfo && gitInfo.worktree;
       const branch = wt ? git.currentBranch(wt) : null;
       if (!wt || !branch || branch !== gitInfo.branch || !branch.startsWith('orch/attempt/')) {
-        send(res, 409, { ok: false, error: 'self-learning mode: task has a metric spec — call branch_task first before editing' }); return true;
+        send(res, 409, { ok: false, error: 'self-learning mode: task has a metric spec — accept a prepared subconscious_assignment before editing so the attempt worktree is registered' }); return true;
       }
     }
     const gitClaimMode = gitClaims.claimMode(T.ov);
     let gitClaim = null;
     let gitClaimFinalize = null;
+    let executionPermit = null;
     if (b.status === 'in_progress' && !b.force && gitClaimMode.enabled) {
       const repo = ctx.resolveRepo ? ctx.resolveRepo(b.key, b.repo_path, T.ov, T.ws) : T.ws;
       if (!gitClaims.shouldAcquire(repo, T.ov)) {
@@ -280,23 +502,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         }
       }
     }
-    // HANDOFF VALIDATION (T2): refuse a terminal completion whose STRUCTURED task_result is
-    // incomplete. Mirrors the metric-branch invariant 409 above — daemon-side refusal on the call
-    // the daemon already mediates, no new mechanism, no hook. GATED two ways so the legacy
-    // free-string complete_task path is never hard-broken:
-    //   (1) opt-in: only enforce when the caller actually sends a structured `task_result` object;
-    //       legacy callers send only a free-string `summary` and pass through untouched.
-    //   (2) scoped: the one invariant is metric-result completeness — a task that carries a metric
-    //       spec (T.ov.metrics[key], the has_metric_spec discriminator) MUST report
-    //       task_result.metric_measurements. Tasks with no metric spec have nothing to measure and
-    //       are not refused.
-    if (newlyReady.isTerminalStatus(b.status) && b.task_result && typeof b.task_result === 'object') {
-      if (T.ov.metrics && T.ov.metrics[b.key]) {
-        const mm = b.task_result.metric_measurements;
-        const hasMeasurements = mm != null && (Array.isArray(mm) ? mm.length > 0 : Object.keys(mm).length > 0);
-        if (!hasMeasurements) {
-          send(res, 409, { ok: false, error: 'incomplete task_result: task carries a metric spec — terminal status requires task_result.metric_measurements (run measure_task and report the value)', key: b.key, missing: 'metric_measurements' }); return true;
-        }
+    if (newlyReady.isTerminalStatus(b.status)) {
+      const claimOwnerError = validateTerminalClaimOwner(T.ov, b);
+      if (claimOwnerError) {
+        send(res, 409, { ok: false, key: b.key, ...claimOwnerError }); return true;
+      }
+    }
+    // HANDOFF VALIDATION (T2): structured task_result callers must speak the full v1 envelope.
+    // Legacy summary-only completions are still accepted so old complete_task/set_status callers do
+    // not break, but once a task_result object is supplied it is validated strictly.
+    if (newlyReady.isTerminalStatus(b.status) && b.task_result != null) {
+      const taskResultError = validateTaskResult(b.task_result, b.status, !!(T.ov.metrics && T.ov.metrics[b.key]));
+      if (taskResultError) {
+        send(res, 409, { ok: false, key: b.key, ...taskResultError }); return true;
       }
     }
     if (newlyReady.isTerminalStatus(b.status) && gitClaimMode.enabled) {
@@ -374,6 +592,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           lease_until: claim.lease_until || null,
         };
       }
+      const gitInfo = T.ov.git && T.ov.git[b.key];
+      executionPermit = ensureExecutionPermitForClaim(ctx.subconscious || defaultSubconsciousStore, {
+        workspace: T.ws,
+        sessionId: claimSid,
+        agentId: b.agent_id || null,
+        taskKey: b.key,
+        worktree: gitInfo && gitInfo.worktree,
+        branch: gitInfo && gitInfo.branch,
+      });
     } else {
       const sessions = T.ov.work_sessions && T.ov.work_sessions[b.key];
       if (sessions) {
@@ -395,7 +622,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // is null-safe (sidecar loading/disabled ⇒ no vec ⇒ lexical fallback, exactly like notes).
     // Embed when the summary changed (interface text updated) OR when the task has no vector yet
     // (first write — e.g. the in_progress claim — gives a title-only vec so every task is covered).
-    const _hasVec = T.ov.taskVecs && Array.isArray(T.ov.taskVecs[b.key]) && T.ov.taskVecs[b.key].length;
+    const _hasVec = embeddingStore.hasTaskVec(T.ov, b.key);
     if (b.key && (b.summary != null || !_hasVec)) {
       try {
         const snap = T.ov.snapshots && T.ov.snapshots[b.key];
@@ -423,8 +650,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           // Already ingested, but the interface text (summary) changed ⇒ re-embed ONLY so retrieval
           // tracks the new text. No re-autowire / no re-mark — candidate seeding is a one-shot at birth
           // (the prior !_hasVec gate enforced exactly this), the judge owns edge evolution thereafter.
-          const tvec = await embed(taskEmbedText({ title, summary: T.ov.summaries[b.key] }));
-          if (tvec) overlayStore.setTaskVec(T.ov, b.key, tvec);
+          const tr = await embedDocument(ctx, T.ov, taskEmbedText({ title, summary: T.ov.summaries[b.key] }));
+          if (tr.vec) overlayStore.setTaskVec(T.ov, b.key, tr.vec, tr.meta);
         }
       } catch { /* best effort — never block the status write on embedding/recall */ }
     }
@@ -436,14 +663,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // supersedes any prior 'pending' row written at context-assembly time (/search?task_key=).
     // Best-effort: never block the status write on journal IO.
     if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && b.key) {
+      let latestRecall = null;
+      let outcome = null;
       try {
-        const outcome = recallJournal.STATUS_TO_OUTCOME[b.status] || b.status;
+        outcome = recallJournal.STATUS_TO_OUTCOME[b.status] || b.status;
         // Recover recalled note keys from the latest pending row for this task, if any.
-        const latestPending = recallJournal.latestByTask(T.ws).get(b.key);
-        const recalled = latestPending ? (latestPending.recalled_note_keys || []) : [];
-        const via = latestPending ? (latestPending.via || 'rag') : 'rag';
-        recallJournal.appendRow(T.ws, { task_key: b.key, recalled_note_keys: recalled, outcome, via });
+        latestRecall = recallJournal.latestByTask(T.ws).get(b.key);
+        const recalled = latestRecall ? (latestRecall.recalled_note_keys || []) : [];
+        const via = latestRecall ? (latestRecall.via || 'rag') : 'rag';
+        const recalledContextEdges = recallJournal.recalledContextEdges(latestRecall);
+        recallJournal.appendRow(T.ws, { task_key: b.key, recalled_note_keys: recalled, recalled_context_edges: recalledContextEdges, outcome, via });
       } catch { /* attribution logging must never block the status write */ }
+      try {
+        reinforceRecalledContextEdges(T.ws, b.key, latestRecall, outcome);
+      } catch { /* retrieval-weight feedback must never block the status write */ }
     }
     let followUpResults = null;
     let bucketCleanup = null;
@@ -530,6 +763,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (gitClaim) statusResp.git_claim = { ok: !!gitClaim.ok, already_claimed: !!gitClaim.already_claimed, pushed: !!gitClaim.pushed, conflict: !!gitClaim.conflict, advisory: !gitClaimMode.strict, error: gitClaim.error || null };
     if (gitClaimFinalize) statusResp.git_claim_finalize = { ok: !!gitClaimFinalize.ok, pushed: !!gitClaimFinalize.pushed, skipped: !!gitClaimFinalize.skipped, conflict: !!gitClaimFinalize.conflict, advisory: !gitClaimMode.strict, error: gitClaimFinalize.error || null };
+    if (executionPermit) statusResp.execution_permit = executionPermit;
     if (readyBefore) {
       statusResp.newly_ready = newlyReady.diffNewlyReady(readyBefore, newlyReady.readyKeys(buildGraph(T.ws)));
     }
@@ -573,11 +807,40 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       send(res, 404, { ok: false, error: `unknown task: ${b.key}` }); return true;
     }
     ensureTaskSnapshot(T, b.key);
-    const kvec = await embed(knowledgeText(b.item));
-    if (kvec) b.item._vec = kvec;
+    const kr = await embedDocument(ctx, T.ov, knowledgeText(b.item));
+    if (kr.vec) embeddingStore.setKnowledgeItemVec(b.item, kr.vec, kr.meta);
     (T.ov.knowledge[b.key] = T.ov.knowledge[b.key] || []).push(b.item);
     T.save(); notifyChange(T.ws);
     sendOp(res, b, 200, { ok: true, count: T.ov.knowledge[b.key].length }); return true;
+  }
+
+  if (p === '/overlay/knowledge-node' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const fields = [
+      b.type || b.kind,
+      b.label || b.title,
+      b.summary,
+      b.source_path || b.sourcePath,
+      b.section_ref || b.sectionRef,
+      b.chunk_ref || b.chunkRef,
+      b.cluster_ref || b.clusterRef,
+    ].map((x) => String(x || '').trim()).filter(Boolean);
+    const payload = { ...b };
+    if (fields.length) {
+      const pr = await embedDocument(ctx, T.ov, fields.join(' '));
+      const fieldResult = await embedDocumentFields(ctx, T.ov, fields);
+      payload.vec = pr.vec;
+      payload.vecMeta = pr.meta;
+      payload.vecs = fieldResult.vecs;
+      payload.vecsMeta = fieldResult.vecsMeta;
+    }
+    const r = overlayStore.upsertKnowledgeNode(T.ov, payload);
+    if (!r.ok) { send(res, 400, r); return true; }
+    T.save(); notifyChange(T.ws);
+    sendOp(res, b, 200, { ok: true, key: r.key, node: r.node }); return true;
   }
 
   if (p === '/overlay/note' && m === 'POST') {
@@ -592,11 +855,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (_bad.length) { send(res, 404, { ok: false, error: `unknown task(s) in wires_to: ${_bad.join(', ')}` }); return true; }
       for (const k of b.wires_to) ensureTaskSnapshot(T, k);
     }
-    b.vec = await embed(noteEmbedText({ title: b.title, category: b.category, tags: b.tags, summary: b.summary }));
+    const rawNotePayload = { ...b };
+    if (noteSourceCluster.shouldClusterNote(rawNotePayload)) {
+      b.summary = noteSourceCluster.compactNoteSummary(b.summary);
+    }
+    const pooled = await embedDocument(ctx, T.ov, noteEmbedText({ title: b.title, category: b.category, tags: b.tags, summary: b.summary }));
+    b.vec = pooled.vec;
+    b.vecMeta = pooled.meta;
     // FIELD-LEVEL multi-vec set (note.vecs): embed each salient field (title/summary/each knowledge[]
     // entry) on its own so a knowledge item is retrievable without being diluted into the pooled vec.
     // The pooled b.vec above stays the gate/dedup vector; b.vecs only upgrades corpus scoring.
-    b.vecs = (await Promise.all(noteFieldTexts({ title: b.title, summary: b.summary, knowledge: b.knowledge }).map(embed))).filter(Boolean);
+    const fieldResult = await embedDocumentFields(ctx, T.ov, noteFieldTexts({ title: b.title, summary: b.summary, knowledge: b.knowledge }));
+    b.vecs = fieldResult.vecs;
+    b.vecsMeta = fieldResult.vecsMeta;
 
     // Near-duplicate guard: reject if a current note has cosine(title-vec) >= DUP_THRESHOLD,
     // unless the caller already resolved the conflict with `supersedes` or `force:true`.
@@ -620,7 +891,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const { cosine } = ctx;
       let bestMatch = null;
       for (const n of Object.values(T.ov.note_nodes || {})) {
-        if (!n.validTo && Array.isArray(n.vec)) {
+        if (!n.validTo && Array.isArray(n.vec) && (!ctx.vectorMatchesMeta || ctx.vectorMatchesMeta(n.vec, n.vecMeta || null, b.vecMeta || null))) {
           const score = cosine(b.vec, n.vec);
           if (score >= DUP_THRESHOLD && (!bestMatch || score > bestMatch.score)) {
             bestMatch = { key: 'note:' + n.id, title: n.title, summary: String(n.summary || '').slice(0, 200), score };
@@ -635,14 +906,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const _retryText = b.title;
       setTimeout(async () => {
         try {
-          const v = await embed(_retryText);
+          const retry = await embedDocument(ctx, T.ov, _retryText);
+          const v = retry.vec;
           if (!v) return;
           const node = T.ov.note_nodes && T.ov.note_nodes[id];
           if (node && !node.vec) {
             node.vec = v;
+            node.vecMeta = retry.meta || null;
             // P3: resolve the graph-store per request workspace (no daemon-global state.graphStore).
             const gs = T.ws ? graphStore.open(path.join(T.ws, '.graph')) : null;
-            if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'note_vec_set', id, vec: v, actor: 'retry', ts: Date.now() });
+            if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'note_vec_set', id, vec: v, vecMeta: node.vecMeta, actor: 'retry', ts: Date.now() });
           }
         } catch { /* best effort */ }
       }, 45000);
@@ -680,6 +953,35 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, actor: b.actor || 'record-decision', ts: Date.now() });
       }
     }
+    const sourceCluster = noteSourceCluster.buildSourceClusterForNote('note:' + id, rawNotePayload);
+    if (sourceCluster) {
+      for (const node of sourceCluster.nodes) {
+        const fields = [
+          node.type,
+          node.label || node.title,
+          node.summary,
+          node.source_path,
+          node.section_ref,
+          node.chunk_ref,
+        ].map((x) => String(x || '').trim()).filter(Boolean);
+        const payload = { ...node };
+        if (fields.length) {
+          const pr = await embedDocument(ctx, T.ov, fields.join(' '));
+          const fieldResult = await embedDocumentFields(ctx, T.ov, fields);
+          payload.vec = pr.vec;
+          payload.vecMeta = pr.meta;
+          payload.vecs = fieldResult.vecs;
+          payload.vecsMeta = fieldResult.vecsMeta;
+        }
+        overlayStore.upsertKnowledgeNode(T.ov, payload);
+      }
+      for (const edge of sourceCluster.edges) {
+        overlayStore.addEdge(T.ov, edge.from, edge.to, null, 'context', 1.0, { origin: 'note-source-cluster' });
+      }
+    }
+    // Persist the note/supersede event before buildGraph can reload from the local overlay JSON,
+    // which intentionally excludes note_nodes and relies on graph-store rehydration.
+    T.save();
     // INGEST: route the note through the unified ingestNode funnel (autowireNoteProvider + markEagerJudge).
     // ingestNode detects the note: prefix, skips re-embed (vec already in note_nodes[id].vec via addNoteNode),
     // calls autowireNoteProvider to seed weight-0 candidate edges to relevant tasks/notes, then stamps
@@ -708,6 +1010,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     T.save(); notifyChange(T.ws);
     const resp = { ok: true, id, key: 'note:' + id, superseded, autowired: ingestResult.seeded, hint };
+    if (sourceCluster) resp.source_cluster = { nodes: sourceCluster.nodes.length, chunks: sourceCluster.chunkCount };
     if (pendingDupMatch) {
       resp.pending_dup = true;
       resp.note_key = 'note:' + id;
@@ -810,6 +1113,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const b = await readBody(req).catch(() => ({}));
     const T = targetOverlay(b, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : null;
+    const vecOk = (vec, meta) => Array.isArray(vec) && (!expectedMeta || (ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(vec, meta, expectedMeta) : vec.length === DIMS));
+    const vecsOk = (vecs, metas) => Array.isArray(vecs) && vecs.length > 0
+      && (!expectedMeta || vecs.every((v, i) => ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(v, Array.isArray(metas) ? metas[i] : null, expectedMeta) : v.length === DIMS));
     let notesEmbedded = 0, notesSkipped = 0, knEmbedded = 0, knSkipped = 0, failed = 0;
     // P3: resolve the graph-store per request workspace (no daemon-global state.graphStore).
     const gs = graphStore.open(path.join(T.ws, '.graph'));
@@ -817,31 +1124,31 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     for (const n of Object.values(T.ov.note_nodes || {})) {
       // Upgrade a note that is missing EITHER the pooled `.vec` OR the field-level `.vecs` set.
       // (Previously only notes missing `.vec` were touched, so existing notes never gained `.vecs`.)
-      const hasVec = Array.isArray(n.vec);
-      const hasVecs = Array.isArray(n.vecs) && n.vecs.length > 0;
+      const hasVec = vecOk(n.vec, n.vecMeta);
+      const hasVecs = vecsOk(n.vecs, n.vecsMeta);
       if (hasVec && hasVecs) { notesSkipped++; continue; }
       let touched = false;
       if (!hasVec) {
-        const v = await embed(noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
-        if (v) {
-          n.vec = v; touched = true;
-          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'backfill', ts });
+        const r = await embedDocument(ctx, T.ov, noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
+        if (r.vec) {
+          n.vec = r.vec; n.vecMeta = r.meta || null; touched = true;
+          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: r.vec, vecMeta: n.vecMeta, actor: 'backfill', ts });
         } else failed++;
       }
       if (!hasVecs) {
-        const vecs = (await Promise.all(noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }).map(embed))).filter(Boolean);
-        if (vecs.length) {
-          n.vecs = vecs; touched = true;
-          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs, actor: 'backfill', ts });
+        const fieldResult = await embedDocumentFields(ctx, T.ov, noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }));
+        if (fieldResult.vecs.length) {
+          n.vecs = fieldResult.vecs; n.vecsMeta = fieldResult.vecsMeta; touched = true;
+          graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs: n.vecs, vecsMeta: n.vecsMeta, actor: 'backfill', ts });
         }
       }
       if (touched) notesEmbedded++;
     }
     for (const items of Object.values(T.ov.knowledge || {})) {
       for (const it of (items || [])) {
-        if (it && Array.isArray(it._vec)) { knSkipped++; continue; }
-        const v = await embed(knowledgeText(it));
-        if (v && it && typeof it === 'object') { it._vec = v; knEmbedded++; } else failed++;
+        if (it && vecOk(it._vec, it._vecMeta)) { knSkipped++; continue; }
+        const r = await embedDocument(ctx, T.ov, knowledgeText(it));
+        if (r.vec && it && typeof it === 'object') { embeddingStore.setKnowledgeItemVec(it, r.vec, r.meta); knEmbedded++; } else failed++;
       }
     }
     // TASK backfill (multi-vec schema): every real (non-note) task node that lacks a vec gets one
@@ -849,11 +1156,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     let tasksEmbedded = 0, tasksSkipped = 0;
     const g = buildGraph(T.ws);
     for (const node of g.tasks) {
-      if ((node.kind || 'task') === 'note') continue;
-      const existing = T.ov.taskVecs && T.ov.taskVecs[node.id];
-      if (Array.isArray(existing) && existing.length) { tasksSkipped++; continue; }
-      const v = await embed(taskEmbedText({ title: node.label, summary: node.summary }));
-      if (v) { overlayStore.setTaskVec(T.ov, node.id, v); tasksEmbedded++; } else failed++;
+      if (overlayStore.isNonTaskNode(node)) continue;
+      if (embeddingStore.taskVecFresh(T.ov, node.id, { expectedMeta, vectorMatchesMeta: ctx.vectorMatchesMeta })) { tasksSkipped++; continue; }
+      const r = await embedDocument(ctx, T.ov, taskEmbedText({ title: node.label, summary: node.summary }));
+      if (r.vec) { overlayStore.setTaskVec(T.ov, node.id, r.vec, r.meta); tasksEmbedded++; } else failed++;
     }
     overlayStore.save(T.ws, T.ov);
     notifyChange(T.ws);
@@ -865,6 +1171,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(body2, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     const force2 = body2 && body2.force;
+    const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : null;
+    const isFreshVec = (vec, meta) => Array.isArray(vec) && (!expectedMeta || (ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(vec, meta, expectedMeta) : vec.length === DIMS));
+    const isFreshVecs = (vecs, metas) => Array.isArray(vecs) && vecs.length > 0
+      && (!expectedMeta || vecs.every((v, i) => ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(v, Array.isArray(metas) ? metas[i] : null, expectedMeta) : v.length === DIMS));
     let embedded = 0, skipped = 0, failed = 0;
     // P3: resolve the graph-store per request workspace (no daemon-global state.graphStore).
     const gs2 = graphStore.open(path.join(T.ws, '.graph'));
@@ -872,19 +1182,27 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     for (const n of Object.values(T.ov.note_nodes || {})) {
       // Skip only when BOTH the pooled `.vec` and the field-level `.vecs` set are already present at
       // full DIMS (and not forced) — so existing single-vec notes get upgraded to multivec.
-      const vecOk = Array.isArray(n.vec) && n.vec.length === DIMS;
-      const vecsOk = Array.isArray(n.vecs) && n.vecs.length > 0;
-      if (!force2 && vecOk && vecsOk) { skipped++; continue; }
+      const vecOk2 = isFreshVec(n.vec, n.vecMeta);
+      const vecsOk2 = isFreshVecs(n.vecs, n.vecsMeta);
+      if (!force2 && vecOk2 && vecsOk2) { skipped++; continue; }
       let touched = false;
-      const v = await embed(noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
-      if (v) { n.vec = v; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: v, actor: 'reembed', ts: ts2 }); } else failed++;
-      const vecs = (await Promise.all(noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }).map(embed))).filter(Boolean);
-      if (vecs.length) { n.vecs = vecs; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs, actor: 'reembed', ts: ts2 }); }
+      const r = await embedDocument(ctx, T.ov, noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
+      if (r.vec) { n.vec = r.vec; n.vecMeta = r.meta || null; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: r.vec, vecMeta: n.vecMeta, actor: 'reembed', ts: ts2 }); } else failed++;
+      const fieldResult = await embedDocumentFields(ctx, T.ov, noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }));
+      if (fieldResult.vecs.length) { n.vecs = fieldResult.vecs; n.vecsMeta = fieldResult.vecsMeta; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs: n.vecs, vecsMeta: n.vecsMeta, actor: 'reembed', ts: ts2 }); }
       if (touched) embedded++;
+    }
+    let tasksEmbedded = 0, tasksSkipped = 0;
+    const g2 = buildGraph(T.ws);
+    for (const node of g2.tasks) {
+      if (overlayStore.isNonTaskNode(node)) continue;
+      if (!force2 && embeddingStore.taskVecFresh(T.ov, node.id, { expectedMeta, vectorMatchesMeta: ctx.vectorMatchesMeta })) { tasksSkipped++; continue; }
+      const r = await embedDocument(ctx, T.ov, taskEmbedText({ title: node.label, summary: node.summary }));
+      if (r.vec) { overlayStore.setTaskVec(T.ov, node.id, r.vec, r.meta); tasksEmbedded++; } else failed++;
     }
     overlayStore.save(T.ws, T.ov);
     notifyChange(T.ws);
-    send(res, 200, { ok: true, embedded, skipped, failed }); return true;
+    send(res, 200, { ok: true, embedded, skipped, failed, tasks: { embedded: tasksEmbedded, skipped: tasksSkipped } }); return true;
   }
 
   if (p === '/supersede' && m === 'POST') {
@@ -918,10 +1236,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
     // Embed the entity name for semantic retrieval (same embed path as notes; best-effort).
     let vec = null;
-    try { vec = await embed(String(b.name)); } catch { /* embedding sidecar unavailable — lexical fallback */ }
+    try { const er = await embedDocument(ctx, T.ov, String(b.name)); vec = er.vec; b.vecMeta = er.meta; } catch { /* embedding provider unavailable — lexical fallback */ }
     let entity;
     try {
-      entity = overlayStore.createEntity(T.ov, { name: b.name, type: b.type, aliases: b.aliases, vec });
+      entity = overlayStore.createEntity(T.ov, { name: b.name, type: b.type, aliases: b.aliases, vec, vecMeta: b.vecMeta || null });
     } catch (err) {
       send(res, 400, { ok: false, error: err.message }); return true;
     }

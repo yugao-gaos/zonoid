@@ -10,10 +10,13 @@ PORT="${ORCH_PORT:-8787}"
 INPUT=$(cat)
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
 AGENT_ID=$(printf '%s' "$INPUT" | jq -r '.agent_id // empty')
-DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../../hooks/lib/runtime-paths.sh
+. "$SCRIPT_DIR/../../../hooks/lib/runtime-paths.sh"
+DIR="$(orch_data_dir)/sessions"
 if [ -n "$SID" ] && [ -f "$DIR/$SID.off" ]; then
   # shellcheck source=adapters/codex/hooks/_lib.sh
-  source "$(dirname "$0")/_lib.sh"
+  source "$SCRIPT_DIR/_lib.sh"
   codex_continue_json
   exit 0
 fi
@@ -92,6 +95,6 @@ if [ -n "$AGENT_ID" ]; then
 fi
 
 # shellcheck source=adapters/codex/hooks/_lib.sh
-source "$(dirname "$0")/_lib.sh"
+source "$SCRIPT_DIR/_lib.sh"
 codex_continue_json
 exit 0

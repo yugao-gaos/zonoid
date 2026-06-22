@@ -6,20 +6,36 @@
 'use strict';
 const http = require('http');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
+const { hasHeadlessDrainAncestor } = require('./lib/headless-ancestor');
+if (require.main === module && fs.existsSync(path.join(__dirname, '.orch-off'))) process.exit(0);
+if (require.main === module && hasHeadlessDrainAncestor()) process.exit(0);
 const crypto = require('crypto');
 const { URL } = require('url');
 const harnessRegistry = require('./lib/harness');
+const { isStandingHarnessTask } = require('./lib/harness-task');
 const claudeHarness = harnessRegistry.get('claude');
 const filedrop = require('./lib/filedrop-tasks');
 const filedropGc = require('./lib/filedrop-gc');
 const overlayStore = require('./lib/overlay');
+const embeddingStore = require('./lib/embedding-store');
 const mcpCore = require('./lib/mcp-core');
 const git = require('./lib/git');
 const measure = require('./lib/measure');
 const optimize = require('./lib/optimize');
-const { embed, cosine, nodeVecs, maxCosine, embedStatus, ping: embedPing, DIMS, MODEL: EMBED_MODEL } = require('./lib/embed');
+const {
+  embed,
+  embedWithMeta,
+  cosine,
+  nodeVecs,
+  maxCosine,
+  embedStatus,
+  ping: embedPing,
+  embeddingMeta,
+  vectorMatchesMeta,
+  DIMS,
+  MODEL: EMBED_MODEL,
+} = require('./lib/embed');
 const { rerank } = require('./lib/rerank');
 const { haikusGate } = require('./lib/embed-haiku');
 const judge = require('./lib/judge');
@@ -36,11 +52,13 @@ const sessionBindings = require('./lib/session-bindings');
 const { taskEmbedText } = require('./lib/node-tags');
 const headlessDrain = require('./lib/headless-drain');
 const registry = require('./lib/workspace-registry');
+const runtimePaths = require('./lib/runtime-paths');
+const { ensureManagedGraphLoop } = require('./lib/loop-autostart');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
 const MAX_ROUTES = 50;
-const BASE = process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'orchestrator');
+const BASE = runtimePaths.resolveDataDir();
 const LOOP_FILE = path.join(BASE, 'loop.json');     // legacy singleton file — migrated into LOOPS_FILE on first boot
 const LOOPS_FILE = path.join(BASE, 'loops.json');   // keyed registry: { [loopId]: entry }
 const MCP_CALL = mcpCore.makeCall(PORT); // self-call for /mcp tool dispatch (loopback)
@@ -124,9 +142,12 @@ function overlayFor(ws) {
 // Re-stamp a cached overlay AFTER the daemon saved through it, so the next overlayFor lookup keeps
 // the in-memory (coalesced) object instead of treating the daemon's own mtime bump as an
 // out-of-band change and reloading. Idempotent; no-op when the ws isn't cached.
-function refreshOverlayStamp(ws) {
+function refreshOverlayStamp(ws, ov) {
   const cached = overlayCache.get(ws);
-  if (cached) cached.stamp = overlayStamp(ws);
+  if (cached) {
+    if (ov) cached.ov = ov;
+    cached.stamp = overlayStamp(ws);
+  }
 }
 function aggregateCached(ws) {
   const now = Date.now();
@@ -345,6 +366,7 @@ const analyticsFlush = analytics.makeFlusher(ANALYTICS_FILE, analyticsState);
 
 // SSE: push a "changed" event to connected dashboards on every mutation (live updates without polling).
 const sseClients = new Set();
+let requestHeadlessDrainWake = null;
 // notifyChange(ws?): push a 'changed' event to connected dashboards on every mutation.
 // When `ws` is given, emits `data: changed:<ws>\n\n` so workspace-specific clients can skip
 // refetches that don't affect their selected workspace. Bare call (no ws) emits the legacy
@@ -353,6 +375,9 @@ function notifyChange(ws) {
   respCache.clear();
   const payload = ws ? `data: changed:${ws}\n\n` : 'data: changed\n\n';
   for (const r of sseClients) { try { r.write(payload); } catch { sseClients.delete(r); } }
+  if (requestHeadlessDrainWake) {
+    try { requestHeadlessDrainWake('graph-change'); } catch { /* best effort */ }
+  }
 }
 
 // Heartbeat loop: the daemon is the decider. The agent polls next_action on a schedule; the
@@ -367,7 +392,7 @@ const STALE_PROGRESS_MIN_DEFAULT = 30;   // a loop with no progress past this ma
 const GC_LOOP_RETAIN_MS = 60 * 60 * 1000;   // prune inactive loop entries idle longer than this (registry-leak guard, task /3)
 function newLoop(over) {
   return { id: null, active: false, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: null,
-    session: null, lastProgress: null, workspace: null,
+    session: null, lastProgress: null, workspace: null, managed: null,
     config: { tokenBudget: 5000000, maxIterations: 6250, minPoll: 30, maxPoll: 1200, estPerTick: 800, batch: 8, maxConcurrency: 10, judgeParallelCap: 6 },
     ...over };
 }
@@ -430,6 +455,7 @@ async function loadState() {
   advanceBoot('loops');
   await yieldLoop();
   restoreLoops();
+  try { ensureManagedGraphLoops(); } catch (e) { process.stderr.write(`managed graph loop ensure failed: ${e.message}\n`); }
 
   // Fully operational
   advanceBoot('ready');
@@ -511,7 +537,14 @@ function targetOverlay(b, u) {
   if (!explicit) return { ws: null, ov: overlayStore.EMPTY(), save: () => {} };
   const ws = explicit;
   const ov = overlayFor(ws);
-  return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws); } };
+  return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws, ov); } };
+}
+
+function saveDispatchOverlay(ws, ov) {
+  if (!ws || !ov) return;
+  overlayStore.save(ws, ov);
+  refreshOverlayStamp(ws, ov);
+  notifyChange(ws);
 }
 
 // Reject-unknown-key guard: returns true if the key resolves to an EXISTING node in the
@@ -1218,7 +1251,7 @@ function decideOne(L, ctx) {
   const isExplicitlyBlocked = (t) => !!(ov.blocked && ov.blocked[t.id]);
   // Blocked tasks are excluded from the spawn pool entirely. The block is sticky (overlay flag,
   // not derived from deps) and cleared only by unblock_task — never by dep re-derivation.
-  let ready = readyAll.filter((t) => !isUnwired(t) && !isExplicitlyBlocked(t));
+  let ready = readyAll.filter((t) => !isUnwired(t) && !isExplicitlyBlocked(t) && !isStandingHarnessTask(ov, t.id));
   const wire = readyAll.filter(isUnwired).map((t) => ({ key: t.id, label: t.label }));
   const withWire = (dec) => (wire.length ? { ...dec, wire } : dec);
   const running = g.tasks.filter((t) => t.status === 'in_progress').length;
@@ -1277,9 +1310,11 @@ function decideOne(L, ctx) {
     const budget = (ov.config.judge?.budgetPerRun) ?? 6;
     const dispatchNodes = pending.slice(0, slots);
     // Lease each node atomically so concurrent loops skip it (double-dispatch guard, task 27).
+    let leased = false;
     for (const nodeKey of dispatchNodes) {
-      overlayStore.acquireEagerJudgeLease(ov, nodeKey, L.id, 60000);
+      if (overlayStore.acquireEagerJudgeLease(ov, nodeKey, L.id, 60000)) leased = true;
     }
+    if (leased) saveDispatchOverlay(ws, ov);
     return { nodes: dispatchNodes, budget };       // FIFO; excess stays marked for next tick
   }
 
@@ -1331,7 +1366,11 @@ function decideOne(L, ctx) {
       // Lease each dispatched task so a concurrent loop (this tick) and any re-poll (until the worker
       // claims) skip it. Released on claim/terminal via setStatus→clearSpawnLease; 60s TTL frees a
       // spawn that crashed before claiming.
-      for (const t of picked) overlayStore.acquireSpawnLease(ov, t.id, L.id, 60000);
+      let leased = false;
+      for (const t of picked) {
+        if (overlayStore.acquireSpawnLease(ov, t.id, L.id, 60000)) leased = true;
+      }
+      if (leased) saveDispatchOverlay(ws, ov);
       const dec = withWire({ ...base, action: 'spawn', tasks: picked.map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll });
       // A SINGLE heartbeat does BOTH: tasks first, then judge into the leftover slots. EAGER (task C)
       // is the PRIMARY judge trigger — node-scoped dispatch for freshly-wired nodes. Account for the
@@ -1383,6 +1422,33 @@ function decideOne(L, ctx) {
   return { ...base, action: 'stop', reason: 'DAG drained (nothing ready, running, or externally pending)' };
 }
 
+function loopDecisionContext(ws, batch = null) {
+  const ov = ws ? overlayFor(ws) : overlayStore.EMPTY();
+  const pend = overlayStore.pendingGuidance(ov);
+  return {
+    ws, ov,
+    graph: buildGraph(ws),
+    pendingGuidance: pend.filter((g) => g.severity !== 'review'),
+    reviewPending: pend.filter((g) => g.severity === 'review').length,
+    batch,
+  };
+}
+
+function ensureManagedGraphLoops(ctxByWs = null) {
+  let dirty = false;
+  for (const ws of registeredWorkspaces()) {
+    let c = ctxByWs && ctxByWs.get(ws);
+    if (!c) {
+      c = loopDecisionContext(ws, null);
+      if (ctxByWs) ctxByWs.set(ws, c);
+    }
+    const r = ensureManagedGraphLoop({ ctx: { loops, newLoop, now }, workspace: ws, graph: c.graph, overlay: c.ov });
+    if (r.created) dirty = true;
+  }
+  if (dirty) { saveLoops(); notifyChange(); }
+  return dirty;
+}
+
 // ONE heartbeat drives the WHOLE registry. Iterate every ACTIVE loop, compute each one's decision
 // honoring its own budget/config/session, and return a batched array [{ loopId, action, ... }]. The
 // `batch` config multiplexes across loops via a shared per-tick spawn pool (max of the active loops'
@@ -1392,7 +1458,6 @@ function decideAll() {
   // Sweep across the REAL set of registered workspaces (workspaces.json), not the single daemon-
   // global state.workspace pointer (P2b). registeredWorkspaces() already unions in active-loop
   // workspaces defensively, so a loop pinned to a not-yet-registered ws is still swept.
-  const active = [...loops.values()].filter((L) => L.active);
   const sweepWsSet = registeredWorkspaces();
   for (const ws of sweepWsSet) {
     const ov = overlayFor(ws);
@@ -1402,6 +1467,14 @@ function decideAll() {
     // Note: sweepStaleClaims is NOT called here — buildGraph already handles per-ws claim liveness
     // in the ctxFor() loop below; calling it here again would be a redundant double-sweep.
   }
+  const managedCtxByWs = new Map();
+  ensureManagedGraphLoops(managedCtxByWs);
+
+  // Foreground/request loops get first chance to spend the shared spawn pool; managed graph loops
+  // are the background safety net and must not preempt an explicit driver loop for the same work.
+  const active = [...loops.values()]
+    .filter((L) => L.active)
+    .sort((a, b) => (a.managed ? 1 : 0) - (b.managed ? 1 : 0));
   // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
   // concurrency bound is about total spawned workers, not per-workspace.
   const batch = { remaining: active.reduce((m, L) => Math.max(m, L.config.batch || 0), 0) };
@@ -1412,21 +1485,14 @@ function decideAll() {
   // always pinned (exec.js sets L.workspace on /loop). The test-only holder (__testWs) supplies the
   // workspace when a unit test drives decideAll with an unpinned loop; if neither exists, overlayFor
   // / buildGraph handle the null ws as an empty graph (the loop simply finds nothing to do).
-  const ctxByWs = new Map();
+  const ctxByWs = new Map(managedCtxByWs);
   function ctxFor(ws) {
     let c = ctxByWs.get(ws);
     if (!c) {
-      const ov = ws ? overlayFor(ws) : overlayStore.EMPTY();
-      const pend = overlayStore.pendingGuidance(ov);
-      c = {
-        ws, ov,
-        graph: buildGraph(ws),
-        pendingGuidance: pend.filter((g) => g.severity !== 'review'),   // BLOCKING only — gates await_user
-        reviewPending: pend.filter((g) => g.severity === 'review').length,
-        batch,
-      };
+      c = loopDecisionContext(ws, batch);
       ctxByWs.set(ws, c);
     }
+    c.batch = batch;
     return c;
   }
   const out = [];
@@ -1450,7 +1516,7 @@ function baseStatus(s) { return s === 'completed' ? 'done' : s === 'in_progress'
 // Relevance scoring shared by /task/suggest and auto-wiring: rank every other node in the graph
 // by token-overlap of label+summary against `target`. Returns matches sorted desc by score, each
 // { key, label, status, score, shared, suggest_kind, duplicate }. suggest_kind is 'context' for
-// done/note providers (summary flows in) and 'blocking' for open tasks (a real prerequisite).
+// done/non-task providers (summary flows in) and 'blocking' for open tasks (a real prerequisite).
 // One source of truth so auto-wiring uses the IDENTICAL relevance the agent sees from suggest_links.
 const SUGGEST_STOP = new Set(['the', 'and', 'for', 'task', 'with', 'that', 'this', 'from', 'into', 'use', 'run', 'add', 'all', 'new', 'via', 'its']);
 const suggestToks = (s) => new Set((String(s || '').toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter((w) => !SUGGEST_STOP.has(w)));
@@ -1553,13 +1619,18 @@ async function suggestForTask(g, target) {
 // pairs below 0.25 and left them orphaned). Used by suggestForTask + autowireNoteProvider +
 // autowireNewTaskWholeGraph; `target` is the consuming task/note node, `targetVec` its embedding
 // (may be null ⇒ everything falls back to lexical).
-function scoreMatchesSemantic(g, target, targetVec) {
+function scoreMatchesSemantic(g, target, targetVec, options = {}) {
   const tg = suggestToks(`${target.label} ${target.summary || ''}`);
   const linked = new Set([...(target.deps || []), ...(target.context_deps || [])]);
   const OPEN = new Set(['not_ready', 'ready', 'in_progress']);
-  const tvec = Array.isArray(targetVec) ? targetVec : null;
+  const expectedMeta = options.expectedMeta || null;
+  const tvec = Array.isArray(targetVec)
+    && (!expectedMeta || (typeof vectorMatchesMeta === 'function' && vectorMatchesMeta(targetVec, options.targetVecMeta || null, expectedMeta)))
+    ? targetVec
+    : null;
   return g.tasks
     .filter((x) => x.id !== target.id && !linked.has(x.id))
+    .filter((x) => !(x.kind === 'note' && x.validTo != null))
     .map((x) => {
       const xt = suggestToks(`${x.label} ${x.summary || ''}`);
       const shared = [...tg].filter((w) => xt.has(w));
@@ -1568,14 +1639,28 @@ function scoreMatchesSemantic(g, target, targetVec) {
       // Candidate side uses the MULTI-VEC schema: nodeVecs(x) is x.vecs ?? [x.vec] (notes stay on
       // .vec, tasks carry .vecs), scored MAX cosine over the set — identical to single-vec cosine
       // when the node carries exactly one vector, so note pairs score unchanged.
-      const semantic = tvec && nodeVecs(x).length > 0;
-      const score = semantic ? maxCosine(tvec, x) : lex;
+      let semantic = false;
+      let score = lex;
+      if (tvec && expectedMeta && nodeVecs(x, { expectedMeta }).length > 0) {
+        semantic = true;
+        score = maxCosine(tvec, x, { expectedMeta });
+      } else if (tvec && !expectedMeta) {
+        const vecs = nodeVecs(x);
+        if (vecs.length > 0) {
+          semantic = true;
+          score = maxCosine(tvec, x);
+        } else if (Array.isArray(x.vec)) {
+          semantic = true;
+          score = cosine(tvec, x.vec);
+        }
+      }
       // Scale-aware duplicate bar: cosine and token-overlap live on different scales, so one constant
       // mis-flags. Semantic pairs use SEMANTIC_DUP_THRESHOLD (near-paraphrase cosine); lexical-fallback
       // pairs keep SUGGEST_DUP_THRESHOLD (token-overlap scale).
       const dupBar = semantic ? SEMANTIC_DUP_THRESHOLD : SUGGEST_DUP_THRESHOLD;
       const duplicate = score >= dupBar && OPEN.has(x.status) && x.kind !== 'note';
-      return { key: x.id, label: x.label, status: x.status, score: Math.round(score * 1000) / 1000, shared: shared.slice(0, 8), suggest_kind: (x.kind === 'note' || x.status === 'done') ? 'context' : 'blocking', duplicate, via: semantic ? 'semantic' : 'lexical' };
+      const suggestKind = (overlayStore.isNonTaskNodeKind(x.kind) || x.status === 'done') ? 'context' : 'blocking';
+      return { key: x.id, label: x.label, status: x.status, score: Math.round(score * 1000) / 1000, shared: shared.slice(0, 8), suggest_kind: suggestKind, duplicate, via: semantic ? 'semantic' : 'lexical' };
     })
     .filter((c) => c.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -1598,10 +1683,14 @@ const SEMANTIC_AUTOWIRE_THRESHOLD = process.env.ORCH_AUTOWIRE_THRESHOLD !== unde
 // an incoming context edge from ANOTHER note, knitting the knowledge notes into a navigable web
 // (this intentionally reverses the earlier "no incoming edge on a note" rule). Cap to top-5 by score
 // so a noisy note can't spam the graph. Pure on (overlay, g, noteKey, ...) ⇒ unit-testable; idempotent.
-function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD) {
+function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD, options = {}) {
+  const sourceNote = typeof noteKey === 'string' && noteKey.startsWith('note:')
+    ? (overlay.note_nodes || {})[noteKey.slice('note:'.length)]
+    : null;
+  if (sourceNote && sourceNote.validTo != null) return 0;
   const target = { id: noteKey, label: title, summary: summary || '', deps: [], context_deps: [] };
   let added = 0;
-  const kept = scoreMatchesSemantic(g, target, targetVec)
+  const kept = scoreMatchesSemantic(g, target, targetVec, options)
     .filter((m) => m.score >= threshold)                          // relevance bar (semantic cosine scale)
     .filter((m) => m.status !== 'done')                           // skip done (feeding finished work is useless); note->note IS now allowed
     .slice(0, 5);                                                 // cap fan-out — a noisy note can't spam the graph
@@ -1635,7 +1724,7 @@ const TASK_CREATE_FANOUT = 5;
 // All seeded edges are weight 0 (retrieval-invisible) + {by:'autowire', judged:false, origin:'autowire-semantic'}
 // so they surface on /judge/next and stay invisible to retrieval until the neighborhood-aware judge
 // promotes them. Pure on (overlay, g, anchorKey, ...) ⇒ unit-testable; idempotent (addEdge dedupes).
-async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD) {
+async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, targetVec = null, threshold = SEMANTIC_AUTOWIRE_THRESHOLD, options = {}) {
   const target = { id: anchorKey, label: title, summary: summary || '', deps: [], context_deps: [] };
   // CROSS-ENCODER GATE (opt-in via ORCH_RERANK) — "cross-encoder first, then gate". When on, take the
   // top-K cosine candidates as the recall pool (ORCH_RERANK_K, default 50 — a rank-based COST CAP, not
@@ -1650,7 +1739,7 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
   let scored;
   if (isTruthy(process.env.ORCH_RERANK)) {
     const K = Math.max(1, parseInt(process.env.ORCH_RERANK_K || '50', 10) || 50);
-    const pool = scoreMatchesSemantic(g, target, targetVec).slice(0, K);
+    const pool = scoreMatchesSemantic(g, target, targetVec, options).slice(0, K);
     const byKey = new Map(g.tasks.map((t) => [t.id, t]));
     const ce = pool.length
       ? await rerank(`${title}\n${summary || ''}`.trim(),
@@ -1664,7 +1753,7 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
         .sort((a, b) => b.ceScore - a.ceScore);
     } else {
       // rerank unavailable ⇒ degrade to the cosine gate (current behavior, no throw)
-      scored = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= threshold);
+      scored = scoreMatchesSemantic(g, target, targetVec, options).filter((m) => m.score >= threshold);
     }
   } else {
     // ORCH_AUTOWIRE_K: optional top-K cap on the cosine pool BEFORE the per-kind fan-out.
@@ -1672,7 +1761,7 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
     // ORCH_AUTOWIRE_K bounds cost by capping how many candidates reach the judge (default:
     // no cap in production, preserving existing behaviour; bench sets it to 20 via daemon.py).
     const awK = parseInt(process.env.ORCH_AUTOWIRE_K || '0', 10) || 0;
-    const allScored = scoreMatchesSemantic(g, target, targetVec).filter((m) => m.score >= threshold);
+    const allScored = scoreMatchesSemantic(g, target, targetVec, options).filter((m) => m.score >= threshold);
     scored = awK > 0 ? allScored.slice(0, awK) : allScored;
   }
   const isNote = (k) => typeof k === 'string' && k.startsWith('note:');
@@ -1761,15 +1850,19 @@ async function ingestNode(overlay, g, key, { title, summary } = {}, ws = null) {
       if (!vec) return out;
       out.vec = vec;
       // Notes are PROVIDERS: seed note -> neighbor candidate edges (mirrors autowireNoteProvider direction).
-      const seeded = autowireNoteProvider(overlay, g, key, title, summary, vec);
+      const noteMeta = noteNode && noteNode.vecMeta ? noteNode.vecMeta : null;
+      const seeded = autowireNoteProvider(overlay, g, key, title, summary, vec, undefined, { expectedMeta: noteMeta, targetVecMeta: noteMeta });
       out.seeded = seeded;
       if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
     } else {
-      const vec = await embed(taskEmbedText({ title, summary }));
+      const er = typeof embedWithMeta === 'function'
+        ? await embedWithMeta(taskEmbedText({ title, summary }), { mode: 'document', overlay })
+        : { vec: await embed(taskEmbedText({ title, summary })), meta: null };
+      const vec = er.vec;
       if (!vec) return out;                                 // no embedding ⇒ lexical fallback, nothing to seed
-      overlayStore.setTaskVec(overlay, key, vec);
+      overlayStore.setTaskVec(overlay, key, vec, er.meta);
       out.vec = vec;
-      const seeded = await autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec);
+      const seeded = await autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec, undefined, { expectedMeta: er.meta, targetVecMeta: er.meta });
       out.seeded = seeded;
       if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
       // Seed context edges from existing blocking deps (covers tasks adopted after their block edges exist).
@@ -1787,10 +1880,10 @@ async function ingestNode(overlay, g, key, { title, summary } = {}, ws = null) {
 // endpoint's title+summary+key+score+via so the judge can reason without extra reads. Skips candidates
 // the note ALREADY has a context edge to (no point re-proposing an existing edge). Pure read of `g`.
 const RAG_RECALL_THRESHOLD = 0.40;   // RECALL bar — deliberately below the old 0.55 precision bar
-function noteRagCandidates(overlay, g, noteKey, title, summary, targetVec = null, top = 8) {
+function noteRagCandidates(overlay, g, noteKey, title, summary, targetVec = null, top = 8, options = {}) {
   const target = { id: noteKey, label: title, summary: summary || '', deps: [], context_deps: [] };
   const existing = new Set(overlay.edges.filter((e) => e.from === noteKey && e.kind === 'context').map((e) => e.to));
-  return scoreMatchesSemantic(g, target, targetVec)
+  return scoreMatchesSemantic(g, target, targetVec, options)
     .filter((m) => m.score >= RAG_RECALL_THRESHOLD)
     .filter((m) => !existing.has(m.key))                          // don't re-propose an edge we already have
     .slice(0, top)
@@ -1838,9 +1931,12 @@ function makeResolver() {
   function depRefs(ws, key) {
     const { tasks, overlay } = loadWs(ws);
     const t = tasks[key];
-    const local = t ? t.deps.map((k) => ({ ws, key: k, kind: 'blocking' })) : [];
+    const local = t ? t.deps
+      .filter((k) => !overlayStore.isReversePairedJudgeBlockingEdge(overlay, k, key, { tasks }))
+      .map((k) => ({ ws, key: k, kind: 'blocking' })) : [];
     const edges = overlay.edges
       .filter((e) => e.to === key && !e.toWorkspace)
+      .filter((e) => e.kind === 'context' || !overlayStore.isReversePairedJudgeBlockingEdge(overlay, e.from, e.to, { tasks }))
       // Weight is a relevance MULTIPLIER for context edges: a weight-0 edge contributes ZERO and is
       // EXCLUDED from the context_deps payload (DAG-tier injection + structural rerank), not merely
       // deprioritized. This is how unjudged autowire edges (seeded at weight 0) stay retrieval-
@@ -1951,37 +2047,70 @@ function taskTokens(key, session, dedicated, st = state) {
   return ru && typeof ru.total === 'number' ? ru.total : null;
 }
 
-// Build the graph for one workspace: its task nodes + any ghost stubs they reference.
-function buildGraph(ws) {
-  if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], [], overlayStore.EMPTY()) };
-  // P3: every workspace's overlay is the per-workspace cache entry (overlayFor) — there is no
-  // special "current" workspace. The cache entry is the authoritative, write-coalesced in-memory
-  // store for ANY workspace, so the lifecycle mutations below (timestamp stamping, adoption, birth
-  // ingest) run for every valid ws — `own` is simply "we have a real, writable overlay".
-  const own = true;
-  const ovWs = overlayFor(ws);
+function reconcileGraphBeforeProjection(ws, ovWs) {
   // Release dead/abandoned claims BEFORE reading native, busting the aggregate cache so a reverted
   // native status is reflected in this same build (not one poll later). Sweeps the TARGET
   // workspace's overlay, so stale claims release wherever the read lands.
-  if (sweepStaleClaims(ws, ovWs)) { cache.agg.delete(ws); cache.aggAt.delete(ws); }
-  const R = makeResolver();
+  const invalidate = () => { cache.agg.delete(ws); cache.aggAt.delete(ws); };
+  if (sweepStaleClaims(ws, ovWs)) invalidate();
   let native = aggregateCached(ws);
   if (sweepStaleNativeClaims(ws, ovWs, native)) {
-    cache.agg.delete(ws); cache.aggAt.delete(ws);
+    invalidate();
     native = aggregateCached(ws);
   }
+  const nativeByKey = Object.fromEntries(native.map((t) => [t.key, t]));
+  const repairedReverseJudgeEdges = overlayStore.pruneReversePairedJudgeBlockingEdges(ovWs, { tasks: nativeByKey });
+  return { native, effects: {
+    tsDirty: false,
+    edgesDirty: repairedReverseJudgeEdges > 0,
+    adoptDirty: false,
+    newlySeen: [],
+    newlyAdoptedSet: new Set(),
+    newlyAdopted: [],
+  } };
+}
+
+function commitGraphProjectionEffects(ws, ovWs, effects) {
+  // A node was first seen THIS build ⇒ bump the graph-change epoch so the edge-judge re-pulls notes
+  // whose neighborhood may now have a new candidate (judgedAtEpoch < epoch becomes true again). One
+  // bump per build that saw new nodes — cheap, monotonic, persisted with the overlay below. (Lexical
+  // task->task autowire was removed: it had no agent in its lifecycle, was never judged, and seeded
+  // weight-0 edges that stayed permanently invisible — suggest_links + the adoption nudge cover
+  // task->task wiring with agent judgment.)
+  if (effects.newlySeen.length) {
+    overlayStore.bumpEpoch(ovWs);
+    effects.edgesDirty = true;
+  }
+  if (effects.tsDirty || effects.edgesDirty || effects.adoptDirty) {
+    overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange();
+  }
+  // INGEST-AT-BIRTH (BUILD1): native tasks adopted THIS build pass through the unified ingestNode funnel
+  // (embed → setTaskVec → autowire → markEagerJudge) so they carry a vec + candidate edges + an eager mark
+  // BEFORE they can reach `ready`/dispatch. Fire-and-forget so buildGraph stays synchronous.
+  if (effects.newlyAdopted.length) {
+    (async () => {
+      for (const n of effects.newlyAdopted) {
+        try {
+          const r = await ingestNode(ovWs, buildGraph(ws), n.key, { title: n.title, summary: n.summary }, ws);
+          // If ingest found no edges to seed (embed disabled, isolated node, etc.), the ADOPT-HOLD
+          // judgingSince stamp we set synchronously above would keep the node in not_ready forever.
+          // Clear it so the node can progress to ready without waiting for a judge that will never come.
+          if (r.seeded === 0) { overlayStore.clearJudgingSince(ovWs, n.key); }
+          if (r.vec || r.seeded === 0) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(); }
+        } catch { /* best-effort birth ingest */ }
+      }
+    })();
+  }
+}
+
+function projectGraphFromNative(ws, ovWs, native, effects) {
+  const R = makeResolver();
   const ghostMap = {}; // "ws|key" -> ghost stub
   const sessionCount = {}; for (const t of native) sessionCount[t.session] = (sessionCount[t.session] || 0) + 1;
   const stWs = { ...state, overlay: ovWs };   // taskTokens reads assignee from the target overlay
 
-  // Stamp lifecycle timestamps in the target workspace's (writable, cached) overlay.
-  // firstSeen: set once, never overwritten. lastChanged: set on first sight + whenever the
-  // effective status changes. lastStatus tracks the value used to detect changes. Not backfilled.
-  let tsDirty = false, adoptDirty = false;
-  const newlySeen = []; // task keys first seen THIS build — candidates for one-shot auto-wiring
-  const newlyAdopted = []; // {key,title,summary} of native tasks adopted THIS build — ingested at BIRTH below
-  const newlyAdoptedSet = new Set(); // keys adopted THIS build — used below to hold status at not_ready
-
+  // Preserve the old buildGraph order: first-sight/adoption/unwired stamps happen before each node's
+  // visible projection is computed; the commit phase only persists and schedules follow-on ingest.
   const tasks = native.map((t) => {
     const refs = R.depRefs(ws, t.key);
     const deps = [];          // blocking deps (gate readiness + drive layout)
@@ -1999,28 +2128,28 @@ function buildGraph(ws) {
     }
     const status = R.effective(ws, t.key);
     let ts = ovWs.timestamps[t.key] || null;   // read+stamp the target workspace's (writable) overlay
-    if (own) {
-      if (!ts) {
-        ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; ovWs.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key);
-        if (adoptNativeTask(ovWs, t.key, ws)) {
-          adoptDirty = true; newlyAdopted.push({ key: t.key, title: t.label, summary: ovWs.summaries[t.key] || '' });
-          // ADOPT-HOLD: stamp judgingSince synchronously so the judging→ready gate fires on THIS build's
-          // projection (status already computed by R.effective before we knew the node was newly adopted,
-          // so we override status/judging below for keys in newlyAdoptedSet). Without this, the async
-          // ingestNode path stamped the mark too late — the node reached ready/dispatch unjudged.
-          overlayStore.markEagerJudge(ovWs, t.key);
-          newlyAdoptedSet.add(t.key);
-        }
-        // Unwired quarantine: a task FIRST SEEN with no edges in either direction is stamped
-        // unwired — /overlay/status refuses an in_progress claim until the creator wires it
-        // (add_dependency clears the flag) or declares it a root (POST /mark-root). Tasks that
-        // existed before this feature already carry firstSeen and are NEVER stamped (back-compat).
-        if (!deps.length && !context_deps.length && !ovWs.edges.some((e) => e.from === t.key || e.to === t.key)) {
-          if (!ovWs.unwired) ovWs.unwired = {};
-          ovWs.unwired[t.key] = true;
-        }
+    if (!ts) {
+      ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; ovWs.timestamps[t.key] = ts; effects.tsDirty = true; effects.newlySeen.push(t.key);
+      if (adoptNativeTask(ovWs, t.key, ws)) {
+        effects.adoptDirty = true; effects.newlyAdopted.push({ key: t.key, title: t.label, summary: ovWs.summaries[t.key] || '' });
+        // ADOPT-HOLD: stamp judgingSince synchronously so the judging→ready gate fires on THIS build's
+        // projection (status already computed by R.effective before we knew the node was newly adopted,
+        // so we override status/judging below for keys in newlyAdoptedSet). Without this, the async
+        // ingestNode path stamped the mark too late — the node reached ready/dispatch unjudged.
+        overlayStore.markEagerJudge(ovWs, t.key);
+        effects.newlyAdoptedSet.add(t.key);
       }
-      else if (ts.lastStatus !== status) { ts.lastChanged = now(); ts.lastStatus = status; tsDirty = true; }
+      // Unwired quarantine: a task FIRST SEEN with no edges in either direction is stamped
+      // unwired — /overlay/status refuses an in_progress claim until the creator wires it
+      // (add_dependency clears the flag) or declares it a root (POST /mark-root). Tasks that
+      // existed before this feature already carry firstSeen and are NEVER stamped (back-compat).
+      if (!deps.length && !context_deps.length && !ovWs.edges.some((e) => e.from === t.key || e.to === t.key)) {
+        if (!ovWs.unwired) ovWs.unwired = {};
+        ovWs.unwired[t.key] = true;
+      }
+    }
+    else if (ts.lastStatus !== status) {
+      ts.lastChanged = now(); ts.lastStatus = status; effects.tsDirty = true;
     }
     const _rc = ovWs.retryConfig && ovWs.retryConfig[t.key];
     // JUDGING→READY gate (task D): expose the judging phase so the dashboard / next_action can show
@@ -2033,31 +2162,31 @@ function buildGraph(ws) {
     // show judging:true so this build's projection is consistent with the persist (which carries the
     // judgingSince stamp). The hold expires when the async ingest either seeds edges (which the normal
     // judgingState gate will then manage) or finds nothing to seed (which clears judgingSince).
-    const _adoptHold = newlyAdoptedSet.has(t.key) && status === 'ready';
+    const _adoptHold = effects.newlyAdoptedSet.has(t.key) && status === 'ready';
     const _status = (_adoptHold || (_js.judging && !_js.timedOut && status === 'ready')) ? 'not_ready' : status;
     const _judging = _adoptHold || (_js.judging && !_js.timedOut);
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: _js.judging && _js.timedOut, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: (ovWs.taskVecs && Array.isArray(ovWs.taskVecs[t.key])) ? ovWs.taskVecs[t.key] : null, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
+    const taskVecNode = embeddingStore.taskNode(ovWs, t.key);
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: _js.judging && _js.timedOut, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
-  // KEPT note context edges → context_deps for note nodes. The structBoost reranker (/search) and
-  // the BFS path tier read each node's context_deps as its graph adjacency; note nodes shipped with a
-  // hardcoded context_deps:[], so a judge-KEPT note→note edge never boosted its neighbor. Mirror the
-  // task-side convention (depRefs): a context edge e.to=<note> contributes e.from to that note's
-  // context_deps. JUDGED-KEPT ONLY — same filter as depRefs: kind==='context' AND weight!==0, so raw
-  // weight-0 autowire candidates (unjudged) are excluded; only a judge-promoted edge (keepEdge lifts
-  // weight off 0) registers. Built once into a key→from[] map so the note loop is O(1) per note.
-  const keptNoteCtxDeps = {}; // 'note:<id>' -> [from-key, ...] of judged-kept context edges
+  // KEPT context edges → context_deps for overlay-only graph nodes. The structBoost reranker
+  // (/search) and BFS path tier read each node's context_deps as graph adjacency. Mirror the task-side
+  // convention (depRefs): a context edge e.to=<node> contributes e.from to that node's context_deps.
+  // JUDGED-KEPT ONLY — same filter as depRefs: kind==='context' AND weight!==0, so raw weight-0
+  // autowire candidates are excluded; only a judge-promoted/asserted edge registers.
+  const keptCtxDeps = {};     // node key -> [from-key, ...] of kept context edges
+  const keptCtxWeights = {};  // node key -> { from-key: weight }
   for (const e of (ovWs.edges || [])) {
     if (e.kind !== 'context' || e.toWorkspace) continue;
-    if (typeof e.to !== 'string' || !e.to.startsWith('note:')) continue;
     if (overlayStore.edgeWeight(e) === 0) continue;   // unjudged autowire candidate — excluded
-    (keptNoteCtxDeps[e.to] || (keptNoteCtxDeps[e.to] = [])).push(e.from);
+    (keptCtxDeps[e.to] || (keptCtxDeps[e.to] = [])).push(e.from);
+    (keptCtxWeights[e.to] || (keptCtxWeights[e.to] = {}))[e.from] = overlayStore.edgeWeight(e);
   }
   // Append overlay-only NOTE nodes (durable decisions/findings). They are context providers,
   // not real tasks: deps:[] (level-0), status 'note', and excluded from status counts.
   for (const [noteId, n] of Object.entries(ovWs.note_nodes || {})) {
     const bareNoteId = n.id || noteId;
     const noteKey = 'note:' + bareNoteId;
-    tasks.push({ id: noteKey, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptNoteCtxDeps[noteKey] || [], note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null,
+    tasks.push({ id: noteKey, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptCtxDeps[noteKey] || [], context_weights: keptCtxWeights[noteKey] || {}, note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null, vecMeta: n.vecMeta || null, vecs: Array.isArray(n.vecs) ? n.vecs : null, vecsMeta: Array.isArray(n.vecsMeta) ? n.vecsMeta : null,
       // Temporal/state-change fields (null on pre-temporal notes — back-compat): validFrom/validTo
       // bound when the fact was true; supersedes/supersededBy chain it to the note it replaced / was
       // replaced by. The dashboard reads these for the superseded indicator; /search for as-of.
@@ -2072,44 +2201,57 @@ function buildGraph(ws) {
       dup_match: (ovWs.pendingDup && ovWs.pendingDup[noteKey] && ovWs.pendingDup[noteKey].match) || null,
       category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [] });
   }
-  // A node was first seen THIS build ⇒ bump the graph-change epoch so the edge-judge re-pulls notes
-  // whose neighborhood may now have a new candidate (judgedAtEpoch < epoch becomes true again). One
-  // bump per build that saw new nodes — cheap, monotonic, persisted with the overlay below. (Lexical
-  // task->task autowire was removed: it had no agent in its lifecycle, was never judged, and seeded
-  // weight-0 edges that stayed permanently invisible — suggest_links + the adoption nudge cover
-  // task->task wiring with agent judgment.)
-  let edgesDirty = false;
-  if (own && newlySeen.length) {
-    overlayStore.bumpEpoch(ovWs); edgesDirty = true;
-  }
-  if (tsDirty || edgesDirty || adoptDirty) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(); }
-  // INGEST-AT-BIRTH (BUILD1): native tasks adopted THIS build pass through the unified ingestNode funnel
-  // (embed → setTaskVec → autowire → markEagerJudge) so they carry a vec + candidate edges + an eager mark
-  // BEFORE they can reach `ready`/dispatch — closing the bypass where the native lane was only ingested at
-  // its in_progress claim. Fire-and-forget so buildGraph stays synchronous: each ingest mutates the live
-  // overlay and saves on its own (the per-workspace cached overlay is the writable store). The recall
-  // graph is rebuilt per node so each sees prior siblings ingested this batch.
-  if (own && newlyAdopted.length) {
-    (async () => {
-      for (const n of newlyAdopted) {
-        try {
-          const r = await ingestNode(ovWs, buildGraph(ws), n.key, { title: n.title, summary: n.summary }, ws);
-          // If ingest found no edges to seed (embed disabled, isolated node, etc.), the ADOPT-HOLD
-          // judgingSince stamp we set synchronously above would keep the node in not_ready forever.
-          // Clear it so the node can progress to ready without waiting for a judge that will never come.
-          if (r.seeded === 0) { overlayStore.clearJudgingSince(ovWs, n.key); }
-          if (r.vec || r.seeded === 0) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(); }
-        } catch { /* best-effort birth ingest */ }
-      }
-    })();
+  // Append typed knowledge nodes for source/provenance structure. They are graph/search nodes only:
+  // no native status lifecycle, no assignee/session/todo semantics.
+  for (const [nodeKey, n] of Object.entries(ovWs.knowledge_nodes || {})) {
+    if (!overlayStore.isKnowledgeNodeKind(n && n.type)) continue;
+    const key = n.key || nodeKey;
+    tasks.push({
+      id: key,
+      label: n.label || n.title || key,
+      kind: n.type,
+      status: 'knowledge',
+      session: null,
+      deps: [],
+      context_deps: keptCtxDeps[key] || [],
+      context_weights: keptCtxWeights[key] || {},
+      note: '',
+      agent_id: null,
+      summary: n.summary || '',
+      vec: Array.isArray(n.vec) ? n.vec : null,
+      vecMeta: n.vecMeta || null,
+      vecs: Array.isArray(n.vecs) ? n.vecs : null,
+      vecsMeta: Array.isArray(n.vecsMeta) ? n.vecsMeta : null,
+      metadata: n.metadata || {},
+      source_path: n.source_path || null,
+      section_ref: n.section_ref || null,
+      chunk_ref: n.chunk_ref || null,
+      cluster_ref: n.cluster_ref || null,
+      created_at: n.created_at || null,
+      updated_at: n.updated_at || null,
+    });
   }
   const ghosts = Object.values(ghostMap);
-  return { tasks, ghosts, summary: summaryFor(tasks, ghosts, ovWs) };
+  return { tasks, ghosts, effects };
+}
+
+// Build the graph for one workspace: explicit reconciliation side effects, then projection.
+function buildGraph(ws) {
+  if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], [], overlayStore.EMPTY()) };
+  // P3: every workspace's overlay is the per-workspace cache entry (overlayFor) — there is no
+  // special "current" workspace. The cache entry is the authoritative, write-coalesced in-memory
+  // store for ANY workspace, so lifecycle reconciliation runs for every valid ws.
+  const ovWs = overlayFor(ws);
+  const inputs = reconcileGraphBeforeProjection(ws, ovWs);
+  const projection = projectGraphFromNative(ws, ovWs, inputs.native, inputs.effects);
+  commitGraphProjectionEffects(ws, ovWs, projection.effects);
+  return { tasks: projection.tasks, ghosts: projection.ghosts, summary: summaryFor(projection.tasks, projection.ghosts, ovWs) };
 }
 
 function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
-  const real = tasks.filter((t) => t.kind !== 'note'); // note nodes aren't tasks — keep counts honest
-  const notes = tasks.length - real.length;
+  const real = tasks.filter((t) => !overlayStore.isNonTaskNode(t)); // note/knowledge nodes aren't tasks
+  const notes = tasks.filter((t) => t.kind === 'note').length;
+  const knowledge_nodes = tasks.length - real.length - notes;
   const c = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0]));
   for (const t of real) c[t.status] = (c[t.status] || 0) + 1;
   c.local_in_progress = localInProgressCount(real, ov);
@@ -2117,6 +2259,7 @@ function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
   return {
     tasks_total: real.length,
     notes,
+    knowledge_nodes,
     statuses: c,
     sessions: new Set(real.map((t) => t.session)).size,
     edges: ov.edges.length,
@@ -2273,6 +2416,7 @@ const execRoute = require('./routes/exec');
 const classifyRoute = require('./routes/classify');
 const uiRoute = require('./routes/ui');
 const usageRoute = require('./routes/usage');
+const subconsciousRoute = require('./routes/subconscious');
 
 // ctx: live access to daemon state + helpers. State fields use getters so reassignment
 // (state = {...} at /reset) is always visible. P3: there is no daemon-global workspace/overlay.
@@ -2347,7 +2491,7 @@ const ctx = {
   mainTranscriptForSession: (sid) => sessionBindings.mainTranscriptForSession(state, sid),
   sessionCount: () => sessionBindings.sessionCount(state),
   snapshotNative, now, isTruthy,
-  embed, cosine, embedStatus, DIMS, EMBED_MODEL,
+  embed, embedWithMeta, embeddingMeta, vectorMatchesMeta, cosine, embedStatus, DIMS, EMBED_MODEL,
   gateTask, haikusGate,
   scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks, suggestForTask,
   SUGGEST_DUP_THRESHOLD, SEMANTIC_DUP_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,
@@ -2365,8 +2509,17 @@ const ctx = {
 const routeModules = [
   metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
   gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), configRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
-  sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), uiRoute(ctx),
+  sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), subconsciousRoute(ctx), uiRoute(ctx),
 ];
+
+function superviseCodexWakeDeliveryForRegisteredWorkspaces() {
+  try {
+    const codex = harnessRegistry.get('codex');
+    if (codex && codex.wakeDelivery && typeof codex.wakeDelivery.superviseCodexBridgeWorkspaces === 'function') {
+      codex.wakeDelivery.superviseCodexBridgeWorkspaces(registeredWorkspaces());
+    }
+  } catch { /* advisory wake delivery supervision */ }
+}
 
 // Paths served even while the daemon is still in the loading phase.
 // Writes rely on 503 + client retry + op_id idempotency — no queueing needed.
@@ -2427,7 +2580,7 @@ function isPrimaryCheckout(root = __dirname) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, decideAll, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
+  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
@@ -2469,6 +2622,10 @@ if (require.main === module) {
   // SSE/keep-alive sockets so a successor can bind within ~1s of the signal.
   ['SIGINT', 'SIGTERM'].forEach(sig => process.on(sig, () => {
     removeDaemonPort();
+    try {
+      const codex = harnessRegistry.get('codex');
+      if (codex && codex.wakeDelivery && codex.wakeDelivery.defaultSupervisor) codex.wakeDelivery.defaultSupervisor.stopAll();
+    } catch { /* best effort */ }
     server.close(() => process.exit(0));
     if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
     if (httpsServer) {
@@ -2535,7 +2692,10 @@ if (require.main === module) {
       // BIND-EARLY: the port is now held; load state asynchronously so /health (whitelisted
       // through the 503 gate) reports boot progress while everything else gets an honest 503.
       // writeDaemonPort iterates the registered workspaces, so it runs after loadState resolves.
-      loadState().then(() => writeDaemonPort(port))
+      loadState().then(() => {
+        writeDaemonPort(port);
+        superviseCodexWakeDeliveryForRegisteredWorkspaces();
+      })
         .catch((e) => { process.stderr.write(`loadState failed: ${(e && e.stack) || e}\n`); process.exit(1); });
 
       // Optional HTTPS listener for the custom-connector path (needs a locally-trusted cert — run
@@ -2570,23 +2730,99 @@ if (require.main === module) {
   // Periodic liveness sweep: reclaim zombie loops even when NO driver is polling next_action (a loop
   // bound to a closed conversation is otherwise never re-evaluated). decideAll already sweeps on each
   // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
-  setInterval(() => { try { sweepStaleLoops(); } catch { /* best effort */ } }, 60000).unref();
+  setInterval(() => { try { sweepStaleLoops(); ensureManagedGraphLoops(); } catch { /* best effort */ } }, 60000).unref();
 
-  // Headless drain runner: unless ORCH_HEADLESS_DRAINS explicitly opts out, runs due background maintenance drains
-  // (learner, and later judge/label) via headless `node scripts/onboard-learn.js --drain` child
-  // processes. This is the NO-SESSION path — real ready-task impl work remains session-dispatched.
-  // Default ON. Cadence: configurable (HEADLESS_DRAIN_INTERVAL_MS, default 2 min) + a small
-  // boot-time jitter so instances don't align; unref'd so it never holds the
-  // process open. AUGMENTS the existing loop-based dispatch; does not replace or alter it. The
-  // governor's rate-limit backoff (lib/headless-drain.js) additionally skips ticks under 429/529.
-  const HEADLESS_DRAIN_INTERVAL_MS =
-    (Number(process.env.HEADLESS_DRAIN_INTERVAL_MS) || 2 * 60 * 1000) + Math.floor(Math.random() * 60 * 1000);
-  setInterval(() => {
-    // runDueDrains is async (spawns drain children via async child_process.spawn so the event loop
-    // stays free during each child run — the deadlock fix). Fire-and-forget: do NOT await it inside
-    // this timer, just swallow any rejection so a drain failure never crashes the daemon.
-    try { headlessDrain.runDueDrains(state).catch(() => {}); } catch { /* best effort — never crash the daemon */ }
-  }, HEADLESS_DRAIN_INTERVAL_MS).unref();
+  // Headless drain runner: unless ORCH_HEADLESS_DRAINS explicitly opts out, runs due background
+  // maintenance drains (learner/judge/label). This is the NO-SESSION path; real ready-task impl
+  // work remains session-dispatched. The runner is a self-scheduling pump: graph mutations wake it
+  // immediately, successful passes keep it pumping while queues have content, and no_due_drains
+  // returns it to idle. A low-frequency idle poll remains as a fallback for external file writes
+  // that do not pass through notifyChange(). Governor/backoff limits in lib/headless-drain.js still
+  // cap fork rate, token budget, timeouts, and 429/529 retry behavior.
+  const HEADLESS_DRAIN_IDLE_POLL_MS =
+    (Number(process.env.HEADLESS_DRAIN_IDLE_POLL_MS)
+      || Number(process.env.HEADLESS_DRAIN_INTERVAL_MS)
+      || 2 * 60 * 1000)
+    + Math.floor(Math.random() * 60 * 1000);
+  const HEADLESS_DRAIN_CONTINUOUS_DELAY_MS =
+    Number(process.env.HEADLESS_DRAIN_CONTINUOUS_DELAY_MS) || 1000;
+  const HEADLESS_DRAIN_RETRY_DELAY_MS =
+    Number(process.env.HEADLESS_DRAIN_RETRY_DELAY_MS) || 5000;
+  let headlessDrainTimer = null;
+  let headlessDrainNextAt = 0;
+  let headlessDrainRunning = false;
+  let headlessDrainWakePending = false;
+
+  function scheduleHeadlessDrain(delayMs, reason) {
+    if (!headlessDrain.isHeadlessEnabled()) return;
+    const delay = Math.max(0, Number(delayMs) || 0);
+    if (headlessDrainRunning) {
+      headlessDrainWakePending = true;
+      return;
+    }
+    const nextAt = Date.now() + delay;
+    if (headlessDrainTimer && headlessDrainNextAt <= nextAt) return;
+    if (headlessDrainTimer) clearTimeout(headlessDrainTimer);
+    headlessDrainNextAt = nextAt;
+    headlessDrainTimer = setTimeout(() => runHeadlessDrainPump(reason), delay);
+    if (headlessDrainTimer && typeof headlessDrainTimer.unref === 'function') headlessDrainTimer.unref();
+  }
+
+  function nextHeadlessDrainDelay(result) {
+    const backoffUntil = headlessDrain._governor && headlessDrain._governor.backoffUntil;
+    if (backoffUntil && Date.now() < backoffUntil) {
+      return Math.max(HEADLESS_DRAIN_RETRY_DELAY_MS, backoffUntil - Date.now());
+    }
+    if (result && result.ran > 0) return HEADLESS_DRAIN_CONTINUOUS_DELAY_MS;
+    if (result && result.skipped === 'backoff') {
+      return backoffUntil && Date.now() < backoffUntil
+        ? Math.max(HEADLESS_DRAIN_RETRY_DELAY_MS, backoffUntil - Date.now())
+        : HEADLESS_DRAIN_RETRY_DELAY_MS;
+    }
+    if (result && (
+      result.skipped === 'concurrency_cap'
+      || result.skipped === 'global_concurrency_cap'
+      || result.skipped === 'global_lease_lock_busy'
+      || result.skipped === 'label_in_progress'
+    )) {
+      return HEADLESS_DRAIN_RETRY_DELAY_MS;
+    }
+    return HEADLESS_DRAIN_IDLE_POLL_MS;
+  }
+
+  async function runHeadlessDrainPump(reason) {
+    headlessDrainTimer = null;
+    headlessDrainNextAt = 0;
+    if (headlessDrainRunning) {
+      headlessDrainWakePending = true;
+      return;
+    }
+    headlessDrainRunning = true;
+    let result = null;
+    try {
+      result = await headlessDrain.runDueDrains(state);
+    } catch (e) {
+      result = { ran: 0, skipped: 'error', error: e && e.message ? e.message : String(e) };
+    } finally {
+      headlessDrainRunning = false;
+    }
+    if (headlessDrainWakePending) {
+      headlessDrainWakePending = false;
+      const hardPause = result && [
+        'backoff',
+        'iterations_exhausted',
+        'token_budget_exhausted',
+        'no_backend',
+        'flag_off',
+      ].includes(result.skipped);
+      scheduleHeadlessDrain(hardPause ? nextHeadlessDrainDelay(result) : HEADLESS_DRAIN_CONTINUOUS_DELAY_MS, 'pending-change');
+      return;
+    }
+    scheduleHeadlessDrain(nextHeadlessDrainDelay(result), result && result.skipped ? result.skipped : 'drained');
+  }
+
+  requestHeadlessDrainWake = () => scheduleHeadlessDrain(0, 'graph-change');
+  scheduleHeadlessDrain(0, 'boot');
 
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command

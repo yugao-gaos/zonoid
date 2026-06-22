@@ -28,7 +28,9 @@ function applyVerdict(overlay, v) {
   if (v.keepEdge && v.keepEdge.from && v.keepEdge.to) {
     const kept = overlay.edges.find((x) => x.from === v.keepEdge.from && x.to === v.keepEdge.to && x.kind === 'context');
     judge.keepEdge(overlay, v.keepEdge.from, v.keepEdge.to);
-    if (v.keepEdge.kind === 'blocking' && kept) { kept.kind = 'blocking'; delete kept.weight; }
+    if (v.keepEdge.kind === 'blocking' && kept && !ov.isReversePairedJudgeBlockingEdge(overlay, v.keepEdge.from, v.keepEdge.to)) {
+      kept.kind = 'blocking'; delete kept.weight;
+    }
   }
   if (v.pruneEdge && v.pruneEdge.from && v.pruneEdge.to) ov.removeEdge(overlay, v.pruneEdge.from, v.pruneEdge.to, null, v.pruneEdge.kind);
   if (v.supersedeTask && v.supersedeTask.old && v.supersedeTask.new && v.supersedeTask.old !== v.supersedeTask.new) {
@@ -185,6 +187,82 @@ function applyVerdict(overlay, v) {
   ok('task→task keep+blocking reclassifies edge to blocking', e.kind === 'blocking');
   ok('reclassified blocking edge drops its weight', !('weight' in e));
   ok('keep still flips judged:true', e.judged === true && e.by === 'judge');
+}
+
+// --- paired judge guard: correct impl → judge blocking edge remains structural ---------------------
+{
+  const o = ov.EMPTY();
+  const impl = 'codex/prevent-judge-reverse-blocking-edges';
+  const j = 'codex/judge-prevent-judge-reverse-blocking-edges';
+  ov.setSnapshot(o, impl, { subject: 'Prevent judge reverse blocking edges', description: '', status: 'pending', blockedBy: [] });
+  ov.setSnapshot(o, j, { subject: 'Judge: Prevent judge reverse blocking edges', description: '', status: 'pending', blockedBy: [impl] });
+  ov.addEdge(o, impl, j, null, 'blocking', null, { origin: 'native-blockedBy' });
+  const e = o.edges.find((x) => x.from === impl && x.to === j);
+  ok('impl→judge blocking edge is allowed', !!e && (e.kind === 'blocking' || !e.kind));
+  ok('impl→judge native/file-drop edge remains structural', e && e.origin === 'native-blockedBy' && !('judged' in e));
+}
+
+// --- paired judge guard: attempted reverse judge → impl blocking edge is rejected ------------------
+{
+  const o = ov.EMPTY();
+  const impl = 'codex/prevent-judge-reverse-blocking-edges';
+  const j = 'codex/judge-prevent-judge-reverse-blocking-edges';
+  ov.setSnapshot(o, impl, { subject: 'Prevent judge reverse blocking edges', description: '', status: 'pending', blockedBy: [] });
+  ov.setSnapshot(o, j, { subject: 'Judge: Prevent judge reverse blocking edges', description: '', status: 'pending', blockedBy: [impl] });
+  ov.addEdge(o, impl, j, null, 'blocking', null, { origin: 'native-blockedBy' });
+  ov.addEdge(o, j, impl, null, 'blocking', null, { origin: 'native-blockedBy' });
+  ok('reverse judge→impl blocking edge is not persisted', !o.edges.some((e) => e.from === j && e.to === impl && (e.kind === 'blocking' || !e.kind)));
+  ok('correct impl→judge blocking edge is preserved', o.edges.some((e) => e.from === impl && e.to === j && (e.kind === 'blocking' || !e.kind)));
+}
+
+// --- paired judge guard: verdict promotion cannot make judge block its own implementation ----------
+{
+  const o = ov.EMPTY();
+  const impl = 'codex/prevent-judge-reverse-blocking-edges';
+  const j = 'codex/judge-prevent-judge-reverse-blocking-edges';
+  ov.setSnapshot(o, impl, { subject: 'Prevent judge reverse blocking edges', description: '', status: 'pending', blockedBy: [] });
+  ov.setSnapshot(o, j, { subject: 'Judge: Prevent judge reverse blocking edges', description: '', status: 'pending', blockedBy: [impl] });
+  o.edges = [
+    { from: impl, to: j },
+    { from: j, to: impl, kind: 'context', judged: false, score: 0.4 },
+  ];
+  applyVerdict(o, { keepEdge: { from: j, to: impl, kind: 'blocking' } });
+  const e = o.edges.find((x) => x.from === j && x.to === impl);
+  ok('reverse paired judge edge stays non-blocking context after keep+blocking verdict', e && e.kind === 'context');
+  ok('reverse paired judge edge can still be kept as judged context', e && e.judged === true && e.by === 'judge');
+}
+
+// --- paired judge guard: graph deps exclude the judge so the implementation can become ready -------
+{
+  const o = ov.EMPTY();
+  const impl = 'codex/prevent-judge-reverse-blocking-edges';
+  const j = 'codex/judge-prevent-judge-reverse-blocking-edges';
+  const tasks = {
+    [impl]: { key: impl, label: 'Prevent judge reverse blocking edges', native_status: 'pending', deps: [j] },
+    [j]: { key: j, label: 'Judge: Prevent judge reverse blocking edges', native_status: 'pending', deps: [impl] },
+  };
+  ov.setSnapshot(o, impl, { subject: tasks[impl].label, description: '', status: 'pending', blockedBy: [j] });
+  ov.setSnapshot(o, j, { subject: tasks[j].label, description: '', status: 'pending', blockedBy: [impl] });
+  o.edges = [{ from: j, to: impl }, { from: impl, to: j }];
+  const pruned = ov.pruneReversePairedJudgeBlockingEdges(o, { tasks });
+  const implDeps = [
+    ...tasks[impl].deps.filter((dep) => !ov.isReversePairedJudgeBlockingEdge(o, dep, impl, { tasks })),
+    ...o.edges.filter((e) => e.to === impl && e.kind !== 'context' && !ov.isReversePairedJudgeBlockingEdge(o, e.from, e.to, { tasks })).map((e) => e.from),
+  ];
+  ok('repair prunes existing reverse paired judge blocking edge', pruned === 1 && !o.edges.some((e) => e.from === j && e.to === impl && (e.kind === 'blocking' || !e.kind)));
+  ok('impl deps no longer include its own judge', !implDeps.includes(j));
+  ok('impl would be ready instead of not_ready from its own judge', implDeps.length === 0);
+}
+
+// --- paired judge guard: arbitrary task labels containing judge are not blocked --------------------
+{
+  const o = ov.EMPTY();
+  const impl = 'codex/impl';
+  const dep = 'codex/budget-judge-prep';
+  ov.setSnapshot(o, impl, { subject: 'Implementation', description: '', status: 'pending', blockedBy: [] });
+  ov.setSnapshot(o, dep, { subject: 'Budget judge prep', description: '', status: 'pending', blockedBy: [impl] });
+  ov.addEdge(o, dep, impl, null, 'blocking', null, { origin: 'native-blockedBy' });
+  ok('non-prefixed judge word remains a normal blocking prerequisite', o.edges.some((e) => e.from === dep && e.to === impl && (e.kind === 'blocking' || !e.kind)));
 }
 
 // --- task→task DUPLICATE: supersedeTask retires N (cancel + supersede edge) ------------------------

@@ -10,13 +10,16 @@
 #   - sessions/<id>.off present  -> orchestrator disabled for this conversation -> allow
 #   - daemon unreachable / empty -> fail open (don't brick a worker when the daemon is down)
 PORT="${ORCH_PORT:-8787}"
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/runtime-paths.sh
+. "$HOOK_DIR/lib/runtime-paths.sh"
 
 [ "$ORCH_GATE_OFF" = "1" ] && exit 0   # escape hatch
 
 INPUT=$(cat)
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty')
 [ -z "$SID" ] && exit 0                # no session id -> can't correlate; don't block
-DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
+DIR="$(orch_data_dir)/sessions"
 [ -f "$DIR/$SID.off" ] && exit 0       # orchestrator disabled for this conversation
 
 # agent_id is present only when this tool call fires inside a SUBAGENT's context; absent for the
@@ -25,14 +28,19 @@ DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
 AGENT=$(printf '%s' "$INPUT" | jq -r '.agent_id // empty')
 URL="localhost:$PORT/should-stop?session=$SID"
 [ -n "$AGENT" ] && URL="$URL&agent=$AGENT"
-RESP=$(curl -s --max-time 0.6 "$URL" 2>/dev/null)
+WS=$(printf '%s' "$INPUT" | jq -r '.workspace // env.ORCH_WORKSPACE // empty')
+if [ -n "$WS" ]; then
+  WS_ENC=$(jq -rn --arg v "$WS" '$v|@uri')
+  URL="$URL&workspace=$WS_ENC"
+fi
+RESP=$(curl -s --max-time "${ORCH_STOP_TIMEOUT:-0.6}" "$URL" 2>/dev/null)
 [ -z "$RESP" ] && exit 0               # daemon unreachable -> fail open
 
 if printf '%s' "$RESP" | jq -e '.stop == true' >/dev/null 2>&1; then
   # Completion notice: output structured guidance so the agent gracefully records state
   # before halting, rather than silently dropping work.
   REASON=$(printf '%s' "$RESP" | jq -r '.reason // "cancellation/stop requested"' 2>/dev/null)
-  MSG="STOP: ${REASON} — halt current work now. Completion notice: before exiting, call set_status(\"failed\") or complete_task to record your progress in the graph. Then call ScheduleWakeup(delaySeconds=7200, reason=\"idle heartbeat\", prompt=\"<<autonomous-loop-dynamic>>\") so the session stays reachable for future tasks."
+  MSG="STOP: ${REASON} — halt current work now. Completion notice: before exiting, call subconscious_assignment action:\"complete\" with status \"failed\" to record your progress in the graph. Then call ScheduleWakeup(delaySeconds=7200, reason=\"idle heartbeat\", prompt=\"<<autonomous-loop-dynamic>>\") so the session stays reachable for future tasks."
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":%s}}' "$(printf '%s' "$MSG" | jq -Rs .)"
   printf '%s\n' "$MSG" >&2   # smoke test captures stderr; stdout carries the JSON hookSpecificOutput
   exit 2

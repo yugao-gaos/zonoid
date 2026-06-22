@@ -9,12 +9,12 @@ Run the relevant checks, print a short status table, then offer the next action.
 idempotent — detect what's already done and skip it. Never run a step that needs a password
 silently; tell the user what to expect.
 
-`BASE = ${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}` · `PORT=8787` · `HTTPS_PORT=8788`
+`INSTALL=${ZONOID_REPO:-$HOME/.claude/orchestrator}` · `DATA=$(node -e "console.log(require('$INSTALL/lib/runtime-paths').resolveDataDir())")` · `PORT=8787` · `HTTPS_PORT=8788`
 
 ## 1. Health
 - Daemon: `curl -s --max-time 1 localhost:8787/ping`. If down, it should self-boot from the
-  MCP server; otherwise `node ~/.claude/orchestrator/daemon.js &`.
-- Web/preview dashboard: `~/.claude/orchestrator/public/graph.html` (or the workspace copy)
+  MCP server; otherwise `node "$INSTALL/daemon.js" &`.
+- Web/preview dashboard: `$INSTALL/public/graph.html` (or the workspace copy)
   in the desktop preview pane — confirmed working, no cert needed.
 
 ## 2. Native features (read-only)
@@ -31,7 +31,7 @@ nothing is exposed publicly.
 
 **Detect state first** (skip finished steps):
 - `command -v mkcert` — installed?
-- `ls "$BASE/certs/cert.pem" "$BASE/certs/key.pem"` — certs exist?
+- `ls "$DATA/certs/cert.pem" "$DATA/certs/key.pem"` — certs exist?
 - `curl -sk --max-time 1 https://localhost:8788/ping` — HTTPS listener up?
 
 **Then do only what's missing:**
@@ -39,8 +39,8 @@ nothing is exposed publicly.
 2. **Install the local CA** — `mkcert -install`. ⚠️ Tell the user: *"a macOS password/Keychain
    dialog will pop up — approve it."* Run it; if it errors needing a terminal sudo, ask the
    user to run `mkcert -install` themselves in a terminal, then continue.
-3. **Generate the cert** (no password): `mkdir -p "$BASE/certs" && mkcert -cert-file "$BASE/certs/cert.pem" -key-file "$BASE/certs/key.pem" localhost 127.0.0.1`.
-   (Steps 1–3 are bundled in `~/.claude/orchestrator/scripts/setup-https.sh`.)
+3. **Generate the cert** (no password): `mkdir -p "$DATA/certs" && mkcert -cert-file "$DATA/certs/cert.pem" -key-file "$DATA/certs/key.pem" localhost 127.0.0.1`.
+   (Steps 1–3 are bundled in `$INSTALL/scripts/setup-https.sh`.)
 4. **Restart the daemon** so it picks up the cert: `pkill -9 -f daemon.js; (it auto-reboots
    from the MCP server, or run it). Verify: `curl -sk https://localhost:8788/mcp -X OPTIONS -o /dev/null -w '%{http_code}'` → expect `204`.
 5. **Add the connector (manual — UI step the user must do):** Settings → Connectors →
@@ -117,7 +117,7 @@ Two scheduled tasks are required infrastructure — install them if missing.
   >
   > 1. Call `mcp__orchestrator-graph__next_action`. If empty `loops` array, go to step 2. If entries exist, go to step 3.
   > 2. No active loop — call `mcp__orchestrator-graph__get_graph` (scope: "frontier"). If `ready` tasks exist: call `loop_control({ action: "start", tokenBudget: 80000, maxIterations: 100, minPoll: 30, maxPoll: 300, batch: 4, maxConcurrency: 6 })`, then `next_action` again, go to step 3. If no `ready` tasks: exit silently.
-  > 3. Act on each loop entry: `stop`/`idle` → nothing. `spawn` → for each task dispatch a background subagent (Agent tool, run_in_background: true) with prompt: "You are a worker agent. TASK_ID: <key> (<label>). Workspace: <WORKSPACE>. Daemon: http://localhost:8787. Call start_task(TASK_ID, agent_id), do the work, then complete_task(TASK_ID, summary) on success or set_status(TASK_ID, 'failed', reason) on failure. Never exit silently." `judge_edges`/`plan`/`optimize`/`await_user` → ignore.
+  > 3. Act on each loop entry: `stop`/`idle` → nothing. `spawn` → for each task ask Subconscious for an assignment (`subconscious_assignment action:"prepare"`), then dispatch a background subagent (Agent tool, run_in_background: true) with prompt: "You are a worker agent. TASK_ID: <key> (<label>). Workspace: <WORKSPACE>. Daemon: http://localhost:8787. Accept the prepared assignment with subconscious_assignment action:'accept', do the work, then subconscious_assignment action:'complete' with status done/tested on success or failed on failure. Never exit silently." `judge_edges`/`plan`/`optimize`/`await_user` → ignore.
   > 4. Done. Do not reschedule. Never call request_guidance. If daemon unreachable, exit silently.
 
 After installing, tell the user to click **"Run now"** on `orch-loop-recovery` in the Scheduled sidebar to pre-approve tool permissions for future unattended runs.

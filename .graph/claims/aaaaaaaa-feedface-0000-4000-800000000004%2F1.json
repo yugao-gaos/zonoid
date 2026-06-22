@@ -1,0 +1,9 @@
+{
+  "task_key": "aaaaaaaa-feedface-0000-4000-800000000004/1",
+  "git_user": "YU GAO <yu.gao@gaos.ca>",
+  "session_id": "aaaaaaaa-feedface-0000-4000-800000000004",
+  "branch": "orch/attempt/aaaaaaaa-feedface-0000-4000-800000000004-1",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:02:41.055Z",
+  "lease_until": "2026-06-21T04:02:41.055Z"
+}

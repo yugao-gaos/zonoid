@@ -87,6 +87,8 @@ const ok = (label, cond) => {
 // ── Integration: sandboxed daemon stamps via mutating POSTs ──────────────────
 (async () => {
   const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-touch-agent-')));
+  process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
+  const filedrop = require('../lib/filedrop-tasks');
   const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-touch-ws-')));
   // WS must be a git repo: the start_task claim gate requires a registered worktree
   // (subagents branch_task before claiming), so probe tasks claim from an attempt worktree.
@@ -123,18 +125,38 @@ const ok = (label, cond) => {
     return false;
   }
 
+  async function waitForNotJudging(key, ms = 5000) {
+    const until = Date.now() + ms;
+    while (Date.now() < until) {
+      const g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
+      const t = g.tasks.find((x) => x.id === key);
+      if (t && !t.judging) return true;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return false;
+  }
+
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '' },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
     stdio: 'ignore',
   });
+
+  function dropStub(id) {
+    const dir = path.join(filedrop.dirFor(WS), 'local');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify({ id, subject: `touch ${id}`, status: 'pending' }, null, 2));
+  }
 
   try {
     ok('daemon up', await waitForPing());
     ok('workspace pin', (await req('POST', '/workspace', { path: WS })).body.ok === true);
+    for (const id of ['root', 'touch-probe', 'spawn-probe', 'disp-probe']) dropStub(id);
+    await req('POST', '/sync', { workspace: WS });
 
     // Wire a task so start_task claim succeeds (unwired quarantine would 409 otherwise).
     await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/touch-probe', kind: 'blocking' });
     await req('POST', '/overlay/status', { workspace: WS, key: 'local/touch-probe', status: 'ready' });
+    await waitForNotJudging('local/touch-probe');
     // Register as a standard subagent (distinct subagent_session) + attempt worktree, so the
     // claim gate (arm a + worktree precondition) accepts it.
     await req('POST', '/git/worktree', { workspace: WS, key: 'local/touch-probe', repo_path: WS });
@@ -156,7 +178,7 @@ const ok = (label, cond) => {
     const seen1 = readAgentsFile()['silent-foreign'].lastSeen;
     await new Promise((r) => setTimeout(r, 20));
     const complete = await req('POST', '/overlay/status', {
-      workspace: WS, key: 'local/touch-probe', status: 'done', agent_id: 'silent-foreign', summary: 'done',
+      workspace: WS, key: 'local/touch-probe', status: 'done', agent_id: 'silent-foreign', session_id: 'sub-sf', summary: 'done',
     });
     ok('complete_task ok', complete.status === 200 && complete.body.ok === true);
 
@@ -180,6 +202,7 @@ const ok = (label, cond) => {
     // claim gate arm (b) (a.agent_tool_spawn && a.agent_id === b.agent_id) can match.
     await req('POST', '/overlay/edge', { workspace: WS, from: 'local/root', to: 'local/spawn-probe', kind: 'blocking' });
     await req('POST', '/overlay/status', { workspace: WS, key: 'local/spawn-probe', status: 'ready' });
+    await waitForNotJudging('local/spawn-probe');
     await req('POST', '/git/worktree', { workspace: WS, key: 'local/spawn-probe', repo_path: WS });
     // SubagentStart hook for an Agent-tool spawn: parent_session_id === session, no subagent_session.
     await req('POST', '/agent/start', {

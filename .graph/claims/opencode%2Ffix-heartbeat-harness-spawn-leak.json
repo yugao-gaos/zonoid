@@ -1,0 +1,9 @@
+{
+  "task_key": "opencode/fix-heartbeat-harness-spawn-leak",
+  "agent_id": "worker-heartbeat-harness-spawn-leak",
+  "branch": "orch/attempt/opencode-fix-heartbeat-harness-spawn-leak",
+  "status": "done",
+  "claimed_at": "2026-06-21T01:16:36.054Z",
+  "lease_until": "2026-06-21T02:16:36.054Z",
+  "completed_at": "2026-06-21T01:19:34.306Z"
+}

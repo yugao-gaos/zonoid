@@ -1,0 +1,9 @@
+{
+  "task_key": "aaaaaaaa-feedface-0000-4000-800000000001/3",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "unwired-worker-sid",
+  "branch": "orch/attempt/aaaaaaaa-feedface-0000-4000-800000000001-3",
+  "status": "claimed",
+  "claimed_at": "2026-06-21T03:04:47.448Z",
+  "lease_until": "2026-06-21T04:04:47.448Z"
+}

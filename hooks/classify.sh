@@ -7,9 +7,11 @@ PORT="${ORCH_PORT:-8787}"
 INPUT=$(cat)
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // .sessionId // empty')
 PROMPT=$(printf '%s' "$INPUT" | jq -r '.prompt // empty')
-DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/orchestrator}/sessions"
-MARK="$DIR/$SID.off"
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/runtime-paths.sh
+. "$HOOK_DIR/lib/runtime-paths.sh"
+DIR="$(orch_data_dir)/sessions"
+MARK="$DIR/$SID.off"
 # shellcheck source=orch-gate-trivial.sh
 . "$HOOK_DIR/orch-gate-trivial.sh"
 [ -n "$SID" ] && reset_trivial_counter "$SID"

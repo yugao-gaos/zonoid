@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/judge-breathing-learning-cloud-live-inject",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "019eec33-f90c-7253-b3ef-62ae1722a0b7",
+  "branch": "orch/attempt/codex-judge-breathing-learning-cloud-live-inject",
+  "status": "done",
+  "claimed_at": "2026-06-21T22:01:59.184Z",
+  "lease_until": "2026-06-21T23:01:59.184Z",
+  "completed_at": "2026-06-21T22:05:28.616Z"
+}

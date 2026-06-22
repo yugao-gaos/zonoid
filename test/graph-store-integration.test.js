@@ -62,7 +62,7 @@ try {
   overlayStore.setSummary(ov, FROM_ID, 'Finished the thing');
 
   // note_node
-  const noteId = overlayStore.addNoteNode(ov, { title: 'Decision note', summary: 'We chose X', created_by: 'tester' });
+  const noteId = overlayStore.addNoteNode(ov, { title: 'Decision note', summary: 'We chose X', category: 'preference', tags: ['search', 'replay'], created_by: 'tester' });
 
   // snapshot (for TO_ID)
   overlayStore.setSnapshot(ov, TO_ID, { subject: 'target task', description: 'desc', status: 'done', blockedBy: [], owner: null, metadata: {} });
@@ -102,6 +102,8 @@ try {
   const noteEv     = noteEvents.find((e) => e.evt === 'note_created');
   ok('5. note_created event present', !!noteEv);
   ok('5. note_created.title correct', noteEv && noteEv.title === 'Decision note');
+  ok('5. note_created.category correct', noteEv && noteEv.category === 'preference');
+  ok('5. note_created.tags correct', noteEv && JSON.stringify(noteEv.tags) === JSON.stringify(['search', 'replay']));
 
   // Test 6: snapshot → snapshot_stored event in the TO node file
   const toFile    = path.join(nodesDir, `${TO_ID}.jsonl`);

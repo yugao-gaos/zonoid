@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-fix-featurebench-dag-only-parity",
+  "agent_id": "judge-fix-featurebench-dag-only-parity",
+  "branch": "orch/attempt/codex-judge-fix-featurebench-dag-only-parity",
+  "status": "done",
+  "claimed_at": "2026-06-19T19:40:14.490Z",
+  "lease_until": "2026-06-19T20:40:14.490Z",
+  "completed_at": "2026-06-19T19:44:17.221Z"
+}

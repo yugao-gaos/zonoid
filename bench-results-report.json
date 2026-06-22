@@ -1,5 +1,5 @@
 {
-  "title": "Zonoid Feature Bench",
+  "title": "Zonoid Retrieval Bench",
   "arms": {
     "cold": {
       "total": 73,

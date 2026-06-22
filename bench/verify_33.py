@@ -3,13 +3,13 @@
 Three probes:
   P1: LoCoMo temporal "when" probe → date-in-body fix (Change 1)
   P2: LoCoMo temporal "when" probe #2 → date-in-body fix (Change 1)
-  P3: LongMemEval-S probe → DAG+RAG injection (Change 3)
+  P3: LongMemEval-S probe → settled task-scoped context (Change 3)
 
 Checks:
   - BEFORE: note body has NO date prefix
   - AFTER:  note body has "Session date: <date>" prefix
-  - BEFORE (our-way): context_blocks contain only DAG-kept items
-  - AFTER  (our-way): context_blocks contain DAG + RAG fill items tagged [DAG]/[RAG]
+  - AFTER (our-way): a settled task-scoped search returns system + frozen DAG context
+    and no semantic RAG tier
 
 Uses an embedded daemon + real ingest + the modified arms code from this worktree.
 Runs WITHOUT calling claude -p (answerer stub) to avoid the 10-min budget.
@@ -43,7 +43,11 @@ for p in (AGENT_MEM, BENCH, WORKTREE):
 from ingest import _format_turns, _split_into_parts, NOTE_BUDGET  # noqa: E402
 from zonoid_bench import daemon as daemon_mod  # noqa: E402
 from zonoid_bench.client import ZonoidClient  # noqa: E402
-from zonoid_bench.arms import run_canonical_wiring, read_wired_context, _is_note_hit  # noqa: E402
+from zonoid_bench.arms import (  # noqa: E402
+    read_task_search_context,
+    run_canonical_wiring,
+    task_search_context_label,
+)
 
 DAEMON_JS = None
 try:
@@ -168,12 +172,12 @@ def check_date_in_body(sessions, probe_q: str, probe_gold: str, label: str):
 
 
 # ---------------------------------------------------------------------------
-# Check Change 3: DAG+RAG inject (using live embedded daemon)
+# Check Change 3: settled task-scoped context (using live embedded daemon)
 # ---------------------------------------------------------------------------
 
-def check_dag_rag_inject(sessions, probe: dict, answer_ids: set, label: str):
+def check_settled_task_context(sessions, probe: dict, answer_ids: set, label: str):
     print(f"\n{'='*60}")
-    print(f"PROBE [{label}] CHANGE 3: DAG+RAG inject")
+    print(f"PROBE [{label}] CHANGE 3: settled task-scoped context")
     print(f"  Q: {probe['question']}")
     print(f"  gold: {probe['answer']}")
     print(f"  answer_session_ids: {answer_ids}")
@@ -234,14 +238,23 @@ def check_dag_rag_inject(sessions, probe: dict, answer_ids: set, label: str):
             import traceback; traceback.print_exc()
             return False
 
-        dag_deps = read_wired_context(client, wiring.task_key)
-        dag_keys = [d.get("key") for d in dag_deps if d.get("key")]
-
-        # RAG fill (Change 3 NEW path)
-        raw_hits = client.search(question, k=15, gated=False)
-        note_hits = [h for h in raw_hits if _is_note_hit(h)][:5]
-        rag_keys = [h.get("key") for h in note_hits if h.get("key")]
-        rag_keys_deduped = [k for k in rag_keys if k not in dag_keys]
+        raw_hits = read_task_search_context(client, wiring.task_key, question, k=15)
+        tiers = {
+            "system": [],
+            "dag": [],
+            "rag": [],
+        }
+        for hit in raw_hits:
+            key = hit.get("key") or ""
+            if not key:
+                continue
+            label = task_search_context_label(hit)
+            if label == "SYSTEM":
+                tiers["system"].append(key)
+            elif label == "DAG":
+                tiers["dag"].append(key)
+            elif label == "RAG":
+                tiers["rag"].append(key)
 
         # For LME-S, the needle session is identified by answer_session_ids
         # Check if RAG surfaced notes that came from the needle session
@@ -250,34 +263,22 @@ def check_dag_rag_inject(sessions, probe: dict, answer_ids: set, label: str):
             if sid in answer_ids:
                 needle_notes.extend(keys)
 
-        dag_has_needle = any(k in needle_notes for k in dag_keys)
-        rag_has_needle = any(k in needle_notes for k in rag_keys)
+        dag_has_needle = any(k in needle_notes for k in tiers["dag"])
+        system_has_needle = any(k in needle_notes for k in tiers["system"])
 
-        print(f"  [DAG] kept context keys: {dag_keys}")
-        print(f"  [RAG] top-5 note keys: {rag_keys}")
+        print(f"  [SYSTEM] context keys: {tiers['system']}")
+        print(f"  [DAG] frozen context keys: {tiers['dag']}")
+        print(f"  [RAG] task-scoped result keys: {tiers['rag']}")
         print(f"  [needle notes] from answer sessions: {needle_notes[:5]}")
         print(f"  DAG surfaced needle: {dag_has_needle}")
-        print(f"  RAG surfaced needle: {rag_has_needle}")
+        print(f"  SYSTEM surfaced needle: {system_has_needle}")
 
-        # BEFORE (no RAG fill): answerer would only see DAG blocks
-        context_before = dag_keys  # just DAG
-        # AFTER (with RAG fill): answerer sees DAG + RAG deduped
-        context_after = dag_keys + rag_keys_deduped
-
-        print(f"  BEFORE context keys count: {len(context_before)}")
-        print(f"  AFTER  context keys count: {len(context_after)}")
-        print(f"  AFTER added {len(rag_keys_deduped)} RAG-fill keys")
-
-        # Check: does 'Business Administration' or the answer appear in any RAG hit summary?
-        gold = probe["answer"].lower()
-        rag_hit_summaries = [h.get("summary", "") for h in note_hits]
-        rag_has_gold_text = any(gold in (s or "").lower() for s in rag_hit_summaries)
-        print(f"  RAG hit summaries contain gold text ({gold!r}): {rag_has_gold_text}")
-
-        ok = rag_has_needle or rag_has_gold_text
-        print(f"  => [{'PASS' if ok else 'INFO'}] RAG fill {'surfaced' if ok else 'did not surface'} the needle session")
-        if not ok:
-            print(f"     (This may mean the question/needle cosine is low — still a valid result)")
+        settled = wiring.provisional_kept == 0
+        ok = settled and not tiers["rag"]
+        state = "PASS" if ok else "INFO"
+        print(f"  => [{state}] settled task search has no semantic RAG tier")
+        if not settled:
+            print("     (The eager judge timed out; a provisional task may legitimately include RAG.)")
         return ok
 
     except Exception as exc:
@@ -325,18 +326,18 @@ def main() -> int:
     results["P1_date_in_body"] = ok1
     results["P2_date_in_body"] = ok2
 
-    # ---- P3: LME-S DAG+RAG inject ----
+    # ---- P3: LME-S settled task-scoped context ----
     print(f"\n[verify_33] Loading LME-S item 0...")
     lme_sessions, lme_probe, lme_answer_ids = _load_lme_s_item(DATA_DIR, idx=0)
     print(f"  {len(lme_sessions)} sessions, answer_ids={lme_answer_ids}")
 
-    ok3 = check_dag_rag_inject(
+    ok3 = check_settled_task_context(
         lme_sessions,
         probe=lme_probe,
         answer_ids=lme_answer_ids,
-        label="P3 LME-S DAG+RAG"
+        label="P3 LME-S settled task context"
     )
-    results["P3_dag_rag_inject"] = ok3
+    results["P3_settled_task_context"] = ok3
 
     # ---- Summary ----
     print(f"\n{'='*60}")

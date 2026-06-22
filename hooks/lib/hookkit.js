@@ -10,12 +10,12 @@
 // Conventions preserved from the bash hooks:
 //   - exit 0 = allow / no-op, exit 2 = deny (stderr carries the reason).
 //   - daemon unreachable / timed out => fail OPEN (return null, caller allows).
-//   - data dir = CLAUDE_PLUGIN_DATA or ~/.claude/orchestrator ; sessions/<id>.off = opted out.
+//   - data dir = ORCH_DATA, ZONOID_DATA, or legacy CLAUDE_PLUGIN_DATA; sessions/<id>.off = opted out.
 
 const http = require('http');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
+const runtimePaths = require('../../lib/runtime-paths');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const IS_WIN = process.platform === 'win32';
@@ -76,7 +76,7 @@ function ping(timeoutMs) {
 
 // ── paths / opt-out marker ───────────────────────────────────────────────────
 function dataDir() {
-  return process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'orchestrator');
+  return runtimePaths.resolveDataDir();
 }
 function sessionsDir() { return path.join(dataDir(), 'sessions'); }
 function offMarker(sid) { return path.join(sessionsDir(), `${sid}.off`); }
@@ -120,6 +120,10 @@ function emitContext(eventName, additionalContext) {
 const TRIVIAL_MAX_LINES = 20;
 const TRIVIAL_MAX_CHARS = 800;
 function trivialCounterPath(sid) { return path.join(sessionsDir(), `${sid}.trivial-edit`); }
+function trivialCounterCount(sid) {
+  try { return parseInt(String(fs.readFileSync(trivialCounterPath(sid), 'utf8')).trim(), 10) || 0; }
+  catch { return 0; }
+}
 function resetTrivialCounter(sid) {
   if (!sid) return;
   try { fs.mkdirSync(sessionsDir(), { recursive: true }); fs.writeFileSync(trivialCounterPath(sid), '0\n'); } catch { /* ignore */ }
@@ -160,8 +164,7 @@ async function tryTrivialMainAllow(sid, content) {
   if (!(await hasInflightWorkers(sid))) return { ok: false, denyReason: 'no_workers' };
   const { attribution, denyReason } = await trivialAttribution(sid);
   if (!attribution) return { ok: false, denyReason: denyReason || 'focus' };
-  let count = 0;
-  try { count = parseInt(String(fs.readFileSync(trivialCounterPath(sid), 'utf8')).trim(), 10) || 0; } catch { count = 0; }
+  const count = trivialCounterCount(sid);
   if (count >= 1) return { ok: false, denyReason: 'budget', attribution };
   try { fs.mkdirSync(sessionsDir(), { recursive: true }); fs.writeFileSync(trivialCounterPath(sid), '1\n'); }
   catch { return { ok: false, denyReason: '', attribution }; }
@@ -172,11 +175,11 @@ function mainSessionDenyMessage(denyReason) {
     case 'budget':
       return 'orch-gate: trivial patch budget exhausted for this turn (1 allowed). Dispatch a subagent for further edits.';
     case 'no_workers':
-      return 'orch-gate: no in-flight workers. Main/dispatcher sessions must NOT claim tasks directly. Register a task first (Claude TaskCreate, or adapter file-drop create_task/task_create), then spawn a background subagent (Agent tool, run_in_background:true) — the subagent calls branch_task then start_task before editing.';
+      return 'orch-gate: no in-flight workers. Main/dispatcher sessions must NOT claim tasks directly. Ask Subconscious for an assignment with subconscious_assignment action:"prepare", then spawn a background worker to use subconscious_assignment action:"accept" before editing.';
     case 'focus':
       return 'orch-gate: multiple in-flight workers — set dispatcher focus (POST /overlay/dispatcher-focus) before trivial edits.';
     default:
-      return 'orch-gate: no task claimed. Main/dispatcher sessions must NOT claim tasks directly. Register a task first (Claude TaskCreate, or adapter file-drop create_task/task_create), then spawn a background subagent (Agent tool, run_in_background:true) — the subagent calls branch_task then start_task before editing.';
+      return 'orch-gate: no task claimed. Main/dispatcher sessions must NOT claim tasks directly. Ask Subconscious for an assignment with subconscious_assignment action:"prepare", then spawn a background worker to use subconscious_assignment action:"accept" before editing.';
   }
 }
 
@@ -188,6 +191,6 @@ module.exports = {
   slash, cmp, isUnder, normalizePath,
   allow, deny, emitContext,
   TRIVIAL_MAX_LINES, TRIVIAL_MAX_CHARS,
-  resetTrivialCounter, patchWithinLimits, dispatcherChildren, hasInflightWorkers,
+  trivialCounterCount, resetTrivialCounter, patchWithinLimits, dispatcherChildren, hasInflightWorkers,
   trivialAttribution, reportDispatcherEdit, tryTrivialMainAllow, mainSessionDenyMessage,
 };

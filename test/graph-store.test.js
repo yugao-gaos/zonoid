@@ -96,6 +96,7 @@ function tmpDir() {
   gs.appendEvent(store, 'note:abc', { evt: 'note_created', actor: 'a',
     title: 'Design decision', summary: 'We chose X because Y',
     workspace: '/w', created_by: 'alice', valid_from: '2026-01-01',
+    category: 'System', tags: ['Preference', 'Replay', 'preference'],
     knowledge: [{ type: 'note', value: 'extra' }] });
   const { nodes } = gs.loadGraph(store);
   const n = nodes['note:abc'];
@@ -106,6 +107,10 @@ function tmpDir() {
   ok('note_created sets note.title',        n.note.title === 'Design decision');
   ok('note_created sets note.created_by',   n.note.created_by === 'alice');
   ok('note_created sets note.valid_from',   n.note.valid_from === '2026-01-01');
+  ok('note_created replays top-level category', n.category === 'system');
+  ok('note_created replays top-level tags', JSON.stringify(n.tags) === JSON.stringify(['preference', 'replay']));
+  ok('note_created sets note.category', n.note.category === 'system');
+  ok('note_created sets note.tags', JSON.stringify(n.note.tags) === JSON.stringify(['preference', 'replay']));
   ok('note_created appends knowledge',      n.knowledge.length === 1);
   ok('note_created knowledge item correct', n.knowledge[0].value === 'extra');
 

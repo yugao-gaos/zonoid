@@ -3,10 +3,13 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { writeCurlStub, hookEnv } = require('./helpers/curl-stub');
+const codexSessionBridge = require('../lib/codex-session-bridge');
 
 const HOOK = path.join(__dirname, '..', 'adapters', 'codex', 'hooks', 'agent-done.sh');
+const SESSION_START = path.join(__dirname, '..', 'hooks', 'start-daemon.js');
+const CODEX_SESSION_START = path.join(__dirname, '..', 'adapters', 'codex', 'hooks', 'session-start.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-hooks-'));
 
 let pass = 0, fail = 0;
@@ -14,6 +17,44 @@ const ok = (label, cond) => {
   if (cond) { console.log(`PASS  ${label}`); pass++; }
   else { console.log(`FAIL  ${label}`); fail++; }
 };
+
+function waitForFile(file, ms = 5000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    if (fs.existsSync(file)) return true;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  }
+  return false;
+}
+
+function spawnUnderHeadlessAncestor(childCmd, childArgs, opts = {}) {
+  const wrapper = [
+    "process.title = 'node scripts/onboard-learn.js --drain';",
+    "const { spawnSync } = require('child_process');",
+    "const r = spawnSync(process.env.CHILD_CMD, JSON.parse(process.env.CHILD_ARGS || '[]'), {",
+    "  input: process.env.CHILD_INPUT || '',",
+    "  encoding: 'utf8',",
+    "  env: process.env,",
+    "  timeout: Number(process.env.CHILD_TIMEOUT || 5000),",
+    "});",
+    "if (r.stdout) process.stdout.write(r.stdout);",
+    "if (r.stderr) process.stderr.write(r.stderr);",
+    "if (r.error) process.stderr.write(String(r.error.message || r.error));",
+    "process.exit(r.status == null ? 1 : r.status);",
+  ].join('\n');
+  return spawnSync(process.execPath, ['-e', wrapper, 'scripts/onboard-learn.js', '--drain'], {
+    encoding: 'utf8',
+    timeout: opts.timeout || 5000,
+    env: {
+      ...process.env,
+      ...(opts.env || {}),
+      CHILD_CMD: childCmd,
+      CHILD_ARGS: JSON.stringify(childArgs || []),
+      CHILD_INPUT: opts.input || '',
+      CHILD_TIMEOUT: String(opts.timeout || 5000),
+    },
+  });
+}
 
 try {
   const codexHome = path.join(TMP, 'codex-home');
@@ -56,6 +97,53 @@ try {
   ok('agent-done forwards reported_usage from rollout fallback', args.includes('reported_usage'));
   ok('agent-done normalizes uncached input tokens', args.includes('"input_tokens":700'));
   ok('agent-done forwards output tokens', args.includes('"output_tokens":50'));
+
+  const skippedBridgePath = path.join(TMP, 'adapters', 'codex', 'session-bridge.json');
+  const skipStart = spawnUnderHeadlessAncestor('bash', [CODEX_SESSION_START], {
+    input: JSON.stringify({
+      cwd: TMP,
+      session_id: 'headless-drain-session',
+      transcript_path: '/tmp/headless-drain-session.jsonl',
+    }),
+    env: { CLAUDE_PLUGIN_DATA: TMP, ORCH_PORT: '9' },
+  });
+  ok('Codex SessionStart skips headless drain children', skipStart.status === 0);
+  ok('Codex SessionStart skip does not write session bridge', !fs.existsSync(skippedBridgePath));
+
+  const daemonSkip = spawnUnderHeadlessAncestor(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
+    env: { CLAUDE_PLUGIN_DATA: TMP, ORCH_PORT: '18889' },
+  });
+  ok('daemon exits under headless drain children', daemonSkip.status === 0 && !daemonSkip.stdout.includes('orchestrator daemon on'));
+
+  const configPath = path.join(TMP, 'hook-stub-config.json');
+  const readyPath = path.join(TMP, 'hook-stub-ready.json');
+  fs.writeFileSync(configPath, JSON.stringify({}));
+  const stub = spawn(process.execPath, [path.join(__dirname, 'support', 'hook-http-stub-child.js'), configPath, readyPath], {
+    stdio: 'ignore',
+  });
+  try {
+    ok('hook HTTP stub ready', waitForFile(readyPath));
+    const port = JSON.parse(fs.readFileSync(readyPath, 'utf8')).port;
+    const ws = path.join(TMP, 'repo');
+    fs.mkdirSync(path.join(ws, '.graph'), { recursive: true });
+    const start = spawnSync(process.execPath, [SESSION_START], {
+      input: JSON.stringify({
+        cwd: ws,
+        session_id: 'codex-hook-session',
+        transcript_path: '/tmp/codex-hook-session.jsonl',
+        harness: 'codex',
+      }),
+      encoding: 'utf8',
+      env: { ...process.env, CLAUDE_PLUGIN_DATA: TMP, ORCH_PORT: String(port) },
+    });
+    const bridgePath = path.join(TMP, 'adapters', 'codex', 'session-bridge.json');
+    const bridged = codexSessionBridge.latestSession({ workspace: ws }, bridgePath);
+    ok('SessionStart exits 0', start.status === 0);
+    ok('SessionStart writes Codex adapter bridge path', fs.existsSync(bridgePath));
+    ok('SessionStart writes Codex session bridge', bridged && bridged.session_id === 'codex-hook-session' && bridged.workspace === path.resolve(ws));
+  } finally {
+    stub.kill();
+  }
 } finally {
   fs.rmSync(TMP, { recursive: true, force: true });
 }
