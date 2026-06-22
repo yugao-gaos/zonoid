@@ -848,6 +848,42 @@ test('subconscious search-context adaptively follows task-adjacent DAG evidence 
   assert.equal(res.body.subconscious_context.decisions.stop_reason, 'budget_exhausted');
 });
 
+test('subconscious search-context continues from weak task DAG to broad RAG', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('task/target', 'Weak DAG target', {
+        status: 'ready',
+        context_deps: [],
+      }),
+      node('note:broad', 'Hydra broad context', {
+        kind: 'note',
+        summary: 'Hydra broad context is relevant only through the broad RAG pass after weak DAG evidence.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare adaptive context',
+    situation: 'Need hydra broad context for assignment',
+    max_rounds: 3,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  const steps = res.body.subconscious_context.search_steps;
+  assert.equal(steps[0].mode, 'dag_task_gated');
+  assert.equal(steps[1].mode, 'rag_broad');
+  assert(res.body.subconscious_context.context_task_keys.includes('note:broad'));
+  assert.notEqual(res.body.subconscious_context.verdict, 'abstain_no_context');
+});
+
 test('subconscious search-context adaptively follows RAG breadcrumbs', async () => {
   const ws = makeWorkspace();
   const store = createSubconsciousStore({ maxEvents: 5 });
@@ -882,6 +918,39 @@ test('subconscious search-context adaptively follows RAG breadcrumbs', async () 
   assert(steps.some((step) => step.followup_from === 'note:clue'));
   assert(res.body.subconscious_context.context_task_keys.includes('note:detail'));
   assert.notEqual(res.body.subconscious_context.verdict, 'abstain_no_context');
+});
+
+test('subconscious search-context does not treat knowledge chunks as task-adjacent DAG follow-ups', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const ov = {
+    knowledge: {
+      'knowledge:artifact': [
+        { text: 'Adaptive context artifact points to follow-up retrieval but is not a task node.' },
+      ],
+    },
+    edges: [],
+    entity_nodes: {},
+  };
+  const graph = { tasks: [] };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null, overlay: ov });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    query: 'Need adaptive context artifact',
+    max_rounds: 2,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  const steps = res.body.subconscious_context.search_steps;
+  assert(steps.some((step) => step.mode === 'rag_broad'));
+  assert(!steps.some((step) =>
+    step.mode === 'dag_task_adjacent' ||
+    (step.task_key && step.task_key.startsWith('knowledge:'))
+  ));
 });
 
 test('subconscious search-context abstains when evidence quality is insufficient', async () => {
