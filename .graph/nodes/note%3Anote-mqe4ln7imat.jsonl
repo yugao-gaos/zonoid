@@ -8,3 +8,5 @@
 {"evt":"edge_removed","from":"note:note-mqe4ln7imat","to":"followup/fix-byid-undefined-judge-verdict-handler","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:23:36.563Z"}
 {"evt":"edge_added","from":"note:note-mqe4ln7imat","to":"codex/fix-broad-npm-test-regressions-after-post-review-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T07:56:02.419Z","weight":0,"by":"autowire","judged":false,"score":0.573,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqe4ln7imat","to":"codex/fix-stale-tested-verdict-requeue-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:06:14.596Z","weight":0,"by":"autowire","judged":false,"score":0.583,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqe4ln7imat","to":"codex/fix-broad-npm-test-regressions-after-post-review-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:30:16.165Z"}
+{"evt":"edge_removed","from":"note:note-mqe4ln7imat","to":"codex/fix-stale-tested-verdict-requeue-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:30:16.165Z"}

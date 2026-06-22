@@ -1,0 +1,2 @@
+{"evt":"edge_promoted","from":"judge/phase4-unification","to":"phase4/unification","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:29:51.391Z","weight":0.783,"by":"judge","judged":true,"score":0.783,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"judge/phase4-unification","to":"judge/phase2-entity-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:29:51.391Z","weight":0.586,"by":"judge","judged":true,"score":0.586,"origin":"autowire-semantic"}
