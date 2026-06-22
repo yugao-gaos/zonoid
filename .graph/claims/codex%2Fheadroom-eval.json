@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "019eefb2-0bb5-7053-886f-bc09b422bff0",
   "branch": "orch/attempt/codex-headroom-eval",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T14:21:07.886Z",
-  "lease_until": "2026-06-22T15:21:07.886Z"
+  "lease_until": "2026-06-22T15:21:07.886Z",
+  "completed_at": "2026-06-22T14:36:15.169Z"
 }
