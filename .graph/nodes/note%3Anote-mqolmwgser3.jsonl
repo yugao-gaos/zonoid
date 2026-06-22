@@ -17,3 +17,5 @@
 {"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"codex/fix-search-kb-recall-semantics","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:37:07.878Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_added","from":"note:note-mqolmwgser3","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:37:11.904Z","origin":"subconscious-assignment"}
 {"evt":"edge_added","from":"note:note-mqolmwgser3","to":"codex/verify-post-subconscious-review-fixes","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:37:33.238Z","origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:41:07.937Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"codex/verify-post-subconscious-review-fixes","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:41:07.937Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
