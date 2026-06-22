@@ -4,3 +4,8 @@
 {"evt":"edge_added","from":"note:note-mqp5d6u4tao","to":"note:note-mqiu6tlls7n","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:43:40.426Z","weight":0,"by":"autowire","judged":false,"score":0.668,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp5d6u4tao","to":"note:note-mqa3j03bqhi","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:43:40.426Z","weight":0,"by":"autowire","judged":false,"score":0.588,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp5d6u4tao","to":"note:note-mqp5cpf20yd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:43:40.426Z","weight":0,"by":"autowire","judged":false,"score":0.552,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp5d6u4tao","to":"knowledge:source_chunk:chunk-agents-md-6-1-standalone-tokens-in-title-note-titles-m-d5e179f54e","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:22:23.129Z"}
+{"evt":"edge_removed","from":"note:note-mqp5d6u4tao","to":"knowledge:source_chunk:chunk-claude-md-6-1-standalone-tokens-in-title-note-titles-m-f0f2c933d5","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:22:23.129Z"}
+{"evt":"edge_removed","from":"note:note-mqp5d6u4tao","to":"note:note-mqiu6tlls7n","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:22:23.129Z"}
+{"evt":"edge_removed","from":"note:note-mqp5d6u4tao","to":"note:note-mqa3j03bqhi","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:22:23.129Z"}
+{"evt":"edge_removed","from":"note:note-mqp5d6u4tao","to":"note:note-mqp5cpf20yd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:22:23.129Z"}

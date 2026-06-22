@@ -4,3 +4,8 @@
 {"evt":"edge_added","from":"note:note-mqp5ddqsm9u","to":"note:note-mqiu734gzsl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:43:49.324Z","weight":0,"by":"autowire","judged":false,"score":0.904,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp5ddqsm9u","to":"note:note-mqa3j03bqhi","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:43:49.324Z","weight":0,"by":"autowire","judged":false,"score":0.68,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp5ddqsm9u","to":"note:note-mqap5zpksrb","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:43:49.324Z","weight":0,"by":"autowire","judged":false,"score":0.637,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp5ddqsm9u","to":"knowledge:source_chunk:chunk-agents-md-6-2-provenance-wiring-agents-creating-notes--f92268e6aa","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:22:23.129Z"}
+{"evt":"edge_removed","from":"note:note-mqp5ddqsm9u","to":"knowledge:source_chunk:chunk-claude-md-6-2-provenance-wiring-agents-creating-notes--8b207882f0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:22:23.129Z"}
+{"evt":"edge_removed","from":"note:note-mqp5ddqsm9u","to":"note:note-mqiu734gzsl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:22:23.129Z"}
+{"evt":"edge_removed","from":"note:note-mqp5ddqsm9u","to":"note:note-mqa3j03bqhi","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:22:23.129Z"}
+{"evt":"edge_removed","from":"note:note-mqp5ddqsm9u","to":"note:note-mqap5zpksrb","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:22:23.129Z"}
