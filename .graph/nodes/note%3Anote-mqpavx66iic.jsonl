@@ -22,3 +22,10 @@
 {"evt":"edge_promoted","from":"note:note-mqpavx66iic","to":"codex/breathing-learning-cloud-live-inject","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:18:46.380Z","weight":1,"by":"autowire","judged":false}
 {"evt":"edge_removed","from":"note:note-mqpavx66iic","to":"note:note-mq82mggjhu5","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:34:53.051Z"}
 {"evt":"edge_removed","from":"note:note-mqpavx66iic","to":"codex/migrate-subconscious-surface-messages","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:35:26.984Z"}
+{"evt":"edge_removed","from":"note:note-mqpavx66iic","to":"note:note-mqbc3zun3l4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:40:27.636Z"}
+{"evt":"edge_promoted","from":"note:note-mqpavx66iic","to":"knowledge:source_section:note-mqpavx66iic#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:40:40.352Z","weight":0.895,"by":"judge","judged":true,"score":0.895,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqpavx66iic","to":"knowledge:source_chunk:note-mqpavx66iic#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:40:40.352Z","weight":0.895,"by":"judge","judged":true,"score":0.895,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqpavx66iic","to":"knowledge:source_doc:note-mqpavx66iic","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:40:40.352Z","weight":0.653,"by":"judge","judged":true,"score":0.653,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqpavx66iic","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:40:40.352Z"}
+{"evt":"edge_removed","from":"note:note-mqpavx66iic","to":"codex/diffusion-predictive-shadow-benchmark","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:40:40.352Z"}
+{"evt":"edge_removed","from":"note:note-mqpavx66iic","to":"codex/breathing-learning-cloud-live-inject","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:40:40.352Z"}

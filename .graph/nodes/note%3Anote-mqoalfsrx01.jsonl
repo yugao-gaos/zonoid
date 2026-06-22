@@ -9,3 +9,4 @@
 {"evt":"edge_promoted","from":"note:note-mqoalfsrx01","to":"codex/judge-breathing-learning-cloud-live-inject","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:51:05.423Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqoalfsrx01","to":"codex/judge-breathing-learning-cloud-live-inject","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:51:18.957Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqoalfsrx01","to":"codex/judge-breathing-learning-cloud-live-inject","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:51:43.860Z","weight":0.8,"by":"autowire","judged":false,"origin":"asserted"}
+{"evt":"edge_removed","from":"note:note-mqoalfsrx01","to":"note:note-mqn5eugc0vj","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:39:48.704Z"}

@@ -29,3 +29,11 @@
 {"evt":"edge_promoted","from":"note:note-mqk0pyjpxtc","to":"codex/judge-exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:34:49.073Z","weight":0.555,"by":"judge","judged":true,"score":0.555,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqk0pyjpxtc","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:36:07.065Z","weight":0.686,"by":"judge","judged":true,"score":0.686,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqk0pyjpxtc","to":"codex/judge-exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:36:10.661Z","weight":0.602,"by":"judge","judged":true,"score":0.602,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqk0pyjpxtc","to":"codex/exec-brain-state-seam-agent-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:41:40.645Z","weight":0.756,"by":"judge","judged":true,"score":0.756,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"note:note-mqjyqrg5t5f","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:41:40.645Z"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"note:note-mqft8cz9ula","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:41:40.645Z"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"note:note-mqfatdr2s67","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:41:40.645Z"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"note:note-mqftffo7f2b","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:41:40.645Z"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"codex/fix-strict-git-claim-finalize-owner","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:41:40.645Z"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"codex/judge-exec-brain-state-seam-minimal-patch","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:41:40.645Z"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"followup/investigate-force-claim-cap-test-judging-yf0n","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:41:40.645Z"}
