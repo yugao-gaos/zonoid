@@ -21,3 +21,6 @@
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam-retry","to":"codex/judge-exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:17:24.565Z"}
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam-retry","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:19:23.325Z"}
 {"evt":"edge_added","from":"codex/exec-brain-state-seam-retry","to":"codex/exec-brain-state-seam-retry-judge","kind":"blocking","actor":"overlay-sync","ts":"2026-06-22T14:08:02.931Z","origin":"subconscious-assignment"}
+{"evt":"status_changed","id":"codex/exec-brain-state-seam-retry","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-22T14:09:41.523Z"}
+{"evt":"assignee_set","id":"codex/exec-brain-state-seam-retry","workspace":"/Users/imyu/Desktop/zonoid","assignee":"auto-exec-brain-state-seam-retry","actor":"overlay-sync","ts":"2026-06-22T14:09:41.523Z"}
+{"evt":"timestamps_set","id":"codex/exec-brain-state-seam-retry","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-18T20:24:10.184Z","lastChanged":"2026-06-22T14:09:40.718Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-22T14:09:41.523Z"}
