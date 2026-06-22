@@ -6402,6 +6402,7 @@ function renderCloud(d, opts={}){
         return Number.isFinite(n)?Math.round(n*100)+'%':'';
       };
       if(searchContext&&!summaryNodes.length){
+        const summaryTitle=searchContext&&searchContext.human_summary?'Subconscious brief':'Search context';
         const verdict=cleanLabel(searchContext.verdict||'no selected context');
         const confidence=percent(searchContext.confidence);
         const stop=cleanLabel(searchContext.decisions&&searchContext.decisions.stop_reason);
@@ -6414,10 +6415,11 @@ function renderCloud(d, opts={}){
         ].filter(Boolean).join(' ');
         const summaryBrief=(searchContext&&searchContext.human_summary)||brief;
         summaryEl.innerHTML =
-          `<div class="cloud-search-summary-title"><span>Search context</span><span class="cloud-search-summary-meta">0 selected</span></div>`+
+          `<div class="cloud-search-summary-title"><span>${esc(summaryTitle)}</span><span class="cloud-search-summary-meta">0 selected</span></div>`+
           `<div class="cloud-search-summary-brief">${esc(summaryBrief)}</div>`;
         summaryEl.classList.add('show');
       } else if(summaryNodes.length){
+        const summaryTitle=searchContext&&searchContext.human_summary?'Subconscious brief':'Search context';
         const countPairs=(fn,limit=4)=>{
           const m=new Map();
           for(const n of summaryNodes){
@@ -6477,7 +6479,7 @@ function renderCloud(d, opts={}){
           return `<div class="cloud-search-summary-item"><b>${esc(title)}</b> <span>${esc(source)}</span>${details}</div>`;
         }).join('');
         summaryEl.innerHTML =
-          `<div class="cloud-search-summary-title"><span>Search context</span><span class="cloud-search-summary-meta">${summaryNodes.length} selected</span></div>`+
+          `<div class="cloud-search-summary-title"><span>${esc(summaryTitle)}</span><span class="cloud-search-summary-meta">${summaryNodes.length} selected</span></div>`+
           `<div class="cloud-search-summary-brief">${esc(displaySummaryBrief)}</div>`+
           `<div class="cloud-search-summary-line">${esc([statusLine,kindLine].filter(Boolean).join(' · '))}</div>`+
           `<div class="cloud-search-summary-items">${itemRows}</div>`;
