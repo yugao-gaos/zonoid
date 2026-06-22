@@ -15,3 +15,10 @@
 {"evt":"edge_promoted","from":"note:note-mqgudrqpuzc","to":"codex/trace-codex-hooks-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-17T17:31:51.986Z","weight":0.7,"origin":"asserted"}
 {"evt":"edge_added","from":"note:note-mqgudrqpuzc","to":"codex/fix-shell-opencode-write-gates-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:28:33.500Z","weight":0,"by":"autowire","judged":false,"score":0.61,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqgudrqpuzc","to":"codex/fix-shell-opencode-relative-git-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:40:10.066Z","weight":0,"by":"autowire","judged":false,"score":0.55,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqgudrqpuzc","to":"note:note-mqgu63huoyl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:08:15.249Z"}
+{"evt":"edge_removed","from":"note:note-mqgudrqpuzc","to":"note:note-mqgtgbdm0mh","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:08:15.249Z"}
+{"evt":"edge_removed","from":"note:note-mqgudrqpuzc","to":"note:note-mqgt2bjvle5","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:08:15.249Z"}
+{"evt":"edge_removed","from":"note:note-mqgudrqpuzc","to":"note:note-mqf9al6pjvv","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:08:15.249Z"}
+{"evt":"edge_removed","from":"note:note-mqgudrqpuzc","to":"note:note-mqgu1e5450o","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:08:15.249Z"}
+{"evt":"edge_removed","from":"note:note-mqgudrqpuzc","to":"codex/fix-shell-opencode-write-gates-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:08:15.249Z"}
+{"evt":"edge_removed","from":"note:note-mqgudrqpuzc","to":"codex/fix-shell-opencode-relative-git-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:08:15.249Z"}
