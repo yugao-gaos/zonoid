@@ -17,3 +17,5 @@
 {"evt":"edge_promoted","from":"note:note-mqpb1ref05h","to":"codex/improve-three-point-cloud-color-palette","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:25:29.376Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqpb1ref05h","to":"codex/fix-dark-three-point-cloud-nodes-and-missing-search-edges","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:25:36.391Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqpb1ref05h","to":"codex/improve-three-point-cloud-color-palette","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:25:36.391Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpb1ref05h","to":"codex/fix-dark-three-point-cloud-nodes-and-missing-search-edges","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:26:09.495Z","weight":1,"by":"autowire","judged":false}
+{"evt":"edge_promoted","from":"note:note-mqpb1ref05h","to":"codex/improve-three-point-cloud-color-palette","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:26:09.495Z","weight":1,"by":"autowire","judged":false}

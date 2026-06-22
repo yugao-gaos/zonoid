@@ -22,3 +22,4 @@
 {"evt":"edge_removed","from":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/16","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/4","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:21:03.920Z"}
 {"evt":"edge_removed","from":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/16","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/6","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:21:03.920Z"}
 {"evt":"edge_removed","from":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/16","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/14","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T19:21:07.136Z"}
+{"evt":"timestamps_set","id":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/16","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-16T16:37:53.982Z","lastChanged":"2026-06-22T14:41:45.781Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-22T14:42:40.189Z"}
