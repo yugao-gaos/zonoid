@@ -9,3 +9,5 @@
 {"evt":"edge_promoted","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32","to":"codex/fix-shell-opencode-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:42:33.596Z","weight":0.85,"origin":"asserted"}
 {"evt":"edge_promoted","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32","to":"codex/fix-shell-opencode-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:46:41.574Z","weight":0.85,"origin":"asserted"}
 {"evt":"edge_promoted","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32","to":"codex/fix-shell-opencode-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:46:46.473Z","weight":0.85,"origin":"asserted"}
+{"evt":"edge_promoted","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32","to":"codex/fix-shell-opencode-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:04.387Z","weight":0.85,"origin":"asserted"}
+{"evt":"edge_promoted","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32","to":"codex/fix-shell-opencode-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:08.011Z","weight":0.85,"origin":"asserted"}
