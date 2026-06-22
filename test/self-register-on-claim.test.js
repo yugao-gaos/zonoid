@@ -95,10 +95,10 @@ function runWriteGate(filePath) {
     // No /agent/start is ever called — these agents are hook-less, exactly like a real
     // run_in_background Agent-tool spawn (agent_tool_spawn never set → isSubagent is false).
 
-    // Claim WITHOUT a worktree → refused, and the message points to branch_task.
+    // Claim WITHOUT a worktree → refused, and the message points to the Subconscious assignment surface.
     const noWt = await req('POST', '/overlay/status', { key: K(2), status: 'in_progress', agent_id: 'hookless-worker', session_id: SESSION, workspace: WS });
     ok('hook-less claim with NO worktree refused 409', noWt.status === 409);
-    ok('409 points to branch_task', /branch_task/.test(String(noWt.body.error)));
+    ok('409 points to Subconscious assignment surface', /subconscious_assignment action:"(accept|prepare)"/.test(String(noWt.body.error)));
 
     // Branch a worktree (proof of delegation) via the real branch_task endpoint, which registers
     // it in overlay.git — then claim → self-register-on-claim allows it.

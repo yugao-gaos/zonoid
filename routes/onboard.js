@@ -136,6 +136,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const repo = b.repo;
     if (!repo) { send(res, 400, { ok: false, error: 'repo required' }); return true; }
     const outDir = b.outDir || path.join(__dirname, '..', 'bench', 'onboard', path.basename(repo));
+    const existingStatus = queueStatus(outDir);
+    const existingMeta = readDrainMeta(outDir);
+    if (!b.force && existingStatus && existingStatus.total > 0 && existingStatus.drainDone && existingMeta.repo === repo) {
+      send(res, 200, { ok: true, total: existingStatus.total, remaining: existingStatus.remaining, outDir, reused: true, completed: true });
+      return true;
+    }
     const { spawnSync } = require('child_process');
     const SCRIPTS = path.join(__dirname, '..', 'scripts');
     for (const s of ['onboard-mine-structure.js', 'onboard-mine-git.js', 'onboard-mine-docs.js', 'onboard-mine-assets.js', 'onboard-mine-config.js']) {
