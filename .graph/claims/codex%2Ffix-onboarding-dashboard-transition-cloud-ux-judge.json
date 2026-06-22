@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-65847-88432643004f8515c958bf862c9361eb",
   "branch": "orch/attempt/codex-fix-onboarding-dashboard-transition-cloud-ux-judge",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-22T03:07:13.797Z",
-  "lease_until": "2026-06-22T04:07:13.797Z"
+  "lease_until": "2026-06-22T04:07:13.797Z",
+  "completed_at": "2026-06-22T03:10:11.827Z"
 }
