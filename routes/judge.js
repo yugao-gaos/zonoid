@@ -114,8 +114,8 @@ function clusterMaxCosine(overlay, keys) {
 
 // Stable key for the standing "harness: judge drain" task. Fixed slug so it is findable by label
 // prefix across daemon restarts; the snapshot substrate keeps it in the graph indefinitely.
-// Workers call start_task with this key before judging, complete_task after. Standing harness
-// tasks auto-requeue to ready on complete_task so the next pass is immediately claimable; claim
+// Workers accept a Subconscious assignment with this key before judging, then complete it after.
+// Standing harness tasks auto-requeue to ready on completion so the next pass is immediately claimable; claim
 // conflict is preserved because complete clears in_progress before requeue. The 10-min stale-claim
 // sweep is a secondary safety net for crashed workers.
 const HARNESS_JUDGE_DRAIN_KEY = 'followup/harness-judge-drain';

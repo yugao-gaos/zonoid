@@ -67,7 +67,7 @@ const PORT = k.PORT;
       const branch = detail && detail.task && detail.task.git && detail.task.git.branch;
       const wt = detail && detail.task && detail.task.git && detail.task.git.worktree;
       if (!branch || !wt) {
-        permitDenyReason = 'claimed task is missing a registered worktree; call branch_task before requesting a permit';
+        permitDenyReason = 'claimed assignment is missing a registered worktree; ask Subconscious to re-prepare it with subconscious_assignment action:"prepare" before requesting a permit';
         continue;
       }
       anyWorktree = true;
@@ -99,7 +99,7 @@ const PORT = k.PORT;
           const inAnyWorktree = scopes.some((scope) => !policy.firstOutsideWorktree([target], scope.wt));
           const msg = inAnyWorktree
             ? `orch-gate: target is outside the Subconscious execution permit scope (${target}). Ask Subconscious for a permit that covers this path.`
-            : `orch-gate: task has a registered worktree (${mismatchBranch}) — shell file writes must happen inside the worktree path, not at ${target}. Use the path returned by branch_task.`;
+            : `orch-gate: task has a registered worktree (${mismatchBranch}) — shell file writes must happen inside the worktree path, not at ${target}. Use the worktree returned by subconscious_assignment action:"prepare".`;
           k.deny(msg);
         }
       }
@@ -110,7 +110,7 @@ const PORT = k.PORT;
 
   const sinfo = await k.getJson(`/session-info?session=${encodeURIComponent(sid)}`, 600);
   if (sinfo && sinfo.is_subagent === true) {
-    k.deny('orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use Claude TaskCreate or an adapter file-drop create_task/task_create tool.');
+    k.deny('orch-gate: no task claimed. Worker subagents must accept a prepared Subconscious assignment before editing with subconscious_assignment action:"accept". Dispatchers should create or repair the assignment with subconscious_assignment action:"prepare".');
   }
 
   const t = await k.tryTrivialMainAllow(sid, cmd);

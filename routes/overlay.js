@@ -291,21 +291,22 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (!isSubagent) {
         // Self-register-on-claim fallback: the SubagentStart hook does NOT fire for run_in_background
         // Agent-tool spawns (note-mqed9vz7vr9), so they never carry agent_tool_spawn:true and isSubagent
-        // is false for them. The proof of delegation we CAN rely on is that branch_task was already
-        // called for this task_key (a worktree is registered) — the dispatcher never calls branch_task.
+        // is false for them. The proof of delegation we CAN rely on is that Subconscious already
+        // prepared this task_key (a worktree is registered) — the dispatcher never hand-prepares
+        // raw worktrees in the routine path.
         // So a claim bearing an agent_id AND backed by a registered worktree is a legitimate hook-less
         // worker: register it (one normalized field) and allow. A claim with NO worktree is still
         // refused — the worktree stays the security boundary that keeps the dispatcher from claiming.
         if (b.agent_id && hasWorktree) {
           ctx.touchAgent(b.agent_id, { state: 'running', agent_tool_spawn: true, session: claimSid, task_key: b.key, agent_type: b.agent_type });
         } else {
-          send(res, 409, { ok: false, error: 'dispatcher sessions cannot claim tasks — if you are a delegated worker, call branch_task(task_key) then start_task' }); return true;
+          send(res, 409, { ok: false, error: 'dispatcher sessions cannot claim tasks — if you are a delegated worker, use subconscious_assignment action:"accept" on a prepared assignment' }); return true;
         }
       }
-      // Worktree required: subagents must call branch_task before start_task so concurrent
-      // agents cannot write to the same branch and overwrite each other's work.
+      // Worktree required: Subconscious must prepare the assignment before a worker accepts it so
+      // concurrent agents cannot write to the same branch and overwrite each other's work.
       if (!hasWorktree) {
-        send(res, 409, { ok: false, error: 'call branch_task(task_key) before start_task — subagents must work in an isolated worktree' }); return true;
+        send(res, 409, { ok: false, error: 'call subconscious_assignment action:"prepare" before action:"accept" — workers must receive an isolated worktree assignment' }); return true;
       }
     } else if (newlyReady.isTerminalStatus(b.status)) {
       claimSid = resolveClaimSid(false) || (T.ov.claimSessions && T.ov.claimSessions[b.key]) || null;
@@ -360,7 +361,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const wt = gitInfo && gitInfo.worktree;
       const branch = wt ? git.currentBranch(wt) : null;
       if (!wt || !branch || branch !== gitInfo.branch || !branch.startsWith('orch/attempt/')) {
-        send(res, 409, { ok: false, error: 'self-learning mode: task has a metric spec — call branch_task first before editing' }); return true;
+        send(res, 409, { ok: false, error: 'self-learning mode: task has a metric spec — accept a prepared subconscious_assignment before editing so the attempt worktree is registered' }); return true;
       }
     }
     const gitClaimMode = gitClaims.claimMode(T.ov);

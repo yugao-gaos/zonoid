@@ -6,9 +6,9 @@ behavior. Keep `zonoid-orchestrator/SKILL.md` client-neutral.
 ## Shared Contract
 
 - Substantive edits go through a graph task.
-- Dispatchers wire tasks before workers claim them.
-- Workers call `branch_task(task_key)` before `start_task(task_key, agent_id)`.
-- Workers edit only in the registered attempt worktree and commit before `complete_task`.
+- Dispatchers ask Subconscious to prepare assignments before workers accept them.
+- Workers call `subconscious_assignment accept` before editing.
+- Workers edit only in the registered attempt worktree and commit before `subconscious_assignment complete`.
 - The dashboard URL is `http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>`.
 
 ## Codex Adapter

@@ -109,11 +109,10 @@ function stopChild(child) {
     await req('POST', '/git/worktree', { workspace: WS, key: K(2), repo_path: WS });
 
     // K(1) on the MAIN-branch workspace, with NO worktree registered: the claim is refused 409 and
-    // the message names branch_task (both the worktree-precondition 409 and the metric-branch 409
-    // tell the worker to call branch_task first — either satisfies this assertion).
+    // the message points workers back through Subconscious assignment preparation.
     const badClaim = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'test-agent', session_id: WORKER_SID, workspace: WS });
     ok('metric task claim on main branch refused 409', badClaim.status === 409);
-    ok('409 names branch_task', /branch_task/.test(String(badClaim.body.error)));
+    ok('409 names Subconscious assignment preparation', !/branch_task/.test(String(badClaim.body.error)) && /subconscious_assignment|Subconscious|assignment/.test(String(badClaim.body.error)));
 
     // The daemon creates the attempt worktree (on orch/attempt/*) AND registers it in the WORKTREE
     // overlay's git[K(1)]; mirror the metric spec + root there so the claim reaches (and passes) the

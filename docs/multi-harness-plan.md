@@ -82,10 +82,10 @@ everything real (claims, summaries, knowledge, metrics, provenance, edges).
 - Acceptance: suite green; Claude flow byte-identical when no foreign-folder tasks exist.
 
 **Phase 3 — MCP self-sufficiency (hookless lifecycle).**
-- `start_task` auto-registers unknown agents; every `agent_id`-carrying call stamps
+- `subconscious_assignment accept` auto-registers unknown agents; every `agent_id`-carrying call stamps
   `lastSeen` (prevents false stale-sweeps of silent foreign workers).
-- `complete_task` response carries `newly_ready`; responses carry `should_stop` advisories.
-- Metric-branch invariant enforced at claim time in the daemon (`start_task` refuses
+- `subconscious_assignment complete` response carries `newly_ready`; responses carry `should_stop` advisories.
+- Metric-branch invariant enforced at assignment-accept time in the daemon (`subconscious_assignment accept` refuses
   without an attempt worktree). Hook check stays as defense-in-depth.
 - Idempotent alongside hooks (double-registration safe).
 
@@ -106,7 +106,7 @@ everything real (claims, summaries, knowledge, metrics, provenance, edges).
 - **Usage contract** (`local/ms3`) — adapters translate, daemon accounts:
   - **Hot path:** `subagentStop` → `POST /agent/done` → adapter `usage.sample(one file)`
     → store `overlay.usage_records[agent_id]`. Subagent complete ≠ task complete; one task
-    may sum many agent slices. `complete_task` does not sample.
+    may sum many agent slices. `subconscious_assignment complete` does not sample.
   - **Uniform shape:** `UsageSlice` `{ harness, agent_id, session_id, transcript_path,
     task_key?, startedAt, endedAt, usage, human, overhead }` — daemon never parses IDE JSONL.
   - **Cold path reconcile** (adapter-owned triggers, not `/costflow`, no daemon global cron):

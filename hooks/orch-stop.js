@@ -22,7 +22,7 @@ const k = require('./lib/hookkit');
 
   if (resp.stop === true) {
     const reason = resp.reason || 'cancellation/stop requested';
-    const msg = `STOP: ${reason} — halt current work now. Completion notice: before exiting, call set_status("failed") or complete_task to record your progress in the graph. Then call ScheduleWakeup(delaySeconds=7200, reason="idle heartbeat", prompt="<<autonomous-loop-dynamic>>") so the session stays reachable for future tasks.`;
+    const msg = `STOP: ${reason} — halt current work now. Completion notice: before exiting, call subconscious_assignment action:"complete" with status "failed" to record your progress in the graph. Then call ScheduleWakeup(delaySeconds=7200, reason="idle heartbeat", prompt="<<autonomous-loop-dynamic>>") so the session stays reachable for future tasks.`;
     // stdout carries the JSON hookSpecificOutput; stderr mirrors it (smoke test reads stderr).
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: msg } }));
     process.stderr.write(msg + '\n');

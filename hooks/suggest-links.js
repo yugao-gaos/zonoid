@@ -24,8 +24,8 @@ const k = require('./lib/hookkit');
     await new Promise((r) => setTimeout(r, 200));
   }
 
-  // Quarantine reminder ALWAYS fires (even with zero candidates) — an unwired task can't be claimed.
-  const quar = `Task ${key} created — it is QUARANTINED as unwired. Wire it now: suggest_links + add_dependency (blocking for prerequisites, context for related done work), or mark_root if genuinely standalone. Unwired tasks cannot be claimed by start_task.`;
+  // Quarantine reminder ALWAYS fires (even with zero candidates) — an unwired task can't be assigned.
+  const quar = `Task ${key} created — it is QUARANTINED as unwired. Wire it now: suggest_links + add_dependency (blocking for prerequisites, context for related done work), or mark_root if genuinely standalone. Unwired tasks cannot be accepted with subconscious_assignment action:"accept".`;
   let ctx;
   if (sug && Array.isArray(sug.suggestions) && sug.suggestions.length > 0) {
     const lines = sug.suggestions.slice(0, 5)

@@ -1,11 +1,10 @@
 
 > **DEFAULT — structure try-alternatives as graph nodes, let WORKERS claim repo-targeted worktrees.**
 > When you build a problem→attempts→judge subtree, create the attempt TASK NODES with `TaskCreate`,
-> wire the judge `blocked_by` each attempt, and dispatch workers with the target repo/base in their
-> handoff. Do not create the worktrees in the planner: each attempt WORKER calls
-> `branch_task(task_key, repo_path=<target repo>, base=<main-or-feature ref>)` FIRST, then
-> `start_task(task_key, agent_id)` before editing. `branch_task` targets the task's repo/explicit
-> `repo_path`, not a hardcoded daemon workspace. Prefer BUILDING over escalating: in autonomous
+> wire the judge `blocked_by` each attempt, and ask Subconscious to prepare each repo/base assignment
+> before dispatching workers. The worker then calls `subconscious_assignment accept` before editing.
+> The preparation step targets the task's repo/explicit `repo_path`, not a hardcoded daemon workspace.
+> Prefer BUILDING over escalating: in autonomous
 > hold-merge mode do NOT `request_guidance` for ordinary priority/scope calls (it halts the loop) —
 > pick a sharp initiative, wire it, and let it build; the human reviews main merges in the morning.
 
@@ -100,7 +99,7 @@ Operate ONLY via MCP tools — never shell the daemon directly.
    - Read the task description and metric spec on `P`, then **independently generate 2-3 candidate
      approaches** — do NOT wait for or accept a prescribed implementation. The skill discovers the
      solution itself.
-   - N **attempt tasks** each `branch_task`'d from `P` (rival approaches, isolated worktrees),
+   - N **attempt tasks** each prepared by Subconscious from `P` (rival approaches, isolated worktrees),
    - a **judge task `J`** `blocked_by` all attempts (or let `P` self-judge).
 
    **Attempt worker protocol (enforce this in each attempt task's prompt):**
@@ -123,8 +122,9 @@ Operate ONLY via MCP tools — never shell the daemon directly.
    g. Call the `self-learn` judge mode with both baseline and post-implementation metrics.
 
    **Gate reminder**: if the problem task has a metric spec, the orch-gate will block file writes
-   unless the agent is operating inside a claimed worktree. Attempt workers must call `start_task`
-   and ensure they are in the correct worktree before any edit.
+   unless the agent is operating inside an accepted Subconscious assignment worktree. Attempt
+   workers must call `subconscious_assignment action:"accept"` and ensure they are in the correct worktree
+   before any edit.
 
    This sets the loop up to learn — the judge's verdict becomes durable Tier-2 knowledge that a
    future planner run reads via `get_learnings`.
@@ -133,7 +133,7 @@ Operate ONLY via MCP tools — never shell the daemon directly.
    whether something is worth doing → `request_guidance(...)` with the specific question and the
    options you see. Do not resolve it yourself.
 
-7. **Close out.** `complete_task(<planner_task_key>, summary, agent_id)` with a one-line summary:
+7. **Close out.** `subconscious_assignment action:"complete"` for `<planner_task_key>` with a one-line summary:
    what you proposed (or "no action — deferred to user"), and how each new node was wired.
 
 ## What "good" looks like

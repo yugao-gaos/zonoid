@@ -84,11 +84,11 @@ main_session_deny_message() {
   case "${TRIVIAL_DENY_REASON:-}" in
     budget) printf 'orch-gate: trivial patch budget exhausted for this turn (1 allowed). Dispatch a subagent for further edits.\n' ;;
     no_workers)
-      printf 'orch-gate: no in-flight workers. Main/dispatcher sessions must NOT claim tasks directly. Use the native TaskCreate tool to register a task, then spawn a background subagent (Agent tool, run_in_background:true) — the subagent calls branch_task then start_task before editing.\n'
+      printf 'orch-gate: no in-flight workers. Main/dispatcher sessions must NOT claim tasks directly. Ask Subconscious for an assignment with subconscious_assignment action:"prepare", then spawn a background worker to use subconscious_assignment action:"accept" before editing.\n'
       ;;
     focus) printf 'orch-gate: multiple in-flight workers — set dispatcher focus (POST /overlay/dispatcher-focus) before trivial edits.\n' ;;
     *)
-      printf 'orch-gate: no task claimed. Main/dispatcher sessions must NOT claim tasks directly. Register a task first (Claude TaskCreate, or adapter file-drop create_task/task_create), then spawn a background subagent (Agent tool, run_in_background:true) — the subagent calls branch_task then start_task before editing.\n'
+      printf 'orch-gate: no task claimed. Main/dispatcher sessions must NOT claim tasks directly. Ask Subconscious for an assignment with subconscious_assignment action:"prepare", then spawn a background worker to use subconscious_assignment action:"accept" before editing.\n'
       ;;
   esac
 }

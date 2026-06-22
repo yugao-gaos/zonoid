@@ -92,12 +92,12 @@ This gives a clean ablation: does the LLM judge step earn its token cost?
 ## Step 6: SWE-Bench-CL specific — sequential task ordering
 Tasks must be run in chronological order per repo. **No re-onboarding between tasks** — the gate handles compounding automatically.
 
-When the agent claims a task (`start_task`) and completes it (`complete_task` with verdict), the verdict is recorded in the graph. `search_knowledge` on the next task surfaces prior context automatically. KB compounds through normal gated workflow — no separate mining step needed between tasks.
+When the agent accepts a task assignment (`subconscious_assignment accept`) and completes it (`subconscious_assignment complete` with verdict), the verdict is recorded in the graph. `search_knowledge` on the next task surfaces prior context automatically. KB compounds through normal gated workflow — no separate mining step needed between tasks.
 
-The only mining step is the **cold-start onboard before the first task in each repo sequence** (Step 2). After that, the gate + `complete_task` cycle maintains the KB:
+The only mining step is the **cold-start onboard before the first task in each repo sequence** (Step 2). After that, the gate + `subconscious_assignment complete` cycle maintains the KB:
 
 ```
-Task N:   agent claims → edits (gated) → complete_task (verdict recorded in graph)
+Task N:   agent accepts assignment → edits (gated) → subconscious_assignment complete (verdict recorded in graph)
 Task N+1: search_knowledge → prior task context surfaced automatically
 ```
 
@@ -136,4 +136,4 @@ SWE-bench Verified deferred — add ~$35 if needed later.
 - [ ] FeatureBench harness: clone LiberCoders/FeatureBench, verify eval pipeline
 - [ ] Warmup MiniLM before eval loop (warmup-embeddings.js)
 - [ ] Onboard at pinned commit (see onboard-workspace.md)
-- [ ] Verify gate + complete_task verdict recording works end-to-end before first CL run
+- [ ] Verify gate + subconscious_assignment complete verdict recording works end-to-end before first CL run

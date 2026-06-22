@@ -30,7 +30,7 @@ them (plus such relay-only helpers as `GET /session-info` and `POST /route` used
 | `/ready` | `GET` | Ready frontier: `{ ready: [{ key, label }] }`. Optional `?session=` / `?workspace=` / `?roots=` filters. |
 | `/sync` | `POST` | Immediate file-drop pull (`{ workspace? }` → `{ adopted[], suggestions{} }`). |
 | `/subconscious/assignment` | `GET/POST` | Preferred routine assignment facade. `prepare` creates/selects the anchor, wires deps, optionally creates a judge, configures repo/test command, and allocates the attempt branch/worktree. |
-| `/overlay/status` | `POST` | Authoritative task status / claim / complete (`{ key, status, agent_id?, summary?, … }`). MCP `start_task` / `complete_task` map here. **Dispatcher sessions are refused** on `in_progress` (409). |
+| `/overlay/status` | `POST` | Authoritative task status / claim / complete (`{ key, status, agent_id?, summary?, … }`). MCP `subconscious_assignment accept` / `complete` map here; raw `start_task` / `complete_task` remain backcompat wrappers. **Dispatcher sessions are refused** on `in_progress` (409). |
 | `/overlay/dispatcher-focus` | `POST` | Pin trivial-edit attribution when multiple workers are in flight (`{ session_id, task_key }`). |
 | `/dispatcher/children` | `GET` | In-flight workers for a parent session (`?session=`): `{ children[], attribution?, needs_focus?, focus? }`. |
 | `/usage/dispatcher-edit` | `POST` | Record a main-thread trivial patch against a worker task (`{ parent_session, chars, file?, task_key? }`). |
@@ -56,7 +56,7 @@ Each row is one **harness lifecycle moment** and the daemon endpoint the adapter
 | **Pre-tool write gate** | Shared hook policy + `GET /active-claim?session=` (+ `GET /session-info`, `GET /task/detail` for registered worktree confinement) | Deny substantive edits without a claim; enforce writes inside a claimed task's registered attempt worktree. | **Blocking** |
 | **Pre-tool cooperative stop** | `GET /should-stop?session=&agent=` | Halt worker when cancel/stop flag raised. | **Blocking** |
 | **Agent start** | `POST /agent/start` | Observability, subagent session alias for claim lookup, workspace pin per worker. | Advisory |
-| **Agent stop** | `POST /agent/done` | Mark worker done; **primary usage accounting** (`usage.sample` → `usage_records`); release phantom claims when worker exits without `complete_task`. | Advisory |
+| **Agent stop** | `POST /agent/done` | Mark worker done; **primary usage accounting** (`usage.sample` → `usage_records`); release phantom claims when worker exits without terminal assignment completion. | Advisory |
 | **Usage reconcile (cold)** | `sessionStart` + adapter daily scheduler → `/usage/reconcile` | Per-harness sweep when `usage_reconcile[harness].at` is stale; adapter normalizes to `UsageReport`. Not on `/costflow` reads. | Advisory |
 | **Assignment prepare** | `POST /subconscious/assignment` (`prepare`) | Normal route for routine orchestration: anchor selection/creation, wiring, judge pairing, repo/test config, worktree allocation. | Daemon-side |
 | **Task claim / progress** | `POST /overlay/status` (`in_progress`) via MCP `subconscious_assignment accept` | Claim task (CAS); daemon enforces metric-branch worktree invariant and auto-issues the scoped Subconscious execution permit. | Daemon-side refusal (MCP path) + hook defense-in-depth |
@@ -86,7 +86,7 @@ harness guarantees interception.
 | **Ready nudge after dispatch** | `PostToolUse` `Agent\|Task` → `post-agent.sh` → `/ready` | `postToolUse` → relay | `PostToolUse` → relay | `tool.execute.after` and `todo.updated` with session id → `/ready` best-effort |
 | **Task mint** | Native `TaskCreate` → Claude task file → daemon pull (no `/sync` required) | `postToolUse` on todo tool → stub under `cursor/` → `/sync` | Shell/hook stub under `codex/` → `/sync`; fallback harness-scoped MCP `create_task` | Custom `task_create` tool → stub under `opencode/` → `/sync` |
 | **Task assignment / claim / complete** | MCP `subconscious_assignment` → `/subconscious/assignment` + `/overlay/status` | Same MCP surface | Same MCP surface (filtered tool list when MCP spawn sets `ORCH_CLIENT=codex`) | Same MCP + plugin-registered tools |
-| **Claim session alias** | `PostToolUse` after `start_task` → `/overlay/claim-session` | Same when MCP used | Same when MCP used | Same when MCP used |
+| **Claim session alias** | `PostToolUse` after `subconscious_assignment accept` (or raw `start_task`) → `/overlay/claim-session` | Same when MCP used | Same when MCP used | Same when MCP used |
 | **Raw branch / merge escape hatches** | MCP `branch_task` / `merge_attempt` remain for backcompat/internal use; routine agents use `subconscious_assignment prepare` / `submit_verdict` | Same | Same | Same |
 | **Blocking vs advisory** | Exit 2 blocking on gates; MCP + injection advisory | Same pattern; **IDE hook coverage ⊃ CLI** | Partial shell interception; manual trust on hook hash change | Throw-to-block; frozen-args bug makes throw mandatory |
 
@@ -229,7 +229,7 @@ Installed hooks in `hooks/hooks.json`:
 | `PreToolUse` `Write\|Edit` | `orch-gate.sh` | `/active-claim`, `/session-info`, `/task/detail` |
 | `PostToolUse` `Agent\|Task` | `post-agent.sh` | `/ready` |
 | `PostToolUse` `TaskCreate` | `suggest-links.sh` | MCP / graph tools (wiring nudge) |
-| *(after MCP `start_task`)* | `orch-posttool-starttask.sh` | `/overlay/claim-session` |
+| *(after MCP `subconscious_assignment accept` / raw `start_task`)* | `orch-posttool-starttask.sh` | `/overlay/claim-session` |
 
 `POST /classify` is the contract target for prompt-submit relays. Claude's `classify.sh`
 remains the reference hook relay, while OpenCode uses `chat.message` to append returned
@@ -241,13 +241,13 @@ context into the outgoing user message.
 
 The orchestrator distinguishes two agent roles in a conversation:
 
-| Role | Session | May `start_task`? | May edit substantively? |
+| Role | Session | May accept assignment? | May edit substantively? |
 |---|---|---|---|
 | **Dispatcher** (main thread) | Parent `session` from `/agent/start` | **No** — daemon returns 409 | Only via trivial patch gate (below) or by dispatching workers |
-| **Worker** (subagent) | Distinct worker/session identity, usually registered by lifecycle hooks or by `start_task` on a registered worktree | **Yes** — after wiring/`mark_root` and `branch_task` | Yes, once claimed and writing inside the registered worktree |
+| **Worker** (subagent) | Distinct worker/session identity, usually registered by lifecycle hooks or by `subconscious_assignment accept` on a prepared worktree | **Yes** — after Subconscious prepares/wires the assignment | Yes, once accepted and writing inside the registered worktree |
 
-**Dispatcher duties:** decompose work into graph tasks, wire dependencies (`suggest_links` +
-`add_dependency`), dispatch background subagents, orchestrate — keep the main thread free.
+**Dispatcher duties:** ask Subconscious to prepare/wire assignments, dispatch background subagents,
+and orchestrate — keep the main thread free.
 Workers normally carry two graph duties: accept a prepared Subconscious assignment before any
 write, and complete that assignment with a summary at the end. Raw `branch_task`, `start_task`,
 and `merge_attempt` remain backcompat/internal escape hatches.

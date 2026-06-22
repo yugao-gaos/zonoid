@@ -81,7 +81,7 @@ SYNC=$(curl -s --max-time 2 -X POST "localhost:$PORT/sync" \
 
 CTX_PARTS=()
 for KEY in "${MINTED[@]}"; do
-  QUAR=$(printf 'Task %s minted from Cursor todo — it is QUARANTINED as unwired. Wire it now: suggest_links + add_dependency (blocking for prerequisites, context for related done work), or mark_root if genuinely standalone. Unwired tasks cannot be claimed by start_task.' "$KEY")
+  QUAR=$(printf 'Task %s minted from Cursor todo — it is QUARANTINED as unwired. Wire it now: suggest_links + add_dependency (blocking for prerequisites, context for related done work), or mark_root if genuinely standalone. Unwired tasks cannot be accepted with subconscious_assignment action:"accept".' "$KEY")
   SUG=$(printf '%s' "$SYNC" | jq -r --arg k "$KEY" '.suggestions[$k] // empty')
   if [ -n "$SUG" ] && [ "$SUG" != "null" ] && printf '%s' "$SUG" | jq -e 'length > 0' >/dev/null 2>&1; then
     LINES=$(printf '%s' "$SUG" | jq -r '.[] | "  - \(.key) [\(.status)] \(.label) (score \(.score), suggest \(.suggest_kind))"' | head -5)

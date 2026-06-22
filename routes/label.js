@@ -6,8 +6,8 @@ const { LABEL_DEPTH, computePressureNudge } = require('../lib/pressure-nudge');
 
 // Stable key for the standing "harness: label drain" task. Fixed slug so it is findable by label
 // prefix across daemon restarts; the snapshot substrate keeps it in the graph indefinitely.
-// Workers call start_task with this key before labeling, complete_task after. Standing harness
-// tasks auto-requeue to ready on complete_task so the next pass is immediately claimable; claim
+// Workers accept a Subconscious assignment with this key before labeling, then complete it after.
+// Standing harness tasks auto-requeue to ready on completion so the next pass is immediately claimable; claim
 // conflict is preserved because complete clears in_progress before requeue.
 const HARNESS_LABEL_DRAIN_KEY = 'followup/harness-label-drain';
 

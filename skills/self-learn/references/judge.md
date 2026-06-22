@@ -24,7 +24,7 @@
 >   `"MERGED TO FEATURE — <feature_branch>: <one-line why>"`; flat attempt→main starts with
 >   `"⏸ MERGE PENDING — <winner_branch>: <one-line why>"` (in metric mode, fold the metric value +
 >   improvement + benchmark gap into that one-liner).
-> - `complete_task(J, ...)` and stop. **Do NOT `request_guidance`** for a clean APPROVE (it would halt
+> - `subconscious_assignment action:"complete"` for `J` and stop. **Do NOT `request_guidance`** for a clean APPROVE (it would halt
 >   the loop). No-winner (all attempts failed): record `{winner:null, awaiting_merge:false,
 >   needs_attention:true, ...}`, set P `done` with summary `"⚠ NEEDS ATTENTION — all attempts failed:
 >   <reasons>"`, complete J, continue. Flat main merges, feature→main promotion, conflicts, and
@@ -41,8 +41,8 @@ adds NO new daemon behaviour — it composes existing MCP tools.
 ## Graph convention (no new edge kinds)
 
 - **Problem task `P`** — the thing to solve. The durable verdict is attached here.
-- **Attempt tasks `A1..An`** — each created with its own isolated worktree via
-  `branch_task` (branch `orch/attempt/<key>`). Each attempt runs to `tested` (its tests
+- **Attempt tasks `A1..An`** — each prepared with its own isolated worktree via
+  `subconscious_assignment prepare` (branch `orch/attempt/<key>`). Each attempt runs to `tested` (its tests
   passed) or `failed`.
 - **Judge task `J`** — `blocked_by` ALL attempts, so it only becomes `ready` once every
   attempt has finished. `J` may be a distinct "resolve P" node, OR `P` itself can play the
@@ -56,7 +56,7 @@ adds NO new daemon behaviour — it composes existing MCP tools.
 
 You are the judge subagent for `J`. Operate ONLY via MCP tools — never shell git directly.
 
-1. **Claim it.** `start_task(J, agent_id)`.
+1. **Accept it.** Use `subconscious_assignment action:"prepare"` if no assignment envelope exists, then `subconscious_assignment action:"accept"` for `J`.
 
 2. **Gather the field (Tier 1).** `get_dependency_summaries(J)` — its **blocking** deps are
    the attempts. For each attempt key, `get_task_detail(attempt_key)` to read its status and
@@ -92,7 +92,7 @@ You are the judge subagent for `J`. Operate ONLY via MCP tools — never shell g
      guardrail / fails to improve), do NOT force a merge. Record a "no-winner" verdict (step 6) and
      **`request_guidance({ question: "All N attempts at <P> failed — drop, retry with new approach, or take over?", context: "<one line per attempt's failure>", trigger: "repeated_failure" })`** to halt the loop and ask the user. Then stop.
 
-4. **Merge the winner.** `merge_attempt(winner_key)`.
+4. **Submit the winner verdict.** Use `subconscious_assignment action:"submit_verdict"` with `verdict:"APPROVE"`, `task_key: winner_key`, and `judge_task_key: J`.
    - `{merged:true}` → proceed.
    - `{merged:false, conflict:true, files}` → the winner conflicts with the current base. Do
      NOT retry blindly. Record the conflict in the verdict, leave the winner's worktree intact
@@ -133,7 +133,7 @@ You are the judge subagent for `J`. Operate ONLY via MCP tools — never shell g
    `P` is cheap Tier-1/Tier-2 context. The metric fields (`metric_value`, `improvement`,
    `vs_benchmark`) are exactly what the optimize-loop control (⑥) reads to decide converged-vs-iterate.
 
-7. **Close out.** `complete_task(J, summary, agent_id)` with a one-line verdict summary
+7. **Close out.** Use `subconscious_assignment action:"complete"` for `J` with a one-line verdict summary
    (winner, merged?, losers canceled; in metric mode lead with the metric value + improvement
    + benchmark gap so ⑥ can read it straight off the summary).
 
@@ -178,9 +178,9 @@ its raw metric gain is larger. Use the benchmark gap (confidence-weighted) to br
 sanity-check whether the "winner" is actually good or merely least-bad. If every attempt regresses a
 guardrail or none improves the metric, there is no viable winner → no-winner path (step 3 / step 6).
 
-The merge (step 4 `merge_attempt(winner_key)`) and loser retirement (step 5) are unchanged — note
-that `merge_attempt` now targets the task's own repo (`overlay.repos[key]` via `resolveRepo`), so the
-winner lands in the problem's target repo, not a hardcoded workspace.
+The merge behind step 4 and loser retirement (step 5) are unchanged internally — note that the
+merge path targets the task's own repo (`overlay.repos[key]` via `resolveRepo`), so the winner
+lands in the problem's target repo, not a hardcoded workspace.
 
 ## Code-review rubric
 
@@ -226,12 +226,13 @@ is no rival to pick among — so the code review IS the verdict. This is the per
      the winner; the merge behavior then splits **by tier** — see
      [Two-tier APPROVE](#two-tier-approve-feature-auto-merge-vs-main-hold) directly below.
    - **KICK BACK** — a correctness bug, out-of-scope churn, dead code, missing/vacuous tests, or a
-     guardrail regression. Do NOT merge (in EITHER tier). `set_status(attempt, 'failed', note="<what must change>")`
-     (or reopen it for rework), and `record_decision(title, summary, wires_to=[P_key])` capturing the
+     guardrail regression. Do NOT merge (in EITHER tier). Use `subconscious_assignment submit_verdict`
+     with `verdict:"KICK_BACK"` and the concrete reason (or reopen it for rework), and
+     `record_decision(title, summary, wires_to=[P_key])` capturing the
      concrete fixes required so the next attempt inherits them. Record the verdict (step 6) with
      `winner: null`, `code_review.concerns` populated, and `needs_attention: true`.
 3. Record the verdict on `P` (step 6) exactly as for the multi-attempt case — `code_review` carries the
-   review; `winner` is the attempt key (APPROVE) or `null` (KICK BACK). Then `complete_task(J, ...)`.
+   review; `winner` is the attempt key (APPROVE) or `null` (KICK BACK). Then use `subconscious_assignment complete` for `J`.
 
 ### Two-tier APPROVE: feature auto-merge vs main hold
 
@@ -245,7 +246,7 @@ branched with `base = orch/feature/<slug>` is under that feature; `overlay.featu
 no covering `overlay.features` entry ⇒ it is a **flat** attempt→main task.
 
 - **Under a FEATURE → AUTO-MERGE to the feature branch.** APPROVE means merge the attempt into the
-  FEATURE branch: `merge_attempt(winner_key, { repo_path: <feature worktree> })` — running `mergeBranch`
+  FEATURE branch through `subconscious_assignment submit_verdict` with the feature worktree repo path — running `mergeBranch`
   INSIDE the feature worktree lands the attempt on the FEATURE branch, not `main`. This is cheap and
   reversible (worst case the dispatcher resets the feature branch), so the judge MAY merge here — this
   resolves the old "hold-merge can't merge" awkwardness. Record the verdict (step 6) with `merged: true`
@@ -266,7 +267,7 @@ merges an *attempt* into its *feature* branch; it never promotes a feature to `m
 - **Never force a merge.** No passing attempt, or a conflicting winner → record the verdict
   and stop. Forcing merges defeats the point of judging.
 - **Two-tier APPROVE: feature auto-merge, main hold.** On APPROVE under a FEATURE, the judge MAY
-  auto-merge the attempt into the feature branch (`merge_attempt(repo_path=<feature worktree>)`) — cheap +
+  auto-merge the attempt into the feature branch through `subconscious_assignment submit_verdict` — cheap +
   reversible. **NEVER auto-merge into `main`** — a flat attempt→main APPROVE only HOLDS (records the
   verdict, human decides). And **feature→main is the dispatcher's gated `merge_feature`, NEVER the
   judge's call** — the judge only lands an attempt onto its feature branch. A merge conflict under a
@@ -277,7 +278,7 @@ merges an *attempt* into its *feature* branch; it never promotes a feature to `m
 - **Read the code, never just the green.** A passing test or an improved metric on an unread diff is
   not a winner — a vacuous test or a correctness bug visible in the diff is a near-veto (metric mode)
   or disqualifying (fallback / single-attempt). Trust the diff, not the badge.
-- **Idempotent tools.** `remove_worktree` and `merge_attempt` are safe to re-run; a re-judged
+- **Idempotent lower-level tools.** Backcompat/internal `remove_worktree` and `merge_attempt` are safe to re-run; a re-judged
   task won't corrupt state.
 - **Metric mode: evaluate, never generate.** The judge reads measurements + benchmark and weighs
   tradeoffs; it does NOT write code or invent attempts (that's upstream). Never fabricate a benchmark

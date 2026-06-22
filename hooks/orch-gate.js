@@ -60,7 +60,7 @@ const policy = require('./lib/gate-policy');
       const branch = detail && detail.task && detail.task.git && detail.task.git.branch;
       const wt = detail && detail.task && detail.task.git && detail.task.git.worktree;
       if (!branch || !wt) {
-        permitDenyReason = 'claimed task is missing a registered worktree; call branch_task before requesting a permit';
+        permitDenyReason = 'claimed assignment is missing a registered worktree; ask Subconscious to re-prepare it with subconscious_assignment action:"prepare" before requesting a permit';
         continue;
       }
       anyWorktree = true;
@@ -94,7 +94,7 @@ const policy = require('./lib/gate-policy');
     }
     if (matched) k.allow();
     if (anyWorktree && offending && permitDenyReason !== 'target is outside the Subconscious execution permit scope') {
-      k.deny(`orch-gate: task has a registered worktree (${mismatchBranch}) — writes must happen inside the worktree path, not at ${offending || fp || '(apply_patch)'}. Use the path returned by branch_task.`);
+      k.deny(`orch-gate: task has a registered worktree (${mismatchBranch}) — writes must happen inside the worktree path, not at ${offending || fp || '(apply_patch)'}. Use the worktree returned by subconscious_assignment action:"prepare".`);
     }
     k.deny(`orch-gate: ${permitDenyReason}${offending ? ` (${offending})` : ''}. Ask Subconscious for an execution permit before writing.`);
   }
@@ -103,7 +103,7 @@ const policy = require('./lib/gate-policy');
   const sinfo = await k.getJson(`/session-info?session=${encodeURIComponent(sid)}`, 600);
   const isSub = sinfo && sinfo.is_subagent;
   if (isSub === true) {
-    k.deny('orch-gate: no task claimed. Worker subagents must call branch_task then start_task before editing. To create new tasks use Claude TaskCreate or an adapter file-drop create_task/task_create tool.');
+    k.deny('orch-gate: no task claimed. Worker subagents must accept a prepared Subconscious assignment before editing with subconscious_assignment action:"accept". Dispatchers should create or repair the assignment with subconscious_assignment action:"prepare".');
   }
 
   // Main/driving session (or unknown): try 1 trivial patch/turn if workers are in flight.
