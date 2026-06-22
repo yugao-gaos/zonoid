@@ -32,3 +32,4 @@
 {"evt":"edge_added","from":"note:note-mqjx2nj5gav","to":"codex/git-claim-lock-git-user-session","kind":"context","actor":"overlay-sync","ts":"2026-06-19T00:53:05.169Z","weight":0.6,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqjx2nj5gav","to":"codex/git-claim-lock-git-user-session","kind":"context","actor":"overlay-sync","ts":"2026-06-19T00:54:51.522Z","weight":0.6,"by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqjx2nj5gav","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:09:41.523Z","weight":0,"by":"autowire","judged":false,"score":0.619,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqjx2nj5gav","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:19:19.317Z","weight":0,"by":"autowire","judged":false,"score":0.631,"origin":"autowire-semantic"}
