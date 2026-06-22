@@ -4986,3 +4986,13 @@
 {"ts":1782162024186,"from":"note:note-mqpbskhu2qn","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/15","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5900866464627216,"cosine":1,"model_version":"v1"}
 {"ts":1782162024186,"from":"note:note-mqph9bwihv5","to":"note:note-mqi4uvwuwo8","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2384817247855988,"cosine":0.577,"model_version":"v1"}
 {"ts":1782162024187,"from":"note:note-mqphb5vshff","to":"note:note-mqph9bwihv5","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.2734555510439682,"cosine":0.668,"model_version":"v1"}
+{"ts":1782162649308,"from":"note:note-mqppi1wigd1","to":"note:note-mq7fm2f2","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.27425912178791656,"cosine":0.67,"model_version":"v1"}
+{"ts":1782162649309,"from":"note:note-mqppi1wigd1","to":"note:note-mq8zls6ya54","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.27870492039520806,"cosine":0.681,"model_version":"v1"}
+{"ts":1782162649310,"from":"note:note-mqppi1wigd1","to":"note:note-mqgvsc4wtct","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2774880525674565,"cosine":0.678,"model_version":"v1"}
+{"ts":1782162649311,"from":"note:note-mqppi1wigd1","to":"note:note-mqpna41fj59","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.32771389996422295,"cosine":0.796,"model_version":"v1"}
+{"ts":1782162649312,"from":"note:note-mqppi1wigd1","to":"note:note-mqpnhesryti","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.29481810709535666,"cosine":0.72,"model_version":"v1"}
+{"ts":1782162759141,"from":"note:note-mqppi1wigd1","to":"note:note-mq7fm2f2","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782162759142,"from":"note:note-mqppi1wigd1","to":"note:note-mq8zls6ya54","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782162759144,"from":"note:note-mqppi1wigd1","to":"note:note-mqgvsc4wtct","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782162759146,"from":"note:note-mqppi1wigd1","to":"note:note-mqpna41fj59","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782162759147,"from":"note:note-mqppi1wigd1","to":"note:note-mqpnhesryti","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}

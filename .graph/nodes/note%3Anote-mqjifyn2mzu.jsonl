@@ -20,3 +20,4 @@
 {"evt":"edge_removed","from":"note:note-mqjifyn2mzu","to":"codex/trace-daemon-lifecycle-codex","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:20:15.679Z"}
 {"evt":"edge_removed","from":"note:note-mqjifyn2mzu","to":"note:note-mqgt5xujio3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:20:15.679Z"}
 {"evt":"edge_removed","from":"note:note-mqjifyn2mzu","to":"note:note-mqgsot6ywxr","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:20:15.679Z"}
+{"evt":"edge_added","from":"note:note-mqjifyn2mzu","to":"codex/product-pipeline-daemon-review","kind":"context","actor":"overlay-sync","ts":"2026-06-22T21:12:11.171Z","weight":0.6,"by":"judge","judged":true}
