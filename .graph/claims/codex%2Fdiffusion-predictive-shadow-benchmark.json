@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-diffusion-shadow-benchmark-session",
   "branch": "orch/attempt/codex-diffusion-predictive-shadow-benchmark",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T01:17:11.950Z",
-  "lease_until": "2026-06-22T02:17:11.950Z"
+  "lease_until": "2026-06-22T02:17:11.950Z",
+  "completed_at": "2026-06-22T01:25:22.991Z"
 }
