@@ -28,3 +28,4 @@
 {"evt":"edge_promoted","from":"codex/fix-shell-write-gate-cross-shell","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:12:52.668Z","weight":0.85,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/fix-shell-write-gate-cross-shell","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:13:28.774Z","weight":0.85,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/fix-shell-write-gate-cross-shell","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:19:07.965Z","weight":0.85,"origin":"asserted"}
+{"evt":"edge_promoted","from":"codex/fix-shell-write-gate-cross-shell","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:20:22.739Z","weight":0.85,"origin":"asserted"}

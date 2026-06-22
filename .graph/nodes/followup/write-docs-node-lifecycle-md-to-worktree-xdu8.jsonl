@@ -2,3 +2,4 @@
 {"evt":"edge_promoted","from":"followup/write-docs-node-lifecycle-md-to-worktree-xdu8","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:12:52.668Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"followup/write-docs-node-lifecycle-md-to-worktree-xdu8","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:13:28.774Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"followup/write-docs-node-lifecycle-md-to-worktree-xdu8","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:19:07.965Z","weight":0.8,"origin":"asserted"}
+{"evt":"edge_promoted","from":"followup/write-docs-node-lifecycle-md-to-worktree-xdu8","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:20:22.739Z","weight":0.8,"origin":"asserted"}
