@@ -6046,6 +6046,7 @@ function renderCloud(d, opts={}){
   const traceWalkIndex=l=>trace?trace.walkEdges.get(cloudEdgeKey(endId(l.source),endId(l.target))):undefined;
   const stagedRelatedKeys=new Set();
   const activationEdgeMeta=new Map();
+  let linkCmp=(a,b)=>String((a&&a.key)||'').localeCompare(String((b&&b.key)||''));
   if(q&&trace){
     const seedKeys=simNodes
       .filter(n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n)))
@@ -6065,7 +6066,7 @@ function renderCloud(d, opts={}){
       nodeBoost(m.sourceId)+nodeBoost(m.targetId),
       m.key
     ];
-    const linkCmp=(a,b)=>{
+    linkCmp=(a,b)=>{
       const ap=linkPriority(a), bp=linkPriority(b);
       for(let i=0;i<ap.length;i++){ if(ap[i]<bp[i]) return -1; if(ap[i]>bp[i]) return 1; }
       return 0;
