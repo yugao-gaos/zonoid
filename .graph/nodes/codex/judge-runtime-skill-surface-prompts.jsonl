@@ -5,3 +5,5 @@
 {"evt":"edge_removed","from":"codex/judge-runtime-skill-surface-prompts","to":"codex/verify-universal-skill-surfaces-tests","kind":"blocking","actor":"overlay-sync","ts":"2026-06-21T02:39:18.759Z"}
 {"evt":"timestamps_set","id":"codex/judge-runtime-skill-surface-prompts","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-21T02:39:00.463Z","lastChanged":"2026-06-21T19:11:33.639Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-21T19:11:36.309Z"}
 {"evt":"edge_removed","from":"codex/judge-runtime-skill-surface-prompts","to":"codex/verify-universal-skill-surfaces-tests","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:21:42.260Z"}
+{"evt":"status_changed","id":"codex/judge-runtime-skill-surface-prompts","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-22T17:14:56.925Z"}
+{"evt":"assignee_set","id":"codex/judge-runtime-skill-surface-prompts","workspace":"/Users/imyu/Desktop/zonoid","assignee":"auto-judge-runtime-skill-surface-prompts","actor":"overlay-sync","ts":"2026-06-22T17:14:56.925Z"}
