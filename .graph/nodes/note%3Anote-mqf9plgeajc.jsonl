@@ -34,3 +34,4 @@
 {"evt":"edge_promoted","from":"note:note-mqf9plgeajc","to":"note:note-mqf906vsjhu","kind":"context","actor":"overlay-sync","ts":"2026-06-21T05:01:41.643Z","weight":0.742,"by":"judge","judged":true,"score":0.742,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqf9plgeajc","to":"note:note-mqfbygur4go","kind":"context","actor":"overlay-sync","ts":"2026-06-21T05:01:41.643Z"}
 {"evt":"edge_added","from":"note:note-mqf9plgeajc","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:51:53.511Z","weight":0,"by":"autowire","judged":false,"score":0.591,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqf9plgeajc","to":"codex/reconcile-post-subconscious-feature-with-main-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T08:30:36.188Z","weight":0,"by":"autowire","judged":false,"score":0.597,"origin":"autowire-semantic"}
