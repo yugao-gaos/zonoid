@@ -5,3 +5,4 @@
 {"evt":"edge_promoted","from":"note:note-mqn469b34mm","to":"codex/judge-graph-loop-owner-watchdog","kind":"context","actor":"overlay-sync","ts":"2026-06-21T01:37:00.242Z","weight":0.8,"by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqn469b34mm","to":"codex/graph-loop-owner-watchdog","kind":"context","actor":"overlay-sync","ts":"2026-06-21T03:56:30.846Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqn469b34mm","to":"codex/judge-graph-loop-owner-watchdog","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:02:20.826Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
+{"evt":"note_superseded","id":"note-mqn469b34mm","supersededBy":"note-mqojp4hlcbj","validTo":"2026-06-22T01:37:03.993Z","ts":"2026-06-22T01:37:03.993Z","actor":"supersede"}
