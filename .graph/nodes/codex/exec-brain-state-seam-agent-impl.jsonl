@@ -33,3 +33,5 @@
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/judge-exec-brain-state-seam-agent-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:57.227Z"}
 {"evt":"edge_added","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/judge-exec-brain-state-seam-agent-impl","kind":"blocking","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","origin":"native-blockedBy"}
 {"evt":"edge_added","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/judge-exec-brain-state-seam-agent-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire-blockdep","judged":false,"origin":"blocking-dep-seed"}
+{"evt":"edge_removed","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/judge-exec-brain-state-seam-agent-impl","kind":"blocking","actor":"overlay-sync","ts":"2026-06-22T19:58:38.837Z"}
+{"evt":"edge_removed","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/judge-exec-brain-state-seam-agent-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:58:38.837Z"}
