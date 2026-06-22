@@ -16,3 +16,5 @@
 {"evt":"edge_promoted","from":"note:note-mqoe9lmojot","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T23:08:01.332Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqoe9lmojot","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T23:08:07.316Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqoe9lmojot","to":"note:note-mqgr5galbxq","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:28:53.005Z","weight":0.584,"by":"judge","judged":true,"score":0.584,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqoe9lmojot","to":"note:note-mqgwagrdguj","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:57:33.832Z","weight":0.635,"by":"judge","judged":true,"score":0.635,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqoe9lmojot","to":"note:note-mqjgxi25g4o","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:57:33.832Z","weight":0.565,"by":"judge","judged":true,"score":0.565,"origin":"autowire-semantic"}
