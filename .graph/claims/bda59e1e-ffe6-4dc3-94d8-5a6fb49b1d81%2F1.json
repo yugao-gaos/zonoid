@@ -3,7 +3,8 @@
   "git_user": "yuluckyvr <yu@getluckyvr.com>",
   "session_id": "bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81",
   "branch": "orch/attempt/bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81-1",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-22T14:53:22.208Z",
-  "lease_until": "2026-06-22T15:53:22.208Z"
+  "lease_until": "2026-06-22T15:53:22.208Z",
+  "completed_at": "2026-06-22T15:51:41.742Z"
 }
