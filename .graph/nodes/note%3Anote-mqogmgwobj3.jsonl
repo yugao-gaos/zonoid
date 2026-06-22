@@ -13,3 +13,4 @@
 {"evt":"edge_promoted","from":"note:note-mqogmgwobj3","to":"codex/subconscious-assignment-surface","kind":"context","actor":"overlay-sync","ts":"2026-06-22T00:15:18.355Z","weight":1,"by":"autowire","judged":false}
 {"evt":"edge_promoted","from":"note:note-mqogmgwobj3","to":"codex/judge-subconscious-assignment-surface-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-22T00:15:18.355Z","weight":1,"by":"autowire","judged":false}
 {"evt":"edge_added","from":"note:note-mqogmgwobj3","to":"codex/probe-subconscious-assignment-main-live","kind":"context","actor":"overlay-sync","ts":"2026-06-22T00:36:36.548Z","origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqogmgwobj3","to":"codex/probe-subconscious-assignment-main-live","kind":"context","actor":"overlay-sync","ts":"2026-06-22T00:40:30.498Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
