@@ -6784,6 +6784,20 @@ async function checkOnboardingState() {
     return;
   }
 
+  if (workspace && !storedOutDir) {
+    try {
+      const defaultOutDir = defaultOnboardOutDir(workspace);
+      const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(defaultOutDir));
+      const st = await r.json();
+      if (st.ok && st.status && onboardStatusComplete(st.status)) {
+        completeOnboardLearning();
+        return;
+      }
+    } catch (e) {
+      // No existing default queue; continue to note detection and auto-start.
+    }
+  }
+
   if (workspace && storedOutDir) {
     try {
       const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(storedOutDir));
@@ -6849,6 +6863,13 @@ function onboardStoreKey(suffix) {
 
 function onboardCompletedKey() {
   return onboardStoreKey('completed');
+}
+
+function defaultOnboardOutDir(workspace) {
+  const clean = String(workspace || '').replace(/[\\/]+$/, '');
+  const name = clean.split(/[\\/]/).filter(Boolean).pop() || 'workspace';
+  const sep = clean.includes('\\') ? '\\' : '/';
+  return clean + sep + 'bench' + sep + 'onboard' + sep + name;
 }
 
 function showOnboardLanding() {
