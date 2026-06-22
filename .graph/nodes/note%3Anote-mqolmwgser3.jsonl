@@ -26,3 +26,4 @@
 {"evt":"edge_added","from":"note:note-mqolmwgser3","to":"codex/fix-claim-permit-result-contract-kickback","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:13:56.788Z","origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"codex/fix-claim-permit-result-contract-kickback","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:14:47.172Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_added","from":"note:note-mqolmwgser3","to":"codex/fix-dashboard-config-smoke-recovery","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:56:59.871Z","origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"codex/fix-dashboard-config-smoke-recovery","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:57:41.870Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
