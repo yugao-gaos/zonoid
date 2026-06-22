@@ -98,6 +98,8 @@ function runGate(sessionId, patch, extraEnv = {}) {
     env: {
       ...process.env,
       ORCH_PORT: String(PORT),
+      ORCH_DATA: SANDBOX,
+      ZONOID_DATA: SANDBOX,
       CLAUDE_PLUGIN_DATA: SANDBOX,
       ...extraEnv,
     },
@@ -115,7 +117,7 @@ test('dispatcher model — claim gate, children, trivial gate, attribution', asy
   const SID_WORKER_B = crypto.randomUUID();
 
   const child = spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
+    env: { ...process.env, ORCH_DATA: SANDBOX, ZONOID_DATA: SANDBOX, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
     stdio: 'ignore',
   });
 
