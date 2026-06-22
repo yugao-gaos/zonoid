@@ -52,6 +52,20 @@ const REVIEWED_AT = '2026-06-22T12:00:00.000Z';
 }
 {
   const o = ov.EMPTY();
+  ov.setReviewLifecycle(o, KEY, {
+    review_state: 'requested',
+    merge_state: 'review_pending',
+    review_requested_at: REVIEWED_AT,
+    review_requested_by: 'dispatcher-a',
+    legacy_judge_task_key: 'codex/review-state-lifecycle-contract-judge',
+  });
+  ov.setReviewFromStatus(o, KEY, 'done', { agent_id: 'worker-a', summary: 'implementation complete', now: REVIEWED_AT });
+  const r = ov.reviewLifecycleFor(o, KEY, 'done');
+  ok('done preserves requested same-node review as pending', r.review_state === 'pending' && r.review_verdict === null && r.merge_state === 'review_pending');
+  ok('pending review keeps request provenance', r.review_requested_at === REVIEWED_AT && r.review_requested_by === 'dispatcher-a' && r.legacy_judge_task_key === 'codex/review-state-lifecycle-contract-judge');
+}
+{
+  const o = ov.EMPTY();
   ov.setReviewLifecycle(o, KEY, { review_state: 'approved', merge_state: 'pending' });
   ov.setGit(o, KEY, { branch: 'orch/attempt/codex-review-state-lifecycle-contract', merged: true, merge_sha: 'def456', merged_at: REVIEWED_AT });
   const r = ov.reviewLifecycleFor(o, KEY, 'done');

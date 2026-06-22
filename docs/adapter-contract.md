@@ -29,7 +29,7 @@ them (plus such relay-only helpers as `GET /session-info` and `POST /route` used
 | `/classify` | `POST` | Absorb prompt-submit heuristics; return finished injection text (`{ prompt, session_id?, workspace? }` → `{ additional_context, … }`). |
 | `/ready` | `GET` | Ready frontier: `{ ready: [{ key, label }] }`. Optional `?session=` / `?workspace=` / `?roots=` filters. |
 | `/sync` | `POST` | Immediate file-drop pull (`{ workspace? }` → `{ adopted[], suggestions{} }`). |
-| `/subconscious/assignment` | `GET/POST` | Preferred routine assignment facade. `prepare` creates/selects the anchor, wires deps, optionally creates a judge, configures repo/test command, and allocates the attempt branch/worktree. |
+| `/subconscious/assignment` | `GET/POST` | Preferred routine assignment facade. `prepare` creates/selects the anchor, wires deps, records requested review on the implementation task, configures repo/test command, and allocates the attempt branch/worktree. |
 | `/overlay/status` | `POST` | Authoritative task status / claim / complete (`{ key, status, agent_id?, summary?, … }`). MCP `subconscious_assignment accept` / `complete` map here; raw `start_task` / `complete_task` remain backcompat wrappers. **Dispatcher sessions are refused** on `in_progress` (409). |
 | `/overlay/dispatcher-focus` | `POST` | Pin trivial-edit attribution when multiple workers are in flight (`{ session_id, task_key }`). |
 | `/dispatcher/children` | `GET` | In-flight workers for a parent session (`?session=`): `{ children[], attribution?, needs_focus?, focus? }`. |
@@ -254,14 +254,14 @@ and `merge_attempt` remain backcompat/internal escape hatches.
 
 ### Claim gate contract
 
-`subconscious_assignment prepare` creates/selects the task anchor, wires routine deps, creates
-the judge task when requested, configures repo/test command, and records `git.branch` plus
+`subconscious_assignment prepare` creates/selects the task anchor, wires routine deps, records
+requested review state on the implementation task, configures repo/test command, and records `git.branch` plus
 `git.worktree` on the task. `subconscious_assignment accept` then posts to `/overlay/status`
 with `status: in_progress`. The daemon refuses claims that do not have a registered worktree, so
 the enforced order is:
 
 1. `subconscious_assignment(action:"prepare", ...)` -> returns an assignment envelope with
-   `task_key`, `judge_task_key`, `branch`, `worktree`, `repo_path`, context, and the next expected
+   `task_key`, `review_task_key`, `review_requested`, `branch`, `worktree`, `repo_path`, context, and the next expected
    worker action.
 2. `subconscious_assignment(action:"accept", task_key, agent_id, session_id?)` -> claims the task
    through `/overlay/status` and self-registers hookless workers when the claim carries `agent_id`

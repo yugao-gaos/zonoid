@@ -721,7 +721,7 @@ test('subconscious execution permit routes issue read and revoke permits', async
   assert.equal(revoked.body.execution_permit.status, 'revoked');
 });
 
-test('subconscious assignment prepare creates assignment envelope and wires task judge and worktree', async () => {
+test('subconscious assignment prepare records same-node review request without visible judge task', async () => {
   const ws = makeWorkspace();
   const store = createSubconsciousStore();
   const ov = overlayStore.EMPTY();
@@ -765,7 +765,15 @@ test('subconscious assignment prepare creates assignment envelope and wires task
   assert.equal(res.status, 200);
   assert.equal(res.body.ok, true);
   assert.equal(res.body.assignment.task_key, 'codex/impl');
-  assert.equal(res.body.assignment.judge_task_key, 'codex/impl-judge');
+  assert.equal(res.body.assignment.judge_task_key, null);
+  assert.equal(res.body.assignment.review_task_key, 'codex/impl');
+  assert.equal(res.body.assignment.review_requested, true);
+  assert.equal(res.body.assignment.review_state, 'requested');
+  assert.equal(res.body.assignment.legacy_judge_task_key, 'codex/impl-judge');
+  assert.equal(res.body.judge_task_key, null);
+  assert.equal(res.body.review_task_key, 'codex/impl');
+  assert.equal(res.body.review_requested, true);
+  assert.equal(res.body.legacy_judge_task_key, 'codex/impl-judge');
   assert.equal(res.body.assignment.branch, 'orch/attempt/codex-impl');
   assert.equal(res.body.assignment.worktree, path.join(ws, 'attempt'));
   assert.equal(res.body.assignment.repo_path, ws);
@@ -773,12 +781,16 @@ test('subconscious assignment prepare creates assignment envelope and wires task
   assert.deepEqual(res.body.assignment.context.parent_task_keys, ['codex/parent']);
   assert.deepEqual(res.body.assignment.context.context_task_keys, ['note:ctx']);
   assert.equal(ov.snapshots['codex/impl'].subject, 'Implement assignment facade');
-  assert.equal(ov.snapshots['codex/impl-judge'].subject, 'Judge codex/impl');
+  assert.equal(ov.snapshots['codex/impl-judge'], undefined);
   assert(ov.edges.some((e) => e.from === 'codex/parent' && e.to === 'codex/impl' && !e.kind));
   assert(ov.edges.some((e) => e.from === 'note:ctx' && e.to === 'codex/impl' && e.kind === 'context'));
-  assert(ov.edges.some((e) => e.from === 'codex/impl' && e.to === 'codex/impl-judge' && !e.kind));
+  assert(!ov.edges.some((e) => e.from === 'codex/impl' && e.to === 'codex/impl-judge'));
   assert.equal(ov.repos['codex/impl'], ws);
-  assert.equal(ov.repos['codex/impl-judge'], ws);
+  assert.equal(ov.repos['codex/impl-judge'], undefined);
+  assert.equal(ov.reviews['codex/impl'].review_state, 'requested');
+  assert.equal(ov.reviews['codex/impl'].merge_state, 'review_pending');
+  assert.equal(ov.reviews['codex/impl'].legacy_judge_task_key, 'codex/impl-judge');
+  assert.equal(ov.reviews['codex/impl'].review_requested_at, '2026-06-21T12:00:00.000Z');
   assert.equal(ov.config.test_cmds[ws], 'npm test');
   assert.equal(ov.git['codex/impl'].worktree, path.join(ws, 'attempt'));
   assert(calls.some((call) => call.fn === 'createWorktree' && call.key === 'codex/impl' && call.options.base === 'orch/feature/test'));
