@@ -198,13 +198,47 @@ async function waitForPing(ms = 8000) {
   ok('handleRpc injects ctx.session into subconscious_assignment accept',
     assignmentInjectedSession && assignmentInjectedSession.session_id === 'ctx-session');
 
+  let assignmentCompleteInjectedSession = null;
+  await handleRpc(
+    { jsonrpc: '2.0', id: 102, method: 'tools/call', params: { name: 'subconscious_assignment', arguments: { action: 'complete', task_key: 'local/session', agent_id: 'worker-b', summary: 'done' } } },
+    { call: (method, path, body) => { if (path === '/overlay/status') assignmentCompleteInjectedSession = body; return { ok: true }; }, session: 'ctx-session' },
+  );
+  ok('handleRpc injects ctx.session into subconscious_assignment complete',
+    assignmentCompleteInjectedSession && assignmentCompleteInjectedSession.session_id === 'ctx-session');
+
   assignmentCalls.length = 0;
-  await assignmentTool.run({ action: 'complete', workspace: WS, task_key: 'local/task', agent_id: 'worker-a', summary: 'done' }, assignmentCall);
+  await assignmentTool.run({ action: 'complete', workspace: WS, task_key: 'local/task', agent_id: 'worker-a', session_id: 'sess-a', summary: 'done' }, assignmentCall);
   ok('subconscious_assignment complete calls terminal status path',
     assignmentCalls[0] &&
     assignmentCalls[0].path === '/overlay/status' &&
     assignmentCalls[0].body.status === 'done' &&
-    assignmentCalls[0].body.summary === 'done');
+    assignmentCalls[0].body.summary === 'done' &&
+    assignmentCalls[0].body.session_id === 'sess-a');
+
+  const testedTaskResult = {
+    version: 1,
+    status: 'tested',
+    summary: 'verified',
+    files_changed: ['lib/mcp-core.js'],
+    tests_run: 'node test/mcp-harness-tools.test.js',
+    decisions: [],
+  };
+  assignmentCalls.length = 0;
+  const testedCompleteOut = await assignmentTool.run({
+    action: 'complete',
+    workspace: WS,
+    task_key: 'local/task',
+    agent_id: 'worker-a',
+    session_id: 'sess-a',
+    summary: 'verified',
+    task_result: testedTaskResult,
+  }, assignmentCall);
+  ok('subconscious_assignment complete derives tested route status from task_result when status is omitted',
+    assignmentCalls[0] &&
+    assignmentCalls[0].path === '/overlay/status' &&
+    assignmentCalls[0].body.status === 'tested' &&
+    assignmentCalls[0].body.task_result === testedTaskResult &&
+    testedCompleteOut.status === 'tested');
 
   assignmentCalls.length = 0;
   const approveOut = await assignmentTool.run({ action: 'submit_verdict', verdict: 'APPROVE', workspace: WS, task_key: 'local/task', judge_task_key: 'local/task-judge', reason: 'passes' }, assignmentCall);
@@ -365,6 +399,7 @@ async function waitForPing(ms = 8000) {
     permitTool.inputSchema.properties.action.enum.includes('revoke') &&
     permitTool.inputSchema.properties.session_id &&
     permitTool.inputSchema.properties.task_key &&
+    permitTool.inputSchema.properties.agent_id &&
     permitTool.inputSchema.properties.worktree &&
     permitTool.inputSchema.properties.branch &&
     permitTool.inputSchema.properties.allowed_paths);

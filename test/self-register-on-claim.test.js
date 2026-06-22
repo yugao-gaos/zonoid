@@ -139,7 +139,22 @@ function runWriteGate(filePath) {
     const steal = await req('POST', '/overlay/status', { key: K(1), status: 'in_progress', agent_id: 'other-worker', session_id: SESSION, workspace: WS });
     ok('different agent cannot steal the claim without force', steal.status === 409);
 
-    const revoke = await req('POST', '/subconscious/permit', { action: 'revoke', permit_id: permit && permit.id, reason: 'test revoke', workspace: WS });
+    const badCompleteAgent = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'other-worker', session_id: SESSION, summary: 'malicious done', workspace: WS });
+    ok('different agent cannot terminal-complete another worker claim', badCompleteAgent.status === 409 && /agent_id/.test(String(badCompleteAgent.body.error)));
+    const badCompleteSession = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'hookless-worker', session_id: 'wrong-session', summary: 'malicious done', workspace: WS });
+    ok('wrong session cannot terminal-complete active claim', badCompleteSession.status === 409 && /session_id/.test(String(badCompleteSession.body.error)));
+    const missingSessionComplete = await req('POST', '/overlay/status', { key: K(1), status: 'tested', agent_id: 'hookless-worker', summary: 'malicious done', workspace: WS });
+    ok('terminal completion of active claim requires session_id', missingSessionComplete.status === 409 && missingSessionComplete.body.missing === 'session_id');
+
+    const revoke = await req('POST', '/subconscious/permit', {
+      action: 'revoke',
+      permit_id: permit && permit.id,
+      session_id: SESSION,
+      agent_id: 'hookless-worker',
+      task_key: K(1),
+      reason: 'test revoke',
+      workspace: WS,
+    });
     ok('permit revoke succeeds', revoke.status === 200 && revoke.body.execution_permit.status === 'revoked');
     const gateDeny = runWriteGate(path.join(wt.body.worktree, 'revoked-worker-write.js'));
     ok('revoked permit still denies claimed worker write', gateDeny.status === 2 && (gateDeny.stderr || '').includes('revoked'));
