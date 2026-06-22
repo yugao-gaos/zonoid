@@ -159,4 +159,3 @@ dependency:
 - Teach dispatch prompts to mention Headroom only when the task is expected to produce
   large natural-language context.
 - Do not modify `lib/mcp-core.js` or graph routes until the pilot has measured wins.
-
