@@ -3,8 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "review-worker-api-ui-tests",
   "branch": "orch/attempt/codex-review-api-ui-docs-tests",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-22T02:13:24.771Z",
   "lease_until": "2026-06-22T03:13:24.771Z",
-  "completed_at": "2026-06-22T18:47:06.706Z"
+  "completed_at": "2026-06-22T19:17:51.826Z"
 }
