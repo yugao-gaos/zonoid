@@ -138,8 +138,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     return nodeExistsInGraph(buildGraph(ws), key);
   };
   const acceptsTaskKey = (T, key) => graphHasKey(T.ws, key)
-    || !!(T.ov.knowledge_nodes && T.ov.knowledge_nodes[key])
-    || isAdmissibleOverlayTaskKey(key);
+    || !!(T.ov.snapshots && T.ov.snapshots[key])
+    || !!(T.ov.knowledge_nodes && T.ov.knowledge_nodes[key]);
   const ensureTaskSnapshot = (T, key) => {
     if (!isAdmissibleOverlayTaskKey(key)) return;
     if (T.ov.snapshots && T.ov.snapshots[key]) return;

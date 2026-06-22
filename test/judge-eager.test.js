@@ -153,6 +153,7 @@ function eagerOverlay(n, budgetPerRun = 6) {
   ok('one eager node → action judge_eager (primary, not judge_edges)', d.action === 'judge_eager');
   ok('judge_eager carries the node key', Array.isArray(d.nodes) && d.nodes.length === 1 && d.nodes[0] === 's/e0');
   ok('judge_eager budget = budgetPerRun', d.budget === 6);
+  ok('one eager node with spare headroom does NOT also schedule periodic judge for the same edge', !d.judge);
 }
 
 // === ONE dispatch per node's full edge-set: a node with MANY edges = ONE node entry ============
