@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-fix-claim-contracts",
   "branch": "orch/attempt/codex-fix-subconscious-claim-permit-result-contracts",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T02:41:56.524Z",
-  "lease_until": "2026-06-22T03:41:56.524Z"
+  "lease_until": "2026-06-22T03:41:56.524Z",
+  "completed_at": "2026-06-22T03:03:52.818Z"
 }
