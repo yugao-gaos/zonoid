@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/review-state-lifecycle-contract",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-15922-c45dfb4a7ea5d2e014e4559f5a9973c1",
+  "branch": "orch/attempt/codex-review-state-lifecycle-contract",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T19:40:52.367Z",
+  "lease_until": "2026-06-22T20:40:52.367Z"
+}
