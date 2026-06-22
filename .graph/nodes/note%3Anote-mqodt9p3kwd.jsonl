@@ -113,3 +113,4 @@
 {"evt":"edge_promoted","from":"note:note-mqodt9p3kwd","to":"codex/retrieval-embedding-study","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:31:24.063Z","weight":0.9,"by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqodt9p3kwd","to":"codex/retrieval-embedding-study","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:32:52.410Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqodt9p3kwd","to":"codex/embedding-provider-instruct-ft","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:21:28.225Z","weight":0.658,"by":"judge","judged":true,"score":0.658,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqodt9p3kwd","to":"codex/judge-embedding-provider-instruct-ft-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:28:53.005Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}

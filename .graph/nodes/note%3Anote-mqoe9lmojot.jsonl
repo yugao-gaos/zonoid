@@ -15,3 +15,4 @@
 {"evt":"edge_promoted","from":"note:note-mqoe9lmojot","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T23:07:58.531Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqoe9lmojot","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T23:08:01.332Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqoe9lmojot","to":"codex/onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T23:08:07.316Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqoe9lmojot","to":"note:note-mqgr5galbxq","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:28:53.005Z","weight":0.584,"by":"judge","judged":true,"score":0.584,"origin":"autowire-semantic"}
