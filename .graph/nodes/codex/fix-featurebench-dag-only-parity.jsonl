@@ -33,3 +33,7 @@
 {"evt":"edge_promoted","from":"codex/fix-featurebench-dag-only-parity","to":"codex/fix-featurebench-canonical-arm-docs-followup","kind":"context","actor":"overlay-sync","ts":"2026-06-19T21:29:14.159Z","weight":1,"judged":true,"origin":"asserted"}
 {"evt":"status_changed","id":"codex/fix-featurebench-dag-only-parity","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-19T22:44:47.990Z"}
 {"evt":"timestamps_set","id":"codex/fix-featurebench-dag-only-parity","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-19T19:11:27.915Z","lastChanged":"2026-06-19T22:44:49.869Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-19T22:59:34.566Z"}
+{"evt":"edge_removed","from":"codex/fix-featurebench-dag-only-parity","to":"codex/judge-fix-featurebench-dag-only-parity","kind":"blocking","actor":"overlay-sync","ts":"2026-06-22T15:57:57.227Z"}
+{"evt":"edge_removed","from":"codex/fix-featurebench-dag-only-parity","to":"codex/judge-fix-featurebench-dag-only-parity","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:57.227Z"}
+{"evt":"edge_removed","from":"codex/fix-featurebench-dag-only-parity","to":"codex/fix-featurebench-canonical-arm-docs","kind":"blocking","actor":"overlay-sync","ts":"2026-06-22T15:57:57.227Z"}
+{"evt":"edge_removed","from":"codex/fix-featurebench-dag-only-parity","to":"codex/fix-featurebench-canonical-arm-docs","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:57.227Z"}

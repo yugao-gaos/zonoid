@@ -1,0 +1,4 @@
+{"evt":"edge_removed","from":"bench/big-n-run","to":"eeadb38f-7472-4703-9689-fbf24eebee4d/9","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:29.653Z"}
+{"evt":"edge_removed","from":"bench/big-n-run","to":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/19","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:29.653Z"}
+{"evt":"edge_removed","from":"bench/big-n-run","to":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/23","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:29.653Z"}
+{"evt":"edge_removed","from":"bench/big-n-run","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/8","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:29.653Z"}

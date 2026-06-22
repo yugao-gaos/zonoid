@@ -1,0 +1,2 @@
+{"evt":"edge_removed","from":"bench/context-inject-4arm-runner","to":"bench/context-inject-sliding-window","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:21.684Z"}
+{"evt":"edge_removed","from":"bench/context-inject-4arm-runner","to":"bench/context-inject-global-summary","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:21.684Z"}
