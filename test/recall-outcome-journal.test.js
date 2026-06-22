@@ -26,6 +26,7 @@ const REPO = path.join(__dirname, '..');
 // ── Sandbox: private CLAUDE_PLUGIN_DATA + private workspace ────────────────
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-recall-journal-')));
 const WS      = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-recall-journal-ws-')));
+process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 
 const PORT    = 18950 + Math.floor(Math.random() * 200);
 const JOURNAL = path.join(WS, '.graph', 'recall-outcome-journal.jsonl');
@@ -95,6 +96,13 @@ function readJournal(file) {
 // Load the pure-reader module directly (no daemon needed for unit tests).
 const recallJournal = require('../lib/recall-outcome-journal');
 const retrievalWeights = require('../lib/search/retrieval-weights');
+const filedrop = require('../lib/filedrop-tasks');
+
+function dropStub(harness, id) {
+  const dir = path.join(filedrop.dirFor(WS), harness);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify({ id, subject: `${harness} task ${id}`, status: 'pending' }, null, 2));
+}
 
 (async () => {
   // ── Unit test: reader functions (no daemon required) ─────────────────────
@@ -182,9 +190,10 @@ const retrievalWeights = require('../lib/search/retrieval-weights');
     await post('/workspace', { path: WS });
 
     // Create a stub task so the task_key is known to the overlay (not required for /search,
-    // but lets us later call set_status against it). Use /overlay/status with not_ready to mint it.
-    const TASK_KEY = 'recall-test-task-1';
-    await post('/overlay/status', { key: TASK_KEY, status: 'not_ready', workspace: WS });
+    // but lets us later call set_status against it).
+    const TASK_KEY = 'recall/journal-1';
+    dropStub('recall', 'journal-1');
+    await post('/sync', { workspace: WS });
 
     // ── 1. /search?task_key= writes a pending recall row ─────────────────────
     const beforeSearch = readJournal(JOURNAL).length;
@@ -228,8 +237,9 @@ const retrievalWeights = require('../lib/search/retrieval-weights');
     ok('terminal status: resolved row recalled_note_keys is array', resolvedRow && Array.isArray(resolvedRow.recalled_note_keys));
 
     // ── 4. 'done' maps to 'approve' outcome ──────────────────────────────────
-    const TASK_KEY2 = 'recall-test-task-2';
-    await post('/overlay/status', { key: TASK_KEY2, status: 'not_ready', workspace: WS });
+    const TASK_KEY2 = 'recall/journal-2';
+    dropStub('recall', 'journal-2');
+    await post('/sync', { workspace: WS });
     await post('/overlay/status', { key: TASK_KEY2, status: 'ready', workspace: WS });
     await post('/overlay/status', { key: TASK_KEY2, status: 'done', workspace: WS, summary: 'all good' });
 

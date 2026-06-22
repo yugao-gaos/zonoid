@@ -22,6 +22,7 @@ const crypto = require('crypto');
 const { spawn, execSync } = require('child_process');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-endpoints-base-')));
+process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-endpoints-ws-')));
 const REPO = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-endpoints-repo-')));
 const NOT_A_REPO = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-endpoints-norepo-')));
@@ -49,6 +50,7 @@ const TASKS_A = path.join(os.homedir(), '.claude', 'tasks', SID_A);
 const TASKS_B = path.join(os.homedir(), '.claude', 'tasks', SID_B);
 const KEY_A = `${SID_A}/1`;
 const KEY_B = `${SID_B}/1`;
+const filedrop = require('../lib/filedrop-tasks');
 
 // P3: ops require an explicit workspace (no daemon-global default). This suite uses a single
 // sandbox workspace WS; default it into POST bodies and GET query strings. The `raw` body path
@@ -85,6 +87,12 @@ async function waitForPing(ms = 10000) {
   return false;
 }
 
+function dropStub(harness, id) {
+  const dir = path.join(filedrop.dirFor(WS), harness);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify({ id, subject: `${harness} task ${id}`, status: 'pending' }, null, 2));
+}
+
 test('untested daemon endpoints', async () => {
   // ── fixtures: two fake native sessions wired to the tmp workspace ─────────
   fs.mkdirSync(PROJECTS_DIR, { recursive: true });
@@ -103,7 +111,7 @@ test('untested daemon endpoints', async () => {
     // Scrub CLAUDE_CODE_SESSION_ID: when the suite runs inside a Claude Code session the daemon
     // would otherwise inherit it as the session fallback (routes/overlay.js), masking the
     // "missing session_id → 400" claim-gate branch this test asserts.
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', CLAUDE_CODE_SESSION_ID: '' },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', CLAUDE_CODE_SESSION_ID: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
     stdio: 'ignore',
   });
   try {
@@ -156,7 +164,7 @@ test('untested daemon endpoints', async () => {
     assert.equal(r.body.claimed, true, 'subagent session unlocks via agent_id mapping');
 
     // Released claim re-locks.
-    assert.equal((await post('/overlay/status', { key: KEY_A, status: 'done', agent_id: 'gate-agent', summary: 'released' })).body.ok, true, 'claim released (done)');
+    assert.equal((await post('/overlay/status', { key: KEY_A, status: 'done', agent_id: 'gate-agent', session_id: SID_C, summary: 'released' })).body.ok, true, 'claim released (done)');
     r = await get(`/active-claim?session=${SID_A}`);
     assert.equal(r.body.claimed, false, 'released claim -> locked again');
 
@@ -167,11 +175,11 @@ test('untested daemon endpoints', async () => {
 
     r = await post('/overlay/status', { key: KEY_B, status: 'in_progress', agent_id: 'dispatcher-agent', session_id: SID_DISPATCHER });
     assert.equal(r.status, 409, 'dispatcher session cannot claim');
-    assert.match(r.body.error, /dispatcher sessions cannot claim/);
+    assert.match(r.body.error, /prepare.*accept|isolated worktree assignment/);
 
     r = await post('/overlay/status', { key: KEY_B, status: 'in_progress', agent_id: 'dispatcher-agent', session_id: SID_DISPATCHER, force: true });
     assert.equal(r.status, 409, 'dispatcher force-claim rejected');
-    assert.match(r.body.error, /dispatcher sessions cannot claim/);
+    assert.match(r.body.error, /prepare.*accept|isolated worktree assignment/);
 
     r = await post('/overlay/status', { key: KEY_B, status: 'in_progress', agent_id: 'unknown-agent', session_id: SID_C });
     assert.equal(r.status, 409, 'unregistered session_id treated as dispatcher');
@@ -186,7 +194,7 @@ test('untested daemon endpoints', async () => {
     await post('/agent/start', { agent_id: 'gate-agent-b', session: SID_A, subagent_session: SID_C });
     r = await post('/overlay/status', { key: KEY_B, status: 'in_progress', agent_id: 'gate-agent-b', session_id: SID_C });
     assert.equal(r.body.ok, true, 'subagent can claim a rooted task');
-    assert.equal((await post('/overlay/status', { key: KEY_B, status: 'done', agent_id: 'gate-agent-b', summary: 'dg gate ok' })).body.ok, true, 'subagent claim released');
+    assert.equal((await post('/overlay/status', { key: KEY_B, status: 'done', agent_id: 'gate-agent-b', session_id: SID_C, summary: 'dg gate ok' })).body.ok, true, 'subagent claim released');
 
     // ════ 1b. GET /session-info — subagent vs parent session classification ═
     const SID_PARENT = crypto.randomUUID();
@@ -244,7 +252,7 @@ test('untested daemon endpoints', async () => {
     assert.equal(r.body.children[0].task_key, KEY_A);
     assert.match(r.body.children[0].label, /gate probe task/);
 
-    assert.equal((await post('/overlay/status', { key: KEY_A, status: 'done', agent_id: 'child-worker', summary: 'children test done' })).body.ok, true);
+    assert.equal((await post('/overlay/status', { key: KEY_A, status: 'done', agent_id: 'child-worker', session_id: SID_WORKER_CHILD, summary: 'children test done' })).body.ok, true);
     await post('/agent/done', { agent_id: 'child-worker' });
     r = await get(`/dispatcher/children?session=${SID_DISPATCHER_CHILD}`);
     assert.deepEqual(r.body.children, [], 'done worker no longer listed');
@@ -260,6 +268,8 @@ test('untested daemon endpoints', async () => {
       session: SID_DISPATCHER_EDIT,
       subagent_session: SID_WORKER_EDIT,
     });
+    dropStub('local', 'dg5-edit');
+    await post('/sync', { workspace: WS });
     assert.equal((await post('/mark-root', { task_key: KEY_EDIT, reason: 'dispatcher-edit test' })).body.ok, true);
     await post('/git/worktree', { key: KEY_EDIT, repo_path: REPO });
     assert.equal((await post('/overlay/status', {
@@ -294,6 +304,8 @@ test('untested daemon endpoints', async () => {
       subagent_session: SID_W2,
     });
     const KEY_EDIT_B = 'local/dg5-edit-b';
+    dropStub('local', 'dg5-edit-b');
+    await post('/sync', { workspace: WS });
     assert.equal((await post('/mark-root', { task_key: KEY_EDIT_B, reason: 'second worker' })).body.ok, true);
     await post('/git/worktree', { key: KEY_EDIT_B, repo_path: REPO });
     assert.equal((await post('/overlay/status', {
