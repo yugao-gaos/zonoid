@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "review-worker-hooks-adapters",
   "branch": "orch/attempt/codex-review-hooks-adapters-write-gates",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T02:13:35.700Z",
-  "lease_until": "2026-06-22T03:13:35.700Z"
+  "lease_until": "2026-06-22T03:13:35.700Z",
+  "completed_at": "2026-06-22T02:21:18.936Z"
 }
