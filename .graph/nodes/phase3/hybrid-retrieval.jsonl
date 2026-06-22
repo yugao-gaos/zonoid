@@ -1,7 +1,0 @@
-{"evt":"edge_added","from":"phase3/hybrid-retrieval","to":"codex/retrieval-embedding-study","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:30:51.490Z","weight":0.8,"origin":"asserted"}
-{"evt":"edge_promoted","from":"phase3/hybrid-retrieval","to":"codex/retrieval-embedding-study","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:32:14.713Z","weight":0.8,"origin":"asserted"}
-{"evt":"edge_promoted","from":"phase3/hybrid-retrieval","to":"codex/retrieval-embedding-study","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:32:32.107Z","weight":0.8,"origin":"asserted"}
-{"evt":"edge_promoted","from":"phase3/hybrid-retrieval","to":"codex/retrieval-embedding-study","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:33:35.750Z","weight":0.8,"origin":"asserted"}
-{"evt":"edge_promoted","from":"phase3/hybrid-retrieval","to":"codex/retrieval-embedding-study","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:35:42.282Z","weight":0.8,"origin":"asserted"}
-{"evt":"edge_promoted","from":"phase3/hybrid-retrieval","to":"codex/retrieval-embedding-study","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:36:44.663Z","weight":0.8,"origin":"asserted"}
-{"evt":"edge_promoted","from":"phase3/hybrid-retrieval","to":"codex/retrieval-embedding-study","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:37:04.017Z","weight":0.8,"origin":"asserted"}

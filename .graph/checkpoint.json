@@ -94634,6 +94634,7 @@
       "summary": "Extended retrieval-bench --heldout/--isolated, heldout scorecard, unit tests, run-heldout-retrieval.sh smoke.",
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "Extend retrieval-bench for held-out eval",
         "description": "Extend scripts/retrieval-bench.js with --heldout/--eval=heldout, per-candidate recall@k, --isolated snapshot daemon, heldout scorecard output, unit tests, and run-heldout-retrieval.sh smoke script.",
@@ -96877,6 +96878,7 @@
       "summary": "BUILD2 ready-only-via-judged: VERIFIED + test-locked. START_TASK VERIFICATION: mcp__orchestrator-graph__start_task returned ok (status 200) — the self-register-on-claim dispatch fix (commit 33781a4) is confirmed working; no 409.\n\nFINDING: the BUILD2 source change was ALREADY on the branch HEAD (commit 39fa97a \"close native-adoption bypass\", a prior attempt). It correctly closes the bypass and REUSES the existing judge.judgingState gate exactly as required: buildGraph stamps markEagerJudge synchronously at adoption (newlyAdoptedSet) and overrides the projection status→not_ready + judging:true for newly-adopted nodes that effective() computed as 'ready'. Dispatch reads g.tasks.filter(t=>t.status==='ready') (daemon.js:867, routes/classify.js, routes/meta.js) — the buildGraph projection, so the override governs dispatch. Timeout fallback preserved (js.timedOut → ready + provisional). No source change was needed; I verified the wiring end-to-end.\n\nCONTRIBUTION (the gap): added the missing focused test. test/native-adopt-hold.test.js (NEW, +1 file, no source touched) — deterministic, no daemon spawn (judging-gate.test.js style), reproduces buildGraph's exact projection predicate and asserts: ADOPT-HOLD holds a deps-ready adopted node with a fresh unjudged autowire edge at not_ready+judging (same boolean as the non-adopted/harness lane → proves SAME gate); BIRTH-TICK one-tick unconditional hold; RELEASE on later build after judge keeps edge; TIMEOUT fallback to ready+provisional (no deadlock); DEPS-GATED (hold never manufactures readiness). Did NOT touch routes/overlay.js, classify-assemble.js, routes/exec.js, or file-drop routing (BUILD3).\n\nTESTS (required suites, ORCH_GATE_OFF=1): native-adopt-hold 14/14, judging-gate 22/22, native-tasks-adopt 8/8 — all green. No regressions vs HEAD on these. adopt-native-daemon 11/11 also green. NOTE: filedrop-daemon.test.js shows 28 pass / 6 fail (stable across 2 runs) — all 6 are the sandbox-fragile /overlay/status claim-accept + rest",
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "BUILD 2: ready-only-via-judged — close the native-adoption bypass so NO node reaches ready/dispatch un-judged",
         "description": "With BUILD 1 every newly-seen task gets autowire candidate edges + a judgingSince anchor at birth, so daemon.js effective() (the existing D-gate at daemon.js:1350-1351, judge.judgingState) will now hold native/adopted/file-drop/follow-up tasks in the judging phase until their edges are judged (eager path C) or the timeout fires (provisional fallback). This task VERIFIES and HARDENS that: (a) confirm effective() gates uniformly for ALL born-paths now that edges exist; (b) confirm the decideOne spawn pool (daemon.js:866 readyAll filter status==='ready') therefore never dispatches an un-judged node; (c) add a regression test that a task minted via native-adoption (buildGraph path, NOT via /overlay/status) is held judging then released only after judge/timeout. Also fold follow-up creation (lib/followups.js apply, ~line 85-96 — setSnapshot + addEdge, today NO embed/autowire/eager) through ingestNode so follow-ups stop bypassing too. Depends on BUILD 1. status: pending.",
@@ -145656,6 +145658,7 @@
       "summary": "Implemented Phase 3 hybrid retrieval in routes/graph.js. Change A: replaced scoreHybrid either/or cosine-fallback with RRF(cosine, BM25) fusion — both signals always contribute via 1/(k+rank_cosine)+1/(k+rank_bm25), k=60, BM25 uses stdlib-only TF-IDF with k1=1.2/b=0.75; gracefully degrades to BM25-only when embedding sidecar is loading. Change B: entity-seeded graph expansion added before ranking — matched entity nodes (by name substring or cosine>0.5) expand 1-2 hops along context edges to surface related notes; expansion is additive and no-op when entity_nodes is empty. All existing tests pass (search-knowledge: 5/5, phase2-integration: 31/31, structboost: 19/19, note-decay: 30/30). Committed on orch/attempt/phase3-hybrid-retrieval.",
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "phase3/hybrid-retrieval",
         "description": "",
@@ -229807,8 +229810,8 @@
       "assignee": null,
       "timestamps": {
         "firstSeen": "2026-06-22T01:27:13.719Z",
-        "lastChanged": "2026-06-22T01:27:13.719Z",
-        "lastStatus": "pending"
+        "lastChanged": "2026-06-22T01:27:41.976Z",
+        "lastStatus": "canceled"
       },
       "metrics": null,
       "measurements": null,
@@ -229841,8 +229844,8 @@
       "assignee": "worker-diffusion-shadow-benchmark",
       "timestamps": {
         "firstSeen": "2026-06-22T01:16:12.335Z",
-        "lastChanged": "2026-06-22T01:17:13.269Z",
-        "lastStatus": "in_progress"
+        "lastChanged": "2026-06-22T01:27:41.977Z",
+        "lastStatus": "tested"
       },
       "metrics": null,
       "measurements": null,
@@ -229875,8 +229878,8 @@
       "assignee": "codex-main-fix-git-claim-release-push-hook-judge",
       "timestamps": {
         "firstSeen": "2026-06-22T01:19:20.643Z",
-        "lastChanged": "2026-06-22T01:19:22.588Z",
-        "lastStatus": "not_ready"
+        "lastChanged": "2026-06-22T01:27:41.979Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -229909,8 +229912,110 @@
       "assignee": "codex-main-fix-git-claim-release-push-hook",
       "timestamps": {
         "firstSeen": "2026-06-22T01:19:20.643Z",
-        "lastChanged": "2026-06-22T01:20:29.123Z",
-        "lastStatus": "in_progress"
+        "lastChanged": "2026-06-22T01:27:41.979Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/diffusion-predictive-shadow-benchmark-judge": {
+      "id": "codex/diffusion-predictive-shadow-benchmark-judge",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Approved attempt e7710343. Reviewed offline shadow behavior, direct predictive-learning semantics, diffused in-memory updates, sparse-data reporting, and focused coverage. Ran benchmark, predictive-learning, retrieval-weights, search-activation tests plus git diff --check; all passed. Verdict submitted through subconscious_assignment submit_verdict.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge codex/diffusion-predictive-shadow-benchmark",
+        "description": "Review the diffusion predictive learning shadow benchmark in single-attempt code-review mode. Verify it is offline-only, does not mutate live retrieval behavior, has focused tests, and reports direct-vs-diffused metrics clearly.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T01:16:12.336Z"
+      },
+      "assignee": "judge-diffusion-shadow-benchmark",
+      "timestamps": {
+        "firstSeen": "2026-06-22T01:16:12.336Z",
+        "lastChanged": "2026-06-22T01:30:26.207Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ensure-managed-subconscious-loop-owner-judge": {
+      "id": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVED and landed manually on main as 45ab958e because merge_attempt was blocked by pre-existing unstaged daemon.js changes in the shared checkout. The staged patch matches the reviewed attempt scope: daemon-owned deterministic sessionless managed graph loop, boot/periodic/next_action ensure, standing harness drain exclusion, coexistence with foreground session loops, and focused regression coverage. Verified adjacent loop/classify/registered-workspace tests pass.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge codex/ensure-managed-subconscious-loop-owner",
+        "description": "Review attempt for codex/ensure-managed-subconscious-loop-owner.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T01:29:10.009Z"
+      },
+      "assignee": "codex-main-managed-subconscious-loop-owner-judge",
+      "timestamps": {
+        "firstSeen": "2026-06-22T01:29:10.009Z",
+        "lastChanged": "2026-06-22T01:36:44.379Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ensure-managed-subconscious-loop-owner": {
+      "id": "codex/ensure-managed-subconscious-loop-owner",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented a daemon-owned managed graph loop owner for registered workspaces. The daemon now ensures a deterministic sessionless managed loop on boot, periodic liveness sweeps, and next_action when normal ready work exists, while ignoring standing harness drain tasks and preserving foreground session-loop coexistence. Added graph-loop-owner regressions and verified adjacent loop/classify/registered-workspace tests.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Ensure a daemon-owned Subconscious graph loop exists when ready work exists",
+        "description": "Re-land and adapt the managed graph loop owner so current main cannot sit with ready normal tasks and an empty loop registry. The loop should be daemon/subconscious owned, per workspace, sessionless, deterministic/idempotent, and should ignore standing harness maintenance drain tasks.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T01:29:10.009Z"
+      },
+      "assignee": "codex-main-managed-subconscious-loop-owner",
+      "timestamps": {
+        "firstSeen": "2026-06-22T01:29:10.009Z",
+        "lastChanged": "2026-06-22T01:33:35.717Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -275222,11 +275327,11 @@
       "from": "note:note-mqoiovclnq6",
       "to": "codex/diffusion-predictive-shadow-benchmark",
       "kind": "context",
-      "origin": "autowire-semantic",
+      "weight": 0,
       "by": "autowire",
       "judged": false,
-      "weight": 0,
-      "score": 0.605
+      "score": 0.605,
+      "origin": "autowire-semantic"
     },
     {
       "from": "codex/brain-search-activation-engine",
@@ -275284,17 +275389,19 @@
       "from": "note:note-mqoiovclnq6",
       "to": "codex/diffusion-predictive-shadow-benchmark-judge",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "autowire-semantic",
+      "weight": 0,
+      "score": 0.557
     },
     {
       "from": "note:note-mqoj5e2wxv8",
       "to": "codex/fix-git-claim-release-push-hook",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.83,
       "origin": "autowire-semantic"
     },
@@ -275359,12 +275466,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/diffusion-predictive-shadow-benchmark-judge",
-      "to": "codex/diffusion-predictive-shadow-benchmark-judge-judge",
-      "kind": "blocking",
-      "origin": "subconscious-assignment"
-    },
-    {
       "from": "codex/diffusion-predictive-shadow-benchmark",
       "to": "codex/diffusion-predictive-shadow-benchmark-judge",
       "kind": "context",
@@ -275373,14 +275474,6 @@
       "judged": false,
       "score": 0.617,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/embed-provider-contract",
-      "to": "codex/embed-provider-local-adapter",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/fix-git-claim-release-push-hook-judge",
@@ -275407,7 +275500,341 @@
       "judged": false,
       "score": 0.596,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq561rur",
+      "to": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.579,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq7hefd9gvi",
+      "to": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.583,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqbc3zun3l4",
+      "to": "codex/ensure-managed-subconscious-loop-owner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.566,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqd77fazue0",
+      "to": "codex/retrieval-embedding-study",
+      "kind": "context",
+      "weight": 0.569,
+      "by": "judge",
+      "judged": true,
+      "score": 0.569,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqei0h7cyxc",
+      "to": "codex/ensure-managed-subconscious-loop-owner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.569,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfcbjui4zk",
+      "to": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.599,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiu33jr296",
+      "to": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.598,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqn5eugc0vj",
+      "to": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.59,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/retrieval-embedding-study",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqoi8nt95ad",
+      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
+    },
+    {
+      "from": "note:note-mqojp4hlcbj",
+      "to": "codex/ensure-managed-subconscious-loop-owner",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqojp4hlcbj",
+      "to": "note:note-mq88d6gotlo",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.63,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqojp4hlcbj",
+      "to": "note:note-mqgtdsl1abm",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.593,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqojp4hlcbj",
+      "to": "note:note-mq88939kmsi",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.581,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqojp4hlcbj",
+      "to": "note:note-mq845nbldiu",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.571,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqojp4hlcbj",
+      "to": "note:note-mqbc3zun3l4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.568,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/daemon-codex-wake-delivery-supervisor",
+      "to": "codex/ensure-managed-subconscious-loop-owner",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/diffusion-predictive-shadow-benchmark-judge",
+      "to": "codex/diffusion-predictive-shadow-benchmark-judge-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.775,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/diffusion-predictive-shadow-benchmark-judge",
+      "to": "codex/diffusion-predictive-shadow-benchmark",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.811,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/embed-provider-contract",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/embedding-provider-instruct-ft",
+      "to": "codex/retrieval-embedding-study",
+      "kind": "context",
+      "weight": 0.85,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/embedding-store-interface-impl",
+      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
+      "kind": "context",
+      "weight": 0.4,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "to": "codex/judge-graph-loop-owner-watchdog-review",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.659,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "to": "codex/judge-subconscious-idea-scheduler-policy",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.65,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "to": "codex/ensure-managed-subconscious-loop-owner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.649,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "to": "codex/judge-subconscious-assignment-surface-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.642,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "to": "codex/judge-subconscious-permit-gate-kickback-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.611,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ensure-managed-subconscious-loop-owner",
+      "to": "codex/ensure-managed-subconscious-loop-owner-judge",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ensure-managed-subconscious-loop-owner",
+      "to": "codex/graph-loop-owner-watchdog",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.617,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ensure-managed-subconscious-loop-owner",
+      "to": "codex/judge-graph-loop-owner-watchdog-review",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.606,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/graph-loop-owner-watchdog",
+      "to": "codex/ensure-managed-subconscious-loop-owner",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/judge-graph-loop-owner-watchdog-review",
+      "to": "codex/ensure-managed-subconscious-loop-owner",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
+      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.791,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "cursor/rb-runner",
+      "to": "codex/retrieval-embedding-study",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "dc3ec43f-f1a8-4a77-9403-14c5a43e2e17/9",
+      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "phase3/hybrid-retrieval",
+      "to": "codex/retrieval-embedding-study",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "unify/ready-only-via-judged",
+      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted"
     }
   ],
-  "compacted_at": "2026-06-22T01:28:52.269Z"
+  "compacted_at": "2026-06-22T01:42:33.037Z"
 }
