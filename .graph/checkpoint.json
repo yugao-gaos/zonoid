@@ -225475,9 +225475,11 @@
       "id": "codex/subconscious-permit-gate",
       "label": null,
       "kind": null,
-      "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "failed",
+      "workspace": "D:\\zonoid",
+      "status": "done",
       "summary": "Implemented Subconscious execution permits and made Node write gates require a valid permit backed by the active claim/worktree before non-exempt writes. Added permit issue/read/revoke API and MCP surface, ask_subconscious permit requirement output, and focused gate/Subconscious/MCP tests. Commit 88ca9602d2ede2c4d5d21f4fbd0d3fb8546b44c3 passes the requested verification.",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
@@ -225493,8 +225495,8 @@
       "assignee": "worker-subconscious-permit-gate",
       "timestamps": {
         "firstSeen": "2026-06-21T21:47:30.538Z",
-        "lastChanged": "2026-06-21T22:12:04.096Z",
-        "lastStatus": "failed"
+        "lastChanged": "2026-06-22T14:07:23.156Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -228825,9 +228827,11 @@
       "id": "codex/migrate-subconscious-surface-messages",
       "label": null,
       "kind": null,
-      "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "workspace": "D:\\zonoid",
+      "status": "done",
       "summary": "Normalized remaining Subconscious assignment wording to explicit action:\"prepare\"/\"accept\"/\"complete\"/\"submit_verdict\" in agent-facing docs and a daemon retry message. Targeted greps show only backcompat/internal raw-tool references remain. Focused node tests passed.",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
@@ -228846,8 +228850,8 @@
       "assignee": "codex-worker",
       "timestamps": {
         "firstSeen": "2026-06-22T00:47:34.208Z",
-        "lastChanged": "2026-06-22T01:07:44.927Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T14:18:35.050Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -229755,9 +229759,11 @@
       "id": "codex-desktop/assess-codebase-tightness",
       "label": null,
       "kind": null,
-      "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "workspace": "D:\\zonoid",
+      "status": "done",
       "summary": "Tightness audit complete: 6/10. Strong dependency hygiene and broad close-to-behavior tests, but tightness is reduced by daemon/overlay monoliths, read paths with persistent side effects, tracked .graph runtime state, handoff contract drift, and a broad git exemption in the Bash write gate.",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
@@ -229776,8 +229782,8 @@
       "assignee": "019eeccb-cdf6-7500-b2ce-586b5aecf418",
       "timestamps": {
         "firstSeen": "2026-06-22T00:44:14.472Z",
-        "lastChanged": "2026-06-22T00:54:20.648Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T14:31:31.899Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -229857,9 +229863,11 @@
       "id": "codex/diffusion-predictive-shadow-benchmark",
       "label": null,
       "kind": null,
-      "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "workspace": "D:\\zonoid",
+      "status": "done",
       "summary": "Added offline diffusion predictive shadow benchmark module, CLI report generator, synthetic tests, and sparse current-workspace report. Verified direct baseline, diffused updates, TN no-op, bounds, and no structural edge mutation.",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
@@ -229878,8 +229886,8 @@
       "assignee": "worker-diffusion-shadow-benchmark",
       "timestamps": {
         "firstSeen": "2026-06-22T01:16:12.335Z",
-        "lastChanged": "2026-06-22T01:27:41.977Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T14:18:54.254Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -230085,6 +230093,378 @@
       "timestamps": {
         "firstSeen": "2026-06-22T01:31:55.938Z",
         "lastChanged": "2026-06-22T01:51:53.227Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/consolidate-universal-skills": {
+      "id": "codex/consolidate-universal-skills",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": "Implemented skill consolidation on attempt branch orch/attempt/codex-consolidate-universal-skills at commit 10c6ce2c. Canonical skills are zonoid-orchestrator, orchestrator-loop, brain-activation, self-learn, setup, spec, signal. Old overlap names remain as compatibility aliases. Validation passed with quick_validate for all skill folders plus git diff --check.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Consolidate shipped skills into universal skill set",
+        "description": "Consolidate the repo-shipped skills from the current overlapping 14-skill layout toward the agreed 7-skill universal structure: zonoid-orchestrator, orchestrator-loop, brain-activation, self-learn, setup, spec, signal. Preserve old trigger names as thin compatibility stubs/aliases where needed. Keep client-specific material as adapter mappings rather than duplicated client-bound skills. Validate skill metadata after edits.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T02:02:07.666Z"
+      },
+      "assignee": "worker-consolidate-universal-skills",
+      "timestamps": {
+        "firstSeen": "2026-06-21T01:40:46.127Z",
+        "lastChanged": "2026-06-22T14:30:50.965Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/exec-brain-state-seam-retry": {
+      "id": "codex/exec-brain-state-seam-retry",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Implement execution brain memory and state boundary split",
+        "description": "Retry the execution/brain seam implementation after the first attempt was gate-blocked. Implement the split between local live execution state and git-synced durable claim/audit state. Key requirements: git claim files must not store local session ids or workspace paths; default git claim mode should be advisory when a remote exists, with strict mode available; local daemon overlay remains authoritative for live process/session/worktree state; store git-claim diagnostics locally for dashboard/debug only; config accepts git/local/strict/git-strict/empty claim modes; update tests for advisory vs strict behavior and local-vs-git boundary.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-18T23:34:25.410Z"
+      },
+      "assignee": "worker-exec-brain-state-seam-retry",
+      "timestamps": {
+        "firstSeen": "2026-06-18T20:24:10.184Z",
+        "lastChanged": "2026-06-22T14:35:18.652Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/exec-brain-state-seam-session-claim-impl": {
+      "id": "codex/exec-brain-state-seam-session-claim-impl",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Implement execution brain memory seam with verified session claim",
+        "description": "Implement the local/live execution state versus git-synced durable claim seam. This retry must first prove the Codex edit gate sees the worker's active claim before editing: branch_task, determine the real hook session id, start_task with that session id, bind /overlay/claim-session, verify /active-claim?session=<sid> returns the task, then edit only inside the attempt worktree. Required behavior: keep live agent/session/workspace state local; make git claims durable/advisory by default with strict opt-in; add local overlay diagnostics for git claim audit; update config claim_mode validation; update git-claim tests.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-18T23:34:25.413Z"
+      },
+      "assignee": "worker-exec-brain-state-seam-session-claim-impl",
+      "timestamps": {
+        "firstSeen": "2026-06-18T21:21:03.008Z",
+        "lastChanged": "2026-06-22T14:35:46.376Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/headroom-eval": {
+      "id": "codex/headroom-eval",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Evaluate Headroom as an opt-in compression layer for zonoid workloads",
+        "description": "Install Headroom in an isolated environment, run a baseline-vs-Headroom smoke comparison on representative zonoid/agent context payloads, and report whether it appears better enough to justify integration.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-19T14:16:23.171Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-19T14:16:23.171Z",
+        "lastChanged": "2026-06-22T14:32:22.897Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-adapter-installer-skill-surfaces": {
+      "id": "codex/judge-adapter-installer-skill-surfaces",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge adapter and installer skill surface updates",
+        "description": "Use self-learn judge mode in single-attempt review mode against codex/review-adapter-installer-skill-surfaces. Review the attempt diff for correctness, scope discipline, tests updated for changed CLI/adapter strings, and whether client-facing installer/adapter surfaces use canonical skill names (or explicit compatibility alias wording only where appropriate). Do not force-merge; approve or kick back with concrete findings.",
+        "status": "pending",
+        "blockedBy": [
+          "codex/review-adapter-installer-skill-surfaces"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T02:39:04.259Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-21T02:39:04.259Z",
+        "lastChanged": "2026-06-22T14:36:43.508Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-enforce-test-pass-before-push": {
+      "id": "codex/judge-enforce-test-pass-before-push",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "JUDGE: review pre-push full-suite guard",
+        "description": "Use self-learn-judge in single-attempt review mode against the attempt branch for codex/enforce-test-pass-before-push. Review correctness, scope discipline, test coverage/quality, style, and whether pushes are actually blocked on failing full tests. Do not force-merge. For flat tier, APPROVE means hold for dispatcher merge; KICK BACK means mark the implementation task failed and record the reason.",
+        "status": "pending",
+        "blockedBy": [
+          "codex/enforce-test-pass-before-push"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T02:35:50.420Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-21T02:35:50.420Z",
+        "lastChanged": "2026-06-22T14:36:23.368Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-runtime-skill-surface-prompts": {
+      "id": "codex/judge-runtime-skill-surface-prompts",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge runtime skill surface updates",
+        "description": "Use self-learn judge mode in single-attempt review mode against codex/review-runtime-skill-surface-prompts. Review the attempt diff for correctness, scope discipline, tests updated for changed prompt strings, and whether live daemon/runtime prompt-return surfaces now use canonical skill names (or explicit compatibility alias wording only where appropriate). Do not force-merge; approve or kick back with concrete findings.",
+        "status": "pending",
+        "blockedBy": [
+          "codex/review-runtime-skill-surface-prompts"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T02:39:00.463Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-21T02:39:00.463Z",
+        "lastChanged": "2026-06-22T14:36:57.541Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases": {
+      "id": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": "Split daemon buildGraph into reconciliation, projection, and commit-effect helper phases while preserving the prior in-memory mutation order for timestamps, adoption hold, eager judging, unwired quarantine, embeddingStore.taskNode projection, save/notify, and birth ingest scheduling.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Split buildGraph into projection and reconciliation phases",
+        "description": "Refactor daemon buildGraph so pure graph projection is separated from explicit reconciliation/write side effects. Preserve behavior, keep changes surgical, add or update focused tests if possible. Success: focused tests around graph projection/reconciliation pass; npm test status is reported with any pre-existing failures called out.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T01:31:55.937Z"
+      },
+      "assignee": "worker-split-buildgraph-projection-reconciliation",
+      "timestamps": {
+        "firstSeen": "2026-06-22T01:31:55.937Z",
+        "lastChanged": "2026-06-22T14:31:06.001Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "eeadb38f-7472-4703-9689-fbf24eebee4d/20": {
+      "id": "eeadb38f-7472-4703-9689-fbf24eebee4d/20",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "fix(bench-economy): copy minimal-source to ON arm sandbox",
+        "description": "fix(bench-economy): copy minimal-source to ON arm sandbox",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-15T03:50:25.079Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-15T03:50:25.079Z",
+        "lastChanged": "2026-06-22T14:33:52.273Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "eeadb38f-7472-4703-9689-fbf24eebee4d/21": {
+      "id": "eeadb38f-7472-4703-9689-fbf24eebee4d/21",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "fix(bench-economy): copy minimal-source to OFF arm sandbox",
+        "description": "The OFF arm in scripts/bench-economy.js copies minimal-source to offTmp/ (repo root) via buildOffRepo() but does NOT copy those files to offTmp/bench/sandbox/. The grader for fix-bug looks for tests.js next to the artifact (bench/sandbox/tests.js), and write-tests' solution.js does require('./input') expecting input.js in bench/sandbox/. Same copy loop as the ON arm fix (lines 347-354) needs to be added after line 394 (after fs.mkdirSync bench/sandbox for OFF arm). Then re-smoke write-tests and fix-bug (trial 6).",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-15T04:39:06.087Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-15T04:39:06.087Z",
+        "lastChanged": "2026-06-22T14:34:27.339Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "eeadb38f-7472-4703-9689-fbf24eebee4d/6": {
+      "id": "eeadb38f-7472-4703-9689-fbf24eebee4d/6",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "done",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "bench(economy): add system ledger + judge amortization to bench-economy.js",
+        "description": "Add a buildSystemLedger() function to scripts/bench-economy.js that reads all past results.jsonl entries and computes: cumulative ON/OFF costs, total savings, avg savings per task, optional judge spend amortization (--judge-tokens flag), and break-even task count. Append systemLedger field to each result row and write bench/economy/ledger.json snapshot after each run. No other changes.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-14T23:20:19.895Z"
+      },
+      "assignee": "claude-sonnet-4-6",
+      "timestamps": {
+        "firstSeen": "2026-06-14T23:20:19.895Z",
+        "lastChanged": "2026-06-22T14:33:12.562Z",
         "lastStatus": "done"
       },
       "metrics": null,
@@ -266850,10 +267230,11 @@
       "from": "note:note-mqjx2nj5gav",
       "to": "codex/exec-brain-state-seam-retry",
       "kind": "context",
-      "weight": 1,
+      "weight": 0,
       "by": "autowire",
       "judged": false,
-      "origin": "asserted"
+      "origin": "autowire-semantic",
+      "score": 0.619
     },
     {
       "from": "note:note-mqjx4ide9ja",
@@ -269695,10 +270076,11 @@
       "from": "note:note-mqjx2nj5gav",
       "to": "codex/exec-brain-state-seam-session-claim-impl",
       "kind": "context",
-      "weight": 0.95,
+      "weight": 0,
       "by": "autowire",
       "judged": false,
-      "origin": "asserted"
+      "origin": "autowire-semantic",
+      "score": 0.631
     },
     {
       "from": "note:note-mqjx2nj5gav",
@@ -269823,9 +270205,11 @@
       "from": "note:note-mqk0pyjpxtc",
       "to": "codex/exec-brain-state-seam-session-claim-impl",
       "kind": "context",
-      "weight": 1,
+      "weight": 0,
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "score": 0.686,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqk0pyjpxtc",
@@ -270869,11 +271253,11 @@
       "from": "note:note-mql0g5bob88",
       "to": "codex/headroom-eval",
       "kind": "context",
-      "weight": 0.769,
-      "by": "judge",
-      "judged": true,
-      "score": 0.769,
-      "origin": "asserted"
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.734,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mql0nv0w8dp",
@@ -270932,7 +271316,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.689,
+      "score": 0.723,
       "origin": "autowire-semantic"
     },
     {
@@ -272855,7 +273239,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.749,
+      "score": 0.73,
       "origin": "autowire-semantic"
     },
     {
@@ -275038,7 +275422,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.657,
+      "score": 0.562,
       "origin": "autowire-semantic"
     },
     {
@@ -275124,7 +275508,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.657,
+      "score": 0.672,
       "origin": "autowire-semantic"
     },
     {
@@ -275400,7 +275784,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.605,
+      "score": 0.576,
       "origin": "autowire-semantic"
     },
     {
@@ -275952,9 +276336,9 @@
       "to": "codex/fix-search-kb-recall-semantics",
       "kind": "context",
       "weight": 0.65,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mq7iakmckgt",
@@ -276051,9 +276435,9 @@
       "to": "codex/review-graph-overlay-dispatch-loops",
       "kind": "context",
       "weight": 0.95,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqen9jm4hyi",
@@ -276260,9 +276644,9 @@
       "to": "codex/fix-shell-opencode-write-gates",
       "kind": "context",
       "weight": 0.7,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqiu5v7wjfe",
@@ -276449,20 +276833,20 @@
       "to": "codex/fix-onboarding-dashboard-transition-cloud-ux",
       "kind": "context",
       "weight": 0,
-      "judged": false,
-      "origin": "autowire-semantic",
       "by": "autowire",
-      "score": 0.614
+      "judged": false,
+      "score": 0.614,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqod16m7vun",
       "to": "codex/fix-onboarding-dashboard-transition-cloud-ux",
       "kind": "context",
       "weight": 0,
-      "judged": false,
-      "origin": "autowire-semantic",
       "by": "autowire",
-      "score": 0.681
+      "judged": false,
+      "score": 0.681,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqoeu0bmayx",
@@ -276479,9 +276863,9 @@
       "to": "codex/subconscious-agentic-search-envelope",
       "kind": "context",
       "weight": 0.5,
+      "by": "judge",
       "judged": true,
-      "origin": "subconscious-assignment",
-      "by": "judge"
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mqogmgwobj3",
@@ -276498,18 +276882,18 @@
       "to": "codex/review-search-kb-learning-skills",
       "kind": "context",
       "weight": 0.65,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqoiovclnq6",
       "to": "codex/review-search-kb-learning-skills",
       "kind": "context",
       "weight": 0.65,
+      "by": "autowire",
       "judged": false,
-      "origin": "asserted",
-      "by": "autowire"
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqoj5e2wxv8",
@@ -276526,8 +276910,8 @@
       "to": "codex/retrieval-embedding-study",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqojzvvx8vf",
@@ -276574,8 +276958,8 @@
       "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.551,
       "origin": "autowire-semantic"
     },
@@ -276584,8 +276968,8 @@
       "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases-judge",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqokgnd2wnw",
@@ -276692,8 +277076,8 @@
       "to": "codex/full-system-review-subconscious-landed",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.695,
       "origin": "autowire-semantic"
     },
@@ -276731,93 +277115,93 @@
       "from": "note:note-mqolmwgser3",
       "to": "codex/fix-post-subconscious-review-findings",
       "kind": "context",
-      "origin": "autowire-semantic",
+      "weight": 0,
       "by": "autowire",
       "judged": false,
-      "weight": 0,
-      "score": 0.718
+      "score": 0.718,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqolmwgser3",
       "to": "codex/fix-subconscious-claim-permit-result-contracts",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mqolmwgser3",
       "to": "codex/fix-shell-opencode-write-gates",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mqolmwgser3",
       "to": "codex/fix-graph-dispatch-invariants",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mqolmwgser3",
       "to": "codex/fix-search-kb-recall-semantics",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mqolmwgser3",
       "to": "codex/fix-dashboard-config-test-contract",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mqolmwgser3",
       "to": "codex/verify-post-subconscious-review-fixes",
       "kind": "context",
-      "origin": "autowire-semantic",
+      "weight": 0,
       "by": "autowire",
       "judged": false,
-      "weight": 0,
-      "score": 0.737
+      "score": 0.737,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqolmwgser3",
       "to": "codex/fix-shell-opencode-write-gates-kickback",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mqolmwgser3",
       "to": "codex/fix-dashboard-config-smoke-kickback",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mqolmwgser3",
       "to": "codex/fix-claim-permit-result-contract-kickback",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mqolmwgser3",
       "to": "codex/fix-dashboard-config-smoke-recovery",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mqolmwgser3",
@@ -276864,8 +277248,8 @@
       "to": "codex/fix-onboarding-dashboard-transition-cloud-ux",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqon6doarir",
@@ -276912,8 +277296,8 @@
       "to": "codex/fix-post-subconscious-review-findings",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.944,
       "origin": "autowire-semantic"
     },
@@ -277002,8 +277386,8 @@
       "to": "codex/fix-post-subconscious-review-findings",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqozwmjr1a3",
@@ -277060,8 +277444,8 @@
       "to": "codex/move-dashboard-onboarding-output-out-of-bench",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.762,
       "origin": "autowire-semantic"
     },
@@ -277732,7 +278116,7 @@
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.63,
+      "score": 0.658,
       "origin": "autowire-semantic"
     },
     {
@@ -278420,8 +278804,8 @@
       "to": "codex/migrate-graph-cloud-to-shared-three.js-point-cloud-renderer",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.721,
       "origin": "autowire-semantic"
     },
@@ -279644,7 +280028,203 @@
       "to": "codex/review-graph-overlay-dispatch-loops",
       "kind": "context",
       "origin": "subconscious-assignment"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqpavx66iic#note-evidence:chunk-1",
+      "to": "note:note-mqpavx66iic",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mqpavx66iic",
+      "to": "knowledge:source_section:note-mqpavx66iic#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mqpavx66iic#note-evidence",
+      "to": "knowledge:source_chunk:note-mqpavx66iic#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "note:note-mqn5eugc0vj",
+      "to": "codex/consolidate-universal-skills",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.593,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqn7x0d9lv8",
+      "to": "codex/consolidate-universal-skills",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.571,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpavx66iic",
+      "to": "codex/subconscious-permit-gate",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqpavx66iic",
+      "to": "codex/migrate-subconscious-surface-messages",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqpavx66iic",
+      "to": "codex/diffusion-predictive-shadow-benchmark",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqpavx66iic",
+      "to": "codex/breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqpavx66iic",
+      "to": "knowledge:source_section:note-mqpavx66iic#note-evidence",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.895,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpavx66iic",
+      "to": "knowledge:source_chunk:note-mqpavx66iic#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.895,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpavx66iic",
+      "to": "knowledge:source_doc:note-mqpavx66iic",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.653,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpavx66iic",
+      "to": "note:note-mqbc3zun3l4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.592,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpavx66iic",
+      "to": "note:note-mq82mggjhu5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.589,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/exec-brain-state-seam-session-claim-impl",
+      "to": "codex/judge-exec-brain-state-seam-session-claim-impl",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.75,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/exec-brain-state-seam-session-claim-impl",
+      "to": "codex/exec-brain-state-seam-retry",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.674,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/exec-brain-state-seam-session-claim-impl",
+      "to": "codex/judge-exec-brain-state-seam-agent-impl",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.589,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-runtime-skill-surface-prompts",
+      "to": "codex/judge-adapter-installer-skill-surfaces",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.749,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/migrate-subconscious-surface-messages",
+      "to": "knowledge:source_chunk:chunk-readme-md-0-4-agent-subconscious-relevant-task-history-b22e4c704a",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.599,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "eeadb38f-7472-4703-9689-fbf24eebee4d/20",
+      "to": "eeadb38f-7472-4703-9689-fbf24eebee4d/21",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.943,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "eeadb38f-7472-4703-9689-fbf24eebee4d/21",
+      "to": "eeadb38f-7472-4703-9689-fbf24eebee4d/20",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.984,
+      "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-22T14:07:39.738Z"
+  "compacted_at": "2026-06-22T14:59:39.807Z"
 }
