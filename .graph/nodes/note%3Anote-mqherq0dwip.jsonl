@@ -14,3 +14,5 @@
 {"evt":"edge_removed","from":"note:note-mqherq0dwip","to":"note:note-mqgt2bjvle5","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:12:26.562Z"}
 {"evt":"edge_removed","from":"note:note-mqherq0dwip","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/30","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:12:26.562Z"}
 {"evt":"edge_removed","from":"note:note-mqherq0dwip","to":"followup/judge-review-phase-1-distiller-impl-q0x0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:12:26.562Z"}
+{"evt":"edge_promoted","from":"note:note-mqherq0dwip","to":"note:note-mqheiw4iv5t","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:05:23.873Z","weight":0.821,"by":"judge","judged":true,"score":0.821,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqherq0dwip","to":"note:note-mqh0t20gx45","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:05:23.873Z"}

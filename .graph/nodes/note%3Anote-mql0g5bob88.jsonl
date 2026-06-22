@@ -11,3 +11,5 @@
 {"evt":"edge_removed","from":"note:note-mql0g5bob88","to":"note:note-mqgu5ovs60x","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:10:47.836Z"}
 {"evt":"edge_removed","from":"note:note-mql0g5bob88","to":"codex/migrate-runtime-artifacts-to-zonoid","kind":"context","actor":"overlay-sync","ts":"2026-06-21T04:10:47.836Z"}
 {"evt":"edge_promoted","from":"note:note-mql0g5bob88","to":"codex/headroom-eval","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:32:32.418Z","weight":0,"by":"autowire","judged":false,"score":0.734,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mql0g5bob88","to":"note:note-mqgvsc4wtct","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:05:30.296Z"}
+{"evt":"edge_removed","from":"note:note-mql0g5bob88","to":"codex/headroom-eval","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:05:30.296Z"}

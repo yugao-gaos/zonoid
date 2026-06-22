@@ -26,3 +26,4 @@
 {"evt":"edge_promoted","from":"note:note-mqjyqrg5t5f","to":"codex/exec-brain-state-seam-minimal-patch","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:55:45.978Z","weight":0.5,"by":"judge","judged":true}
 {"evt":"edge_removed","from":"note:note-mqjyqrg5t5f","to":"note:note-mqda7rpovti","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:55:45.978Z"}
 {"evt":"edge_removed","from":"note:note-mqjyqrg5t5f","to":"codex/judge-exec-brain-state-seam-minimal-patch","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:55:45.978Z"}
+{"evt":"edge_removed","from":"note:note-mqjyqrg5t5f","to":"note:note-mqedjw0rypf","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:05:36.643Z"}

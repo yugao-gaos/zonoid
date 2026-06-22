@@ -4,3 +4,4 @@
 {"evt":"knowledge_added","id":"note-mqivablq5u2","workspace":"D:/zonoid","item":"kind:test","actor":"overlay-sync","ts":"2026-06-18T02:21:11.229Z"}
 {"evt":"knowledge_added","id":"note-mqivablq5u2","workspace":"D:/zonoid","item":"kind:test","actor":"overlay-sync","ts":"2026-06-18T02:27:19.861Z"}
 {"evt":"knowledge_added","id":"note-mqivablq5u2","workspace":"D:/zonoid","item":"kind:test","actor":"overlay-sync","ts":"2026-06-18T02:30:34.635Z"}
+{"evt":"edge_removed","from":"note:note-mqivablq5u2","to":"note:note-mq75a82j","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:05:45.940Z"}
