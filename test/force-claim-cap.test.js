@@ -70,7 +70,7 @@ test('force-claim cap', async () => {
   execSync('git init -q', { cwd: WS });
   execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: WS });
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', ORCH_GATE_OFF: '1' },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', ORCH_GATE_OFF: '1', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
     stdio: 'ignore',
   });
   try {
