@@ -57,7 +57,11 @@ try {
   ok('buildGraph projects pooled note.vec unchanged', !!projected && same(projected.vec, pooledVec));
   ok('buildGraph projects field-level note.vecs', !!projected && same(projected.vecs, fieldVecs));
 } finally {
-  fs.rmSync(TMP, { recursive: true, force: true });
+  try {
+    const pid = parseInt(fs.readFileSync(path.join(TMP, 'embed.pid'), 'utf8'), 10);
+    if (pid) process.kill(pid, 'SIGTERM');
+  } catch { /* sidecar may not have spawned */ }
+  fs.rmSync(TMP, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
