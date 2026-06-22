@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/fix-git-claim-release-push-hook",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-main-fix-git-claim-release-push-hook",
+  "branch": "orch/attempt/codex-fix-git-claim-release-push-hook",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T01:20:27.104Z",
+  "lease_until": "2026-06-22T02:20:27.104Z"
+}
