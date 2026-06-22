@@ -3,3 +3,4 @@
 {"evt":"summary_set","id":"note:note-mqp4z7npmjw","workspace":"/Users/imyu/Desktop/zonoid","summary":"The verdict journal bins similarity into six half-open bands: `[0.25,0.30)`, `[0.30,0.35)`, `[0.35,0.40)`, `[0.40,0.45)`, `[0.45,0.50)`, and `[0.50,∞)`. That gives `keepRateByBand` a fixed calibration grid rather than a dynamic partition.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp4z7npmjw","to":"note:note-mqityo6fy4z","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:40:12.861Z"}
 {"evt":"edge_added","from":"note:note-mqp4z7npmjw","to":"note:note-mqityo6fy4z","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.71,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp4z7npmjw","to":"note:note-mqityo6fy4z","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:50:08.195Z"}
