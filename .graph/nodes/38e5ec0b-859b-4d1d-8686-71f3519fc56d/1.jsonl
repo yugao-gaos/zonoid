@@ -17,3 +17,4 @@
 {"evt":"edge_promoted","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/1","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:47.845Z","weight":0.55,"origin":"asserted"}
 {"evt":"edge_promoted","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/1","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:55.651Z","weight":0.55,"origin":"asserted"}
 {"evt":"edge_promoted","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/1","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:48:10.228Z","weight":0.55,"origin":"asserted"}
+{"evt":"edge_promoted","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/1","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:48:48.741Z","weight":0.55,"origin":"asserted"}
