@@ -27,8 +27,8 @@
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
-const SELF_REPO = path.resolve(__dirname, '..');
 const SKIP_DIRS = new Set(['node_modules', 'worktrees', '.git', 'dist', 'build', 'coverage', 'vendor', '.next', 'out', 'tmp', '__pycache__']);
 
 const ASSET_CLASSES = {
@@ -311,7 +311,7 @@ function main() {
   const repo = arg('repo');
   if (!repo || !fs.existsSync(repo)) { console.error('usage: onboard-mine-assets.js --repo <abs> [--out <dir>]'); process.exit(2); }
   const repoAbs = path.resolve(repo);
-  const outDir = path.resolve(arg('out', path.join(SELF_REPO, 'bench', 'onboard', path.basename(repoAbs))));
+  const outDir = path.resolve(arg('out', defaultOnboardOutDir(repoAbs)));
   const OUT = path.join(outDir, 'asset-notes.json');
 
   const assets = [];

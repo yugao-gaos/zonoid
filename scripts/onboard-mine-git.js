@@ -14,8 +14,8 @@
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
-const SELF_REPO = path.resolve(__dirname, '..');
 const REC_SEP = '\x1e';
 const FLD_SEP = '\x1f';
 
@@ -83,7 +83,7 @@ function main() {
     process.exit(2);
   }
   const repoAbs = path.resolve(repo);
-  const outDir = path.resolve(arg('out', path.join(SELF_REPO, 'bench', 'onboard', path.basename(repoAbs))));
+  const outDir = path.resolve(arg('out', defaultOnboardOutDir(repoAbs)));
   const OUT = path.join(outDir, 'git-notes.json');
   const max = parseInt(arg('max', '0'), 10) || 0;
 

@@ -11,12 +11,12 @@
 //
 // Emits <out>/structure.json = { repo, nodes:[{id, role}], edges:[{from,to,kind}] }.
 // Does NOT touch the orchestrator graph and does NOT commit. (--out defaults to
-// bench/onboard/<basename(repo)>/ under THIS repo so subjects stay side-by-side.)
+// <repo>/.zonoid/onboard/<basename(repo)>/.)
 
 const fs = require('fs');
 const path = require('path');
+const { defaultOnboardOutDir } = require('../lib/onboard-paths');
 
-const SELF_REPO = path.resolve(__dirname, '..');
 const SKIP_DIRS = new Set([
   'node_modules', 'worktrees', '.git', 'dist', 'build', 'coverage',
   'vendor', '.next', 'out', 'tmp', '__pycache__',
@@ -108,8 +108,7 @@ function main() {
     process.exit(2);
   }
   const repoAbs = path.resolve(repo);
-  const outDir = path.resolve(arg('out',
-    path.join(SELF_REPO, 'bench', 'onboard', path.basename(repoAbs))));
+  const outDir = path.resolve(arg('out', defaultOnboardOutDir(repoAbs)));
   const OUT = path.join(outDir, 'structure.json');
 
   const files = walk(repoAbs, repoAbs, []).sort();

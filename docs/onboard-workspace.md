@@ -13,6 +13,8 @@ node scripts/onboard-loop.js \
 
 `--repo` is the filesystem path the script reads. `--workspace` is the key the daemon uses to scope KB entries. They should point to the same directory for foreign repos so KB entries don't collide with your main workspace.
 
+Dashboard and script onboarding queues default to `<workspace>/.zonoid/onboard/<workspace-name>`, which is ignored per-machine runtime state. Existing `.graph/onboard` and `bench/onboard/<workspace-name>` queues are still supported when passed explicitly with `--in`/`--out` or when the dashboard finds their route metadata.
+
 ## Running inside a SWE-bench Docker container
 
 The SWE-bench harness mounts the repo at `/repo` inside the container. To onboard at the exact commit the harness will use:

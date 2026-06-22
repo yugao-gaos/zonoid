@@ -376,7 +376,7 @@ test('buildLearnerArgs builds correct node invocation for a given repo path', ()
 test('buildLearnerArgs includes custom onboarding outDir when provided', () => {
   const hd = freshModule();
   const repoAbs = '/some/project/root';
-  const outDir = '/some/project/root/bench/onboard/root';
+  const outDir = '/some/project/root/.zonoid/onboard/root';
   const args = hd.buildLearnerArgs(repoAbs, outDir);
   assert.deepEqual(args.slice(1), ['--drain', '--repo', repoAbs, '--in', outDir]);
 });
@@ -384,7 +384,7 @@ test('buildLearnerArgs includes custom onboarding outDir when provided', () => {
 test('buildLearnerArgs carries child timeout when provided', () => {
   const hd = freshModule();
   const repoAbs = '/some/project/root';
-  const outDir = '/some/project/root/bench/onboard/root';
+  const outDir = '/some/project/root/.zonoid/onboard/root';
   const args = hd.buildLearnerArgs(repoAbs, outDir, 4750);
   assert.deepEqual(args.slice(1), ['--drain', '--repo', repoAbs, '--in', outDir, '--timeout-ms', '4750']);
 });
@@ -401,7 +401,59 @@ test('findPendingLearnerRepos returns workspace when queue has cursor < total', 
   }
 });
 
-test('findPendingLearnerQueues discovers dashboard bench/onboard outDir', () => {
+test('findPendingLearnerQueues discovers dashboard .zonoid/onboard outDir', () => {
+  const hd = freshModule();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-zonoid-'));
+  const outDir = path.join(tmpDir, '.zonoid', 'onboard', path.basename(tmpDir));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      total: 12,
+      cursor: 4,
+      kept: [],
+      rejected: [],
+      pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo: tmpDir,
+      outDir,
+      batchSize: 7,
+    }));
+    const queues = hd.findPendingLearnerQueues(tmpDir);
+    assert.equal(queues.length, 1);
+    assert.equal(queues[0].repo, tmpDir);
+    assert.equal(queues[0].outDir, outDir);
+    assert.equal(queues[0].remaining, 8);
+    assert.equal(queues[0].batchSize, 7);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('findPendingLearnerQueues discovers default .zonoid/onboard outDir without route metadata', () => {
+  const hd = freshModule();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-zonoid-default-'));
+  const outDir = path.join(tmpDir, '.zonoid', 'onboard', path.basename(tmpDir));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      total: 12,
+      cursor: 4,
+      kept: [],
+      rejected: [],
+      pending: [],
+    }));
+    const queues = hd.findPendingLearnerQueues(tmpDir);
+    assert.equal(queues.length, 1);
+    assert.equal(queues[0].repo, tmpDir);
+    assert.equal(queues[0].outDir, outDir);
+    assert.equal(queues[0].remaining, 8);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('findPendingLearnerQueues discovers legacy dashboard bench/onboard outDir', () => {
   const hd = freshModule();
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-bench-'));
   const outDir = path.join(tmpDir, 'bench', 'onboard', path.basename(tmpDir));
