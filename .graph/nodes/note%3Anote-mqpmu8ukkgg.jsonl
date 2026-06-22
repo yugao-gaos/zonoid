@@ -11,3 +11,5 @@
 {"evt":"edge_removed","from":"note:note-mqpmu8ukkgg","to":"note:note-mq70uwfo","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:55:34.146Z"}
 {"evt":"edge_removed","from":"note:note-mqpmu8ukkgg","to":"note:note-mq6yu1sf","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:56:32.403Z"}
 {"evt":"note_superseded","id":"note-mqpmu8ukkgg","supersededBy":"note-mqpna41fj59","validTo":"2026-06-22T20:05:08.211Z","ts":"2026-06-22T20:05:08.211Z","actor":"supersede"}
+{"evt":"edge_promoted","from":"note:note-mqpmu8ukkgg","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:52:00.358Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqpmu8ukkgg","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:55:04.615Z","weight":0.5,"by":"judge","judged":true,"origin":"subconscious-assignment"}

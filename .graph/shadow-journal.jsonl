@@ -4966,3 +4966,8 @@
 {"ts":1782161425122,"from":"note:note-mqiu51a07d3","to":"note:note-mqiu4paroh9","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
 {"ts":1782161425122,"from":"note:note-mqiu5v7wjfe","to":"codex/fix-dashboard-config-test-contract-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
 {"ts":1782161425123,"from":"note:note-mqiu64rw1k2","to":"bench/bench-trial-17-discovered","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782161704591,"from":"note:note-mqphl024dko","to":"codex/make-search-animation-brain-activation-style","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.49864532819969,"cosine":0.817,"model_version":"v1"}
+{"ts":1782161704592,"from":"note:note-mqphl024dko","to":"note:note-mql03ljetqg","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.23374444487745138,"cosine":0.564,"model_version":"v1"}
+{"ts":1782161704593,"from":"note:note-mqpmu8ukkgg","to":"codex/search-economy-retrieval-phase1","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782161704594,"from":"unify/ready-only-via-judged","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/21","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.5789648682557385,"cosine":0.551,"model_version":"v1"}
+{"ts":1782161704595,"from":"unify/ready-only-via-judged","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/23","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.6043417225686138,"cosine":0.603,"model_version":"v1"}
