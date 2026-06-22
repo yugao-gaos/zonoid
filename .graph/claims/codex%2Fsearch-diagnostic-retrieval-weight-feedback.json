@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "worker-search-diagnostic-feedback-session",
   "branch": "orch/attempt/codex-search-diagnostic-retrieval-weight-feedback",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-22T00:15:47.702Z",
-  "lease_until": "2026-06-22T01:15:47.702Z"
+  "lease_until": "2026-06-22T01:15:47.702Z",
+  "completed_at": "2026-06-22T00:24:49.981Z"
 }
