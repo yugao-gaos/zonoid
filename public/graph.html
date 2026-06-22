@@ -5454,6 +5454,7 @@ function renderCloud(d, opts={}){
   const svg=d3.select(svgEl);
   const posStore=isOnboard?onboardCloudRenderState.pos:cloudPos;
   const usePointCloud=true;
+  const animatePointCloud=isOnboard;
   const getSim=()=>isOnboard?onboardCloudRenderState.sim:cloudSim;
   const setSim=v=>{ if(isOnboard) onboardCloudRenderState.sim=v; else cloudSim=v; };
   const getSig=()=>isOnboard?onboardCloudRenderState.sig:cloudSig;
@@ -5895,7 +5896,7 @@ function renderCloud(d, opts={}){
   // only reheat the simulation when the node/link set actually changes
   const sig=simNodes.map(n=>n.id).sort().join(',')+'|'+simLinks.map(l=>endId(l.source)+'>'+endId(l.target)).sort().join(',')+'|archOpen:'+cloudArchiveOpen+'|archIds:'+archivedList.map(t=>t.id).sort().join(',');
   const placeCloud=()=>{
-    const elapsed=q&&!isOnboard?0:Date.now()/1000;
+    const elapsed=animatePointCloud?Date.now()/1000:0;
     if(usePointCloud) for(const n of simNodes) projectCloudNode(n,elapsed);
     const endpoint=e=>typeof e==='object'?e:byNode[e];
     linkAll
@@ -5939,28 +5940,26 @@ function renderCloud(d, opts={}){
   } else {
     placeCloud();
   }
-  if(usePointCloud){
-    if(isOnboard&&onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
-    if(!isOnboard&&cloudRaf) cancelAnimationFrame(cloudRaf);
+  if(usePointCloud&&!animatePointCloud&&cloudRaf){
+    cancelAnimationFrame(cloudRaf);
+    cloudRaf=null;
+  }
+  if(usePointCloud&&animatePointCloud){
+    if(onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
     let lastFrame=0;
     const animateProjectedCloud=ts=>{
-      const inactive=isOnboard?!document.body.classList.contains('onboarding-pending'):currentView!=='cloud';
+      const inactive=!document.body.classList.contains('onboarding-pending');
       if(!svgEl.isConnected || inactive){
-        if(isOnboard) onboardCloudRenderState.raf=null;
-        else cloudRaf=null;
+        onboardCloudRenderState.raf=null;
         return;
       }
-      if(ts-lastFrame>=(isOnboard?80:120)){
+      if(ts-lastFrame>=80){
         placeCloud();
         lastFrame=ts;
       }
-      const next=requestAnimationFrame(animateProjectedCloud);
-      if(isOnboard) onboardCloudRenderState.raf=next;
-      else cloudRaf=next;
+      onboardCloudRenderState.raf=requestAnimationFrame(animateProjectedCloud);
     };
-    const next=requestAnimationFrame(animateProjectedCloud);
-    if(isOnboard) onboardCloudRenderState.raf=next;
-    else cloudRaf=next;
+    onboardCloudRenderState.raf=requestAnimationFrame(animateProjectedCloud);
   }
   const statsElC = document.getElementById('flowstats');
   if (statsElC) {
