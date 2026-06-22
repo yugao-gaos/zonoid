@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/fix-dashboard-config-smoke-kickback",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-fix-dashboard-smoke-kickback",
+  "branch": "orch/attempt/codex-fix-dashboard-config-smoke-kickback",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T03:50:47.735Z",
+  "lease_until": "2026-06-22T04:50:47.735Z"
+}
