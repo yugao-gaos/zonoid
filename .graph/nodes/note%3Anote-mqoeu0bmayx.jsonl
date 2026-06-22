@@ -26,3 +26,8 @@
 {"evt":"edge_promoted","from":"note:note-mqoeu0bmayx","to":"codex/migrate-subconscious-surface-messages","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:18:35.839Z","weight":0,"by":"autowire","judged":false,"score":0.562,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqoeu0bmayx","to":"knowledge:source_chunk:chunk-readme-md-0-4-agent-subconscious-relevant-task-history-b22e4c704a","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:34:15.155Z"}
 {"evt":"edge_promoted","from":"note:note-mqoeu0bmayx","to":"codex/migrate-subconscious-surface-messages","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:35:26.984Z","weight":0.562,"by":"judge","judged":true,"score":0.562,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqoeu0bmayx","to":"codex/subconscious-assignment-surface","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:55:26.631Z"}
+{"evt":"edge_removed","from":"note:note-mqoeu0bmayx","to":"note:note-mqobjpjb5bh","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:55:26.631Z"}
+{"evt":"edge_removed","from":"note:note-mqoeu0bmayx","to":"knowledge:source_doc:doc-readme-md-f8cd5fd8ad","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:55:26.631Z"}
+{"evt":"edge_removed","from":"note:note-mqoeu0bmayx","to":"codex/judge-subconscious-assignment-surface","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:55:32.123Z"}
+{"evt":"edge_removed","from":"note:note-mqoeu0bmayx","to":"codex/review-subconscious-assignment-lifecycle","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:55:32.123Z"}
