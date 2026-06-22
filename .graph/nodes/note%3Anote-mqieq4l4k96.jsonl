@@ -11,3 +11,4 @@
 {"evt":"edge_promoted","from":"note:note-mqieq4l4k96","to":"codex/fix-shell-write-gate-cross-shell","kind":"context","actor":"overlay-sync","ts":"2026-06-17T18:33:43.375Z","weight":0,"by":"autowire","judged":false,"score":0.59,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqieq4l4k96","to":"codex/fix-powershell-control-operators","kind":"context","actor":"overlay-sync","ts":"2026-06-17T18:34:02.175Z","weight":0.68,"by":"judge","judged":true,"score":0.68,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqieq4l4k96","to":"codex/judge-fix-powershell-control-operators","kind":"context","actor":"overlay-sync","ts":"2026-06-17T18:44:42.597Z","weight":0.618,"by":"judge","judged":true,"score":0.618,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mqieq4l4k96","to":"codex/fix-shell-opencode-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:38:52.656Z","weight":0.7,"origin":"asserted"}
