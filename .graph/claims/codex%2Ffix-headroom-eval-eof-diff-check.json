@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-81036-2523a70c490d7d54f734f663d0a5a52b",
   "branch": "orch/attempt/codex-fix-headroom-eval-eof-diff-check",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T18:18:51.936Z",
-  "lease_until": "2026-06-22T19:18:51.936Z"
+  "lease_until": "2026-06-22T19:18:51.936Z",
+  "completed_at": "2026-06-22T18:20:20.053Z"
 }
