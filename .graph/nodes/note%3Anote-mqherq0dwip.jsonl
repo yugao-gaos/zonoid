@@ -23,3 +23,4 @@
 {"evt":"edge_added","from":"note:note-mqherq0dwip","to":"note:note-mqgt2bjvle5","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.733,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqherq0dwip","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/30","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.631,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqherq0dwip","to":"followup/judge-review-phase-1-distiller-impl-q0x0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.609,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqherq0dwip","to":"note:note-mqflqx78zk2","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:16:24.483Z"}

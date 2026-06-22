@@ -8,3 +8,12 @@
 {"evt":"edge_added","from":"note:note-mqpnjfo6p67","to":"note:note-mqh250aamjb","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:12:25.962Z","weight":0,"by":"autowire","judged":false,"score":0.596,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqpnjfo6p67","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:14:06.286Z","weight":1}
 {"evt":"edge_removed","from":"note:note-mqpnjfo6p67","to":"note:note-mqpna41fj59","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:14:06.286Z"}
+{"evt":"edge_promoted","from":"note:note-mqpnjfo6p67","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:14:50.707Z","weight":1}
+{"evt":"edge_removed","from":"note:note-mqpnjfo6p67","to":"note:note-mq7carej","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:15:57.652Z"}
+{"evt":"edge_promoted","from":"note:note-mqpnjfo6p67","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:17:27.879Z","weight":1}
+{"evt":"edge_removed","from":"note:note-mqpnjfo6p67","to":"note:note-mqfgcwu5yqi","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:17:33.293Z"}
+{"evt":"edge_promoted","from":"note:note-mqpnjfo6p67","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:17:47.005Z","weight":1}
+{"evt":"edge_removed","from":"note:note-mqpnjfo6p67","to":"note:note-mqjotmlck7u","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:17:50.283Z"}
+{"evt":"edge_removed","from":"note:note-mqpnjfo6p67","to":"note:note-mqh250aamjb","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:17:50.283Z"}
+{"evt":"edge_added","from":"note:note-mqpnjfo6p67","to":"note:note-mqfgcwu5yqi","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:19:24.637Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqpnjfo6p67","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:19:32.843Z","weight":1}
