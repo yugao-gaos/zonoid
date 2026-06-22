@@ -70,6 +70,20 @@ function ensureTaskSnapshot(ctx, T, key, body, fallbackSubject) {
   }
 }
 
+function graphHasKey(ctx, T, key) {
+  if (typeof ctx.buildGraph !== 'function') return false;
+  const graph = ctx.buildGraph(T.ws);
+  if (typeof ctx.nodeExistsInGraph === 'function') return ctx.nodeExistsInGraph(graph, key);
+  return !!(graph && Array.isArray(graph.tasks) && graph.tasks.some((t) => t.id === key));
+}
+
+function assignmentDependencyExists(ctx, T, key, creatingKeys) {
+  return creatingKeys.has(key)
+    || graphHasKey(ctx, T, key)
+    || !!(T.ov.snapshots && T.ov.snapshots[key])
+    || !!(T.ov.knowledge_nodes && T.ov.knowledge_nodes[key]);
+}
+
 function summaryForKey(graph, ov, key, via) {
   const t = graph && Array.isArray(graph.tasks) ? graph.tasks.find((x) => x.id === key) : null;
   return {
@@ -147,9 +161,18 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     const contextKeys = normalizeStringArray(b.context_task_keys || b.context_deps);
     const createJudge = b.create_judge === true || b.judge === true || b.judge_requested === true || !!cleanString(b.judge_task_key);
     const judgeTaskKey = createJudge ? (cleanString(b.judge_task_key) || defaultJudgeTaskKey(taskKey)) : null;
+    const creatingKeys = new Set([taskKey]);
+    if (judgeTaskKey) creatingKeys.add(judgeTaskKey);
+    const unknownDependency = parentKeys.concat(contextKeys).find((key) => !assignmentDependencyExists(ctx, T, key, creatingKeys));
+    if (unknownDependency) {
+      send(res, 404, { ok: false, error: `unknown task: ${unknownDependency}` });
+      return true;
+    }
 
     ensureTaskSnapshot(ctx, T, taskKey, b, b.subject || b.title || taskKey);
-    for (const key of parentKeys.concat(contextKeys)) ensureTaskSnapshot(ctx, T, key, {}, key);
+    for (const key of parentKeys.concat(contextKeys)) {
+      if (!creatingKeys.has(key)) ensureTaskSnapshot(ctx, T, key, {}, key);
+    }
     for (const key of parentKeys) overlayStore.addEdge(T.ov, key, taskKey, null, 'blocking', null, { origin: 'subconscious-assignment' });
     for (const key of contextKeys) overlayStore.addEdge(T.ov, key, taskKey, null, 'context', undefined, { origin: 'subconscious-assignment' });
     if (judgeTaskKey) {
