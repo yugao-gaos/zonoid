@@ -42,3 +42,7 @@
 {"evt":"edge_promoted","from":"note:note-mqitz7bosgt","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:17:04.235Z","weight":0.714,"by":"judge","judged":true,"score":0.714,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqitz7bosgt","to":"codex/judge-subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:17:04.235Z"}
 {"evt":"edge_removed","from":"note:note-mqitz7bosgt","to":"codex/judge-subconscious-permit-gate-kickback-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:17:04.235Z"}
+{"evt":"edge_removed","from":"note:note-mqitz7bosgt","to":"note:note-mqefyksc2io","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:14:05.349Z"}
+{"evt":"edge_removed","from":"note:note-mqitz7bosgt","to":"note:note-mqf9rujm41b","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:14:05.349Z"}
+{"evt":"edge_removed","from":"note:note-mqitz7bosgt","to":"note:note-mqh0t20gx45","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:14:05.349Z"}
+{"evt":"edge_removed","from":"note:note-mqitz7bosgt","to":"note:note-mqe763h3dhy","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:14:05.349Z"}
