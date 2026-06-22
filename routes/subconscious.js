@@ -47,6 +47,25 @@ function defaultJudgeTaskKey(taskKey) {
   return `${taskKey.slice(0, i + 1)}${taskKey.slice(i + 1)}-judge`;
 }
 
+function activeClaimForPermit(ov, input) {
+  if (!ov || !input) return null;
+  const sessionId = cleanString(input.session_id);
+  const taskKey = cleanString(input.task_key);
+  if (!sessionId || !taskKey) return null;
+  if (!ov.status || ov.status[taskKey] !== 'in_progress') return null;
+  const claimSession = ov.claimSessions && ov.claimSessions[taskKey];
+  if (claimSession && claimSession !== sessionId) return null;
+  const assignee = cleanString(ov.assignee && ov.assignee[taskKey]);
+  const agentId = cleanString(input.agent_id);
+  if (agentId && assignee && agentId !== assignee) return null;
+  return {
+    workspace: cleanString(input.workspace),
+    session_id: sessionId,
+    task_key: taskKey,
+    agent_id: assignee || agentId || null,
+  };
+}
+
 function ensureTaskSnapshot(ctx, T, key, body, fallbackSubject) {
   if (!isAdmissibleTaskKey(key) || key.startsWith('note:')) return;
   if (T.ov.snapshots && T.ov.snapshots[key]) return;
@@ -382,7 +401,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
 
   if (p === '/subconscious/permit' && m === 'GET') {
     const T = targetOverlay(null, u);
-    const result = store.readExecutionPermit({
+    const input = {
       workspace: T.ws || (u && u.searchParams.get('workspace')),
       permit_id: u && (u.searchParams.get('permit_id') || u.searchParams.get('id')),
       session_id: u && u.searchParams.get('session_id'),
@@ -390,7 +409,8 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       foreground_agent_id: u && u.searchParams.get('foreground_agent_id'),
       task_key: u && u.searchParams.get('task_key'),
       now: u && u.searchParams.get('now'),
-    });
+    };
+    const result = store.readExecutionPermit({ ...input, active_claim: activeClaimForPermit(T.ov, input) });
     const code = result.status || (result.ok ? 200 : 400);
     const { status, ...body } = result;
     send(res, code, body);
@@ -400,7 +420,8 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
   if (p === '/subconscious/permit' && m === 'POST') {
     const b = await readBody(req) || {};
     const T = targetOverlay(b, u);
-    const result = store.executionPermit({ ...b, workspace: T.ws || b.workspace });
+    const input = { ...b, workspace: T.ws || b.workspace };
+    const result = store.executionPermit({ ...input, active_claim: activeClaimForPermit(T.ov, input) });
     const code = result.status || (result.ok ? 200 : 400);
     const { status, ...body } = result;
     send(res, code, body);

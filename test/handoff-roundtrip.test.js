@@ -169,7 +169,14 @@ async function waitForPing(ms = 8000) {
       plan_goal: 'Verify the end-to-end handoff round-trip for structured dispatcher→worker contract.',
       sibling_tasks: [{ task_key: K(2), title: 'roundtrip metric handoff' }],
       context_deps: [{ task_key: K(1), summary: 'pre-resolved Tier-1 context for the worker' }],
-      return_contract: { version: 1, status: 'tested', summary: 'placeholder return shape' },
+      return_contract: {
+        version: 1,
+        status: 'tested',
+        summary: 'placeholder return shape',
+        files_changed: [],
+        tests_run: '',
+        decisions: [],
+      },
     };
     const envErrs = validate(envelope, SCHEMA.definitions.handoff_envelope);
     ok('dispatcher handoff_envelope validates against schema', envErrs.length === 0);
@@ -219,7 +226,7 @@ async function waitForPing(ms = 8000) {
 
     // COMPLETE: terminal write carrying the structured task_result. Accepted (the task has no metric
     // spec, so the handoff completeness gate does not fire).
-    const done1 = await req('POST', '/overlay/status', { workspace: WS, key: K(1), status: 'tested', agent_id: 'rt-worker', summary: result1.summary, task_result: result1 });
+    const done1 = await req('POST', '/overlay/status', { workspace: WS, key: K(1), status: 'tested', agent_id: 'rt-worker', session_id: SESSION, summary: result1.summary, task_result: result1 });
     ok('terminal complete_task with structured task_result accepted (200)', done1.status === 200 && done1.body.ok === true);
 
     // And the task actually landed `tested` end-to-end.
@@ -244,6 +251,8 @@ async function waitForPing(ms = 8000) {
       status: 'tested',
       summary: 'roundtrip metric complete — measured score=7',
       files_changed: ['result.txt'],
+      tests_run: 'node measure_task via daemon',
+      decisions: [],
       metric_measurements: { value: 7 },
       has_metric_spec: true,
     };

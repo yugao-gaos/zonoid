@@ -129,6 +129,117 @@ function ensureExecutionPermitForClaim(store, claim) {
   return issued && issued.ok ? issued.execution_permit : null;
 }
 
+const TASK_RESULT_ALLOWED = new Set([
+  'version',
+  'status',
+  'summary',
+  'files_changed',
+  'tests_run',
+  'decisions',
+  'metric_measurements',
+  'has_metric_spec',
+]);
+const TASK_RESULT_REQUIRED = ['version', 'status', 'summary', 'files_changed', 'tests_run', 'decisions'];
+const TASK_RESULT_STATUSES = new Set(['tested', 'failed']);
+
+function isPlainObject(value) {
+  return !!(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function validateStringArray(value, field) {
+  if (!Array.isArray(value)) return `${field} must be an array`;
+  if (value.some((item) => typeof item !== 'string')) return `${field} must contain only strings`;
+  return null;
+}
+
+function validateTaskResult(taskResult, routeStatus, hasMetricSpec) {
+  if (!isPlainObject(taskResult)) {
+    return { error: 'invalid task_result: expected object', field: 'task_result' };
+  }
+
+  const keys = Object.keys(taskResult);
+  const extra = keys.filter((key) => !TASK_RESULT_ALLOWED.has(key));
+  if (extra.length) {
+    return { error: 'invalid task_result: additional fields are not allowed', extra };
+  }
+
+  const missing = TASK_RESULT_REQUIRED.filter((key) => !Object.prototype.hasOwnProperty.call(taskResult, key));
+  if (missing.length) {
+    return { error: 'invalid task_result: missing required field(s)', missing };
+  }
+
+  if (taskResult.version !== 1) return { error: 'invalid task_result.version: expected 1', field: 'version', expected: 1, actual: taskResult.version };
+  if (!TASK_RESULT_STATUSES.has(taskResult.status)) {
+    return { error: 'invalid task_result.status: expected tested or failed', field: 'status', allowed: [...TASK_RESULT_STATUSES], actual: taskResult.status };
+  }
+  if (taskResult.status !== routeStatus) {
+    return { error: 'task_result.status must match terminal route status', field: 'status', expected: routeStatus, actual: taskResult.status };
+  }
+  if (typeof taskResult.summary !== 'string') return { error: 'invalid task_result.summary: expected string', field: 'summary' };
+  const filesErr = validateStringArray(taskResult.files_changed, 'task_result.files_changed');
+  if (filesErr) return { error: filesErr, field: 'files_changed' };
+  if (typeof taskResult.tests_run !== 'string') return { error: 'invalid task_result.tests_run: expected string', field: 'tests_run' };
+  if (!Array.isArray(taskResult.decisions)) return { error: 'invalid task_result.decisions: expected array', field: 'decisions' };
+  for (let i = 0; i < taskResult.decisions.length; i++) {
+    const decision = taskResult.decisions[i];
+    if (!isPlainObject(decision)) return { error: 'invalid task_result.decisions item: expected object', field: `decisions[${i}]` };
+    const decisionExtra = Object.keys(decision).filter((key) => key !== 'title' && key !== 'wires_to');
+    if (decisionExtra.length) return { error: 'invalid task_result.decisions item: additional fields are not allowed', field: `decisions[${i}]`, extra: decisionExtra };
+    if (typeof decision.title !== 'string') return { error: 'invalid task_result.decisions item: title required', field: `decisions[${i}].title` };
+    const wiresErr = validateStringArray(decision.wires_to, `task_result.decisions[${i}].wires_to`);
+    if (wiresErr) return { error: wiresErr, field: `decisions[${i}].wires_to` };
+  }
+  if (Object.prototype.hasOwnProperty.call(taskResult, 'has_metric_spec') && typeof taskResult.has_metric_spec !== 'boolean') {
+    return { error: 'invalid task_result.has_metric_spec: expected boolean', field: 'has_metric_spec' };
+  }
+
+  if (hasMetricSpec && !Object.prototype.hasOwnProperty.call(taskResult, 'metric_measurements')) {
+    return { error: 'invalid task_result: metric task requires task_result.metric_measurements.value', missing: 'metric_measurements' };
+  }
+  if (Object.prototype.hasOwnProperty.call(taskResult, 'metric_measurements')) {
+    const mm = taskResult.metric_measurements;
+    if (!isPlainObject(mm)) return { error: 'invalid task_result.metric_measurements: expected object', field: 'metric_measurements' };
+    const mmExtra = Object.keys(mm).filter((key) => key !== 'value' && key !== 'guardrails');
+    if (mmExtra.length) return { error: 'invalid task_result.metric_measurements: additional fields are not allowed', field: 'metric_measurements', extra: mmExtra };
+    if (typeof mm.value !== 'number' || !Number.isFinite(mm.value)) {
+      return { error: 'invalid task_result.metric_measurements.value: expected finite number', missing: 'metric_measurements.value', field: 'metric_measurements.value' };
+    }
+    if (Object.prototype.hasOwnProperty.call(mm, 'guardrails')) {
+      if (!isPlainObject(mm.guardrails)) return { error: 'invalid task_result.metric_measurements.guardrails: expected object', field: 'metric_measurements.guardrails' };
+      for (const [key, value] of Object.entries(mm.guardrails)) {
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+          return { error: 'invalid task_result.metric_measurements.guardrails: values must be finite numbers', field: `metric_measurements.guardrails.${key}` };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function validateTerminalClaimOwner(ov, body) {
+  if (!newlyReady.isTerminalStatus(body.status)) return null;
+  const key = body.key;
+  const claimSession = ov.claimSessions && ov.claimSessions[key];
+  const currentStatus = ov.status && ov.status[key];
+  if (currentStatus !== 'in_progress' && !claimSession) return null;
+
+  const sid = body.session_id ? String(body.session_id) : '';
+  if (!sid) {
+    return { error: 'claim-bound completion requires session_id for the active claim', missing: 'session_id', current: currentStatus || null };
+  }
+  if (claimSession && sid !== claimSession) {
+    return { error: 'claim-bound completion session_id does not match the active claim', field: 'session_id', expected: claimSession, actual: sid };
+  }
+
+  const owner = ov.assignee && ov.assignee[key];
+  const agentId = body.agent_id ? String(body.agent_id) : '';
+  if (owner && agentId !== owner) {
+    return { error: 'claim-bound completion agent_id does not match the active assignee', field: 'agent_id', expected: owner, actual: agentId || null };
+  }
+  return null;
+}
+
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, nodeExistsInGraph,
     embed, knowledgeText, snapshotNative, now, suggestToks, scoreNodeAgainstTokens,
@@ -299,6 +410,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         // refused — the worktree stays the security boundary that keeps the dispatcher from claiming.
         if (b.agent_id && hasWorktree) {
           ctx.touchAgent(b.agent_id, { state: 'running', agent_tool_spawn: true, session: claimSid, task_key: b.key, agent_type: b.agent_type });
+        } else if (b.agent_id && !hasWorktree) {
+          send(res, 409, { ok: false, error: 'call subconscious_assignment action:"prepare" before action:"accept" — workers must receive an isolated worktree assignment (branch_task registration required)' }); return true;
         } else {
           send(res, 409, { ok: false, error: 'dispatcher sessions cannot claim tasks — if you are a delegated worker, use subconscious_assignment action:"accept" on a prepared assignment' }); return true;
         }
@@ -309,7 +422,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         send(res, 409, { ok: false, error: 'call subconscious_assignment action:"prepare" before action:"accept" — workers must receive an isolated worktree assignment' }); return true;
       }
     } else if (newlyReady.isTerminalStatus(b.status)) {
-      claimSid = resolveClaimSid(false) || (T.ov.claimSessions && T.ov.claimSessions[b.key]) || null;
+      claimSid = b.session_id ? String(b.session_id) : null;
     }
     if (b.status === 'in_progress' && b.force) {
       // Force-claim cap: max 3 per task key. Counter persisted in overlay so daemon restarts don't reset it.
@@ -389,23 +502,19 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         }
       }
     }
-    // HANDOFF VALIDATION (T2): refuse a terminal completion whose STRUCTURED task_result is
-    // incomplete. Mirrors the metric-branch invariant 409 above — daemon-side refusal on the call
-    // the daemon already mediates, no new mechanism, no hook. GATED two ways so the legacy
-    // free-string complete_task path is never hard-broken:
-    //   (1) opt-in: only enforce when the caller actually sends a structured `task_result` object;
-    //       legacy callers send only a free-string `summary` and pass through untouched.
-    //   (2) scoped: the one invariant is metric-result completeness — a task that carries a metric
-    //       spec (T.ov.metrics[key], the has_metric_spec discriminator) MUST report
-    //       task_result.metric_measurements. Tasks with no metric spec have nothing to measure and
-    //       are not refused.
-    if (newlyReady.isTerminalStatus(b.status) && b.task_result && typeof b.task_result === 'object') {
-      if (T.ov.metrics && T.ov.metrics[b.key]) {
-        const mm = b.task_result.metric_measurements;
-        const hasMeasurements = mm != null && (Array.isArray(mm) ? mm.length > 0 : Object.keys(mm).length > 0);
-        if (!hasMeasurements) {
-          send(res, 409, { ok: false, error: 'incomplete task_result: task carries a metric spec — terminal status requires task_result.metric_measurements (run measure_task and report the value)', key: b.key, missing: 'metric_measurements' }); return true;
-        }
+    if (newlyReady.isTerminalStatus(b.status)) {
+      const claimOwnerError = validateTerminalClaimOwner(T.ov, b);
+      if (claimOwnerError) {
+        send(res, 409, { ok: false, key: b.key, ...claimOwnerError }); return true;
+      }
+    }
+    // HANDOFF VALIDATION (T2): structured task_result callers must speak the full v1 envelope.
+    // Legacy summary-only completions are still accepted so old complete_task/set_status callers do
+    // not break, but once a task_result object is supplied it is validated strictly.
+    if (newlyReady.isTerminalStatus(b.status) && b.task_result != null) {
+      const taskResultError = validateTaskResult(b.task_result, b.status, !!(T.ov.metrics && T.ov.metrics[b.key]));
+      if (taskResultError) {
+        send(res, 409, { ok: false, key: b.key, ...taskResultError }); return true;
       }
     }
     if (newlyReady.isTerminalStatus(b.status) && gitClaimMode.enabled) {
