@@ -5829,8 +5829,6 @@ async function fetchSubconsciousCloudSearch(query, signal){
     body:JSON.stringify({
       agent_id:'dashboard-graph-search',
       query,
-      intent:'surface the same Subconscious context a foreground agent would receive for this dashboard search',
-      situation:'Dashboard user is inspecting graph search results and wants to see the context that would be supplied to a live foreground agent.',
       k:CLOUD_SEARCH_FINAL_TOP_K,
       max_rounds:4,
       include_internal:true
