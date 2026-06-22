@@ -4706,9 +4706,13 @@ let cloudSearchFitKey='';
 let cloudZoom=null;
 const onboardCloudRenderState={ pos:{}, sim:null, sig:'', zoom:null, raf:null };
 const CLOUD_SEARCH_FRAME_MS=120;
-const CLOUD_SEARCH_ANIMATION_MS=6500;
+const CLOUD_SEARCH_ANIMATION_MS=9000;
 const CLOUD_SEARCH_EDGE_MIN_DELAY_MS=100;
 const CLOUD_SEARCH_EDGE_JITTER_MS=200;
+const CLOUD_SEARCH_RAG_SEED_STEP_MS=95;
+const CLOUD_SEARCH_SETTLE_HOLD_MS=700;
+const CLOUD_SEARCH_SHRINK_MS=1700;
+const CLOUD_SEARCH_SHRINK_FADE_MS=520;
 const CLOUD_SEARCH_FINAL_TOP_K=15;
 const CLOUD_SEARCH_EDGE_LIMIT=80;
 const CLOUD_SEARCH_ACTIVATION_MAX_HOPS=4;
@@ -5723,6 +5727,7 @@ function cloudEdgeKey(a,b){
   return a<b?a+'|'+b:b+'|'+a;
 }
 function buildCloudSearchTrace(items, query, startedAt=Date.now()){
+  const readyAt=Date.now();
   const hitRank=new Map(), finalKeys=new Set(), rerankedKeys=new Set(), walkEdges=new Map(), pathKeys=new Set();
   const hits=[];
   for(const item of (items||[])){
@@ -5760,7 +5765,7 @@ function buildCloudSearchTrace(items, query, startedAt=Date.now()){
   hits.sort((a,b)=>b.score-a.score);
   for(const h of hits.slice(0,CLOUD_SEARCH_FINAL_TOP_K)) finalKeys.add(h.key);
   for(const key of rerankedKeys) finalKeys.add(key);
-  return { query, startedAt, hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys };
+  return { query, startedAt, readyAt, hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys };
 }
 function scheduleCloudSearch(){
   const query=cloudSearchText.trim();
@@ -5878,10 +5883,11 @@ function renderCloud(d, opts={}){
   const trace=(cloudSearchTrace&&cloudSearchTrace.query===q)?cloudSearchTrace:null;
   const searchStartedAt=trace?.startedAt||cloudSearchStartedAt||Date.now();
   const searchElapsedMs=q?Math.max(0,Date.now()-searchStartedAt):0;
+  const traceReadyElapsedMs=trace?Math.max(0,(trace.readyAt||trace.startedAt||Date.now())-searchStartedAt):0;
   let searchPhase=trace?'hits':(q?'pending':'idle');
   let searchActivationMaxMs=0;
   let activeNodeHops=new Map(), activeEdgeHops=new Map(), finalNodeKeys=new Set(), finalRelatedKeys=new Set();
-  let activeNodeTimes=new Map(), activeEdgeTimes=new Map();
+  let activeNodeTimes=new Map(), activeEdgeTimes=new Map(), nodeReleaseTimes=new Map(), edgeReleaseTimes=new Map();
   const localMatch=n=>n.t&&((n.t.label||'').toLowerCase().includes(q)||(n.t.description||'').toLowerCase().includes(q));
   const localSeedMatch=n=>q&&!n.archive&&localMatch(n);
   const remoteMatch=n=>remoteFresh&&cloudSearchKeys.has(n.id);
@@ -5895,7 +5901,10 @@ function renderCloud(d, opts={}){
     if(!q) return true;
     if(!n||n.archive) return false;
     const activationAt=activeNodeTimes.get(n.id);
-    return activationAt!==undefined&&searchElapsedMs>=activationAt;
+    if(activationAt===undefined||searchElapsedMs<activationAt) return false;
+    if(finalNodeKeys.has(n.id)||fallbackFinalNodeKeys.has(n.id)) return true;
+    const releaseAt=nodeReleaseTimes.get(n.id);
+    return releaseAt===undefined||searchElapsedMs<releaseAt;
   };
   const searchNodeVisible=n=>searchNodeActive(n);
   const activatedSearch=n=>{
@@ -6050,17 +6059,23 @@ function renderCloud(d, opts={}){
   const activationEdgeMeta=new Map();
   let linkCmp=(a,b)=>String((a&&a.key)||'').localeCompare(String((b&&b.key)||''));
   const activationDelayMs=key=>CLOUD_SEARCH_EDGE_MIN_DELAY_MS+Math.round(cloudHashUnit(key,'search-activation-delay')*CLOUD_SEARCH_EDGE_JITTER_MS);
+  const traceRankOf=id=>trace?.hitRank.has(id)?trace.hitRank.get(id):9999;
   if(q){
     const seedKeys=simNodes
       .filter(n=>!n.archive&&(localSeedMatch(n)||remoteMatch(n)||traceHit(n)))
       .sort((a,b)=>{
-        const ar=trace?.hitRank.get(a.id)??(localSeedMatch(a)?-1:9999);
-        const br=trace?.hitRank.get(b.id)??(localSeedMatch(b)?-1:9999);
+        const ar=traceRankOf(a.id)==9999?(localSeedMatch(a)?-1:9999):traceRankOf(a.id);
+        const br=traceRankOf(b.id)==9999?(localSeedMatch(b)?-1:9999):traceRankOf(b.id);
         return ar-br||a.id.localeCompare(b.id);
       })
       .map(n=>n.id);
     for(const id of seedKeys){
-      const activationAt=0;
+      const n=byNode[id];
+      const localSeed=localSeedMatch(n);
+      const ragSeed=trace&&traceHit(n)&&!localSeed;
+      const ragOffset=ragSeed?traceReadyElapsedMs+Math.min(24,traceRankOf(id))*CLOUD_SEARCH_RAG_SEED_STEP_MS:0;
+      const seedJitter=Math.round(cloudHashUnit(id,'search-seed-delay')*(localSeed?220:180));
+      const activationAt=ragOffset+seedJitter;
       activeNodeHops.set(id,0);
       activeNodeTimes.set(id,activationAt);
       searchActivationMaxMs=Math.max(searchActivationMaxMs,activationAt);
@@ -6069,7 +6084,7 @@ function renderCloud(d, opts={}){
       const sourceId=endId(l.source), targetId=endId(l.target);
       return { link:l, key:edgeKey(l), sourceId, targetId, walkIndex:traceWalkIndex(l) };
     }).filter(m=>byNode[m.sourceId]&&byNode[m.targetId]&&!byNode[m.sourceId].archive&&!byNode[m.targetId].archive);
-    const nodeRank=id=>trace?.hitRank.has(id)?trace.hitRank.get(id):(localSeedMatch(byNode[id])?-1:9999);
+    const nodeRank=id=>traceRankOf(id)!==9999?traceRankOf(id):(localSeedMatch(byNode[id])?-1:9999);
     const nodeBoost=id=>((trace?.finalKeys.has(id)||localSeedMatch(byNode[id]))?-30:0)+(trace?.rerankedKeys.has(id)?-20:0)+(trace?.pathKeys?.has(id)?-10:0);
     const linkPriority=m=>[
       m.walkIndex===undefined?1:0,
@@ -6141,20 +6156,43 @@ function renderCloud(d, opts={}){
       perFinal.set(meta.targetId,targetUsed+1);
       finalRelatedKeys.add(meta.key);
     }
+    const shrinkStartMs=searchActivationMaxMs+CLOUD_SEARCH_SETTLE_HOLD_MS;
+    const shrinkEndMs=shrinkStartMs+CLOUD_SEARCH_SHRINK_MS;
+    const nodeLatestRelease=new Map();
+    for(const [key] of activeEdgeTimes){
+      if(finalRelatedKeys.has(key)) continue;
+      const releaseAt=shrinkStartMs+Math.round(cloudHashUnit(key,'search-edge-shrink')*CLOUD_SEARCH_SHRINK_MS);
+      edgeReleaseTimes.set(key,releaseAt);
+      const meta=activationEdgeMeta.get(key);
+      if(meta){
+        nodeLatestRelease.set(meta.sourceId,Math.max(nodeLatestRelease.get(meta.sourceId)||0,releaseAt));
+        nodeLatestRelease.set(meta.targetId,Math.max(nodeLatestRelease.get(meta.targetId)||0,releaseAt));
+      }
+    }
+    for(const [id] of activeNodeTimes){
+      if(finalNodeKeys.has(id)) continue;
+      const fallbackRelease=shrinkStartMs+Math.round(cloudHashUnit(id,'search-node-shrink')*CLOUD_SEARCH_SHRINK_MS);
+      const releaseAt=Math.min(shrinkEndMs,Math.max(fallbackRelease,nodeLatestRelease.get(id)||0)+Math.round(cloudHashUnit(id,'search-node-trail')*160));
+      nodeReleaseTimes.set(id,releaseAt);
+    }
     if(!trace){
       searchPhase='pending';
-    } else if(searchElapsedMs<360){
+    } else if(searchElapsedMs<traceReadyElapsedMs+360){
       searchPhase='hits';
-    } else if(searchElapsedMs<searchActivationMaxMs+240){
+    } else if(searchElapsedMs<shrinkStartMs){
       searchPhase='activate';
+    } else if(searchElapsedMs<shrinkEndMs){
+      searchPhase='shrink';
     } else {
       searchPhase='final';
     }
     for(const [key,activationAt] of activeEdgeTimes){
       if(searchElapsedMs<activationAt) continue;
+      const releaseAt=edgeReleaseTimes.get(key);
+      const released=releaseAt!==undefined&&searchElapsedMs>=releaseAt;
       if(searchPhase==='final'){
         if(finalRelatedKeys.has(key)) stagedRelatedKeys.add(key);
-      } else {
+      } else if(finalRelatedKeys.has(key)||!released){
         stagedRelatedKeys.add(key);
       }
     }
@@ -6189,6 +6227,15 @@ function renderCloud(d, opts={}){
   const searchEdgeFallback=l=>fallbackFinalEdgeKeys.has(edgeKey(l))&&edgeEndpointsActive(l);
   const searchEdgeRelated=l=>stagedRelatedKeys.has(edgeKey(l))&&edgeEndpointsActive(l);
   const searchEdgeWalk=l=>traceWalkIndex(l)!==undefined&&edgeEndpointsActive(l)&&(searchEdgeRelated(l)||searchEdgeFinal(l)||searchEdgeFallback(l));
+  const searchEdgeFade=l=>{
+    const key=edgeKey(l);
+    if(finalRelatedKeys.has(key)||fallbackFinalEdgeKeys.has(key)) return 1;
+    const releaseAt=edgeReleaseTimes.get(key);
+    if(releaseAt===undefined) return 1;
+    const fadeStart=releaseAt-CLOUD_SEARCH_SHRINK_FADE_MS;
+    if(searchElapsedMs<=fadeStart) return 1;
+    return Math.max(0.08,Math.min(1,(releaseAt-searchElapsedMs)/CLOUD_SEARCH_SHRINK_FADE_MS));
+  };
   const renderedLinks=q?simLinks.filter(l=>searchEdgeRelated(l)||searchEdgeFinal(l)||searchEdgeFallback(l)):simLinks;
   const linkOpacity=l=>{
     const a=tierOfId(endId(l.source)), b=tierOfId(endId(l.target));
@@ -6201,10 +6248,11 @@ function renderCloud(d, opts={}){
     if(usePointCloud) o*=0.56+((depthAvg+1)/2)*0.44;
     o*=0.72+((depthAvg+1)/2)*0.28;
     if(q){
-      if(searchEdgeWalk(l)) return Math.max(0.72,o);
+      const fade=searchEdgeFade(l);
+      if(searchEdgeWalk(l)) return Math.max(0.08,Math.max(0.72,o)*fade);
       if(searchEdgeFinal(l)) return Math.max(0.58,o);
       if(searchEdgeFallback(l)) return Math.max(0.42,o);
-      if(searchEdgeRelated(l)) return Math.max(0.36,o);
+      if(searchEdgeRelated(l)) return Math.max(0.08,Math.max(0.36,o)*fade);
       return 0.018;
     }
     return o;
@@ -6225,11 +6273,11 @@ function renderCloud(d, opts={}){
     }
     else if(q&&trace){
       const reranked=trace.rerankedKeys.size;
-      const shownEdges=searchPhase==='final'?(finalRelatedKeys.size||fallbackFinalEdgeKeys.size):(searchPhase==='activate'?stagedRelatedKeys.size:0);
+      const shownEdges=searchPhase==='final'?(finalRelatedKeys.size||fallbackFinalEdgeKeys.size):((searchPhase==='activate'||searchPhase==='shrink')?stagedRelatedKeys.size:0);
       const traceParts=['RAG '+trace.hitRank.size];
       if(searchPhase==='hits') traceParts.push('nodes');
       else {
-        const edgeLabel=searchPhase==='final'?'final edges ':'edges ';
+        const edgeLabel=searchPhase==='final'?'final edges ':(searchPhase==='shrink'?'shrinking edges ':'edges ');
         traceParts.push(edgeLabel+shownEdges+(totalRelatedEdges&&shownEdges!==totalRelatedEdges?('/'+totalRelatedEdges):''));
       }
       if(searchFinalized&&trace.walkEdges.size) traceParts.push('path walk '+trace.walkEdges.size);
