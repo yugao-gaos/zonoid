@@ -2,3 +2,9 @@
 {"evt":"edge_added","from":"note:note-mqp57q6latn","to":"note:note-mqp4z1dp55o","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:39:25.454Z","weight":0,"by":"autowire","judged":false,"score":0.765,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp57q6latn","to":"note:note-mq7hef63bam","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:39:25.454Z","weight":0,"by":"autowire","judged":false,"score":0.563,"origin":"autowire-semantic"}
 {"evt":"summary_set","id":"note:note-mqp57q6latn","workspace":"/Users/imyu/Desktop/zonoid","summary":"The learn script defaults to a 600000 ms timeout. That caps ingestion/warmup work at 10 minutes, so long-running runs will be terminated rather than left hanging.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
+{"evt":"note_supersedes","id":"note-mqp57q6latn","supersedes":"note-mqp4z1dp55o","ts":"2026-06-22T11:39:23.853Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mqp57q6latn","to":"note:note-mqp4z1dp55o","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:52:19.305Z"}
+{"evt":"note_supersedes","id":"note-mqp57q6latn","supersedes":"note-mqp4z1dp55o","ts":"2026-06-22T11:39:23.853Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mqp57q6latn","to":"note:note-mq7hef63bam","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:40:15.925Z"}
+{"evt":"edge_added","from":"note:note-mqp57q6latn","to":"note:note-mqp4z1dp55o","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.765,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqp57q6latn","to":"note:note-mq7hef63bam","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.563,"origin":"autowire-semantic"}

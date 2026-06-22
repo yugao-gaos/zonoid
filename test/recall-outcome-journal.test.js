@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Tests that the recall→outcome attribution seam works end-to-end:
 //
-//   1. A /search?task_key= call writes a 'pending' row to recall-outcome-journal.jsonl
-//      capturing which note keys were in the assembled context bundle.
+//   1. A /search?task_key= call queues async telemetry that writes a 'pending' row to
+//      recall-outcome-journal.jsonl capturing which note keys were in the assembled context bundle.
 //   2. A terminal status write (POST /overlay/status with done/tested/failed/canceled)
 //      appends a resolved outcome row joining by task_key.
 //   3. Readers (readRows / latestByTask) parse the rows correctly.
@@ -91,6 +91,16 @@ function readJournal(file) {
     .filter((l) => l.trim())
     .map((l) => { try { return JSON.parse(l); } catch { return null; } })
     .filter(Boolean);
+}
+
+async function waitForJournal(file, predicate, ms = 2000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    const rows = readJournal(file);
+    if (predicate(rows)) return rows;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  return readJournal(file);
 }
 
 // Load the pure-reader module directly (no daemon needed for unit tests).
@@ -195,13 +205,15 @@ function dropStub(harness, id) {
     dropStub('recall', 'journal-1');
     await post('/sync', { workspace: WS });
 
-    // ── 1. /search?task_key= writes a pending recall row ─────────────────────
+    // ── 1. /search?task_key= queues a pending recall row ─────────────────────
     const beforeSearch = readJournal(JOURNAL).length;
     const searchPath = `/search?q=${encodeURIComponent('journal attribution test note')}&task_key=${encodeURIComponent(TASK_KEY)}&workspace=${encodeURIComponent(WS)}`;
     const sr = await get(searchPath);
     ok('search with task_key: HTTP 200', sr.status === 200);
 
-    const afterSearch = readJournal(JOURNAL);
+    const afterSearch = await waitForJournal(JOURNAL, (rows) =>
+      rows.length > beforeSearch && rows.some((r) => r.task_key === TASK_KEY && r.outcome === 'pending')
+    );
     ok('search: recall journal created', fs.existsSync(JOURNAL));
     ok('search: at least one new row appended', afterSearch.length > beforeSearch);
 
