@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/ensure-managed-subconscious-loop-owner",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-main-managed-subconscious-loop-owner",
+  "branch": "orch/attempt/codex-ensure-managed-subconscious-loop-owner",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T01:29:21.893Z",
+  "lease_until": "2026-06-22T02:29:21.893Z"
+}
