@@ -81,10 +81,10 @@
       "properties": {
         "version": { "const": 1 },
         "kind": { "const": "subconscious_agentic_search_context" },
-        "task_key": { "type": ["string", "null"] },
+        "task_key": { "type": "string" },
         "query": { "type": "string" },
         "verdict": { "type": "string" },
-        "prediction": { "type": ["string", "null"] },
+        "prediction": { "type": "string" },
         "confidence": { "type": "number" },
         "search_steps": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
         "context_task_keys": { "type": "array", "items": { "type": "string" } },
