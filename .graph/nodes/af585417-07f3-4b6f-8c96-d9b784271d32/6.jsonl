@@ -34,3 +34,4 @@
 {"evt":"edge_promoted","from":"af585417-07f3-4b6f-8c96-d9b784271d32/6","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:51:22.042Z","weight":0.6,"origin":"asserted"}
 {"evt":"edge_promoted","from":"af585417-07f3-4b6f-8c96-d9b784271d32/6","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:51:30.536Z","weight":0.6,"origin":"asserted"}
 {"evt":"edge_promoted","from":"af585417-07f3-4b6f-8c96-d9b784271d32/6","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:52:53.726Z","weight":0.6,"origin":"asserted"}
+{"evt":"timestamps_set","id":"af585417-07f3-4b6f-8c96-d9b784271d32/6","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-11T03:27:49.277Z","lastChanged":"2026-06-22T14:06:13.723Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-22T14:06:13.833Z"}
