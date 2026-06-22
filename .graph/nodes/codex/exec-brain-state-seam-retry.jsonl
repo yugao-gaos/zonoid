@@ -20,3 +20,4 @@
 {"evt":"timestamps_set","id":"codex/exec-brain-state-seam-retry","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-18T20:24:10.184Z","lastChanged":"2026-06-18T23:34:28.884Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-18T23:34:29.066Z"}
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam-retry","to":"codex/judge-exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:17:24.565Z"}
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam-retry","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:19:23.325Z"}
+{"evt":"edge_added","from":"codex/exec-brain-state-seam-retry","to":"codex/exec-brain-state-seam-retry-judge","kind":"blocking","actor":"overlay-sync","ts":"2026-06-22T14:08:02.931Z","origin":"subconscious-assignment"}
