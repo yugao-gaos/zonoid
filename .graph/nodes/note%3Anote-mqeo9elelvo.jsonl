@@ -18,3 +18,4 @@
 {"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqatewqwmt8","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:01:16.624Z"}
 {"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:01:16.624Z"}
 {"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqb975duzqu","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:01:16.624Z"}
+{"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:33:36.175Z"}

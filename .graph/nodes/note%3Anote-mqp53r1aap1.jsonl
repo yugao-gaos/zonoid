@@ -6,3 +6,5 @@
 {"evt":"summary_set","id":"note:note-mqp53r1aap1","workspace":"/Users/imyu/Desktop/zonoid","summary":"Direct context lookups are capped at 50 items. This keeps the task-context builder from flooding downstream consumers with an unbounded number of matches.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp53r1aap1","to":"knowledge:source_chunk:chunk-agents-md-5-2-do-not-store-task-specific-context-or-ep-45d2dfd2f0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
 {"evt":"edge_removed","from":"note:note-mqp53r1aap1","to":"knowledge:source_chunk:chunk-claude-md-5-2-do-not-store-task-specific-context-or-ep-1f62e96bb0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
+{"evt":"edge_removed","from":"note:note-mqp53r1aap1","to":"note:note-mq75a81j","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:34.410Z"}
+{"evt":"edge_removed","from":"note:note-mqp53r1aap1","to":"note:note-mqelk8e5ths","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:34.410Z"}
