@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "review-worker-assignment-lifecycle",
   "branch": "orch/attempt/codex-review-subconscious-assignment-lifecycle",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T02:13:09.571Z",
-  "lease_until": "2026-06-22T03:13:09.571Z"
+  "lease_until": "2026-06-22T03:13:09.571Z",
+  "completed_at": "2026-06-22T02:19:06.360Z"
 }
