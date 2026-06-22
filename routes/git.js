@@ -68,7 +68,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
     const result = git.mergeBranch(repo, b.key, { message: b.message });
     if (result.merged) {
-      overlayStore.setGit(T.ov, b.key, { merged: true, merge_sha: result.head || null, merged_at: now() });
+      const mergedAt = now();
+      overlayStore.setGit(T.ov, b.key, { merged: true, merge_sha: result.head || null, merged_at: mergedAt });
+      overlayStore.setReviewLifecycle(T.ov, b.key, { merge_state: 'merged', merge_sha: result.head || null, merged_at: mergedAt });
+      T.save();
+    } else if (result.conflict) {
+      overlayStore.setReviewLifecycle(T.ov, b.key, { merge_state: 'conflict' });
+      T.save();
+    } else if (result.error || result.reason) {
+      overlayStore.setReviewLifecycle(T.ov, b.key, { merge_state: 'failed' });
       T.save();
     }
     notifyChange();
