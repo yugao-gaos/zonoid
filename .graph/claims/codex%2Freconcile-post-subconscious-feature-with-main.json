@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-reconcile-post-subconscious-main-session",
   "branch": "orch/attempt/codex-reconcile-post-subconscious-feature-with-main",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T08:16:53.383Z",
-  "lease_until": "2026-06-22T09:16:53.383Z"
+  "lease_until": "2026-06-22T09:16:53.383Z",
+  "completed_at": "2026-06-22T08:22:52.363Z"
 }
