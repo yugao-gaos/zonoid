@@ -819,6 +819,9 @@ test('subconscious search-context returns filtered multi-step DAG and RAG envelo
   assert.equal(res.status, 200);
   assert.equal(res.body.ok, true);
   assert.equal(res.body.subconscious_context.kind, 'subconscious_agentic_search_context');
+  assert.equal(res.body.human_summary, res.body.subconscious_context.human_summary);
+  assert.match(res.body.subconscious_context.human_summary, /Subconscious selected \d+ context item/);
+  assert.match(res.body.subconscious_context.human_summary, /foreground agent/);
   const modes = res.body.subconscious_context.search_steps.map((step) => step.mode);
   assert.equal(modes[0], 'dag_task_gated');
   assert(modes.length >= 1 && modes.length <= 4);
@@ -1014,6 +1017,8 @@ test('subconscious search-context abstains when evidence quality is insufficient
   assert.deepEqual(res.body.subconscious_context.context_task_keys, []);
   assert.deepEqual(res.body.subconscious_context.context_deps, []);
   assert.deepEqual(res.body.subconscious_context.context, []);
+  assert.match(res.body.subconscious_context.human_summary, /did not select foreground-agent context/);
+  assert.match(res.body.subconscious_context.human_summary, /Verdict: abstain no context/);
   assert(res.body.subconscious_context.decisions.stop_reason);
   assert(res.body.subconscious_context.confidence < 0.42);
 });

@@ -5837,7 +5837,8 @@ async function fetchSubconsciousCloudSearch(query, signal){
   });
   const data=await res.json();
   if(!res.ok||!data||data.ok===false) throw new Error((data&&data.error)||('HTTP '+res.status));
-  return { items:cloudItemsFromSubconscious(data), context:data.subconscious_context||null };
+  const context=data.subconscious_context?{...data.subconscious_context, human_summary:data.subconscious_context.human_summary||data.human_summary||''}:null;
+  return { items:cloudItemsFromSubconscious(data), context };
 }
 function scheduleCloudSearch(){
   const query=cloudSearchText.trim();
@@ -6411,9 +6412,10 @@ function renderCloud(d, opts={}){
           stop?`Stopped because ${stop}.`:'',
           filtered?`${filtered} low-value candidates were filtered out.`:''
         ].filter(Boolean).join(' ');
+        const summaryBrief=(searchContext&&searchContext.human_summary)||brief;
         summaryEl.innerHTML =
           `<div class="cloud-search-summary-title"><span>Search context</span><span class="cloud-search-summary-meta">0 selected</span></div>`+
-          `<div class="cloud-search-summary-brief">${esc(brief)}</div>`;
+          `<div class="cloud-search-summary-brief">${esc(summaryBrief)}</div>`;
         summaryEl.classList.add('show');
       } else if(summaryNodes.length){
         const countPairs=(fn,limit=4)=>{
@@ -6463,6 +6465,7 @@ function renderCloud(d, opts={}){
           `${statusText}. ${kindText}.`,
           searchContext&&filtered?`${filtered} lower-value candidates were filtered out before this context was surfaced.`:''
         ].filter(Boolean).join(' ');
+        const displaySummaryBrief=(searchContext&&searchContext.human_summary)||summaryBrief;
         const itemRows=summaryNodes.slice(0,5).map(n=>{
           const meta=trace?.itemMeta?.get(n.id)||{};
           const ds=taskDisplayStatus(n.t,byId);
@@ -6475,7 +6478,7 @@ function renderCloud(d, opts={}){
         }).join('');
         summaryEl.innerHTML =
           `<div class="cloud-search-summary-title"><span>Search context</span><span class="cloud-search-summary-meta">${summaryNodes.length} selected</span></div>`+
-          `<div class="cloud-search-summary-brief">${esc(summaryBrief)}</div>`+
+          `<div class="cloud-search-summary-brief">${esc(displaySummaryBrief)}</div>`+
           `<div class="cloud-search-summary-line">${esc([statusLine,kindLine].filter(Boolean).join(' · '))}</div>`+
           `<div class="cloud-search-summary-items">${itemRows}</div>`;
         summaryEl.classList.add('show');
