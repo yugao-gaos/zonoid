@@ -131,9 +131,8 @@ async function waitForPing(ms = 8000) {
   // (which keys off git.currentBranch of the claim workspace) cannot confound the self-register-on-
   // claim assertion — that arm has its own dedicated coverage in metric-branch-claim.test.js.
   fs.writeFileSync(path.join(TASKS_DIR, '1.json'), JSON.stringify({ id: '1', subject: 'roundtrip handoff', status: 'pending' }));
-  // Task 2: a METRIC-carrying task used only for the terminal handoff-gate + metric-conditional legs
-  // of the contract (no claim needed — the gate fires on the terminal /overlay/status write).
-  fs.writeFileSync(path.join(TASKS_DIR, '2.json'), JSON.stringify({ id: '2', subject: 'roundtrip metric handoff', status: 'pending' }));
+  // Task 2 is created after the live claim leg below. Keeping the metric sibling out of the
+  // initial adoption pass avoids unrelated eager-autowire judging from blocking this claim test.
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
@@ -143,8 +142,7 @@ async function waitForPing(ms = 8000) {
     ok('daemon came up', await waitForPing());
     ok('workspace pinned', (await req('POST', '/workspace', { path: WS })).status === 200);
     await req('GET', '/state');
-    ok('roots declared', (await req('POST', '/mark-root', { workspace: WS, task_key: K(1) })).status === 200 && (await req('POST', '/mark-root', { workspace: WS, task_key: K(2) })).status === 200);
-    ok('metric spec set on task 2', (await req('POST', '/task/metric', { workspace: WS, key: K(2), spec: METRIC })).status === 200);
+    ok('root declared for claim task', (await req('POST', '/mark-root', { workspace: WS, task_key: K(1) })).status === 200);
 
     // =================================================================================================
     // LEG A — full live round-trip on the NON-metric task 1:
@@ -239,6 +237,11 @@ async function waitForPing(ms = 8000) {
     // terminal handoff gate. The gate fires on the terminal /overlay/status write and does not depend
     // on the claim workspace, so no claim is needed here.
     // =================================================================================================
+
+    fs.writeFileSync(path.join(TASKS_DIR, '2.json'), JSON.stringify({ id: '2', subject: 'roundtrip metric handoff', status: 'pending' }));
+    await req('GET', '/state');
+    ok('root declared for metric task', (await req('POST', '/mark-root', { workspace: WS, task_key: K(2) })).status === 200);
+    ok('metric spec set on task 2', (await req('POST', '/task/metric', { workspace: WS, key: K(2), spec: METRIC })).status === 200);
 
     // MEASURE: run the configured measure_command (echo 7) via measure_task.
     const meas = await req('POST', '/task/measure', { workspace: WS, key: K(2) });
