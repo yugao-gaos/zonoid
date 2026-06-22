@@ -2020,39 +2020,70 @@ function taskTokens(key, session, dedicated, st = state) {
   return ru && typeof ru.total === 'number' ? ru.total : null;
 }
 
-// Build the graph for one workspace: its task nodes + any ghost stubs they reference.
-function buildGraph(ws) {
-  if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], [], overlayStore.EMPTY()) };
-  // P3: every workspace's overlay is the per-workspace cache entry (overlayFor) — there is no
-  // special "current" workspace. The cache entry is the authoritative, write-coalesced in-memory
-  // store for ANY workspace, so the lifecycle mutations below (timestamp stamping, adoption, birth
-  // ingest) run for every valid ws — `own` is simply "we have a real, writable overlay".
-  const own = true;
-  const ovWs = overlayFor(ws);
+function reconcileGraphBeforeProjection(ws, ovWs) {
   // Release dead/abandoned claims BEFORE reading native, busting the aggregate cache so a reverted
   // native status is reflected in this same build (not one poll later). Sweeps the TARGET
   // workspace's overlay, so stale claims release wherever the read lands.
-  if (sweepStaleClaims(ws, ovWs)) { cache.agg.delete(ws); cache.aggAt.delete(ws); }
+  const invalidate = () => { cache.agg.delete(ws); cache.aggAt.delete(ws); };
+  if (sweepStaleClaims(ws, ovWs)) invalidate();
   let native = aggregateCached(ws);
   if (sweepStaleNativeClaims(ws, ovWs, native)) {
-    cache.agg.delete(ws); cache.aggAt.delete(ws);
+    invalidate();
     native = aggregateCached(ws);
   }
   const nativeByKey = Object.fromEntries(native.map((t) => [t.key, t]));
   const repairedReverseJudgeEdges = overlayStore.pruneReversePairedJudgeBlockingEdges(ovWs, { tasks: nativeByKey });
+  return { native, effects: {
+    tsDirty: false,
+    edgesDirty: repairedReverseJudgeEdges > 0,
+    adoptDirty: false,
+    newlySeen: [],
+    newlyAdoptedSet: new Set(),
+    newlyAdopted: [],
+  } };
+}
+
+function commitGraphProjectionEffects(ws, ovWs, effects) {
+  // A node was first seen THIS build ⇒ bump the graph-change epoch so the edge-judge re-pulls notes
+  // whose neighborhood may now have a new candidate (judgedAtEpoch < epoch becomes true again). One
+  // bump per build that saw new nodes — cheap, monotonic, persisted with the overlay below. (Lexical
+  // task->task autowire was removed: it had no agent in its lifecycle, was never judged, and seeded
+  // weight-0 edges that stayed permanently invisible — suggest_links + the adoption nudge cover
+  // task->task wiring with agent judgment.)
+  if (effects.newlySeen.length) {
+    overlayStore.bumpEpoch(ovWs);
+    effects.edgesDirty = true;
+  }
+  if (effects.tsDirty || effects.edgesDirty || effects.adoptDirty) {
+    overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange();
+  }
+  // INGEST-AT-BIRTH (BUILD1): native tasks adopted THIS build pass through the unified ingestNode funnel
+  // (embed → setTaskVec → autowire → markEagerJudge) so they carry a vec + candidate edges + an eager mark
+  // BEFORE they can reach `ready`/dispatch. Fire-and-forget so buildGraph stays synchronous.
+  if (effects.newlyAdopted.length) {
+    (async () => {
+      for (const n of effects.newlyAdopted) {
+        try {
+          const r = await ingestNode(ovWs, buildGraph(ws), n.key, { title: n.title, summary: n.summary }, ws);
+          // If ingest found no edges to seed (embed disabled, isolated node, etc.), the ADOPT-HOLD
+          // judgingSince stamp we set synchronously above would keep the node in not_ready forever.
+          // Clear it so the node can progress to ready without waiting for a judge that will never come.
+          if (r.seeded === 0) { overlayStore.clearJudgingSince(ovWs, n.key); }
+          if (r.vec || r.seeded === 0) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(); }
+        } catch { /* best-effort birth ingest */ }
+      }
+    })();
+  }
+}
+
+function projectGraphFromNative(ws, ovWs, native, effects) {
   const R = makeResolver();
   const ghostMap = {}; // "ws|key" -> ghost stub
   const sessionCount = {}; for (const t of native) sessionCount[t.session] = (sessionCount[t.session] || 0) + 1;
   const stWs = { ...state, overlay: ovWs };   // taskTokens reads assignee from the target overlay
 
-  // Stamp lifecycle timestamps in the target workspace's (writable, cached) overlay.
-  // firstSeen: set once, never overwritten. lastChanged: set on first sight + whenever the
-  // effective status changes. lastStatus tracks the value used to detect changes. Not backfilled.
-  let tsDirty = false, adoptDirty = false;
-  const newlySeen = []; // task keys first seen THIS build — candidates for one-shot auto-wiring
-  const newlyAdopted = []; // {key,title,summary} of native tasks adopted THIS build — ingested at BIRTH below
-  const newlyAdoptedSet = new Set(); // keys adopted THIS build — used below to hold status at not_ready
-
+  // Preserve the old buildGraph order: first-sight/adoption/unwired stamps happen before each node's
+  // visible projection is computed; the commit phase only persists and schedules follow-on ingest.
   const tasks = native.map((t) => {
     const refs = R.depRefs(ws, t.key);
     const deps = [];          // blocking deps (gate readiness + drive layout)
@@ -2070,28 +2101,28 @@ function buildGraph(ws) {
     }
     const status = R.effective(ws, t.key);
     let ts = ovWs.timestamps[t.key] || null;   // read+stamp the target workspace's (writable) overlay
-    if (own) {
-      if (!ts) {
-        ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; ovWs.timestamps[t.key] = ts; tsDirty = true; newlySeen.push(t.key);
-        if (adoptNativeTask(ovWs, t.key, ws)) {
-          adoptDirty = true; newlyAdopted.push({ key: t.key, title: t.label, summary: ovWs.summaries[t.key] || '' });
-          // ADOPT-HOLD: stamp judgingSince synchronously so the judging→ready gate fires on THIS build's
-          // projection (status already computed by R.effective before we knew the node was newly adopted,
-          // so we override status/judging below for keys in newlyAdoptedSet). Without this, the async
-          // ingestNode path stamped the mark too late — the node reached ready/dispatch unjudged.
-          overlayStore.markEagerJudge(ovWs, t.key);
-          newlyAdoptedSet.add(t.key);
-        }
-        // Unwired quarantine: a task FIRST SEEN with no edges in either direction is stamped
-        // unwired — /overlay/status refuses an in_progress claim until the creator wires it
-        // (add_dependency clears the flag) or declares it a root (POST /mark-root). Tasks that
-        // existed before this feature already carry firstSeen and are NEVER stamped (back-compat).
-        if (!deps.length && !context_deps.length && !ovWs.edges.some((e) => e.from === t.key || e.to === t.key)) {
-          if (!ovWs.unwired) ovWs.unwired = {};
-          ovWs.unwired[t.key] = true;
-        }
+    if (!ts) {
+      ts = { firstSeen: now(), lastChanged: now(), lastStatus: status }; ovWs.timestamps[t.key] = ts; effects.tsDirty = true; effects.newlySeen.push(t.key);
+      if (adoptNativeTask(ovWs, t.key, ws)) {
+        effects.adoptDirty = true; effects.newlyAdopted.push({ key: t.key, title: t.label, summary: ovWs.summaries[t.key] || '' });
+        // ADOPT-HOLD: stamp judgingSince synchronously so the judging→ready gate fires on THIS build's
+        // projection (status already computed by R.effective before we knew the node was newly adopted,
+        // so we override status/judging below for keys in newlyAdoptedSet). Without this, the async
+        // ingestNode path stamped the mark too late — the node reached ready/dispatch unjudged.
+        overlayStore.markEagerJudge(ovWs, t.key);
+        effects.newlyAdoptedSet.add(t.key);
       }
-      else if (ts.lastStatus !== status) { ts.lastChanged = now(); ts.lastStatus = status; tsDirty = true; }
+      // Unwired quarantine: a task FIRST SEEN with no edges in either direction is stamped
+      // unwired — /overlay/status refuses an in_progress claim until the creator wires it
+      // (add_dependency clears the flag) or declares it a root (POST /mark-root). Tasks that
+      // existed before this feature already carry firstSeen and are NEVER stamped (back-compat).
+      if (!deps.length && !context_deps.length && !ovWs.edges.some((e) => e.from === t.key || e.to === t.key)) {
+        if (!ovWs.unwired) ovWs.unwired = {};
+        ovWs.unwired[t.key] = true;
+      }
+    }
+    else if (ts.lastStatus !== status) {
+      ts.lastChanged = now(); ts.lastStatus = status; effects.tsDirty = true;
     }
     const _rc = ovWs.retryConfig && ovWs.retryConfig[t.key];
     // JUDGING→READY gate (task D): expose the judging phase so the dashboard / next_action can show
@@ -2104,7 +2135,7 @@ function buildGraph(ws) {
     // show judging:true so this build's projection is consistent with the persist (which carries the
     // judgingSince stamp). The hold expires when the async ingest either seeds edges (which the normal
     // judgingState gate will then manage) or finds nothing to seed (which clears judgingSince).
-    const _adoptHold = newlyAdoptedSet.has(t.key) && status === 'ready';
+    const _adoptHold = effects.newlyAdoptedSet.has(t.key) && status === 'ready';
     const _status = (_adoptHold || (_js.judging && !_js.timedOut && status === 'ready')) ? 'not_ready' : status;
     const _judging = _adoptHold || (_js.judging && !_js.timedOut);
     const taskVecNode = embeddingStore.taskNode(ovWs, t.key);
@@ -2173,39 +2204,21 @@ function buildGraph(ws) {
       updated_at: n.updated_at || null,
     });
   }
-  // A node was first seen THIS build ⇒ bump the graph-change epoch so the edge-judge re-pulls notes
-  // whose neighborhood may now have a new candidate (judgedAtEpoch < epoch becomes true again). One
-  // bump per build that saw new nodes — cheap, monotonic, persisted with the overlay below. (Lexical
-  // task->task autowire was removed: it had no agent in its lifecycle, was never judged, and seeded
-  // weight-0 edges that stayed permanently invisible — suggest_links + the adoption nudge cover
-  // task->task wiring with agent judgment.)
-  let edgesDirty = repairedReverseJudgeEdges > 0;
-  if (own && newlySeen.length) {
-    overlayStore.bumpEpoch(ovWs); edgesDirty = true;
-  }
-  if (tsDirty || edgesDirty || adoptDirty) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(); }
-  // INGEST-AT-BIRTH (BUILD1): native tasks adopted THIS build pass through the unified ingestNode funnel
-  // (embed → setTaskVec → autowire → markEagerJudge) so they carry a vec + candidate edges + an eager mark
-  // BEFORE they can reach `ready`/dispatch — closing the bypass where the native lane was only ingested at
-  // its in_progress claim. Fire-and-forget so buildGraph stays synchronous: each ingest mutates the live
-  // overlay and saves on its own (the per-workspace cached overlay is the writable store). The recall
-  // graph is rebuilt per node so each sees prior siblings ingested this batch.
-  if (own && newlyAdopted.length) {
-    (async () => {
-      for (const n of newlyAdopted) {
-        try {
-          const r = await ingestNode(ovWs, buildGraph(ws), n.key, { title: n.title, summary: n.summary }, ws);
-          // If ingest found no edges to seed (embed disabled, isolated node, etc.), the ADOPT-HOLD
-          // judgingSince stamp we set synchronously above would keep the node in not_ready forever.
-          // Clear it so the node can progress to ready without waiting for a judge that will never come.
-          if (r.seeded === 0) { overlayStore.clearJudgingSince(ovWs, n.key); }
-          if (r.vec || r.seeded === 0) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(); }
-        } catch { /* best-effort birth ingest */ }
-      }
-    })();
-  }
   const ghosts = Object.values(ghostMap);
-  return { tasks, ghosts, summary: summaryFor(tasks, ghosts, ovWs) };
+  return { tasks, ghosts, effects };
+}
+
+// Build the graph for one workspace: explicit reconciliation side effects, then projection.
+function buildGraph(ws) {
+  if (!ws) return { tasks: [], ghosts: [], summary: summaryFor([], [], overlayStore.EMPTY()) };
+  // P3: every workspace's overlay is the per-workspace cache entry (overlayFor) — there is no
+  // special "current" workspace. The cache entry is the authoritative, write-coalesced in-memory
+  // store for ANY workspace, so lifecycle reconciliation runs for every valid ws.
+  const ovWs = overlayFor(ws);
+  const inputs = reconcileGraphBeforeProjection(ws, ovWs);
+  const projection = projectGraphFromNative(ws, ovWs, inputs.native, inputs.effects);
+  commitGraphProjectionEffects(ws, ovWs, projection.effects);
+  return { tasks: projection.tasks, ghosts: projection.ghosts, summary: summaryFor(projection.tasks, projection.ghosts, ovWs) };
 }
 
 function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
