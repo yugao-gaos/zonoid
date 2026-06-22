@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-fix-claim-kickback",
   "branch": "orch/attempt/codex-fix-claim-permit-result-contract-kickback",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T03:15:23.111Z",
-  "lease_until": "2026-06-22T04:15:23.111Z"
+  "lease_until": "2026-06-22T04:15:23.111Z",
+  "completed_at": "2026-06-22T03:21:46.104Z"
 }
