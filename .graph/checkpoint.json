@@ -233117,6 +233117,110 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/review-state-lifecycle-contract": {
+      "id": "codex/review-state-lifecycle-contract",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented same-node review lifecycle state on implementation tasks: persisted overlay review records, status/git-derived projection fields, task detail/state/frontier support, and MCP verdict stamping. Committed attempt branch at 433f0ed7.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Define same-node review lifecycle contract",
+        "description": "Design and implement the core review-state contract so implementation tasks carry review lifecycle on the same node instead of spawning visible judge tasks. Scope: add/extend overlay helpers and task detail projection for review_state, review_verdict, review_note, review_agent, reviewed_at, merge_state, attempt_branch/feature_branch references as appropriate. Preserve existing status meanings where possible: tested means reviewed/approved and awaiting merge; failed means kicked back or implementation failed; done means landed/closed. Add focused unit tests for serialization/projection. Do not create any judge task nodes. Success: a task can express review pending/running/approved/kicked_back/awaiting_merge on its own node, and get_task_detail/state expose it without requiring a sibling judge node.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-22T19:52:19.866Z"
+      },
+      "assignee": "codex-review-state-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-22T19:33:51.858Z",
+        "lastChanged": "2026-06-22T20:06:21.741Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/review-state-subconscious-flow": {
+      "id": "codex/review-state-subconscious-flow",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Implemented same-node Subconscious review lifecycle: deprecated judge prepare inputs now stamp review_requested/pending state on the implementation task without visible judge snapshots/edges, submit_verdict no longer writes judge_status, and focused tests/docs were updated. Commit: 05230cfa.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Route Subconscious review through same-node state",
+        "description": "Refactor the Subconscious assignment/review flow so prepare/complete/submit_verdict use same-node review state rather than creating judge task snapshots. Scope: routes/subconscious.js, overlay/status handling, and any handoff envelope fields that currently assume judge_task_key. create_judge/judge_requested should become deprecated/backcompat input that records review_requested on the implementation task or is ignored with a clear response; it must not mint a visible judge node. Preserve worker accept/complete behavior and attempt worktree allocation. Success: preparing a substantive task with review requested does not create codex/<task>-judge; submit_verdict records APPROVE/KICK_BACK on the implementation task, performs the same merge/hold semantics, and tests cover both paths.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/review-state-lifecycle-contract"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-22T20:15:58.226Z"
+      },
+      "assignee": "codex-worker-review-state",
+      "timestamps": {
+        "firstSeen": "2026-06-22T19:33:51.859Z",
+        "lastChanged": "2026-06-22T20:15:56.303Z",
+        "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/subconscious-summary-brief-wording": {
+      "id": "codex/subconscious-summary-brief-wording",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Subconscious search-context human_summary now reads as a context briefing instead of the old stats-style dashboard formatter: it starts with 'Subconscious context brief', centers on strongest matches, explains usable foreground context, and handles abstain cases as threshold misses. Dashboard title switches to 'Subconscious brief' when a backend human_summary is present. Focused checks passed: node test/subconscious.test.js; node test/onboarding-landing.test.js; inline graph.html script parse; git diff --check.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Make Subconscious dashboard summary read like a briefing",
+        "description": "Change the Subconscious search-context human_summary so dashboard searches show a concise context briefing rather than the old stats-style formatter wording. Keep dashboard rendering the backend-provided field.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T20:06:36.934Z"
+      },
+      "assignee": "codex-main-summary-brief-wording",
+      "timestamps": {
+        "firstSeen": "2026-06-22T20:06:36.934Z",
+        "lastChanged": "2026-06-22T20:11:36.387Z",
+        "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -274745,6 +274849,557 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqacft0tdqh",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.592,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqeai9sgzr1",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqgvuijz6kk",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.573,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqitz7bosgt",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.627,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiud1o2tle",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqje1toumfp",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.588,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqnnn02rf0d",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.553,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqokgnd2wnw",
+      "to": "codex/review-state-dashboard-frontier",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqolmwgser3",
+      "to": "codex/review-state-subconscious-flow",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqoxvl18k5p",
+      "to": "codex/review-state-subconscious-flow",
+      "kind": "context",
+      "weight": 0.8,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.584,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqp4zen4gpi",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.59,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp4zldlzj0",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.557,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp4zrwfwjp",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.577,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp50ehggc3",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.566,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp5937smpk",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/subconscious-context-human-summary",
+      "kind": "context",
+      "weight": 0.846,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.846,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.623,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "knowledge:source_chunk:chunk-claude-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-ed1147fac7",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.621,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "note:note-mqh5elf8cq8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.583,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "note:note-mqe1cey1lux",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.574,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "note:note-mqp5937smpk",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.561,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.555,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-dashboard-frontier",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.552,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.577,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0,
+      "judged": false,
+      "origin": "autowire-semantic",
+      "by": "autowire",
+      "score": 0.555
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-subconscious-flow",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/architecture-seam-audit-core",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0.904,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.904,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/review-graph-overlay-dispatch-loops",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/review-graph-overlay-dispatch-loops",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/review-graph-overlay-dispatch-loops",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/review-state-daemon-queues",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-daemon-queues",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-dashboard-frontier",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-dashboard-frontier",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-docs-instructions",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-docs-instructions",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0.922,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.922,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/review-state-integration-migration-tests",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0.951,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.951,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/review-state-integration-migration-tests",
+      "to": "codex/review-state-dashboard-frontier",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.581,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-state-lifecycle-contract",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-lifecycle-contract",
+      "to": "codex/review-state-dashboard-frontier",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "origin": "autowire-semantic",
+      "score": 0.638
+    },
+    {
+      "from": "codex/review-state-lifecycle-contract",
+      "to": "codex/review-state-subconscious-flow",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "origin": "autowire-semantic",
+      "score": 0.552
+    },
+    {
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/review-state-dashboard-frontier",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/subconscious-agentic-search-envelope-code-review",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.597,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.583,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/judge-subconscious-anchor-real-task-filter",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.558,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/subconscious-context-human-summary",
+      "to": "codex/subconscious-adaptive-agentic-search-loop-code-review",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.637,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/subconscious-context-human-summary",
+      "to": "codex/subconscious-pressure-protocol",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.573,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/subconscious-context-human-summary",
+      "to": "codex/subconscious-agent-facing-migration",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.563,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "to": "knowledge:source_section:section-readme-md-10-judge-kb-9f9851fe2d",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.65,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.582,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "to": "codex/judge-prevent-judge-reverse-blocking-edges",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.698,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.588,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "to": "codex/judge-subconscious-skill-promotion-gate",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.573,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "to": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.565,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq4jswuc",
       "to": "66a514fd-59a6-4d96-b3c4-a40c1e3652c0/7",
       "kind": "context",
@@ -275419,16 +276074,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqacft0tdqh",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.592,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqasdxx0tnt",
       "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2",
       "kind": "context",
@@ -275851,14 +276496,6 @@
       "judged": false,
       "score": 0.568,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqeai9sgzr1",
-      "to": "codex/review-state-lifecycle-contract",
-      "kind": "context",
-      "weight": 0.8,
-      "judged": true,
-      "origin": "asserted"
     },
     {
       "from": "note:note-mqecnw7hs7k",
@@ -278465,16 +279102,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.561,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgvuijz6kk",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.573,
       "origin": "autowire-semantic"
     },
     {
@@ -281249,16 +281876,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqitz7bosgt",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.627,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqitzbeyxyb",
       "to": "note:note-mqegb6tzty3",
       "kind": "context",
@@ -282387,14 +283004,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqiud1o2tle",
-      "to": "codex/review-state-daemon-queues",
-      "kind": "context",
-      "weight": 0.6,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
       "from": "note:note-mqiuf091u3n",
       "to": "note:note-mqiu8gwbgzo",
       "kind": "context",
@@ -282881,16 +283490,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.616,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqje1toumfp",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.588,
       "origin": "autowire-semantic"
     },
     {
@@ -283640,32 +284239,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqnnn02rf0d",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.553,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqokgnd2wnw",
-      "to": "codex/review-state-dashboard-frontier",
-      "kind": "context",
-      "weight": 0.7,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqolmwgser3",
-      "to": "codex/review-state-subconscious-flow",
-      "kind": "context",
-      "weight": 0.8,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
       "from": "note:note-mqonvqqre1d",
       "to": "note:note-mqoasni3beh",
       "kind": "context",
@@ -283764,16 +284337,6 @@
       "judged": false,
       "score": 0.568,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqoxvl18k5p",
-      "to": "codex/review-state-subconscious-flow",
-      "kind": "context",
-      "weight": 0.8,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.584,
-      "origin": "asserted"
     },
     {
       "from": "note:note-mqozwmjr1a3",
@@ -284176,16 +284739,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqp4zen4gpi",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.59,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqp4zldlzj0",
       "to": "note:note-mq7hef6ged4",
       "kind": "context",
@@ -284206,16 +284759,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqp4zldlzj0",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.557,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqp4zrwfwjp",
       "to": "note:note-mqp4zldlzj0",
       "kind": "context",
@@ -284223,16 +284766,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.684,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp4zrwfwjp",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.577,
       "origin": "autowire-semantic"
     },
     {
@@ -284313,16 +284846,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.559,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp50ehggc3",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.566,
       "origin": "autowire-semantic"
     },
     {
@@ -284754,14 +285277,6 @@
       "judged": false,
       "score": 0.72,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp5937smpk",
-      "to": "codex/review-state-docs-instructions",
-      "kind": "context",
-      "weight": 0.9,
-      "judged": true,
-      "origin": "asserted"
     },
     {
       "from": "note:note-mqp59bb1f4l",
@@ -285594,118 +286109,34 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqplemzsrvt",
-      "to": "codex/subconscious-context-human-summary",
+      "from": "note:note-mqpk034sqnp",
+      "to": "codex/subconscious-summary-brief-wording",
       "kind": "context",
-      "weight": 0.846,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.566,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/subconscious-summary-brief-wording",
+      "kind": "context",
+      "weight": 0.845,
       "by": "subconscious",
       "judged": true,
-      "score": 0.846,
+      "score": 0.845,
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mqplytfmawp",
-      "to": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.623,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqplytfmawp",
-      "to": "knowledge:source_chunk:chunk-claude-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-ed1147fac7",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.621,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqplytfmawp",
-      "to": "note:note-mqh5elf8cq8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.583,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqplytfmawp",
-      "to": "note:note-mqe1cey1lux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.574,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqplytfmawp",
-      "to": "note:note-mqp5937smpk",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.561,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqplytfmawp",
-      "to": "codex/review-state-daemon-queues",
-      "kind": "context",
-      "weight": 1,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.555,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqplytfmawp",
-      "to": "codex/review-state-dashboard-frontier",
-      "kind": "context",
-      "weight": 1,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.552,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqplytfmawp",
-      "to": "codex/review-state-docs-instructions",
-      "kind": "context",
-      "weight": 1,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.577,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqplytfmawp",
-      "to": "codex/review-state-lifecycle-contract",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqplytfmawp",
+      "from": "note:note-mqplemzsrvt",
       "to": "codex/review-state-subconscious-flow",
       "kind": "context",
-      "weight": 1,
+      "weight": 0.854,
+      "by": "subconscious",
       "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqplytfmawp",
-      "to": "codex/review-state-integration-migration-tests",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
+      "score": 0.854,
+      "origin": "subconscious-agentic-search"
     },
     {
       "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/10",
@@ -285922,16 +286353,6 @@
       "judged": true
     },
     {
-      "from": "codex/architecture-seam-audit-core",
-      "to": "codex/review-state-lifecycle-contract",
-      "kind": "context",
-      "weight": 0.904,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.904,
-      "origin": "subconscious-agentic-search"
-    },
-    {
       "from": "codex/embed-provider-contract",
       "to": "codex/embed-provider-local-adapter",
       "kind": "blocking",
@@ -286042,201 +286463,28 @@
       "origin": "blocking-dep-seed"
     },
     {
-      "from": "codex/review-graph-overlay-dispatch-loops",
-      "to": "codex/review-state-lifecycle-contract",
-      "kind": "context",
-      "weight": 0.8,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/review-graph-overlay-dispatch-loops",
-      "to": "codex/review-state-daemon-queues",
-      "kind": "context",
-      "weight": 0.8,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/review-graph-overlay-dispatch-loops",
-      "to": "codex/review-state-integration-migration-tests",
-      "kind": "context",
-      "weight": 0.8,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/review-state-daemon-queues",
-      "to": "codex/review-state-docs-instructions",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/review-state-daemon-queues",
-      "to": "codex/review-state-integration-migration-tests",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/review-state-dashboard-frontier",
-      "to": "codex/review-state-docs-instructions",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/review-state-dashboard-frontier",
-      "to": "codex/review-state-integration-migration-tests",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/review-state-docs-instructions",
-      "to": "codex/review-state-integration-migration-tests",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/review-state-docs-instructions",
-      "to": "codex/review-state-lifecycle-contract",
-      "kind": "context",
-      "weight": 0.922,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.922,
-      "origin": "subconscious-agentic-search"
-    },
-    {
       "from": "codex/review-state-integration-migration-tests",
-      "to": "codex/review-state-lifecycle-contract",
-      "kind": "context",
-      "weight": 0.951,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.951,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "codex/review-state-integration-migration-tests",
-      "to": "codex/review-state-dashboard-frontier",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.581,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/review-state-lifecycle-contract",
-      "to": "codex/review-state-daemon-queues",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/review-state-lifecycle-contract",
-      "to": "codex/review-state-dashboard-frontier",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/review-state-lifecycle-contract",
       "to": "codex/review-state-subconscious-flow",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
+      "weight": 0.904,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.904,
+      "origin": "subconscious-agentic-search"
     },
     {
-      "from": "codex/review-state-subconscious-flow",
-      "to": "codex/review-state-daemon-queues",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/review-state-subconscious-flow",
-      "to": "codex/review-state-dashboard-frontier",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/review-state-subconscious-flow",
-      "to": "codex/review-state-docs-instructions",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/review-state-subconscious-flow",
-      "to": "codex/subconscious-agentic-search-envelope-code-review",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.597,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/review-state-subconscious-flow",
+      "from": "codex/review-state-lifecycle-contract",
       "to": "codex/review-state-integration-migration-tests",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.583,
+      "score": 0.714,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/review-state-subconscious-flow",
-      "to": "codex/judge-subconscious-anchor-real-task-filter",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.558,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/subconscious-context-human-summary",
-      "to": "codex/subconscious-adaptive-agentic-search-loop-code-review",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.637,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/subconscious-context-human-summary",
-      "to": "codex/subconscious-pressure-protocol",
+      "from": "codex/review-state-lifecycle-contract",
+      "to": "codex/review-graph-overlay-dispatch-loops",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -286245,38 +286493,18 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/subconscious-context-human-summary",
-      "to": "codex/subconscious-agent-facing-migration",
+      "from": "codex/subconscious-summary-brief-wording",
+      "to": "codex/subconscious-context-human-summary",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.563,
+      "score": 0.604,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "to": "knowledge:source_section:section-readme-md-10-judge-kb-9f9851fe2d",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.65,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "from": "codex/subconscious-summary-brief-wording",
+      "to": "codex/dashboard-use-subconscious-agentic-search",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -286285,43 +286513,13 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
-      "to": "codex/judge-prevent-judge-reverse-blocking-edges",
+      "from": "codex/subconscious-summary-brief-wording",
+      "to": "codex/search-summary-human-readable",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.698,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.588,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
-      "to": "codex/judge-subconscious-skill-promotion-gate",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.573,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
-      "to": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.565,
+      "score": 0.577,
       "origin": "autowire-semantic"
     },
     {
@@ -286508,5 +286706,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-22T19:41:52.184Z"
+  "compacted_at": "2026-06-22T20:20:00.051Z"
 }
