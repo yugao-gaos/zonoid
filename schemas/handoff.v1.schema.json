@@ -77,7 +77,7 @@
     "agentic_search_context": {
       "type": "object",
       "title": "agentic_search_context",
-      "description": "Filtered context returned by Subconscious after internal DAG/RAG search planning and relevance judgment.",
+      "description": "Filtered context returned by Subconscious after an internal budgeted DAG/RAG follow-up loop and relevance judgment.",
       "properties": {
         "version": { "const": 1 },
         "kind": { "const": "subconscious_agentic_search_context" },

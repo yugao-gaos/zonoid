@@ -793,15 +793,126 @@ test('subconscious search-context returns filtered multi-step DAG and RAG envelo
   assert.equal(res.status, 200);
   assert.equal(res.body.ok, true);
   assert.equal(res.body.subconscious_context.kind, 'subconscious_agentic_search_context');
-  assert.deepEqual(
-    res.body.subconscious_context.search_steps.map((step) => step.mode),
-    ['dag_task_gated', 'rag_broad']
-  );
+  const modes = res.body.subconscious_context.search_steps.map((step) => step.mode);
+  assert.equal(modes[0], 'dag_task_gated');
+  assert(modes.length >= 1 && modes.length <= 4);
   assert.equal(res.body.subconscious_context.search_steps[0].gated, true);
-  assert.equal(res.body.subconscious_context.search_steps[1].gated, false);
+  assert(res.body.subconscious_context.decisions.stop_reason);
   assert(res.body.context_task_keys.includes('note:dag'));
   assert(res.body.subconscious_context.context.every((item) => item.relevance_verdict === 'valuable_for_task'));
   assert.equal(res.body.internal.filtered_count, res.body.subconscious_context.filtered_count);
+});
+
+test('subconscious search-context adaptively follows task-adjacent DAG evidence within budget', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('task/target', 'Adaptive target', {
+        status: 'ready',
+        context_deps: ['task/neighbor'],
+        context_weights: { 'task/neighbor': 0.8 },
+      }),
+      node('task/neighbor', 'Nearby task', {
+        status: 'tested',
+        summary: 'Nearby task carries the vesper detail for the adaptive context loop.',
+        context_deps: ['note:neighbor'],
+        context_weights: { 'note:neighbor': 0.95 },
+      }),
+      node('note:neighbor', 'Vesper detail', {
+        kind: 'note',
+        summary: 'The useful context is hidden behind task-adjacent DAG expansion, not the first broad RAG probe.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare adaptive context',
+    situation: 'Need neighboring implementation context',
+    max_rounds: 3,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  const steps = res.body.subconscious_context.search_steps;
+  assert.deepEqual(steps.map((step) => step.mode), ['dag_task_gated', 'rag_broad', 'dag_task_adjacent']);
+  assert.equal(steps[2].task_key, 'task/neighbor');
+  assert.equal(steps[2].followup_from, 'task/neighbor');
+  assert(res.body.subconscious_context.context_task_keys.includes('note:neighbor'));
+  assert.equal(res.body.subconscious_context.decisions.rounds, 3);
+  assert.equal(res.body.subconscious_context.decisions.stop_reason, 'budget_exhausted');
+});
+
+test('subconscious search-context adaptively follows RAG breadcrumbs', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('note:clue', 'Envelope clue', {
+        kind: 'note',
+        summary: 'The decisive follow-up phrase is lodestar budget.',
+      }),
+      node('note:detail', 'Lodestar budget', {
+        kind: 'note',
+        summary: 'Adaptive Subconscious search should continue with budgeted follow-up retrieval before finalizing context.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    query: 'Need the envelope clue for assignment context',
+    max_rounds: 3,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  const steps = res.body.subconscious_context.search_steps;
+  assert(steps.length > 1 && steps.length <= 3);
+  assert.equal(steps[0].mode, 'rag_broad');
+  assert(steps.some((step) => step.mode === 'rag_followup'));
+  assert(steps.some((step) => step.followup_from === 'note:clue'));
+  assert(res.body.subconscious_context.context_task_keys.includes('note:detail'));
+  assert.notEqual(res.body.subconscious_context.verdict, 'abstain_no_context');
+});
+
+test('subconscious search-context abstains when evidence quality is insufficient', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('note:unrelated', 'Completely unrelated note', {
+        kind: 'note',
+        summary: 'Banana invoice archive with no overlap for the requested planning context.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    query: 'Need adaptive confidence controls for assignment context',
+    max_rounds: 3,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.subconscious_context.verdict, 'abstain_no_context');
+  assert.deepEqual(res.body.subconscious_context.context_task_keys, []);
+  assert.deepEqual(res.body.subconscious_context.context_deps, []);
+  assert.deepEqual(res.body.subconscious_context.context, []);
+  assert(res.body.subconscious_context.decisions.stop_reason);
+  assert(res.body.subconscious_context.confidence < 0.42);
 });
 
 test('subconscious assignment prepare carries and wires agentic search context envelope', async () => {
@@ -853,10 +964,9 @@ test('subconscious assignment prepare carries and wires agentic search context e
   assert.equal(res.body.ok, true);
   assert.equal(res.body.assignment.agentic_search_context.kind, 'subconscious_agentic_search_context');
   assert.equal(res.body.assignment.context.agentic_search_context.kind, 'subconscious_agentic_search_context');
-  assert.deepEqual(
-    res.body.assignment.context.agentic_search_context.search_steps.map((step) => step.mode),
-    ['dag_task_gated', 'rag_broad']
-  );
+  const modes = res.body.assignment.context.agentic_search_context.search_steps.map((step) => step.mode);
+  assert.equal(modes[0], 'dag_task_gated');
+  assert(res.body.assignment.context.agentic_search_context.decisions.stop_reason);
   assert(res.body.assignment.context.context_task_keys.includes('note:dag'));
   assert(res.body.assignment.context.dependency_summaries.some((summary) => summary.key === 'note:dag' && summary.via === 'subconscious_agentic_search'));
   assert(ov.edges.some((edge) =>
