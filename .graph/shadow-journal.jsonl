@@ -4996,3 +4996,5 @@
 {"ts":1782162759144,"from":"note:note-mqppi1wigd1","to":"note:note-mqgvsc4wtct","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
 {"ts":1782162759146,"from":"note:note-mqppi1wigd1","to":"note:note-mqpna41fj59","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
 {"ts":1782162759147,"from":"note:note-mqppi1wigd1","to":"note:note-mqpnhesryti","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782163774555,"from":"codex/search-economy-phase1b-cmm-judge","to":"codex/search-economy-phase1b-cmm","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6177860076078956,"cosine":0.631,"model_version":"v1"}
+{"ts":1782163774556,"from":"note:note-mqfmkwytf2n","to":"codex/search-economy-phase1b-cmm-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3689330072899663,"cosine":0.554,"model_version":"v1"}
