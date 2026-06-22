@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-36826-f2ea1dddc82da4afbd756584c6c59964",
   "branch": "orch/attempt/codex-desktop-assess-codebase-tightness",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-22T14:09:35.295Z",
-  "lease_until": "2026-06-22T15:09:35.295Z"
+  "lease_until": "2026-06-22T15:09:35.295Z",
+  "completed_at": "2026-06-22T14:18:43.293Z"
 }
