@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-8870-045ed94ae841cff67c018445fe17361d",
   "branch": "orch/attempt/codex-subconscious-agentic-search-envelope-code-review",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-22T03:24:05.816Z",
-  "lease_until": "2026-06-22T04:24:05.816Z"
+  "lease_until": "2026-06-22T04:24:05.816Z",
+  "completed_at": "2026-06-22T03:25:57.224Z"
 }
