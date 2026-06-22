@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "019eed39-a944-7352-8ff3-007c6ea30cdc",
   "branch": "orch/attempt/codex-fix-dark-three-point-cloud-nodes-and-missing-search-edges",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T13:57:23.886Z",
-  "lease_until": "2026-06-22T14:57:23.886Z"
+  "lease_until": "2026-06-22T14:57:23.886Z",
+  "completed_at": "2026-06-22T14:00:20.564Z"
 }
