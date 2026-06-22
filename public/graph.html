@@ -6779,6 +6779,11 @@ async function checkOnboardingState() {
   const workspace = currentOnboardWorkspace();
   const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
 
+  if (workspace && !storedOutDir && localStorage.getItem(onboardCompletedKey()) === '1') {
+    completeOnboardLearning();
+    return;
+  }
+
   if (workspace && storedOutDir) {
     try {
       const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(storedOutDir));
@@ -6840,6 +6845,10 @@ function currentOnboardWorkspace() {
 
 function onboardStoreKey(suffix) {
   return 'onboard_' + suffix + '_' + (currentOnboardWorkspace() || location.hostname || 'local');
+}
+
+function onboardCompletedKey() {
+  return onboardStoreKey('completed');
 }
 
 function showOnboardLanding() {
@@ -6940,6 +6949,7 @@ function completeOnboardLearning() {
   const cloud = document.querySelector('.ol-cloud');
   if (cloud) cloud.classList.remove('is-live');
   onboardAutoStartInFlight = false;
+  localStorage.setItem(onboardCompletedKey(), '1');
   localStorage.removeItem(onboardStoreKey('outdir'));
   document.body.classList.remove('onboarding-pending');
   setOnboardInjectVisible(false, false);
@@ -6977,6 +6987,7 @@ async function ensureOnboardLearning(repo) {
 
     let outDir = storedOutDir;
     if (!outDir) {
+      localStorage.removeItem(onboardCompletedKey());
       setOnboardStage('mine');
       setOnboardStatus('Mining candidates...');
       const enq = await (await dfetch('/onboard/enqueue', {
