@@ -107626,6 +107626,8 @@
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
       "summary": "Read-only architecture audit completed. Mapped daemon shell, route modules, overlay graph store, lifecycle/judge, MCP, harness, and git seams. Main weak seams found: broad ctx service-locator surface, side-effectful buildGraph reads, stale lifecycle docs for note ingest, duplicated task-key admission helpers, inconsistent workspace targeting in admin embedding routes, and oversized /search and /overlay/status endpoints. No files changed.",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
@@ -231176,7 +231178,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": "Added a shared Three.js emissive/additive node-core pass so every point-cloud node has a self-lit center, kept search-highlight nodes bright while dimming only unrelated nodes, and covered the renderer behavior with the onboarding landing regression test. Verified with onboarding landing tests, onboard live-inject route tests, inline script parse, and git diff --check.",
       "category": null,
       "tags": [],
@@ -231198,8 +231200,8 @@
       "assignee": "codex-main-emissive-nodes",
       "timestamps": {
         "firstSeen": "2026-06-22T14:51:33.464Z",
-        "lastChanged": "2026-06-22T18:43:26.033Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:16:47.548Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -231248,7 +231250,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": "Dashboard cloud search now calls /subconscious/search-context first, stores the returned Subconscious agentic context envelope, labels fallback /search results distinctly, and renders a human-readable foreground-agent context summary from selected context keys, verdict, confidence, prediction, stop reason, filtered count, item summaries, and selection reasons. Focused checks passed: node test/onboarding-landing.test.js, node test/onboard-live-inject-route.test.js, inline graph.html script parse, and git diff --check.",
       "category": null,
       "tags": [],
@@ -231270,8 +231272,8 @@
       "assignee": "codex-main-dashboard-agentic-search",
       "timestamps": {
         "firstSeen": "2026-06-22T18:39:34.557Z",
-        "lastChanged": "2026-06-22T18:49:43.527Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:16:57.093Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -231530,7 +231532,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": "Fixed Force Cloud search rerender ReferenceError by keeping linkCmp in renderCloud scope and assigning the trace-ranked comparator when trace data is present. Added a static regression assertion. Verified with onboarding landing tests, onboard live-inject route tests, inline script parse, and git diff --check.",
       "category": null,
       "tags": [],
@@ -231552,8 +231554,8 @@
       "assignee": "codex-main-linkcmp-scope",
       "timestamps": {
         "firstSeen": "2026-06-22T15:01:11.859Z",
-        "lastChanged": "2026-06-22T18:41:17.096Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:17:06.708Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -231638,7 +231640,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": null,
       "category": null,
       "tags": [],
@@ -231660,8 +231662,8 @@
       "assignee": "worker-fix-graph-dispatch",
       "timestamps": {
         "firstSeen": "2026-06-22T02:36:58.194Z",
-        "lastChanged": "2026-06-22T18:41:27.268Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:17:18.365Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -231782,7 +231784,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": "Commit 01845fe5 updates dashboard onboarding state to check existing [ingest] notes before resuming stored/default legacy queues, so stale miner queues cannot reopen learning for an already-onboarded workspace. Added static onboarding regressions for note-first ordering, stale stored outDir bypass, and search-failure behavior. Tests passed: node test/onboarding-landing.test.js && node test/onboard-live-inject-route.test.js; git diff --check.",
       "category": null,
       "tags": [],
@@ -231804,8 +231806,8 @@
       "assignee": "codex-main",
       "timestamps": {
         "firstSeen": "2026-06-22T18:56:34.765Z",
-        "lastChanged": "2026-06-22T19:01:36.641Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:17:29.430Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -231923,7 +231925,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": "Made dashboard search traversal visible and organic: RAG-only seeds now start from the RAG response time and roll out by rank, the traversal holds before finalization, non-final DAG edges fade/release on staggered timers, and non-final nodes trail their incident edge releases so expansion and shrink-back are observable. Static HTML, route, script syntax, and diff whitespace checks passed.",
       "category": null,
       "tags": [],
@@ -231945,8 +231947,8 @@
       "assignee": "codex-main-search-traversal",
       "timestamps": {
         "firstSeen": "2026-06-22T17:35:02.484Z",
-        "lastChanged": "2026-06-22T18:43:33.302Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:17:42.194Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -232424,7 +232426,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": "Read-only API/UI/docs/test review completed. Findings: dashboard settings save references undefined loadData and ignores saved daemonUrl; tokened dashboard workspace discovery calls /workspaces without token; config backend/embedding routes do not enforce explicit workspace and can silently no-op; npm run test:all is red and runner/CI omit executable hook/smoke tests; README/package test scripts drift.",
       "category": null,
       "tags": [],
@@ -232446,8 +232448,8 @@
       "assignee": "review-worker-api-ui-tests",
       "timestamps": {
         "firstSeen": "2026-06-22T02:08:31.494Z",
-        "lastChanged": "2026-06-22T18:47:07.968Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:17:52.840Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -232460,7 +232462,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": "Read-only review completed. Found three issues: eager and periodic judge paths can be scheduled over the same unverified edges in one tick; task-shaped unknown keys still mint synthetic snapshot-backed graph tasks through several write routes; /next-action acquires spawn/eager leases without persisting overlay mutations. Targeted judge, loop, native-adoption, unknown-key, and headless-drain tests passed. No files changed.",
       "category": null,
       "tags": [],
@@ -232482,8 +232484,8 @@
       "assignee": "review-worker-graph-dispatch",
       "timestamps": {
         "firstSeen": "2026-06-22T02:08:16.944Z",
-        "lastChanged": "2026-06-22T18:47:24.260Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:18:01.385Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -232496,7 +232498,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": "Read-only review of hook/adaptor write-gate paths. Found shell-gate bypasses via whole-command git exemption and quoted redirection target parsing, OpenCode permit parity gap, and two stale wording assertions in focused tests. No files changed.",
       "category": null,
       "tags": [],
@@ -232518,8 +232520,8 @@
       "assignee": "review-worker-hooks-adapters",
       "timestamps": {
         "firstSeen": "2026-06-22T02:08:21.700Z",
-        "lastChanged": "2026-06-22T18:49:22.755Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:18:17.998Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -232532,7 +232534,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": "Read-only review completed. Found three retrieval/KB semantics issues: zero-score RRF returns arbitrary unrelated results; graph-store note replay drops category/tags, breaking system/preference/correction semantics; gated task-key search can report inject with no injected result and may return the task itself as RAG context. Targeted tests passed; no files changed.",
       "category": null,
       "tags": [],
@@ -232554,8 +232556,8 @@
       "assignee": "review-worker-search-learning",
       "timestamps": {
         "firstSeen": "2026-06-22T02:08:26.414Z",
-        "lastChanged": "2026-06-22T18:49:30.431Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:18:26.484Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -232568,7 +232570,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": "Dashboard graph search now suppresses persistent labels while queries are active, keeps hover labels available, and shows a compact final Search context summary based on the final result nodes rather than the whole traversal. Verified with onboarding landing tests, live-inject route tests, diff whitespace check, and inline graph script syntax check.",
       "category": null,
       "tags": [],
@@ -232590,8 +232592,8 @@
       "assignee": "codex-main-search-summary",
       "timestamps": {
         "firstSeen": "2026-06-22T18:00:45.920Z",
-        "lastChanged": "2026-06-22T18:39:58.772Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:18:35.720Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -232747,7 +232749,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "done",
       "summary": "Changed the Three.js point-cloud glow layer to a constant additive self-lit core material so node balls remain visibly lit even when per-instance colors render too dark. Search dimming now affects unrelated nodes through smaller core scale while highlighted nodes keep a full core/halo. Verified with onboarding landing tests, onboard live-inject route tests, inline script parse, and git diff --check.",
       "category": null,
       "tags": [],
@@ -232769,8 +232771,8 @@
       "assignee": "codex-main-constant-core",
       "timestamps": {
         "firstSeen": "2026-06-22T15:07:00.833Z",
-        "lastChanged": "2026-06-22T18:41:36.121Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-22T19:18:45.848Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -233003,6 +233005,111 @@
       "timestamps": {
         "firstSeen": "2026-06-16T14:56:59.202Z",
         "lastChanged": "2026-06-22T19:14:35.315Z",
+        "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/subconscious-context-human-summary": {
+      "id": "codex/subconscious-context-human-summary",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Subconscious search-context envelopes now include a deterministic human_summary string, also exposed at the route top level. Dashboard search preserves that returned summary in cloudSearchContext and prefers it over frontend-generated fallback prose. Changed files: lib/subconscious/index.js, public/graph.html, test/subconscious.test.js, test/onboarding-landing.test.js. Focused checks passed: node test/subconscious.test.js; node test/onboarding-landing.test.js; inline graph.html script parse; git diff --check.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Add human-readable Subconscious context summary",
+        "description": "Add a human-readable summary field to the Subconscious search-context envelope and use it in the dashboard search summary so users can see what the foreground agent would receive in prose.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T19:24:06.647Z"
+      },
+      "assignee": "codex-main-subconscious-summary",
+      "timestamps": {
+        "firstSeen": "2026-06-22T19:24:06.647Z",
+        "lastChanged": "2026-06-22T19:30:47.523Z",
+        "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge": {
+      "id": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge d42ebe37-ee9f-46b6-ae21-f6f82464d482/15",
+        "description": "Review attempt for d42ebe37-ee9f-46b6-ae21-f6f82464d482/15.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T14:25:01.102Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-22T14:25:01.102Z",
+        "lastChanged": "2026-06-22T19:37:56.237Z",
+        "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16": {
+      "id": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge: review blocking-dep context-seed (gate-transparent) — self-learn-judge, single-attempt",
+        "description": "self-learn-judge SINGLE-ATTEMPT review against the impl attempt branch. Rubric + gates: (1) seed goes through overlayStore.addEdge (the unified writer), in the autowire/ingestNode path — NOT suggest_links; (2) edges are LOW-WEIGHT + by:'autowire-blockdep' + judged:false (enter the judge pipeline, don't flood retrieval); (3) GATE-TRANSPARENT — a gate dep is never a seed endpoint; the walk passes THROUGH to the real upstream node, bounded; (4) bounded 1-hop (no transitive blocked-by walk); (5) idempotent + tests cover the gate-skip case. APPROVE → merge to main; KICK BACK → set_status failed + wired record_decision. Never force-merge.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-16T16:37:53.983Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-16T16:37:53.982Z",
+        "lastChanged": "2026-06-22T19:38:04.316Z",
         "lastStatus": "canceled"
       },
       "metrics": null,
@@ -252370,10 +252477,10 @@
       "from": "note:note-mqeln4edrjs",
       "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
       "kind": "context",
-      "weight": 0.631,
-      "by": "judge",
-      "judged": true,
-      "score": 0.631,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.655,
       "origin": "autowire-semantic"
     },
     {
@@ -252982,10 +253089,10 @@
       "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
       "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15",
       "kind": "context",
-      "weight": 0.588,
-      "by": "judge",
-      "judged": true,
-      "score": 0.588,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.637,
       "origin": "autowire-semantic"
     },
     {
@@ -269375,8 +269482,8 @@
       "to": "codex/dashboard-use-subconscious-agentic-search",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/11",
@@ -274328,6 +274435,316 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mq7e4zpi",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.595,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqefyksc2io",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.569,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqf9rujm41b",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.565,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh5r4fxl5t",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.562,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqitz7bosgt",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.565,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp4z7npmjw",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.579,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp50ehggc3",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.566,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp528pspcb",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.578,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp52g7jrsk",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.577,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "note:note-mq7zoijxpsz",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.555,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.843,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.8,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/6",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.8,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.753,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "to": "f5bb5b09-a7b8-4546-a74c-0108ecb5d134/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.6,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.858,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/6",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.843,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.795,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
+      "to": "f5bb5b09-a7b8-4546-a74c-0108ecb5d134/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.632,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.843,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.8,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/6",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.8,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.8,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
+      "to": "knowledge:source_chunk:chunk-agents-md-4-0-most-conversation-is-throwaway-but-some--7f26aa8d80",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.57,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
+      "to": "knowledge:source_chunk:chunk-agents-md-4-1-when-to-record-a-real-decision-with-a-re-65f9c8d7cb",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.57,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
+      "to": "knowledge:source_chunk:chunk-agents-md-4-2-do-not-record-chatter-restatements-or-tr-16d29a8bb7",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.57,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
+      "to": "knowledge:source_chunk:chunk-agents-md-4-3-tag-user-preferences-with-category-prefe-f3b4b33930",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.57,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
+      "to": "knowledge:source_chunk:chunk-claude-md-4-0-most-conversation-is-throwaway-but-some--084a720cdd",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.57,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.843,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.8,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "to": "f5bb5b09-a7b8-4546-a74c-0108ecb5d134/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.6,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq4jswuc",
       "to": "66a514fd-59a6-4d96-b3c4-a40c1e3652c0/7",
       "kind": "context",
@@ -274767,16 +275184,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mq7e4zpi",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.595,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq7gpd48",
       "to": "18",
       "kind": "context",
@@ -275009,6 +275416,16 @@
       "by": "autowire",
       "judged": false,
       "score": 0.614,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqacft0tdqh",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.592,
       "origin": "autowire-semantic"
     },
     {
@@ -275436,6 +275853,14 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqeai9sgzr1",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
       "from": "note:note-mqecnw7hs7k",
       "to": "followup/drain-final-13-onboarding-learner-candid-l29o",
       "kind": "context",
@@ -275503,16 +275928,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.578,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqefyksc2io",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.569,
       "origin": "autowire-semantic"
     },
     {
@@ -276231,16 +276646,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.561,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf9rujm41b",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.565,
       "origin": "autowire-semantic"
     },
     {
@@ -278063,6 +278468,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqgvuijz6kk",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.573,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqgw7oy7b8z",
       "to": "note:note-mqgtvw168ex",
       "kind": "context",
@@ -279578,16 +279993,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqh5r4fxl5t",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.562,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqh73zazr7k",
       "to": "codex/learning-landing-autostart",
       "kind": "context",
@@ -280845,12 +281250,12 @@
     },
     {
       "from": "note:note-mqitz7bosgt",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.565,
+      "score": 0.627,
       "origin": "autowire-semantic"
     },
     {
@@ -281982,6 +282387,14 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqiud1o2tle",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
       "from": "note:note-mqiuf091u3n",
       "to": "note:note-mqiu8gwbgzo",
       "kind": "context",
@@ -282468,6 +282881,16 @@
       "by": "autowire",
       "judged": false,
       "score": 0.616,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqje1toumfp",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.588,
       "origin": "autowire-semantic"
     },
     {
@@ -283217,6 +283640,32 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqnnn02rf0d",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.553,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqokgnd2wnw",
+      "to": "codex/review-state-dashboard-frontier",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqolmwgser3",
+      "to": "codex/review-state-subconscious-flow",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
       "from": "note:note-mqonvqqre1d",
       "to": "note:note-mqoasni3beh",
       "kind": "context",
@@ -283315,6 +283764,16 @@
       "judged": false,
       "score": 0.568,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoxvl18k5p",
+      "to": "codex/review-state-subconscious-flow",
+      "kind": "context",
+      "weight": 0.8,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.584,
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqozwmjr1a3",
@@ -283667,16 +284126,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqp4z7npmjw",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.579,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqp4zen4gpi",
       "to": "note:note-mqe1cey1lux",
       "kind": "context",
@@ -283727,6 +284176,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqp4zen4gpi",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.59,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqp4zldlzj0",
       "to": "note:note-mq7hef6ged4",
       "kind": "context",
@@ -283747,6 +284206,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqp4zldlzj0",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.557,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqp4zrwfwjp",
       "to": "note:note-mqp4zldlzj0",
       "kind": "context",
@@ -283754,6 +284223,16 @@
       "by": "autowire",
       "judged": false,
       "score": 0.684,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp4zrwfwjp",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.577,
       "origin": "autowire-semantic"
     },
     {
@@ -283838,7 +284317,7 @@
     },
     {
       "from": "note:note-mqp50ehggc3",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -284027,16 +284506,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqp528pspcb",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.578,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqp52g7jrsk",
       "to": "note:note-mqp528pspcb",
       "kind": "context",
@@ -284044,16 +284513,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.602,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp52g7jrsk",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.577,
       "origin": "autowire-semantic"
     },
     {
@@ -284295,6 +284754,14 @@
       "judged": false,
       "score": 0.72,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp5937smpk",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
     },
     {
       "from": "note:note-mqp59bb1f4l",
@@ -285128,13 +285595,117 @@
     },
     {
       "from": "note:note-mqplemzsrvt",
-      "to": "note:note-mq7zoijxpsz",
+      "to": "codex/subconscious-context-human-summary",
+      "kind": "context",
+      "weight": 0.846,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.846,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.555,
+      "score": 0.623,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "knowledge:source_chunk:chunk-claude-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-ed1147fac7",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.621,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "note:note-mqh5elf8cq8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.583,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "note:note-mqe1cey1lux",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.574,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "note:note-mqp5937smpk",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.561,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.555,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-dashboard-frontier",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.552,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.577,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-subconscious-flow",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
     },
     {
       "from": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/10",
@@ -285351,6 +285922,16 @@
       "judged": true
     },
     {
+      "from": "codex/architecture-seam-audit-core",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0.904,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.904,
+      "origin": "subconscious-agentic-search"
+    },
+    {
       "from": "codex/embed-provider-contract",
       "to": "codex/embed-provider-local-adapter",
       "kind": "blocking",
@@ -285461,213 +286042,286 @@
       "origin": "blocking-dep-seed"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
+      "from": "codex/review-graph-overlay-dispatch-loops",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/review-graph-overlay-dispatch-loops",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/review-graph-overlay-dispatch-loops",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/review-state-daemon-queues",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-daemon-queues",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-dashboard-frontier",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-dashboard-frontier",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-docs-instructions",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-docs-instructions",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0.922,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.922,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/review-state-integration-migration-tests",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0.951,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.951,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/review-state-integration-migration-tests",
+      "to": "codex/review-state-dashboard-frontier",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.843,
+      "score": 0.581,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "from": "codex/review-state-lifecycle-contract",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-lifecycle-contract",
+      "to": "codex/review-state-dashboard-frontier",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-lifecycle-contract",
+      "to": "codex/review-state-subconscious-flow",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/review-state-dashboard-frontier",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/subconscious-agentic-search-envelope-code-review",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.8,
+      "score": 0.597,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/6",
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/review-state-integration-migration-tests",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.8,
+      "score": 0.583,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "from": "codex/review-state-subconscious-flow",
+      "to": "codex/judge-subconscious-anchor-real-task-filter",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.753,
+      "score": 0.558,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
-      "to": "f5bb5b09-a7b8-4546-a74c-0108ecb5d134/2",
+      "from": "codex/subconscious-context-human-summary",
+      "to": "codex/subconscious-adaptive-agentic-search-loop-code-review",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.6,
+      "score": 0.637,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "from": "codex/subconscious-context-human-summary",
+      "to": "codex/subconscious-pressure-protocol",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.858,
+      "score": 0.573,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/6",
+      "from": "codex/subconscious-context-human-summary",
+      "to": "codex/subconscious-agent-facing-migration",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.843,
+      "score": 0.563,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5-judge",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.795,
+      "score": 1,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
-      "to": "f5bb5b09-a7b8-4546-a74c-0108ecb5d134/2",
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
+      "to": "knowledge:source_section:section-readme-md-10-judge-kb-9f9851fe2d",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.632,
+      "score": 0.65,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.843,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
       "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.8,
+      "score": 0.582,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/6",
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "to": "codex/judge-prevent-judge-reverse-blocking-edges",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.8,
+      "score": 0.698,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.8,
+      "score": 0.588,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
-      "to": "knowledge:source_chunk:chunk-agents-md-4-0-most-conversation-is-throwaway-but-some--7f26aa8d80",
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "to": "codex/judge-subconscious-skill-promotion-gate",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.57,
+      "score": 0.573,
       "origin": "autowire-semantic"
     },
     {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
-      "to": "knowledge:source_chunk:chunk-agents-md-4-1-when-to-record-a-real-decision-with-a-re-65f9c8d7cb",
+      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "to": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.57,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
-      "to": "knowledge:source_chunk:chunk-agents-md-4-2-do-not-record-chatter-restatements-or-tr-16d29a8bb7",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.57,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
-      "to": "knowledge:source_chunk:chunk-agents-md-4-3-tag-user-preferences-with-category-prefe-f3b4b33930",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.57,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/5",
-      "to": "knowledge:source_chunk:chunk-claude-md-4-0-most-conversation-is-throwaway-but-some--084a720cdd",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.57,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.843,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.8,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
-      "to": "f5bb5b09-a7b8-4546-a74c-0108ecb5d134/2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.6,
+      "score": 0.565,
       "origin": "autowire-semantic"
     },
     {
@@ -285854,5 +286508,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-22T19:16:40.844Z"
+  "compacted_at": "2026-06-22T19:41:52.184Z"
 }
