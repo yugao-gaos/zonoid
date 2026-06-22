@@ -28,7 +28,7 @@ const PORT = k.PORT;
   if (!policy.hasBashWritePattern(cmd)) k.allow();               // no write pattern -> allow
 
   // ── Collect write targets, then allow only if EVERY extractable target is exempt. ──
-  const targets = policy.bashWriteTargets(cmd);
+  const targets = policy.bashWriteTargets(cmd, input.cwd || (input.tool_input && input.tool_input.cwd) || process.cwd());
 
   // tee / python writes / sed -i give no cheaply-extractable target -> fall through to claim check.
   if (policy.allTargetsExempt(targets)) k.allow();
@@ -111,6 +111,10 @@ const PORT = k.PORT;
   const sinfo = await k.getJson(`/session-info?session=${encodeURIComponent(sid)}`, 600);
   if (sinfo && sinfo.is_subagent === true) {
     k.deny('orch-gate: no task claimed. Worker subagents must accept a prepared Subconscious assignment before editing with subconscious_assignment action:"accept". Dispatchers should create or repair the assignment with subconscious_assignment action:"prepare".');
+  }
+
+  if (policy.hasGitMutatorCommand(cmd)) {
+    k.deny('orch-gate: git mutators require an active Subconscious assignment and execution permit. Use subconscious_assignment action:"accept" in the prepared worktree before running this git command.');
   }
 
   const t = await k.tryTrivialMainAllow(sid, cmd);

@@ -13,6 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { withHookStub } = require('./support/hook-http-stub');
+const policy = require('../hooks/lib/gate-policy');
 
 const HOOK = path.resolve(__dirname, '..', 'hooks', 'orch-gate-bash.sh');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-gate-test-'));
@@ -26,8 +27,10 @@ function ok(label, cond) {
 }
 
 // Build synthetic hook input JSON
-function mkInput(command, sessionId) {
-  return JSON.stringify({ tool_input: { command }, session_id: sessionId || 'test-session-x' });
+function mkInput(command, sessionId, cwd) {
+  const input = { tool_input: { command }, session_id: sessionId || 'test-session-x' };
+  if (cwd) input.cwd = cwd;
+  return JSON.stringify(input);
 }
 
 // Run the hook with a given input and env overrides, returns { status, stderr }
@@ -694,6 +697,134 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   );
   ok('claimed session: PowerShell pipe mixed targets → exit 2', r.status === 2);
   ok('claimed session: PowerShell pipe message names outside path', r.stderr.includes('/Users/x/outside-pipe.txt'));
+}
+
+// 64. Quoted Bash redirect target outside every worktree → denied
+{
+  const r = runWithConfig(
+    mkInput('echo ok > "/Users/x/outside-quoted.txt"'),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: quoted Bash redirect outside worktree → exit 2', r.status === 2);
+  ok('claimed session: quoted Bash redirect message names outside path', r.stderr.includes('/Users/x/outside-quoted.txt'));
+}
+
+// 65. Quoted Bash redirect target inside a claimed worktree → allowed
+{
+  const r = runWithConfig(
+    mkInput(`echo ok > "${WT_A}/inside-quoted.txt"`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: quoted Bash redirect inside worktree → exit 0', r.status === 0);
+}
+
+// 66. Standalone read-only git command remains exempt
+{
+  const r = runBlocked('git status --short');
+  ok('standalone git status read → exit 0', r.status === 0);
+}
+
+// 67. Mutating git commands require a claim/permit path
+{
+  const add = runBlocked('git add src/main.js');
+  const commit = runBlocked('git commit -m "x"');
+  const worktree = runBlocked('git worktree add /tmp/wt HEAD');
+  ok('git add without claim → exit 2', add.status === 2);
+  ok('git commit without claim → exit 2', commit.status === 2);
+  ok('git worktree add without claim → exit 2', worktree.status === 2);
+}
+
+// 68. Main-session trivial allowance does not cover git mutators
+{
+  const r = runWithConfig(
+    mkInput('git add src/main.js', 'main-git-mutator'),
+    {
+      activeClaim: { claimed: false },
+      sessionInfo: { is_subagent: false },
+      dispatcherChildren: { children: [{ task_key: 'local/w1', label: 'worker', agent_id: 'w1', worker_session: 'ws1' }], attribution: 'local/w1', needs_focus: false },
+    },
+    { CLAUDE_PLUGIN_DATA: TMP },
+  );
+  ok('main git add with workers still requires claim → exit 2', r.status === 2);
+  ok('main git add with workers message', r.stderr.includes('git mutators require an active Subconscious assignment'));
+}
+
+// 69. Compound read-only git plus shell write is not exempt
+{
+  const r = runBlocked('git status && echo hi > /Users/x/git-compound.txt');
+  ok('git status && redirect write without claim → exit 2', r.status === 2);
+}
+
+// 70. Read-only git with shell redirect is still a shell write
+{
+  const r = runBlocked('git diff > "/Users/x/diff.patch"');
+  ok('git diff redirected to quoted absolute path without claim → exit 2', r.status === 2);
+}
+
+// 71. Claimed session blocks git mutator aimed outside the permit worktree with -C
+{
+  const r = runWithConfig(
+    mkInput('git -C /Users/x/outside-repo add file.js'),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: git -C outside worktree add → exit 2', r.status === 2);
+  ok('claimed session: git -C outside message names repo path', r.stderr.includes('/Users/x/outside-repo'));
+}
+
+// 72. Claimed session allows git mutator aimed at a permitted worktree with -C
+{
+  const r = runWithConfig(
+    mkInput(`git -C ${WT_A} add file.js`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: git -C inside permitted worktree add → exit 0', r.status === 0);
+}
+
+// 73. Claimed session blocks targetless git mutator when hook cwd is outside the worktree
+{
+  const r = runWithConfig(
+    mkInput('git add file.js', 'test-session-x', '/Users/x/outside-cwd-repo'),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: targetless git add with outside cwd → exit 2', r.status === 2);
+  ok('claimed session: targetless git add outside cwd message', r.stderr.includes('/Users/x/outside-cwd-repo'));
+}
+
+// 74. Claimed session allows targetless git mutator when hook cwd is a permitted worktree
+{
+  const r = runWithConfig(
+    mkInput('git add file.js', 'test-session-x', WT_A),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: targetless git add with inside cwd → exit 0', r.status === 0);
+}
+
+// 75. Claimed session blocks relative git -C resolved from an outside hook cwd
+{
+  const outsideCwd = '/Users/x/outside-cwd';
+  const r = runWithConfig(
+    mkInput('git -C rel-outside add file.js', 'test-session-x', outsideCwd),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: relative git -C outside cwd → exit 2', r.status === 2);
+  ok('claimed session: relative git -C outside cwd message', r.stderr.includes('/Users/x/outside-cwd/rel-outside'));
+}
+
+// 76. Git mutator target collection resolves relative git path options against effective cwd
+{
+  const outsideCwd = '/Users/x/outside-cwd';
+  const cTargets = policy.collectGitMutatorTargets('git -C rel-outside add file.js', outsideCwd);
+  const workTreeTargets = policy.collectGitMutatorTargets('git --work-tree rel-worktree add file.js', outsideCwd);
+  const gitDirTargets = policy.collectGitMutatorTargets('git --git-dir rel-git add file.js', outsideCwd);
+  const effectiveCwdTargets = policy.collectGitMutatorTargets(
+    'git -C rel-base --work-tree rel-worktree --git-dir rel-git add file.js',
+    outsideCwd,
+  );
+  ok('policy: relative git -C target resolves against hook cwd', cTargets.includes('/Users/x/outside-cwd/rel-outside'));
+  ok('policy: relative --work-tree target resolves against hook cwd', workTreeTargets.includes('/Users/x/outside-cwd/rel-worktree'));
+  ok('policy: relative --git-dir target resolves against hook cwd', gitDirTargets.includes('/Users/x/outside-cwd/rel-git'));
+  ok('policy: --work-tree after relative -C resolves against effective git cwd', effectiveCwdTargets.includes('/Users/x/outside-cwd/rel-base/rel-worktree'));
+  ok('policy: --git-dir after relative -C resolves against effective git cwd', effectiveCwdTargets.includes('/Users/x/outside-cwd/rel-base/rel-git'));
 }
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────

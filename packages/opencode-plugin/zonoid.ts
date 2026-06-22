@@ -64,7 +64,7 @@ export const ZonoidPlugin: Plugin = async ({ client, directory, worktree }) => {
       const agentId = sessionID ? (sessionAgents.get(sessionID) || `opencode-${sessionID.slice(0, 8)}`) : '';
       await checkShouldStop({ sessionID, agentId, workspace });
       const args = (output.args && typeof output.args === 'object') ? output.args : {};
-      await gateWriteTool(sessionID, input.tool, args);
+      await gateWriteTool(sessionID, input.tool, args, { agentId, workspace });
     },
 
     'tool.execute.after': async (input) => {
