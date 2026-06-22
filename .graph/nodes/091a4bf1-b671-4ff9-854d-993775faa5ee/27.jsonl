@@ -15,3 +15,4 @@
 {"evt":"edge_promoted","from":"091a4bf1-b671-4ff9-854d-993775faa5ee/27","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:29:06.373Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"091a4bf1-b671-4ff9-854d-993775faa5ee/27","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:31:07.025Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"091a4bf1-b671-4ff9-854d-993775faa5ee/27","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:31:19.536Z","weight":0.75,"origin":"asserted"}
+{"evt":"edge_promoted","from":"091a4bf1-b671-4ff9-854d-993775faa5ee/27","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:31:52.706Z","weight":0.75,"origin":"asserted"}
