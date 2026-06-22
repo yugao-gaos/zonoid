@@ -146,7 +146,7 @@ function executionPermit(taskKey, worktree, branch, overrides = {}) {
     { CLAUDE_PLUGIN_DATA: TMP },
   );
   ok('oversized patch blocked', r.status === 2);
-  ok('oversized patch dispatch message', r.stderr.includes('spawn a background subagent'));
+  ok('oversized patch dispatch message', r.stderr.includes('subconscious_assignment action:"prepare"'));
 }
 
 

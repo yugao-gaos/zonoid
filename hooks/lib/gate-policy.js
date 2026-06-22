@@ -130,10 +130,123 @@ function validateExecutionPermit(permit, ctx = {}) {
   return { ok: true, reason: 'Subconscious execution permit valid' };
 }
 
+const READ_ONLY_GIT_COMMANDS = new Set([
+  'cat-file', 'describe', 'diff', 'for-each-ref', 'grep', 'help', 'log',
+  'ls-files', 'merge-base', 'name-rev', 'rev-parse', 'show', 'status', 'version',
+]);
+const GIT_MUTATOR_COMMANDS = new Set([
+  'add', 'am', 'apply', 'bisect', 'branch', 'checkout', 'cherry-pick', 'clean',
+  'commit', 'config', 'fetch', 'gc', 'init', 'merge', 'mv', 'pull', 'push',
+  'rebase', 'remote', 'reset', 'restore', 'revert', 'rm', 'stash', 'submodule',
+  'switch', 'tag', 'worktree',
+]);
+const GIT_GLOBAL_OPTIONS_WITH_VALUE = new Set(['-C', '-c', '--exec-path', '--git-dir', '--namespace', '--work-tree']);
+
+function isAbsolutePath(p) {
+  const s = k.slash(p);
+  return s.startsWith('/') || /^[A-Za-z]:\//.test(s);
+}
+
+function resolveAgainstCwd(target, cwd) {
+  const s = k.slash(target);
+  if (!s) return '';
+  if (isAbsolutePath(s) || !cwd) return k.normalizePath(s);
+  return k.normalizePath(`${k.slash(cwd).replace(/\/+$/, '')}/${s}`);
+}
+
+function gitSubcommand(toks, gitIdx) {
+  for (let i = gitIdx + 1; i < toks.length; i++) {
+    const tok = cleanToken(toks[i]);
+    if (!tok || isCommandBoundary(tok)) break;
+    if (tok === '--') continue;
+    const optWithEquals = tok.match(/^(--(?:exec-path|git-dir|namespace|work-tree))=/);
+    if (optWithEquals) continue;
+    if (GIT_GLOBAL_OPTIONS_WITH_VALUE.has(tok)) {
+      i++;
+      continue;
+    }
+    if (tok.startsWith('-')) continue;
+    return commandName(tok);
+  }
+  return '';
+}
+
+function hasRedirect(toks) {
+  return toks.some((tok) => isRedirectToken(tok));
+}
+
 function isGitCommandExempt(cmd) {
-  const gitVerbs = /(^|[;&|]|&&|\|\|)\s*git\s+(-C\s+\S+\s+)?(commit|merge|add|push|pull|fetch|branch|tag|worktree|rebase|cherry-pick|log|status|diff|show|rev-parse|describe|remote)\b/;
-  const gitMutators = /\bgit\s+(-C\s+\S+\s+)?(checkout|restore|reset|clean|rm|stash)\b/;
-  return gitVerbs.test(cmd) && !gitMutators.test(cmd);
+  const toks = tokenizeShellCommand(String(cmd || '').replace(/[ \t]#.*$/m, ''));
+  if (!toks.length || hasRedirect(toks)) return false;
+  const commandIdxs = shellCommandIndices(toks);
+  if (commandIdxs.length !== 1) return false;
+  const gitIdx = commandIdxs[0];
+  if (commandName(toks[gitIdx]) !== 'git') return false;
+  const subcommand = gitSubcommand(toks, gitIdx);
+  return READ_ONLY_GIT_COMMANDS.has(subcommand);
+}
+
+function hasGitMutatorCommand(cmdNoComment) {
+  const toks = tokenizeShellCommand(cmdNoComment);
+  return shellCommandIndices(toks).some((idx) =>
+    commandName(toks[idx]) === 'git' && GIT_MUTATOR_COMMANDS.has(gitSubcommand(toks, idx))
+  );
+}
+
+function collectGitMutatorTargets(cmdNoComment, cwd = '') {
+  const toks = tokenizeShellCommand(cmdNoComment);
+  const targets = [];
+  for (const idx of shellCommandIndices(toks)) {
+    if (commandName(toks[idx]) !== 'git') continue;
+    let gitCwd = cwd ? k.normalizePath(k.slash(cwd)) : '';
+    let workTree = '';
+    let gitDir = '';
+    let subcommand = '';
+    for (let j = idx + 1; j < toks.length; j++) {
+      const tok = cleanToken(toks[j]);
+      if (!tok || isCommandBoundary(tok)) break;
+      if (tok === '--') continue;
+      if (tok === '-C') {
+        if (j + 1 < toks.length && !isCommandBoundary(toks[j + 1])) gitCwd = resolveAgainstCwd(cleanToken(toks[++j]), gitCwd);
+        continue;
+      }
+      if (tok.startsWith('-C') && tok.length > 2) {
+        gitCwd = resolveAgainstCwd(tok.slice(2), gitCwd);
+        continue;
+      }
+      if (tok === '--work-tree') {
+        if (j + 1 < toks.length && !isCommandBoundary(toks[j + 1])) workTree = resolveAgainstCwd(cleanToken(toks[++j]), gitCwd);
+        continue;
+      }
+      if (tok.startsWith('--work-tree=')) {
+        workTree = resolveAgainstCwd(tok.slice('--work-tree='.length), gitCwd);
+        continue;
+      }
+      if (tok === '--git-dir') {
+        if (j + 1 < toks.length && !isCommandBoundary(toks[j + 1])) gitDir = resolveAgainstCwd(cleanToken(toks[++j]), gitCwd);
+        continue;
+      }
+      if (tok.startsWith('--git-dir=')) {
+        gitDir = resolveAgainstCwd(tok.slice('--git-dir='.length), gitCwd);
+        continue;
+      }
+      const optWithEquals = tok.match(/^(--(?:exec-path|namespace))=/);
+      if (optWithEquals) continue;
+      if (GIT_GLOBAL_OPTIONS_WITH_VALUE.has(tok)) {
+        j++;
+        continue;
+      }
+      if (tok.startsWith('-')) continue;
+      subcommand = commandName(tok);
+      if (GIT_MUTATOR_COMMANDS.has(subcommand)) {
+        for (const target of [workTree, gitDir, gitCwd]) {
+          if (target && !targets.includes(target)) targets.push(target);
+        }
+      }
+      break;
+    }
+  }
+  return targets.filter(Boolean);
 }
 
 function isLocalDaemonCommand(cmd, port) {
@@ -197,6 +310,31 @@ function isCommandBoundary(t) {
 
 function isRedirectToken(t) {
   return /^[0-9]*>>?/.test(String(t || '')) || /^[0-9]*\*?>/.test(String(t || ''));
+}
+
+function redirectTargetInToken(t) {
+  const m = cleanToken(t).match(/^(?:[0-9]*\*?>|[0-9]*>>?)(.+)$/);
+  if (!m || !m[1] || m[1].startsWith('&')) return '';
+  return m[1];
+}
+
+function collectRedirectTargets(cmdNoComment) {
+  const toks = tokenizeShellCommand(cmdNoComment);
+  const targets = [];
+  for (let i = 0; i < toks.length; i++) {
+    const tok = cleanToken(toks[i]);
+    if (!isRedirectToken(tok)) continue;
+    const inline = redirectTargetInToken(tok);
+    if (inline) {
+      targets.push(inline);
+      continue;
+    }
+    if (i + 1 < toks.length && !isCommandBoundary(toks[i + 1])) {
+      const target = cleanToken(toks[++i]);
+      if (target && !target.startsWith('&')) targets.push(target);
+    }
+  }
+  return targets;
 }
 
 function isAssignmentToken(t) {
@@ -307,6 +445,7 @@ function hasBashWritePattern(cmd) {
     hasShellCommand(cmdNoComment, new Set(['tee'])) ||
     /open\s*\(.*['"]([wWaA]|[wWaA]b)['"]|\.write(_text|_bytes)?\s*\(|\.touch\s*\(/.test(cmd) ||
     hasShellCommand(cmdNoComment, new Set(['cp', 'mv', 'rsync', 'install'])) ||
+    hasGitMutatorCommand(cmdNoComment) ||
     /\bdd\b.*\bof=/.test(cmd) ||
     (hasShellCommand(cmdNoComment, new Set(['sed'])) && /(^|\s)-i(\s|[A-Za-z0-9._-])/.test(cmdNoComment)) ||
     tokenizeShellCommand(cmd).some(isPowerShellWriteCommand)
@@ -419,13 +558,12 @@ function collectPythonTargets(cmd) {
   return targets;
 }
 
-function bashWriteTargets(cmd) {
+function bashWriteTargets(cmd, cwd = '') {
   const cmdNoComment = String(cmd || '').replace(/[ \t]#.*$/m, '');
   const targets = [];
-  for (const m of cmdNoComment.matchAll(/(>>?)\s*(\S+)/g)) {
-    if (m[2]) targets.push(m[2]);
-  }
+  targets.push(...collectRedirectTargets(cmdNoComment));
   targets.push(...collectCommandDestTargets(cmdNoComment, new Set(['cp', 'mv', 'rsync', 'install'])));
+  targets.push(...collectGitMutatorTargets(cmdNoComment, cwd));
   targets.push(...collectTeeTargets(cmdNoComment));
   targets.push(...collectSedTargets(cmdNoComment));
   targets.push(...collectPythonTargets(cmdNoComment));
@@ -451,6 +589,8 @@ module.exports = {
   isGitCommandExempt,
   isLocalDaemonCommand,
   tokenizeShellCommand,
+  hasGitMutatorCommand,
+  collectGitMutatorTargets,
   hasBashWritePattern,
   bashWriteTargets,
 };
