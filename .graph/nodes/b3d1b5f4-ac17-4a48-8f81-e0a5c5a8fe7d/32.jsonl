@@ -14,3 +14,4 @@
 {"evt":"edge_promoted","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32","to":"codex/fix-shell-opencode-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:41.076Z","weight":0.85,"origin":"asserted"}
 {"evt":"edge_promoted","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32","to":"codex/fix-shell-opencode-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:47.845Z","weight":0.85,"origin":"asserted"}
 {"evt":"edge_promoted","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32","to":"codex/fix-shell-opencode-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:55.651Z","weight":0.85,"origin":"asserted"}
+{"evt":"edge_promoted","from":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/32","to":"codex/fix-shell-opencode-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:48:10.228Z","weight":0.85,"origin":"asserted"}
