@@ -9,3 +9,4 @@
 {"evt":"edge_promoted","from":"note:note-mqh5elf8cq8","to":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/16","kind":"context","actor":"overlay-sync","ts":"2026-06-16T21:24:12.743Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqh5elf8cq8","to":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/16","kind":"context","actor":"overlay-sync","ts":"2026-06-16T21:29:51.450Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqh5elf8cq8","to":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/16","kind":"context","actor":"overlay-sync","ts":"2026-06-16T21:34:13.618Z","weight":1}
+{"evt":"edge_added","from":"note:note-mqh5elf8cq8","to":"codex/fix-dashboard-config-test-contract-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:08:04.378Z","weight":0,"by":"autowire","judged":false,"score":0.561,"origin":"autowire-semantic"}
