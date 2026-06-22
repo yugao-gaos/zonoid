@@ -1,0 +1,2 @@
+{"evt":"edge_promoted","from":"bench/bench-trial-34-discovered","to":"bench/bench-trial-19-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:36:19.507Z","weight":1,"by":"judge","judged":true,"score":1,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"bench/bench-trial-34-discovered","to":"bench/bench-trial-12-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:36:19.507Z","weight":0.896,"by":"judge","judged":true,"score":0.896,"origin":"autowire-semantic"}
