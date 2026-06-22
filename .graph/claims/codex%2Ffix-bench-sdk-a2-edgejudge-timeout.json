@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-54835-af4253defc95c0d84303ddf58ce8da77",
   "branch": "orch/attempt/codex-fix-bench-sdk-a2-edgejudge-timeout",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T14:19:10.590Z",
-  "lease_until": "2026-06-22T15:19:10.590Z"
+  "lease_until": "2026-06-22T15:19:10.590Z",
+  "completed_at": "2026-06-22T14:29:04.277Z"
 }
