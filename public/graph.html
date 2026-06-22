@@ -185,6 +185,15 @@
   #cloudMatchCount { color: #8b949e; font-size: 11px; white-space: nowrap; min-width: 60px; }
   #cloudTraceLegend { position: absolute; top: 43px; right: 10px; z-index: 5; display: none; background: #0d1117cc; border: 1px solid #30363d; border-radius: 6px; padding: 3px 7px; color: #8b949e; font-size: 11px; white-space: nowrap; }
   #cloudTraceLegend.show { display: block; }
+  #cloudSearchSummary { position: absolute; top: 72px; right: 10px; z-index: 5; display: none; width: min(380px, calc(100% - 20px)); max-height: min(46vh, 420px); overflow: auto; background: rgba(13,17,23,.88); border: 1px solid #30363d; border-radius: 8px; padding: 9px 10px; box-shadow: 0 14px 40px rgba(0,0,0,.28); color: #c9d1d9; font-size: 11px; line-height: 1.38; }
+  #cloudSearchSummary.show { display: block; }
+  .cloud-search-summary-title { color: #e6edf3; font-weight: 700; margin-bottom: 5px; display: flex; justify-content: space-between; gap: 10px; }
+  .cloud-search-summary-meta { color: #8b949e; font-size: 10px; white-space: nowrap; }
+  .cloud-search-summary-line { color: #adbac7; margin-bottom: 7px; }
+  .cloud-search-summary-items { display: flex; flex-direction: column; gap: 5px; }
+  .cloud-search-summary-item { border-top: 1px solid rgba(48,54,61,.72); padding-top: 5px; }
+  .cloud-search-summary-item b { color: #e6edf3; font-weight: 650; }
+  .cloud-search-summary-item span { color: #8b949e; }
   #cloudsvg circle.cloud-search-hit { animation: cloudHitPulse 500ms ease-out both; }
   #cloudsvg circle.cloud-search-final { filter: drop-shadow(0 0 7px rgba(247,129,102,.8)); }
   #cloudsvg circle.cloud-search-reranked { filter: drop-shadow(0 0 8px rgba(125,211,252,.75)); }
@@ -665,7 +674,7 @@
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
     <div id="wsPickerWrap" style="padding:0 16px 8px;display:none"><select id="wsPicker" style="font-size:11px;background:#161b22;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 6px;cursor:pointer;max-width:220px"></select></div>
-    <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><svg id="cloudsvg"></svg></div>
+    <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
     <div id="flowstats"></div>
   </div>
@@ -5728,7 +5737,7 @@ function cloudEdgeKey(a,b){
 }
 function buildCloudSearchTrace(items, query, startedAt=Date.now()){
   const readyAt=Date.now();
-  const hitRank=new Map(), finalKeys=new Set(), rerankedKeys=new Set(), walkEdges=new Map(), pathKeys=new Set();
+  const hitRank=new Map(), finalKeys=new Set(), rerankedKeys=new Set(), walkEdges=new Map(), pathKeys=new Set(), itemMeta=new Map();
   const hits=[];
   for(const item of (items||[])){
     const key=cloudNodeKey(item&&item.key);
@@ -5736,6 +5745,15 @@ function buildCloudSearchTrace(items, query, startedAt=Date.now()){
     if(!hitRank.has(key)){
       hitRank.set(key, hitRank.size);
       hits.push({ key, score:Number(item.score)||0, reranked:!!(item.reranked||item.ceScore!=null) });
+    }
+    if(!itemMeta.has(key)){
+      itemMeta.set(key, {
+        kind:item&&item.kind||'',
+        title:item&&item.title||'',
+        summary:item&&item.summary||'',
+        tier:item&&item.tier||'',
+        score:Number(item&&item.score)||0
+      });
     }
     if(item&&(item.reranked||item.ceScore!=null)) rerankedKeys.add(key);
 
@@ -5765,7 +5783,7 @@ function buildCloudSearchTrace(items, query, startedAt=Date.now()){
   hits.sort((a,b)=>b.score-a.score);
   for(const h of hits.slice(0,CLOUD_SEARCH_FINAL_TOP_K)) finalKeys.add(h.key);
   for(const key of rerankedKeys) finalKeys.add(key);
-  return { query, startedAt, readyAt, hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys };
+  return { query, startedAt, readyAt, hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys, itemMeta };
 }
 function scheduleCloudSearch(){
   const query=cloudSearchText.trim();
@@ -6290,6 +6308,56 @@ function renderCloud(d, opts={}){
       traceEl.classList.remove('show');
     }
   }
+  const summaryEl=document.getElementById('cloudSearchSummary');
+  if(summaryEl){
+    if(q&&searchFinalized){
+      const summaryKeys=[...finalNodeKeys];
+      if(!summaryKeys.length) for(const id of fallbackFinalNodeKeys) summaryKeys.push(id);
+      const summaryNodes=summaryKeys
+        .map(id=>byNode[id])
+        .filter(n=>n&&!n.archive&&n.t)
+        .sort((a,b)=>{
+          const ar=traceRankOf(a.id), br=traceRankOf(b.id);
+          return ar-br || (localSeedMatch(a)===localSeedMatch(b)?0:(localSeedMatch(a)?-1:1)) || a.id.localeCompare(b.id);
+        });
+      if(summaryNodes.length){
+        const countBy=(fn)=>{
+          const m=new Map();
+          for(const n of summaryNodes){
+            const key=fn(n);
+            if(!key) continue;
+            m.set(key,(m.get(key)||0)+1);
+          }
+          return [...m.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,4).map(([k,v])=>`${v} ${k}`).join(' · ');
+        };
+        const statusLine=countBy(n=>taskDisplayStatus(n.t,byId).label.toLowerCase());
+        const kindLine=countBy(n=>n.t.kind==='note'?'notes':'tasks');
+        const snippet=(s,max=118)=>{
+          s=String(s||'').replace(/\s+/g,' ').trim();
+          return s.length>max?s.slice(0,max-1)+'…':s;
+        };
+        const itemRows=summaryNodes.slice(0,5).map(n=>{
+          const meta=trace?.itemMeta?.get(n.id)||{};
+          const ds=taskDisplayStatus(n.t,byId);
+          const title=snippet(meta.title||n.t.label||n.id,64);
+          const body=snippet(meta.summary||n.t.summary||n.t.description||n.t.note||'',126);
+          const source=meta.tier||meta.kind||ds.label;
+          return `<div class="cloud-search-summary-item"><b>${esc(title)}</b> <span>${esc(source)}</span>${body?`<div>${esc(body)}</div>`:''}</div>`;
+        }).join('');
+        summaryEl.innerHTML =
+          `<div class="cloud-search-summary-title"><span>Search context</span><span class="cloud-search-summary-meta">${summaryNodes.length} highlighted</span></div>`+
+          `<div class="cloud-search-summary-line">${esc([statusLine,kindLine].filter(Boolean).join(' · '))}</div>`+
+          `<div class="cloud-search-summary-items">${itemRows}</div>`;
+        summaryEl.classList.add('show');
+      } else {
+        summaryEl.textContent='';
+        summaryEl.classList.remove('show');
+      }
+    } else {
+      summaryEl.textContent='';
+      summaryEl.classList.remove('show');
+    }
+  }
   const onboardLabelIds = new Set();
   const dashboardLabelIds = new Set();
   if (isOnboard) {
@@ -6313,7 +6381,7 @@ function renderCloud(d, opts={}){
       if (dashboardLabelIds.size >= cloudProfile.maxLabels) break;
     }
   }
-  const showCloudLabel=n=> isOnboard?onboardLabelIds.has(n.id):(q?(!n.archive&&activatedSearch(n)):(n.archive||dashboardLabelIds.has(n.id)));
+  const showCloudLabel=n=> isOnboard?onboardLabelIds.has(n.id):(q?false:(n.archive||dashboardLabelIds.has(n.id)));
   const cloudLabelText=n=> n.archive?('🗄 '+n.count):(isOnboard?truncate(n.t.label,18):((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22)));
   const hoverLabelText=n=>truncate(n.t?.label||n.id,48);
   const labelBorder=n=>{
