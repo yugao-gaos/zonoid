@@ -146084,6 +146084,7 @@
       "summary": "APPROVE. Reviewed retrieval wire weight evolution diff at 98ef46177d6be231c54bcf4797c008734f40b960; no blocking findings. Required tests passed, with dag-only daemon test rerun via localhost escalation. Merged attempt codex/brain-search-weight-evolution into feature branch; merge head 6ec74cca0dd188eb9d7f4a55d6dc03bcc9c3db84.",
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "Review retrieval wire weight evolution attempt",
         "description": "Judge task for codex/brain-search-weight-evolution. Review edge metadata and recall-outcome update diff with get_attempt_diff. Verify structural_weight remains separate from retrieval_weight, blocking dependency semantics are not mutated, updates are bounded/clamped/conservative, tests cover reinforcement/penalty/decay. Do not force-merge. If approved, record APPROVE and request/perform attempt merge into feature branch if safe; otherwise hold-merge verdict. If not approved, fail implementation task with concise reason and record the decision.",
@@ -228454,7 +228455,7 @@
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
-      "summary": "Implemented a default MCP `subconscious_assignment` facade with prepare/accept/complete/submit_verdict/read actions. Added thin `/subconscious/assignment` prepare/read routing for anchor selection/creation, dependency/judge wiring, repo/test config, and worktree allocation; accept/complete/verdict actions compose existing `/overlay/status` and `/git/merge` paths. Updated AGENTS/docs/allowlists and added tests for default surface, schema/actions, prepare envelope wiring/worktree allocation, accept permit-preserving status path, and verdict merge/kickback behavior. Committed attempt branch at f84db245.",
+      "summary": "Guarded subconscious_assignment APPROVE so judge completion only happens when /git/merge returns merged:true; added regression for merged:false reason preserving failure and skipping judge completion.",
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
@@ -228467,10 +228468,204 @@
         "metadata": null,
         "snapshotted_at": "2026-06-21T23:36:13.492Z"
       },
-      "assignee": "worker-subconscious-assignment-surface",
+      "assignee": "worker-subconscious-assignment-surface-fix",
       "timestamps": {
         "firstSeen": "2026-06-21T23:15:31.962Z",
-        "lastChanged": "2026-06-21T23:36:13.491Z",
+        "lastChanged": "2026-06-21T23:59:46.321Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-subconscious-assignment-surface": {
+      "id": "codex/judge-subconscious-assignment-surface",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "KICK_BACK: approve verdict path can treat /git/merge { merged:false, reason } as success. Require merge.merged === true before approval completion and add a regression. Verification passed before kickback: focused node --test suite and git diff --check. Attempt was not merged.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge Subconscious assignment facade implementation",
+        "description": "Review the Subconscious assignment facade implementation for correctness, minimized foreground surface, scope discipline, tests, and compatibility with existing worker/judge flows. If approved, merge the implementation attempt into the feature branch only; do not merge feature to main.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/subconscious-assignment-surface"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-21T23:56:24.260Z"
+      },
+      "assignee": "judge-subconscious-assignment-surface",
+      "timestamps": {
+        "firstSeen": "2026-06-21T23:16:20.484Z",
+        "lastChanged": "2026-06-21T23:56:22.527Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/embedding-store-interface-impl": {
+      "id": "codex/embedding-store-interface-impl",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Amended the embedding-store attempt to deepen the storage boundary. Task vector projection, presence, and freshness checks now live behind the overlay-backed embedding store; buildGraph projection, overlay status embedding, and task backfill/reembed checks no longer read overlay.taskVecs/taskVecMeta directly. Existing overlay shapes and metadata filtering behavior remain compatible, with focused helper tests added and requested regressions passing.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Implement overlay backed EmbeddingStore boundary",
+        "description": "Introduce a low-risk EmbeddingStore interface around existing overlay/task/note/knowledge vector reads and writes. Keep existing persisted shapes compatible, delegate existing helpers where possible, update focused call sites, add tests for task and node vector access/freshness, and run embedding/backfill tests.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-22T00:20:01.985Z"
+      },
+      "assignee": "codex-embedding-store-interface-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-22T00:13:39.094Z",
+        "lastChanged": "2026-06-22T00:20:01.976Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-embedding-store-interface-impl": {
+      "id": "codex/judge-embedding-store-interface-impl",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Approved EmbeddingStore boundary attempt d6848c9d after one kickback. The final diff keeps overlay-backed storage and existing persisted vector shapes, delegates nodeVecs/maxCosine/setTaskVec through lib/embedding-store.js, moves task-vector hot-path reads in daemon/routes behind store helpers, preserves metadata freshness filtering, and passes the focused embedding/backfill/ingest suite. Attempt merged into orch/feature/embedding-store-interface.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Review EmbeddingStore boundary implementation",
+        "description": "Single-attempt review of codex/embedding-store-interface-impl. Inspect the attempt diff for correctness, minimal scope, storage compatibility, stale-vector filtering, and focused tests. Do not force-merge; approve only if behavior is unchanged and tests pass.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/embedding-store-interface-impl"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-22T00:25:38.841Z"
+      },
+      "assignee": "codex-dispatcher",
+      "timestamps": {
+        "firstSeen": "2026-06-22T00:13:42.849Z",
+        "lastChanged": "2026-06-22T00:25:38.821Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-subconscious-assignment-surface-fix": {
+      "id": "codex/judge-subconscious-assignment-surface-fix",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVE code review for codex/subconscious-assignment-surface at 3e0879aa: assignment facade is thin/compositional, prepare owns task/judge/repo/test/worktree setup, accept routes through /overlay/status permit path, APPROVE now requires merge.merged === true and skips judge completion on merged:false, KICK_BACK marks failed without merging. Verified requested node tests and git diff --check passed. merge_attempt into orch/feature/subconscious-assignment-surface returned {merged:false, conflict:true, files:[]} and left no MERGE_HEAD; feature worktree had unrelated pre-existing dirty/diverged graph state, not cleaned.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge repaired Subconscious assignment facade",
+        "description": "Single-attempt review of repaired codex/subconscious-assignment-surface after judge kickback. Verify submit_verdict approve requires merge.merged === true, regression covers { merged:false, reason }, focused tests pass, and if approved merge the implementation attempt into the feature branch only. Do not merge feature to main.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/subconscious-assignment-surface"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-22T00:06:31.322Z"
+      },
+      "assignee": "judge-subconscious-assignment-surface-fix",
+      "timestamps": {
+        "firstSeen": "2026-06-22T00:00:30.097Z",
+        "lastChanged": "2026-06-22T00:06:31.304Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/merge-subconscious-assignment-surface-clean": {
+      "id": "codex/merge-subconscious-assignment-surface-clean",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Merged clean Subconscious assignment feature to main as merge commit 2f2f1144. Preserved unrelated dirty onboarding/drain worktree edits by staging only the feature tree. Verification passed before commit: focused node --test suite and git diff --check. Remaining dirty files are unrelated pre-existing daemon/onboarding work.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Merge clean Subconscious assignment feature after main overlap clears",
+        "description": "Promote orch/feature/subconscious-assignment-surface-clean to main after unrelated dirty main edits are committed/reconciled. Clean feature status: approved attempt codex/subconscious-assignment-surface merged into clean feature at 67277a1e; focused node --test suite and git diff --check passed. Current blocker: main checkout has unrelated dirty overlap in lib/mcp-core.js and test/mcp-harness-tools.test.js from onboarding/drain work, so merge_feature returned { merged:false, conflict:true, files:[] }. Do not stash or overwrite those changes.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/judge-subconscious-assignment-surface-fix"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-22T00:21:12.506Z"
+      },
+      "assignee": "codex-dispatcher",
+      "timestamps": {
+        "firstSeen": "2026-06-22T00:11:23.660Z",
+        "lastChanged": "2026-06-22T00:21:12.490Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/search-diagnostic-retrieval-weight-feedback": {
+      "id": "codex/search-diagnostic-retrieval-weight-feedback",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Implemented task-scoped recall diagnostics that preserve direct context-edge metadata, feed terminal outcomes into learned retrievalWeight updates, and leave structural overlay edge weights unchanged. Added coverage for metadata preservation, backward compatibility, fail-open behavior, and terminal retrieval-weight feedback. Commit: 4f143053dddd76fe664f1c2361435637fcdd4b6e.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Implement search diagnostic feedback into retrieval weights",
+        "description": "Add outcome-driven search diagnostic feedback so task-scoped search recall records enough result/edge metadata, terminal task outcomes classify simple search errors, and the existing retrieval-weights journal is updated instead of mutating structural edge weights. Scope: lib/search/context-compiler.js, lib/recall-outcome-journal.js, routes/overlay.js, focused tests.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-22T00:24:53.811Z"
+      },
+      "assignee": "worker-search-diagnostic-feedback",
+      "timestamps": {
+        "firstSeen": "2026-06-22T00:14:11.578Z",
+        "lastChanged": "2026-06-22T00:25:26.092Z",
         "lastStatus": "done"
       },
       "metrics": null,
@@ -273035,8 +273230,8 @@
       "to": "codex/subconscious-assignment-surface",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.684,
       "origin": "autowire-semantic"
     },
@@ -273079,14 +273274,6 @@
       "judged": false,
       "score": 0.602,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/embed-provider-contract",
-      "to": "codex/embed-provider-local-adapter",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/judge-subconscious-assignment-surface",
@@ -273156,7 +273343,273 @@
       "weight": 0.8,
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqoeu0bmayx",
+      "to": "codex/judge-subconscious-assignment-surface-fix",
+      "kind": "context",
+      "weight": 0.564,
+      "by": "judge",
+      "judged": true,
+      "score": 0.564,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-subconscious-assignment-surface",
+      "to": "codex/judge-subconscious-assignment-surface-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/subconscious-assignment-surface",
+      "to": "codex/judge-subconscious-assignment-surface-fix",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/subconscious-internalized-orchestration",
+      "to": "codex/judge-subconscious-assignment-surface-fix",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/subconscious-permit-gate-kickback-fix",
+      "to": "codex/judge-subconscious-assignment-surface-fix",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqodt9p3kwd",
+      "to": "codex/embedding-store-interface-impl",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "origin": "asserted",
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqogmgwobj3",
+      "to": "codex/subconscious-assignment-surface",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqogmgwobj3",
+      "to": "codex/judge-subconscious-assignment-surface-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": false,
+      "by": "autowire"
+    },
+    {
+      "from": "note:note-mqogmgwobj3",
+      "to": "note:note-mqn7x0d9lv8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.668,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqogmgwobj3",
+      "to": "note:note-mqh2eifaveh",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.628,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqogmgwobj3",
+      "to": "note:note-mq7iaabuefb",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.598,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqogmgwobj3",
+      "to": "note:note-mqenc9e44v4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.598,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqogmgwobj3",
+      "to": "note:note-mqiu5lpjox6",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.592,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqogmgwobj3",
+      "to": "codex/merge-subconscious-assignment-surface-clean",
+      "kind": "context",
+      "weight": 1,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.696,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/brain-search-activation-engine",
+      "to": "codex/search-diagnostic-retrieval-weight-feedback",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/brain-search-task-context",
+      "to": "codex/search-diagnostic-retrieval-weight-feedback",
+      "kind": "context",
+      "weight": 0.8,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/brain-search-weight-evolution",
+      "to": "codex/search-diagnostic-retrieval-weight-feedback",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/embed-provider-contract",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/embedding-provider-instruct-ft-impl",
+      "to": "codex/embedding-store-interface-impl",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/embedding-provider-instruct-ft",
+      "to": "codex/embedding-store-interface-impl",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/embedding-store-interface-impl",
+      "to": "codex/embedding-store-interface",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.876,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/embedding-store-interface-impl",
+      "to": "codex/judge-embedding-store-interface-impl",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/judge-brain-search-task-context",
+      "to": "codex/judge-search-diagnostic-retrieval-weight-feedback",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-brain-search-weight-evolution",
+      "to": "codex/judge-search-diagnostic-retrieval-weight-feedback",
+      "kind": "context",
+      "weight": 0.9,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/judge-embedding-store-interface-impl",
+      "to": "codex/embedding-store-interface",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.605,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-search-diagnostic-retrieval-weight-feedback",
+      "to": "codex/search-diagnostic-retrieval-weight-feedback",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.796,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-subconscious-assignment-surface-fix",
+      "to": "codex/merge-subconscious-assignment-surface-clean",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/merge-subconscious-assignment-surface-clean",
+      "to": "codex/judge-subconscious-assignment-surface-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.591,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/merge-subconscious-assignment-surface-clean",
+      "to": "codex/subconscious-assignment-surface",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.556,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/search-diagnostic-retrieval-weight-feedback",
+      "to": "codex/judge-search-diagnostic-retrieval-weight-feedback",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
     }
   ],
-  "compacted_at": "2026-06-21T23:45:08.449Z"
+  "compacted_at": "2026-06-22T00:30:11.519Z"
 }
