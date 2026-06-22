@@ -20,3 +20,4 @@
 {"evt":"status_changed","id":"codex/headroom-eval","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-22T14:41:06.139Z"}
 {"evt":"summary_set","id":"codex/headroom-eval","workspace":"/Users/imyu/Desktop/zonoid","summary":"Promoted after worker reported tested: Headroom evaluation artifact recommends opt-in external wrapper/proxy pilot before default zonoid integration; attempt commit 577d9363.","actor":"overlay-sync","ts":"2026-06-22T14:41:06.139Z"}
 {"evt":"timestamps_set","id":"codex/headroom-eval","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-19T14:16:23.171Z","lastChanged":"2026-06-22T14:41:05.549Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-22T14:41:06.139Z"}
+{"evt":"edge_added","from":"codex/headroom-eval","to":"codex/fix-headroom-eval-eof-diff-check","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:17:49.840Z","origin":"subconscious-assignment"}
