@@ -74,6 +74,7 @@ async function waitForPing(ms = 8000) {
   ok('default surface has no create_task', !defaultList.result.tools.some((t) => t.name === 'create_task'));
   ok('default surface includes ask_subconscious', defaultList.result.tools.some((t) => t.name === 'ask_subconscious'));
   ok('default surface includes subconscious_idea_scheduler', defaultList.result.tools.some((t) => t.name === 'subconscious_idea_scheduler'));
+  ok('default surface includes subconscious_assignment', defaultList.result.tools.some((t) => t.name === 'subconscious_assignment'));
 
   const startTaskTool = TOOLS.find((t) => t.name === 'start_task');
   ok('start_task schema has session_id', startTaskTool && startTaskTool.inputSchema.properties.session_id && startTaskTool.inputSchema.properties.session_id.type === 'string');
@@ -138,6 +139,101 @@ async function waitForPing(ms = 8000) {
   const fallbackA = fallbackChild();
   const fallbackB = fallbackChild();
   ok('Codex fallback is isolated across MCP processes', fallbackA !== fallbackB && /^codex-mcp-\d+-[a-f0-9]{32}$/.test(fallbackA) && /^codex-mcp-\d+-[a-f0-9]{32}$/.test(fallbackB));
+
+  const assignmentTool = TOOLS.find((t) => t.name === 'subconscious_assignment');
+  ok('subconscious_assignment is on default MCP surface', !!assignmentTool);
+  ok('subconscious_assignment schema exposes required actions',
+    assignmentTool &&
+    assignmentTool.inputSchema.properties.action.enum.includes('prepare') &&
+    assignmentTool.inputSchema.properties.action.enum.includes('accept') &&
+    assignmentTool.inputSchema.properties.action.enum.includes('complete') &&
+    assignmentTool.inputSchema.properties.action.enum.includes('submit_verdict'));
+  ok('subconscious_assignment description is the preferred path',
+    assignmentTool &&
+    assignmentTool.description.includes('Preferred facade') &&
+    assignmentTool.description.includes('Raw graph/git/status tools remain available'));
+
+  const assignmentCalls = [];
+  const assignmentCall = (method, path, body) => {
+    assignmentCalls.push({ method, path, body });
+    if (path === '/subconscious/assignment') {
+      return { ok: true, assignment: { task_key: body.task_key, branch: 'orch/attempt/local-task', worktree: '/tmp/wt' } };
+    }
+    if (path === '/git/merge') return { merged: true, head: 'abc123' };
+    return { ok: true, status: body && body.status };
+  };
+  const preparedAssignment = await assignmentTool.run({
+    action: 'prepare',
+    workspace: WS,
+    task_key: 'local/task',
+    parent_task_keys: ['local/parent'],
+    context_task_keys: ['note:ctx'],
+    create_judge: true,
+    repo_path: WS,
+    base: 'orch/feature/test',
+  }, assignmentCall);
+  ok('subconscious_assignment prepare runs POST /subconscious/assignment',
+    assignmentCalls[0] &&
+    assignmentCalls[0].method === 'POST' &&
+    assignmentCalls[0].path === '/subconscious/assignment' &&
+    assignmentCalls[0].body.action === 'prepare' &&
+    assignmentCalls[0].body.create_judge === true &&
+    preparedAssignment.assignment.task_key === 'local/task');
+
+  assignmentCalls.length = 0;
+  await assignmentTool.run({ action: 'accept', workspace: WS, task_key: 'local/task', agent_id: 'worker-a', session_id: 'sess-a' }, assignmentCall);
+  ok('subconscious_assignment accept calls existing in_progress status path',
+    assignmentCalls[0] &&
+    assignmentCalls[0].method === 'POST' &&
+    assignmentCalls[0].path === '/overlay/status' &&
+    assignmentCalls[0].body.key === 'local/task' &&
+    assignmentCalls[0].body.status === 'in_progress' &&
+    assignmentCalls[0].body.session_id === 'sess-a');
+
+  let assignmentInjectedSession = null;
+  await handleRpc(
+    { jsonrpc: '2.0', id: 101, method: 'tools/call', params: { name: 'subconscious_assignment', arguments: { action: 'accept', task_key: 'local/session', agent_id: 'worker-b' } } },
+    { call: (method, path, body) => { if (path === '/overlay/status') assignmentInjectedSession = body; return { ok: true }; }, session: 'ctx-session' },
+  );
+  ok('handleRpc injects ctx.session into subconscious_assignment accept',
+    assignmentInjectedSession && assignmentInjectedSession.session_id === 'ctx-session');
+
+  assignmentCalls.length = 0;
+  await assignmentTool.run({ action: 'complete', workspace: WS, task_key: 'local/task', agent_id: 'worker-a', summary: 'done' }, assignmentCall);
+  ok('subconscious_assignment complete calls terminal status path',
+    assignmentCalls[0] &&
+    assignmentCalls[0].path === '/overlay/status' &&
+    assignmentCalls[0].body.status === 'done' &&
+    assignmentCalls[0].body.summary === 'done');
+
+  assignmentCalls.length = 0;
+  const approveOut = await assignmentTool.run({ action: 'submit_verdict', verdict: 'APPROVE', workspace: WS, task_key: 'local/task', judge_task_key: 'local/task-judge', reason: 'passes' }, assignmentCall);
+  ok('subconscious_assignment submit_verdict APPROVE calls merge internally',
+    assignmentCalls.some((call) => call.path === '/git/merge' && call.body.key === 'local/task') &&
+    approveOut.ok === true);
+  ok('subconscious_assignment submit_verdict APPROVE completes judge when supplied',
+    assignmentCalls.some((call) => call.path === '/overlay/status' && call.body.key === 'local/task-judge' && call.body.status === 'done'));
+
+  assignmentCalls.length = 0;
+  const failedApproveOut = await assignmentTool.run({ action: 'submit_verdict', verdict: 'APPROVE', workspace: WS, task_key: 'local/missing', judge_task_key: 'local/missing-judge', reason: 'passes' }, (method, path, body) => {
+    assignmentCalls.push({ method, path, body });
+    if (path === '/git/merge') return { merged: false, reason: 'branch not found for local/missing' };
+    return { ok: true, status: body && body.status };
+  });
+  ok('subconscious_assignment submit_verdict APPROVE fails when merge reports not merged',
+    failedApproveOut.ok === false &&
+    failedApproveOut.error === 'branch not found for local/missing' &&
+    failedApproveOut.merge &&
+    failedApproveOut.merge.merged === false);
+  ok('subconscious_assignment submit_verdict APPROVE does not complete judge after failed merge',
+    !assignmentCalls.some((call) => call.path === '/overlay/status' && call.body.key === 'local/missing-judge'));
+
+  assignmentCalls.length = 0;
+  const kickBackOut = await assignmentTool.run({ action: 'submit_verdict', verdict: 'KICK_BACK', workspace: WS, task_key: 'local/task', judge_task_key: 'local/task-judge', reason: 'needs fix' }, assignmentCall);
+  ok('subconscious_assignment submit_verdict KICK_BACK does not merge',
+    !assignmentCalls.some((call) => call.path === '/git/merge') && kickBackOut.ok === true);
+  ok('subconscious_assignment submit_verdict KICK_BACK marks implementation failed',
+    assignmentCalls.some((call) => call.path === '/overlay/status' && call.body.key === 'local/task' && call.body.status === 'failed'));
 
   const judgeNextTool = TOOLS.find((t) => t.name === 'get_judge_next');
   ok('get_judge_next is on default MCP surface', !!judgeNextTool);
@@ -254,6 +350,10 @@ async function waitForPing(ms = 8000) {
   ok('subconscious_execution_permit is on default MCP surface', !!permitTool);
   const installJs = fs.readFileSync(path.join(__dirname, '..', 'bin', 'install.js'), 'utf8');
   const cursorSettings = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'adapters', 'cursor', 'settings.sample.json'), 'utf8'));
+  ok('installer allow-list includes assignment facade tool',
+    installJs.includes('mcp__orchestrator-graph__subconscious_assignment'));
+  ok('Cursor sample permissions include assignment facade tool',
+    cursorSettings.permissions.allow.includes('mcp__orchestrator-graph__subconscious_assignment'));
   ok('installer allow-list includes permit diagnostic tool',
     installJs.includes('mcp__orchestrator-graph__subconscious_execution_permit'));
   ok('Cursor sample permissions include permit diagnostic tool',

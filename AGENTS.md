@@ -21,8 +21,10 @@ multi-file change), the main agent should **not implement inline**. Instead:
 1. Decompose into native tasks (`TaskCreate`) and register them in the orchestrator graph.
 2. After creating a task, call `suggest_links` and add `context`/`blocking` edges so it wires
    into existing/completed work instead of becoming an orphan root node.
-3. **Dispatch the actual work to a background subagent** (`Agent` tool, `run_in_background: true`)
-   that claims the task (`start_task`) and reports back (`complete_task`).
+3. Ask Subconscious for the routine assignment surface (`subconscious_assignment prepare`), then
+   **dispatch the actual work to a background subagent** (`Agent` tool, `run_in_background: true`)
+   that accepts the assignment (`subconscious_assignment accept`) and reports back
+   (`subconscious_assignment complete`).
 4. Keep the **main thread free** to orchestrate and talk to the user — never block it on a build.
 
 **Wiring is the dispatcher's duty, not the worker's.** Whoever creates a task wires it
@@ -110,10 +112,11 @@ branch BEFORE complete_task (an uncommitted worktree leaves the attempt tip == b
 them off the envelope's slots, not prose. (Workers still pass `wires_to=[task_key]` on any
 `record_decision` they make mid-task — note provenance is the one wiring only the worker knows.)
 
-**Worker registration rides the claim, not the start hook.** The `SubagentStart` hook does NOT
+**Worker registration rides the assignment claim, not the start hook.** The `SubagentStart` hook does NOT
 fire for `run_in_background` Agent-tool spawns, so a background worker never carries
-`agent_tool_spawn:true`. No extra registration field is needed in the envelope: `start_task`
-**self-registers the worker on claim**. The `/overlay/status` in_progress handler treats a claim
+`agent_tool_spawn:true`. No extra registration field is needed in the envelope:
+`subconscious_assignment accept` routes to the same `/overlay/status` in_progress path as raw
+`start_task` and **self-registers the worker on claim**. The `/overlay/status` in_progress handler treats a claim
 that bears an `agent_id` AND is backed by a registered worktree (proof `branch_task` ran — the
 dispatcher never calls it) as a legitimate hook-less worker, registers it, and allows the claim.
 The registered worktree is the security boundary: a claim with no worktree is still refused. So the
@@ -131,10 +134,14 @@ in ANY harness that runs settings.json hooks — confirmed in both the Codex CLI
 desktop app — so it is instruction-level only where the hooks are not wired.
 Users opt out per-conversation with `orch off`.
 
-**Gate contract for subagents:** call `mcp__orchestrator-graph__branch_task(task_key)` **first**
-to create an isolated worktree (`orch/attempt/<key>`), then `mcp__orchestrator-graph__start_task(task_key, agent_id)`.
-The daemon rejects `start_task` if no worktree is registered — order is enforced. All file writes
-must happen inside the worktree; the gate hard-blocks subagent writes on any other branch.
+**Gate contract for subagents:** normal workers receive a prepared assignment from
+`mcp__orchestrator-graph__subconscious_assignment(action:"prepare")`, then call
+`mcp__orchestrator-graph__subconscious_assignment(action:"accept", task_key, agent_id, session_id)`.
+The prepare action allocates the isolated worktree (`orch/attempt/<key>`) and the accept action
+claims through the existing `/overlay/status` path, so the same permit minting and write gate remain
+the source of truth. Raw `branch_task` + `start_task` remain available only as backcompat/internal
+escape hatches. All file writes must happen inside the worktree; the gate hard-blocks subagent
+writes on any other branch.
 `ORCH_GATE_OFF=1` as an inline env prefix does **not** work from subagents — the hook runs as a
 separate process. Never bypass via workarounds (rsync, fabricated claims, etc.); claim properly.
 
