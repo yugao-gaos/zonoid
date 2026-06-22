@@ -8,9 +8,44 @@ const { noteEmbedText, noteFieldTexts, taskEmbedText } = require('../lib/node-ta
 const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
 const recallJournal = require('../lib/recall-outcome-journal');
+const retrievalWeights = require('../lib/search/retrieval-weights');
 const gitClaims = require('../lib/git-claims');
 const noteSourceCluster = require('../lib/note-source-cluster');
 const { defaultSubconsciousStore } = require('../lib/subconscious');
+
+const POSITIVE_RECALL_OUTCOMES = new Set(['approve', 'tested']);
+const NEGATIVE_RECALL_OUTCOMES = new Set(['kickback', 'failed']);
+
+function recallOutcomeSignal(outcome) {
+  if (POSITIVE_RECALL_OUTCOMES.has(outcome)) return true;
+  if (NEGATIVE_RECALL_OUTCOMES.has(outcome)) return false;
+  return null;
+}
+
+function hasRecalledNoteSignal(row) {
+  return !!(row && Array.isArray(row.recalled_note_keys) && row.recalled_note_keys.length);
+}
+
+function reinforceRecalledContextEdges(workspace, taskKey, row, outcome) {
+  const positive = recallOutcomeSignal(outcome);
+  if (positive == null || !hasRecalledNoteSignal(row)) return;
+  const edges = recallJournal.recalledContextEdges(row);
+  if (!edges.length) return;
+
+  const seen = new Set();
+  for (const edge of edges) {
+    if (edge.relation !== 'context') continue;
+    if (edge.direct === false) continue;
+    if (edge.result_kind && edge.result_kind !== 'note' && edge.result_kind !== 'task') continue;
+    const canonical = retrievalWeights.canonicalEdge(edge.from, edge.to, edge.relation);
+    if (!canonical || seen.has(canonical.key)) continue;
+    seen.add(canonical.key);
+    retrievalWeights.reinforceEdge(workspace, canonical, {
+      positive,
+      reason: `recall-outcome:${outcome}:${taskKey}`,
+    });
+  }
+}
 
 // Resolve a note's knowledge[] for field-level embedding. addNoteNode stores it inline on the node
 // (n.knowledge), but the /overlay/note route also mirrors it into overlay.knowledge[id]; prefer the
@@ -517,14 +552,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // supersedes any prior 'pending' row written at context-assembly time (/search?task_key=).
     // Best-effort: never block the status write on journal IO.
     if (['done', 'tested', 'failed', 'canceled'].includes(b.status) && b.key) {
+      let latestRecall = null;
+      let outcome = null;
       try {
-        const outcome = recallJournal.STATUS_TO_OUTCOME[b.status] || b.status;
+        outcome = recallJournal.STATUS_TO_OUTCOME[b.status] || b.status;
         // Recover recalled note keys from the latest pending row for this task, if any.
-        const latestPending = recallJournal.latestByTask(T.ws).get(b.key);
-        const recalled = latestPending ? (latestPending.recalled_note_keys || []) : [];
-        const via = latestPending ? (latestPending.via || 'rag') : 'rag';
-        recallJournal.appendRow(T.ws, { task_key: b.key, recalled_note_keys: recalled, outcome, via });
+        latestRecall = recallJournal.latestByTask(T.ws).get(b.key);
+        const recalled = latestRecall ? (latestRecall.recalled_note_keys || []) : [];
+        const via = latestRecall ? (latestRecall.via || 'rag') : 'rag';
+        const recalledContextEdges = recallJournal.recalledContextEdges(latestRecall);
+        recallJournal.appendRow(T.ws, { task_key: b.key, recalled_note_keys: recalled, recalled_context_edges: recalledContextEdges, outcome, via });
       } catch { /* attribution logging must never block the status write */ }
+      try {
+        reinforceRecalledContextEdges(T.ws, b.key, latestRecall, outcome);
+      } catch { /* retrieval-weight feedback must never block the status write */ }
     }
     let followUpResults = null;
     let bucketCleanup = null;

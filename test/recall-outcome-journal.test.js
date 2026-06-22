@@ -18,6 +18,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 
 const REPO = path.join(__dirname, '..');
@@ -28,6 +29,10 @@ const WS      = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-reca
 
 const PORT    = 18950 + Math.floor(Math.random() * 200);
 const JOURNAL = path.join(WS, '.graph', 'recall-outcome-journal.jsonl');
+const encodeWorkspace = (p) => String(p).replace(/[/.\\:]/g, '-');
+const PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects', encodeWorkspace(WS));
+const WEIGHT_SID = crypto.randomUUID();
+const WEIGHT_TASK_KEY = `${WEIGHT_SID}/1`;
 
 let pass = 0, fail = 0, skip = 0;
 const ok = (label, cond) => {
@@ -89,6 +94,7 @@ function readJournal(file) {
 
 // Load the pure-reader module directly (no daemon needed for unit tests).
 const recallJournal = require('../lib/recall-outcome-journal');
+const retrievalWeights = require('../lib/search/retrieval-weights');
 
 (async () => {
   // ── Unit test: reader functions (no daemon required) ─────────────────────
@@ -98,7 +104,25 @@ const recallJournal = require('../lib/recall-outcome-journal');
     fs.mkdirSync(graphDir, { recursive: true });
 
     // appendRow writes parseable JSONL.
-    recallJournal.appendRow(tmpWs, { task_key: 'task-A', recalled_note_keys: ['note:foo', 'note:bar'], outcome: 'pending', via: 'rag' });
+    recallJournal.appendRow(tmpWs, {
+      task_key: 'task-A',
+      recalled_note_keys: ['note:foo', 'note:bar'],
+      recalled_context_edges: [{
+        from: 'task-A',
+        to: 'note:foo',
+        relation: 'context',
+        result_key: 'note:foo',
+        result_kind: 'note',
+        tier: 'dag',
+        via: 'context',
+        injected: true,
+        structural: true,
+        direct: true,
+        weight: 0.9,
+      }],
+      outcome: 'pending',
+      via: 'rag',
+    });
     recallJournal.appendRow(tmpWs, { task_key: 'task-B', recalled_note_keys: ['note:baz'], outcome: 'pending', via: 'dag' });
     recallJournal.appendRow(tmpWs, { task_key: 'task-A', recalled_note_keys: ['note:foo', 'note:bar'], outcome: 'approve', via: 'rag' });
 
@@ -107,6 +131,9 @@ const recallJournal = require('../lib/recall-outcome-journal');
     ok('unit: first row outcome is pending', rows[0].outcome === 'pending');
     ok('unit: first row task_key is task-A', rows[0].task_key === 'task-A');
     ok('unit: first row recalled_note_keys is array', Array.isArray(rows[0].recalled_note_keys));
+    ok('unit: first row preserves recalled_context_edges', rows[0].recalled_context_edges && rows[0].recalled_context_edges[0].to === 'note:foo');
+    ok('unit: first row preserves injected flag', rows[0].recalled_context_edges && rows[0].recalled_context_edges[0].injected === true);
+    ok('unit: first row preserves structural flag', rows[0].recalled_context_edges && rows[0].recalled_context_edges[0].structural === true);
     ok('unit: first row ts is ISO string', typeof rows[0].ts === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(rows[0].ts));
     ok('unit: first row via is rag', rows[0].via === 'rag');
     ok('unit: second row via is dag', rows[1].via === 'dag');
@@ -117,6 +144,10 @@ const recallJournal = require('../lib/recall-outcome-journal');
     ok('unit: latestByTask has 2 entries', latest.size === 2);
     ok('unit: latestByTask task-A is approve', latest.get('task-A').outcome === 'approve');
     ok('unit: latestByTask task-B is pending', latest.get('task-B').outcome === 'pending');
+
+    recallJournal.appendRow(tmpWs, { task_key: 'task-C', recalled_note_keys: ['legacy'], outcome: 'approve', via: 'rag' });
+    const stats = recallJournal.computeNoteStats(tmpWs);
+    ok('unit: computeNoteStats accepts recalled_note_keys-only rows', stats.get('note:legacy').wins === 1);
 
     // Missing workspace → empty rows.
     ok('unit: readRows with missing ws returns []', recallJournal.readRows('/nonexistent-ws-xyz').length === 0);
@@ -130,6 +161,11 @@ const recallJournal = require('../lib/recall-outcome-journal');
   }
 
   // ── Integration tests: daemon ─────────────────────────────────────────────
+  fs.mkdirSync(PROJECTS_DIR, { recursive: true });
+  fs.writeFileSync(path.join(PROJECTS_DIR, `${WEIGHT_SID}.jsonl`), '');
+  fs.mkdirSync(path.join(os.homedir(), '.claude', 'tasks', WEIGHT_SID), { recursive: true });
+  fs.writeFileSync(path.join(os.homedir(), '.claude', 'tasks', WEIGHT_SID, '1.json'), JSON.stringify({ id: '1', subject: 'weight feedback task', status: 'pending' }));
+
   const daemon = spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
     stdio: 'ignore',
@@ -200,8 +236,37 @@ const recallJournal = require('../lib/recall-outcome-journal');
     const afterDone = readJournal(JOURNAL);
     const approveRow = afterDone.filter((r) => r.task_key === TASK_KEY2 && r.outcome !== 'pending').pop();
     ok('done status: resolved outcome is approve', approveRow && approveRow.outcome === 'approve');
+    ok('terminal status without edge metadata: no retrieval-weight feedback', retrievalWeights.readRows(WS).length === 0);
 
-    // ── 5. Fail-open: journal write failure does not break search response ───
+    // ── 5. Terminal recall feedback updates learned retrievalWeight, not structural edge.weight ──
+    const TASK_KEY4 = WEIGHT_TASK_KEY;
+    await post('/overlay/status', { key: TASK_KEY4, status: 'not_ready', workspace: WS });
+    const noteResp = await post('/overlay/note', { title: 'weight feedback note', summary: 'direct context for retrieval feedback', workspace: WS });
+    const NOTE_KEY = noteResp.body.key;
+    await post('/overlay/edge', { from: NOTE_KEY, to: TASK_KEY4, kind: 'context', weight: 0.7, workspace: WS });
+
+    const ctxBefore = await get(`/task/context?key=${encodeURIComponent(TASK_KEY4)}&workspace=${encodeURIComponent(WS)}`);
+    const beforeDep = (ctxBefore.body.dependencySummaries || []).find((entry) => entry.key === NOTE_KEY);
+    ok('retrieval feedback: structural edge starts at weight 0.7', beforeDep && beforeDep.weight === 0.7);
+
+    const weightRowsBefore = retrievalWeights.readRows(WS).length;
+    const weightSearchPath = `/search?q=${encodeURIComponent('weight feedback')}&task_key=${encodeURIComponent(TASK_KEY4)}&workspace=${encodeURIComponent(WS)}&gated=1`;
+    const weightSearch = await get(weightSearchPath);
+    ok('retrieval feedback: search HTTP 200', weightSearch.status === 200);
+    const weightPending = readJournal(JOURNAL).filter((r) => r.task_key === TASK_KEY4 && r.outcome === 'pending').pop();
+    ok('retrieval feedback: pending row carries edge metadata', weightPending && Array.isArray(weightPending.recalled_context_edges) && weightPending.recalled_context_edges.some((edge) => edge.to === NOTE_KEY));
+
+    await post('/overlay/status', { key: TASK_KEY4, status: 'ready', workspace: WS });
+    const failedFeedback = await post('/overlay/status', { key: TASK_KEY4, status: 'failed', workspace: WS });
+    ok('retrieval feedback: terminal failed HTTP 200', failedFeedback.status === 200);
+    ok('retrieval feedback: retrieval-weights row appended', retrievalWeights.readRows(WS).length === weightRowsBefore + 1);
+    ok('retrieval feedback: learned retrievalWeight downweighted', Math.round(retrievalWeights.getRetrievalWeight(WS, TASK_KEY4, NOTE_KEY, 'context') * 100) === 92);
+
+    const ctxAfter = await get(`/task/context?key=${encodeURIComponent(TASK_KEY4)}&workspace=${encodeURIComponent(WS)}`);
+    const afterDep = (ctxAfter.body.dependencySummaries || []).find((entry) => entry.key === NOTE_KEY);
+    ok('retrieval feedback: structural edge.weight remains unchanged', afterDep && afterDep.weight === 0.7);
+
+    // ── 6. Fail-open: journal write failure does not break search response ───
     {
       const graphDir = path.join(WS, '.graph');
       let chmodApplied = false;
@@ -225,6 +290,8 @@ const recallJournal = require('../lib/recall-outcome-journal');
 
   } finally {
     daemon.kill('SIGKILL');
+    try { fs.rmSync(PROJECTS_DIR, { recursive: true, force: true }); } catch { /* best effort */ }
+    try { fs.rmSync(path.join(os.homedir(), '.claude', 'tasks', WEIGHT_SID), { recursive: true, force: true }); } catch { /* best effort */ }
     try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch { /* best effort */ }
     try { fs.rmSync(WS,      { recursive: true, force: true }); } catch { /* best effort */ }
   }
