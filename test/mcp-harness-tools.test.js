@@ -153,7 +153,9 @@ async function waitForPing(ms = 8000) {
     assignmentTool &&
     assignmentTool.inputSchema.properties.search_context &&
     assignmentTool.inputSchema.properties.context_query &&
-    assignmentTool.inputSchema.properties.query);
+    assignmentTool.inputSchema.properties.query &&
+    assignmentTool.inputSchema.properties.k &&
+    assignmentTool.inputSchema.properties.max_rounds);
   ok('subconscious_assignment description is the preferred path',
     assignmentTool &&
     assignmentTool.description.includes('Preferred facade') &&
@@ -176,6 +178,8 @@ async function waitForPing(ms = 8000) {
     context_task_keys: ['note:ctx'],
     search_context: true,
     context_query: 'Need filtered Subconscious context',
+    k: 4,
+    max_rounds: 2,
     create_judge: true,
     repo_path: WS,
     base: 'orch/feature/test',
@@ -188,6 +192,8 @@ async function waitForPing(ms = 8000) {
     assignmentCalls[0].body.create_judge === true &&
     assignmentCalls[0].body.search_context === true &&
     assignmentCalls[0].body.context_query === 'Need filtered Subconscious context' &&
+    assignmentCalls[0].body.k === 4 &&
+    assignmentCalls[0].body.max_rounds === 2 &&
     preparedAssignment.assignment.task_key === 'local/task');
 
   assignmentCalls.length = 0;
@@ -199,6 +205,7 @@ async function waitForPing(ms = 8000) {
     search_context: true,
     context_query: 'Read filtered Subconscious context',
     k: 2,
+    max_rounds: 2,
   }, assignmentCall);
   ok('subconscious_assignment read forwards agentic context query params',
     assignmentCalls[0] &&
@@ -206,7 +213,8 @@ async function waitForPing(ms = 8000) {
     assignmentCalls[0].path.startsWith('/subconscious/assignment?') &&
     assignmentCalls[0].path.includes('search_context=1') &&
     assignmentCalls[0].path.includes('context_query=Read%20filtered%20Subconscious%20context') &&
-    assignmentCalls[0].path.includes('k=2'));
+    assignmentCalls[0].path.includes('k=2') &&
+    assignmentCalls[0].path.includes('max_rounds=2'));
 
   assignmentCalls.length = 0;
   await assignmentTool.run({ action: 'accept', workspace: WS, task_key: 'local/task', agent_id: 'worker-a', session_id: 'sess-a' }, assignmentCall);

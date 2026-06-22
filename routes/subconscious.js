@@ -169,6 +169,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
         situation: cleanString(u.searchParams.get('context_query') || u.searchParams.get('situation') || u.searchParams.get('query')) || taskKey,
         query: cleanString(u.searchParams.get('context_query') || u.searchParams.get('query')),
         k: u.searchParams.get('k') || undefined,
+        max_rounds: u.searchParams.get('max_rounds') || undefined,
       }, req);
       if (!searchResult.ok) {
         send(res, searchResult.status || 400, { ok: false, error: searchResult.error || 'subconscious context search failed' });

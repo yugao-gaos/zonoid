@@ -21,7 +21,8 @@ parallelizable work, with a token-efficient context handoff between dependent ta
    `agentic_context:true` plus a `context_query`/task summary, then copies the returned filtered
    Subconscious envelope into the worker handoff. The worker consumes `agentic_search_context` and
    `context_deps[]` rather than doing raw retrieval. If a worker somehow lacks that envelope and needs
-   task context, it calls `subconscious_search_context`; raw `search_knowledge` is only a lower-level
+   task context, it calls `subconscious_search_context` with the envelope/worker `agent_id`, `task_key`,
+   and query; raw `search_knowledge` is only a lower-level
    primitive/internal fallback for Subconscious and explicit diagnostics. The worker
    **copies** them into its graph calls rather than re-deriving them. `return_contract` (`$ref`
    to `task_result`) tells the worker the exact shape to return. Resolving context is the dispatcher's job,
@@ -71,7 +72,7 @@ parallelizable work, with a token-efficient context handoff between dependent ta
      as an inline env prefix does **not** work — the hook is a separate process. Your dependency
      summaries and filtered search context usually arrive pre-resolved in the envelope's `context_deps[]`
      and `agentic_search_context`. Consume those first. If the envelope is missing and you need task
-     context, call `mcp__orchestrator-graph__subconscious_search_context(task_key, query)` so
+     context, call `mcp__orchestrator-graph__subconscious_search_context(agent_id, task_key, query)` so
      Subconscious performs the DAG/RAG search and filtering. Only if you need depth after that, call
      `get_task_detail(dep_key)` (**Tier 2**) for a specific dependency's knowledge/output. Do not
      re-query raw `search_knowledge` in the worker prompt; it remains a lower-level primitive/internal
