@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/review-hooks-adapters-write-gates",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "review-worker-hooks-adapters",
+  "branch": "orch/attempt/codex-review-hooks-adapters-write-gates",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T02:13:35.700Z",
+  "lease_until": "2026-06-22T03:13:35.700Z"
+}
