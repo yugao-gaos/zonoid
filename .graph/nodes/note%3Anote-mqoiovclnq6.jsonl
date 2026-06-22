@@ -8,3 +8,4 @@
 {"evt":"edge_promoted","from":"note:note-mqoiovclnq6","to":"codex/diffusion-predictive-shadow-benchmark-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:30:26.983Z","weight":0,"by":"autowire","judged":false,"score":0.557,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqoiovclnq6","to":"codex/review-search-kb-learning-skills","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:10:10.575Z","weight":0.65,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqoiovclnq6","to":"codex/review-search-kb-learning-skills","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:12:52.668Z","weight":0.65,"by":"autowire","judged":false,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mqoiovclnq6","to":"codex/diffusion-predictive-shadow-benchmark","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:19:04.936Z","weight":0,"by":"autowire","judged":false,"score":0.576,"origin":"autowire-semantic"}
