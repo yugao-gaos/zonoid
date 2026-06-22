@@ -4,3 +4,5 @@
 {"evt":"summary_set","id":"note:note-mqp53c8ktx9","workspace":"/Users/imyu/Desktop/zonoid","summary":"The retrieval-weight journal refuses to go below 0.5. This prevents repeated negative updates from pushing a signal fully out of the ranking range.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp53c8ktx9","to":"note:note-mqp4xf0k8jn","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:07.423Z"}
 {"evt":"edge_added","from":"note:note-mqp53c8ktx9","to":"note:note-mqp4xf0k8jn","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.557,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp53c8ktx9","to":"note:note-mqp5351e3qw","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
+{"evt":"edge_removed","from":"note:note-mqp53c8ktx9","to":"note:note-mqp4xf0k8jn","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}

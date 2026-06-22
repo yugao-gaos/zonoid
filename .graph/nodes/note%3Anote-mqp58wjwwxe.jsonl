@@ -14,3 +14,8 @@
 {"evt":"edge_added","from":"note:note-mqp58wjwwxe","to":"note:note-mqar2syv6m2","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.702,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp58wjwwxe","to":"note:note-mqb0kr66rg9","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.631,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp58wjwwxe","to":"note:note-mqeai9sgzr1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.621,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp58wjwwxe","to":"knowledge:source_chunk:chunk-agents-md-2-2-wiring-is-the-dispatcher-s-duty-not-the--0ffc5da224","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:26.449Z"}
+{"evt":"edge_removed","from":"note:note-mqp58wjwwxe","to":"knowledge:source_chunk:chunk-claude-md-2-2-wiring-is-the-dispatcher-s-duty-not-the--df4668dee9","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:26.449Z"}
+{"evt":"edge_removed","from":"note:note-mqp58wjwwxe","to":"note:note-mqar2syv6m2","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:26.449Z"}
+{"evt":"edge_removed","from":"note:note-mqp58wjwwxe","to":"note:note-mqb0kr66rg9","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:26.449Z"}
+{"evt":"edge_removed","from":"note:note-mqp58wjwwxe","to":"note:note-mqeai9sgzr1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:26.449Z"}

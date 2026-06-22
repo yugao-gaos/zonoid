@@ -14,3 +14,4 @@
 {"evt":"edge_added","from":"note:note-mqp5d6u4tao","to":"note:note-mqiu6tlls7n","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.668,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp5d6u4tao","to":"note:note-mqa3j03bqhi","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.588,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp5d6u4tao","to":"note:note-mqp5cpf20yd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.552,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp5d6u4tao","to":"knowledge:source_chunk:chunk-agents-md-6-1-standalone-tokens-in-title-note-titles-m-d5e179f54e","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:09:09.545Z"}

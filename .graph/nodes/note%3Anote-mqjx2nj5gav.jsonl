@@ -34,3 +34,14 @@
 {"evt":"edge_promoted","from":"note:note-mqjx2nj5gav","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:09:41.523Z","weight":0,"by":"autowire","judged":false,"score":0.619,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqjx2nj5gav","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:19:19.317Z","weight":0,"by":"autowire","judged":false,"score":0.631,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqjx2nj5gav","to":"codex/judge-exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:14:26.695Z","weight":0,"by":"autowire","judged":false,"score":0.621,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqjx2nj5gav","to":"codex/exec-brain-state-seam-minimal-patch","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:59.028Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mqjx2nj5gav","to":"codex/exec-brain-state-seam-post-gate-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:59.028Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
+{"evt":"edge_removed","from":"note:note-mqjx2nj5gav","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:59.028Z"}
+{"evt":"edge_removed","from":"note:note-mqjx2nj5gav","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:59.028Z"}
+{"evt":"edge_removed","from":"note:note-mqjx2nj5gav","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:59.028Z"}
+{"evt":"edge_removed","from":"note:note-mqjx2nj5gav","to":"codex/fix-strict-git-claim-finalize-owner","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:59.028Z"}
+{"evt":"edge_removed","from":"note:note-mqjx2nj5gav","to":"note:note-mqiu39gvwdo","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:13.000Z"}
+{"evt":"edge_removed","from":"note:note-mqjx2nj5gav","to":"codex/judge-exec-brain-state-seam-agent-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:13.000Z"}
+{"evt":"edge_removed","from":"note:note-mqjx2nj5gav","to":"codex/judge-exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:13.000Z"}
+{"evt":"edge_removed","from":"note:note-mqjx2nj5gav","to":"codex/git-claim-lock-git-user-session","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:13.000Z"}
+{"evt":"edge_removed","from":"note:note-mqjx2nj5gav","to":"codex/judge-exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:13.000Z"}

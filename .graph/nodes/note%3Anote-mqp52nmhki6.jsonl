@@ -3,3 +3,4 @@
 {"evt":"summary_set","id":"note:note-mqp52nmhki6","workspace":"/Users/imyu/Desktop/zonoid","summary":"The rerank server exits if it has not seen `/ping` for two minutes. That makes the heartbeat timeout a liveness contract, not just an idle timer.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp52nmhki6","to":"note:note-mqp4yemlwco","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:07.423Z"}
 {"evt":"edge_added","from":"note:note-mqp52nmhki6","to":"note:note-mqp4yemlwco","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.577,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp52nmhki6","to":"note:note-mqp4yemlwco","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
