@@ -36,3 +36,4 @@
 {"evt":"edge_promoted","from":"note:note-mqplytfmawp","to":"codex/review-state-subconscious-flow","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:36:46.260Z","weight":1,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqplytfmawp","to":"codex/review-state-integration-migration-tests","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:36:46.260Z","weight":1,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqplytfmawp","to":"codex/review-state-lifecycle-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:52:19.900Z","weight":0,"by":"autowire","judged":false,"score":0.555,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqplytfmawp","to":"codex/review-state-docs-instructions","kind":"context","actor":"overlay-sync","ts":"2026-06-22T21:03:57.800Z","weight":1,"by":"subconscious","judged":true,"score":1,"origin":"subconscious-agentic-search"}
