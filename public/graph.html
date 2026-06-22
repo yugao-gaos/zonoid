@@ -4757,11 +4757,6 @@ function cloudSearchTriplet(hex){
   const rgb=cloudDisplayTriplet(hex,1,{ mode:'dashboard' });
   return rgb.map(v=>Math.max(v,Math.min(255,Math.round(v*.68+255*.32))));
 }
-function cloudCoreTriplet(hex,opacity,profile){
-  const rgb=cloudDisplayTriplet(hex,Math.max(.62,opacity),profile);
-  const lift=profile&&profile.mode==='dashboard'?0.34:0.28;
-  return rgb.map(v=>Math.max(v,Math.min(255,Math.round(v*(1-lift)+255*lift))));
-}
 function disposeThreeMaterial(mat){
   if(Array.isArray(mat)) for(const m of mat) disposeThreeMaterial(m);
   else if(mat&&typeof mat.dispose==='function') mat.dispose();
@@ -5007,12 +5002,12 @@ function renderCloudThree(ctx){
     nodeMesh.setMatrixAt(i,dummy.matrix);
     const opacity=Math.max(0.08,Math.min(1,ctx.opacityOf(n)));
     const rgb=emphasis?cloudSearchTriplet(ctx.colorOf(n)):cloudDisplayTriplet(ctx.colorOf(n),opacity,ctx.profile);
-    const coreRgb=emphasis?cloudSearchTriplet(ctx.colorOf(n)):cloudCoreTriplet(ctx.colorOf(n),opacity,ctx.profile);
     const color=new THREE.Color(rgb[0]/255,rgb[1]/255,rgb[2]/255);
     nodeMesh.setColorAt(i,color);
-    coreEntries.push({ pos, radius:Math.max(1.25,baseRadius*(emphasis?0.95:0.68)), color:coreRgb });
+    const coreScale=emphasis?1.16:Math.max(0.32,0.44+opacity*.54);
+    coreEntries.push({ pos, radius:Math.max(1.55,baseRadius*coreScale) });
     if(emphasis>0){
-      haloEntries.push({ pos, radius:Math.max(3.6,baseRadius*(2.25+emphasis*.9)), color:rgb });
+      haloEntries.push({ pos, radius:Math.max(3.6,baseRadius*(2.25+emphasis*.9)) });
     }
   });
   nodeMesh.instanceMatrix.needsUpdate=true;
@@ -5031,33 +5026,29 @@ function renderCloudThree(ctx){
   }
   if(coreEntries.length){
     const coreGeo=new THREE.SphereGeometry(1,ctx.profile.sphereSegments,ctx.profile.sphereRings);
-    const coreMat=new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:.78, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, toneMapped:false });
+    const coreMat=new THREE.MeshBasicMaterial({ color:0x8bdcff, transparent:true, opacity:.88, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, toneMapped:false });
     const coreMesh=new THREE.InstancedMesh(coreGeo,coreMat,coreEntries.length);
     coreEntries.forEach((c,i)=>{
       dummy.position.copy(c.pos);
       dummy.scale.setScalar(c.radius);
       dummy.updateMatrix();
       coreMesh.setMatrixAt(i,dummy.matrix);
-      coreMesh.setColorAt(i,new THREE.Color(c.color[0]/255,c.color[1]/255,c.color[2]/255));
     });
     coreMesh.instanceMatrix.needsUpdate=true;
-    if(coreMesh.instanceColor) coreMesh.instanceColor.needsUpdate=true;
     coreMesh.renderOrder=4;
     st.root.add(coreMesh);
   }
   if(haloEntries.length){
     const haloGeo=new THREE.SphereGeometry(1,ctx.profile.sphereSegments,ctx.profile.sphereRings);
-    const haloMat=new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:.34, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, toneMapped:false });
+    const haloMat=new THREE.MeshBasicMaterial({ color:0xa7f3ff, transparent:true, opacity:.42, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, toneMapped:false });
     const haloMesh=new THREE.InstancedMesh(haloGeo,haloMat,haloEntries.length);
     haloEntries.forEach((h,i)=>{
       dummy.position.copy(h.pos);
       dummy.scale.setScalar(h.radius);
       dummy.updateMatrix();
       haloMesh.setMatrixAt(i,dummy.matrix);
-      haloMesh.setColorAt(i,new THREE.Color(h.color[0]/255,h.color[1]/255,h.color[2]/255));
     });
     haloMesh.instanceMatrix.needsUpdate=true;
-    if(haloMesh.instanceColor) haloMesh.instanceColor.needsUpdate=true;
     haloMesh.renderOrder=3;
     st.root.add(haloMesh);
   }
