@@ -8,3 +8,5 @@
 {"evt":"edge_added","from":"note:note-mqoj5e2wxv8","to":"codex/fix-git-claim-release-push-hook-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:22:28.670Z","weight":0,"by":"autowire","judged":false,"score":0.682,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqoj5e2wxv8","to":"codex/fix-shell-opencode-relative-git-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:40:10.066Z","weight":0,"by":"autowire","judged":false,"score":0.565,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqoj5e2wxv8","to":"note:note-mqk0pyjpxtc","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:41:40.645Z"}
+{"evt":"edge_promoted","from":"note:note-mqoj5e2wxv8","to":"codex/fix-git-claim-release-push-hook","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:19:10.038Z","weight":0.83,"by":"judge","judged":true,"score":0.83,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqoj5e2wxv8","to":"codex/fix-git-claim-release-push-hook-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:19:10.038Z"}
