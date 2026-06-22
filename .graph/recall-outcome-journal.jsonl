@@ -774,3 +774,5 @@
 {"ts":"2026-06-22T19:17:42.195Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/fix-search-traversal-expand-shrink","recalled_note_keys":[],"outcome":"approve","via":"rag"}
 {"ts":"2026-06-22T19:17:52.841Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/review-api-ui-docs-tests","recalled_note_keys":[],"outcome":"approve","via":"rag"}
 {"ts":"2026-06-22T19:18:01.387Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/review-graph-overlay-dispatch-loops","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-22T19:18:17.999Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/review-hooks-adapters-write-gates","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-22T19:18:26.485Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/review-search-kb-learning-skills","recalled_note_keys":[],"outcome":"approve","via":"rag"}
