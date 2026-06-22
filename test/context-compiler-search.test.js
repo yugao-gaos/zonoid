@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { compileSearchContext } = require('../lib/search/context-compiler');
+const recallJournal = require('../lib/recall-outcome-journal');
 
 let pass = 0;
 let fail = 0;
@@ -73,7 +74,7 @@ function makeCtx(graph, workspace, overlay = {}) {
   };
 }
 
-async function runSearch(graph, params, overlay) {
+async function runSearchWithWorkspace(graph, params, overlay) {
   const workspace = makeWorkspace();
   const u = new URL('http://127.0.0.1/search');
   u.searchParams.set('workspace', workspace);
@@ -83,7 +84,11 @@ async function runSearch(graph, params, overlay) {
     u,
   });
   assert.equal(result.status, 200);
-  return result.body;
+  return { body: result.body, workspace };
+}
+
+async function runSearch(graph, params, overlay) {
+  return (await runSearchWithWorkspace(graph, params, overlay)).body;
 }
 
 test('settled task_key search returns only system and structural task context', async () => {
@@ -138,6 +143,42 @@ test('settled task_key search returns only system and structural task context', 
   assert.equal(byKey.has('note:semantic-rag'), false);
   assert.equal(body.results.some((item) => item.tier === 'rag'), false);
   assert.equal(body.continue, false);
+});
+
+test('task_key search journals direct context edge metadata after injection flags are set', async () => {
+  const graph = {
+    tasks: [
+      node('task/target', 'Target task', {
+        status: 'ready',
+        context_deps: ['note:direct', 'task/context'],
+        context_weights: { 'note:direct': 0.9, 'task/context': 0.8 },
+        provisional: false,
+      }),
+      node('note:direct', 'Direct note', { kind: 'note' }),
+      node('task/context', 'Direct task context'),
+    ],
+  };
+
+  const { workspace } = await runSearchWithWorkspace(graph, {
+    q: 'direct context',
+    task_key: 'task/target',
+    gated: '1',
+  });
+  const row = recallJournal.readRows(workspace).filter((r) => r.task_key === 'task/target').pop();
+
+  assert(row, 'expected pending recall row');
+  assert(row.recalled_note_keys.includes('note:direct'));
+  const noteEdge = row.recalled_context_edges.find((edge) => edge.from === 'task/target' && edge.to === 'note:direct');
+  const taskEdge = row.recalled_context_edges.find((edge) => edge.from === 'task/target' && edge.to === 'task/context');
+  assert(noteEdge, 'expected note context edge metadata');
+  assert(taskEdge, 'expected task context edge metadata');
+  assert.equal(noteEdge.relation, 'context');
+  assert.equal(noteEdge.result_kind, 'note');
+  assert.equal(noteEdge.injected, true);
+  assert.equal(noteEdge.structural, true);
+  assert.equal(noteEdge.direct, true);
+  assert.equal(noteEdge.weight, 0.9);
+  assert.equal(taskEdge.result_kind, 'task');
 });
 
 test('conversational query promotes a wired neighbor through activation', async () => {
