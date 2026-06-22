@@ -13,3 +13,6 @@
 {"evt":"edge_promoted","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/1","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:46:46.473Z","weight":0.55,"origin":"asserted"}
 {"evt":"edge_promoted","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/1","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:04.387Z","weight":0.55,"origin":"asserted"}
 {"evt":"edge_promoted","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/1","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:08.011Z","weight":0.55,"origin":"asserted"}
+{"evt":"edge_promoted","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/1","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:41.076Z","weight":0.55,"origin":"asserted"}
+{"evt":"edge_promoted","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/1","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:47.845Z","weight":0.55,"origin":"asserted"}
+{"evt":"edge_promoted","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/1","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:47:55.651Z","weight":0.55,"origin":"asserted"}
