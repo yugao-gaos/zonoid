@@ -35,3 +35,8 @@
 {"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/28","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:02:11.720Z"}
 {"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"followup/write-judge-edge-scorecard-md-retry-as-s-pe6u","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:02:11.720Z"}
 {"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:02:11.720Z"}
+{"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"note:note-mq780b1f","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:12.799Z"}
+{"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"note:note-mqfbt5qqpta","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:12.799Z"}
+{"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"note:note-mq561rur","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:12.799Z"}
+{"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"note:note-mq7dzydv","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:12.799Z"}
+{"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"note:note-mq7lck6j3l9","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:12.799Z"}
