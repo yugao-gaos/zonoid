@@ -7,8 +7,8 @@ behavior. Keep `zonoid-orchestrator/SKILL.md` client-neutral.
 
 - Substantive edits go through a graph task.
 - Dispatchers ask Subconscious to prepare assignments before workers accept them.
-- Workers call `subconscious_assignment accept` before editing.
-- Workers edit only in the registered attempt worktree and commit before `subconscious_assignment complete`.
+- Workers call `subconscious_assignment action:"accept"` before editing.
+- Workers edit only in the registered attempt worktree and commit before `subconscious_assignment action:"complete"`.
 - The dashboard URL is `http://localhost:8787/graph?workspace=<url-encoded absolute workspace path>`.
 
 ## Codex Adapter

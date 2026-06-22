@@ -42,7 +42,7 @@ adds NO new daemon behaviour — it composes existing MCP tools.
 
 - **Problem task `P`** — the thing to solve. The durable verdict is attached here.
 - **Attempt tasks `A1..An`** — each prepared with its own isolated worktree via
-  `subconscious_assignment prepare` (branch `orch/attempt/<key>`). Each attempt runs to `tested` (its tests
+  `subconscious_assignment action:"prepare"` (branch `orch/attempt/<key>`). Each attempt runs to `tested` (its tests
   passed) or `failed`.
 - **Judge task `J`** — `blocked_by` ALL attempts, so it only becomes `ready` once every
   attempt has finished. `J` may be a distinct "resolve P" node, OR `P` itself can play the
@@ -226,13 +226,13 @@ is no rival to pick among — so the code review IS the verdict. This is the per
      the winner; the merge behavior then splits **by tier** — see
      [Two-tier APPROVE](#two-tier-approve-feature-auto-merge-vs-main-hold) directly below.
    - **KICK BACK** — a correctness bug, out-of-scope churn, dead code, missing/vacuous tests, or a
-     guardrail regression. Do NOT merge (in EITHER tier). Use `subconscious_assignment submit_verdict`
+     guardrail regression. Do NOT merge (in EITHER tier). Use `subconscious_assignment action:"submit_verdict"`
      with `verdict:"KICK_BACK"` and the concrete reason (or reopen it for rework), and
      `record_decision(title, summary, wires_to=[P_key])` capturing the
      concrete fixes required so the next attempt inherits them. Record the verdict (step 6) with
      `winner: null`, `code_review.concerns` populated, and `needs_attention: true`.
 3. Record the verdict on `P` (step 6) exactly as for the multi-attempt case — `code_review` carries the
-   review; `winner` is the attempt key (APPROVE) or `null` (KICK BACK). Then use `subconscious_assignment complete` for `J`.
+   review; `winner` is the attempt key (APPROVE) or `null` (KICK BACK). Then use `subconscious_assignment action:"complete"` for `J`.
 
 ### Two-tier APPROVE: feature auto-merge vs main hold
 
@@ -246,7 +246,7 @@ branched with `base = orch/feature/<slug>` is under that feature; `overlay.featu
 no covering `overlay.features` entry ⇒ it is a **flat** attempt→main task.
 
 - **Under a FEATURE → AUTO-MERGE to the feature branch.** APPROVE means merge the attempt into the
-  FEATURE branch through `subconscious_assignment submit_verdict` with the feature worktree repo path — running `mergeBranch`
+  FEATURE branch through `subconscious_assignment action:"submit_verdict"` with the feature worktree repo path — running `mergeBranch`
   INSIDE the feature worktree lands the attempt on the FEATURE branch, not `main`. This is cheap and
   reversible (worst case the dispatcher resets the feature branch), so the judge MAY merge here — this
   resolves the old "hold-merge can't merge" awkwardness. Record the verdict (step 6) with `merged: true`
@@ -267,7 +267,7 @@ merges an *attempt* into its *feature* branch; it never promotes a feature to `m
 - **Never force a merge.** No passing attempt, or a conflicting winner → record the verdict
   and stop. Forcing merges defeats the point of judging.
 - **Two-tier APPROVE: feature auto-merge, main hold.** On APPROVE under a FEATURE, the judge MAY
-  auto-merge the attempt into the feature branch through `subconscious_assignment submit_verdict` — cheap +
+  auto-merge the attempt into the feature branch through `subconscious_assignment action:"submit_verdict"` — cheap +
   reversible. **NEVER auto-merge into `main`** — a flat attempt→main APPROVE only HOLDS (records the
   verdict, human decides). And **feature→main is the dispatcher's gated `merge_feature`, NEVER the
   judge's call** — the judge only lands an attempt onto its feature branch. A merge conflict under a

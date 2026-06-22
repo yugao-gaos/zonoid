@@ -2,7 +2,7 @@
 > **DEFAULT — structure try-alternatives as graph nodes, let WORKERS claim repo-targeted worktrees.**
 > When you build a problem→attempts→judge subtree, create the attempt TASK NODES with `TaskCreate`,
 > wire the judge `blocked_by` each attempt, and ask Subconscious to prepare each repo/base assignment
-> before dispatching workers. The worker then calls `subconscious_assignment accept` before editing.
+> before dispatching workers. The worker then calls `subconscious_assignment action:"accept"` before editing.
 > The preparation step targets the task's repo/explicit `repo_path`, not a hardcoded daemon workspace.
 > Prefer BUILDING over escalating: in autonomous
 > hold-merge mode do NOT `request_guidance` for ordinary priority/scope calls (it halts the loop) —
