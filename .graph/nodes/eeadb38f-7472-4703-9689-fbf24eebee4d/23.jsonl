@@ -21,3 +21,4 @@
 {"evt":"edge_removed","from":"eeadb38f-7472-4703-9689-fbf24eebee4d/23","to":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/11","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:20:50.301Z"}
 {"evt":"edge_removed","from":"eeadb38f-7472-4703-9689-fbf24eebee4d/23","to":"b3d1b5f4-ac17-4a48-8f81-e0a5c5a8fe7d/17","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:20:50.301Z"}
 {"evt":"edge_removed","from":"eeadb38f-7472-4703-9689-fbf24eebee4d/23","to":"eeadb38f-7472-4703-9689-fbf24eebee4d/9","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:20:50.301Z"}
+{"evt":"timestamps_set","id":"eeadb38f-7472-4703-9689-fbf24eebee4d/23","workspace":"/Users/imyu/.claude/orchestrator/.zonoid/worktrees/62dae274979b8432/feature-fix-post-subconscious-review-findings","timestamps":{"firstSeen":"2026-06-15T11:36:12.266Z","lastChanged":"2026-06-22T03:17:11.276Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-22T03:17:41.929Z"}

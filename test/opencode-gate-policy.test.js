@@ -24,7 +24,23 @@ function ok(label, cond, detail) {
   }
 }
 
-function claimedConfig() {
+function executionPermit(overrides = {}) {
+  return {
+    id: 'permit-opencode-task',
+    session_id: 'opencode-session',
+    task_key: 'opencode/task',
+    worktree: WT,
+    branch: 'orch/attempt/opencode-task',
+    scope: 'worktree',
+    allowed_paths: [WT],
+    status: 'active',
+    issued_at: '2026-06-21T00:00:00.000Z',
+    expires_at: '2099-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function claimedConfig(permit = executionPermit()) {
   return {
     activeClaim: { claimed: true, claims: [{ key: 'opencode/task' }] },
     taskDetails: {
@@ -32,6 +48,7 @@ function claimedConfig() {
         task: { metric: null, git: { branch: 'orch/attempt/opencode-task', worktree: WT } },
       },
     },
+    executionPermits: permit ? [permit] : [],
   };
 }
 
@@ -48,10 +65,10 @@ async function runWithConfig(config, fn) {
   });
 }
 
-async function expectAllow(label, config, tool, args) {
+async function expectAllow(label, config, tool, args, options) {
   await runWithConfig(config, async () => {
     try {
-      await gateWriteTool('opencode-session', tool, args);
+      await gateWriteTool('opencode-session', tool, args, options);
       ok(label, true);
     } catch (e) {
       ok(label, false, e.message);
@@ -59,10 +76,10 @@ async function expectAllow(label, config, tool, args) {
   });
 }
 
-async function expectDeny(label, config, tool, args, messagePart) {
+async function expectDeny(label, config, tool, args, messagePart, options) {
   await runWithConfig(config, async () => {
     try {
-      await gateWriteTool('opencode-session', tool, args);
+      await gateWriteTool('opencode-session', tool, args, options);
       ok(label, false, 'allowed');
     } catch (e) {
       ok(label, true);
@@ -88,6 +105,26 @@ async function expectDeny(label, config, tool, args, messagePart) {
   await expectAllow('claimed absolute path inside worktree allowed', claimedConfig(), 'write', {
     filePath: `${WT}/src/main.js`,
   });
+  await expectDeny('claimed worktree without permit denied', claimedConfig(null), 'write', {
+    filePath: `${WT}/src/no-permit.js`,
+  }, 'Subconscious execution permit');
+  await expectDeny('claimed worktree with wrong session permit denied', claimedConfig(executionPermit({ session_id: 'other-session' })), 'write', {
+    filePath: `${WT}/src/wrong-session.js`,
+  }, 'Subconscious execution permit');
+  await expectDeny('claimed worktree with expired permit denied', claimedConfig(executionPermit({ expires_at: '2000-01-01T00:00:00.000Z' })), 'write', {
+    filePath: `${WT}/src/expired.js`,
+  }, 'expired');
+  await expectDeny('claimed worktree outside permit path scope denied', claimedConfig(executionPermit({ scope: 'paths', allowed_paths: [`${WT}/allowed`] })), 'write', {
+    filePath: `${WT}/src/outside-scope.js`,
+  }, 'permit scope');
+  await expectAllow('trusted OpenCode agent id satisfies agent-bound permit', claimedConfig(executionPermit({ agent_id: 'real-opencode-agent' })), 'write', {
+    filePath: `${WT}/src/agent-bound.js`,
+    agent_id: 'spoofed-tool-arg',
+  }, { agentId: 'real-opencode-agent' });
+  await expectDeny('tool args cannot spoof trusted OpenCode agent id', claimedConfig(executionPermit({ agent_id: 'real-opencode-agent' })), 'write', {
+    filePath: `${WT}/src/spoofed-agent.js`,
+    agent_id: 'real-opencode-agent',
+  }, 'agent mismatch', { agentId: 'different-opencode-agent' });
   await expectDeny('claimed absolute path outside worktree denied', claimedConfig(), 'write', {
     filePath: '/Users/x/other/src.js',
   }, 'registered worktree');

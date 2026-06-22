@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/fix-subconscious-prepare-unknown-dependency-snapshot",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-fix-subconscious-prepare-unknown-dependency-snapshot-session",
+  "branch": "orch/attempt/codex-fix-subconscious-prepare-unknown-dependency-snapshot",
+  "status": "tested",
+  "claimed_at": "2026-06-22T08:48:46.692Z",
+  "lease_until": "2026-06-22T09:48:46.692Z",
+  "completed_at": "2026-06-22T08:50:32.959Z"
+}

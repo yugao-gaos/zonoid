@@ -29,11 +29,13 @@ process.env.CLAUDE_PLUGIN_DATA = SANDBOX; // before requires — both modules re
 const filedrop = require('../lib/filedrop-tasks');
 const overlayStore = require('../lib/overlay');
 const git = require('../lib/git');
+const nt = require('../lib/native-tasks');
 
 const PORT = 18840 + Math.floor(Math.random() * 100);
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-filedrop-ws-')));
 // Fake Claude session for the (C) session-key routing check — mirrors native-write.test.js.
-const FAKE_SESSION = `TESTFAKE-filedrop-${process.pid}`;
+const FAKE_SESSION = `feedface${process.pid.toString(16).padStart(8, '0')}`;
+const FAKE_PROJECT_DIR = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(WS));
 const FAKE_SESSION_DIR = path.join(os.homedir(), '.claude', 'tasks', FAKE_SESSION);
 
 let pass = 0, fail = 0;
@@ -150,8 +152,11 @@ function spawnDaemon() {
     ok('(C) stub file status updated to in_progress', stubBbb && stubBbb.status === 'in_progress');
     ok('(C) no stray "cursor" dir in ~/.claude/tasks', !fs.existsSync(path.join(os.homedir(), '.claude', 'tasks', 'cursor')));
     // Session-key write-through still reaches the Claude native store.
+    fs.mkdirSync(FAKE_PROJECT_DIR, { recursive: true });
+    fs.writeFileSync(path.join(FAKE_PROJECT_DIR, `${FAKE_SESSION}.jsonl`), '');
     fs.mkdirSync(FAKE_SESSION_DIR, { recursive: true });
     fs.writeFileSync(path.join(FAKE_SESSION_DIR, '1.json'), JSON.stringify({ id: '1', subject: 'native demo', status: 'pending', blockedBy: [] }));
+    await req('POST', '/sync', { workspace: WS });
     const doneNative = await req('POST', '/overlay/status', { workspace: WS, key: `${FAKE_SESSION}/1`, status: 'done', summary: 'done.' });
     ok('(C) session-key status write accepted', doneNative.status === 200);
     const nativeAfter = JSON.parse(fs.readFileSync(path.join(FAKE_SESSION_DIR, '1.json'), 'utf8'));
@@ -205,6 +210,7 @@ function spawnDaemon() {
     child.kill();
     try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch { /* */ }
     try { fs.rmSync(WS, { recursive: true, force: true }); } catch { /* */ }
+    try { fs.rmSync(FAKE_PROJECT_DIR, { recursive: true, force: true }); } catch { /* */ }
     try { fs.rmSync(FAKE_SESSION_DIR, { recursive: true, force: true }); } catch { /* */ }
   }
 

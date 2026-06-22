@@ -39,6 +39,8 @@ try {
     workspace: WS,
     title: 'Vector rehydrate note',
     summary: 'Field vectors should survive reload.',
+    category: 'correction',
+    tags: ['Replay', 'Vectors', 'replay'],
     created_by: 'test',
     valid_from: '2026-06-21T00:00:00.000Z',
     vec: pooledVec,
@@ -49,6 +51,8 @@ try {
   const loadedNote = reloaded.note_nodes[noteId];
   ok('overlay.load rehydrates note.vec', !!loadedNote && same(loadedNote.vec, pooledVec));
   ok('overlay.load rehydrates note.vecs', !!loadedNote && same(loadedNote.vecs, fieldVecs));
+  ok('overlay.load rehydrates note.category', !!loadedNote && loadedNote.category === 'correction');
+  ok('overlay.load rehydrates note.tags', !!loadedNote && same(loadedNote.tags, ['replay', 'vectors']));
 
   daemon.__clearOverlayCacheForTest();
   daemon.__setWorkspaceForTest(WS);
@@ -56,6 +60,8 @@ try {
   const projected = graph.tasks.find((t) => t.id === noteKey);
   ok('buildGraph projects pooled note.vec unchanged', !!projected && same(projected.vec, pooledVec));
   ok('buildGraph projects field-level note.vecs', !!projected && same(projected.vecs, fieldVecs));
+  ok('buildGraph projects note.category', !!projected && projected.category === 'correction');
+  ok('buildGraph projects note.tags', !!projected && same(projected.tags, ['replay', 'vectors']));
 } finally {
   try {
     const pid = parseInt(fs.readFileSync(path.join(TMP, 'embed.pid'), 'utf8'), 10);

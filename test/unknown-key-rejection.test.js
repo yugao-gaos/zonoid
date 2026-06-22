@@ -51,6 +51,7 @@ const { nodeExistsInGraph } = require('../daemon.js');
 // so any other key is "unknown".
 const KNOWN_KEY  = 'sess-xyz/42';
 const UNKNOWN_KEY = '1'; // bare integer — the phantom-node bug case
+const UNKNOWN_TASK_KEY = 'codex/missing'; // valid shape, but not an existing graph node
 
 function makeCtx(overlay, extraCtxFields = {}) {
   const _graph = {
@@ -143,6 +144,16 @@ function makeSP(params = {}) {
     ok('2.2: /overlay/status error mentions the unknown key', r && r.body && r.body.error && r.body.error.includes(UNKNOWN_KEY));
     ok('2.3: /overlay/status does NOT set status on phantom key', !o.status[UNKNOWN_KEY]);
   }
+  {
+    const o = makeOv();
+    const { ctx, getLastSent } = makeCtx(o);
+    ctx.readBody = async () => ({ key: UNKNOWN_TASK_KEY, status: 'done', summary: 'syntactic phantom', agent_id: 'test-agent' });
+    const route = overlayRoute(ctx);
+    await route('/overlay/status', 'POST', { headers: {} }, {}, makeSP(), null);
+    const r = getLastSent();
+    ok('2.3b: /overlay/status rejects syntactically valid unknown key with 404', r && r.status === 404);
+    ok('2.3c: /overlay/status does NOT create snapshot for syntactic unknown key', !(o.snapshots && o.snapshots[UNKNOWN_TASK_KEY]));
+  }
 
   // 2.4: known key is accepted
   {
@@ -228,6 +239,17 @@ function makeSP(params = {}) {
     const r = getLastSent();
     ok('5.3: /overlay/edge rejects phantom to-key with 404', r && r.status === 404);
     ok('5.4: /overlay/edge creates no edge when to is unknown', o.edges.length === 0);
+  }
+  {
+    const o = makeOv();
+    const { ctx, getLastSent } = makeCtx(o);
+    ctx.readBody = async () => ({ from: KNOWN_KEY, to: UNKNOWN_TASK_KEY });
+    const route = overlayRoute(ctx);
+    await route('/overlay/edge', 'POST', { headers: {} }, {}, makeSP(), null);
+    const r = getLastSent();
+    ok('5.4b: /overlay/edge rejects syntactically valid unknown to-key with 404', r && r.status === 404);
+    ok('5.4c: /overlay/edge creates no snapshot for syntactic unknown to-key', !(o.snapshots && o.snapshots[UNKNOWN_TASK_KEY]));
+    ok('5.4d: /overlay/edge creates no edge for syntactic unknown to-key', o.edges.length === 0);
   }
 
   // 5.5: note:xxx endpoints are accepted (notes ARE in the graph)
@@ -544,6 +566,27 @@ function makeSP(params = {}) {
     const r = getLastSent();
     ok('15.4: /overlay/gate known blocking_task_key returns 200', r && r.status === 200);
     ok('15.5: /overlay/gate response includes gate_key', r && r.body && typeof r.body.gate_key === 'string');
+  }
+
+  // ── SECTION 16: /subconscious/assignment prepare dependency validation ──
+  {
+    const o = makeOv();
+    const { ctx, getLastSent } = makeCtx(o);
+    ctx.readBody = async () => ({
+      workspace: '/tmp/test-ws',
+      action: 'prepare',
+      task_key: 'codex/new-task',
+      subject: 'New task',
+      parent_task_keys: [UNKNOWN_TASK_KEY],
+      repo_path: '/tmp/test-ws',
+    });
+    const route = require('../routes/subconscious')(ctx);
+    await route('/subconscious/assignment', 'POST', { headers: {} }, {}, makeSP(), null);
+    const r = getLastSent();
+    ok('16.1: /subconscious/assignment prepare rejects unknown dependency with 404', r && r.status === 404);
+    ok('16.2: /subconscious/assignment prepare creates no impl snapshot after unknown dependency', !(o.snapshots && o.snapshots['codex/new-task']));
+    ok('16.3: /subconscious/assignment prepare creates no dependency snapshot after unknown dependency', !(o.snapshots && o.snapshots[UNKNOWN_TASK_KEY]));
+    ok('16.4: /subconscious/assignment prepare creates no dependency edges after unknown dependency', o.edges.length === 0);
   }
 
   console.log('-----');

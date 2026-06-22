@@ -540,6 +540,13 @@ function targetOverlay(b, u) {
   return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws, ov); } };
 }
 
+function saveDispatchOverlay(ws, ov) {
+  if (!ws || !ov) return;
+  overlayStore.save(ws, ov);
+  refreshOverlayStamp(ws, ov);
+  notifyChange(ws);
+}
+
 // Reject-unknown-key guard: returns true if the key resolves to an EXISTING node in the
 // graph (task OR note node). Used by WRITE ops to reject phantom/bare keys that have no
 // corresponding native task or note node — symmetric with the existing READ-op checks in
@@ -1303,9 +1310,11 @@ function decideOne(L, ctx) {
     const budget = (ov.config.judge?.budgetPerRun) ?? 6;
     const dispatchNodes = pending.slice(0, slots);
     // Lease each node atomically so concurrent loops skip it (double-dispatch guard, task 27).
+    let leased = false;
     for (const nodeKey of dispatchNodes) {
-      overlayStore.acquireEagerJudgeLease(ov, nodeKey, L.id, 60000);
+      if (overlayStore.acquireEagerJudgeLease(ov, nodeKey, L.id, 60000)) leased = true;
     }
+    if (leased) saveDispatchOverlay(ws, ov);
     return { nodes: dispatchNodes, budget };       // FIFO; excess stays marked for next tick
   }
 
@@ -1357,7 +1366,11 @@ function decideOne(L, ctx) {
       // Lease each dispatched task so a concurrent loop (this tick) and any re-poll (until the worker
       // claims) skip it. Released on claim/terminal via setStatus→clearSpawnLease; 60s TTL frees a
       // spawn that crashed before claiming.
-      for (const t of picked) overlayStore.acquireSpawnLease(ov, t.id, L.id, 60000);
+      let leased = false;
+      for (const t of picked) {
+        if (overlayStore.acquireSpawnLease(ov, t.id, L.id, 60000)) leased = true;
+      }
+      if (leased) saveDispatchOverlay(ws, ov);
       const dec = withWire({ ...base, action: 'spawn', tasks: picked.map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll });
       // A SINGLE heartbeat does BOTH: tasks first, then judge into the leftover slots. EAGER (task C)
       // is the PRIMARY judge trigger — node-scoped dispatch for freshly-wired nodes. Account for the
@@ -1457,7 +1470,11 @@ function decideAll() {
   const managedCtxByWs = new Map();
   ensureManagedGraphLoops(managedCtxByWs);
 
-  const active = [...loops.values()].filter((L) => L.active);
+  // Foreground/request loops get first chance to spend the shared spawn pool; managed graph loops
+  // are the background safety net and must not preempt an explicit driver loop for the same work.
+  const active = [...loops.values()]
+    .filter((L) => L.active)
+    .sort((a, b) => (a.managed ? 1 : 0) - (b.managed ? 1 : 0));
   // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
   // concurrency bound is about total spawned workers, not per-workspace.
   const batch = { remaining: active.reduce((m, L) => Math.max(m, L.config.batch || 0), 0) };

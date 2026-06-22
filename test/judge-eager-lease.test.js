@@ -3,6 +3,9 @@
 // double-dispatch the same node. After TTL expiry the node becomes re-dispatchable.
 // Run: node test/judge-eager-lease.test.js — exits non-zero on any failed assertion.
 'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const ov = require('../lib/overlay');
 const judge = require('../lib/judge');
 const daemon = require('../daemon.js');
@@ -30,6 +33,12 @@ function makeLoop(id, over) {
   return { id: id || 'L', active: true, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: null, session: null, lastProgress: null, config: cfg, ...(over || {}), config: cfg };
 }
 function ctxFor(g) { return { graph: g, pendingGuidance: [], batch: { remaining: 999 } }; }
+function tempWorkspace() {
+  const ws = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-eager-lease-')));
+  fs.mkdirSync(path.join(ws, '.graph'), { recursive: true });
+  try { fs.unlinkSync(ov.fileFor(ws)); } catch {}
+  return ws;
+}
 
 // --- PURE: acquireEagerJudgeLease / clearEagerJudgeLease -----------------------------------------
 {
@@ -62,6 +71,7 @@ function ctxFor(g) { return { graph: g, pendingGuidance: [], batch: { remaining:
   const pending = judge.eagerJudgeNodes(o);
   ok('eagerJudgeNodes: leased node is skipped', !pending.includes('s/n1'));
   ok('eagerJudgeNodes: skipped node does NOT get pruned from eagerJudge', 's/n1' in o.eagerJudge);
+  ok('buildQueue: leased eager edge is suppressed from periodic queue', !judge.buildQueue(o).some((i) => i.kind === 'edge' && i.from === 's/n1'));
 }
 {
   // After lease expires, node reappears
@@ -100,6 +110,19 @@ function ctxFor(g) { return { graph: g, pendingGuidance: [], batch: { remaining:
   const d3 = daemon.decideOne(L3, ctxFor(makeGraph(0, 0)));
   ok('expired lease: node re-dispatched by new loop', d3.action === 'judge_eager' && d3.nodes.includes('s/n1'));
   ok('expired lease: lease updated to new loopId', o.eagerJudgeLease['s/n1'].loopId === 'loop3');
+}
+
+// --- PERSISTENCE: dispatch lease survives overlay reload -----------------------------------------
+{
+  const ws = tempWorkspace();
+  const o = oneNodeOverlay();
+  daemon.__setWorkspaceForTest(ws);
+  daemon.__setOverlayForTest(o);
+  const L4 = makeLoop('loop4');
+  const d4 = daemon.decideOne(L4, ctxFor(makeGraph(0, 0)));
+  const persisted = ov.load(ws);
+  ok('persistence: eager dispatch happened', d4.action === 'judge_eager' && d4.nodes.includes('s/n1'));
+  ok('persistence: eager lease saved to overlay file', persisted.eagerJudgeLease && persisted.eagerJudgeLease['s/n1'] && persisted.eagerJudgeLease['s/n1'].loopId === 'loop4');
 }
 
 console.log('-----');

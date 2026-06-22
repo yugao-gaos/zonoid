@@ -26,6 +26,15 @@ const PROJ_DIR = path.join(os.homedir(), '.claude', 'projects', encodeWorkspace(
 const TASKS_DIR = path.join(os.homedir(), '.claude', 'tasks', SESSION);
 const K = (id) => `${SESSION}/${id}`;
 const METRIC = { metric: 'score', direction: 'max', measure_command: 'echo 1' };
+const taskResult = (status, summary, extra = {}) => ({
+  version: 1,
+  status,
+  summary,
+  files_changed: [],
+  tests_run: 'not run',
+  decisions: [],
+  ...extra,
+});
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -97,9 +106,8 @@ async function waitForPing(ms = 8000) {
   fs.writeFileSync(path.join(TASKS_DIR, '1.json'), JSON.stringify({ id: '1', subject: 'metric handoff alpha', status: 'pending' }));
   fs.writeFileSync(path.join(TASKS_DIR, '2.json'), JSON.stringify({ id: '2', subject: 'metric handoff legacy beta', status: 'pending' }));
   fs.writeFileSync(path.join(TASKS_DIR, '3.json'), JSON.stringify({ id: '3', subject: 'plain handoff gamma', status: 'pending' }));
-  // Extra metric-carrying tasks for the additional level-1 gap assertions below (failed/canceled
-  // terminal statuses, empty-vs-absent measurements, non-terminal scoping, guardrails-only).
-  for (const id of [4, 5, 6, 7, 8, 9]) fs.writeFileSync(path.join(TASKS_DIR, `${id}.json`), JSON.stringify({ id: String(id), subject: `metric handoff gap ${id}`, status: 'pending' }));
+  // Extra tasks for schema-shape, status-match, metric-value, and MCP pass-through assertions.
+  for (const id of [4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) fs.writeFileSync(path.join(TASKS_DIR, `${id}.json`), JSON.stringify({ id: String(id), subject: `handoff gap ${id}`, status: 'pending' }));
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
@@ -110,7 +118,7 @@ async function waitForPing(ms = 8000) {
     ok('workspace pinned', (await req('POST', '/workspace', { path: WS })).status === 200);
     await req('GET', '/state');
 
-    for (const id of [1, 2, 3, 4, 5, 6, 7, 8, 9]) await req('POST', '/mark-root', { workspace: WS, task_key: K(id) });
+    for (const id of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) await req('POST', '/mark-root', { workspace: WS, task_key: K(id) });
 
     // Tasks 1, 2, and 4-8 carry a metric spec; task 3 does not.
     ok('metric spec set on task 1', (await req('POST', '/task/metric', { workspace: WS, key: K(1), spec: METRIC })).status === 200);
@@ -120,7 +128,7 @@ async function waitForPing(ms = 8000) {
     // --- Refusal: metric task + structured task_result WITHOUT metric_measurements → 409 ---
     const r1 = await req('POST', '/overlay/status', {
       workspace: WS, key: K(1), status: 'tested', agent_id: 'a1',
-      task_result: { status: 'tested', summary: 'did the thing', files_changed: ['x.js'] },
+      task_result: taskResult('tested', 'did the thing', { files_changed: ['x.js'] }),
     });
     ok('metric task + incomplete task_result refused 409', r1.status === 409);
     ok('409 names metric_measurements', r1.body.missing === 'metric_measurements');
@@ -128,7 +136,7 @@ async function waitForPing(ms = 8000) {
     // --- Pass: metric task + structured task_result WITH metric_measurements → 200 ---
     const r2 = await req('POST', '/overlay/status', {
       workspace: WS, key: K(1), status: 'tested', agent_id: 'a1',
-      task_result: { status: 'tested', summary: 'measured', metric_measurements: { score: 1 } },
+      task_result: taskResult('tested', 'measured', { metric_measurements: { value: 1 } }),
     });
     ok('metric task + complete task_result accepted', r2.status === 200 && r2.body.ok === true);
 
@@ -139,9 +147,30 @@ async function waitForPing(ms = 8000) {
     // --- Scope: NON-metric task + structured task_result without measurements → 200 (not refused) ---
     const r4 = await req('POST', '/overlay/status', {
       workspace: WS, key: K(3), status: 'tested', agent_id: 'a3',
-      task_result: { status: 'tested', summary: 'no metric here' },
+      task_result: taskResult('tested', 'no metric here'),
     });
-    ok('non-metric task + incomplete task_result not refused', r4.status === 200 && r4.body.ok === true);
+    ok('non-metric task + schema-valid task_result without measurements accepted', r4.status === 200 && r4.body.ok === true);
+
+    // --- Refusal: any structured task_result must include the full v1 required shape. ---
+    const rMissingFields = await req('POST', '/overlay/status', {
+      workspace: WS, key: K(10), status: 'tested', agent_id: 'a10',
+      task_result: { version: 1, status: 'tested', summary: 'missing shape' },
+    });
+    ok('structured task_result missing required v1 fields refused 409', rMissingFields.status === 409 && Array.isArray(rMissingFields.body.missing) && rMissingFields.body.missing.includes('files_changed'));
+
+    // --- Refusal: route status and task_result.status must agree. ---
+    const rMismatch = await req('POST', '/overlay/status', {
+      workspace: WS, key: K(11), status: 'failed', agent_id: 'a11',
+      task_result: taskResult('tested', 'status mismatch'),
+    });
+    ok('route status mismatch with task_result.status refused 409', rMismatch.status === 409 && rMismatch.body.field === 'status' && rMismatch.body.expected === 'failed');
+
+    // --- Refusal: no extras under additionalProperties:false. ---
+    const rExtra = await req('POST', '/overlay/status', {
+      workspace: WS, key: K(12), status: 'tested', agent_id: 'a12',
+      task_result: taskResult('tested', 'extra field', { surprise: true }),
+    });
+    ok('structured task_result with extra field refused 409', rExtra.status === 409 && Array.isArray(rExtra.body.extra) && rExtra.body.extra.includes('surprise'));
 
     // ===================================================================================
     // ADDED LEVEL-1 GAPS (T4): the gate fires on ALL terminal statuses + distinguishes
@@ -153,31 +182,32 @@ async function waitForPing(ms = 8000) {
     // The gate keys off newlyReady.isTerminalStatus, which includes failed — not just tested.
     const rFailed = await req('POST', '/overlay/status', {
       workspace: WS, key: K(4), status: 'failed', agent_id: 'a4',
-      task_result: { status: 'failed', summary: 'could not measure' },
+      task_result: taskResult('failed', 'could not measure'),
     });
     ok('metric task + terminal=failed + incomplete task_result refused 409', rFailed.status === 409 && rFailed.body.missing === 'metric_measurements');
 
-    // --- Other terminal status `canceled`: metric task + incomplete task_result → 409 ---
+    // --- Other terminal status `canceled`: structured result statuses are only tested/failed and
+    // must match the route status, so canceled + task_result is refused before metric checks.
     const rCanceled = await req('POST', '/overlay/status', {
       workspace: WS, key: K(5), status: 'canceled', agent_id: 'a5',
-      task_result: { status: 'failed', summary: 'abandoned' },
+      task_result: taskResult('failed', 'abandoned'),
     });
-    ok('metric task + terminal=canceled + incomplete task_result refused 409', rCanceled.status === 409 && rCanceled.body.missing === 'metric_measurements');
+    ok('terminal=canceled + structured task_result refused on status mismatch', rCanceled.status === 409 && rCanceled.body.field === 'status' && rCanceled.body.expected === 'canceled');
 
     // --- Empty (not absent) measurements: metric_measurements:{} → still 409 ---
     // The handler checks Object.keys(mm).length>0, so an empty object is as incomplete as absent.
     const rEmptyObj = await req('POST', '/overlay/status', {
       workspace: WS, key: K(6), status: 'tested', agent_id: 'a6',
-      task_result: { status: 'tested', summary: 'empty measures', metric_measurements: {} },
+      task_result: taskResult('tested', 'empty measures', { metric_measurements: {} }),
     });
-    ok('metric task + EMPTY metric_measurements object refused 409', rEmptyObj.status === 409 && rEmptyObj.body.missing === 'metric_measurements');
+    ok('metric task + EMPTY metric_measurements object refused 409', rEmptyObj.status === 409 && rEmptyObj.body.missing === 'metric_measurements.value');
 
     // --- Empty array measurements: metric_measurements:[] → still 409 (array branch of the check) ---
     const rEmptyArr = await req('POST', '/overlay/status', {
       workspace: WS, key: K(7), status: 'tested', agent_id: 'a7',
-      task_result: { status: 'tested', summary: 'empty array measures', metric_measurements: [] },
+      task_result: taskResult('tested', 'empty array measures', { metric_measurements: [] }),
     });
-    ok('metric task + EMPTY metric_measurements array refused 409', rEmptyArr.status === 409 && rEmptyArr.body.missing === 'metric_measurements');
+    ok('metric task + array metric_measurements refused 409', rEmptyArr.status === 409 && rEmptyArr.body.field === 'metric_measurements');
 
     // --- Scope to terminal: NON-terminal (in_progress) + incomplete task_result → the handoff gate
     // never runs (it is gated on newlyReady.isTerminalStatus). Asserted on the NON-metric task 3 so
@@ -187,7 +217,7 @@ async function waitForPing(ms = 8000) {
     const wt3 = await req('POST', '/git/worktree', { workspace: WS, key: K(3) });
     ok('worktree registered for non-terminal scope check', wt3.status === 200);
     const rInProgress = await req('POST', '/overlay/status', {
-      key: K(3), status: 'in_progress', agent_id: 'a3', session_id: SESSION, workspace: WS,
+      key: K(3), status: 'in_progress', agent_id: 'a3', session_id: SESSION, workspace: WS, force: true,
       task_result: { status: 'tested', summary: 'mid-flight, no measures yet' },
     });
     ok('NON-terminal status + structured task_result not refused by handoff gate (gate is terminal-only)', rInProgress.status === 200 && rInProgress.body.ok === true);
@@ -197,19 +227,41 @@ async function waitForPing(ms = 8000) {
     // (schema-shape validation of value/guardrails is the schema's job, not this 409 completeness gate).
     const rGuard = await req('POST', '/overlay/status', {
       workspace: WS, key: K(8), status: 'tested', agent_id: 'a8',
-      task_result: { status: 'tested', summary: 'measured', metric_measurements: { value: 2, guardrails: { latency: 5 } } },
+      task_result: taskResult('tested', 'measured', { metric_measurements: { value: 2, guardrails: { latency: 5 } } }),
     });
     ok('metric task + complete metric_measurements (value+guardrails) accepted', rGuard.status === 200 && rGuard.body.ok === true);
 
-    // --- MCP pass-through: complete_task must forward task_result into the same daemon gate. ---
-    const mcpIncomplete = await mcpTool('complete_task', {
+    // --- MCP pass-through: subconscious_assignment complete must forward task_result into the same daemon gate. ---
+    const mcpIncomplete = await mcpTool('subconscious_assignment', {
+      action: 'complete',
+      workspace: WS,
       task_key: K(9),
+      status: 'tested',
       summary: 'mcp incomplete result',
       agent_id: 'a9',
-      task_result: { status: 'tested', summary: 'missing measurements' },
+      task_result: taskResult('tested', 'missing measurements'),
     });
     const mcpOut = mcpPayload(mcpIncomplete);
-    ok('MCP complete_task forwards task_result to handoff gate', mcpIncomplete.status === 200 && mcpIncomplete.body.result && mcpIncomplete.body.result.isError === true && mcpOut.missing === 'metric_measurements');
+    ok('MCP subconscious_assignment complete forwards task_result to handoff gate', mcpIncomplete.status === 200 && mcpIncomplete.body.result && mcpIncomplete.body.result.isError === true && mcpOut.missing === 'metric_measurements');
+
+    const mcpDerived = await mcpTool('subconscious_assignment', {
+      action: 'complete',
+      workspace: WS,
+      task_key: K(13),
+      summary: 'mcp derived route status',
+      agent_id: 'a13',
+      task_result: taskResult('tested', 'mcp derived route status'),
+    });
+    const mcpDerivedOut = mcpPayload(mcpDerived);
+    const derivedState = await req('GET', `/state?workspace=${encodeURIComponent(WS)}`);
+    const derivedNode = derivedState.body.tasks && derivedState.body.tasks.find((t) => t.id === K(13));
+    ok('MCP subconscious_assignment complete derives tested route status from task_result when status is omitted',
+      mcpDerived.status === 200 &&
+      mcpDerived.body.result &&
+      !mcpDerived.body.result.isError &&
+      mcpDerivedOut.ok === true &&
+      derivedNode &&
+      derivedNode.status === 'tested');
   } finally {
     try { child.kill(); } catch { /* already gone */ }
     fs.rmSync(TASKS_DIR, { recursive: true, force: true });

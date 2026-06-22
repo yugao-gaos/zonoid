@@ -68,6 +68,17 @@ async function waitForPing(ms = 8000) {
   return false;
 }
 
+async function waitForTaskStatus(key, status, ms = 5000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    const g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
+    const t = g.tasks.find((x) => x.id === key);
+    if (t && t.status === status) return true;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+}
+
 function dropStub(harness, id, extra = {}) {
   const dir = path.join(filedrop.dirFor(WS), harness);
   fs.mkdirSync(dir, { recursive: true });
@@ -129,6 +140,8 @@ function spawnDaemon() {
     const rootCursor = await req('POST', '/mark-root', { task_key: `cursor/${SHARED_ID}`, reason: 'test root', workspace: WS });
     ok('(B) mark-root local accepted', rootLocal.status === 200);
     ok('(B) mark-root cursor accepted', rootCursor.status === 200);
+    await waitForTaskStatus(`local/${SHARED_ID}`, 'ready');
+    await waitForTaskStatus(`cursor/${SHARED_ID}`, 'ready');
     // DG1/DG2 claim gate: register a worktree per claimed key + supply session_id.
     await req('POST', '/git/worktree', { workspace: WS, key: `local/${SHARED_ID}`, repo_path: WS });
     await req('POST', '/git/worktree', { workspace: WS, key: `cursor/${SHARED_ID}`, repo_path: WS });

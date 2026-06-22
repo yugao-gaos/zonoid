@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/fix-broad-npm-test-regressions-after-post-review",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-fix-broad-npm-regressions-session",
+  "branch": "orch/attempt/codex-fix-broad-npm-test-regressions-after-post-review",
+  "status": "tested",
+  "claimed_at": "2026-06-22T05:48:05.822Z",
+  "lease_until": "2026-06-22T06:48:05.822Z",
+  "completed_at": "2026-06-22T07:27:48.314Z"
+}

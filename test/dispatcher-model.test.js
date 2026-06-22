@@ -17,17 +17,30 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const net = require('net');
 const crypto = require('crypto');
 const { spawn, spawnSync, execSync } = require('child_process');
-const { workspaceKey } = require('../lib/filedrop-tasks');
+const filedrop = require('../lib/filedrop-tasks');
 
 const REPO = path.resolve(__dirname, '..');
 const HOOK = path.join(REPO, 'hooks', 'orch-gate.sh');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-dispatch-d-')));
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-dispatch-ws-')));
-const PORT = 19650 + Math.floor(Math.random() * 100);
-const BASE = `http://127.0.0.1:${PORT}`;
+process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
+let PORT = 0;
+let BASE = '';
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const port = srv.address().port;
+      srv.close(() => resolve(port));
+    });
+  });
+}
 
 async function post(p, body) {
   // Mirror the real MCP client (lib/mcp-core makeCall): inject the session's workspace into every
@@ -74,7 +87,7 @@ async function syncUntilAdopted(expected, attempts = 20) {
 }
 
 function dropStub(id, extra = {}) {
-  const dir = path.join(SANDBOX, 'tasks', workspaceKey(WS), 'local');
+  const dir = path.join(filedrop.dirFor(WS), 'local');
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${id}.json`);
   fs.writeFileSync(file, JSON.stringify({ id, subject: `dispatch ${id}`, status: 'pending', ...extra }, null, 2));
@@ -85,6 +98,15 @@ function readOverlay() {
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json') && !f.includes('.diagnostics.'));
   if (files.length !== 1) throw new Error(`expected one overlay file, got ${files.length}`);
   return JSON.parse(fs.readFileSync(path.join(dir, files[0]), 'utf8'));
+}
+
+async function assertStubsVisible(syncBody, keys) {
+  const adopted = new Set((syncBody && syncBody.adopted) || []);
+  if (keys.every((key) => adopted.has(key))) return;
+  const state = await get('/state?compact=1');
+  assert.equal(state.status, 200, 'state after sync');
+  const visible = new Set((state.body.tasks || []).map((t) => t.id));
+  for (const key of keys) assert.ok(visible.has(key), `stub ${key} visible after sync`);
 }
 
 function runGate(sessionId, patch, extraEnv = {}) {
@@ -107,6 +129,8 @@ function runGate(sessionId, patch, extraEnv = {}) {
 }
 
 test('dispatcher model — claim gate, children, trivial gate, attribution', async () => {
+  PORT = await freePort();
+  BASE = `http://127.0.0.1:${PORT}`;
   dropStub('dm-a');
   dropStub('dm-b');
   const KEY_A = 'local/dm-a';
@@ -126,20 +150,22 @@ test('dispatcher model — claim gate, children, trivial gate, attribution', asy
     execSync('git init -q', { cwd: WS });
     execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: WS });
     assert.equal((await post('/workspace', { path: WS })).body.ok, true);
-    assert.equal((await syncUntilAdopted([KEY_A, KEY_B])).status, 200, 'sync route reachable');
+    let r = await syncUntilAdopted([KEY_A, KEY_B]);
+    assert.equal(r.status, 200, 'sync route reachable');
+    await assertStubsVisible(r.body, [KEY_A, KEY_B]);
 
     await post('/agent/start', { agent_id: 'dispatch-main', session: SID_DISPATCHER });
     assert.equal((await post('/mark-root', { task_key: KEY_A, reason: 'dispatch test' })).body.ok, true);
 
     // Dispatcher claim with NO worktree → refused (worktree is the claim-side security boundary).
-    let r = await post('/overlay/status', {
+    r = await post('/overlay/status', {
       key: KEY_A,
       status: 'in_progress',
       agent_id: 'dispatch-main',
       session_id: SID_DISPATCHER,
     });
     assert.equal(r.status, 409, 'dispatcher start_task → 409');
-    assert.match(r.body.error, /dispatcher sessions cannot claim/);
+    assert.match(r.body.error, /prepare.*accept|isolated worktree assignment/);
 
     await post('/agent/start', {
       agent_id: 'dispatch-worker',
@@ -225,8 +251,8 @@ test('dispatcher model — claim gate, children, trivial gate, attribution', asy
     assert.equal(r.status, 200, 'explicit task_key override → 200');
     assert.equal(r.body.task_key, KEY_A);
 
-    assert.equal((await post('/overlay/status', { key: KEY_A, status: 'done', agent_id: 'dispatch-worker', summary: 'dm ok' })).body.ok, true);
-    assert.equal((await post('/overlay/status', { key: KEY_B, status: 'done', agent_id: 'dispatch-worker-b', summary: 'dm ok' })).body.ok, true);
+    assert.equal((await post('/overlay/status', { key: KEY_A, status: 'done', agent_id: 'dispatch-worker', session_id: SID_WORKER, summary: 'dm ok' })).body.ok, true);
+    assert.equal((await post('/overlay/status', { key: KEY_B, status: 'done', agent_id: 'dispatch-worker-b', session_id: SID_WORKER_B, summary: 'dm ok' })).body.ok, true);
   } finally {
     child.kill('SIGTERM');
     fs.rmSync(SANDBOX, { recursive: true, force: true });

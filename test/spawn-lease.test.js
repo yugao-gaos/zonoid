@@ -3,6 +3,9 @@
 // the same READY task in one tick. Symmetric to judge-eager-lease.test.js (the eager-judge lease).
 // Run: node test/spawn-lease.test.js — exits non-zero on any failed assertion.
 'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const ov = require('../lib/overlay');
 const daemon = require('../daemon.js');
 
@@ -20,6 +23,12 @@ function makeLoop(id, over) {
   return { id: id || 'L', active: true, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: null, session: null, lastProgress: null, config: cfg, ...(over || {}), config: cfg };
 }
 function ctxFor(g) { return { graph: g, pendingGuidance: [], batch: { remaining: 999 } }; }
+function tempWorkspace() {
+  const ws = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-spawn-lease-')));
+  fs.mkdirSync(path.join(ws, '.graph'), { recursive: true });
+  try { fs.unlinkSync(ov.fileFor(ws)); } catch {}
+  return ws;
+}
 
 // --- PURE: acquireSpawnLease / hasLiveSpawnLease / clearSpawnLease -------------------------------
 {
@@ -73,6 +82,19 @@ function ctxFor(g) { return { graph: g, pendingGuidance: [], batch: { remaining:
   const L3 = makeLoop('loop3');
   const d3 = daemon.decideOne(L3, ctxFor(makeGraph(0, 1)));
   ok('release: cleared task is re-dispatchable', d3.action === 'spawn' && d3.tasks.some((t) => t.key === 's/q0'));
+}
+
+// --- PERSISTENCE: dispatch lease survives overlay reload -----------------------------------------
+{
+  const ws = tempWorkspace();
+  const o = ov.EMPTY();
+  daemon.__setWorkspaceForTest(ws);
+  daemon.__setOverlayForTest(o);
+  const L4 = makeLoop('loop4');
+  const d4 = daemon.decideOne(L4, ctxFor(makeGraph(0, 1)));
+  const persisted = ov.load(ws);
+  ok('persistence: spawn dispatch happened', d4.action === 'spawn' && d4.tasks.some((t) => t.key === 's/q0'));
+  ok('persistence: spawn lease saved to overlay file', persisted.spawnLease && persisted.spawnLease['s/q0'] && persisted.spawnLease['s/q0'].loopId === 'loop4');
 }
 
 console.log('-----');

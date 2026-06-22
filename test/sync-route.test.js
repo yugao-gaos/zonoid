@@ -24,7 +24,7 @@ const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sync
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX; // before the require — module reads env at load
 const filedrop = require('../lib/filedrop-tasks');
 
-const PORT = 18860 + Math.floor(Math.random() * 100);
+const PORT = 20400 + Math.floor(Math.random() * 100);
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sync-ws-')));
 const WS2 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sync-ws2-')));
 
@@ -90,7 +90,7 @@ function dropStub(ws, harness, id, extra = {}) {
 
 (async () => {
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ZONOID_EMBED_PROVIDER: 'voyage', VOYAGE_API_KEY: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
     stdio: 'ignore',
   });
 

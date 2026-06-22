@@ -156,7 +156,7 @@
           "description": "Validation-time discriminator T2 injects from overlay.metrics[key] before validating; drives the metric_measurements conditional below. Not persisted as part of the result."
         }
       },
-      "required": ["version", "status", "summary"],
+      "required": ["version", "status", "summary", "files_changed", "tests_run", "decisions"],
       "additionalProperties": false,
       "allOf": [
         {

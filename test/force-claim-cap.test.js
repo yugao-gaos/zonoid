@@ -51,6 +51,8 @@ async function waitForPing(ms = 10000) {
   return false;
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Claim a task normally (no force), returns ok:true on success.
 async function normalClaim(key) {
   return post('/overlay/status', { key, status: 'in_progress', agent_id: 'test-agent', session_id: SID, workspace: WS });
@@ -63,7 +65,7 @@ async function forceClaim(key, agentId = 'test-agent') {
 
 // Release a task back to ready.
 async function releaseTask(key) {
-  return post('/overlay/status', { key, status: 'done', agent_id: 'test-agent', summary: 'done', workspace: WS });
+  return post('/overlay/status', { key, status: 'done', agent_id: 'test-agent', session_id: SID, summary: 'done', workspace: WS });
 }
 
 test('force-claim cap', async () => {
@@ -99,6 +101,7 @@ test('force-claim cap', async () => {
     for (let i = 0; i < 5; i++) {
       const released = await releaseTask(TASK_NORMAL);
       assert.equal(released.body.ok, true, `normal release ${i + 1}: ok ${JSON.stringify(released.body)}`);
+      await sleep(10);
       r = await normalClaim(TASK_NORMAL);
       assert.equal(r.body.ok, true, `normal claim ${i + 2}: ok ${JSON.stringify(r.body)}`);
     }

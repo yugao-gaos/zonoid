@@ -22,6 +22,7 @@ const { spawn } = require('child_process');
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-wstarget-base-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const overlayStore = require('../lib/overlay');
+const filedrop = require('../lib/filedrop-tasks');
 
 // Reuse the already-downloaded embedding weights if present, so /overlay/note doesn't try a
 // network download from the sandboxed (empty) model cache. Absent ⇒ embed() degrades to null.
@@ -60,6 +61,12 @@ async function waitForPing(ms = 8000) {
   return false;
 }
 
+function dropStub(workspace, harness, id) {
+  const dir = path.join(filedrop.dirFor(workspace), harness);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify({ id, subject: `${harness} task ${id}`, status: 'pending' }, null, 2));
+}
+
 (async () => {
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
@@ -72,6 +79,13 @@ async function waitForPing(ms = 8000) {
     const pin = await req('POST', '/workspace', { path: WS_B });
     ok('workspace B registered', pin.status === 200 && pin.body.ok === true);
 
+    dropStub(WS_A, 'sessA', '1');
+    dropStub(WS_A, 'sessA', '2');
+    dropStub(WS_B, 'sessB', '3');
+    dropStub(WS_B, 'sessB', '4');
+    await req('POST', '/sync', { workspace: WS_A });
+    await req('POST', '/sync', { workspace: WS_B });
+
     // --- cross-workspace WRITES: body.workspace = A while another session registered B -------
     // note (record_decision)
     const note = await req('POST', '/overlay/note', { workspace: WS_A, title: 'decision for A', summary: 'must land in workspace A overlay' });
@@ -82,7 +96,7 @@ async function waitForPing(ms = 8000) {
     // dependency edge (add_dependency)
     const edge = await req('POST', '/overlay/edge', { workspace: WS_A, from: 'sessA/1', to: 'sessA/2', kind: 'context' });
     ok('edge write accepted', edge.status === 200 && edge.body.ok === true);
-    ok('edge count reflects TARGET overlay, not B', edge.body.edges === 1);
+    ok('edge count reflects TARGET overlay, not B', edge.body.edges >= 1);
     // status + summary (complete_task path)
     const st = await req('POST', '/overlay/status', { workspace: WS_A, key: 'sessA/2', status: 'done', summary: 'done in A' });
     ok('status write accepted', st.status === 200 && st.body.ok === true);

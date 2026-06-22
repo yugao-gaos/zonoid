@@ -637,14 +637,37 @@ test('subconscious execution permit store issues reads and revokes scoped permit
   assert.equal(read.execution_permit.id, issue.execution_permit.id);
 
   const expired = store.readExecutionPermit({
+    workspace: ws,
     permit_id: issue.execution_permit.id,
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    foreground_agent_id: 'foreground-a',
+    task_key: 'task/anchor',
     now: '2026-06-21T13:02:00.000Z',
   });
   assert.equal(expired.valid, false);
   assert.equal(expired.execution_permit.status, 'expired');
 
-  const revoked = store.revokeExecutionPermit({
+  const emptyRead = store.readExecutionPermit({ workspace: ws });
+  assert.equal(emptyRead.ok, false);
+  assert.equal(emptyRead.status, 400);
+
+  const permitOnlyRevoke = store.revokeExecutionPermit({
+    workspace: ws,
     permit_id: issue.execution_permit.id,
+    reason: 'malicious revoke',
+    now: '2026-06-21T13:00:35.000Z',
+  });
+  assert.equal(permitOnlyRevoke.ok, false);
+  assert.equal(permitOnlyRevoke.status, 400);
+
+  const revoked = store.revokeExecutionPermit({
+    workspace: ws,
+    permit_id: issue.execution_permit.id,
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    foreground_agent_id: 'foreground-a',
+    task_key: 'task/anchor',
     reason: 'test revoke',
     now: '2026-06-21T13:00:40.000Z',
   });
@@ -688,6 +711,9 @@ test('subconscious execution permit routes issue read and revoke permits', async
     workspace: ws,
     action: 'revoke',
     permit_id: issued.body.execution_permit.id,
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
     reason: 'done',
     now: '2026-06-21T13:11:00.000Z',
   });
@@ -1269,6 +1295,7 @@ test('subconscious_execution_permit MCP tool forwards issue read and revoke rout
     action: 'read',
     workspace: '/tmp/ws',
     session_id: 'session-a',
+    agent_id: 'agent-a',
     task_key: 'task/anchor',
   }, (method, p, body) => {
     calls.push({ method, p, body });
@@ -1277,6 +1304,7 @@ test('subconscious_execution_permit MCP tool forwards issue read and revoke rout
   assert.equal(calls[1].method, 'GET');
   assert(calls[1].p.startsWith('/subconscious/permit?'));
   assert(calls[1].p.includes('session_id=session-a'));
+  assert(calls[1].p.includes('agent_id=agent-a'));
   assert(calls[1].p.includes('task_key=task%2Fanchor'));
   assert.equal(calls[1].body, undefined);
 
@@ -1284,6 +1312,9 @@ test('subconscious_execution_permit MCP tool forwards issue read and revoke rout
     action: 'revoke',
     workspace: '/tmp/ws',
     permit_id: 'permit-a',
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
     reason: 'done',
   }, (method, p, body) => {
     calls.push({ method, p, body });
@@ -1293,6 +1324,9 @@ test('subconscious_execution_permit MCP tool forwards issue read and revoke rout
   assert.equal(calls[2].p, '/subconscious/permit');
   assert.equal(calls[2].body.action, 'revoke');
   assert.equal(calls[2].body.permit_id, 'permit-a');
+  assert.equal(calls[2].body.session_id, 'session-a');
+  assert.equal(calls[2].body.agent_id, 'agent-a');
+  assert.equal(calls[2].body.task_key, 'task/anchor');
 });
 
 test('subconscious ask uses deterministic search context and recent agent events', async () => {
