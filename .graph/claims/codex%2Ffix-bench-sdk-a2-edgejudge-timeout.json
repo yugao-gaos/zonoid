@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/fix-bench-sdk-a2-edgejudge-timeout",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-59433-8a2f8f72995c450b33900c5400ef9c64",
+  "branch": "orch/attempt/codex-fix-bench-sdk-a2-edgejudge-timeout",
+  "status": "done",
+  "claimed_at": "2026-06-22T14:19:10.590Z",
+  "lease_until": "2026-06-22T15:19:10.590Z",
+  "completed_at": "2026-06-22T14:39:40.248Z"
+}

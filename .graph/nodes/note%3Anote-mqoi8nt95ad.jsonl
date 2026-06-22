@@ -8,3 +8,5 @@
 {"evt":"edge_added","from":"note:note-mqoi8nt95ad","to":"note:note-mqaqmb62a5k","kind":"context","actor":"overlay-sync","ts":"2026-06-22T00:56:17.557Z","weight":0,"by":"autowire","judged":false,"score":0.55,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqoi8nt95ad","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:31:56.664Z","origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqoi8nt95ad","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:33:01.726Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
+{"evt":"note_superseded","id":"note-mqoi8nt95ad","supersededBy":"note-mqpauss185e","validTo":"2026-06-22T14:17:18.385Z","ts":"2026-06-22T14:17:18.385Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mqoi8nt95ad","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:09:42.853Z"}

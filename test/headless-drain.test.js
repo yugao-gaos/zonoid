@@ -778,12 +778,12 @@ test('effectiveConfig defaults maxIterations to Infinity for continuous draining
   }
 });
 
-test('effectiveConfig defaults timeoutMs to 5 seconds', () => {
+test('effectiveConfig defaults timeoutMs to 5 minutes', () => {
   const saved = process.env.HEADLESS_DRAIN_TIMEOUT_MS;
   delete process.env.HEADLESS_DRAIN_TIMEOUT_MS;
   try {
     const hd = freshModule();
-    assert.equal(hd.effectiveConfig().timeoutMs, 5000);
+    assert.equal(hd.effectiveConfig().timeoutMs, 5 * 60 * 1000);
   } finally {
     if (saved === undefined) delete process.env.HEADLESS_DRAIN_TIMEOUT_MS;
     else process.env.HEADLESS_DRAIN_TIMEOUT_MS = saved;

@@ -1,4 +1,4 @@
-# Zonoid Feature Bench
+# Zonoid Retrieval Bench
 
 _Metrics: LLM-judge accuracy (headline, comparable to published bars) + token-level F1 (diagnostic, deterministic) + pass/fail rate (coding benches)._
 

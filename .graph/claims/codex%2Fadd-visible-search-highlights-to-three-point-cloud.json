@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/add-visible-search-highlights-to-three-point-cloud",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "019eef9f-bc70-7541-8f76-379400ff71e1",
+  "branch": "orch/attempt/codex-add-visible-search-highlights-to-three-point-cloud",
+  "status": "tested",
+  "claimed_at": "2026-06-22T14:40:39.662Z",
+  "lease_until": "2026-06-22T15:40:39.662Z",
+  "completed_at": "2026-06-22T18:03:24.271Z"
+}

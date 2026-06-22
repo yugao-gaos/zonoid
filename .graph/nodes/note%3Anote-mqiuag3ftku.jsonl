@@ -21,3 +21,4 @@
 {"evt":"edge_added","from":"note:note-mqiuag3ftku","to":"bench/combined-bench-raw-2-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z","weight":0.705,"by":"judge","judged":true,"score":0.705,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqiuag3ftku","to":"bench/combined-bench-raw-6-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z","weight":0.734,"by":"judge","judged":true,"score":0.734,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqiuag3ftku","to":"note:note-mqiu33jr296","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:30:45.520Z"}
+{"evt":"edge_promoted","from":"note:note-mqiuag3ftku","to":"note:note-mqiu5lpjox6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:11:02.383Z","weight":0.784,"by":"judge","judged":true,"score":0.784,"origin":"autowire-semantic"}

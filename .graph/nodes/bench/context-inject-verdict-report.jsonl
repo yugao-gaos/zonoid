@@ -1,0 +1,4 @@
+{"evt":"edge_promoted","from":"bench/context-inject-verdict-report","to":"bench/context-inject-global-summary","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:00:48.537Z","weight":0.584,"by":"judge","judged":true,"score":0.584,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"bench/context-inject-verdict-report","to":"bench/context-inject-4arm-runner","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:00:48.537Z"}
+{"evt":"edge_promoted","from":"bench/context-inject-verdict-report","to":"bench/context-inject-global-summary","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.584,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"bench/context-inject-verdict-report","to":"bench/context-inject-4arm-runner","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.61,"origin":"autowire-semantic"}

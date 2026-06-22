@@ -185,6 +185,15 @@
   #cloudMatchCount { color: #8b949e; font-size: 11px; white-space: nowrap; min-width: 60px; }
   #cloudTraceLegend { position: absolute; top: 43px; right: 10px; z-index: 5; display: none; background: #0d1117cc; border: 1px solid #30363d; border-radius: 6px; padding: 3px 7px; color: #8b949e; font-size: 11px; white-space: nowrap; }
   #cloudTraceLegend.show { display: block; }
+  #cloudSearchSummary { position: absolute; top: 72px; right: 10px; z-index: 5; display: none; width: min(380px, calc(100% - 20px)); max-height: min(46vh, 420px); overflow: auto; background: rgba(13,17,23,.88); border: 1px solid #30363d; border-radius: 8px; padding: 9px 10px; box-shadow: 0 14px 40px rgba(0,0,0,.28); color: #c9d1d9; font-size: 11px; line-height: 1.38; }
+  #cloudSearchSummary.show { display: block; }
+  .cloud-search-summary-title { color: #e6edf3; font-weight: 700; margin-bottom: 5px; display: flex; justify-content: space-between; gap: 10px; }
+  .cloud-search-summary-meta { color: #8b949e; font-size: 10px; white-space: nowrap; }
+  .cloud-search-summary-line { color: #adbac7; margin-bottom: 7px; }
+  .cloud-search-summary-items { display: flex; flex-direction: column; gap: 5px; }
+  .cloud-search-summary-item { border-top: 1px solid rgba(48,54,61,.72); padding-top: 5px; }
+  .cloud-search-summary-item b { color: #e6edf3; font-weight: 650; }
+  .cloud-search-summary-item span { color: #8b949e; }
   #cloudsvg circle.cloud-search-hit { animation: cloudHitPulse 500ms ease-out both; }
   #cloudsvg circle.cloud-search-final { filter: drop-shadow(0 0 7px rgba(247,129,102,.8)); }
   #cloudsvg circle.cloud-search-reranked { filter: drop-shadow(0 0 8px rgba(125,211,252,.75)); }
@@ -665,7 +674,7 @@
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
     <div id="wsPickerWrap" style="padding:0 16px 8px;display:none"><select id="wsPicker" style="font-size:11px;background:#161b22;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 6px;cursor:pointer;max-width:220px"></select></div>
-    <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><svg id="cloudsvg"></svg></div>
+    <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
     <div id="flowstats"></div>
   </div>
@@ -4700,11 +4709,19 @@ let cloudSearchError=false;
 let cloudSearchSeq=0;
 let cloudSearchTimer=null;
 let cloudSearchTrace=null;     // visual-only trace of the last /search result set
+let cloudSearchStartedAt=0;
 let cloudSearchFrameTimers=[];
 let cloudSearchFitKey='';
 let cloudZoom=null;
 const onboardCloudRenderState={ pos:{}, sim:null, sig:'', zoom:null, raf:null };
-const CLOUD_SEARCH_STEP_MS=500;
+const CLOUD_SEARCH_FRAME_MS=120;
+const CLOUD_SEARCH_ANIMATION_MS=9000;
+const CLOUD_SEARCH_EDGE_MIN_DELAY_MS=100;
+const CLOUD_SEARCH_EDGE_JITTER_MS=200;
+const CLOUD_SEARCH_RAG_SEED_STEP_MS=95;
+const CLOUD_SEARCH_SETTLE_HOLD_MS=700;
+const CLOUD_SEARCH_SHRINK_MS=1700;
+const CLOUD_SEARCH_SHRINK_FADE_MS=520;
 const CLOUD_SEARCH_FINAL_TOP_K=15;
 const CLOUD_SEARCH_EDGE_LIMIT=80;
 const CLOUD_SEARCH_ACTIVATION_MAX_HOPS=4;
@@ -4718,9 +4735,9 @@ function clearCloudSearchFrames(){
 }
 function scheduleCloudSearchFrames(seq){
   clearCloudSearchFrames();
-  const frameCount=3+CLOUD_SEARCH_ACTIVATION_MAX_HOPS*2;
+  const frameCount=Math.ceil(CLOUD_SEARCH_ANIMATION_MS/CLOUD_SEARCH_FRAME_MS);
   for(let i=1;i<=frameCount;i++){
-    const delay=i*CLOUD_SEARCH_STEP_MS;
+    const delay=i*CLOUD_SEARCH_FRAME_MS;
     cloudSearchFrameTimers.push(setTimeout(()=>{
       if(seq!==cloudSearchSeq) return;
       if(currentView==='cloud'&&lastState) renderCloud(lastState);
@@ -4745,6 +4762,17 @@ function cloudColorTriplet(hex){
   const s=String(hex||'').trim();
   if(!/^#[0-9a-f]{6}$/i.test(s)) return fallback;
   return [parseInt(s.slice(1,3),16), parseInt(s.slice(3,5),16), parseInt(s.slice(5,7),16)];
+}
+function cloudDisplayTriplet(hex,opacity,profile){
+  const rgb=cloudColorTriplet(hex);
+  const o=Math.max(0,Math.min(1,Number.isFinite(opacity)?opacity:1));
+  const lift=profile&&profile.mode==='dashboard'?34:24;
+  const lit=(profile&&profile.mode==='dashboard'?0.48:0.42)+o*0.52;
+  return rgb.map(v=>Math.max(24,Math.min(255,Math.round(v*lit+lift))));
+}
+function cloudSearchTriplet(hex){
+  const rgb=cloudDisplayTriplet(hex,1,{ mode:'dashboard' });
+  return rgb.map(v=>Math.max(v,Math.min(255,Math.round(v*.68+255*.32))));
 }
 function disposeThreeMaterial(mat){
   if(Array.isArray(mat)) for(const m of mat) disposeThreeMaterial(m);
@@ -4781,6 +4809,7 @@ function ensureCloudThreeState(ctx){
   labelLayer.className='cloud-three-labels';
   const renderer=new THREE.WebGLRenderer({ antialias:true, alpha:true, powerPreference:'high-performance' });
   renderer.setClearColor(0x0d1117,0);
+  renderer.outputEncoding=THREE.sRGBEncoding;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, ctx.profile.pixelRatio));
   layer.appendChild(renderer.domElement);
   ctx.hostEl.appendChild(layer);
@@ -4806,6 +4835,9 @@ function ensureCloudThreeState(ctx){
     nodeByInstance:[],
     localPositions:new Map(),
     labels:[],
+    coreMesh:null,
+    corePulseEntries:[],
+    pulseDummy:new THREE.Object3D(),
     raf:null,
     ctx:null
   };
@@ -4843,7 +4875,7 @@ function ensureCloudThreeState(ctx){
     if(hover!==st.hoverNode){
       st.hoverNode=hover||null;
       layer.style.cursor=hover&&st.ctx&&!st.ctx.isOnboard?'pointer':'grab';
-      buildCloudThreeLabels(st);
+      if(st.ctx) renderCloudThree(st.ctx);
     }
   });
   layer.addEventListener('pointerup',ev=>{
@@ -4858,7 +4890,7 @@ function ensureCloudThreeState(ctx){
     if(st.hoverNode){
       st.hoverNode=null;
       layer.style.cursor='grab';
-      buildCloudThreeLabels(st);
+      if(st.ctx) renderCloudThree(st.ctx);
     }
   });
   layer.addEventListener('wheel',ev=>{
@@ -4932,6 +4964,18 @@ function renderCloudThreeFrame(st,ts=performance.now()){
   st.root.rotation.y=st.yaw+elapsed*ctx.profile.spinSpeed;
   st.camera.position.set(0,0,st.distance);
   st.camera.lookAt(0,0,0);
+  if(st.coreMesh&&st.corePulseEntries.length){
+    const dummy=st.pulseDummy;
+    for(let i=0;i<st.corePulseEntries.length;i++){
+      const c=st.corePulseEntries[i];
+      const wave=(Math.sin(ts*0.006+c.phase)+1)/2;
+      dummy.position.copy(c.pos);
+      dummy.scale.setScalar(c.radius*(0.84+wave*0.28));
+      dummy.updateMatrix();
+      st.coreMesh.setMatrixAt(i,dummy.matrix);
+    }
+    st.coreMesh.instanceMatrix.needsUpdate=true;
+  }
   st.renderer.render(st.scene,st.camera);
   updateCloudThreeLabels(st);
   st.raf=requestAnimationFrame(nextTs=>renderCloudThreeFrame(st,nextTs));
@@ -4954,13 +4998,21 @@ function renderCloudThree(ctx){
   st.root=new THREE.Group();
   st.scene.add(st.root);
   st.localPositions=new Map();
+  st.coreMesh=null;
+  st.corePulseEntries=[];
   st.nodeByInstance=ctx.simNodes;
   const dummy=new THREE.Object3D();
   const nodeGeo=new THREE.SphereGeometry(1,ctx.profile.sphereSegments,ctx.profile.sphereRings);
-  const nodeMat=new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:.96, depthWrite:true });
+  const nodeMat=new THREE.MeshBasicMaterial({ vertexColors:true, depthWrite:true, fog:false, toneMapped:false });
   const nodeMesh=new THREE.InstancedMesh(nodeGeo,nodeMat,Math.max(1,ctx.simNodes.length));
   const linePositions=[];
   const lineColors=[];
+  const coreEntries=[];
+  const pulsePhaseOf=id=>{
+    let h=0; const s=String(id||'')+'|core-pulse';
+    for(let i=0;i<s.length;i++) h=((h<<5)-h+s.charCodeAt(i))|0;
+    return ((Math.abs(h)%10000)/10000)*Math.PI*2;
+  };
   for(const n of ctx.simNodes){
     const p=ctx.cloudPoint3D(n,0);
     st.localPositions.set(n.id,new THREE.Vector3(p.x,p.y,p.z));
@@ -4969,9 +5021,9 @@ function renderCloudThree(ctx){
     const s=st.localPositions.get(ctx.endId(l.source));
     const t=st.localPositions.get(ctx.endId(l.target));
     if(!s||!t) return;
-    const rgb=cloudColorTriplet(l.kind==='context'?'#39c5cf':'#6e7681');
+    const rgb=cloudColorTriplet(l.kind==='context'?ctx.profile.contextEdgeColor:ctx.profile.edgeColor);
     const opacity=Math.max(0.04,Math.min(1,ctx.linkOpacity(l)));
-    const dim=0.22+opacity*0.78;
+    const dim=ctx.profile.edgeBase+opacity*ctx.profile.edgeLift;
     for(const p of [s,t]){
       linePositions.push(p.x,p.y,p.z);
       lineColors.push((rgb[0]/255)*dim,(rgb[1]/255)*dim,(rgb[2]/255)*dim);
@@ -4981,25 +5033,49 @@ function renderCloudThree(ctx){
     const pos=st.localPositions.get(n.id);
     if(!pos) return;
     dummy.position.copy(pos);
-    dummy.scale.setScalar(Math.max(1.4,ctx.radiusOf(n)*ctx.profile.pointScale));
+    const hoverEmphasis=n===st.hoverNode?0.95:0;
+    const emphasis=Math.max(ctx.searchHighlight?ctx.searchHighlight(n):0,hoverEmphasis);
+    const baseRadius=ctx.radiusOf(n)*ctx.profile.pointScale;
+    dummy.scale.setScalar(Math.max(1.4,baseRadius*(1+emphasis*.28)));
     dummy.updateMatrix();
     nodeMesh.setMatrixAt(i,dummy.matrix);
-    const rgb=cloudColorTriplet(ctx.colorOf(n));
     const opacity=Math.max(0.08,Math.min(1,ctx.opacityOf(n)));
-    const lit=0.28+opacity*0.72;
-    const color=new THREE.Color((rgb[0]/255)*lit,(rgb[1]/255)*lit,(rgb[2]/255)*lit);
+    const rgb=emphasis?cloudSearchTriplet(ctx.colorOf(n)):cloudDisplayTriplet(ctx.colorOf(n),opacity,ctx.profile);
+    const color=new THREE.Color(rgb[0]/255,rgb[1]/255,rgb[2]/255);
     nodeMesh.setColorAt(i,color);
+    if(emphasis>0){
+      coreEntries.push({ pos, radius:Math.max(1.8,baseRadius*(0.86+emphasis*.3)), phase:pulsePhaseOf(n.id) });
+    }
   });
   nodeMesh.instanceMatrix.needsUpdate=true;
   if(nodeMesh.instanceColor) nodeMesh.instanceColor.needsUpdate=true;
+  nodeMesh.renderOrder=2;
   st.nodeMesh=nodeMesh;
   st.root.add(nodeMesh);
   if(linePositions.length){
     const lineGeo=new THREE.BufferGeometry();
     lineGeo.setAttribute('position',new THREE.Float32BufferAttribute(linePositions,3));
     lineGeo.setAttribute('color',new THREE.Float32BufferAttribute(lineColors,3));
-    const lineMat=new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:.72, depthWrite:false });
-    st.root.add(new THREE.LineSegments(lineGeo,lineMat));
+    const lineMat=new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:ctx.profile.edgeOpacity, depthWrite:false, fog:false, toneMapped:false });
+    const lines=new THREE.LineSegments(lineGeo,lineMat);
+    lines.renderOrder=1;
+    st.root.add(lines);
+  }
+  if(coreEntries.length){
+    const coreGeo=new THREE.SphereGeometry(1,ctx.profile.sphereSegments,ctx.profile.sphereRings);
+    const coreMat=new THREE.MeshBasicMaterial({ color:0x8bdcff, transparent:true, opacity:.88, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, toneMapped:false });
+    const coreMesh=new THREE.InstancedMesh(coreGeo,coreMat,coreEntries.length);
+    coreEntries.forEach((c,i)=>{
+      dummy.position.copy(c.pos);
+      dummy.scale.setScalar(c.radius);
+      dummy.updateMatrix();
+      coreMesh.setMatrixAt(i,dummy.matrix);
+    });
+    coreMesh.instanceMatrix.needsUpdate=true;
+    coreMesh.renderOrder=4;
+    st.coreMesh=coreMesh;
+    st.corePulseEntries=coreEntries;
+    st.root.add(coreMesh);
   }
   buildCloudThreeLabels(st);
   if(!st.raf) renderCloudThreeFrame(st,performance.now());
@@ -5659,8 +5735,9 @@ function cloudEdgeKey(a,b){
   a=cloudNodeKey(a); b=cloudNodeKey(b);
   return a<b?a+'|'+b:b+'|'+a;
 }
-function buildCloudSearchTrace(items, query){
-  const hitRank=new Map(), finalKeys=new Set(), rerankedKeys=new Set(), walkEdges=new Map(), pathKeys=new Set();
+function buildCloudSearchTrace(items, query, startedAt=Date.now()){
+  const readyAt=Date.now();
+  const hitRank=new Map(), finalKeys=new Set(), rerankedKeys=new Set(), walkEdges=new Map(), pathKeys=new Set(), itemMeta=new Map();
   const hits=[];
   for(const item of (items||[])){
     const key=cloudNodeKey(item&&item.key);
@@ -5668,6 +5745,15 @@ function buildCloudSearchTrace(items, query){
     if(!hitRank.has(key)){
       hitRank.set(key, hitRank.size);
       hits.push({ key, score:Number(item.score)||0, reranked:!!(item.reranked||item.ceScore!=null) });
+    }
+    if(!itemMeta.has(key)){
+      itemMeta.set(key, {
+        kind:item&&item.kind||'',
+        title:item&&item.title||'',
+        summary:item&&item.summary||'',
+        tier:item&&item.tier||'',
+        score:Number(item&&item.score)||0
+      });
     }
     if(item&&(item.reranked||item.ceScore!=null)) rerankedKeys.add(key);
 
@@ -5697,7 +5783,7 @@ function buildCloudSearchTrace(items, query){
   hits.sort((a,b)=>b.score-a.score);
   for(const h of hits.slice(0,CLOUD_SEARCH_FINAL_TOP_K)) finalKeys.add(h.key);
   for(const key of rerankedKeys) finalKeys.add(key);
-  return { query, startedAt:Date.now(), hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys };
+  return { query, startedAt, readyAt, hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys, itemMeta };
 }
 function scheduleCloudSearch(){
   const query=cloudSearchText.trim();
@@ -5713,6 +5799,7 @@ function scheduleCloudSearch(){
     cloudSearchPending=false;
     cloudSearchError=false;
     cloudSearchTrace=null;
+    cloudSearchStartedAt=0;
     if(lastState) renderCloud(lastState);
     return;
   }
@@ -5721,8 +5808,10 @@ function scheduleCloudSearch(){
   cloudSearchPending=true;
   cloudSearchError=false;
   cloudSearchTrace=null;
-  if(lastState) renderCloud(lastState);
   const seq=++cloudSearchSeq;
+  cloudSearchStartedAt=Date.now();
+  if(lastState) renderCloud(lastState);
+  scheduleCloudSearchFrames(seq);
   cloudSearchTimer=setTimeout(async()=>{
     cloudSearchTimer=null;
     let items=[];
@@ -5745,7 +5834,7 @@ function scheduleCloudSearch(){
       cloudSearchResolvedText=q;
       cloudSearchPending=false;
       cloudSearchError=false;
-      cloudSearchTrace=buildCloudSearchTrace(items,q);
+      cloudSearchTrace=buildCloudSearchTrace(items,q,cloudSearchStartedAt||Date.now());
       scheduleCloudSearchFrames(seq);
     }catch(e){
       if(seq!==cloudSearchSeq) return;
@@ -5767,6 +5856,20 @@ document.getElementById('cloudSearchInput').addEventListener('input', e=>{
 });
 
 const STATUS_COLOR={not_ready:'#6e7681',ready:'#e3b341',in_progress:'#58a6ff',tested:'#2dd4bf',done:'#3fb950',failed:'#ff7b72',canceled:'#484f58',note:'#d29922'};
+const CLOUD_NODE_COLOR={
+  not_ready:'#9aa8b7', waiting_deps:'#8896a6', waiting_ghost:'#c4a2ff',
+  needs_guidance:'#ffd166', needs_approval:'#ffbf69', blocked:'#ff7a90',
+  ready:'#ffd166', in_progress:'#67c1ff', tested:'#47e0cc', done:'#86efac',
+  failed:'#ff7a90', canceled:'#6b7280', note:'#ffb454',
+  archive:'#9aa8b7', unknown:'#8aa2b2'
+};
+function cloudNodeColorOf(n,byId){
+  if(n.archive) return CLOUD_NODE_COLOR.archive;
+  if(!n.t) return CLOUD_NODE_COLOR.unknown;
+  if(n.t.kind==='note') return CLOUD_NODE_COLOR.note;
+  const ds=taskDisplayStatus(n.t,byId);
+  return CLOUD_NODE_COLOR[ds.key]||ds.color||STATUS_COLOR[n.t.status]||CLOUD_NODE_COLOR.unknown;
+}
 function renderCloud(d, opts={}){
   const isOnboard=opts.mode==='onboard';
   const svgEl=opts.svgEl||document.getElementById('cloudsvg');
@@ -5780,8 +5883,8 @@ function renderCloud(d, opts={}){
   const animatePointCloud=isOnboard;
   const narrowCloud=W<640;
   const cloudProfile=isOnboard
-    ? { mode:'onboard', spinSpeed:.14, pointScale:.78, sceneRadius:190, cameraDistance:560, initialYaw:-.26, initialPitch:-.22, maxLabels:4, pixelRatio:2, sphereSegments:12, sphereRings:8 }
-    : { mode:'dashboard', spinSpeed:.024, pointScale:narrowCloud?.48:.58, sceneRadius:narrowCloud?250:310, cameraDistance:narrowCloud?980:820, initialYaw:-.38, initialPitch:-.18, maxLabels:narrowCloud?8:24, pixelRatio:1.6, sphereSegments:8, sphereRings:6 };
+    ? { mode:'onboard', spinSpeed:.14, pointScale:.78, sceneRadius:190, cameraDistance:560, initialYaw:-.26, initialPitch:-.22, maxLabels:4, pixelRatio:2, sphereSegments:12, sphereRings:8, edgeColor:'#5e6f86', contextEdgeColor:'#63d7e8', edgeOpacity:.58, edgeBase:.18, edgeLift:.62 }
+    : { mode:'dashboard', spinSpeed:.024, pointScale:narrowCloud?.48:.58, sceneRadius:narrowCloud?250:310, cameraDistance:narrowCloud?980:820, initialYaw:-.38, initialPitch:-.18, maxLabels:narrowCloud?8:24, pixelRatio:1.6, sphereSegments:8, sphereRings:6, edgeColor:'#40566a', contextEdgeColor:'#6ad7e8', edgeOpacity:.46, edgeBase:.12, edgeLift:.46 };
   const getSim=()=>isOnboard?onboardCloudRenderState.sim:cloudSim;
   const setSim=v=>{ if(isOnboard) onboardCloudRenderState.sim=v; else cloudSim=v; };
   const getSig=()=>isOnboard?onboardCloudRenderState.sig:cloudSig;
@@ -5796,34 +5899,35 @@ function renderCloud(d, opts={}){
   const q=isOnboard?'':cloudSearchText.trim().toLowerCase();
   const remoteFresh=q&&cloudSearchResolvedText===q&&!cloudSearchError;
   const trace=(cloudSearchTrace&&cloudSearchTrace.query===q)?cloudSearchTrace:null;
-  const traceAge=trace?Math.max(0,Date.now()-(trace.startedAt||Date.now())):0;
-  const searchStep=trace?Math.floor(traceAge/CLOUD_SEARCH_STEP_MS):0;
+  const searchStartedAt=trace?.startedAt||cloudSearchStartedAt||Date.now();
+  const searchElapsedMs=q?Math.max(0,Date.now()-searchStartedAt):0;
+  const traceReadyElapsedMs=trace?Math.max(0,(trace.readyAt||trace.startedAt||Date.now())-searchStartedAt):0;
   let searchPhase=trace?'hits':(q?'pending':'idle');
-  let searchActivationMaxHop=0, currentActivationHop=0, pruneHopThreshold=0;
+  let searchActivationMaxMs=0;
   let activeNodeHops=new Map(), activeEdgeHops=new Map(), finalNodeKeys=new Set(), finalRelatedKeys=new Set();
-  let fadingNodeKeys=new Set(), fadingEdgeKeys=new Set();
+  let activeNodeTimes=new Map(), activeEdgeTimes=new Map(), nodeReleaseTimes=new Map(), edgeReleaseTimes=new Map();
   const localMatch=n=>n.t&&((n.t.label||'').toLowerCase().includes(q)||(n.t.description||'').toLowerCase().includes(q));
+  const localSeedMatch=n=>q&&!n.archive&&localMatch(n);
   const remoteMatch=n=>remoteFresh&&cloudSearchKeys.has(n.id);
   const traceHit=n=>trace&&!n.archive&&trace.hitRank.has(n.id);
   const traceFinal=n=>trace&&!n.archive&&trace.finalKeys.has(n.id);
   const traceReranked=n=>trace&&!n.archive&&trace.rerankedKeys.has(n.id);
   const localFallback=q&&!remoteFresh;
   const localSearch=n=>localFallback&&localMatch(n);
+  const fallbackFinalNodeKeys=new Set();
   const searchNodeActive=n=>{
     if(!q) return true;
-    if(!trace) return localSearch(n)||remoteMatch(n);
     if(!n||n.archive) return false;
-    const hop=activeNodeHops.get(n.id);
-    if(hop===undefined) return false;
-    if(searchPhase==='hits') return hop===0;
-    if(searchPhase==='activate') return hop<=currentActivationHop;
-    if(searchPhase==='prune') return finalNodeKeys.has(n.id)||hop<=pruneHopThreshold;
-    return finalNodeKeys.has(n.id);
+    const activationAt=activeNodeTimes.get(n.id);
+    if(activationAt===undefined||searchElapsedMs<activationAt) return false;
+    if(finalNodeKeys.has(n.id)||fallbackFinalNodeKeys.has(n.id)) return true;
+    const releaseAt=nodeReleaseTimes.get(n.id);
+    return releaseAt===undefined||searchElapsedMs<releaseAt;
   };
-  const searchNodeVisible=n=>searchNodeActive(n)||(n&&!n.archive&&fadingNodeKeys.has(n.id));
+  const searchNodeVisible=n=>searchNodeActive(n);
   const activatedSearch=n=>{
     if(!q) return true;
-    return trace?searchNodeActive(n):(localSearch(n)||remoteMatch(n));
+    return searchNodeActive(n);
   };
 
   // links from blocking deps, context deps, and overlay edges (skip ghosts/cross-ws)
@@ -5956,12 +6060,14 @@ function renderCloud(d, opts={}){
     if(isInactive(n)) o*=0.25;
     o*=0.72+((projectedDepth(n)+1)/2)*0.28;
     if(q){
-      if(searchNodeVisible(n)) return Math.max(traceFinal(n)||traceReranked(n)?0.9:(searchNodeActive(n)?0.55:0.16),o);
+      if(traceFinal(n)||traceReranked(n)) return Math.max(0.92,o);
+      if(searchNodeActive(n)) return Math.max(0.76,o);
+      if(searchNodeVisible(n)) return Math.max(0.28,o);
       return 0.035;
     }
     return Math.max(0.06,o);
   };
-  const colorOf=n=>{ if(n.archive) return '#8b949e'; if(!n.t) return '#6e7681'; if(n.t.kind==='note') return STATUS_COLOR.note||'#d29922'; return taskDisplayStatus(n.t,byId).color; };
+  const colorOf=n=>cloudNodeColorOf(n,byId);
   const targetRadius=n=>{ let b=n.tier==='fg'?0.12:n.tier==='mid'?0.30:0.46; if(n.age!=null) b+=0.18*(n.age/maxAge); return Math.min(W,H)*Math.min(0.49,b); };
   const tierOfId=id=> byNode[id]?byNode[id].tier:'bg';
   const endId=e=> typeof e==='object'?e.id:e;
@@ -5969,18 +6075,35 @@ function renderCloud(d, opts={}){
   const traceWalkIndex=l=>trace?trace.walkEdges.get(cloudEdgeKey(endId(l.source),endId(l.target))):undefined;
   const stagedRelatedKeys=new Set();
   const activationEdgeMeta=new Map();
-  if(q&&trace){
+  let linkCmp=(a,b)=>String((a&&a.key)||'').localeCompare(String((b&&b.key)||''));
+  const activationDelayMs=key=>CLOUD_SEARCH_EDGE_MIN_DELAY_MS+Math.round(cloudHashUnit(key,'search-activation-delay')*CLOUD_SEARCH_EDGE_JITTER_MS);
+  const traceRankOf=id=>trace?.hitRank.has(id)?trace.hitRank.get(id):9999;
+  if(q){
     const seedKeys=simNodes
-      .filter(n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n)))
-      .sort((a,b)=>(trace.hitRank.get(a.id)??9999)-(trace.hitRank.get(b.id)??9999)||a.id.localeCompare(b.id))
+      .filter(n=>!n.archive&&(localSeedMatch(n)||remoteMatch(n)||traceHit(n)))
+      .sort((a,b)=>{
+        const ar=traceRankOf(a.id)==9999?(localSeedMatch(a)?-1:9999):traceRankOf(a.id);
+        const br=traceRankOf(b.id)==9999?(localSeedMatch(b)?-1:9999):traceRankOf(b.id);
+        return ar-br||a.id.localeCompare(b.id);
+      })
       .map(n=>n.id);
-    for(const id of seedKeys) if(!activeNodeHops.has(id)) activeNodeHops.set(id,0);
+    for(const id of seedKeys){
+      const n=byNode[id];
+      const localSeed=localSeedMatch(n);
+      const ragSeed=trace&&traceHit(n)&&!localSeed;
+      const ragOffset=ragSeed?traceReadyElapsedMs+Math.min(24,traceRankOf(id))*CLOUD_SEARCH_RAG_SEED_STEP_MS:0;
+      const seedJitter=Math.round(cloudHashUnit(id,'search-seed-delay')*(localSeed?220:180));
+      const activationAt=ragOffset+seedJitter;
+      activeNodeHops.set(id,0);
+      activeNodeTimes.set(id,activationAt);
+      searchActivationMaxMs=Math.max(searchActivationMaxMs,activationAt);
+    }
     const linkMetas=simLinks.map(l=>{
       const sourceId=endId(l.source), targetId=endId(l.target);
       return { link:l, key:edgeKey(l), sourceId, targetId, walkIndex:traceWalkIndex(l) };
     }).filter(m=>byNode[m.sourceId]&&byNode[m.targetId]&&!byNode[m.sourceId].archive&&!byNode[m.targetId].archive);
-    const nodeRank=id=>trace.hitRank.has(id)?trace.hitRank.get(id):9999;
-    const nodeBoost=id=>(trace.finalKeys.has(id)?-30:0)+(trace.rerankedKeys.has(id)?-20:0)+(trace.pathKeys?.has(id)?-10:0);
+    const nodeRank=id=>traceRankOf(id)!==9999?traceRankOf(id):(localSeedMatch(byNode[id])?-1:9999);
+    const nodeBoost=id=>((trace?.finalKeys.has(id)||localSeedMatch(byNode[id]))?-30:0)+(trace?.rerankedKeys.has(id)?-20:0)+(trace?.pathKeys?.has(id)?-10:0);
     const linkPriority=m=>[
       m.walkIndex===undefined?1:0,
       m.walkIndex??9999,
@@ -5988,7 +6111,7 @@ function renderCloud(d, opts={}){
       nodeBoost(m.sourceId)+nodeBoost(m.targetId),
       m.key
     ];
-    const linkCmp=(a,b)=>{
+    linkCmp=(a,b)=>{
       const ap=linkPriority(a), bp=linkPriority(b);
       for(let i=0;i<ap.length;i++){ if(ap[i]<bp[i]) return -1; if(ap[i]>bp[i]) return 1; }
       return 0;
@@ -6001,17 +6124,21 @@ function renderCloud(d, opts={}){
       adjLinks.get(meta.targetId).push(meta);
     }
     for(const edges of adjLinks.values()) edges.sort(linkCmp);
-    const addActiveEdge=(meta,hop)=>{
-      if(activeEdgeHops.has(meta.key)) return true;
+    const addActiveEdge=(meta,hop,activationAt)=>{
+      const current=activeEdgeTimes.get(meta.key);
+      if(current!==undefined&&current<=activationAt) return true;
       if(activeEdgeHops.size>=CLOUD_SEARCH_EDGE_LIMIT) return false;
       activeEdgeHops.set(meta.key,hop);
+      activeEdgeTimes.set(meta.key,activationAt);
       activationEdgeMeta.set(meta.key,meta);
+      searchActivationMaxMs=Math.max(searchActivationMaxMs,activationAt);
       return true;
     };
-    let frontier=seedKeys;
+    let frontier=seedKeys.map(id=>({ id, time:activeNodeTimes.get(id)||0 }));
     for(let hop=1;hop<=CLOUD_SEARCH_ACTIVATION_MAX_HOPS&&frontier.length&&activeEdgeHops.size<CLOUD_SEARCH_EDGE_LIMIT;hop++){
-      const next=[], nextSeen=new Set();
-      for(const id of frontier){
+      const next=[];
+      for(const item of frontier.sort((a,b)=>a.time-b.time||a.id.localeCompare(b.id))){
+        const id=item.id;
         const edges=adjLinks.get(id)||[];
         let used=0;
         for(const meta of edges){
@@ -6021,20 +6148,23 @@ function renderCloud(d, opts={}){
           const otherNode=byNode[other];
           if(!otherNode||otherNode.archive) continue;
           const otherHop=activeNodeHops.get(other);
-          if(!addActiveEdge(meta,hop)) break;
+          const edgeAt=item.time+activationDelayMs(meta.key);
+          if(!addActiveEdge(meta,hop,edgeAt)) break;
           used++;
-          if(otherHop===undefined){
+          const nodeAt=edgeAt+activationDelayMs('node:'+other);
+          if(otherHop===undefined||nodeAt<(activeNodeTimes.get(other)??Infinity)){
             activeNodeHops.set(other,hop);
-            if(!nextSeen.has(other)){ nextSeen.add(other); next.push(other); }
+            activeNodeTimes.set(other,nodeAt);
+            searchActivationMaxMs=Math.max(searchActivationMaxMs,nodeAt);
+            next.push({ id:other, time:nodeAt });
           }
         }
       }
       frontier=next;
     }
-    for(const hop of activeNodeHops.values()) searchActivationMaxHop=Math.max(searchActivationMaxHop,hop);
-    for(const hop of activeEdgeHops.values()) searchActivationMaxHop=Math.max(searchActivationMaxHop,hop);
-    for(const id of trace.finalKeys) if(activeNodeHops.has(id)&&byNode[id]&&!byNode[id].archive) finalNodeKeys.add(id);
-    if(trace.pathKeys) for(const id of trace.pathKeys) if(activeNodeHops.has(id)&&byNode[id]&&!byNode[id].archive) finalNodeKeys.add(id);
+    for(const n of simNodes) if(localSeedMatch(n)&&activeNodeHops.has(n.id)) finalNodeKeys.add(n.id);
+    if(trace) for(const id of trace.finalKeys) if(activeNodeHops.has(id)&&byNode[id]&&!byNode[id].archive) finalNodeKeys.add(id);
+    if(trace?.pathKeys) for(const id of trace.pathKeys) if(activeNodeHops.has(id)&&byNode[id]&&!byNode[id].archive) finalNodeKeys.add(id);
     const perFinal=new Map();
     for(const meta of [...activationEdgeMeta.values()].sort(linkCmp)){
       if(!finalNodeKeys.has(meta.sourceId)||!finalNodeKeys.has(meta.targetId)) continue;
@@ -6044,43 +6174,87 @@ function renderCloud(d, opts={}){
       perFinal.set(meta.targetId,targetUsed+1);
       finalRelatedKeys.add(meta.key);
     }
-    if(searchStep===0){
-      searchPhase='hits';
-    } else if(searchStep<=searchActivationMaxHop){
-      searchPhase='activate';
-      currentActivationHop=searchStep;
-    } else {
-      const pruneStep=searchStep-searchActivationMaxHop;
-      if(pruneStep<=searchActivationMaxHop+1){
-        searchPhase='prune';
-        pruneHopThreshold=searchActivationMaxHop-pruneStep;
-        const fadingHop=pruneHopThreshold+1;
-        for(const [id,hop] of activeNodeHops) if(!finalNodeKeys.has(id)&&hop===fadingHop) fadingNodeKeys.add(id);
-        for(const [key,hop] of activeEdgeHops) if(!finalRelatedKeys.has(key)&&hop===fadingHop) fadingEdgeKeys.add(key);
-      } else {
-        searchPhase='final';
+    const shrinkStartMs=searchActivationMaxMs+CLOUD_SEARCH_SETTLE_HOLD_MS;
+    const shrinkEndMs=shrinkStartMs+CLOUD_SEARCH_SHRINK_MS;
+    const nodeLatestRelease=new Map();
+    for(const [key] of activeEdgeTimes){
+      if(finalRelatedKeys.has(key)) continue;
+      const releaseAt=shrinkStartMs+Math.round(cloudHashUnit(key,'search-edge-shrink')*CLOUD_SEARCH_SHRINK_MS);
+      edgeReleaseTimes.set(key,releaseAt);
+      const meta=activationEdgeMeta.get(key);
+      if(meta){
+        nodeLatestRelease.set(meta.sourceId,Math.max(nodeLatestRelease.get(meta.sourceId)||0,releaseAt));
+        nodeLatestRelease.set(meta.targetId,Math.max(nodeLatestRelease.get(meta.targetId)||0,releaseAt));
       }
     }
-    for(const [key,hop] of activeEdgeHops){
-      if(searchPhase==='activate'&&hop<=currentActivationHop) stagedRelatedKeys.add(key);
-      else if(searchPhase==='prune'&&(finalRelatedKeys.has(key)||hop<=pruneHopThreshold)) stagedRelatedKeys.add(key);
+    for(const [id] of activeNodeTimes){
+      if(finalNodeKeys.has(id)) continue;
+      const fallbackRelease=shrinkStartMs+Math.round(cloudHashUnit(id,'search-node-shrink')*CLOUD_SEARCH_SHRINK_MS);
+      const releaseAt=Math.min(shrinkEndMs,Math.max(fallbackRelease,nodeLatestRelease.get(id)||0)+Math.round(cloudHashUnit(id,'search-node-trail')*160));
+      nodeReleaseTimes.set(id,releaseAt);
+    }
+    if(!trace){
+      searchPhase='pending';
+    } else if(searchElapsedMs<traceReadyElapsedMs+360){
+      searchPhase='hits';
+    } else if(searchElapsedMs<shrinkStartMs){
+      searchPhase='activate';
+    } else if(searchElapsedMs<shrinkEndMs){
+      searchPhase='shrink';
+    } else {
+      searchPhase='final';
+    }
+    for(const [key,activationAt] of activeEdgeTimes){
+      if(searchElapsedMs<activationAt) continue;
+      const releaseAt=edgeReleaseTimes.get(key);
+      const released=releaseAt!==undefined&&searchElapsedMs>=releaseAt;
+      if(searchPhase==='final'){
+        if(finalRelatedKeys.has(key)) stagedRelatedKeys.add(key);
+      } else if(finalRelatedKeys.has(key)||!released){
+        stagedRelatedKeys.add(key);
+      }
     }
   }
   const totalRelatedEdges=activeEdgeHops.size;
+  const fallbackFinalEdgeKeys=new Set();
+  const needsSearchEdgeFallback=q&&searchPhase==='final'&&activeEdgeHops.size&&!finalRelatedKeys.size;
+  if(needsSearchEdgeFallback){
+    const addFallbackEdge=meta=>{
+      if(!meta||fallbackFinalEdgeKeys.has(meta.key)) return;
+      fallbackFinalEdgeKeys.add(meta.key);
+      fallbackFinalNodeKeys.add(meta.sourceId);
+      fallbackFinalNodeKeys.add(meta.targetId);
+    };
+    for(const meta of [...activationEdgeMeta.values()].sort(linkCmp)){
+      if(finalNodeKeys.has(meta.sourceId)||finalNodeKeys.has(meta.targetId)) addFallbackEdge(meta);
+      if(fallbackFinalEdgeKeys.size>=CLOUD_SEARCH_EDGE_LIMIT) break;
+    }
+    if(!fallbackFinalEdgeKeys.size){
+      for(const meta of [...activationEdgeMeta.values()].sort(linkCmp)){
+        addFallbackEdge(meta);
+        if(fallbackFinalEdgeKeys.size>=CLOUD_SEARCH_EDGE_LIMIT) break;
+      }
+    }
+  }
   const edgeActivationIndex=l=>activeEdgeHops.get(edgeKey(l))??traceWalkIndex(l)??0;
   const edgeEndpointsActive=l=>{
     const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)];
     return !!(ns&&nt2&&searchNodeActive(ns)&&searchNodeActive(nt2));
   };
-  const edgeEndpointsVisible=l=>{
-    const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)];
-    return !!(ns&&nt2&&searchNodeVisible(ns)&&searchNodeVisible(nt2));
-  };
-  const searchEdgeFinal=l=>(searchPhase==='prune'||searchPhase==='final')&&finalRelatedKeys.has(edgeKey(l))&&edgeEndpointsActive(l);
+  const searchEdgeFinal=l=>searchPhase==='final'&&finalRelatedKeys.has(edgeKey(l))&&edgeEndpointsActive(l);
+  const searchEdgeFallback=l=>fallbackFinalEdgeKeys.has(edgeKey(l))&&edgeEndpointsActive(l);
   const searchEdgeRelated=l=>stagedRelatedKeys.has(edgeKey(l))&&edgeEndpointsActive(l);
-  const searchEdgeFading=l=>fadingEdgeKeys.has(edgeKey(l))&&edgeEndpointsVisible(l);
-  const searchEdgeWalk=l=>traceWalkIndex(l)!==undefined&&edgeEndpointsActive(l)&&(searchEdgeRelated(l)||searchEdgeFinal(l));
-  const renderedLinks=q?simLinks.filter(l=>searchEdgeRelated(l)||searchEdgeFinal(l)||searchEdgeFading(l)):simLinks;
+  const searchEdgeWalk=l=>traceWalkIndex(l)!==undefined&&edgeEndpointsActive(l)&&(searchEdgeRelated(l)||searchEdgeFinal(l)||searchEdgeFallback(l));
+  const searchEdgeFade=l=>{
+    const key=edgeKey(l);
+    if(finalRelatedKeys.has(key)||fallbackFinalEdgeKeys.has(key)) return 1;
+    const releaseAt=edgeReleaseTimes.get(key);
+    if(releaseAt===undefined) return 1;
+    const fadeStart=releaseAt-CLOUD_SEARCH_SHRINK_FADE_MS;
+    if(searchElapsedMs<=fadeStart) return 1;
+    return Math.max(0.08,Math.min(1,(releaseAt-searchElapsedMs)/CLOUD_SEARCH_SHRINK_FADE_MS));
+  };
+  const renderedLinks=q?simLinks.filter(l=>searchEdgeRelated(l)||searchEdgeFinal(l)||searchEdgeFallback(l)):simLinks;
   const linkOpacity=l=>{
     const a=tierOfId(endId(l.source)), b=tierOfId(endId(l.target));
     const w=x=>x==='fg'?0.9:x==='mid'?0.4:0.07;
@@ -6092,17 +6266,18 @@ function renderCloud(d, opts={}){
     if(usePointCloud) o*=0.56+((depthAvg+1)/2)*0.44;
     o*=0.72+((depthAvg+1)/2)*0.28;
     if(q){
-      if(searchEdgeFading(l)) return 0.1;
-      if(searchEdgeWalk(l)) return Math.max(0.72,o);
+      const fade=searchEdgeFade(l);
+      if(searchEdgeWalk(l)) return Math.max(0.08,Math.max(0.72,o)*fade);
       if(searchEdgeFinal(l)) return Math.max(0.58,o);
-      if(searchEdgeRelated(l)) return Math.max(0.36,o);
+      if(searchEdgeFallback(l)) return Math.max(0.42,o);
+      if(searchEdgeRelated(l)) return Math.max(0.08,Math.max(0.36,o)*fade);
       return 0.018;
     }
     return o;
   };
-  const searchFinalized=searchPhase==='prune'||searchPhase==='final';
+  const searchFinalized=searchPhase==='final';
   const sig=simNodes.map(n=>n.id).sort().join(',')+'|'+simLinks.map(l=>endId(l.source)+'>'+endId(l.target)).sort().join(',')+'|archOpen:'+cloudArchiveOpen+'|archIds:'+archivedList.map(t=>t.id).sort().join(',');
-  const isDirectSearchMatch=n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n));
+  const isDirectSearchMatch=n=>!n.archive&&(localSeedMatch(n)||remoteMatch(n)||traceHit(n));
   const matchCount=q?simNodes.filter(isDirectSearchMatch).length:0;
   const countEl=document.getElementById('cloudMatchCount');
   if(countEl) countEl.textContent=q?(cloudSearchPending?'searching...':(matchCount+' match'+(matchCount===1?'':'es'))):'';
@@ -6116,11 +6291,11 @@ function renderCloud(d, opts={}){
     }
     else if(q&&trace){
       const reranked=trace.rerankedKeys.size;
-      const shownEdges=searchPhase==='final'?finalRelatedKeys.size:((searchPhase==='activate'||searchPhase==='prune')?stagedRelatedKeys.size:0);
+      const shownEdges=searchPhase==='final'?(finalRelatedKeys.size||fallbackFinalEdgeKeys.size):((searchPhase==='activate'||searchPhase==='shrink')?stagedRelatedKeys.size:0);
       const traceParts=['RAG '+trace.hitRank.size];
       if(searchPhase==='hits') traceParts.push('nodes');
       else {
-        const edgeLabel=searchPhase==='final'?'final edges ':(searchPhase==='prune'?'pruning ':'edges ');
+        const edgeLabel=searchPhase==='final'?'final edges ':(searchPhase==='shrink'?'shrinking edges ':'edges ');
         traceParts.push(edgeLabel+shownEdges+(totalRelatedEdges&&shownEdges!==totalRelatedEdges?('/'+totalRelatedEdges):''));
       }
       if(searchFinalized&&trace.walkEdges.size) traceParts.push('path walk '+trace.walkEdges.size);
@@ -6131,6 +6306,56 @@ function renderCloud(d, opts={}){
     } else {
       traceEl.textContent='';
       traceEl.classList.remove('show');
+    }
+  }
+  const summaryEl=document.getElementById('cloudSearchSummary');
+  if(summaryEl){
+    if(q&&searchFinalized){
+      const summaryKeys=trace?[...trace.finalKeys]:[...finalNodeKeys];
+      if(!summaryKeys.length) for(const id of fallbackFinalNodeKeys) summaryKeys.push(id);
+      const summaryNodes=summaryKeys
+        .map(id=>byNode[id])
+        .filter(n=>n&&!n.archive&&n.t)
+        .sort((a,b)=>{
+          const ar=traceRankOf(a.id), br=traceRankOf(b.id);
+          return ar-br || (localSeedMatch(a)===localSeedMatch(b)?0:(localSeedMatch(a)?-1:1)) || a.id.localeCompare(b.id);
+        });
+      if(summaryNodes.length){
+        const countBy=(fn)=>{
+          const m=new Map();
+          for(const n of summaryNodes){
+            const key=fn(n);
+            if(!key) continue;
+            m.set(key,(m.get(key)||0)+1);
+          }
+          return [...m.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,4).map(([k,v])=>`${v} ${k}`).join(' · ');
+        };
+        const statusLine=countBy(n=>taskDisplayStatus(n.t,byId).label.toLowerCase());
+        const kindLine=countBy(n=>n.t.kind==='note'?'notes':'tasks');
+        const snippet=(s,max=118)=>{
+          s=String(s||'').replace(/\s+/g,' ').trim();
+          return s.length>max?s.slice(0,max-1)+'…':s;
+        };
+        const itemRows=summaryNodes.slice(0,5).map(n=>{
+          const meta=trace?.itemMeta?.get(n.id)||{};
+          const ds=taskDisplayStatus(n.t,byId);
+          const title=snippet(meta.title||n.t.label||n.id,64);
+          const body=snippet(meta.summary||n.t.summary||n.t.description||n.t.note||'',126);
+          const source=meta.tier||meta.kind||ds.label;
+          return `<div class="cloud-search-summary-item"><b>${esc(title)}</b> <span>${esc(source)}</span>${body?`<div>${esc(body)}</div>`:''}</div>`;
+        }).join('');
+        summaryEl.innerHTML =
+          `<div class="cloud-search-summary-title"><span>Search context</span><span class="cloud-search-summary-meta">${summaryNodes.length} highlighted</span></div>`+
+          `<div class="cloud-search-summary-line">${esc([statusLine,kindLine].filter(Boolean).join(' · '))}</div>`+
+          `<div class="cloud-search-summary-items">${itemRows}</div>`;
+        summaryEl.classList.add('show');
+      } else {
+        summaryEl.textContent='';
+        summaryEl.classList.remove('show');
+      }
+    } else {
+      summaryEl.textContent='';
+      summaryEl.classList.remove('show');
     }
   }
   const onboardLabelIds = new Set();
@@ -6156,12 +6381,23 @@ function renderCloud(d, opts={}){
       if (dashboardLabelIds.size >= cloudProfile.maxLabels) break;
     }
   }
-  const showCloudLabel=n=> isOnboard?onboardLabelIds.has(n.id):(q?(!n.archive&&activatedSearch(n)):(n.archive||dashboardLabelIds.has(n.id)));
+  const showCloudLabel=n=> isOnboard?onboardLabelIds.has(n.id):(q?false:(n.archive||dashboardLabelIds.has(n.id)));
   const cloudLabelText=n=> n.archive?('🗄 '+n.count):(isOnboard?truncate(n.t.label,18):((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22)));
   const hoverLabelText=n=>truncate(n.t?.label||n.id,48);
   const labelBorder=n=>{
-    const rgb=cloudColorTriplet(colorOf(n));
-    return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},.36)`;
+    const rgb=cloudDisplayTriplet(colorOf(n),Math.max(.42,opacityOf(n)),cloudProfile);
+    return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},.62)`;
+  };
+  const searchHighlight=n=>{
+    if(!q||!n||n.archive) return 0;
+    if(!trace) return (localSearch(n)||remoteMatch(n)) ? .95 : 0;
+    if(traceFinal(n)||traceReranked(n)) return 1;
+    if(finalNodeKeys.has(n.id)) return 1;
+    if(traceHit(n)) return .92;
+    if(fallbackFinalNodeKeys.has(n.id)) return .82;
+    if(searchNodeActive(n)) return .72;
+    if(searchNodeVisible(n)) return .48;
+    return 0;
   };
   const updateCloudStats=()=>{
     const statsElC = document.getElementById('flowstats');
@@ -6182,7 +6418,7 @@ function renderCloud(d, opts={}){
     surfaceEl:svgEl, hostEl, W, H, profile:cloudProfile, isOnboard,
     simNodes, renderedLinks, endId, cloudPoint3D,
     radiusOf, opacityOf, colorOf, linkOpacity,
-    showCloudLabel, cloudLabelText, hoverLabelText, labelBorder, onNodeClick
+    searchHighlight, showCloudLabel, cloudLabelText, hoverLabelText, labelBorder, onNodeClick
   })){
     if(getSim()) getSim().stop();
     setSig(sig);
@@ -6217,11 +6453,11 @@ function renderCloud(d, opts={}){
   }
 
   const linkSel=linkG.selectAll('line').data(renderedLinks, edgeKey);
-  linkSel.exit().transition().duration(CLOUD_SEARCH_STEP_MS).attr('stroke-opacity',0).remove();
+  linkSel.exit().transition().duration(CLOUD_SEARCH_FRAME_MS).attr('stroke-opacity',0).remove();
   const linkAll=linkSel.enter().append('line').attr('stroke-width',1.2).merge(linkSel)
-    .attr('stroke', l=>searchEdgeFading(l)?'#6e7681':(searchEdgeWalk(l)?'#e3b341':(searchEdgeFinal(l)?'#f78166':(searchEdgeRelated(l)?'#e3b341':(l.kind==='context'?'#39c5cf':'#6e7681')))))
-    .attr('stroke-width', l=>searchEdgeFading(l)?1.2:(searchEdgeWalk(l)?2.4:(searchEdgeFinal(l)?2.1:(searchEdgeRelated(l)?1.8:1.2))))
-    .attr('stroke-dasharray', l=>searchEdgeFading(l)?null:(searchEdgeWalk(l)?'6 5':(searchEdgeRelated(l)?'5 4':(l.kind==='context'?'2 3':null))))
+    .attr('stroke', l=>searchEdgeWalk(l)?'#e3b341':(searchEdgeFinal(l)?'#f78166':(searchEdgeRelated(l)?'#e3b341':(l.kind==='context'?'#39c5cf':'#6e7681'))))
+    .attr('stroke-width', l=>searchEdgeWalk(l)?2.4:(searchEdgeFinal(l)?2.1:(searchEdgeRelated(l)?1.8:1.2)))
+    .attr('stroke-dasharray', l=>searchEdgeWalk(l)?'6 5':(searchEdgeRelated(l)?'5 4':(l.kind==='context'?'2 3':null)))
     .attr('stroke-opacity', linkOpacity)
     .classed('cloud-search-walk', l=>searchEdgeWalk(l))
     .classed('cloud-search-related', l=>searchEdgeRelated(l))

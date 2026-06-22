@@ -2611,10 +2611,29 @@ if (require.main === module) {
     }
   }
 
+  // Global singleton pidfile: the bound daemon advertises its pid here so the spawner guards
+  // (mcp-graph.js / hooks/start-daemon.js hasDaemonProcess) can detect a LIVE daemon cross-platform
+  // via process.kill(pid, 0), instead of a `ps` scan that THREW on Windows (no `ps`) and always
+  // returned false — which let every slow-ping moment spawn a redundant daemon, piling up zombies.
+  const runtimePaths = require('./lib/runtime-paths');
+  const DAEMON_PIDFILE = runtimePaths.runtimePath('daemon.pid');
+  function writeDaemonPidfile() {
+    try {
+      fs.mkdirSync(path.dirname(DAEMON_PIDFILE), { recursive: true });
+      fs.writeFileSync(DAEMON_PIDFILE, String(process.pid));
+    } catch { /* best effort — the guard still falls back to ping */ }
+  }
+  function removeDaemonPidfile() {
+    try {
+      // Only remove the pidfile if it is still OURS (a racing successor may have rewritten it).
+      if (fs.readFileSync(DAEMON_PIDFILE, 'utf8').trim() === String(process.pid)) fs.unlinkSync(DAEMON_PIDFILE);
+    } catch { /* already gone / not ours */ }
+  }
+
   let httpsServer = null; // assigned in the listen callback when certs exist; closed on signal
   let server6 = null;     // IPv6 loopback listener — so `localhost` (→ ::1 on Windows) reaches us
 
-  process.on('exit', removeDaemonPort); // 'exit' must stay synchronous — port cleanup only
+  process.on('exit', () => { removeDaemonPort(); removeDaemonPidfile(); }); // 'exit' stays synchronous — port + pidfile cleanup only
   // SIGINT/SIGTERM: release BOTH listening ports at SIGNAL time, not exit time. server.close()
   // alone waits for open connections — and SSE clients hold theirs indefinitely, so exit rode the
   // 5s force-timer while the (previously never-closed) HTTPS listener kept 8788 bound; a relaunch
@@ -2622,6 +2641,7 @@ if (require.main === module) {
   // SSE/keep-alive sockets so a successor can bind within ~1s of the signal.
   ['SIGINT', 'SIGTERM'].forEach(sig => process.on(sig, () => {
     removeDaemonPort();
+    removeDaemonPidfile();
     try {
       const codex = harnessRegistry.get('codex');
       if (codex && codex.wakeDelivery && codex.wakeDelivery.defaultSupervisor) codex.wakeDelivery.defaultSupervisor.stopAll();
@@ -2646,7 +2666,7 @@ if (require.main === module) {
       if (err.code === 'EADDRINUSE') {
         if (port === PORT_BASE) {
           // Check if the existing process is already a zonoid daemon.
-          http.get(`http://127.0.0.1:${port}/ping`, (res) => {
+          const pingReq = http.get(`http://127.0.0.1:${port}/ping`, (res) => {
             let body = '';
             res.on('data', (chunk) => { body += chunk; });
             res.on('end', () => {
@@ -2660,7 +2680,18 @@ if (require.main === module) {
               process.stderr.write(`Port ${port} is in use by another process. Set ORCH_PORT=<n> to use a different port.\n`);
               process.exit(1);
             });
-          }).on('error', () => {
+          });
+          // The incumbent daemon is single-threaded; under load it can accept the socket but not
+          // answer /ping promptly. WITHOUT a timeout this GET hung forever, leaving a redundant
+          // daemon alive-but-portless — the zombie pile-up behind the Windows console-window storm.
+          // Bound the wait: on timeout, assume the bound port is our own busy daemon and exit this
+          // redundant instance cleanly rather than hang.
+          pingReq.setTimeout(2000, () => {
+            pingReq.destroy();
+            process.stdout.write(`Daemon already running at port ${port} (busy; /ping timed out) — exiting redundant instance\n`);
+            process.exit(0);
+          });
+          pingReq.on('error', () => {
             // Port busy but no daemon answering /ping: most likely a dying predecessor draining
             // in-flight requests. Retry the SAME port briefly instead of giving up (restart race).
             if ((tryListen._samePortRetries = (tryListen._samePortRetries || 0) + 1) <= 30) {
@@ -2680,6 +2711,7 @@ if (require.main === module) {
     });
     server.listen(port, '127.0.0.1', () => {
       process.stdout.write(`orchestrator daemon on http://127.0.0.1:${port}\n`);
+      writeDaemonPidfile(); // advertise our pid for the cross-platform singleton guard (early, pre-loadState)
 
       // Also bind IPv6 loopback so `localhost` resolves on every OS — Windows resolves it to ::1
       // first, which an IPv4-only bind misses. Best-effort + loopback-only (no 0.0.0.0 exposure).

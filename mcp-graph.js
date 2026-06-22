@@ -3,8 +3,10 @@
 // self-boots the daemon so it works in environments that launch MCP servers but not hooks.
 'use strict';
 const http = require('http');
+const fs = require('fs');
 const path = require('path');
-const { spawn, execFileSync } = require('child_process');
+const { spawn } = require('child_process');
+const { runtimePath } = require('./lib/runtime-paths');
 const core = require('./lib/mcp-core');
 const { extraToolsForClient, resolveSession } = require('./lib/mcp-harness-tools');
 const { repoRoot } = require('./lib/workspace-registry');
@@ -36,19 +38,19 @@ function daemonEnv() {
   return env;
 }
 
+// Cross-platform liveness check for an already-running daemon. The daemon writes its pid to a global
+// pidfile on bind (see daemon.js writeDaemonPidfile); we read it and probe the pid with signal 0.
+// This replaces a `ps`-based scan that THREW on Windows (no `ps`) and so ALWAYS returned false —
+// which let every slow-ping moment spawn a redundant daemon, piling up zombies behind a window storm.
 function hasDaemonProcess() {
   if (PORT !== 8787) return false;
   try {
-    const out = execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' });
-    return out.split(/\r?\n/).some((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return false;
-      const m = trimmed.match(/^(\d+)\s+(.+)$/);
-      if (!m || Number(m[1]) === process.pid) return false;
-      return /(?:^|\s)\S*\/daemon\.js(?:\s|$)/.test(m[2]);
-    });
+    const pid = Number(fs.readFileSync(runtimePath('daemon.pid'), 'utf8').trim());
+    if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) return false;
+    process.kill(pid, 0); // throws ESRCH when the pid is not alive
+    return true;
   } catch {
-    return false;
+    return false; // no pidfile, malformed pid, or not alive ⇒ treat as no daemon
   }
 }
 

@@ -5,3 +5,19 @@
 {"evt":"edge_added","from":"note:note-mqp51ky1bsb","to":"note:note-mqityxgf1x4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:34:38.883Z","weight":0,"by":"autowire","judged":false,"score":0.59,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp51ky1bsb","to":"note:note-mqp4zyztt79","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:34:38.883Z","weight":0,"by":"autowire","judged":false,"score":0.576,"origin":"autowire-semantic"}
 {"evt":"summary_set","id":"note:note-mqp51ky1bsb","workspace":"/Users/imyu/Desktop/zonoid","summary":"Existing context edges with no stored `weight` are treated as 0.5 for backward compatibility. That preserves traversal behavior across older graph data that predates explicit weights.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
+{"evt":"note_supersedes","id":"note-mqp51ky1bsb","supersedes":"note-mq7hef6ged4","ts":"2026-06-22T11:34:37.129Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mqp51ky1bsb","to":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/15","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:52:19.305Z","weight":0.359,"judged":true}
+{"evt":"edge_added","from":"note:note-mqp51ky1bsb","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:52:19.305Z","weight":0.5,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqp51ky1bsb","to":"note:note-mq7hef6ged4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:52:19.305Z"}
+{"evt":"note_supersedes","id":"note-mqp51ky1bsb","supersedes":"note-mq7hef6ged4","ts":"2026-06-22T11:34:37.129Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mqp51ky1bsb","to":"note:note-mqp4zldlzj0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:07.423Z"}
+{"evt":"edge_removed","from":"note:note-mqp51ky1bsb","to":"note:note-mqe5sbyj4uq","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:07.423Z"}
+{"evt":"edge_removed","from":"note:note-mqp51ky1bsb","to":"note:note-mqityxgf1x4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:07.423Z"}
+{"evt":"edge_removed","from":"note:note-mqp51ky1bsb","to":"note:note-mqp4zyztt79","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:07.423Z"}
+{"evt":"edge_added","from":"note:note-mqp51ky1bsb","to":"note:note-mq7hef6ged4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.87,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqp51ky1bsb","to":"note:note-mqp4zldlzj0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.703,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqp51ky1bsb","to":"note:note-mqe5sbyj4uq","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.597,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqp51ky1bsb","to":"note:note-mqityxgf1x4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.59,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqp51ky1bsb","to":"note:note-mqp4zyztt79","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.576,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp51ky1bsb","to":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/15","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z"}
+{"evt":"edge_removed","from":"note:note-mqp51ky1bsb","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z"}

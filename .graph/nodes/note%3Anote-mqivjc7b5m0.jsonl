@@ -20,3 +20,9 @@
 {"evt":"knowledge_added","id":"note-mqivjc7b5m0","workspace":"D:/zonoid","item":"repo:sphinx-doc/sphinx","actor":"overlay-sync","ts":"2026-06-18T02:30:34.635Z"}
 {"evt":"knowledge_added","id":"note-mqivjc7b5m0","workspace":"D:/zonoid","item":"base_commit:e347e59ccc27a646c974526252e39a63870f6ea3","actor":"overlay-sync","ts":"2026-06-18T02:30:34.635Z"}
 {"evt":"knowledge_added","id":"note-mqivjc7b5m0","workspace":"D:/zonoid","item":"arm:self-learning","actor":"overlay-sync","ts":"2026-06-18T02:30:34.635Z"}
+{"evt":"edge_removed","from":"note:note-mqivjc7b5m0","to":"note:note-mqivablq5u2","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:16:25.638Z"}
+{"evt":"edge_removed","from":"note:note-mqivjc7b5m0","to":"note:note-mqivj2m3gpa","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:16:25.638Z"}
+{"evt":"edge_removed","from":"note:note-mqivjc7b5m0","to":"note:note-mqivj7nk9zm","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:16:25.638Z"}
+{"evt":"edge_added","from":"note:note-mqivjc7b5m0","to":"note:note-mqivablq5u2","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.631,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqivjc7b5m0","to":"note:note-mqivj2m3gpa","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.612,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqivjc7b5m0","to":"note:note-mqivj7nk9zm","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.581,"origin":"autowire-semantic"}

@@ -21,3 +21,7 @@
 {"evt":"knowledge_added","id":"note-mqivjg3b5yl","workspace":"D:/zonoid","item":"base_commit:e347e59ccc27a646c974526252e39a63870f6ea3","actor":"overlay-sync","ts":"2026-06-18T02:30:34.635Z"}
 {"evt":"knowledge_added","id":"note-mqivjg3b5yl","workspace":"D:/zonoid","item":"arm:self-learning","actor":"overlay-sync","ts":"2026-06-18T02:30:34.635Z"}
 {"evt":"edge_promoted","from":"note:note-mqivjg3b5yl","to":"note:note-mqivir09qko","kind":"context","actor":"overlay-sync","ts":"2026-06-18T04:44:34.998Z","weight":0.805,"by":"judge","judged":true,"score":0.805,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqivjg3b5yl","to":"note:note-mqivjadl9ok","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:16:25.638Z"}
+{"evt":"edge_removed","from":"note:note-mqivjg3b5yl","to":"note:note-mqivj7nk9zm","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:16:25.638Z"}
+{"evt":"edge_added","from":"note:note-mqivjg3b5yl","to":"note:note-mqivjadl9ok","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.596,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqivjg3b5yl","to":"note:note-mqivj7nk9zm","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.573,"origin":"autowire-semantic"}
