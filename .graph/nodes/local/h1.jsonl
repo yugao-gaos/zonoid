@@ -1,2 +1,3 @@
 {"evt":"edge_added","from":"local/h1","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:10:01.364Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"local/h1","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:12:52.668Z","weight":0.75,"origin":"asserted"}
+{"evt":"edge_promoted","from":"local/h1","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:13:28.774Z","weight":0.75,"origin":"asserted"}
