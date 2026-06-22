@@ -21,3 +21,12 @@
 {"evt":"edge_promoted","from":"note:note-mqei0h7cyxc","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/8","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:47:42.148Z","weight":0,"by":"autowire","judged":false,"score":0.613,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqei0h7cyxc","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/8","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z","weight":0.613,"by":"judge","judged":true,"score":0.613,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqei0h7cyxc","to":"codex/ensure-managed-subconscious-loop-owner","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:29:26.537Z","weight":0,"by":"autowire","judged":false,"score":0.569,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqei0h7cyxc","to":"note:note-mqeapqae6jf","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:20.015Z"}
+{"evt":"edge_removed","from":"note:note-mqei0h7cyxc","to":"note:note-mq7gpd48","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:20.015Z"}
+{"evt":"edge_removed","from":"note:note-mqei0h7cyxc","to":"note:note-mqe0szihwix","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:20.015Z"}
+{"evt":"edge_removed","from":"note:note-mqei0h7cyxc","to":"note:note-mq75a80m","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:20.015Z"}
+{"evt":"edge_removed","from":"note:note-mqei0h7cyxc","to":"note:note-mqd9ezu3tu4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:20.015Z"}
+{"evt":"edge_removed","from":"note:note-mqei0h7cyxc","to":"bench/context-inject-mix-set-runner","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:20.015Z"}
+{"evt":"edge_removed","from":"note:note-mqei0h7cyxc","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/13","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:20.015Z"}
+{"evt":"edge_removed","from":"note:note-mqei0h7cyxc","to":"47d3826e-756a-4722-8110-2c07888d4f0f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:20.015Z"}
+{"evt":"edge_removed","from":"note:note-mqei0h7cyxc","to":"codex/ensure-managed-subconscious-loop-owner","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:20.015Z"}

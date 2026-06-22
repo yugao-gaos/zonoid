@@ -1,0 +1,2 @@
+{"evt":"edge_promoted","from":"followup/u7-update-workspaces-daemon-test-js-for--d0n3","to":"b1c48279-9822-4abe-81a5-1b7b2a329970/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:02.264Z","weight":0.559,"by":"judge","judged":true,"score":0.559,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"followup/u7-update-workspaces-daemon-test-js-for--d0n3","to":"aac736f1-e893-4f79-b145-881150b4ada4/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:02.264Z"}
