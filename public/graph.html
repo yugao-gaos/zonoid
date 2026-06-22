@@ -4788,6 +4788,7 @@ function ensureCloudThreeState(ctx){
   labelLayer.className='cloud-three-labels';
   const renderer=new THREE.WebGLRenderer({ antialias:true, alpha:true, powerPreference:'high-performance' });
   renderer.setClearColor(0x0d1117,0);
+  renderer.outputEncoding=THREE.sRGBEncoding;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, ctx.profile.pixelRatio));
   layer.appendChild(renderer.domElement);
   ctx.hostEl.appendChild(layer);
@@ -4964,7 +4965,7 @@ function renderCloudThree(ctx){
   st.nodeByInstance=ctx.simNodes;
   const dummy=new THREE.Object3D();
   const nodeGeo=new THREE.SphereGeometry(1,ctx.profile.sphereSegments,ctx.profile.sphereRings);
-  const nodeMat=new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:.96, depthWrite:true });
+  const nodeMat=new THREE.MeshBasicMaterial({ vertexColors:true, transparent:true, opacity:.96, depthWrite:true, fog:false });
   const nodeMesh=new THREE.InstancedMesh(nodeGeo,nodeMat,Math.max(1,ctx.simNodes.length));
   const linePositions=[];
   const lineColors=[];
@@ -5004,7 +5005,7 @@ function renderCloudThree(ctx){
     const lineGeo=new THREE.BufferGeometry();
     lineGeo.setAttribute('position',new THREE.Float32BufferAttribute(linePositions,3));
     lineGeo.setAttribute('color',new THREE.Float32BufferAttribute(lineColors,3));
-    const lineMat=new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:ctx.profile.edgeOpacity, depthWrite:false });
+    const lineMat=new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:ctx.profile.edgeOpacity, depthWrite:false, fog:false });
     st.root.add(new THREE.LineSegments(lineGeo,lineMat));
   }
   buildCloudThreeLabels(st);
@@ -5829,6 +5830,7 @@ function renderCloud(d, opts={}){
   const traceReranked=n=>trace&&!n.archive&&trace.rerankedKeys.has(n.id);
   const localFallback=q&&!remoteFresh;
   const localSearch=n=>localFallback&&localMatch(n);
+  const fallbackFinalNodeKeys=new Set();
   const searchNodeActive=n=>{
     if(!q) return true;
     if(!trace) return localSearch(n)||remoteMatch(n);
@@ -5838,7 +5840,7 @@ function renderCloud(d, opts={}){
     if(searchPhase==='hits') return hop===0;
     if(searchPhase==='activate') return hop<=currentActivationHop;
     if(searchPhase==='prune') return finalNodeKeys.has(n.id)||hop<=pruneHopThreshold;
-    return finalNodeKeys.has(n.id);
+    return finalNodeKeys.has(n.id)||fallbackFinalNodeKeys.has(n.id);
   };
   const searchNodeVisible=n=>searchNodeActive(n)||(n&&!n.archive&&fadingNodeKeys.has(n.id));
   const activatedSearch=n=>{
@@ -6087,6 +6089,25 @@ function renderCloud(d, opts={}){
     }
   }
   const totalRelatedEdges=activeEdgeHops.size;
+  const fallbackFinalEdgeKeys=new Set();
+  if(q&&searchPhase==='final'&&!finalRelatedKeys.size&&activeEdgeHops.size){
+    const addFallbackEdge=meta=>{
+      if(!meta||fallbackFinalEdgeKeys.has(meta.key)) return;
+      fallbackFinalEdgeKeys.add(meta.key);
+      fallbackFinalNodeKeys.add(meta.sourceId);
+      fallbackFinalNodeKeys.add(meta.targetId);
+    };
+    for(const meta of [...activationEdgeMeta.values()].sort(linkCmp)){
+      if(finalNodeKeys.has(meta.sourceId)||finalNodeKeys.has(meta.targetId)) addFallbackEdge(meta);
+      if(fallbackFinalEdgeKeys.size>=CLOUD_SEARCH_EDGE_LIMIT) break;
+    }
+    if(!fallbackFinalEdgeKeys.size){
+      for(const meta of [...activationEdgeMeta.values()].sort(linkCmp)){
+        addFallbackEdge(meta);
+        if(fallbackFinalEdgeKeys.size>=CLOUD_SEARCH_EDGE_LIMIT) break;
+      }
+    }
+  }
   const edgeActivationIndex=l=>activeEdgeHops.get(edgeKey(l))??traceWalkIndex(l)??0;
   const edgeEndpointsActive=l=>{
     const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)];
@@ -6097,10 +6118,11 @@ function renderCloud(d, opts={}){
     return !!(ns&&nt2&&searchNodeVisible(ns)&&searchNodeVisible(nt2));
   };
   const searchEdgeFinal=l=>(searchPhase==='prune'||searchPhase==='final')&&finalRelatedKeys.has(edgeKey(l))&&edgeEndpointsActive(l);
+  const searchEdgeFallback=l=>fallbackFinalEdgeKeys.has(edgeKey(l))&&edgeEndpointsActive(l);
   const searchEdgeRelated=l=>stagedRelatedKeys.has(edgeKey(l))&&edgeEndpointsActive(l);
   const searchEdgeFading=l=>fadingEdgeKeys.has(edgeKey(l))&&edgeEndpointsVisible(l);
-  const searchEdgeWalk=l=>traceWalkIndex(l)!==undefined&&edgeEndpointsActive(l)&&(searchEdgeRelated(l)||searchEdgeFinal(l));
-  const renderedLinks=q?simLinks.filter(l=>searchEdgeRelated(l)||searchEdgeFinal(l)||searchEdgeFading(l)):simLinks;
+  const searchEdgeWalk=l=>traceWalkIndex(l)!==undefined&&edgeEndpointsActive(l)&&(searchEdgeRelated(l)||searchEdgeFinal(l)||searchEdgeFallback(l));
+  const renderedLinks=q?simLinks.filter(l=>searchEdgeRelated(l)||searchEdgeFinal(l)||searchEdgeFallback(l)||searchEdgeFading(l)):simLinks;
   const linkOpacity=l=>{
     const a=tierOfId(endId(l.source)), b=tierOfId(endId(l.target));
     const w=x=>x==='fg'?0.9:x==='mid'?0.4:0.07;
@@ -6115,6 +6137,7 @@ function renderCloud(d, opts={}){
       if(searchEdgeFading(l)) return 0.1;
       if(searchEdgeWalk(l)) return Math.max(0.72,o);
       if(searchEdgeFinal(l)) return Math.max(0.58,o);
+      if(searchEdgeFallback(l)) return Math.max(0.42,o);
       if(searchEdgeRelated(l)) return Math.max(0.36,o);
       return 0.018;
     }
@@ -6136,7 +6159,7 @@ function renderCloud(d, opts={}){
     }
     else if(q&&trace){
       const reranked=trace.rerankedKeys.size;
-      const shownEdges=searchPhase==='final'?finalRelatedKeys.size:((searchPhase==='activate'||searchPhase==='prune')?stagedRelatedKeys.size:0);
+      const shownEdges=searchPhase==='final'?(finalRelatedKeys.size||fallbackFinalEdgeKeys.size):((searchPhase==='activate'||searchPhase==='prune')?stagedRelatedKeys.size:0);
       const traceParts=['RAG '+trace.hitRank.size];
       if(searchPhase==='hits') traceParts.push('nodes');
       else {
