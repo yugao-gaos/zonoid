@@ -1,0 +1,6 @@
+{"evt":"edge_removed","from":"bench/combined-bench-raw-7-discovered","to":"bench/bench-trial-35-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:28:37.328Z"}
+{"evt":"edge_removed","from":"bench/combined-bench-raw-7-discovered","to":"bench/combined-bench-raw-1-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:28:37.328Z"}
+{"evt":"edge_removed","from":"bench/combined-bench-raw-7-discovered","to":"bench/combined-bench-raw-2-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:28:37.328Z"}
+{"evt":"edge_removed","from":"bench/combined-bench-raw-7-discovered","to":"bench/combined-bench-raw-6-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:28:37.328Z"}
+{"evt":"edge_removed","from":"bench/combined-bench-raw-7-discovered","to":"bench/combined-bench-raw-0-6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:28:37.328Z"}
+{"evt":"edge_removed","from":"bench/combined-bench-raw-7-discovered","to":"bench/combined-bench-raw-3-14","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:28:37.328Z"}
