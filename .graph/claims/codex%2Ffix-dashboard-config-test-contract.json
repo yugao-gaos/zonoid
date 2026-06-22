@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/fix-dashboard-config-test-contract",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-fix-api-ui-tests",
+  "branch": "orch/attempt/codex-fix-dashboard-config-test-contract",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T02:42:27.822Z",
+  "lease_until": "2026-06-22T03:42:27.822Z"
+}
