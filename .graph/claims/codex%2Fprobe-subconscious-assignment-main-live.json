@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/probe-subconscious-assignment-main-live",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "probe-session-main-live",
+  "branch": "orch/attempt/codex-probe-subconscious-assignment-main-live",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T00:37:27.216Z",
+  "lease_until": "2026-06-22T01:37:27.216Z"
+}
