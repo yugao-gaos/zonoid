@@ -27,3 +27,7 @@
 {"evt":"timestamps_set","id":"eb25339f-1c71-4fc9-a316-ea83fb6a25d3/3","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-10T23:48:50.798Z","lastChanged":"2026-06-22T14:06:13.768Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-22T14:06:13.833Z"}
 {"evt":"status_changed","id":"eb25339f-1c71-4fc9-a316-ea83fb6a25d3/3","workspace":"D:\\zonoid","status":"canceled","actor":"overlay-sync","ts":"2026-06-22T15:41:15.679Z"}
 {"evt":"timestamps_set","id":"eb25339f-1c71-4fc9-a316-ea83fb6a25d3/3","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-10T23:48:50.798Z","lastChanged":"2026-06-22T15:41:15.145Z","lastStatus":"canceled"},"actor":"overlay-sync","ts":"2026-06-22T15:41:56.223Z"}
+{"evt":"edge_removed","from":"eb25339f-1c71-4fc9-a316-ea83fb6a25d3/3","to":"b91aecfd-10c5-4538-9daf-212b4d7ab1c8/2","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:44:27.567Z"}
+{"evt":"edge_removed","from":"eb25339f-1c71-4fc9-a316-ea83fb6a25d3/3","to":"b91aecfd-10c5-4538-9daf-212b4d7ab1c8/5","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:44:27.567Z"}
+{"evt":"edge_removed","from":"eb25339f-1c71-4fc9-a316-ea83fb6a25d3/3","to":"014da635-9813-4932-a6b1-2e96da0b8f12/4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:44:27.567Z"}
+{"evt":"edge_removed","from":"eb25339f-1c71-4fc9-a316-ea83fb6a25d3/3","to":"codex/install-orchestrator-skill-client-repos","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:44:27.567Z"}

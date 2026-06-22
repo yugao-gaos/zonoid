@@ -24,3 +24,4 @@
 {"evt":"edge_removed","from":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5","to":"codex/fix-dashboard-config-smoke-recovery","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:52:19.305Z"}
 {"evt":"edge_removed","from":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5","to":"codex/fix-dashboard-smoke-pinned-drift-recovery","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:52:19.305Z"}
 {"evt":"edge_removed","from":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5","to":"c06c364d-9617-4ea9-9660-3d1545b238e3/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:23:59.389Z"}
+{"evt":"edge_removed","from":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5","to":"codex/fix-bench-sdk-a2-edgejudge-timeout","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:45:03.793Z"}
