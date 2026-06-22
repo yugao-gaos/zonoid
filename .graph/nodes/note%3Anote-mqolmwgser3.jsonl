@@ -23,3 +23,4 @@
 {"evt":"edge_added","from":"note:note-mqolmwgser3","to":"codex/fix-dashboard-config-smoke-kickback","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:10:51.795Z","origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"codex/fix-shell-opencode-write-gates-kickback","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:12:37.422Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"codex/fix-dashboard-config-smoke-kickback","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:12:37.422Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
+{"evt":"edge_added","from":"note:note-mqolmwgser3","to":"codex/fix-claim-permit-result-contract-kickback","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:13:56.788Z","origin":"subconscious-assignment"}
