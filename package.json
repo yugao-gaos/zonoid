@@ -30,7 +30,8 @@
     "LICENSE",
     "NOTICE",
     "README.md",
-    "CONTRIBUTING.md"
+    "CONTRIBUTING.md",
+    "CLAUDE.md"
   ],
   "engines": {
     "node": ">=18"
