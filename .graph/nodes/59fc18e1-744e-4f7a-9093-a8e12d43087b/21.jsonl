@@ -140,3 +140,4 @@
 {"evt":"status_changed","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","workspace":"/Users/imyu/Desktop/zonoid","status":"tested","actor":"overlay-sync","ts":"2026-06-22T18:13:34.456Z"}
 {"evt":"timestamps_set","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-16T20:58:56.649Z","lastChanged":"2026-06-22T18:13:34.439Z","lastStatus":"tested"},"actor":"overlay-sync","ts":"2026-06-22T18:13:46.632Z"}
 {"evt":"status_changed","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-22T18:25:59.910Z"}
+{"evt":"timestamps_set","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-16T20:58:56.649Z","lastChanged":"2026-06-22T18:26:02.248Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-22T18:26:18.350Z"}
