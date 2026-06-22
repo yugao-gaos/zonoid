@@ -1,5 +1,6 @@
 'use strict';
 const overlayStore = require('../lib/overlay');
+const embeddingStore = require('../lib/embedding-store');
 const filedropGc = require('../lib/filedrop-gc');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
@@ -511,7 +512,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // is null-safe (sidecar loading/disabled ⇒ no vec ⇒ lexical fallback, exactly like notes).
     // Embed when the summary changed (interface text updated) OR when the task has no vector yet
     // (first write — e.g. the in_progress claim — gives a title-only vec so every task is covered).
-    const _hasVec = T.ov.taskVecs && Array.isArray(T.ov.taskVecs[b.key]) && T.ov.taskVecs[b.key].length;
+    const _hasVec = embeddingStore.hasTaskVec(T.ov, b.key);
     if (b.key && (b.summary != null || !_hasVec)) {
       try {
         const snap = T.ov.snapshots && T.ov.snapshots[b.key];
@@ -697,7 +698,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     ensureTaskSnapshot(T, b.key);
     const kr = await embedDocument(ctx, T.ov, knowledgeText(b.item));
-    if (kr.vec) { b.item._vec = kr.vec; if (kr.meta) b.item._vecMeta = kr.meta; }
+    if (kr.vec) embeddingStore.setKnowledgeItemVec(b.item, kr.vec, kr.meta);
     (T.ov.knowledge[b.key] = T.ov.knowledge[b.key] || []).push(b.item);
     T.save(); notifyChange(T.ws);
     sendOp(res, b, 200, { ok: true, count: T.ov.knowledge[b.key].length }); return true;
@@ -1037,7 +1038,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       for (const it of (items || [])) {
         if (it && vecOk(it._vec, it._vecMeta)) { knSkipped++; continue; }
         const r = await embedDocument(ctx, T.ov, knowledgeText(it));
-        if (r.vec && it && typeof it === 'object') { it._vec = r.vec; if (r.meta) it._vecMeta = r.meta; knEmbedded++; } else failed++;
+        if (r.vec && it && typeof it === 'object') { embeddingStore.setKnowledgeItemVec(it, r.vec, r.meta); knEmbedded++; } else failed++;
       }
     }
     // TASK backfill (multi-vec schema): every real (non-note) task node that lacks a vec gets one
@@ -1046,9 +1047,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const g = buildGraph(T.ws);
     for (const node of g.tasks) {
       if (overlayStore.isNonTaskNode(node)) continue;
-      const existing = T.ov.taskVecs && T.ov.taskVecs[node.id];
-      const existingMeta = T.ov.taskVecMeta && T.ov.taskVecMeta[node.id];
-      if (vecsOk(existing, existingMeta)) { tasksSkipped++; continue; }
+      if (embeddingStore.taskVecFresh(T.ov, node.id, { expectedMeta, vectorMatchesMeta: ctx.vectorMatchesMeta })) { tasksSkipped++; continue; }
       const r = await embedDocument(ctx, T.ov, taskEmbedText({ title: node.label, summary: node.summary }));
       if (r.vec) { overlayStore.setTaskVec(T.ov, node.id, r.vec, r.meta); tasksEmbedded++; } else failed++;
     }
@@ -1087,9 +1086,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const g2 = buildGraph(T.ws);
     for (const node of g2.tasks) {
       if (overlayStore.isNonTaskNode(node)) continue;
-      const existing = T.ov.taskVecs && T.ov.taskVecs[node.id];
-      const existingMeta = T.ov.taskVecMeta && T.ov.taskVecMeta[node.id];
-      if (!force2 && isFreshVecs(existing, existingMeta)) { tasksSkipped++; continue; }
+      if (!force2 && embeddingStore.taskVecFresh(T.ov, node.id, { expectedMeta, vectorMatchesMeta: ctx.vectorMatchesMeta })) { tasksSkipped++; continue; }
       const r = await embedDocument(ctx, T.ov, taskEmbedText({ title: node.label, summary: node.summary }));
       if (r.vec) { overlayStore.setTaskVec(T.ov, node.id, r.vec, r.meta); tasksEmbedded++; } else failed++;
     }
