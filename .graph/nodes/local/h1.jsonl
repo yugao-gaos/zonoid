@@ -9,3 +9,7 @@
 {"evt":"edge_promoted","from":"local/h1","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:24:32.745Z","weight":0.75,"judged":true,"origin":"asserted"}
 {"evt":"edge_promoted","from":"local/h1","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:24:33.781Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"local/h1","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:24:45.906Z","weight":0.75,"origin":"asserted"}
+{"evt":"edge_promoted","from":"local/h1","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:28:57.750Z","weight":0.75,"origin":"asserted"}
+{"evt":"edge_promoted","from":"local/h1","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:29:04.262Z","weight":0.75,"origin":"asserted"}
+{"evt":"edge_promoted","from":"local/h1","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:29:05.286Z","weight":0.75,"judged":true,"origin":"asserted"}
+{"evt":"edge_promoted","from":"local/h1","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:29:06.373Z","weight":0.75,"origin":"asserted"}
