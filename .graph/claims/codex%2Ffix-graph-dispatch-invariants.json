@@ -3,8 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-fix-graph-dispatch",
   "branch": "orch/attempt/codex-fix-graph-dispatch-invariants",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-22T02:42:17.863Z",
   "lease_until": "2026-06-22T03:42:17.863Z",
-  "completed_at": "2026-06-22T18:41:25.754Z"
+  "completed_at": "2026-06-22T19:17:16.671Z"
 }
