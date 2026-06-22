@@ -341,9 +341,10 @@ test('successful label drain records a graph snapshot commit summary', async () 
     });
     assert.equal(result.ran, 1);
     const label = result.drains.find((d) => d.drain === hd.LABEL_DRAIN_KEY);
-    assert.ok(label && label.gitCommit, 'label summary should include gitCommit');
-    assert.equal(label.gitCommit.committed, true, 'successful label drain should commit graph changes');
+    assert.ok(label && label.detached, 'label summary should mark the drain as detached');
+    await waitForCondition(() => hd._governor.concurrentRunning === 0);
     assert.equal(git(repo, ['status', '--porcelain', '--', '.graph']), '', '.graph should be clean after label snapshot');
+    assert.equal(git(repo, ['log', '-1', '--pretty=%s']), 'chore: headless label drain graph snapshot');
   } finally {
     restore();
     fs.rmSync(repo, { recursive: true, force: true });
@@ -372,6 +373,22 @@ test('buildLearnerArgs builds correct node invocation for a given repo path', ()
   assert.equal(args[3], repoAbs, 'fourth arg should be the repo path');
 });
 
+test('buildLearnerArgs includes custom onboarding outDir when provided', () => {
+  const hd = freshModule();
+  const repoAbs = '/some/project/root';
+  const outDir = '/some/project/root/bench/onboard/root';
+  const args = hd.buildLearnerArgs(repoAbs, outDir);
+  assert.deepEqual(args.slice(1), ['--drain', '--repo', repoAbs, '--in', outDir]);
+});
+
+test('buildLearnerArgs carries child timeout when provided', () => {
+  const hd = freshModule();
+  const repoAbs = '/some/project/root';
+  const outDir = '/some/project/root/bench/onboard/root';
+  const args = hd.buildLearnerArgs(repoAbs, outDir, 4750);
+  assert.deepEqual(args.slice(1), ['--drain', '--repo', repoAbs, '--in', outDir, '--timeout-ms', '4750']);
+});
+
 test('findPendingLearnerRepos returns workspace when queue has cursor < total', () => {
   const hd = freshModule();
   const tmpDir = makePendingQueueDir({ total: 10, cursor: 3 });
@@ -379,6 +396,127 @@ test('findPendingLearnerRepos returns workspace when queue has cursor < total', 
     const repos = hd.findPendingLearnerRepos(tmpDir);
     assert.equal(repos.length, 1);
     assert.equal(repos[0], tmpDir);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('findPendingLearnerQueues discovers dashboard bench/onboard outDir', () => {
+  const hd = freshModule();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-bench-'));
+  const outDir = path.join(tmpDir, 'bench', 'onboard', path.basename(tmpDir));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      total: 12,
+      cursor: 4,
+      kept: [],
+      rejected: [],
+      pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo: tmpDir,
+      outDir,
+      batchSize: 7,
+    }));
+    const queues = hd.findPendingLearnerQueues(tmpDir);
+    assert.equal(queues.length, 1);
+    assert.equal(queues[0].repo, tmpDir);
+    assert.equal(queues[0].outDir, outDir);
+    assert.equal(queues[0].remaining, 8);
+    assert.equal(queues[0].batchSize, 7);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('findPendingLearnerQueues ignores bench/onboard queues without route metadata', () => {
+  const hd = freshModule();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-bench-no-meta-'));
+  const outDir = path.join(tmpDir, 'bench', 'onboard', path.basename(tmpDir));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      total: 12,
+      cursor: 4,
+      kept: [],
+      rejected: [],
+      pending: [],
+    }));
+    const queues = hd.findPendingLearnerQueues(tmpDir);
+    assert.equal(queues.length, 0);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('findPendingLearnerQueues treats completed auto-inject queue as due until injected', () => {
+  const hd = freshModule();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-inject-'));
+  const outDir = path.join(tmpDir, 'bench', 'onboard', path.basename(tmpDir));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      total: 2,
+      cursor: 2,
+      kept: [{ title: 'A', summary: 'B' }],
+      rejected: [],
+      pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: [], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo: tmpDir, outDir }));
+    const queues = hd.findPendingLearnerQueues(tmpDir);
+    assert.equal(queues.length, 1);
+    assert.equal(queues[0].remaining, 0);
+    assert.equal(queues[0].kept, 1);
+    assert.equal(queues[0].injectDue, true);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('findPendingLearnerQueues respects autoInject false for completed queues', () => {
+  const hd = freshModule();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-manual-'));
+  const outDir = path.join(tmpDir, 'bench', 'onboard', path.basename(tmpDir));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      total: 2,
+      cursor: 2,
+      kept: [{ title: 'A', summary: 'B' }],
+      rejected: [],
+      pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: [], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo: tmpDir, outDir, autoInject: false }));
+    const queues = hd.findPendingLearnerQueues(tmpDir);
+    assert.equal(queues.length, 0);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('findPendingLearnerQueues treats partial auto-inject queue as inject due when kept advanced', () => {
+  const hd = freshModule();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-live-inject-'));
+  const outDir = path.join(tmpDir, 'bench', 'onboard', path.basename(tmpDir));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      total: 4,
+      cursor: 2,
+      kept: [{ title: 'A', summary: 'B' }],
+      rejected: [],
+      pending: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-notes.json'), JSON.stringify({ kept: [{ title: 'A', summary: 'B' }], rejected: [] }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({ repo: tmpDir, outDir, injectedKept: 0 }));
+    const queues = hd.findPendingLearnerQueues(tmpDir);
+    assert.equal(queues.length, 1);
+    assert.equal(queues[0].remaining, 2);
+    assert.equal(queues[0].kept, 1);
+    assert.equal(queues[0].injectDue, true);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -446,6 +584,54 @@ test('runDueDrains with mocked runDrain: governor is incremented and decremented
     else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedMaxIter;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+  }
+});
+
+test('flag ON: learner backlog starts one learner per pump by default', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '2';
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
+  const { hd, calls, restore } = freshModuleWithMockedSpawn();
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hd-learner-refill-'));
+  const outDir = path.join(tmpDir, 'bench', 'onboard', path.basename(tmpDir));
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'onboard-queue.json'), JSON.stringify({
+      total: 6,
+      cursor: 0,
+      kept: [],
+      rejected: [],
+      pending: Array.from({ length: 6 }, (_, i) => ({ title: `C${i}`, summary: 's', kind: 'gotcha' })),
+    }));
+    fs.writeFileSync(path.join(outDir, 'onboard-drain-status.json'), JSON.stringify({
+      repo: tmpDir,
+      outDir,
+      batchSize: 2,
+    }));
+    const result = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [], labeledKeys: [] }),
+      ...mockBackendDeps().deps,
+    });
+    assert.equal(calls.length, 1, 'one pump should start one learner by default');
+    assert.ok(calls.every((c) => c.opts.env === undefined),
+      'learner drain children inherit the daemon env without an extra sentinel');
+    assert.equal(result.ran, 1);
+    assert.equal(result.drains.filter((d) => d.drain === hd.LEARNER_DRAIN_KEY).length, 1);
+    assert.ok(calls.every((c) => c.args.includes('--timeout-ms')), 'each learner child gets an inner timeout');
+    assert.equal(hd._governor.concurrentRunning, 0, 'concurrency restored after learner refill');
+  } finally {
+    restore();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
   }
 });
 
@@ -537,6 +723,18 @@ test('effectiveConfig defaults maxIterations to Infinity for continuous draining
   } finally {
     if (saved === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
     else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = saved;
+  }
+});
+
+test('effectiveConfig defaults timeoutMs to 5 seconds', () => {
+  const saved = process.env.HEADLESS_DRAIN_TIMEOUT_MS;
+  delete process.env.HEADLESS_DRAIN_TIMEOUT_MS;
+  try {
+    const hd = freshModule();
+    assert.equal(hd.effectiveConfig().timeoutMs, 5000);
+  } finally {
+    if (saved === undefined) delete process.env.HEADLESS_DRAIN_TIMEOUT_MS;
+    else process.env.HEADLESS_DRAIN_TIMEOUT_MS = saved;
   }
 });
 
@@ -641,6 +839,15 @@ function noopHttp() {
       return { on() {}, write() {}, end() {} };
     },
   };
+}
+
+async function waitForCondition(fn, timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (fn()) return;
+    if (Date.now() >= deadline) throw new Error('condition timed out');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }
 
 /** Stub judgeDeps so findDueJudgeWork is driven entirely by the test (no real overlay touched). */
@@ -1037,7 +1244,6 @@ test('flag ON: judge spawn argv is built by getActiveBackend().buildInvocation (
     assert.ok(calls[0].args.includes('--backend-id'), 'spawn argv carries the provider marker');
     assert.equal(calls[0].args[calls[0].args.indexOf('--backend-id') + 1], 'mock-cli', 'argv was built by THIS provider');
     assert.equal(calls[0].opts.env.MOCK_ENV, '1', 'spawn env comes from the provider invocation');
-    assert.equal(calls[0].opts.env.ZONOID_HEADLESS_DRAIN, '1', 'headless judge children suppress daemon autostart hooks');
     assert.ok(mb.calls.buildInvocation >= 1, 'provider.buildInvocation was invoked for the spawn');
     assert.equal(result.ran, 1);
   } finally {
@@ -1098,6 +1304,7 @@ test('flag ON: hard-block judge does NOT suppress a due LABEL drain (label still
     assert.equal(result.skipped, null, 'a drain ran ⇒ skipped is null despite the judge hard-block');
     assert.equal(result.drains.filter((d) => d.drain === hd.LABEL_DRAIN_KEY).length, 1, 'the label drain ran');
     assert.equal(result.drains.filter((d) => d.drain === hd.JUDGE_DRAIN_KEY).length, 0, 'no judge drain ran');
+    await waitForCondition(() => hd._governor.concurrentRunning === 0);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
@@ -1198,6 +1405,7 @@ test('flag ON: api runJudgeLoop that THROWS degrades to a clean failure drain (n
     assert.equal(result.ran, 1, 'the run is still counted (as a failed drain)');
     const judge = result.drains.find((d) => d.drain === hd.JUDGE_DRAIN_KEY);
     assert.ok(judge && judge.exitCode === 1, 'a throwing runJudgeLoop becomes an exitCode:1 drain result');
+    assert.ok(hd._governor.backoffUntil > Date.now(), 'a nonzero LLM drain exit sets backoff');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
@@ -1386,12 +1594,58 @@ test('flag ON: runDueDrains spawns ONE label drain (node gate-label.js), governo
     // The spawn is `node <gate-label.js> --workspace <ws> --port <n>` — Node child, NOT agentic CLI.
     const call = calls[0];
     assert.equal(call.bin, process.execPath, 'must spawn via the daemon Node (process.execPath)');
+    assert.equal(call.opts.env, undefined, 'label child inherits the daemon env without an extra sentinel');
     assert.match(call.args[0], /gate-label\.js$/, 'must target gate-label.js');
     assert.ok(call.args.includes('--workspace') && call.args.includes(tmpDir), 'must pass --workspace <ws>');
     assert.ok(!call.args.includes('-p'), 'label drain must NOT be an agentic CLI invocation');
-    // governor consumed exactly one iteration, concurrency fully restored.
+    assert.equal(labelDrains[0].detached, true, 'label summary marks fire-and-forget scheduling');
+    assert.equal(labelDrains[0].scheduled, true, 'label summary marks scheduled state');
+    // Governor consumed exactly one iteration; the concurrency slot remains held until child close.
     assert.equal(hd._governor.iterationsUsed, 1, 'one iteration consumed');
-    assert.equal(hd._governor.concurrentRunning, 0, 'concurrency restored after run');
+    assert.equal(hd._governor.concurrentRunning, 1, 'detached label child still holds its slot immediately after scheduling');
+    await waitForCondition(() => hd._governor.concurrentRunning === 0);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    restore();
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+    if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+    else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
+    if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+    else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
+  }
+});
+
+test('flag ON: in-flight detached label drain suppresses duplicate label spawns', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
+  process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
+  const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
+  process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
+  let child;
+  const { hd, calls, restore } = freshModuleWithMockedSpawn(() => {
+    child = makeFakeChild({ never: true });
+    return child;
+  });
+  const tmpDir = makeCompletedQueueDir();
+  try {
+    const opts = {
+      ...judgeDeps({ depth: 0, eagerNodes: [] }),
+      ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
+    };
+    const first = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), opts);
+    assert.equal(first.ran, 1);
+    assert.equal(calls.length, 1, 'first pass schedules one label child');
+    assert.equal(hd._governor.concurrentRunning, 1, 'label child holds one slot');
+
+    const second = await hd.runDueDrains({ workspace: tmpDir }, noopHttp(), opts);
+    assert.equal(calls.length, 1, 'second pass must not duplicate the in-flight label child');
+    assert.equal(second.ran, 0);
+    assert.equal(second.skipped, 'label_in_progress');
+
+    child.emit('close', 0);
+    await waitForCondition(() => hd._governor.concurrentRunning === 0);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
@@ -1463,7 +1717,7 @@ test('isThrottled detects 429/529/overloaded/rate-limit; false for a clean resul
   assert.ok(!hd.isThrottled(null));
 });
 
-test('recordDrainOutcome: a throttle sets a short fixed backoff; a clean run resets it', () => {
+test('recordDrainOutcome: LLM trouble sets a short fixed backoff; a clean run resets it', () => {
   const hd = freshModule();
   const T0 = 1_000_000;
   const { baseMs, capMs } = hd.backoffConfig();
@@ -1475,6 +1729,9 @@ test('recordDrainOutcome: a throttle sets a short fixed backoff; a clean run res
   assert.equal(hd._governor.backoffUntil, T0 + capMs, 'second throttle stays capped');
   hd.recordDrainOutcome({ timedOut: true }, T0); // a timeout is also a backoff trigger
   assert.equal(hd._governor.consecutiveThrottles, 3);
+  assert.equal(hd._governor.backoffUntil, T0 + capMs);
+  hd.recordDrainOutcome({ exitCode: 127, stderr: 'missing binary' }, T0);
+  assert.equal(hd._governor.consecutiveThrottles, 4);
   assert.equal(hd._governor.backoffUntil, T0 + capMs);
   hd.recordDrainOutcome({ exitCode: 0, stdout: 'done' }, T0); // clean run resets
   assert.equal(hd._governor.consecutiveThrottles, 0);
@@ -1632,7 +1889,7 @@ test('every runDueDrains spawn (judge fan-out) carries windowsHide:true', async 
 // loop for the ENTIRE child run. The JUDGE backend calls BACK into the daemon
 // (GET /judge/next + POST /judge/verdict) and the LABEL child HTTP-calls it too — but a frozen
 // event loop serves NONE of those, so the child hangs waiting on the daemon while the daemon hangs
-// inside spawnSync waiting on the child: a circular deadlock that only broke at the 10-min timeout.
+// inside spawnSync waiting on the child: a circular deadlock that only broke when the timeout fired.
 // The 40 mocked-spawn tests above never caught it because the mock never actually runs a child.
 //
 // This test stands up a REAL http server (the stand-in daemon) and runs a REAL drain whose spawned

@@ -2,12 +2,12 @@
 'use strict';
 /**
  * onboard-learn.js — AGENTIC project learner. Turns the cheap static mine (task /7) into a
- * validated, NON-OBVIOUS semantic KB by putting an LLM agent in front of the actual source.
+ * validated, NON-OBVIOUS semantic KB by putting a bounded LLM judge in front of mined evidence.
  *
  * The static miners are recall-leaning and noisy (e.g. 137 doc "candidates" for this repo, most
- * of them restatements). This learner runs a headless `claude -p` agent that, with READ access to
- * the target repo, must:
- *   1. read code to VALIDATE or REFUTE each mined hypothesis against what the source actually does,
+ * of them restatements). This learner runs the dashboard-selected agentic CLI backend against
+ * compact evidence snippets so it must:
+ *   1. VALIDATE or REFUTE each mined hypothesis against bounded evidence prepared by this script,
  *   2. KEEP only NON-OBVIOUS, load-bearing knowledge — a convention, an invariant, the gotcha
  *      behind a revert, a "why X not Y" — that a competent dev would NOT infer in 30s of reading,
  *   3. explicitly REJECT restatements of current code (a note that just narrates a function adds
@@ -20,7 +20,7 @@
  * reversible '[ingest]' overlay-note path (POST /overlay/note), so every injected node stays
  * filterable/removable exactly like bench/ingest/inject.js's nodes.
  *
- *   node scripts/onboard-learn.js --repo <abs> [--in <onboard-dir>] [--model opus] [--max-keep 20]
+ *   node scripts/onboard-learn.js --repo <abs> [--in <onboard-dir>] [--model <backend-model>] [--max-keep 20]
  *        # mine-inputs -> agentic validation -> writes onboard-notes.json  (NO graph mutation)
  *   node scripts/onboard-learn.js --repo <abs> --inject          # dry-run injection plan (no mutation)
  *   node scripts/onboard-learn.js --repo <abs> --inject --confirm # perform reversible injection
@@ -34,22 +34,18 @@
  * Call --drain repeatedly until --queue-status shows done:true, then --inject --confirm as usual.
  */
 
-const { spawnSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const crypto = require('crypto');
 const os = require('os');
 
 const SELF_REPO = path.resolve(__dirname, '..');
-// Shared Claude CLI helpers (binary resolver + .env loader) — extracted to lib/claude-cli.js so
-// other callers (e.g. lib/headless-drain.js) can reuse them without duplication.
-const { resolveClaudeBin, loadEnvForClaude, needsShell: _needsShell } = require('../lib/claude-cli');
+const backendLib = require('../lib/llm-backend');
+const overlayStore = require('../lib/overlay');
 // Load secrets from a gitignored .env.local (then .env) at the repo root into process.env without
-// overriding the real environment — this is how the headless Claude CLI spawned below picks up
-// ANTHROPIC_API_KEY (the key never lives in source). In Docker, inject the same vars at run time.
-try { loadEnvForClaude(SELF_REPO); } catch { /* optional */ }
-const CLAUDE = resolveClaudeBin();
+// overriding the real environment. Individual backend providers decide which credentials matter.
+try { require('../lib/load-env').loadEnvFiles(SELF_REPO); } catch { /* optional */ }
 
 // Empty MCP config so the spawned learner has NO orchestrator tools (it only writes a JSON file).
 // Generated in an OS temp file at runtime — NOT read from a repo path. The old source was
@@ -62,7 +58,13 @@ const MCP_OFF = (() => {
 })();
 const DAEMON = process.env.ORCH_DAEMON || 'http://localhost:8787';
 const PREFIX = '[ingest] '; // reuse the existing reversible prefix so injected nodes stay uniform
-const TIMEOUT_S = 600;
+const DEFAULT_TIMEOUT_MS = 600 * 1000;
+const QUEUE_LOCK_STALE_MS = 30 * 1000;
+const QUEUE_LOCK_WAIT_MS = 5000;
+const EXIT_TIMEOUT = 124;
+const EVIDENCE_LINE_RADIUS = 4;
+const MAX_EVIDENCE_CHARS = 1400;
+const MAX_FILE_EVIDENCE_BYTES = 256 * 1024;
 
 function arg(name, def) {
   const i = process.argv.indexOf('--' + name);
@@ -87,13 +89,128 @@ function writeJSONAtomic(filePath, data) {
   fs.renameSync(tmp, filePath);
 }
 
+function truncateText(s, max = MAX_EVIDENCE_CHARS) {
+  const text = String(s || '').trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 24)).trimEnd()}\n[truncated to ${max} chars]`;
+}
+
+function parseSourceLine(source) {
+  const m = String(source || '').match(/^(.+?):(\d+)(?::\d+)?$/);
+  if (!m) return null;
+  return { rel: normalizeSourcePath(m[1]), line: Math.max(1, Number(m[2]) || 1) };
+}
+
+function isGitSha(source) {
+  return /^[0-9a-f]{7,40}$/i.test(String(source || '').trim());
+}
+
+function safeRepoFile(repoAbs, rel) {
+  const abs = path.resolve(repoAbs, rel || '');
+  const root = path.resolve(repoAbs);
+  if (abs !== root && !abs.startsWith(root + path.sep)) return null;
+  return abs;
+}
+
+function excerptAroundLine(text, line, radius = EVIDENCE_LINE_RADIUS) {
+  const lines = String(text || '').split(/\r?\n/);
+  const idx = Math.max(0, Math.min(lines.length - 1, (Number(line) || 1) - 1));
+  const start = Math.max(0, idx - radius);
+  const end = Math.min(lines.length, idx + radius + 1);
+  return lines.slice(start, end).map((value, offset) => {
+    const n = start + offset + 1;
+    return `${n}: ${value.slice(0, 240)}`;
+  }).join('\n');
+}
+
+function excerptAroundNeedle(text, needle) {
+  const body = String(text || '');
+  const trimmedNeedle = String(needle || '').trim();
+  if (!trimmedNeedle) return '';
+  const lines = body.split(/\r?\n/);
+  const needleLower = trimmedNeedle.toLowerCase();
+  let idx = lines.findIndex((line) => line.toLowerCase().includes(needleLower));
+  if (idx < 0) {
+    const tokens = Array.from(tokenSet(trimmedNeedle)).slice(0, 5);
+    idx = lines.findIndex((line) => tokens.length && tokens.every((t) => line.toLowerCase().includes(t)));
+  }
+  if (idx < 0) return '';
+  return excerptAroundLine(body, idx + 1, EVIDENCE_LINE_RADIUS);
+}
+
+function fileEvidence(repoAbs, candidate) {
+  const source = String(candidate && candidate.source || '').trim();
+  const parsed = parseSourceLine(source);
+  const rel = parsed ? parsed.rel : normalizeSourcePath(source);
+  if (!rel || rel.startsWith('asset-scan') || rel.startsWith('asset-ref-scan')) return '';
+  const abs = safeRepoFile(repoAbs, rel);
+  if (!abs) return '';
+  let stat;
+  try { stat = fs.statSync(abs); } catch { return ''; }
+  if (!stat.isFile()) return '';
+  if (stat.size > MAX_FILE_EVIDENCE_BYTES) {
+    return `${rel}: file exists (${stat.size} bytes); content omitted by learner evidence cap.`;
+  }
+  let text = '';
+  try { text = fs.readFileSync(abs, 'utf8').replace(/^\uFEFF/, ''); } catch { return ''; }
+  if (parsed) return `${rel}:${parsed.line}\n${truncateText(excerptAroundLine(text, parsed.line))}`;
+  const needle = excerptAroundNeedle(text, candidate.summary) || excerptAroundNeedle(text, candidate.title);
+  if (needle) return `${rel}\n${truncateText(needle)}`;
+  return `${rel}\n${truncateText(excerptAroundLine(text, 1, 8))}`;
+}
+
+function gitEvidence(repoAbs, candidate) {
+  const source = String(candidate && candidate.source || '').trim();
+  if (!isGitSha(source)) return '';
+  try {
+    const out = execFileSync('git', [
+      '-C', repoAbs,
+      'show',
+      '--no-ext-diff',
+      '--no-color',
+      '--stat',
+      '--summary',
+      '--format=medium',
+      source,
+    ], { encoding: 'utf8', maxBuffer: 512 * 1024 });
+    return truncateText(out);
+  } catch {
+    return '';
+  }
+}
+
+function boundedEvidenceForCandidate(repoAbs, candidate) {
+  const parts = [
+    gitEvidence(repoAbs, candidate),
+    fileEvidence(repoAbs, candidate),
+  ].filter(Boolean);
+  return truncateText(parts.join('\n\n') || 'No bounded evidence beyond the mined title/summary/source.');
+}
+
+function boundedCandidatesForPrompt(repoAbs, candidates) {
+  return candidates.map((c, i) => ({
+    index: i,
+    kind: String(c.kind || 'gotcha'),
+    origin: String(c._origin || ''),
+    title: String(c.title || ''),
+    summary: String(c.summary || ''),
+    source: String(c.source || ''),
+    evidence: boundedEvidenceForCandidate(repoAbs, c),
+  }));
+}
+
 // ---- the agent's instruction: validate hypotheses, keep only non-obvious notes -------------
 function buildPrompt(repoAbs, candidates, outFile, maxKeep) {
+  const bounded = boundedCandidatesForPrompt(repoAbs, candidates);
   return `You are ONBOARDING onto an unfamiliar codebase at ${repoAbs}. Your job is to build a
 small, HIGH-VALUE knowledge base of NON-OBVIOUS facts about THIS project — the kind of thing a
 new engineer only learns after weeks, or by getting burned.
 
-You have Read, Grep/Glob, and Bash (read-only: git log, cat, grep, ls — do NOT modify files).
+This is a BOUNDED learner pass. Do NOT inspect the repo. Do NOT run shell commands. Do NOT use
+git, grep, cat, ls, file reads, web access, or any tool to gather more evidence. The bounded
+evidence below is the entire record you may judge from. If the evidence does not prove a
+candidate, REJECT it as "unverifiable". The only filesystem action you may perform is creating or
+overwriting the required JSON output file.
 
 Below are ${candidates.length} CANDIDATE hypotheses auto-mined from this repo's git history, docs,
 and module structure. They are NOISY — many are restatements of what the code obviously does, or
@@ -115,8 +232,8 @@ right line.
 - REJECT if it merely restates what a function/file does at a level an off-repo engineer would
   already assume, is generic advice, is stale (no longer true in current code), or you cannot
   confirm it. Restatements of general SWE knowledge are WORSE than nothing.
-You MAY also ADD up to 5 NEW notes you discovered while reading that the miners missed and that
-clear the same NON-RECOVERABLE bar.
+Do NOT add discovered notes in this bounded mode; there is no repo exploration. Only keep or
+reject the listed candidates.
 
 Keep AT MOST ${maxKeep} notes total. Quality over coverage — a KB of restatements is a failure.
 
@@ -129,10 +246,10 @@ When done, write a JSON file to ${outFile} with EXACTLY this shape (no prose aro
     { "candidate": "<short id/title>", "reason": "restatement | stale | unverifiable | generic" }
   ]
 }
-Write the file with the Write tool. Do not create any other files. Do not touch the orchestrator graph.
+Create or overwrite that JSON file. Do not create any other files. Do not touch the orchestrator graph.
 
-=== CANDIDATES (index: [kind] title — summary) ===
-${candidates.map((c, i) => `${i}: [${c.kind}] ${c.title} — ${c.summary}`).join('\n')}
+=== BOUNDED CANDIDATES ===
+${bounded.map((c) => JSON.stringify(c)).join('\n')}
 `;
 }
 
@@ -241,10 +358,12 @@ function capCandidates(cands, max) {
 
 // ---- queue file helpers -----------------------------------------------------------------------
 
-// Queue schema: { total, cursor, kept, rejected, pending }
+// Queue schema: { total, cursor, kept, rejected, pending, inflight?, completed? }
 // pending: all raw candidates sorted by priority (not yet processed).
-// cursor: how many of pending have been processed.
+// cursor: how many of pending have been processed and merged contiguously.
 // kept/rejected: accumulate LLM validation results.
+// inflight/completed: sparse start-index maps used so several drain children can reserve
+// non-overlapping slices and merge them in cursor order.
 function readQueue(queueFilePath) {
   return loadJSON(queueFilePath, null);
 }
@@ -253,39 +372,307 @@ function queueFilePath(outDir) {
   return path.join(outDir, 'onboard-queue.json');
 }
 
-// ---- headless agentic validation pass ------------------------------------------------------
-function runLearner(repoAbs, candidates, outFile, model, maxKeep) {
+function sleepSync(ms) {
+  const buf = new SharedArrayBuffer(4);
+  Atomics.wait(new Int32Array(buf), 0, 0, ms);
+}
+
+function isPidAlive(pid) {
+  const n = Number(pid);
+  if (!Number.isInteger(n) || n <= 0) return false;
+  try {
+    process.kill(n, 0);
+    return true;
+  } catch (err) {
+    return !!(err && err.code === 'EPERM');
+  }
+}
+
+function withQueueLock(qf, fn) {
+  const lock = `${qf}.lock`;
+  fs.mkdirSync(path.dirname(qf), { recursive: true });
+  const deadline = Date.now() + QUEUE_LOCK_WAIT_MS;
+  let fd = null;
+  while (fd == null) {
+    try {
+      fd = fs.openSync(lock, 'wx');
+      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }));
+    } catch (err) {
+      if (!err || err.code !== 'EEXIST') throw err;
+      try {
+        const st = fs.statSync(lock);
+        if (Date.now() - st.mtimeMs > QUEUE_LOCK_STALE_MS) {
+          fs.unlinkSync(lock);
+          continue;
+        }
+      } catch { /* lock disappeared; retry */ }
+      if (Date.now() >= deadline) throw new Error(`timed out waiting for queue lock ${lock}`);
+      sleepSync(50);
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    try { fs.closeSync(fd); } catch { /* ignore */ }
+    try { fs.unlinkSync(lock); } catch { /* ignore */ }
+  }
+}
+
+function normalizeQueue(queue) {
+  if (!queue || typeof queue !== 'object') return null;
+  queue.total = Number(queue.total) || 0;
+  queue.cursor = Math.max(0, Number(queue.cursor) || 0);
+  if (!Array.isArray(queue.kept)) queue.kept = [];
+  if (!Array.isArray(queue.rejected)) queue.rejected = [];
+  if (!Array.isArray(queue.pending)) queue.pending = [];
+  if (!queue.inflight || typeof queue.inflight !== 'object' || Array.isArray(queue.inflight)) queue.inflight = {};
+  if (!queue.completed || typeof queue.completed !== 'object' || Array.isArray(queue.completed)) queue.completed = {};
+  return queue;
+}
+
+function cleanupExpiredInflight(queue, nowMs = Date.now()) {
+  normalizeQueue(queue);
+  for (const [start, entry] of Object.entries(queue.inflight || {})) {
+    const expired = entry && entry.expiresAt && Number(entry.expiresAt) <= nowMs;
+    const deadOwner = entry && entry.pid && !isPidAlive(entry.pid);
+    if (!entry || expired || deadOwner) delete queue.inflight[start];
+  }
+}
+
+function flushCompleted(queue) {
+  normalizeQueue(queue);
+  let flushed = false;
+  while (queue.cursor < queue.total) {
+    const key = String(queue.cursor);
+    const done = queue.completed[key];
+    if (!done) break;
+    queue.kept = queue.kept.concat(Array.isArray(done.kept) ? done.kept : []);
+    queue.rejected = queue.rejected.concat(Array.isArray(done.rejected) ? done.rejected : []);
+    queue.cursor += Math.max(0, Number(done.count) || 0);
+    delete queue.completed[key];
+    flushed = true;
+  }
+  return flushed;
+}
+
+function coveredIntervalAt(queue, index) {
+  for (const source of [queue.completed || {}, queue.inflight || {}]) {
+    for (const [startKey, entry] of Object.entries(source)) {
+      const start = Number(startKey);
+      const count = Math.max(0, Number(entry && entry.count) || 0);
+      if (Number.isFinite(start) && count > 0 && index >= start && index < start + count) {
+        return { start, end: start + count };
+      }
+    }
+  }
+  return null;
+}
+
+function reserveQueueBatch(qf, batchSize, maxCandidates, nowMs = Date.now(), reservationTtlMs = DEFAULT_TIMEOUT_MS * 2) {
+  return withQueueLock(qf, () => {
+    const queue = normalizeQueue(readQueue(qf));
+    if (!queue) return { status: 'missing_queue' };
+    cleanupExpiredInflight(queue, nowMs);
+    flushCompleted(queue);
+    if (queue.cursor >= queue.total) {
+      writeJSONAtomic(qf, queue);
+      return { status: 'already_drained', total: queue.total, kept: queue.kept.length };
+    }
+
+    let start = queue.cursor;
+    while (start < queue.total) {
+      const covered = coveredIntervalAt(queue, start);
+      if (!covered) break;
+      start = covered.end;
+    }
+    if (start >= queue.total) {
+      writeJSONAtomic(qf, queue);
+      return { status: 'all_slices_inflight', total: queue.total, kept: queue.kept.length };
+    }
+
+    const count = Math.min(batchSize, maxCandidates, queue.total - start);
+    queue.inflight[String(start)] = {
+      count,
+      pid: process.pid,
+      startedAt: nowMs,
+      expiresAt: nowMs + Math.max(1000, Number(reservationTtlMs) || DEFAULT_TIMEOUT_MS),
+    };
+    writeJSONAtomic(qf, queue);
+    return {
+      status: 'reserved',
+      total: queue.total,
+      start,
+      count,
+      batch: queue.pending.slice(start, start + count),
+    };
+  });
+}
+
+function completeQueueBatch(qf, reservation, result, repoAbs, outDir, model) {
+  return withQueueLock(qf, () => {
+    const queue = normalizeQueue(readQueue(qf));
+    if (!queue) throw new Error(`No queue file at ${qf}`);
+    cleanupExpiredInflight(queue);
+    const key = String(reservation.start);
+    delete queue.inflight[key];
+    queue.completed[key] = {
+      count: reservation.count,
+      kept: Array.isArray(result.kept) ? result.kept : [],
+      rejected: Array.isArray(result.rejected) ? result.rejected : [],
+    };
+    flushCompleted(queue);
+    writeJSONAtomic(qf, queue);
+    const notesFile = path.join(outDir, 'onboard-notes.json');
+    writeJSONAtomic(notesFile, { kept: queue.kept, rejected: queue.rejected });
+    if (queue.cursor >= queue.total) {
+      fs.writeFileSync(path.join(outDir, 'onboard-learn-report.json'),
+        JSON.stringify({ repo: repoAbs, candidates: queue.total, kept: queue.kept.length, rejected: queue.rejected.length, model, queue_mode: true }, null, 2) + '\n');
+    }
+    return queue;
+  });
+}
+
+function failQueueBatch(qf, reservation) {
+  if (!reservation || reservation.status !== 'reserved') return;
+  try {
+    withQueueLock(qf, () => {
+      const queue = normalizeQueue(readQueue(qf));
+      if (!queue) return;
+      delete queue.inflight[String(reservation.start)];
+      writeJSONAtomic(qf, queue);
+    });
+  } catch { /* best-effort; stale reservations expire */ }
+}
+
+function resolveLearnerBackend(repoAbs, requestedModel, deps = {}) {
+  const overlays = deps.overlayStore || overlayStore;
+  const backends = deps.backendLib || backendLib;
+  const overlay = overlays.load ? overlays.load(repoAbs) : {};
+  const active = backends.getActiveBackend(overlay);
+  const provider = active && active.provider;
+  if (!provider) throw new Error('no active LLM backend provider is registered');
+  if (provider.kind !== 'agentic-cli') {
+    throw new Error(`learner requires an agentic CLI backend; active backend "${provider.id}" is ${provider.kind}`);
+  }
+  if (typeof provider.isAvailable === 'function' && !provider.isAvailable()) {
+    throw new Error(`${provider.displayName || provider.id} CLI is not available`);
+  }
+  if (typeof provider.isAuthed === 'function' && !provider.isAuthed()) {
+    throw new Error(`${provider.displayName || provider.id} is not authenticated for headless use`);
+  }
+  return { ...active, provider, model: requestedModel || active.model || undefined };
+}
+
+function buildLearnerInvocation(repoAbs, candidates, outFile, model, maxKeep, deps = {}) {
   const prompt = buildPrompt(repoAbs, candidates, outFile, maxKeep);
-  const sessionId = crypto.randomUUID();
+  const outDir = path.dirname(outFile);
   // OFF-graph MCP config: the learner must NOT have orchestrator tools (it only writes a JSON
   // file). MCP_OFF is an empty config generated at runtime so no graph server is even reachable.
   const mcpConfig = MCP_OFF;
-  const args = [
-    '-p', prompt,
-    '--mcp-config', mcpConfig, '--strict-mcp-config',
-    '--session-id', sessionId,
-    '--model', model,
-    '--output-format', 'stream-json', '--verbose',
-    '--dangerously-skip-permissions',
-    '--add-dir', repoAbs,
-    '--add-dir', path.dirname(outFile),
-  ];
-  console.error(`[learn] running agentic validation (model=${model}, ${candidates.length} candidates)…`);
-  const t0 = Date.now();
-  // Native cross-platform timeout (replaces the Unix-only `perl -e 'alarm N; exec @ARGV'` wrapper).
-  // shell:true only when the resolved binary is a Windows .cmd/.bat shim, which Node won't spawn directly.
-  const run = spawnSync(CLAUDE, args, {
-    cwd: repoAbs,
-    encoding: 'utf8',
-    maxBuffer: 128 * 1024 * 1024,
-    timeout: TIMEOUT_S * 1000,
-    killSignal: 'SIGKILL',
-    shell: _needsShell(CLAUDE),
-    windowsHide: true,
+  const active = resolveLearnerBackend(repoAbs, model, deps);
+  const invocation = active.provider.buildInvocation({
+    prompt,
+    model: active.model,
+    mcpConfig,
+    addDir: [outDir],
   });
+  return { active, invocation: { ...invocation, cwd: outDir } };
+}
+
+function buildLearnerProcessEnv(invocationEnv = {}) {
+  const env = { ...process.env, ...(invocationEnv || {}) };
+  const pathKey = Object.prototype.hasOwnProperty.call(env, 'Path') && !Object.prototype.hasOwnProperty.call(env, 'PATH')
+    ? 'Path'
+    : 'PATH';
+  const currentPath = String(env[pathKey] || '');
+  const pathParts = [
+    path.dirname(process.execPath),
+    ...(process.platform === 'win32' ? [] : ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']),
+    ...currentPath.split(path.delimiter),
+  ].filter(Boolean);
+  const seen = new Set();
+  env[pathKey] = pathParts.filter((part) => {
+    if (seen.has(part)) return false;
+    seen.add(part);
+    return true;
+  }).join(path.delimiter);
+  return env;
+}
+
+function killTimedOutLearnerProcesses(outFile) {
+  if (process.platform === 'win32' || !outFile) return;
+  const pattern = String(outFile).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let listing = '';
+  try {
+    listing = execFileSync('pgrep', ['-f', pattern], { encoding: 'utf8', maxBuffer: 1024 * 1024 });
+  } catch {
+    return;
+  }
+  for (const line of listing.split(/\r?\n/)) {
+    const pid = Number(line.trim());
+    if (!pid || pid === process.pid) continue;
+    try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
+  }
+}
+
+// ---- headless agentic validation pass ------------------------------------------------------
+function runLearnerProcess(invocation, repoAbs, timeoutMs) {
+  return new Promise((resolve) => {
+    const maxBuffer = 128 * 1024 * 1024;
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let settled = false;
+    let spawnError = null;
+    const child = spawn(invocation.bin, invocation.args, {
+      cwd: invocation.cwd || repoAbs,
+      env: buildLearnerProcessEnv(invocation.env),
+      detached: process.platform !== 'win32',
+      shell: backendLib.needsShell(invocation.bin),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    const finish = (status, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ status, signal, stdout, stderr, error: spawnError, timedOut });
+    };
+    const killChildTree = () => {
+      timedOut = true;
+      try {
+        if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGKILL');
+        else child.kill('SIGKILL');
+      } catch {
+        try { child.kill('SIGKILL'); } catch { /* already gone */ }
+      }
+    };
+    const timer = setTimeout(killChildTree, Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
+    child.stdout.on('data', (chunk) => { if (stdout.length < maxBuffer) stdout += chunk; });
+    child.stderr.on('data', (chunk) => { if (stderr.length < maxBuffer) stderr += chunk; });
+    child.on('error', (err) => { spawnError = err; finish(null, null); });
+    child.on('close', (code, signal) => finish(code, signal));
+  });
+}
+
+async function runLearner(repoAbs, candidates, outFile, model, maxKeep, timeoutMs = DEFAULT_TIMEOUT_MS) {
+  let active;
+  let invocation;
+  try {
+    ({ active, invocation } = buildLearnerInvocation(repoAbs, candidates, outFile, model, maxKeep));
+  } catch (err) {
+    console.error(`[learn] FATAL: ${err && err.message ? err.message : err}`);
+    return 1;
+  }
+  const provider = active.provider;
+  const effectiveModel = active.model || '(provider default)';
+  console.error(`[learn] running agentic validation (provider=${provider.id}, model=${effectiveModel}, ${candidates.length} candidates)…`);
+  const t0 = Date.now();
+  const run = await runLearnerProcess(invocation, repoAbs, timeoutMs);
+  if (run.timedOut) killTimedOutLearnerProcesses(outFile);
   console.error(`[learn] agent finished in ${Math.round((Date.now() - t0) / 1000)}s exit=${run.status}`);
   if (run.error && run.error.code === 'ENOENT') {
-    console.error(`[learn] FATAL: Claude CLI not found (tried "${CLAUDE}"). Install Claude Code or set ZONOID_CLAUDE_BIN to its path.`);
+    console.error(`[learn] FATAL: ${provider.displayName || provider.id} CLI not found (tried "${invocation.bin}"). Configure the selected backend CLI path.`);
   }
   // Persist the agent transcript so a failed run is diagnosable. (A foreign-repo run surfaced an
   // invisible-failure mode: agent exit 1 with ALL output discarded — nothing to debug from.)
@@ -296,7 +683,9 @@ function runLearner(repoAbs, candidates, outFile, model, maxKeep) {
     console.error(`[learn] agent FAILED — output tail:\n${tail.slice(-1500)}`);
     console.error(`[learn] full transcript: ${logFile}`);
   }
-  return run.status;
+  if (run.timedOut || (run.error && run.error.code === 'ETIMEDOUT')) return EXIT_TIMEOUT;
+  if (run.error && run.error.code === 'ENOENT') return 127;
+  return run.status == null ? 1 : run.status;
 }
 
 // ---- http (for --inject) -------------------------------------------------------------------
@@ -350,16 +739,11 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
   console.log('=== onboard-learn --inject CONFIRMED ===');
   const structureResult = await injectDocumentStructure(path.dirname(notesFile), workspace, httpRequest);
   const existing = new Set();
-  if (workspace) {
-    // /state reflects only the live workspace; for a foreign workspace there is no cheap exhaustive
-    // listing, so dedupe is skipped (re-running inject may duplicate notes there).
-    console.error(`WARN: --workspace ${workspace}: /state dedupe unavailable for a non-live workspace; skipping skip-set.`);
-  } else {
-    try {
-      const state = await request('GET', '/state');
-      for (const t of state.tasks || []) if (typeof t.label === 'string' && t.label.startsWith(PREFIX)) existing.add(t.label);
-    } catch (e) { console.error(`WARN: could not read /state (${e.message}); proceeding without skip-set.`); }
-  }
+  try {
+    const statePath = workspace ? `/state?workspace=${encodeURIComponent(workspace)}` : '/state';
+    const state = await httpRequest('GET', statePath);
+    for (const t of state.tasks || []) if (typeof t.label === 'string' && t.label.startsWith(PREFIX)) existing.add(t.label);
+  } catch (e) { console.error(`WARN: could not read /state for idempotency (${e.message}); proceeding without skip-set.`); }
   let created = 0, skipped = 0, evidenceEdges = 0;
   for (const n of kept) {
     const title = PREFIX + n.title;
@@ -389,6 +773,7 @@ async function injectOnboardNotes(notesFile, confirm, workspace, httpRequest = r
   console.log(`document structure nodes upserted: ${structureResult.nodes}, provenance edges upserted: ${structureResult.edges}`);
   console.log(`notes created: ${created}, skipped (already present): ${skipped}, evidence edges: ${evidenceEdges}`);
   console.log(`Reversible: every injected node is titled '${PREFIX}…' — filter/remove like other ingest nodes.`);
+  return { created, skipped, evidenceEdges, structure: structureResult };
 }
 
 async function injectDocumentStructure(inDir, workspace, httpRequest = request) {
@@ -435,51 +820,48 @@ function enqueue(inDir, outDir) {
 
 // ---- --drain: process next batch from queue file via LLM ------------------------------------
 // Safe to call repeatedly. Idempotent if cursor === total.
-function drain(repoAbs, outDir, model, maxKeep, batchSize, maxCandidates) {
+async function drain(repoAbs, outDir, model, maxKeep, batchSize, maxCandidates, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const qf = queueFilePath(outDir);
-  const queue = readQueue(qf);
-  if (!queue) {
+  if (!readQueue(qf)) {
     console.error(`[learn] No queue file at ${qf}. Run --enqueue first.`);
     process.exit(1);
   }
-  if (queue.cursor >= queue.total) {
-    console.log(JSON.stringify({ status: 'already_drained', total: queue.total, kept: queue.kept.length }));
+
+  const reservation = reserveQueueBatch(qf, batchSize, maxCandidates, Date.now(), Math.max(timeoutMs * 2, 10000));
+  if (reservation.status === 'already_drained') {
+    console.log(JSON.stringify({ status: 'already_drained', total: reservation.total, kept: reservation.kept }));
     process.exit(0);
   }
+  if (reservation.status === 'all_slices_inflight') {
+    console.log(JSON.stringify({ status: 'all_slices_inflight', total: reservation.total, kept: reservation.kept }));
+    process.exit(0);
+  }
+  if (reservation.status !== 'reserved') {
+    console.error(`[learn] No queue file at ${qf}. Run --enqueue first.`);
+    process.exit(1);
+  }
 
-  // Apply emergency cap: never send more than maxCandidates in a single drain batch.
-  const effectiveBatch = Math.min(batchSize, maxCandidates, queue.total - queue.cursor);
-  const batch = queue.pending.slice(queue.cursor, queue.cursor + effectiveBatch);
-
-  console.error(`[learn] drain: processing candidates ${queue.cursor}–${queue.cursor + effectiveBatch - 1} of ${queue.total} (batch=${effectiveBatch})`);
+  const { start, count, batch } = reservation;
+  console.error(`[learn] drain: processing candidates ${start}–${start + count - 1} of ${reservation.total} (batch=${count})`);
 
   // Use a temp file for the agent output so we can merge results back into the queue.
-  const batchOutFile = path.join(outDir, `onboard-learn-batch-${queue.cursor}.json`);
+  const batchOutFile = path.join(outDir, `onboard-learn-batch-${start}.json`);
   // Remove any stale batch file so a failed agent run can't masquerade as success.
   try { fs.unlinkSync(batchOutFile); } catch { /* none */ }
 
-  const status = runLearner(repoAbs, batch, batchOutFile, model, maxKeep);
+  const status = await runLearner(repoAbs, batch, batchOutFile, model, maxKeep, timeoutMs);
   const result = loadJSON(batchOutFile, null);
   if (!result || !Array.isArray(result.kept)) {
+    failQueueBatch(qf, reservation);
     console.error(`[learn] FAILED: agent did not produce a valid ${batchOutFile} (exit=${status}).`);
-    process.exit(1);
+    process.exit(status === EXIT_TIMEOUT ? EXIT_TIMEOUT : 1);
   }
   const enrichedResult = enrichLearnerResultWithEvidenceRefs(result, batch, outDir);
 
-  // Merge results back into queue and advance cursor.
-  queue.kept = queue.kept.concat(enrichedResult.kept || []);
-  queue.rejected = queue.rejected.concat(enrichedResult.rejected || []);
-  queue.cursor += effectiveBatch;
-
-  // Write queue back atomically.
-  writeJSONAtomic(qf, queue);
-
+  // Merge results back into queue and advance the contiguous cursor when possible.
+  const queue = completeQueueBatch(qf, reservation, enrichedResult, repoAbs, outDir, model);
   const notesFile = path.join(outDir, 'onboard-notes.json');
   if (queue.cursor >= queue.total) {
-    // Queue is drained — write final onboard-notes.json in the same format as the single-pass mode.
-    writeJSONAtomic(notesFile, { kept: queue.kept, rejected: queue.rejected });
-    fs.writeFileSync(path.join(outDir, 'onboard-learn-report.json'),
-      JSON.stringify({ repo: repoAbs, candidates: queue.total, kept: queue.kept.length, rejected: queue.rejected.length, model, queue_mode: true }, null, 2) + '\n');
     console.error(`[learn] DRAIN COMPLETE: ${queue.total} candidates -> kept ${queue.kept.length}, rejected ${queue.rejected.length}. Wrote ${notesFile}`);
     console.error('[learn] Review onboard-notes.json, then: node scripts/onboard-learn.js --repo <abs> --inject [--confirm]');
   } else {
@@ -489,6 +871,14 @@ function drain(repoAbs, outDir, model, maxKeep, batchSize, maxCandidates) {
 }
 
 // ---- --queue-status: print progress JSON without any LLM call ------------------------------
+function previewKeptNotes(queue, limit = 64) {
+  return (Array.isArray(queue.kept) ? queue.kept : []).slice(0, limit).map((n, i) => ({
+    title: String(n && n.title || '').trim() || `Kept note ${i + 1}`,
+    summary: String(n && n.summary || '').trim(),
+    kind: String(n && n.kind || 'note').trim() || 'note',
+  }));
+}
+
 function queueStatus(outDir) {
   const qf = queueFilePath(outDir);
   const queue = readQueue(qf);
@@ -499,7 +889,7 @@ function queueStatus(outDir) {
   const processed = queue.cursor;
   const remaining = queue.total - queue.cursor;
   const done = queue.cursor >= queue.total;
-  console.log(JSON.stringify({ total: queue.total, processed, kept: queue.kept.length, remaining, done }));
+  console.log(JSON.stringify({ total: queue.total, processed, kept: queue.kept.length, keptNotes: previewKeptNotes(queue), remaining, done }));
 }
 
 // ---- main ----------------------------------------------------------------------------------
@@ -508,7 +898,7 @@ async function main() {
   if (!repo || !fs.existsSync(repo)) {
     console.error('usage: onboard-learn.js --repo <abs> [--in <onboard-dir>] [--max-candidates N] [--inject [--confirm] [--workspace <ws>]]');
     console.error('       onboard-learn.js --repo <abs> --enqueue');
-    console.error('       onboard-learn.js --repo <abs> --drain [--batch 50] [--max-candidates N]');
+    console.error('       onboard-learn.js --repo <abs> --drain [--batch 50] [--max-candidates N] [--timeout-ms N]');
     console.error('       onboard-learn.js --repo <abs> --queue-status');
     process.exit(2);
   }
@@ -527,10 +917,11 @@ async function main() {
     const batchSize = Math.max(1, parseInt(arg('batch', '50'), 10) || 50);
     // --max-candidates is an emergency ceiling here (safety valve inside a drain batch only).
     const maxCandidates = parseInt(arg('max-candidates', String(Infinity)), 10) || Infinity;
-    const model = arg('model', 'opus');
+    const model = arg('model', null);
     const maxKeep = parseInt(arg('max-keep', '20'), 10) || 20;
+    const timeoutMs = Math.max(1000, parseInt(arg('timeout-ms', String(DEFAULT_TIMEOUT_MS)), 10) || DEFAULT_TIMEOUT_MS);
     fs.mkdirSync(outDir, { recursive: true });
-    drain(repoAbs, outDir, model, maxKeep, batchSize, maxCandidates);
+    await drain(repoAbs, outDir, model, maxKeep, batchSize, maxCandidates, timeoutMs);
     return;
   }
 
@@ -542,13 +933,14 @@ async function main() {
   }
   // --max-candidates: emergency cap in single-pass mode (default 500 for backward compat).
   candidates = capCandidates(candidates, parseInt(arg('max-candidates', '500'), 10) || 500);
-  const model = arg('model', 'opus');
+  const model = arg('model', null);
   const maxKeep = parseInt(arg('max-keep', '20'), 10) || 20;
   fs.mkdirSync(inDir, { recursive: true });
   // Remove any stale notes file so a failed/empty agent run can't masquerade as success.
   try { fs.unlinkSync(notesFile); } catch { /* none */ }
 
-  const status = runLearner(repoAbs, candidates, notesFile, model, maxKeep);
+  const timeoutMs = Math.max(1000, parseInt(arg('timeout-ms', String(DEFAULT_TIMEOUT_MS)), 10) || DEFAULT_TIMEOUT_MS);
+  const status = await runLearner(repoAbs, candidates, notesFile, model, maxKeep, timeoutMs);
   const result = loadJSON(notesFile, null);
   if (!result || !Array.isArray(result.kept)) {
     console.error(`[learn] FAILED: agent did not produce a valid ${notesFile} (exit=${status}).`);
@@ -570,4 +962,21 @@ if (require.main === module) {
   });
 }
 
-module.exports = { gatherCandidates, injectDocumentStructure, injectOnboardNotes, loadJSON, enrichLearnerResultWithEvidenceRefs, evidenceRefsForNote };
+module.exports = {
+  gatherCandidates,
+  injectDocumentStructure,
+  injectOnboardNotes,
+  loadJSON,
+  enrichLearnerResultWithEvidenceRefs,
+  evidenceRefsForNote,
+  resolveLearnerBackend,
+  buildLearnerInvocation,
+  buildPrompt,
+  boundedCandidatesForPrompt,
+  buildLearnerProcessEnv,
+  reserveQueueBatch,
+  completeQueueBatch,
+  failQueueBatch,
+  flushCompleted,
+  EXIT_TIMEOUT,
+};

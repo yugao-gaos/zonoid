@@ -13,6 +13,9 @@ const { spawnSync } = require('child_process');
 
 const LEARN = path.resolve(__dirname, '../scripts/onboard-learn.js');
 const NODE = process.execPath;
+const learner = require('../scripts/onboard-learn');
+const backend = require('../lib/llm-backend');
+const overlayStore = require('../lib/overlay');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -75,6 +78,43 @@ function run(extraArgs, env = {}) {
 
 function readJSON(p) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) { return null; }
+}
+
+// ---- TEST 1: --enqueue writes the correct schema ---------------------------
+{
+  const dir = tmpDir();
+  const repo = fakeRepo(path.join(dir, 'repo'));
+  let captured = null;
+  const providerId = 'learner-queue-mock-cli';
+  backend.registerProvider({
+    id: providerId,
+    displayName: 'Learner Queue Mock CLI',
+    kind: 'agentic-cli',
+    resolveBin: () => '/mock/learner',
+    isAvailable: () => true,
+    isAuthed: () => true,
+    buildInvocation(opts = {}) {
+      captured = opts;
+      return { bin: '/mock/learner', args: ['run', opts.model || '', opts.prompt], env: { MOCK_LEARNER: '1' } };
+    },
+    parseResult: () => ({}),
+  });
+  const ov = overlayStore.load(repo);
+  overlayStore.setBackendConfig(ov, { provider: providerId, model: 'mock-selected-model' });
+  overlayStore.save(repo, ov);
+
+  const outFile = path.join(dir, 'onboard-notes.json');
+  const built = learner.buildLearnerInvocation(repo, [{ title: 'Candidate', summary: 's', kind: 'gotcha' }], outFile, null, 3);
+  ok('learner invocation uses selected backend provider', built.invocation.bin === '/mock/learner');
+  ok('learner invocation passes selected backend model', captured && captured.model === 'mock-selected-model');
+  ok('learner invocation grants output dir only', captured && Array.isArray(captured.addDir) && captured.addDir.includes(dir) && !captured.addDir.includes(repo));
+  ok('learner invocation runs from output dir', built.invocation.cwd === dir);
+  ok('learner prompt forbids repo inspection', captured && /Do NOT inspect the repo/.test(captured.prompt) && /BOUNDED CANDIDATES/.test(captured.prompt));
+  const spawnEnv = learner.buildLearnerProcessEnv({ PATH: '/tmp/mock-bin', MOCK_LEARNER: '1' });
+  const spawnPath = String(spawnEnv.PATH || '').split(path.delimiter);
+  ok('learner spawn env preserves backend env vars', spawnEnv.MOCK_LEARNER === '1');
+  ok('learner spawn env prepends current Node dir', spawnPath[0] === path.dirname(process.execPath));
+  ok('learner spawn env keeps backend PATH entries', spawnPath.includes('/tmp/mock-bin'));
 }
 
 // ---- TEST 1: --enqueue writes the correct schema ---------------------------
@@ -179,6 +219,11 @@ function readJSON(p) {
   // The queue file should be unchanged (cursor still 12).
   const qAfter = readJSON(path.join(dir, 'onboard-queue.json'));
   ok('drain does not advance cursor past total', qAfter && qAfter.cursor === 12);
+
+  const statusRun = run(['--repo', repo, '--in', dir, '--queue-status']);
+  let status = null;
+  try { status = JSON.parse(statusRun.stdout.trim()); } catch { /* ignore */ }
+  ok('queue-status exposes kept note title preview', status && Array.isArray(status.keptNotes) && status.keptNotes[0].title === 'Note A');
 }
 
 // ---- TEST 4: when cursor === total after drain, onboard-notes.json is written -------------
@@ -273,6 +318,82 @@ function readJSON(p) {
   ok('enqueue re-run resets cursor to 0', q2 && q2.cursor === 0);
   ok('enqueue re-run produces same total', q1 && q2 && q1.total === q2.total);
   ok('enqueue re-run resets kept to []', q2 && q2.kept.length === 0);
+}
+
+// ---- TEST 7: queue reservations allow parallel non-overlapping batches ----
+{
+  const dir = tmpDir();
+  const qf = path.join(dir, 'onboard-queue.json');
+  fs.writeFileSync(qf, JSON.stringify({
+    total: 5,
+    cursor: 0,
+    kept: [],
+    rejected: [],
+    pending: Array.from({ length: 5 }, (_, i) => ({ title: `Cand ${i}`, summary: 's', kind: 'gotcha' })),
+  }, null, 2));
+
+  const r1 = learner.reserveQueueBatch(qf, 2, Infinity, 1000, 10000);
+  const r2 = learner.reserveQueueBatch(qf, 2, Infinity, 1001, 10000);
+
+  ok('first reservation starts at 0', r1.status === 'reserved' && r1.start === 0 && r1.count === 2);
+  ok('second reservation skips inflight range', r2.status === 'reserved' && r2.start === 2 && r2.count === 2);
+
+  let q = readJSON(qf);
+  ok('reservations do not advance cursor', q && q.cursor === 0);
+
+  learner.completeQueueBatch(qf, r2, {
+    kept: [{ title: 'Later', summary: 'later', evidence: 'x', kind: 'gotcha' }],
+    rejected: [],
+  }, dir, dir, 'opus');
+  q = readJSON(qf);
+  ok('out-of-order completion does not advance past gap', q && q.cursor === 0);
+
+  learner.completeQueueBatch(qf, r1, {
+    kept: [{ title: 'First', summary: 'first', evidence: 'x', kind: 'gotcha' }],
+    rejected: [],
+  }, dir, dir, 'opus');
+  q = readJSON(qf);
+  ok('cursor advances through contiguous completed slices', q && q.cursor === 4);
+  ok('kept results merge in cursor order', q && q.kept[0].title === 'First' && q.kept[1].title === 'Later');
+}
+
+// ---- TEST 8: failed reservation becomes retryable -------------------------
+{
+  const dir = tmpDir();
+  const qf = path.join(dir, 'onboard-queue.json');
+  fs.writeFileSync(qf, JSON.stringify({
+    total: 3,
+    cursor: 0,
+    kept: [],
+    rejected: [],
+    pending: Array.from({ length: 3 }, (_, i) => ({ title: `Cand ${i}`, summary: 's', kind: 'gotcha' })),
+  }, null, 2));
+
+  const r1 = learner.reserveQueueBatch(qf, 2, Infinity, 1000, 10000);
+  learner.failQueueBatch(qf, r1);
+  const retry = learner.reserveQueueBatch(qf, 2, Infinity, 1001, 10000);
+  ok('failed reservation is retried from same start', retry.status === 'reserved' && retry.start === r1.start);
+}
+
+// ---- TEST 9: dead inflight owners are cleared before reserving ------------
+{
+  const dir = tmpDir();
+  const qf = path.join(dir, 'onboard-queue.json');
+  fs.writeFileSync(qf, JSON.stringify({
+    total: 3,
+    cursor: 0,
+    kept: [],
+    rejected: [],
+    pending: Array.from({ length: 3 }, (_, i) => ({ title: `Cand ${i}`, summary: 's', kind: 'gotcha' })),
+    inflight: {
+      0: { count: 2, pid: 99999999, startedAt: 1000, expiresAt: 11000 },
+    },
+  }, null, 2));
+
+  const retry = learner.reserveQueueBatch(qf, 2, Infinity, 1001, 10000);
+  const q = readJSON(qf);
+  ok('dead inflight owner is retried from same start', retry.status === 'reserved' && retry.start === 0);
+  ok('dead inflight owner is replaced by current reservation', q && q.inflight && q.inflight['0'] && q.inflight['0'].pid === process.pid);
 }
 
 // ---- summary ---------------------------------------------------------------

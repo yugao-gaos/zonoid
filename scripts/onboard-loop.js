@@ -57,6 +57,11 @@ function sh(cmd, args, opts = {}) {
   return r;
 }
 
+function addModelArg(args, model) {
+  if (model) args.push('--model', model);
+  return args;
+}
+
 // ---- step wrappers: each shells the existing script, never reimplements it ------------------
 
 function mine(repoAbs, outDir) {
@@ -124,7 +129,8 @@ function learnAndInject(repoAbs, model, inject, outDir, batchSize, dispatch) {
     try { status = JSON.parse(statusR.stdout || ''); } catch { /* ignore */ }
     if (status && status.done) { drained = true; break; }
 
-    const drainR = sh(NODE, [learnScript, '--repo', repoAbs, '--in', outDir, '--drain', '--batch', effectiveBatch, '--model', model]);
+    const drainArgs = addModelArg([learnScript, '--repo', repoAbs, '--in', outDir, '--drain', '--batch', effectiveBatch], model);
+    const drainR = sh(NODE, drainArgs);
     if (drainR.status !== 0) {
       console.error(`[loop] --drain failed (exit ${drainR.status}); aborting drain loop.`);
       break;
@@ -151,7 +157,7 @@ function learnAndInject(repoAbs, model, inject, outDir, batchSize, dispatch) {
 // Legacy single-pass learn+inject (used as fallback if --enqueue fails).
 function learnAndInjectSinglePass(repoAbs, model, inject) {
   const learnScript = path.join(SELF_REPO, 'scripts', 'onboard-learn.js');
-  const learn = sh(NODE, [learnScript, '--repo', repoAbs, '--model', model]);
+  const learn = sh(NODE, addModelArg([learnScript, '--repo', repoAbs], model));
   if (learn.status !== 0) { console.error(`[loop] learner failed (exit ${learn.status}); skipping inject this round.`); return false; }
   if (!inject) { console.error('[loop] --no-inject: validated notes written but NOT injected.'); return false; }
   const inj = sh(NODE, [learnScript, '--repo', repoAbs, '--inject', '--confirm']);
@@ -207,7 +213,8 @@ function answersForRound(round, baseAnswers, roundsList) {
   const probesPath = arg('probes', path.join(outDir, 'probes.json'));
   if (!fs.existsSync(probesPath)) { console.error(`no probes at ${probesPath} — generate them first (onboard-probes schema).`); process.exit(1); }
 
-  const model = arg('model', 'sonnet');
+  const learnerModel = arg('model', null);
+  const model = learnerModel || 'sonnet';
   const daemon = arg('daemon', DEFAULT_DAEMON);
   const maxRounds = parseInt(arg('max-rounds', '4'), 10) || 4;
   const epsilon = parseFloat(arg('epsilon', '0.05'));
@@ -269,7 +276,7 @@ function answersForRound(round, baseAnswers, roundsList) {
     } else {
       mine(repoAbs, outDir);
       // Use queue-based learn+inject if not in dry-run.
-      const injected = learnAndInject(repoAbs, model, inject, outDir, batchSize, dispatch);
+      const injected = learnAndInject(repoAbs, learnerModel, inject, outDir, batchSize, dispatch);
       if (!injected && inject) console.error('[loop] WARN: deepen produced no injected notes this round; next measure may be flat.');
     }
     prevMetric = metric;

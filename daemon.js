@@ -7,24 +7,9 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { hasHeadlessDrainAncestor } = require('./lib/headless-ancestor');
 if (require.main === module && fs.existsSync(path.join(__dirname, '.orch-off'))) process.exit(0);
-function hasHeadlessDrainAncestor() {
-  let pid = process.ppid;
-  for (let i = 0; i < 6 && pid && pid > 1; i++) {
-    let cmd = '';
-    try { cmd = execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }); } catch { cmd = ''; }
-    if (cmd.includes('edge-judge single-pass headless mode')
-        || cmd.includes('headless mode against the orchestrator daemon')) return true;
-    let next = '';
-    try { next = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8' }).trim(); } catch { next = ''; }
-    const parsed = Number(next);
-    if (!Number.isFinite(parsed) || parsed === pid) break;
-    pid = parsed;
-  }
-  return false;
-}
-if (require.main === module && (process.env.ZONOID_HEADLESS_DRAIN === '1' || hasHeadlessDrainAncestor())) process.exit(0);
+if (require.main === module && hasHeadlessDrainAncestor()) process.exit(0);
 const crypto = require('crypto');
 const { URL } = require('url');
 const harnessRegistry = require('./lib/harness');
@@ -2764,7 +2749,12 @@ if (require.main === module) {
         ? Math.max(HEADLESS_DRAIN_RETRY_DELAY_MS, backoffUntil - Date.now())
         : HEADLESS_DRAIN_RETRY_DELAY_MS;
     }
-    if (result && (result.skipped === 'concurrency_cap' || result.skipped === 'global_concurrency_cap' || result.skipped === 'global_lease_lock_busy')) {
+    if (result && (
+      result.skipped === 'concurrency_cap'
+      || result.skipped === 'global_concurrency_cap'
+      || result.skipped === 'global_lease_lock_busy'
+      || result.skipped === 'label_in_progress'
+    )) {
       return HEADLESS_DRAIN_RETRY_DELAY_MS;
     }
     return HEADLESS_DRAIN_IDLE_POLL_MS;

@@ -132,32 +132,31 @@
   #cloudsvg text { font: 11px ui-monospace, Menlo, monospace; fill: #e6edf3; pointer-events: none; user-select: none; }
   #cloudsvg circle { cursor: pointer; }
   #cloudsvg circle, #cloudsvg line, #cloudsvg text { transition: fill-opacity 450ms ease, stroke-opacity 450ms ease; }
-  #cloudSearchHud { position: absolute; top: 10px; right: 10px; z-index: 5; width: min(520px, calc(100vw - 24px)); display: none; }
-  #cloudSearchHud.show { display: block; }
-  #cloudSearchWrap { display: none; background: #161b2299; border: 1px solid #30363d; border-radius: 8px; padding: 3px 8px; align-items: center; gap: 6px; }
+  #cloudSearchWrap { position: absolute; top: 10px; right: 10px; z-index: 5; display: none; background: #161b2299; border: 1px solid #30363d; border-radius: 8px; padding: 3px 8px; align-items: center; gap: 6px; }
   #cloudSearchWrap.show { display: flex; }
-  #cloudSearchInput { background: transparent; border: none; color: #e6edf3; padding: 2px 4px; font-size: 12px; min-width: 0; flex: 1; outline: none; }
+  #cloudSearchInput { background: transparent; border: none; color: #e6edf3; padding: 2px 4px; font-size: 12px; width: 160px; outline: none; }
   #cloudSearchInput::placeholder { color: #6e7681; }
   #cloudMatchCount { color: #8b949e; font-size: 11px; white-space: nowrap; min-width: 60px; }
-  #cloudTraceLegend { display: none; margin-top: 6px; background: #0d1117cc; border: 1px solid #30363d; border-radius: 6px; padding: 3px 7px; color: #8b949e; font-size: 11px; white-space: nowrap; }
+  #cloudTraceLegend { position: absolute; top: 43px; right: 10px; z-index: 5; display: none; background: #0d1117cc; border: 1px solid #30363d; border-radius: 6px; padding: 3px 7px; color: #8b949e; font-size: 11px; white-space: nowrap; }
   #cloudTraceLegend.show { display: block; }
-  #cloudSearchSummary { display: none; margin-top: 6px; background: #0d1117e6; border: 1px solid #30363d; border-radius: 8px; padding: 8px 10px; color: #adbac7; font-size: 11px; line-height: 1.42; box-shadow: 0 10px 24px #0006; }
-  #cloudSearchSummary.show { display: block; }
-  #cloudSearchSummary .css-title { color: #e6edf3; font-weight: 700; margin-bottom: 3px; }
-  #cloudSearchSummary .css-meta { color: #8b949e; margin-bottom: 5px; }
-  #cloudSearchSummary .css-hit { display: flex; gap: 6px; min-width: 0; }
-  #cloudSearchSummary .css-rank { color: #6e7681; flex: 0 0 auto; }
-  #cloudSearchSummary .css-kind { color: #79c0ff; flex: 0 0 auto; }
-  #cloudSearchSummary .css-text { color: #c9d1d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #cloudsvg circle.cloud-search-hit { animation: cloudHitPulse 500ms ease-out both; }
   #cloudsvg circle.cloud-search-final { filter: drop-shadow(0 0 7px rgba(247,129,102,.8)); }
   #cloudsvg circle.cloud-search-reranked { filter: drop-shadow(0 0 8px rgba(125,211,252,.75)); }
+  #cloudsvg circle.cloud-depth, #onboardCloudSvg circle.cloud-depth { filter: drop-shadow(0 0 6px rgba(88,166,255,.22)); }
+  #cloudsvg circle.cloud-breathe, #onboardCloudSvg circle.cloud-breathe {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: cloudBreathe 3.6s ease-in-out infinite;
+  }
+  #cloudsvg line.cloud-breathe, #onboardCloudSvg line.cloud-breathe { animation: cloudEdgeBreathe 4.2s ease-in-out infinite; }
   #cloudsvg line.cloud-search-walk { animation: cloudWalkDash 500ms ease-out both; }
   #cloudsvg line.cloud-search-related { animation: cloudNeuronEdge 500ms ease-out both; }
   #cloudsvg line.cloud-search-final-edge { filter: drop-shadow(0 0 4px rgba(247,129,102,.55)); }
   @keyframes cloudHitPulse { 0% { stroke-width: 0; filter: drop-shadow(0 0 0 rgba(227,179,65,0)); } 45% { stroke-width: 5px; filter: drop-shadow(0 0 9px rgba(227,179,65,.95)); } 100% { filter: drop-shadow(0 0 4px rgba(227,179,65,.45)); } }
   @keyframes cloudWalkDash { from { stroke-dashoffset: 28; stroke-opacity: .08; } to { stroke-dashoffset: 0; } }
   @keyframes cloudNeuronEdge { 0% { stroke-dashoffset: 34; stroke-opacity: .04; } 40% { stroke-opacity: .85; } 100% { stroke-dashoffset: 0; } }
+  @keyframes cloudBreathe { 0%,100% { transform: scale(.96); } 50% { transform: scale(1.08); } }
+  @keyframes cloudEdgeBreathe { 0%,100% { stroke-opacity: .16; } 50% { stroke-opacity: .66; } }
   /* dagre pane (shared by Frontier + Focus views) */
   #flow { display: none; width: 100%; height: 100%; }
   #flow.show { display: flex; flex-direction: column; }
@@ -359,6 +358,123 @@
     0%,100% { opacity: .75; box-shadow: 0 0 0 0 #f8514940; }
     50%      { opacity: 1;   box-shadow: 0 0 0 6px #f8514900; }
   }
+
+  /* ── Onboarding learning landing ── */
+  body.onboarding-pending { padding-bottom: 0; overflow: hidden; }
+  body.onboarding-pending header,
+  body.onboarding-pending #settingsPopup,
+  body.onboarding-pending #guidance,
+  body.onboarding-pending #statusDock,
+  body.onboarding-pending .wrap,
+  body.onboarding-pending #historyPopup,
+  body.onboarding-pending #activityPopup,
+  body.onboarding-pending #costPopup,
+  body.onboarding-pending #billingPopup,
+  body.onboarding-pending #cronPopup,
+  body.onboarding-pending #noteOverlay { display: none !important; }
+  #onboard-landing {
+    display: none;
+    position: fixed; inset: 0; z-index: 7000;
+    background: #0d1117;
+    color: #c9d1d9;
+    overflow-y: auto;
+  }
+  body.onboarding-pending #onboard-landing { display: flex; align-items: center; justify-content: center; }
+  .ol-panel {
+    width: min(1120px, calc(100vw - 36px));
+    height: min(760px, calc(100vh - 36px));
+    padding: 18px 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .ol-title {
+    margin: 0 0 10px;
+    color: #79c0ff;
+    font-size: 21px;
+    line-height: 1.25;
+    font-weight: 700;
+  }
+  .ol-copy {
+    margin: 0 0 22px;
+    max-width: 820px;
+    color: #adbac7;
+    font-size: 14px;
+  }
+  .ol-cloud {
+    position: relative;
+    min-height: 360px;
+    flex: 1;
+    border: 1px solid #30363d;
+    background:
+      radial-gradient(circle at 50% 48%, rgba(88,166,255,.14), transparent 34%),
+      #0d1117;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .ol-cloud::before {
+    content: '';
+    position: absolute;
+    inset: -12%;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 50% 48%, rgba(88,166,255,.22), rgba(88,166,255,.08) 28%, transparent 62%);
+    opacity: .62;
+    transform: scale(.94);
+  }
+  .ol-cloud.is-live::before {
+    animation: onboardCloudFieldBreathe 5.2s ease-in-out infinite;
+  }
+  #onboardCloudSvg {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    min-height: 360px;
+    display: block;
+  }
+  #onboardCloudSvg text {
+    font: 11px ui-monospace, Menlo, monospace;
+    fill: #e6edf3;
+    pointer-events: none;
+    user-select: none;
+  }
+  .ol-cloud-meta {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: #8b949e;
+    font-size: 12px;
+    z-index: 2;
+  }
+  #onboardCloudSvg g.cn.cloud-born { animation: onboardCloudNodeBirth 900ms ease-out both; }
+  #onboardCloudSvg line.cloud-breathe {
+    stroke-dasharray: 5 7;
+    animation: cloudEdgeBreathe 4.2s ease-in-out infinite, onboardCloudEdgeFlow 2.1s linear infinite;
+  }
+  .ol-status { color: #8b949e; font-size: 12px; margin-top: 12px; min-height: 18px; }
+  .ol-status.err { color: #f85149; }
+  @keyframes onboardCloudFieldBreathe {
+    0%,100% { opacity: .46; transform: scale(.92); }
+    50% { opacity: .78; transform: scale(1.04); }
+  }
+  @keyframes onboardCloudNodeBirth {
+    0% { opacity: 0; filter: drop-shadow(0 0 0 rgba(227,179,65,0)); }
+    45% { opacity: 1; filter: drop-shadow(0 0 13px rgba(227,179,65,.72)); }
+    100% { opacity: 1; filter: drop-shadow(0 0 0 rgba(227,179,65,0)); }
+  }
+  @keyframes onboardCloudEdgeFlow {
+    from { stroke-dashoffset: 24; }
+    to { stroke-dashoffset: 0; }
+  }
+  @media (max-width: 640px) {
+    body.onboarding-pending #onboard-landing { align-items: flex-start; }
+    .ol-panel { padding: 22px 0; height: calc(100vh - 44px); }
+    .ol-cloud-meta { flex-direction: column; gap: 4px; }
+  }
 </style>
 </head>
 <body>
@@ -374,6 +490,20 @@
   </div>
 </div>
 <div id="daemon-offline-badge">⬤ daemon offline — reconnecting…</div>
+<div id="onboard-landing" role="status" aria-live="polite">
+  <div class="ol-panel">
+    <h1 class="ol-title">Setup &amp; Learning in progress</h1>
+    <p class="ol-copy">This workspace has no injected onboarding notes yet. Zonoid is mining the repo, validating candidates, and live-injecting reviewed notes as the graph grows.</p>
+    <div class="ol-cloud">
+      <svg id="onboardCloudSvg" aria-label="Learning graph cloud"></svg>
+      <div class="ol-cloud-meta">
+        <span id="onboardStageLabel">Preparing workspace...</span>
+        <span id="onboardProgressStat">Processed 0/0 · kept 0 · injected 0</span>
+      </div>
+    </div>
+    <div class="ol-status" id="onboardStatus"></div>
+  </div>
+</div>
 <header>
   <div class="hd-left">
     <h1>
@@ -489,7 +619,7 @@
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
     <div id="wsPickerWrap" style="padding:0 16px 8px;display:none"><select id="wsPicker" style="font-size:11px;background:#161b22;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 6px;cursor:pointer;max-width:220px"></select></div>
-    <div id="cloud"><div id="cloudSearchHud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div></div><svg id="cloudsvg"></svg></div>
+    <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
     <div id="flowstats"></div>
   </div>
@@ -4506,10 +4636,10 @@ let cloudSearchError=false;
 let cloudSearchSeq=0;
 let cloudSearchTimer=null;
 let cloudSearchTrace=null;     // visual-only trace of the last /search result set
-let cloudSearchSummary=null;
 let cloudSearchFrameTimers=[];
 let cloudSearchFitKey='';
 let cloudZoom=null;
+const onboardCloudRenderState={ pos:{}, sim:null, sig:'', zoom:null, raf:null };
 const CLOUD_SEARCH_STEP_MS=500;
 const CLOUD_SEARCH_FINAL_TOP_K=15;
 const CLOUD_SEARCH_EDGE_LIMIT=80;
@@ -5153,7 +5283,6 @@ function setView(v){
   currentView=v;
   if(v!=='focus') localStorage.setItem('orchView',v);   // focus is never persisted
   document.getElementById('cloud').classList.toggle('show', v==='cloud');
-  document.getElementById('cloudSearchHud').classList.toggle('show', v==='cloud');
   document.getElementById('cloudSearchWrap').classList.toggle('show', v==='cloud');
   if(v!=='cloud'){
     cloudSearchText='';
@@ -5162,10 +5291,8 @@ function setView(v){
     cloudSearchPending=false;
     cloudSearchError=false;
     cloudSearchTrace=null;
-    cloudSearchSummary=null;
     if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
     const si=document.getElementById('cloudSearchInput'); if(si) si.value='';
-    renderCloudSearchSummary();
   } else if(cloudSearchText.trim()) {
     scheduleCloudSearch();
   }
@@ -5197,73 +5324,6 @@ document.querySelectorAll('#viewToggle button').forEach(b=> b.addEventListener('
 function cloudNodeKey(raw){
   const key=String(raw||'');
   return key.includes('#')?key.split('#')[0]:key;
-}
-function cloudSearchKind(item){
-  const key=String(item&&item.key||'');
-  if((item&&item.kind)==='knowledge'||key.includes('#')) return 'evidence';
-  return String((item&&item.kind)||'node');
-}
-function buildCloudSearchSummary(items, query){
-  const rows=[];
-  const seen=new Set();
-  const counts={ task:0, note:0, evidence:0, other:0 };
-  let nodeFirst=0, reranked=0;
-  for(const item of (items||[])){
-    const rawKey=String(item&&item.key||'');
-    if(!rawKey) continue;
-    const key=cloudNodeKey(rawKey);
-    const kind=cloudSearchKind(item);
-    if(kind==='task') counts.task++;
-    else if(kind==='note') counts.note++;
-    else if(kind==='evidence') counts.evidence++;
-    else counts.other++;
-    if(item&&item.nodeFirst) nodeFirst++;
-    if(item&&(item.reranked||item.ceScore!=null)) reranked++;
-    if(seen.has(key)) continue;
-    seen.add(key);
-    rows.push({
-      key,
-      kind,
-      score:Number(item&&item.score)||0,
-      title:String((item&&item.title)||key),
-      via:String((item&&item.via)||''),
-    });
-  }
-  rows.sort((a,b)=>b.score-a.score);
-  return { query, total:(items||[]).length, unique:seen.size, counts, nodeFirst, reranked, rows:rows.slice(0,5) };
-}
-function renderCloudSearchSummary(meta={}){
-  const el=document.getElementById('cloudSearchSummary');
-  if(!el) return;
-  const q=cloudSearchText.trim();
-  if(!q){ el.classList.remove('show'); el.innerHTML=''; return; }
-  if(cloudSearchPending){
-    el.innerHTML='<div class="css-title">Agent RAG summary</div><div class="css-meta">Searching graph memory...</div>';
-    el.classList.add('show');
-    return;
-  }
-  if(cloudSearchError){
-    el.innerHTML='<div class="css-title">Agent RAG summary</div><div class="css-meta">Search failed; showing local label fallback only.</div>';
-    el.classList.add('show');
-    return;
-  }
-  const s=cloudSearchSummary;
-  if(!s||s.query!==q.toLowerCase()){ el.classList.remove('show'); el.innerHTML=''; return; }
-  const counts=[];
-  if(s.counts.task) counts.push(s.counts.task+' task'+(s.counts.task===1?'':'s'));
-  if(s.counts.note) counts.push(s.counts.note+' note'+(s.counts.note===1?'':'s'));
-  if(s.counts.evidence) counts.push(s.counts.evidence+' evidence chunk'+(s.counts.evidence===1?'':'s'));
-  if(s.counts.other) counts.push(s.counts.other+' other');
-  const phase=meta.phase?('phase '+meta.phase):'phase pending';
-  const boost=s.nodeFirst?(' · node matches promoted '+s.nodeFirst):'';
-  const rerank=s.reranked?(' · rerank '+s.reranked):'';
-  const rows=s.rows.map((row,i)=>
-    '<div class="css-hit"><span class="css-rank">'+(i+1)+'.</span><span class="css-kind">'+esc(row.kind)+'</span><span class="css-text">'+esc(truncate(row.title,64))+'</span></div>'
-  ).join('');
-  el.innerHTML='<div class="css-title">Agent RAG summary</div>'+
-    '<div class="css-meta">'+esc(s.unique+' shown from '+s.total+' ranked · '+(counts.join(', ')||'no typed hits')+' · '+phase+boost+rerank)+'</div>'+
-    (rows||'<div class="css-meta">No ranked items returned.</div>');
-  el.classList.add('show');
 }
 function cloudEdgeKey(a,b){
   a=cloudNodeKey(a); b=cloudNodeKey(b);
@@ -5323,8 +5383,6 @@ function scheduleCloudSearch(){
     cloudSearchPending=false;
     cloudSearchError=false;
     cloudSearchTrace=null;
-    cloudSearchSummary=null;
-    renderCloudSearchSummary();
     if(lastState) renderCloud(lastState);
     return;
   }
@@ -5333,8 +5391,6 @@ function scheduleCloudSearch(){
   cloudSearchPending=true;
   cloudSearchError=false;
   cloudSearchTrace=null;
-  cloudSearchSummary=null;
-  renderCloudSearchSummary();
   if(lastState) renderCloud(lastState);
   const seq=++cloudSearchSeq;
   cloudSearchTimer=setTimeout(async()=>{
@@ -5343,7 +5399,7 @@ function scheduleCloudSearch(){
     const ctl=new AbortController();
     const timeout=setTimeout(()=>ctl.abort(),30000);
     try{
-      const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50',{ signal:ctl.signal });
+      const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50&node_first=1',{ signal:ctl.signal });
       const data=await res.json();
       items=Array.isArray(data)?data:(data.results||[]);
       if(seq!==cloudSearchSeq) return;
@@ -5360,8 +5416,6 @@ function scheduleCloudSearch(){
       cloudSearchPending=false;
       cloudSearchError=false;
       cloudSearchTrace=buildCloudSearchTrace(items,q);
-      cloudSearchSummary=buildCloudSearchSummary(items,q);
-      renderCloudSearchSummary({ phase:'hits' });
       scheduleCloudSearchFrames(seq);
     }catch(e){
       if(seq!==cloudSearchSeq) return;
@@ -5371,8 +5425,6 @@ function scheduleCloudSearch(){
       cloudSearchPending=false;
       cloudSearchError=true;
       cloudSearchTrace=null;
-      cloudSearchSummary=null;
-      renderCloudSearchSummary();
     }finally{
       clearTimeout(timeout);
     }
@@ -5385,16 +5437,26 @@ document.getElementById('cloudSearchInput').addEventListener('input', e=>{
 });
 
 const STATUS_COLOR={not_ready:'#6e7681',ready:'#e3b341',in_progress:'#58a6ff',tested:'#2dd4bf',done:'#3fb950',failed:'#ff7b72',canceled:'#484f58',note:'#d29922'};
-function renderCloud(d){
-  const svgEl=document.getElementById('cloudsvg');
+function renderCloud(d, opts={}){
+  const isOnboard=opts.mode==='onboard';
+  const svgEl=opts.svgEl||document.getElementById('cloudsvg');
+  if(!svgEl) return;
   const W=svgEl.clientWidth||800, H=svgEl.clientHeight||600, cx=W/2, cy=H/2;
+  const shouldAnimateCloud=isOnboard||opts.breathe;
   const svg=d3.select(svgEl);
+  const posStore=isOnboard?onboardCloudRenderState.pos:cloudPos;
+  const getSim=()=>isOnboard?onboardCloudRenderState.sim:cloudSim;
+  const setSim=v=>{ if(isOnboard) onboardCloudRenderState.sim=v; else cloudSim=v; };
+  const getSig=()=>isOnboard?onboardCloudRenderState.sig:cloudSig;
+  const setSig=v=>{ if(isOnboard) onboardCloudRenderState.sig=v; else cloudSig=v; };
+  const getZoom=()=>isOnboard?onboardCloudRenderState.zoom:cloudZoom;
+  const setZoom=v=>{ if(isOnboard) onboardCloudRenderState.zoom=v; else cloudZoom=v; };
   const tasks=d.tasks||[];
   const archivedList=d.archived_tasks||[];
   const archivedCount=d.summary?.archived??archivedList.length;
   const byId=Object.fromEntries(tasks.map(t=>[t.id,t]));
   for(const t of archivedList) byId[t.id]=t;
-  const q=cloudSearchText.trim().toLowerCase();
+  const q=isOnboard?'':cloudSearchText.trim().toLowerCase();
   const remoteFresh=q&&cloudSearchResolvedText===q&&!cloudSearchError;
   const trace=(cloudSearchTrace&&cloudSearchTrace.query===q)?cloudSearchTrace:null;
   const traceAge=trace?Math.max(0,Date.now()-(trace.startedAt||Date.now())):0;
@@ -5470,13 +5532,21 @@ function renderCloud(d){
   const byNode=Object.fromEntries(simNodes.map(n=>[n.id,n]));
   const simLinks=linkSet.filter(l=>present.has(l.source)&&present.has(l.target)).map((l,i)=>({...l,_idx:i}));
 
+  const cloudDepth=id=>{
+    let h=0; const s=String(id||'');
+    for(let i=0;i<s.length;i++) h=((h<<5)-h+s.charCodeAt(i))|0;
+    return ((Math.abs(h)%2000)/1000)-1;
+  };
+  for(const n of simNodes) n.z=cloudDepth(n.id);
   const maxAge=Math.max(1, ...simNodes.map(n=>n.age||0));
-  const radiusOf=n=>{ if(n.archive) return 16; let r=6+Math.min(12,n.deg*2); if(n.tier==='mid') r*=0.8; if(n.tier==='bg') r*=0.55; if(n.age!=null) r*=(1-0.5*(n.age/maxAge)); return Math.max(3,r); };
+  const depthScale=n=>0.82+((n.z+1)/2)*0.34;
+  const radiusOf=n=>{ if(n.archive) return 16*depthScale(n); let r=6+Math.min(12,n.deg*2); if(n.tier==='mid') r*=0.8; if(n.tier==='bg') r*=0.55; if(n.age!=null) r*=(1-0.5*(n.age/maxAge)); return Math.max(3,r*depthScale(n)); };
   const isInactive=n=>n.t&&(n.t.status==='done'||n.t.status==='canceled');
   const opacityOf=n=>{
     let o=n.tier==='fg'?1:n.tier==='mid'?0.55:0.25;
     if(n.age!=null) o*=(1-0.45*(n.age/maxAge));
     if(isInactive(n)) o*=0.25;
+    o*=0.72+((n.z+1)/2)*0.28;
     if(q){
       if(searchNodeVisible(n)) return Math.max(traceFinal(n)||traceReranked(n)?0.9:(searchNodeActive(n)?0.55:0.16),o);
       return 0.035;
@@ -5609,6 +5679,8 @@ function renderCloud(d){
     let o=Math.max(w(a),w(b));
     const ns=byNode[endId(l.source)], nt2=byNode[endId(l.target)];
     if(ns&&nt2&&isInactive(ns)&&isInactive(nt2)) o*=0.15;
+    const depthAvg=(((ns&&Number.isFinite(ns.z))?ns.z:0)+((nt2&&Number.isFinite(nt2.z))?nt2.z:0))/2;
+    o*=0.72+((depthAvg+1)/2)*0.28;
     if(q){
       if(searchEdgeFading(l)) return 0.1;
       if(searchEdgeWalk(l)) return Math.max(0.72,o);
@@ -5620,17 +5692,19 @@ function renderCloud(d){
   };
 
   // restore prior positions so live polling doesn't re-scramble the layout
-  for(const n of simNodes){ const p=cloudPos[n.id]; if(p){ n.x=p.x; n.y=p.y; } else { n.x=cx+(Math.random()-0.5)*60; n.y=cy+(Math.random()-0.5)*60; } }
+  for(const n of simNodes){ const p=posStore[n.id]; if(p){ n.x=p.x; n.y=p.y; } else { n.x=cx+(Math.random()-0.5)*60; n.y=cy+(Math.random()-0.5)*60; } }
 
   // persistent zoom/pan container
   let root=svg.select('g.zoomroot');
   if(root.empty()){
     root=svg.append('g').attr('class','zoomroot');
-    cloudZoom=d3.zoom().scaleExtent([0.2,4]).on('zoom',ev=>root.attr('transform',ev.transform));
-    svg.call(cloudZoom);
-  } else if(!cloudZoom){
-    cloudZoom=d3.zoom().scaleExtent([0.2,4]).on('zoom',ev=>root.attr('transform',ev.transform));
-    svg.call(cloudZoom);
+    if(!isOnboard){
+      setZoom(d3.zoom().scaleExtent([0.2,4]).on('zoom',ev=>root.attr('transform',ev.transform)));
+      svg.call(getZoom());
+    }
+  } else if(!isOnboard&&!getZoom()){
+    setZoom(d3.zoom().scaleExtent([0.2,4]).on('zoom',ev=>root.attr('transform',ev.transform)));
+    svg.call(getZoom());
   }
   let linkG=root.select('g.links'); if(linkG.empty()) linkG=root.append('g').attr('class','links');
   let nodeG=root.select('g.nodes'); if(nodeG.empty()) nodeG=root.append('g').attr('class','nodes');
@@ -5649,15 +5723,17 @@ function renderCloud(d){
     .classed('cloud-search-walk', l=>searchEdgeWalk(l))
     .classed('cloud-search-related', l=>searchEdgeRelated(l))
     .classed('cloud-search-final-edge', l=>searchEdgeFinal(l))
+    .classed('cloud-breathe', () => shouldAnimateCloud)
     .style('animation-delay', l=>searchEdgeRelated(l)?(Math.min(edgeActivationIndex(l),8)*45)+'ms':null);
 
   const nodeSel=nodeG.selectAll('g.cn').data(simNodes, n=>n.id);
   nodeSel.exit().remove();
-  const ndEnter=nodeSel.enter().append('g').attr('class','cn');
+  const ndEnter=nodeSel.enter().append('g').attr('class','cn').classed('cloud-born', isOnboard);
   ndEnter.append('circle');
   ndEnter.append('title');
   ndEnter.append('text').attr('text-anchor','middle').attr('dy',n=>n.archive?'0.35em':'-0.9em');
   const nodeAll=ndEnter.merge(nodeSel);
+  nodeAll.sort((a,b)=>(a.z||0)-(b.z||0));
   nodeAll.attr('transform', n=>`translate(${n.x},${n.y})`);
   const stagedTraceHit=n=>traceHit(n)&&activatedSearch(n);
   const stagedTracePath=n=>trace&&!traceHit(n)&&activeNodeHops.has(n.id)&&activatedSearch(n);
@@ -5671,6 +5747,8 @@ function renderCloud(d){
     .classed('cloud-search-hit', n=>stagedTraceHit(n))
     .classed('cloud-search-final', n=>stagedTraceFinal(n))
     .classed('cloud-search-reranked', n=>stagedTraceReranked(n))
+    .classed('cloud-depth', true)
+    .classed('cloud-breathe', () => shouldAnimateCloud)
     .style('animation-delay', n=>stagedTraceHit(n)?(Math.min(trace.hitRank.get(n.id)||0,8)*45)+'ms':null);
   const isDirectSearchMatch=n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n));
   const matchCount=q?simNodes.filter(isDirectSearchMatch).length:0;
@@ -5703,20 +5781,23 @@ function renderCloud(d){
       traceEl.classList.remove('show');
     }
   }
-  renderCloudSearchSummary({ phase:searchPhase });
   const showCloudLabel=n=> q?(!n.archive&&activatedSearch(n)):(n.archive||n.tier==='fg');
   nodeAll.select('title')
     .text(n=> n.archive?'Archived — stale done/canceled and superseded notes':'');
   nodeAll.select('text')
     .text(n=> showCloudLabel(n)?(n.archive?('🗄 '+n.count):((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22))):'')
     .attr('fill-opacity', n=>showCloudLabel(n)?0.9:0);
-  nodeAll.on('click',(ev,n)=>{ if(n.archive){ cloudArchiveOpen=!cloudArchiveOpen; cloudSig=''; renderCloud(lastState); } else openDetail(n.id); })
-    .on('mouseenter',function(ev,n){ if(!n.archive&&(!q||activatedSearch(n))) d3.select(this).select('text').text(truncate(n.t.label,22)).attr('fill-opacity',0.9); })
-    .on('mouseleave',function(ev,n){ if(!showCloudLabel(n)) d3.select(this).select('text').attr('fill-opacity',0); })
-    .call(d3.drag()
-      .on('start',(ev,n)=>{ if(!ev.active) cloudSim.alphaTarget(0.2).restart(); n.fx=n.x; n.fy=n.y; })
-      .on('drag', (ev,n)=>{ n.fx=ev.x; n.fy=ev.y; })
-      .on('end',  (ev,n)=>{ if(!ev.active) cloudSim.alphaTarget(0); n.fx=null; n.fy=null; }));
+  if(isOnboard){
+    nodeAll.on('click',null).on('mouseenter',null).on('mouseleave',null);
+  } else {
+    nodeAll.on('click',(ev,n)=>{ if(n.archive){ cloudArchiveOpen=!cloudArchiveOpen; cloudSig=''; renderCloud(lastState); } else openDetail(n.id); })
+      .on('mouseenter',function(ev,n){ if(!n.archive&&(!q||activatedSearch(n))) d3.select(this).select('text').text(truncate(n.t.label,22)).attr('fill-opacity',0.9); })
+      .on('mouseleave',function(ev,n){ if(!showCloudLabel(n)) d3.select(this).select('text').attr('fill-opacity',0); })
+      .call(d3.drag()
+        .on('start',(ev,n)=>{ const sim=getSim(); if(!ev.active&&sim) sim.alphaTarget(0.2).restart(); n.fx=n.x; n.fy=n.y; })
+        .on('drag', (ev,n)=>{ n.fx=ev.x; n.fy=ev.y; })
+        .on('end',  (ev,n)=>{ const sim=getSim(); if(!ev.active&&sim) sim.alphaTarget(0); n.fx=null; n.fy=null; }));
+  }
 
   // only reheat the simulation when the node/link set actually changes
   const sig=simNodes.map(n=>n.id).sort().join(',')+'|'+simLinks.map(l=>endId(l.source)+'>'+endId(l.target)).sort().join(',')+'|archOpen:'+cloudArchiveOpen+'|archIds:'+archivedList.map(t=>t.id).sort().join(',');
@@ -5725,25 +5806,47 @@ function renderCloud(d){
     linkAll
       .attr('x1',l=>endpoint(l.source)?.x).attr('y1',l=>endpoint(l.source)?.y)
       .attr('x2',l=>endpoint(l.target)?.x).attr('y2',l=>endpoint(l.target)?.y);
-    nodeAll.attr('transform', n=>{ cloudPos[n.id]={x:n.x,y:n.y}; return `translate(${n.x},${n.y})`; });
+    const t=Date.now()/1200;
+    nodeAll.attr('transform', n=>{
+      posStore[n.id]={x:n.x,y:n.y};
+      const px=shouldAnimateCloud?Math.sin(t+n.z*2.7)*n.z*10:0;
+      const py=shouldAnimateCloud?Math.cos(t*.8+n.z*2.1)*n.z*6:0;
+      return `translate(${n.x+px},${n.y+py})`;
+    });
   };
   if(q){
-    if(cloudSim) cloudSim.stop();
+    if(getSim()) getSim().stop();
     placeCloud();
-    cloudSig=sig;
-  } else if(sig!==cloudSig||!cloudSim){
-    if(cloudSim) cloudSim.stop();
-    cloudSim=d3.forceSimulation(simNodes)
+    setSig(sig);
+  } else if(sig!==getSig()||!getSim()){
+    if(getSim()) getSim().stop();
+    setSim(d3.forceSimulation(simNodes)
       .force('link', d3.forceLink(simLinks).id(n=>n.id).distance(70).strength(0.35))
       .force('charge', d3.forceManyBody().strength(-200))
       .force('collide', d3.forceCollide().radius(n=>radiusOf(n)+4))
       .force('radial', d3.forceRadial(targetRadius, cx, cy).strength(n=>n.tier==='fg'?0.05:0.22))
       .force('center', d3.forceCenter(cx,cy).strength(0.02))
-      .on('tick', placeCloud);
-    cloudSim.alpha(0.6).restart();
-    cloudSig=sig;
+      .on('tick', placeCloud));
+    getSim().alpha(0.6).restart();
+    setSig(sig);
   } else {
     placeCloud();
+  }
+  if(isOnboard){
+    if(onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
+    let lastFrame=0;
+    const animateOnboardCloud=ts=>{
+      if(!svgEl.isConnected || !document.body.classList.contains('onboarding-pending')){
+        onboardCloudRenderState.raf=null;
+        return;
+      }
+      if(ts-lastFrame>=80){
+        placeCloud();
+        lastFrame=ts;
+      }
+      onboardCloudRenderState.raf=requestAnimationFrame(animateOnboardCloud);
+    };
+    onboardCloudRenderState.raf=requestAnimationFrame(animateOnboardCloud);
   }
   const statsElC = document.getElementById('flowstats');
   if (statsElC) {
@@ -6638,23 +6741,50 @@ setView(currentView);              // apply persisted view + toggle state on loa
   runHealthCheck();
 })();
 
-// Original bootstrap: tick + poll interval + SSE (these are now also managed
-// by daemonResilience above, but we keep the original safety poll and initial
-// tick so the page works even if the overlay logic has a bug).
-tick(); setInterval(tick, 2000);   // safety poll
+// Original bootstrap: tick + fallback poll + SSE (these are now also managed
+// by daemonResilience above). Keep one initial tick, but make the fallback slow:
+// large onboarded workspaces can make /state tens of MB, so SSE should carry
+// live updates and the interval is only a coarse safety net.
+tick(); setInterval(tick, 30000);   // safety poll
 // SSE is now set up inside daemonResilience; skip bare try/catch here to avoid
 // a duplicate EventSource — daemonResilience.setupSSE() handles it.
 // (The bare line below is intentionally removed and replaced above.)
 
 // ---- Onboarding / Learning stage detection ----
 // A workspace is considered onboarded when it has at least one note node whose
-// title starts with "[ingest]". Until then, show a setup banner and disable
-// any task-creation buttons.
+// title starts with "[ingest]". Until then, hide the dashboard and auto-start
+// the gated learning flow.
+let onboardAutoStartInFlight = false;
+let onboardPollTimer = null;
+const ONBOARD_POLL_MS = 1200;
+
 async function checkOnboardingState() {
-  // Respect a per-workspace "dismissed" preference stored in localStorage.
   const workspace = currentOnboardWorkspace();
-  const wsKey = 'onboard_dismissed_' + (workspace || location.hostname || 'local');
-  if (localStorage.getItem(wsKey) === '1') return;
+  const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
+
+  if (workspace && storedOutDir) {
+    try {
+      const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(storedOutDir));
+      const st = await r.json();
+      if (st.ok && st.status && !onboardStatusComplete(st.status)) {
+        const shouldResumeDrain = onboardStatusNeedsResume(st.status);
+        showOnboardLanding();
+        const landing = document.getElementById('onboard-landing');
+        if (landing) {
+          landing.dataset.repo = workspace;
+          landing.dataset.outDir = storedOutDir;
+          landing.dataset.draining = shouldResumeDrain ? '' : '1';
+        }
+        updateOnboardFromStatus(st.status);
+        if (shouldResumeDrain) ensureOnboardLearning(workspace);
+        else pollOnboardLearning();
+        return;
+      }
+    } catch (e) {
+      // Fall through to note detection and auto-start. The status endpoint may be
+      // unavailable before the queue has been created.
+    }
+  }
 
   let notes = [];
   try {
@@ -6669,12 +6799,18 @@ async function checkOnboardingState() {
   }
 
   if (notes.length > 0) {
-    // Already onboarded — ensure banner is gone and buttons are enabled.
-    removeOnboardBanner();
+    completeOnboardLearning();
     return;
   }
 
-  showOnboardBanner(wsKey);
+  showOnboardLanding();
+  renderOnboardCloud({ total: 0, processed: 0, kept: 0, injectedKept: 0 });
+  if (workspace) ensureOnboardLearning(workspace);
+  else {
+    setOnboardStage('mine');
+    setOnboardStatus('Waiting for workspace path...', true);
+    setTimeout(checkOnboardingState, 1000);
+  }
 }
 
 function currentOnboardWorkspace() {
@@ -6685,96 +6821,12 @@ function onboardStoreKey(suffix) {
   return 'onboard_' + suffix + '_' + (currentOnboardWorkspace() || location.hostname || 'local');
 }
 
-function showOnboardBanner(wsKey) {
-  if (document.getElementById('onboard-banner')) return; // already shown
-
-  const banner = document.createElement('div');
-  banner.id = 'onboard-banner';
-  banner.style.cssText = [
-    'margin: 0',
-    'padding: 14px 18px',
-    'background: #161b22',
-    'border-bottom: 1px solid #30363d',
-    'border-left: 4px solid #1f6feb',
-    'color: #c9d1d9',
-    'font-size: 13px',
-    'position: relative',
-  ].join(';');
-
-  const workspace = currentOnboardWorkspace();
-  const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
-  banner.innerHTML = [
-    '<div style="font-weight:600;font-size:14px;color:#79c0ff;margin-bottom:6px">Setup &amp; Learning in progress</div>',
-    '<div style="margin-bottom:10px;color:#adbac7">This workspace has no injected onboarding notes yet. Run the gated learning flow here, or use <code style="background:#0d1117;padding:1px 5px;border-radius:4px;color:#e6edf3">npx @zonoid/cli onboard</code> for a review bundle.</div>',
-    '<div style="display:flex;gap:0;align-items:center;flex-wrap:wrap">',
-      '<div style="display:flex;align-items:center;gap:6px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:6px 12px;font-size:12px">',
-        '<span style="color:#8b949e">Step 1</span>',
-        '<span style="color:#e6edf3;font-weight:600">Mine</span>',
-      '</div>',
-      '<div style="color:#484f58;padding:0 8px">→</div>',
-      '<div style="display:flex;align-items:center;gap:6px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:6px 12px;font-size:12px">',
-        '<span style="color:#8b949e">Step 2</span>',
-        '<span style="color:#e6edf3;font-weight:600">Validate</span>',
-      '</div>',
-      '<div style="color:#484f58;padding:0 8px">→</div>',
-      '<div style="display:flex;align-items:center;gap:6px;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:6px 12px;font-size:12px">',
-        '<span style="color:#8b949e">Step 3</span>',
-        '<span style="color:#e6edf3;font-weight:600">Review &amp; Inject</span>',
-      '</div>',
-    '</div>',
-    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">',
-      '<button id="onboardStartBtn" onclick="startOnboardLearning()" style="background:#1f6feb33;border:1px solid #1f6feb55;color:#79c0ff;border-radius:6px;padding:5px 10px;cursor:pointer;font:inherit;font-size:12px">Start learning</button>',
-      '<button id="onboardInjectBtn" onclick="injectOnboardLearning()" style="background:#2ea04333;border:1px solid #2ea04388;color:#7ee787;border-radius:6px;padding:5px 10px;cursor:pointer;font:inherit;font-size:12px;display:none">Inject reviewed notes</button>',
-      '<span id="onboardStatus" style="font-size:12px;color:#8b949e"></span>',
-    '</div>',
-    '<button onclick="dismissOnboardBanner()" title="Hide for this session" style="',
-      'position:absolute;top:10px;right:14px;',
-      'background:transparent;border:1px solid #30363d;border-radius:6px;',
-      'color:#8b949e;cursor:pointer;font:inherit;font-size:12px;padding:2px 10px;',
-    '">Dismiss</button>',
-  ].join('');
-
-  // Insert before the graph area (after #guidance).
-  const guidance = document.getElementById('guidance');
-  guidance.parentNode.insertBefore(banner, guidance.nextSibling);
-
-  // Disable task-creation buttons if any exist.
-  setTaskCreationDisabled(true);
-
-  // Store wsKey on the banner so dismiss can use it.
-  banner.dataset.wsKey = wsKey;
-  banner.dataset.repo = workspace;
-  banner.dataset.outDir = storedOutDir;
-  if (storedOutDir) pollOnboardLearning();
-}
-
-function removeOnboardBanner() {
-  const b = document.getElementById('onboard-banner');
-  if (b) b.remove();
-  setTaskCreationDisabled(false);
-}
-
-function dismissOnboardBanner() {
-  const b = document.getElementById('onboard-banner');
-  if (!b) return;
-  if (b.dataset.wsKey) localStorage.setItem(b.dataset.wsKey, '1');
-  removeOnboardBanner();
-}
-
-function setTaskCreationDisabled(disabled) {
-  // Target any buttons whose text content or id suggests task creation.
-  document.querySelectorAll('button').forEach(btn => {
-    const label = (btn.textContent || '').trim().toLowerCase();
-    const id = (btn.id || '').toLowerCase();
-    if (label.includes('new task') || label.includes('create task') || id.includes('new-task') || id.includes('create-task')) {
-      if (disabled) {
-        btn.disabled = true;
-        btn.title = 'Complete onboarding first';
-      } else {
-        btn.disabled = false;
-        if (btn.title === 'Complete onboarding first') btn.title = '';
-      }
-    }
+function showOnboardLanding() {
+  document.body.classList.add('onboarding-pending');
+  const cloud = document.querySelector('.ol-cloud');
+  if (cloud) cloud.classList.add('is-live');
+  document.querySelectorAll('#settingsPopup,#guidance,#historyPopup,#activityPopup,#costPopup,#billingPopup,#cronPopup,#noteOverlay').forEach(el => {
+    el.classList.remove('show', 'has-pending');
   });
 }
 
@@ -6782,82 +6834,221 @@ function setOnboardStatus(msg, isError) {
   const el = document.getElementById('onboardStatus');
   if (!el) return;
   el.textContent = msg || '';
-  el.style.color = isError ? '#f85149' : '#8b949e';
+  el.classList.toggle('err', !!isError);
 }
 
-function setOnboardBusy(busy) {
-  const btn = document.getElementById('onboardStartBtn');
-  if (btn) btn.disabled = !!busy;
+function setOnboardStage(stage) {
+  const label = document.getElementById('onboardStageLabel');
+  if (label) {
+    label.textContent = stage === 'review' ? 'Finalizing live injection' :
+      stage === 'validate' ? 'Validating learned candidates' :
+      'Mining repository candidates';
+  }
 }
 
-async function startOnboardLearning() {
-  const b = document.getElementById('onboard-banner');
-  const repo = currentOnboardWorkspace();
-  if (!b || !repo) { setOnboardStatus('No workspace path available yet.', true); return; }
+function setOnboardProgress(processed, total, kept=0, injected=0, inflight=0) {
+  const safeTotal = Math.max(0, Number(total) || 0);
+  const safeProcessed = Math.max(0, Number(processed) || 0);
+  const safeInflight = Math.max(0, Number(inflight) || 0);
+  const stat = document.getElementById('onboardProgressStat');
+  if (stat) {
+    const live = safeInflight ? ` · learning ${safeInflight}` : '';
+    stat.textContent = `Processed ${safeProcessed}/${safeTotal}${live} · kept ${Math.max(0, Number(kept)||0)} · injected ${Math.max(0, Number(injected)||0)}`;
+  }
+}
+
+function setOnboardInjectVisible(visible, busy) {
+  const btn = document.getElementById('onboardInjectBtn');
+  if (!btn) return;
+  btn.style.display = visible ? '' : 'none';
+  btn.disabled = !!busy;
+}
+
+function buildOnboardCloudState(s={}) {
+  const total = Math.max(0, Number(s.total) || 0);
+  const processed = Math.max(0, Number(s.processed) || 0);
+  const visualProcessed = Math.max(processed, Number(s.visualProcessed) || 0);
+  const inflight = Math.max(0, Number(s.inflight) || 0);
+  const kept = Math.max(0, Number(s.kept) || Number(s.injectedKept) || 0);
+  const injected = Math.max(0, Number(s.injectedKept) || (s.injected ? kept : 0));
+  const keptNotes = Array.isArray(s.keptNotes) ? s.keptNotes : [];
+  const progress = total ? Math.min(1, visualProcessed / total) : 0.08;
+  const learnedCount = Math.max(4, Math.min(64, Math.ceil(progress * 44) + Math.min(kept, 20)));
+  const injectedCount = Math.min(injected, learnedCount);
+  const liveTail = !s.done ? Math.max(3, Math.min(12, Math.ceil(Math.max(1, inflight) / 2))) : 0;
+  const tasks = [];
+  const noteLabel = (i, fallback) => {
+    const title = String(keptNotes[i] && keptNotes[i].title || '').replace(/^\[ingest\]\s*/i, '').trim();
+    return title || fallback;
+  };
+  const noteSummary = i => String(keptNotes[i] && keptNotes[i].summary || '').trim() || 'Onboarding learning cloud node';
+  for (let i = 0; i < learnedCount; i++) {
+    const isInjected = i < injectedCount;
+    const isKept = i < kept;
+    tasks.push({
+      id: `onboard/${i}`,
+      label: isInjected ? noteLabel(i, `injected note ${i + 1}`) : (isKept ? noteLabel(i, `kept note ${i + 1}`) : `candidate ${i + 1}`),
+      description: isKept || isInjected ? noteSummary(i) : 'Onboarding learning cloud node',
+      status: isInjected ? 'done' : (i >= Math.max(0, learnedCount - liveTail) && !s.done ? 'in_progress' : 'tested'),
+      kind: isKept || isInjected ? 'note' : 'task',
+      deps: i > 0 && i % 3 !== 0 ? [`onboard/${i - 1}`] : [],
+      context_deps: i > 2 && i % 4 === 0 ? [`onboard/${Math.max(0, i - 3)}`] : [],
+    });
+  }
+  const edges = [];
+  for (let i = 1; i < learnedCount; i++) {
+    if (i % 3 !== 0) edges.push({ from: `onboard/${i - 1}`, to: `onboard/${i}`, kind: i < injectedCount ? 'context' : 'blocking' });
+    if (i > 3 && i % 5 === 0) edges.push({ from: `onboard/${i - 3}`, to: `onboard/${i}`, kind: 'context' });
+  }
+  return { tasks, edges, archived_tasks: [], summary: { archived: 0 } };
+}
+
+function renderOnboardCloud(status={}) {
+  const svgEl = document.getElementById('onboardCloudSvg');
+  if (!svgEl || typeof d3 === 'undefined') return;
+  renderCloud(buildOnboardCloudState(status), { mode: 'onboard', svgEl, breathe: true });
+}
+
+function completeOnboardLearning() {
+  clearTimeout(onboardPollTimer);
+  onboardPollTimer = null;
+  if (onboardCloudRenderState.raf) cancelAnimationFrame(onboardCloudRenderState.raf);
+  onboardCloudRenderState.raf = null;
+  if (onboardCloudRenderState.sim) onboardCloudRenderState.sim.stop();
+  const cloud = document.querySelector('.ol-cloud');
+  if (cloud) cloud.classList.remove('is-live');
+  onboardAutoStartInFlight = false;
+  localStorage.removeItem(onboardStoreKey('outdir'));
+  document.body.classList.remove('onboarding-pending');
+  setOnboardInjectVisible(false, false);
+  setOnboardStatus('');
+  if (typeof tick === 'function') tick();
+}
+
+function onboardStatusComplete(s) {
+  return !!(s && s.done && (s.injected || (!s.autoInject && s.needsReview === false)));
+}
+
+function onboardStatusNeedsResume(s) {
+  return !!(s && (s.done !== true || s.recovered || s.active === false || !s.injected));
+}
+
+async function ensureOnboardLearning(repo) {
+  const landing = document.getElementById('onboard-landing');
+  if (!landing || onboardAutoStartInFlight || landing.dataset.draining === '1') return;
+  const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
+
   try {
-    setOnboardBusy(true);
-    setOnboardStatus('Mining candidates...');
-    const enq = await (await dfetch('/onboard/enqueue', {
-      method: 'POST',
-      headers: {'content-type':'application/json'},
-      body: JSON.stringify({repo})
-    })).json();
-    if (!enq.ok) throw new Error(enq.error || 'enqueue failed');
-    b.dataset.repo = repo;
-    b.dataset.outDir = enq.outDir;
-    localStorage.setItem(onboardStoreKey('outdir'), enq.outDir);
-    setOnboardStatus('Learning queued...');
+    onboardAutoStartInFlight = true;
+    setOnboardInjectVisible(false, false);
+
+    let outDir = storedOutDir;
+    if (!outDir) {
+      setOnboardStage('mine');
+      setOnboardStatus('Mining candidates...');
+      const enq = await (await dfetch('/onboard/enqueue', {
+        method: 'POST',
+        headers: {'content-type':'application/json'},
+        body: JSON.stringify({repo})
+      })).json();
+      if (!enq.ok) throw new Error(enq.error || 'enqueue failed');
+      outDir = enq.outDir;
+      localStorage.setItem(onboardStoreKey('outdir'), outDir);
+      setOnboardProgress(enq.total - enq.remaining, enq.total, 0, 0);
+      renderOnboardCloud({ total: enq.total, processed: enq.total - enq.remaining, kept: 0, injectedKept: 0 });
+    }
+
+    landing.dataset.repo = repo;
+    landing.dataset.outDir = outDir;
+    landing.dataset.draining = '1';
+    setOnboardStage('validate');
+    setOnboardStatus(storedOutDir ? 'Resuming learning queue...' : 'Learning queued...');
     const dr = await (await dfetch('/onboard/drain-queue', {
       method: 'POST',
       headers: {'content-type':'application/json'},
-      body: JSON.stringify({repo, outDir: enq.outDir})
+      body: JSON.stringify({repo, outDir, autoInject: true, liveInject: true})
     })).json();
     if (!dr.ok) throw new Error(dr.error || 'drain failed');
+    updateOnboardFromStatus(dr.status || {});
     pollOnboardLearning();
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
-    setOnboardBusy(false);
+    const landing = document.getElementById('onboard-landing');
+    if (landing) landing.dataset.draining = '';
+  } finally {
+    onboardAutoStartInFlight = false;
   }
 }
 
 async function pollOnboardLearning() {
-  const b = document.getElementById('onboard-banner');
-  if (!b || !b.dataset.repo || !b.dataset.outDir) return;
+  clearTimeout(onboardPollTimer);
+  onboardPollTimer = null;
+  const landing = document.getElementById('onboard-landing');
+  if (!landing || !landing.dataset.repo || !landing.dataset.outDir) return;
   try {
-    const st = await (await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(b.dataset.repo) + '&outDir=' + encodeURIComponent(b.dataset.outDir))).json();
+    const st = await (await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(landing.dataset.repo) + '&outDir=' + encodeURIComponent(landing.dataset.outDir))).json();
     if (!st.ok) throw new Error(st.error || 'status unavailable');
-    const s = st.status || {};
-    setOnboardStatus(s.error ? s.error : `Processed ${s.processed || 0}/${s.total || 0}`);
-    if (s.done) {
-      setOnboardBusy(false);
-      const inject = document.getElementById('onboardInjectBtn');
-      if (inject && !s.injected) inject.style.display = '';
-      if (s.injected) { setOnboardStatus('Injected. Refreshing graph...'); setTimeout(checkOnboardingState, 1000); }
+    if (updateOnboardFromStatus(st.status || {})) {
       return;
     }
-    setTimeout(pollOnboardLearning, 3000);
+    onboardPollTimer = setTimeout(pollOnboardLearning, ONBOARD_POLL_MS);
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
-    setOnboardBusy(false);
+    if (landing) landing.dataset.draining = '';
   }
 }
 
+function updateOnboardFromStatus(s) {
+  const total = s.total || 0;
+  const processed = typeof s.processed === 'number' ? s.processed : Math.max(0, total - (s.remaining || 0));
+  const visualProcessed = Math.max(processed, Number(s.visualProcessed) || 0);
+  const inflight = Math.max(0, Number(s.inflight) || 0);
+  const kept = typeof s.kept === 'number' ? s.kept : 0;
+  const injected = typeof s.injectedKept === 'number' ? s.injectedKept : (s.injected ? kept : 0);
+  const cloud = document.querySelector('.ol-cloud');
+  if (cloud) cloud.classList.toggle('is-live', !s.done && !s.error);
+  setOnboardProgress(processed, total, kept, injected, inflight);
+  renderOnboardCloud({ ...s, total, processed, visualProcessed, kept, inflight, injectedKept: injected });
+  if (s.error) {
+    setOnboardStatus(s.error, true);
+    return true;
+  }
+  if (!s.done) {
+    setOnboardStage('validate');
+    const live = inflight ? `; learning ${inflight} live candidates now` : '';
+    setOnboardStatus(`Processed ${processed}/${total}${live}; live notes appear as they are kept.`);
+    return false;
+  }
+  const landing = document.getElementById('onboard-landing');
+  if (landing) landing.dataset.draining = '';
+  if (s.injected) {
+    setOnboardStage('review');
+    setOnboardStatus('Injected. Refreshing graph...');
+    setTimeout(completeOnboardLearning, 800);
+    return true;
+  }
+  setOnboardStage('review');
+  setOnboardStatus(s.autoInject ? 'Final live injection is still running...' : `Processed ${processed}/${total}`);
+  return false;
+}
+
 async function injectOnboardLearning() {
-  const b = document.getElementById('onboard-banner');
-  if (!b || !b.dataset.repo || !b.dataset.outDir) return;
+  const landing = document.getElementById('onboard-landing');
+  if (!landing || !landing.dataset.repo || !landing.dataset.outDir) return;
   try {
+    setOnboardInjectVisible(true, true);
     setOnboardStatus('Injecting reviewed notes...');
     const r = await (await dfetch('/onboard/inject', {
       method: 'POST',
       headers: {'content-type':'application/json'},
-      body: JSON.stringify({repo: b.dataset.repo, outDir: b.dataset.outDir})
+      body: JSON.stringify({repo: landing.dataset.repo, outDir: landing.dataset.outDir})
     })).json();
     if (!r.ok) throw new Error(r.error || 'inject failed');
-    localStorage.removeItem(onboardStoreKey('outdir'));
-    removeOnboardBanner();
-    tick();
+    completeOnboardLearning();
+    setTimeout(checkOnboardingState, 1000);
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
+    setOnboardInjectVisible(true, false);
   }
 }
 

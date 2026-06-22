@@ -8,6 +8,7 @@ const { spawn, execFileSync } = require('child_process');
 const core = require('./lib/mcp-core');
 const { extraToolsForClient, resolveSession } = require('./lib/mcp-harness-tools');
 const { repoRoot } = require('./lib/workspace-registry');
+const { hasHeadlessDrainAncestor } = require('./lib/headless-ancestor');
 
 const CLIENT = String(process.env.ORCH_CLIENT || 'claude').trim() || 'claude';
 
@@ -33,22 +34,6 @@ function daemonEnv() {
   delete env.ZONOID_HARNESS;
   delete env.ORCH_CLIENT;
   return env;
-}
-
-function hasHeadlessDrainAncestor() {
-  let pid = process.ppid;
-  for (let i = 0; i < 6 && pid && pid > 1; i++) {
-    let cmd = '';
-    try { cmd = execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }); } catch { cmd = ''; }
-    if (cmd.includes('edge-judge single-pass headless mode')
-        || cmd.includes('headless mode against the orchestrator daemon')) return true;
-    let next = '';
-    try { next = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8' }).trim(); } catch { next = ''; }
-    const parsed = Number(next);
-    if (!Number.isFinite(parsed) || parsed === pid) break;
-    pid = parsed;
-  }
-  return false;
 }
 
 function hasDaemonProcess() {
@@ -77,7 +62,7 @@ function ping() {
 }
 let ensuring = null;
 async function ensureDaemon() {
-  if (process.env.ZONOID_HEADLESS_DRAIN === '1' || hasHeadlessDrainAncestor()) return;
+  if (hasHeadlessDrainAncestor()) return;
   if (await ping()) return;
   if (hasDaemonProcess()) {
     for (let i = 0; i < 20; i++) {

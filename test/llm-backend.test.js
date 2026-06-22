@@ -466,6 +466,33 @@ test('codex provider: resolveBin honors the CODEX_BIN override', () => {
   try { assert.equal(backend.codexProvider.resolveBin(), '/custom/codex'); } finally { restore(); }
 });
 
+test('codex provider: resolveBin unwraps the npm shim to the native vendor binary', { skip: process.platform === 'win32' }, () => {
+  const targets = {
+    'darwin:arm64': ['@openai/codex-darwin-arm64', 'aarch64-apple-darwin'],
+    'darwin:x64': ['@openai/codex-darwin-x64', 'x86_64-apple-darwin'],
+    'linux:arm64': ['@openai/codex-linux-arm64', 'aarch64-unknown-linux-musl'],
+    'linux:x64': ['@openai/codex-linux-x64', 'x86_64-unknown-linux-musl'],
+  };
+  const target = targets[`${process.platform}:${process.arch}`];
+  if (!target) return;
+  const [pkg, triple] = target;
+  const root = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'zonoid-codex-shim-'));
+  const binDir = pathMod.join(root, 'bin');
+  const packageRoot = pathMod.join(root, 'lib', 'node_modules', '@openai', 'codex');
+  const shim = pathMod.join(packageRoot, 'bin', 'codex.js');
+  const native = pathMod.join(packageRoot, 'node_modules', pkg, 'vendor', triple, 'bin', 'codex');
+  fs.mkdirSync(pathMod.dirname(shim), { recursive: true });
+  fs.mkdirSync(pathMod.dirname(native), { recursive: true });
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.writeFileSync(shim, '#!/usr/bin/env node\n');
+  fs.chmodSync(shim, 0o755);
+  fs.writeFileSync(native, '#!/bin/sh\n');
+  fs.chmodSync(native, 0o755);
+  fs.symlinkSync(shim, pathMod.join(binDir, 'codex'));
+  const restore = withEnv({ PATH: [binDir, '/usr/bin', '/bin'].join(pathMod.delimiter) });
+  try { assert.equal(backend.codexProvider.resolveBin(), fs.realpathSync(native)); } finally { restore(); }
+});
+
 test('codex provider: isAvailable true for an existing override bin, false (no throw) when not installed', () => {
   let restore = withEnv({ CODEX_BIN: INSTALLED_BIN });
   try { assert.equal(backend.codexProvider.isAvailable(), true, 'override pointing at a real file ⇒ available'); }
@@ -513,6 +540,9 @@ test('codex provider: buildInvocation produces the expected `codex exec` argv', 
     assert.equal(inv.bin, '/bin/codex');
     assert.ok(Array.isArray(inv.args));
     assert.equal(inv.args[0], 'exec', 'non-interactive subcommand is `exec`');
+    assert.ok(inv.args.includes('--ignore-user-config'), 'drain execs must not inherit interactive MCP config');
+    assert.ok(inv.args.includes('--ignore-rules'), 'drain execs must not inherit project/user exec rules');
+    assert.ok(inv.args.includes('--ephemeral'), 'drain execs should not persist nested sessions');
     // per-run override keeps drains compatible with installed Codex CLIs that reject newer effort labels
     assert.ok(inv.args.includes('--config'));
     assert.equal(inv.args[inv.args.indexOf('--config') + 1], 'model_reasoning_effort="high"');

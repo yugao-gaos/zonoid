@@ -261,7 +261,7 @@ async function waitForPing(ms = 8000) {
   ok('submit_judge_verdict rejects empty calls', /at least one/.test(emptyVerdict.error || ''));
 
   const drainTool = TOOLS.find((t) => t.name === 'drain_kb_queue');
-  ok('drain_kb_queue exposes opt-in autoInject', drainTool && drainTool.inputSchema.properties.autoInject && drainTool.description.includes('Default is human-gated'));
+  ok('drain_kb_queue exposes autoInject opt-out', drainTool && drainTool.inputSchema.properties.autoInject && drainTool.description.includes('Default auto-injects'));
   ok('inject_kb is on default MCP surface', TOOLS.some((t) => t.name === 'inject_kb'));
 
   const subconsciousTool = TOOLS.find((t) => t.name === 'ask_subconscious');

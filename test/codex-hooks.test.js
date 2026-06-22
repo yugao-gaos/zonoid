@@ -27,6 +27,35 @@ function waitForFile(file, ms = 5000) {
   return false;
 }
 
+function spawnUnderHeadlessAncestor(childCmd, childArgs, opts = {}) {
+  const wrapper = [
+    "process.title = 'node scripts/onboard-learn.js --drain';",
+    "const { spawnSync } = require('child_process');",
+    "const r = spawnSync(process.env.CHILD_CMD, JSON.parse(process.env.CHILD_ARGS || '[]'), {",
+    "  input: process.env.CHILD_INPUT || '',",
+    "  encoding: 'utf8',",
+    "  env: process.env,",
+    "  timeout: Number(process.env.CHILD_TIMEOUT || 5000),",
+    "});",
+    "if (r.stdout) process.stdout.write(r.stdout);",
+    "if (r.stderr) process.stderr.write(r.stderr);",
+    "if (r.error) process.stderr.write(String(r.error.message || r.error));",
+    "process.exit(r.status == null ? 1 : r.status);",
+  ].join('\n');
+  return spawnSync(process.execPath, ['-e', wrapper, 'scripts/onboard-learn.js', '--drain'], {
+    encoding: 'utf8',
+    timeout: opts.timeout || 5000,
+    env: {
+      ...process.env,
+      ...(opts.env || {}),
+      CHILD_CMD: childCmd,
+      CHILD_ARGS: JSON.stringify(childArgs || []),
+      CHILD_INPUT: opts.input || '',
+      CHILD_TIMEOUT: String(opts.timeout || 5000),
+    },
+  });
+}
+
 try {
   const codexHome = path.join(TMP, 'codex-home');
   const sessions = path.join(codexHome, 'sessions', '2026', '06', '16');
@@ -70,21 +99,19 @@ try {
   ok('agent-done forwards output tokens', args.includes('"output_tokens":50'));
 
   const skippedBridgePath = path.join(TMP, 'adapters', 'codex', 'session-bridge.json');
-  const skipStart = spawnSync('bash', [CODEX_SESSION_START], {
+  const skipStart = spawnUnderHeadlessAncestor('bash', [CODEX_SESSION_START], {
     input: JSON.stringify({
       cwd: TMP,
       session_id: 'headless-drain-session',
       transcript_path: '/tmp/headless-drain-session.jsonl',
     }),
-    encoding: 'utf8',
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: TMP, ORCH_PORT: '9', ZONOID_HEADLESS_DRAIN: '1' },
+    env: { CLAUDE_PLUGIN_DATA: TMP, ORCH_PORT: '9' },
   });
   ok('Codex SessionStart skips headless drain children', skipStart.status === 0);
   ok('Codex SessionStart skip does not write session bridge', !fs.existsSync(skippedBridgePath));
 
-  const daemonSkip = spawnSync(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    encoding: 'utf8',
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: TMP, ORCH_PORT: '18889', ZONOID_HEADLESS_DRAIN: '1' },
+  const daemonSkip = spawnUnderHeadlessAncestor(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
+    env: { CLAUDE_PLUGIN_DATA: TMP, ORCH_PORT: '18889' },
   });
   ok('daemon exits under headless drain children', daemonSkip.status === 0 && !daemonSkip.stdout.includes('orchestrator daemon on'));
 

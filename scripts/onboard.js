@@ -30,7 +30,7 @@
  * bundle. Re-running is a no-op unless --force is passed, so the setup-flow trigger can call this
  * unconditionally without re-mining an already-onboarded repo.
  *
- *   node scripts/onboard.js --repo <abs> [--out <dir>] [--model opus] [--max-keep 20]
+ *   node scripts/onboard.js --repo <abs> [--out <dir>] [--model <backend-model>] [--max-keep 20]
  *   node scripts/onboard.js --repo <abs> --force          # re-onboard even if marker present
  *   node scripts/onboard.js --repo <abs> --skip-learn     # mine + bundle the raw candidates only
  *                                                          # (no agent spawn; for sandboxed/offline)
@@ -115,7 +115,7 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
 (async () => {
   const repo = arg('repo');
   if (!repo) {
-    console.error('usage: onboard.js --repo <abs> [--out <dir>] [--model opus] [--max-keep 20] [--force] [--skip-learn]');
+    console.error('usage: onboard.js --repo <abs> [--out <dir>] [--model <backend-model>] [--max-keep 20] [--force] [--skip-learn]');
     process.exit(2);
   }
   const repoAbs = path.resolve(repo);
@@ -135,7 +135,7 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
   }
 
   fs.mkdirSync(outDir, { recursive: true });
-  const model = arg('model', 'opus');
+  const model = arg('model', null);
   const maxKeep = arg('max-keep', '20');
 
   // ---- 1. MINE (no graph mutation, no commit) ----
@@ -160,8 +160,10 @@ Every injected node is titled \`[ingest] …\` and stays filterable/removable.
     }));
     fs.writeFileSync(notesFile, JSON.stringify({ kept, rejected: [] }, null, 2) + '\n');
   } else {
-    console.error(`[onboard] 2/3 agentic validation (model=${model})…`);
-    const st = node('onboard-learn.js', ['--repo', repoAbs, '--in', outDir, '--model', model, '--max-keep', maxKeep]);
+    console.error(`[onboard] 2/3 agentic validation (${model ? `model=${model}` : 'active backend model'})…`);
+    const learnArgs = ['--repo', repoAbs, '--in', outDir, '--max-keep', maxKeep];
+    if (model) learnArgs.push('--model', model);
+    const st = node('onboard-learn.js', learnArgs);
     if (st !== 0 || !fs.existsSync(notesFile)) {
       console.error('[onboard] FAILED: learner did not produce onboard-notes.json.');
       console.error('[onboard] (sandboxed? retry with --skip-learn to bundle raw candidates for review.)');
