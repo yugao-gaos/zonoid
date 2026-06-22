@@ -25,6 +25,8 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
+const predictiveLearning = require('../lib/search/predictive-learning');
+const retrievalWeights = require('../lib/search/retrieval-weights');
 
 const REPO = path.join(__dirname, '..');
 const LABEL_SCRIPT = path.join(REPO, 'scripts', 'gate-label.js');
@@ -40,6 +42,8 @@ const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-gate-labe
 const GRAPH_DIR = path.join(WS, '.graph');
 const JOURNAL_PATH = path.join(GRAPH_DIR, 'gate-journal.jsonl');
 const LABELED_PATH = path.join(GRAPH_DIR, 'gate-labeled.jsonl');
+const PREDICTIVE_PATH = predictiveLearning.journalPath(WS);
+const RETRIEVAL_WEIGHTS_PATH = path.join(GRAPH_DIR, retrievalWeights.JOURNAL_FILE);
 
 fs.mkdirSync(GRAPH_DIR, { recursive: true });
 
@@ -129,6 +133,8 @@ function writeJournal(rows) {
 
 function clearLabeled() {
   if (fs.existsSync(LABELED_PATH)) fs.unlinkSync(LABELED_PATH);
+  if (fs.existsSync(PREDICTIVE_PATH)) fs.unlinkSync(PREDICTIVE_PATH);
+  if (fs.existsSync(RETRIEVAL_WEIGHTS_PATH)) fs.unlinkSync(RETRIEVAL_WEIGHTS_PATH);
 }
 
 function writeTranscript(text) {
@@ -166,6 +172,17 @@ function makeRow(overrides = {}) {
     hasSpec: false,
     complexity: 0.3,
     ...overrides,
+  };
+}
+
+function recalledEdge(taskKey, resultKey) {
+  return {
+    from: taskKey,
+    to: resultKey,
+    relation: 'context',
+    result_key: resultKey,
+    result_kind: resultKey.startsWith('note:') ? 'note' : 'task',
+    direct: true,
   };
 }
 
@@ -226,13 +243,21 @@ function makeRow(overrides = {}) {
     {
       clearLabeled();
       writeJournal([
-        makeRow({ decision: 'inject', reason: 'gap-specific-empirical', topKey: NOTE_KEY, task_key: TASK_TP }),
+        makeRow({
+          decision: 'inject',
+          reason: 'gap-specific-empirical',
+          topKey: NOTE_KEY,
+          task_key: TASK_TP,
+          recalled_context_edges: [recalledEdge(TASK_TP, NOTE_KEY)],
+        }),
       ]);
       searchResults = [];
 
       const r = await runLabeler();
       const labeled = readJsonl(LABELED_PATH);
       const row = labeled[0];
+      const learningRows = predictiveLearning.readRows(WS);
+      const weightRows = retrievalWeights.readRows(WS);
 
       ok('TP: exit code 0', r.status === 0);
       ok('TP: exactly one labeled row', labeled.length === 1);
@@ -247,25 +272,41 @@ function makeRow(overrides = {}) {
       ok('TP: fn_match is null (inject path)', row && row.fn_match === null);
       ok('TP: token_cost.output is 800', row && row.token_cost && row.token_cost.output === 800);
       ok('TP: token_cost.total is 7000', row && row.token_cost && row.token_cost.total === 7000);
+      ok('TP: predictive-learning row appended', learningRows.length === 1 && learningRows[0].error_code === 'GATE_TP');
+      ok('TP: predictive-learning error is zero', learningRows[0] && learningRows[0].prediction_error === 0);
+      ok('TP: retrieval-weight feedback is positive', weightRows.length === 1 && weightRows[0].signal === 'positive');
+      ok('TP: retrieval weight is reinforced', Math.round(retrievalWeights.getRetrievalWeight(WS, TASK_TP, NOTE_KEY, 'context') * 100) === 110);
     }
 
     // ══ TEST 2: inject + done + topKey NOT in transcript → FP ════════════════
     {
       clearLabeled();
       writeJournal([
-        makeRow({ decision: 'inject', reason: 'gap-specific-empirical', topKey: NOTE_KEY, task_key: TASK_FP }),
+        makeRow({
+          decision: 'inject',
+          reason: 'gap-specific-empirical',
+          topKey: NOTE_KEY,
+          task_key: TASK_FP,
+          recalled_edges: [recalledEdge(TASK_FP, NOTE_KEY)],
+        }),
       ]);
       searchResults = [];
 
       const r = await runLabeler();
       const labeled = readJsonl(LABELED_PATH);
       const row = labeled[0];
+      const learningRows = predictiveLearning.readRows(WS);
+      const weightRows = retrievalWeights.readRows(WS);
 
       ok('FP: exit code 0', r.status === 0);
       ok('FP: exactly one labeled row', labeled.length === 1);
       ok('FP: quadrant is FP', row && row.quadrant === 'FP');
       ok('FP: label is 0', row && row.label === 0);
       ok('FP: note_used is false', row && row.note_used === false);
+      ok('FP: predictive-learning row appended', learningRows.length === 1 && learningRows[0].error_code === 'GATE_FP');
+      ok('FP: predictive-learning error is negative', learningRows[0] && learningRows[0].prediction_error === -1);
+      ok('FP: retrieval-weight feedback is negative', weightRows.length === 1 && weightRows[0].signal === 'negative');
+      ok('FP: retrieval weight is downweighted', Math.round(retrievalWeights.getRetrievalWeight(WS, TASK_FP, NOTE_KEY, 'context') * 100) === 92);
     }
 
     // ══ TEST 3: abstain + pass → TN ══════════════════════════════════════════
@@ -279,6 +320,7 @@ function makeRow(overrides = {}) {
       const r = await runLabeler();
       const labeled = readJsonl(LABELED_PATH);
       const row = labeled[0];
+      const learningRows = predictiveLearning.readRows(WS);
 
       ok('TN: exit code 0', r.status === 0);
       ok('TN: exactly one labeled row', labeled.length === 1);
@@ -286,6 +328,8 @@ function makeRow(overrides = {}) {
       ok('TN: label is 0', row && row.label === 0);
       // abstain path: fn_match only computed on fail; pass → null
       ok('TN: fn_match is null', row && row.fn_match === null);
+      ok('TN: predictive-learning row appended', learningRows.length === 1 && learningRows[0].error_code === 'GATE_TN');
+      ok('TN: no retrieval-weight feedback', retrievalWeights.readRows(WS).length === 0);
     }
 
     // ══ TEST 4: idempotency — second run does not duplicate rows ═════════════
@@ -293,7 +337,15 @@ function makeRow(overrides = {}) {
       clearLabeled();
       // Use a fixed ts so row key is stable across runs.
       writeJournal([
-        makeRow({ decision: 'abstain', task_key: TASK_TN, ts: '2026-01-01T00:00:00.000Z', query: 'idempotency-test' }),
+        makeRow({
+          decision: 'inject',
+          reason: 'gap-specific-empirical',
+          topKey: NOTE_KEY,
+          task_key: TASK_TP,
+          ts: '2026-01-01T00:00:00.000Z',
+          query: 'idempotency-test',
+          recalled_context_edges: [recalledEdge(TASK_TP, NOTE_KEY)],
+        }),
       ]);
       searchResults = [];
 
@@ -301,11 +353,15 @@ function makeRow(overrides = {}) {
       ok('idempotency: first run exit code 0', r1.status === 0);
       const afterFirst = readJsonl(LABELED_PATH);
       ok('idempotency: one row after first run', afterFirst.length === 1);
+      ok('idempotency: one predictive-learning row after first run', predictiveLearning.readRows(WS).length === 1);
+      ok('idempotency: one retrieval-weight row after first run', retrievalWeights.readRows(WS).length === 1);
 
       const r2 = await runLabeler();
       ok('idempotency: second run exit code 0', r2.status === 0);
       const afterSecond = readJsonl(LABELED_PATH);
       ok('idempotency: still one row after second run (no duplicate)', afterSecond.length === 1);
+      ok('idempotency: still one predictive-learning row after second run', predictiveLearning.readRows(WS).length === 1);
+      ok('idempotency: still one retrieval-weight row after second run', retrievalWeights.readRows(WS).length === 1);
     }
 
     // ══ TEST 5: task_key=null → unlabelable, not in labeled file ═════════════
@@ -364,6 +420,8 @@ function makeRow(overrides = {}) {
       ok('FN: quadrant is FN', row && row.quadrant === 'FN');
       ok('FN: label is 1', row && row.label === 1);
       ok('FN: fn_match is true', row && row.fn_match === true);
+      ok('FN: top match key is preserved', row && row.fn_top_key === NOTE_KEY);
+      ok('FN: top match score is preserved', row && row.fn_top_score === 0.72);
     }
 
     // ══ TEST 8: no tokenUsage on task → token_cost all zeros (graceful) ═══════

@@ -21,6 +21,7 @@ const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
 const { contentTokens } = require('../lib/context-gate');
+const predictiveLearning = require('../lib/search/predictive-learning');
 
 // ── CLI args ──────────────────────────────────────────────────────────────────
 function getArg(flag, def) {
@@ -132,7 +133,7 @@ function computeNoteUsed(topKey, noteText, taskText) {
 
 // ── FN matcher: post-mortem search ───────────────────────────────────────────
 // abstain+fail → search KB as-of the journal row's ts; FN if any result scores >= 0.5.
-// Returns { fnMatch: bool } on success; { fnMatch: null } on error (best-effort).
+// Returns { fnMatch: bool, fnTopKey, fnTopScore } on success; { fnMatch: null } on error.
 async function fnMatcher(summaryText, asOfTs) {
   if (!summaryText || !summaryText.trim()) return { fnMatch: null };
   try {
@@ -142,8 +143,12 @@ async function fnMatcher(summaryText, asOfTs) {
     const r = await httpGet(url);
     if (r.status !== 200) return { fnMatch: null };
     const results = (r.body.results || []);
-    const fnMatch = results.some((n) => (n.score || 0) >= 0.5);
-    return { fnMatch };
+    const top = results.find((n) => (n.score || 0) >= 0.5);
+    return {
+      fnMatch: !!top,
+      fnTopKey: top ? (top.key || null) : null,
+      fnTopScore: top && typeof top.score === 'number' ? top.score : null,
+    };
   } catch {
     return { fnMatch: null };
   }
@@ -274,11 +279,14 @@ async function main() {
       task_status: status,
       note_used,
       fn_match,
+      fn_top_key: fnResult.fnTopKey || null,
+      fn_top_score: typeof fnResult.fnTopScore === 'number' ? fnResult.fnTopScore : null,
       token_cost,
       labeled_at: new Date().toISOString(),
     };
 
     appendJsonl(LABELED_PATH, labeledRow);
+    try { predictiveLearning.applyGateLabel(WORKSPACE, labeledRow); } catch { /* learning must not block labeling */ }
     labeledKeys.add(key);
     newlyLabeled++;
   }
