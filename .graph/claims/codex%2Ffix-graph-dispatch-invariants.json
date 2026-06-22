@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/fix-graph-dispatch-invariants",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-fix-graph-dispatch",
+  "branch": "orch/attempt/codex-fix-graph-dispatch-invariants",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T02:42:17.863Z",
+  "lease_until": "2026-06-22T03:42:17.863Z"
+}
