@@ -7,3 +7,5 @@
 {"evt":"edge_promoted","from":"note:note-mqp5dogdrfg","to":"note:note-mqda7rpovti","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:23:33.653Z","weight":0.632,"by":"judge","judged":true,"score":0.632,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqp5dogdrfg","to":"knowledge:source_chunk:chunk-claude-md-2-13-gate-contract-for-subagents-call-mcp-or-35650d33be","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:23:33.653Z"}
 {"evt":"edge_removed","from":"note:note-mqp5dogdrfg","to":"note:note-mqp5bqqxk82","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:23:33.653Z"}
+{"evt":"edge_removed","from":"note:note-mqp5dogdrfg","to":"knowledge:source_chunk:chunk-agents-md-2-13-gate-contract-for-subagents-call-mcp-or-43b15c9061","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:43:14.075Z"}
+{"evt":"edge_removed","from":"note:note-mqp5dogdrfg","to":"knowledge:source_chunk:chunk-agents-md-2-13-gate-contract-for-subagents-normal-work-5df8a2dfa0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:43:14.075Z"}

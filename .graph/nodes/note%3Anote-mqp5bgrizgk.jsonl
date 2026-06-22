@@ -18,3 +18,4 @@
 {"evt":"edge_removed","from":"note:note-mqp5bgrizgk","to":"knowledge:source_chunk:chunk-readme-md-2-1-every-write-or-edit-tool-call-passes-thr-57a2d07de5","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:39:47.579Z"}
 {"evt":"edge_removed","from":"note:note-mqp5bgrizgk","to":"note:note-mqiu1y5bevv","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:39:47.579Z"}
 {"evt":"edge_removed","from":"note:note-mqp5bgrizgk","to":"note:note-mqiu1tkaojt","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:39:47.579Z"}
+{"evt":"edge_removed","from":"note:note-mqp5bgrizgk","to":"note:note-mqiua3vkpq5","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:44:06.886Z"}
