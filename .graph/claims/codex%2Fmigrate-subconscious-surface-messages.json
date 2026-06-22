@@ -1,9 +1,10 @@
 {
   "task_key": "codex/migrate-subconscious-surface-messages",
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
-  "session_id": "codex-mcp-3496-9cc09bd03bd682ee46f41efaabe008dc",
+  "session_id": "codex-main-rescue-migrate-surface-messages",
   "branch": "orch/attempt/codex-migrate-subconscious-surface-messages",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T00:51:47.300Z",
-  "lease_until": "2026-06-22T01:51:47.300Z"
+  "lease_until": "2026-06-22T01:51:47.300Z",
+  "completed_at": "2026-06-22T01:07:43.826Z"
 }
