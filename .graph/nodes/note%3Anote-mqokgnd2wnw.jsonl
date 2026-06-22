@@ -15,3 +15,8 @@
 {"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"note:note-mqn5eugc0vj","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:39:48.704Z"}
 {"evt":"edge_added","from":"note:note-mqokgnd2wnw","to":"note:note-mqiuag3ftku","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:52:19.305Z","weight":0,"by":"autowire","judged":false,"score":0.552,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"note:note-mqiu5lpjox6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:52:19.305Z"}
+{"evt":"edge_promoted","from":"note:note-mqokgnd2wnw","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:50.094Z","weight":0.5,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:50.094Z"}
+{"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"note:note-mqogmgwobj3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:50.094Z"}
+{"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"codex/reconcile-post-subconscious-feature-with-main-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:50.094Z"}
+{"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"note:note-mqiuag3ftku","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:50.094Z"}

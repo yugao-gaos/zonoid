@@ -2,3 +2,5 @@
 {"evt":"edge_added","from":"note:note-mqp4y66jmkx","to":"note:note-mqodt9p3kwd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:31:59.629Z","weight":0,"by":"autowire","judged":false,"score":0.588,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp4y66jmkx","to":"note:note-mq7hefbuc4h","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:31:59.629Z","weight":0,"by":"autowire","judged":false,"score":0.573,"origin":"autowire-semantic"}
 {"evt":"summary_set","id":"note:note-mqp4y66jmkx","workspace":"/Users/imyu/Desktop/zonoid","summary":"The embed provider default is `minilm`, backed by `Xenova/all-MiniLM-L6-v2` with 384 dimensions. That pins the project's base embedding shape unless a different provider is configured.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
+{"evt":"edge_removed","from":"note:note-mqp4y66jmkx","to":"note:note-mqodt9p3kwd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:29.903Z"}
+{"evt":"edge_removed","from":"note:note-mqp4y66jmkx","to":"note:note-mq7hefbuc4h","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:29.903Z"}

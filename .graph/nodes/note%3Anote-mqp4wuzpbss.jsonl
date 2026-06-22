@@ -2,3 +2,5 @@
 {"evt":"edge_added","from":"note:note-mqp4wuzpbss","to":"note:note-mqity3du88y","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:30:58.242Z","weight":0,"by":"autowire","judged":false,"score":0.639,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp4wuzpbss","to":"note:note-mq7hef4yhof","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:30:58.242Z","weight":0,"by":"autowire","judged":false,"score":0.634,"origin":"autowire-semantic"}
 {"evt":"summary_set","id":"note:note-mqp4wuzpbss","workspace":"/Users/imyu/Desktop/zonoid","summary":"A task is only treated as a likely re-plan duplicate when label/summary overlap exceeds `0.6`. The threshold is tuned for high precision, so a false positive only nudges supersede while a miss is tolerated.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
+{"evt":"edge_removed","from":"note:note-mqp4wuzpbss","to":"note:note-mqity3du88y","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:26.704Z"}
+{"evt":"edge_removed","from":"note:note-mqp4wuzpbss","to":"note:note-mq7hef4yhof","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:26.704Z"}
