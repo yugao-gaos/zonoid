@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/fix-shell-opencode-write-gates",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-fix-write-gates",
+  "branch": "orch/attempt/codex-fix-shell-opencode-write-gates",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T02:41:50.201Z",
+  "lease_until": "2026-06-22T03:41:50.201Z"
+}
