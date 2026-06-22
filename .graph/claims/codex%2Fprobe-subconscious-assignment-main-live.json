@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "probe-session-main-live",
   "branch": "orch/attempt/codex-probe-subconscious-assignment-main-live",
-  "status": "claimed",
+  "status": "canceled",
   "claimed_at": "2026-06-22T00:37:27.216Z",
-  "lease_until": "2026-06-22T01:37:27.216Z"
+  "lease_until": "2026-06-22T01:37:27.216Z",
+  "completed_at": "2026-06-22T00:38:05.049Z"
 }
