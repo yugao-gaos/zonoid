@@ -769,3 +769,5 @@
 {"ts":"2026-06-22T19:16:47.549Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/add-emissive-node-cores-to-three-point-cloud","recalled_note_keys":[],"outcome":"approve","via":"rag"}
 {"ts":"2026-06-22T19:16:57.095Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/dashboard-use-subconscious-agentic-search","recalled_note_keys":[],"outcome":"approve","via":"rag"}
 {"ts":"2026-06-22T19:17:06.709Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/fix-dashboard-search-link-comparator-scope","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-22T19:17:18.366Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/fix-graph-dispatch-invariants","recalled_note_keys":[],"outcome":"approve","via":"rag"}
+{"ts":"2026-06-22T19:17:29.431Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/fix-onboarding-stale-legacy-queue","recalled_note_keys":["ab391029-f543-48ba-bcec-7c9e2b9280f9/3#k21","ab391029-f543-48ba-bcec-7c9e2b9280f9/3#k22","ab391029-f543-48ba-bcec-7c9e2b9280f9/3#k23","ab391029-f543-48ba-bcec-7c9e2b9280f9/3#k24","ab391029-f543-48ba-bcec-7c9e2b9280f9/3#k25"],"outcome":"approve","via":"rag"}
