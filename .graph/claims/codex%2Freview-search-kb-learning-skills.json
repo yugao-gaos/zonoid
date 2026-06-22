@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "review-worker-search-learning",
   "branch": "orch/attempt/codex-review-search-kb-learning-skills",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T02:13:38.460Z",
-  "lease_until": "2026-06-22T03:13:38.460Z"
+  "lease_until": "2026-06-22T03:13:38.460Z",
+  "completed_at": "2026-06-22T02:20:17.625Z"
 }
