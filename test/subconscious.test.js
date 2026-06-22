@@ -924,15 +924,23 @@ test('subconscious search-context does not treat knowledge chunks as task-adjace
   const ws = makeWorkspace();
   const store = createSubconsciousStore({ maxEvents: 5 });
   const ov = {
-    knowledge: {
-      'knowledge:artifact': [
-        { text: 'Adaptive context artifact points to follow-up retrieval but is not a task node.' },
-      ],
-    },
+    knowledge: {},
     edges: [],
     entity_nodes: {},
   };
-  const graph = { tasks: [] };
+  const graph = {
+    tasks: [
+      {
+        id: 'knowledge:missing-kind',
+        label: 'Missing kind knowledge artifact',
+        status: 'done',
+        deps: [],
+        context_deps: [],
+        context_weights: {},
+        summary: 'Adaptive context artifact is promising but has no kind and must not become task-adjacent DAG.',
+      },
+    ],
+  };
   const ctx = makeCtx({ graph, workspace: ws, store, body: null, overlay: ov });
 
   const res = await callRoute(ctx, '/subconscious/search-context', {
