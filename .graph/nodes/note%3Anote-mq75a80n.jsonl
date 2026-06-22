@@ -21,3 +21,5 @@
 {"evt":"edge_removed","from":"note:note-mq75a80n","to":"c518dc9a-a501-4506-bc2d-7d29afec8fbc/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:11.488Z"}
 {"evt":"edge_added","from":"note:note-mq75a80n","to":"note:note-mq75a829","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","by":"autowire","judged":false}
 {"evt":"edge_added","from":"note:note-mq75a80n","to":"c518dc9a-a501-4506-bc2d-7d29afec8fbc/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","by":"autowire","judged":false}
+{"evt":"edge_removed","from":"note:note-mq75a80n","to":"note:note-mq75a829","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:03:41.254Z"}
+{"evt":"edge_removed","from":"note:note-mq75a80n","to":"c518dc9a-a501-4506-bc2d-7d29afec8fbc/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:03:41.254Z"}

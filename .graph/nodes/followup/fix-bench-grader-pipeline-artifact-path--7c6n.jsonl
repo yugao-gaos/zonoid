@@ -1,0 +1,1 @@
+{"evt":"edge_promoted","from":"followup/fix-bench-grader-pipeline-artifact-path--7c6n","to":"bench/context-inject-4arm-runner","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:04:04.942Z","weight":0.698,"by":"judge","judged":true,"score":0.698,"origin":"autowire-semantic"}
