@@ -27,9 +27,9 @@ them (plus such relay-only helpers as `GET /session-info` and `POST /route` used
 | `/agent/start` | `POST` | Register a worker (`{ agent_id, agent_type?, transcript_path?, session?, subagent_session?, workspace?, task? }`). |
 | `/agent/done` | `POST` | Mark worker done; auto-release dangling `in_progress` claims (`{ agent_id, workspace? }` → `{ released }`). |
 | `/classify` | `POST` | Absorb prompt-submit heuristics; return finished injection text (`{ prompt, session_id?, workspace? }` → `{ additional_context, … }`). |
-| `/ready` | `GET` | Ready frontier: `{ ready: [{ key, label }] }`. Optional `?session=` / `?workspace=` / `?roots=` filters. |
+| `/ready` | `GET` | Ready frontier: `{ ready: [{ key, label }] }`. Optional `?session=` / `?workspace=` / `?roots=` filters. Internal standing drains and legacy visible judge nodes are hidden by default. |
 | `/sync` | `POST` | Immediate file-drop pull (`{ workspace? }` → `{ adopted[], suggestions{} }`). |
-| `/subconscious/assignment` | `GET/POST` | Preferred routine assignment facade. `prepare` creates/selects the anchor, wires deps, records requested review on the implementation task, configures repo/test command, and allocates the attempt branch/worktree. |
+| `/subconscious/assignment` | `GET/POST` | Preferred routine assignment facade. `prepare` creates/selects the anchor, wires deps, records same-node review state on the implementation task, configures repo/test command, and allocates the attempt branch/worktree. |
 | `/overlay/status` | `POST` | Authoritative task status / claim / complete (`{ key, status, agent_id?, summary?, … }`). MCP `subconscious_assignment accept` / `complete` map here; raw `start_task` / `complete_task` remain backcompat wrappers. **Dispatcher sessions are refused** on `in_progress` (409). |
 | `/overlay/dispatcher-focus` | `POST` | Pin trivial-edit attribution when multiple workers are in flight (`{ session_id, task_key }`). |
 | `/dispatcher/children` | `GET` | In-flight workers for a parent session (`?session=`): `{ children[], attribution?, needs_focus?, focus? }`. |
@@ -58,13 +58,34 @@ Each row is one **harness lifecycle moment** and the daemon endpoint the adapter
 | **Agent start** | `POST /agent/start` | Observability, subagent session alias for claim lookup, workspace pin per worker. | Advisory |
 | **Agent stop** | `POST /agent/done` | Mark worker done; **primary usage accounting** (`usage.sample` → `usage_records`); release phantom claims when worker exits without terminal assignment completion. | Advisory |
 | **Usage reconcile (cold)** | `sessionStart` + adapter daily scheduler → `/usage/reconcile` | Per-harness sweep when `usage_reconcile[harness].at` is stale; adapter normalizes to `UsageReport`. Not on `/costflow` reads. | Advisory |
-| **Assignment prepare** | `POST /subconscious/assignment` (`prepare`) | Normal route for routine orchestration: anchor selection/creation, wiring, judge pairing, repo/test config, worktree allocation. | Daemon-side |
+| **Assignment prepare** | `POST /subconscious/assignment` (`prepare`) | Normal route for routine orchestration: anchor selection/creation, wiring, same-node review request, repo/test config, worktree allocation. Use `create_judge:false` on the same-node path; do not mint a visible judge task. | Daemon-side |
 | **Task claim / progress** | `POST /overlay/status` (`in_progress`) via MCP `subconscious_assignment accept` | Claim task (CAS); daemon enforces metric-branch worktree invariant and auto-issues the scoped Subconscious execution permit. | Daemon-side refusal (MCP path) + hook defense-in-depth |
 | **Task complete** | `POST /overlay/status` (`done` / `tested` / `failed` / `canceled`) via MCP `subconscious_assignment complete` | Terminal status, summary, follow-ups, verdicts; returns `newly_ready` when applicable. | Daemon-side (MCP); hooks may nudge via `GET /ready` |
 | **Task mint (file-drop)** | write stub JSON → `POST /sync` | Adopt new task keys; return link suggestions. | Advisory (runs outside agent tool gate) |
 | **Branch attempt** | `POST /git/worktree` | Self-learning / isolated attempt branch. | Daemon-side refusal without worktree |
-| **Merge attempt** | `POST /git/merge` via MCP `subconscious_assignment submit_verdict` (`APPROVE`) | Judge merge-back loop. `KICK_BACK` marks the implementation task failed and does not merge. | Daemon-side |
+| **Review verdict / merge attempt** | `POST /git/merge` via MCP `subconscious_assignment submit_verdict` (`APPROVE`) | Review verdict updates the implementation task's review/merge state. `APPROVE` attempts merge-back; `KICK_BACK` marks the implementation task failed and does not merge. | Daemon-side |
 | **Stop advisory (MCP)** | `GET /should-stop` *(via MCP wrapper)* | Attach `should_stop` + reason to tool responses when stop requested. | Advisory only — does not block |
+
+---
+
+## Same-node review lifecycle
+
+Review/judge work is represented as lifecycle state on the implementation task, not as a second
+user-facing task. New dispatcher flows should pass `create_judge:false` and, when review is required,
+set the same-node review request flag (for example `judge_requested:true`) rather than creating a
+blocking judge node. Deprecated inputs such as `judge_task_key` are compatibility/audit aliases only:
+`prepare` and `submit_verdict` return `judge_task_key:null`, `review_task_key:<implementation task>`,
+and may retain `legacy_judge_task_key` for provenance.
+
+The daemon's headless drain runner owns review queue discovery, leasing, and execution. Adapters and
+foreground loops should not surface standing judge/review drains as routine ready work. Dashboard and
+default `/state`/frontier projections hide internal drain sentinels and legacy visible judge nodes by
+default, while carrying compact review/merge fields on the implementation node (`review_state`,
+`review_verdict`, `review_agent`, `merge_state`, `merge_sha`, `merged_at`).
+
+`subconscious_assignment submit_verdict` is the verdict API. `APPROVE` stamps approved/landed review
+state and uses the normal no-force merge path; conflicts become merge state on the same node.
+`KICK_BACK` stamps rejected/blocked review state and marks the implementation task failed for rework.
 
 ---
 
@@ -87,7 +108,7 @@ harness guarantees interception.
 | **Task mint** | Native `TaskCreate` → Claude task file → daemon pull (no `/sync` required) | `postToolUse` on todo tool → stub under `cursor/` → `/sync` | Shell/hook stub under `codex/` → `/sync`; fallback harness-scoped MCP `create_task` | Custom `task_create` tool → stub under `opencode/` → `/sync` |
 | **Task assignment / claim / complete** | MCP `subconscious_assignment` → `/subconscious/assignment` + `/overlay/status` | Same MCP surface | Same MCP surface (filtered tool list when MCP spawn sets `ORCH_CLIENT=codex`) | Same MCP + plugin-registered tools |
 | **Claim session alias** | `PostToolUse` after `subconscious_assignment accept` (or raw `start_task`) → `/overlay/claim-session` | Same when MCP used | Same when MCP used | Same when MCP used |
-| **Raw branch / merge escape hatches** | MCP `branch_task` / `merge_attempt` remain for backcompat/internal use; routine agents use `subconscious_assignment prepare` / `submit_verdict` | Same | Same | Same |
+| **Raw branch / merge escape hatches** | MCP `branch_task` / `merge_attempt` remain for backcompat/internal use; routine agents use `subconscious_assignment prepare` / `accept` / `complete`, and review verdicts use `submit_verdict` | Same | Same | Same |
 | **Blocking vs advisory** | Exit 2 blocking on gates; MCP + injection advisory | Same pattern; **IDE hook coverage ⊃ CLI** | Partial shell interception; manual trust on hook hash change | Throw-to-block; frozen-args bug makes throw mandatory |
 
 Research note: graph note `note-mqbk7fr1oih` — harness hook capability matrix (Jun 2026):
@@ -255,14 +276,14 @@ and `merge_attempt` remain backcompat/internal escape hatches.
 ### Claim gate contract
 
 `subconscious_assignment prepare` creates/selects the task anchor, wires routine deps, records
-requested review state on the implementation task, configures repo/test command, and records `git.branch` plus
-`git.worktree` on the task. `subconscious_assignment accept` then posts to `/overlay/status`
+requested same-node review state on the implementation task, configures repo/test command, and records
+`git.branch` plus `git.worktree` on the task. `subconscious_assignment accept` then posts to `/overlay/status`
 with `status: in_progress`. The daemon refuses claims that do not have a registered worktree, so
 the enforced order is:
 
-1. `subconscious_assignment(action:"prepare", ...)` -> returns an assignment envelope with
-   `task_key`, `review_task_key`, `review_requested`, `branch`, `worktree`, `repo_path`, context, and the next expected
-   worker action.
+1. `subconscious_assignment(action:"prepare", create_judge:false, ...)` -> returns an assignment envelope with
+   `task_key`, `judge_task_key:null`, `review_task_key`, `review_requested`, `review_state`, `branch`,
+   `worktree`, `repo_path`, context, and the next expected worker action.
 2. `subconscious_assignment(action:"accept", task_key, agent_id, session_id?)` -> claims the task
    through `/overlay/status` and self-registers hookless workers when the claim carries `agent_id`
    and the task has a registered worktree.
@@ -270,8 +291,9 @@ the enforced order is:
    registered worktree, non-exempt Write/Edit/apply_patch/Bash file writes must land inside it.
 
 Raw `branch_task` + `start_task` still map to the same primitives for legacy/internal flows.
-Judges normally use `subconscious_assignment submit_verdict`: `APPROVE` calls the existing
-merge path; `KICK_BACK` marks the implementation failed and does not merge.
+Review executors use `subconscious_assignment submit_verdict`: `APPROVE` calls the existing
+merge path and stamps review/merge state on the implementation task; `KICK_BACK` marks the
+implementation failed/blocked and does not merge.
 
 Parent/dispatcher sessions and unregistered sessions are still refused by the daemon. `force: true`
 does not bypass the gate. Lifecycle hooks (`/agent/start`) remain useful for observability and
@@ -374,7 +396,7 @@ in the `POST /agent/done` body. When no usage event is found, a chars/4 **estima
 1. `subagentStart` → `/agent/start` (register `transcript_path`; optional baseline `sample`).
 2. `subagentStop` → `/agent/done` → `usage.sample` for `[startedAt, endedAt]` →
    `overlay.usage_records[agent_id]`; set `task_key` when agent held the claim.
-3. `complete_task` → status/summary only; **no new sample**. Task total = sum of agent slices.
+3. `subconscious_assignment complete` (or legacy `complete_task`) → status/summary only; **no new sample**. Task total = sum of agent slices.
 
 ### Cold path reconcile (two adapter-owned triggers)
 
