@@ -5004,9 +5004,8 @@ function renderCloudThree(ctx){
     const rgb=emphasis?cloudSearchTriplet(ctx.colorOf(n)):cloudDisplayTriplet(ctx.colorOf(n),opacity,ctx.profile);
     const color=new THREE.Color(rgb[0]/255,rgb[1]/255,rgb[2]/255);
     nodeMesh.setColorAt(i,color);
-    const coreScale=emphasis?1.16:Math.max(0.32,0.44+opacity*.54);
-    coreEntries.push({ pos, radius:Math.max(1.55,baseRadius*coreScale) });
     if(emphasis>0){
+      coreEntries.push({ pos, radius:Math.max(1.8,baseRadius*(0.86+emphasis*.3)) });
       haloEntries.push({ pos, radius:Math.max(3.6,baseRadius*(2.25+emphasis*.9)) });
     }
   });
