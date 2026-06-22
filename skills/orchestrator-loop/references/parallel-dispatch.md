@@ -16,11 +16,17 @@ parallelizable work, with a token-efficient context handoff between dependent ta
    subagent a typed **`handoff_envelope`** ([`schemas/handoff.v1.schema.json`](../../../schemas/handoff.v1.schema.json),
    plugs into the Agent-tool `schema` option) instead of prose duties: the dispatcher fills the
    slots — `task_key` (the `{session}/{id}` key), `agent_id`, `branch` (`orch/attempt/<key>`),
-   `target_repo`, `files_in_scope[]`, and `context_deps[]` (pre-resolved Tier-1 `{task_key, summary}`
-   pairs the dispatcher fetches via `get_dependency_summaries` + note summaries) — and the worker
+   `target_repo`, `files_in_scope[]`, `context_deps[]`, and `agentic_search_context`. The dispatcher gets
+   the context by calling `subconscious_assignment action:"prepare"` with `search_context:true` or
+   `agentic_context:true` plus a `context_query`/task summary, then copies the returned filtered
+   Subconscious envelope into the worker handoff. The worker consumes `agentic_search_context` and
+   `context_deps[]` rather than doing raw retrieval. If a worker somehow lacks that envelope and needs
+   task context, it calls `subconscious_search_context` with the envelope/worker `agent_id`, `task_key`,
+   and query; raw `search_knowledge` is only a lower-level
+   primitive/internal fallback for Subconscious and explicit diagnostics. The worker
    **copies** them into its graph calls rather than re-deriving them. `return_contract` (`$ref`
-   to `task_result`) tells the worker the exact shape to return. Resolving `context_deps` is the
-   dispatcher's job, not the worker's.
+   to `task_result`) tells the worker the exact shape to return. Resolving context is the dispatcher's job,
+   not the worker's.
    - **Genuinely independent tasks (disjoint files/areas)** → fan out in parallel (multiple
      background agents at once, or the Workflow tool's `parallel()`/`pipeline()`).
    - **File-coupled tasks** (they edit the same files) → **serialize**: one background agent at
@@ -64,13 +70,13 @@ parallelizable work, with a token-efficient context handoff between dependent ta
      inside the worktree; NEVER edit the live checkout. Both `Edit`/`Write` tools **and** `Bash`
      file-write commands are gated to `orch/attempt/*` branches for subagents. `ORCH_GATE_OFF=1`
      as an inline env prefix does **not** work — the hook is a separate process. Your dependency
-     summaries usually arrive pre-resolved in the envelope's `context_deps[]` (**Tier 1**); if not,
-     call `mcp__orchestrator-graph__get_dependency_summaries(task_key)` to fetch them. Only if you
-     need depth, call `get_task_detail(dep_key)` (**Tier 2**) for a specific dependency's
-     knowledge/output. Then consult the knowledge base **gate-first**:
-     `search_knowledge(query: <your task in one sentence>, gated: true)` — `decision:"inject"`
-     ⇒ read and apply the returned note; `"abstain"` ⇒ proceed WITHOUT retrieval (do NOT
-     re-query ungated; abstain is the common, correct outcome).
+     summaries and filtered search context usually arrive pre-resolved in the envelope's `context_deps[]`
+     and `agentic_search_context`. Consume those first. If the envelope is missing and you need task
+     context, call `mcp__orchestrator-graph__subconscious_search_context(agent_id, task_key, query)` so
+     Subconscious performs the DAG/RAG search and filtering. Only if you need depth after that, call
+     `get_task_detail(dep_key)` (**Tier 2**) for a specific dependency's knowledge/output. Do not
+     re-query raw `search_knowledge` in the worker prompt; it remains a lower-level primitive/internal
+     fallback for Subconscious and explicit diagnostics.
    - **While working:** attach reusable context with `attach_knowledge(task_key, item)` so
      dependents can fetch it precisely instead of you re-deriving it.
    - **On finish — commit FIRST, then complete:** `git add -A && git commit` all your changes

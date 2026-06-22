@@ -81,6 +81,31 @@ function summaryForKey(graph, ov, key, via) {
   };
 }
 
+function contextQueryForAssignment(body) {
+  return cleanString(body.context_query || body.query || body.situation);
+}
+
+function wantsAgenticContext(body) {
+  return body && (body.agentic_context === true || body.search_context === true || !!contextQueryForAssignment(body));
+}
+
+function summaryFromAgenticContext(agenticSearchContext, key) {
+  const deps = agenticSearchContext && Array.isArray(agenticSearchContext.context_deps)
+    ? agenticSearchContext.context_deps
+    : [];
+  const hit = deps.find((dep) => dep && (dep.key === key || dep.task_key === key));
+  if (!hit) return null;
+  return {
+    key,
+    label: hit.title || hit.key || key,
+    status: 'context',
+    summary: hit.summary || '',
+    via: 'subconscious_agentic_search',
+    relevance_score: hit.relevance_score == null ? null : hit.relevance_score,
+    reason: hit.reason || null,
+  };
+}
+
 function buildAssignmentEnvelope(ctx, T, input) {
   const graph = typeof ctx.buildGraph === 'function' ? ctx.buildGraph(T.ws) : { tasks: [] };
   const taskKey = input.task_key;
@@ -90,9 +115,9 @@ function buildAssignmentEnvelope(ctx, T, input) {
   const contextKeys = normalizeStringArray(input.context_task_keys);
   const dependencySummaries = [
     ...parentKeys.map((key) => summaryForKey(graph, T.ov, key, 'blocking')),
-    ...contextKeys.map((key) => summaryForKey(graph, T.ov, key, 'context')),
+    ...contextKeys.map((key) => summaryFromAgenticContext(input.agentic_search_context, key) || summaryForKey(graph, T.ov, key, 'context')),
   ];
-  return {
+  const envelope = {
     version: 1,
     task_key: taskKey,
     judge_task_key: input.judge_task_key || null,
@@ -107,6 +132,11 @@ function buildAssignmentEnvelope(ctx, T, input) {
     },
     next_expected_worker_action: 'subconscious_assignment.accept',
   };
+  if (input.agentic_search_context) {
+    envelope.context.agentic_search_context = input.agentic_search_context;
+    envelope.agentic_search_context = input.agentic_search_context;
+  }
+  return envelope;
 }
 
 module.exports = (ctx) => async (p, m, req, res, u) => {
@@ -118,11 +148,38 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
     const taskKey = cleanString(u && u.searchParams.get('task_key'));
     if (!taskKey) { send(res, 400, { ok: false, error: 'task_key required' }); return true; }
-    const assignment = buildAssignmentEnvelope(ctx, T, {
+    const input = {
       task_key: taskKey,
       judge_task_key: cleanString(u.searchParams.get('judge_task_key')),
       repo_path: cleanString(u.searchParams.get('repo_path')),
       base: cleanString(u.searchParams.get('base')),
+    };
+    if (wantsAgenticContext({
+      agentic_context: u.searchParams.get('agentic_context') === '1' || u.searchParams.get('agentic_context') === 'true',
+      search_context: u.searchParams.get('search_context') === '1' || u.searchParams.get('search_context') === 'true',
+      context_query: u.searchParams.get('context_query'),
+      query: u.searchParams.get('query'),
+      situation: u.searchParams.get('situation'),
+    })) {
+      const searchResult = await store.searchContext(ctx, {
+        workspace: T.ws,
+        agent_id: cleanString(u.searchParams.get('agent_id')) || 'subconscious-assignment',
+        task_key: taskKey,
+        intent: cleanString(u.searchParams.get('intent')) || taskKey,
+        situation: cleanString(u.searchParams.get('context_query') || u.searchParams.get('situation') || u.searchParams.get('query')) || taskKey,
+        query: cleanString(u.searchParams.get('context_query') || u.searchParams.get('query')),
+        k: u.searchParams.get('k') || undefined,
+        max_rounds: u.searchParams.get('max_rounds') || undefined,
+      }, req);
+      if (!searchResult.ok) {
+        send(res, searchResult.status || 400, { ok: false, error: searchResult.error || 'subconscious context search failed' });
+        return true;
+      }
+      input.agentic_search_context = searchResult.subconscious_context || null;
+      input.context_task_keys = searchResult.context_task_keys || [];
+    }
+    const assignment = buildAssignmentEnvelope(ctx, T, {
+      ...input,
     });
     send(res, 200, { ok: true, action: 'read', workspace: T.ws, assignment });
     return true;
@@ -145,13 +202,42 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
 
     const parentKeys = normalizeStringArray(b.parent_task_keys || b.blocked_by || b.blockedBy);
     const contextKeys = normalizeStringArray(b.context_task_keys || b.context_deps);
+    ensureTaskSnapshot(ctx, T, taskKey, b, b.subject || b.title || taskKey);
+    let agenticSearchContext = null;
+    const agenticContextScores = new Map();
+    if (wantsAgenticContext(b)) {
+      const searchResult = await store.searchContext(ctx, {
+        ...b,
+        workspace: T.ws || b.workspace,
+        agent_id: cleanString(b.agent_id) || 'subconscious-assignment',
+        task_key: taskKey,
+        intent: cleanString(b.intent) || cleanString(b.subject || b.title || b.description || b.prompt) || taskKey,
+        situation: contextQueryForAssignment(b) || cleanString(b.description || b.prompt || b.subject || b.title),
+        query: contextQueryForAssignment(b),
+      }, req);
+      if (!searchResult.ok) {
+        send(res, searchResult.status || 400, { ok: false, error: searchResult.error || 'subconscious context search failed' });
+        return true;
+      }
+      agenticSearchContext = searchResult.subconscious_context || null;
+      for (const dep of (agenticSearchContext && agenticSearchContext.context_deps) || []) {
+        const key = cleanString(dep && (dep.key || dep.task_key));
+        if (!key || key === taskKey || contextKeys.includes(key)) continue;
+        contextKeys.push(key);
+        if (dep.relevance_score != null) agenticContextScores.set(key, dep.relevance_score);
+      }
+    }
     const createJudge = b.create_judge === true || b.judge === true || b.judge_requested === true || !!cleanString(b.judge_task_key);
     const judgeTaskKey = createJudge ? (cleanString(b.judge_task_key) || defaultJudgeTaskKey(taskKey)) : null;
 
-    ensureTaskSnapshot(ctx, T, taskKey, b, b.subject || b.title || taskKey);
     for (const key of parentKeys.concat(contextKeys)) ensureTaskSnapshot(ctx, T, key, {}, key);
     for (const key of parentKeys) overlayStore.addEdge(T.ov, key, taskKey, null, 'blocking', null, { origin: 'subconscious-assignment' });
-    for (const key of contextKeys) overlayStore.addEdge(T.ov, key, taskKey, null, 'context', undefined, { origin: 'subconscious-assignment' });
+    for (const key of contextKeys) {
+      const agentic = agenticContextScores.has(key);
+      overlayStore.addEdge(T.ov, key, taskKey, null, 'context', agentic ? agenticContextScores.get(key) : undefined, agentic
+        ? { origin: 'subconscious-agentic-search', by: 'subconscious', judged: true, score: agenticContextScores.get(key) }
+        : { origin: 'subconscious-assignment' });
+    }
     if (judgeTaskKey) {
       ensureTaskSnapshot(ctx, T, judgeTaskKey, {
         subject: b.judge_subject || `Judge ${taskKey}`,
@@ -200,6 +286,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       base: cleanString(b.base),
       parent_task_keys: parentKeys,
       context_task_keys: contextKeys,
+      agentic_search_context: agenticSearchContext,
     });
     send(res, 200, {
       ok: true,
@@ -214,6 +301,16 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       next_expected_worker_action: assignment.next_expected_worker_action,
       git: gitInfo || null,
     });
+    return true;
+  }
+
+  if (p === '/subconscious/search-context' && m === 'POST') {
+    const b = await readBody(req) || {};
+    const T = targetOverlay(b, u);
+    const result = await store.searchContext(ctx, { ...b, workspace: T.ws || b.workspace }, req);
+    const code = result.status || (result.ok ? 200 : 400);
+    const { status, ...body } = result;
+    send(res, code, body);
     return true;
   }
 
