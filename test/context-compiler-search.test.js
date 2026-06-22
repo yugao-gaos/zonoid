@@ -55,7 +55,7 @@ function makeWorkspace() {
   return ws;
 }
 
-function makeCtx(graph, workspace, overlay = {}) {
+function makeCtx(graph, workspace, overlay = {}, overrides = {}) {
   const ov = { knowledge: {}, edges: [], entity_nodes: {}, ...overlay };
   return {
     buildGraph: () => graph,
@@ -71,15 +71,16 @@ function makeCtx(graph, workspace, overlay = {}) {
     checkGatedRateLimit: () => false,
     EMBED_MODEL: 'test',
     workspace,
+    ...overrides,
   };
 }
 
-async function runSearchWithWorkspace(graph, params, overlay) {
+async function runSearchWithWorkspace(graph, params, overlay, overrides) {
   const workspace = makeWorkspace();
   const u = new URL('http://127.0.0.1/search');
   u.searchParams.set('workspace', workspace);
   for (const [key, value] of Object.entries(params || {})) u.searchParams.set(key, value);
-  const result = await compileSearchContext(makeCtx(graph, workspace, overlay), {
+  const result = await compileSearchContext(makeCtx(graph, workspace, overlay, overrides), {
     req: { socket: { remoteAddress: '127.0.0.1' } },
     u,
   });
@@ -233,6 +234,106 @@ test('default query promotes exact node label before chunk evidence', async () =
   assert.equal(body.results[0].key, 'task/subconscious-mcp');
   assert.equal(body.results[0].nodeFirst, true);
   assert(body.results.some((item) => item.key === 'task/research#k0'), 'expected chunk evidence to remain present');
+});
+
+test('disjoint query does not return arbitrary zero-evidence RRF candidates', async () => {
+  const graph = {
+    tasks: [
+      node('note:refund', 'Stripe refund idempotency', { kind: 'note', summary: 'payment gateway retry details' }),
+      node('task/rotate', 'Rotate database credentials', { summary: 'vault credential cron job' }),
+    ],
+  };
+
+  const body = await runSearch(graph, { q: 'airline mileage kiosk redemption', k: '5' });
+
+  assert.deepEqual(body.results, []);
+  assert.equal(body.continue, false);
+});
+
+test('entity expansion still returns linked notes when the query names the entity', async () => {
+  const graph = {
+    tasks: [
+      node('note:entity-context', 'Budget normalization decision', {
+        kind: 'note',
+        summary: 'use cents internally for accounting',
+      }),
+    ],
+  };
+  const overlay = {
+    entity_nodes: {
+      zonoid: { name: 'Zonoid' },
+    },
+    edges: [
+      { kind: 'context', from: 'entity:zonoid', to: 'note:entity-context' },
+    ],
+  };
+
+  const body = await runSearch(graph, { q: 'zonoid', k: '5' }, overlay);
+  const hit = body.results.find((item) => item.key === 'note:entity-context');
+
+  assert(hit, 'expected entity-linked note to remain visible');
+  assert.equal(hit.via_entity, true);
+});
+
+test('task_key RAG results exclude the current task itself', async () => {
+  const graph = {
+    tasks: [
+      node('task/target', 'Alpha target task', {
+        summary: 'alpha target implementation',
+        provisional: true,
+      }),
+      node('task/other', 'Alpha supporting task', {
+        summary: 'alpha target supporting context',
+      }),
+    ],
+  };
+
+  const body = await runSearch(graph, { q: 'alpha target', task_key: 'task/target', k: '5' });
+  const keys = new Set(body.results.map((item) => item.key));
+
+  assert.equal(keys.has('task/target'), false);
+  assert.equal(keys.has('task/other'), true);
+});
+
+test('gated search does not inject a gate topKey pruned from selected results', async () => {
+  const graph = {
+    tasks: [
+      node('task/target', 'Target task', {
+        provisional: true,
+      }),
+      node('note:visible', 'Alpha alpha visible note', {
+        kind: 'note',
+        summary: 'alpha alpha selected context',
+      }),
+      node('note:hidden', 'Beta hidden note', {
+        kind: 'note',
+        summary: 'beta pruned context',
+      }),
+    ],
+  };
+
+  const { body } = await runSearchWithWorkspace(graph, {
+    q: 'alpha beta',
+    task_key: 'task/target',
+    gated: '1',
+    k: '1',
+  }, {}, {
+    gateTask: async () => ({
+      decision: 'inject',
+      reason: 'test hidden topKey',
+      topKey: 'note:hidden',
+      top1: 0.9,
+      margin: 0.8,
+      gap: 0.7,
+      locality: 3,
+      topType: 'empirical',
+      via: 'lexical',
+    }),
+  });
+
+  assert.equal(body.decision, 'abstain');
+  assert.equal(body.results.some((item) => item.key === 'note:hidden'), false);
+  assert.equal(body.results.some((item) => item.inject === true), false);
 });
 
 test('node_first can be disabled for raw rank diagnostics', async () => {
