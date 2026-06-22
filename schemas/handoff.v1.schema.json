@@ -62,12 +62,38 @@
           },
           "description": "Pre-resolved Tier-1 context (dependency + note summaries) the dispatcher already fetched, so the worker starts with base context inline."
         },
+        "agentic_search_context": {
+          "$ref": "#/definitions/agentic_search_context",
+          "description": "Optional Subconscious-owned filtered context envelope. Dispatchers copy this from subconscious_assignment/search-context instead of exposing raw search_knowledge results to workers."
+        },
         "return_contract": {
           "$ref": "#/definitions/task_result",
           "description": "The shape the worker must return. Reference to task_result so envelope and result stay coupled to one version."
         }
       },
       "required": ["version", "task_key", "agent_id", "branch", "target_repo", "plan_goal", "sibling_tasks", "return_contract"],
+      "additionalProperties": false
+    },
+    "agentic_search_context": {
+      "type": "object",
+      "title": "agentic_search_context",
+      "description": "Filtered context returned by Subconscious after internal DAG/RAG search planning and relevance judgment.",
+      "properties": {
+        "version": { "const": 1 },
+        "kind": { "const": "subconscious_agentic_search_context" },
+        "task_key": { "type": ["string", "null"] },
+        "query": { "type": "string" },
+        "verdict": { "type": "string" },
+        "prediction": { "type": ["string", "null"] },
+        "confidence": { "type": "number" },
+        "search_steps": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "context_task_keys": { "type": "array", "items": { "type": "string" } },
+        "context_deps": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "context": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "filtered_count": { "type": "number" },
+        "decisions": { "type": "object", "additionalProperties": true }
+      },
+      "required": ["version", "kind", "query", "verdict", "search_steps", "context_task_keys", "context_deps", "context"],
       "additionalProperties": false
     },
     "task_result": {

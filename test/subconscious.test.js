@@ -759,6 +759,116 @@ test('subconscious assignment prepare creates assignment envelope and wires task
   assert(calls.some((call) => call.fn === 'notifyChange' && call.workspace === ws));
 });
 
+test('subconscious search-context returns filtered multi-step DAG and RAG envelope', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const graph = {
+    tasks: [
+      node('task/target', 'Agentic context target', {
+        status: 'ready',
+        context_deps: ['note:dag'],
+        context_weights: { 'note:dag': 0.95 },
+      }),
+      node('note:dag', 'DAG assignment context', {
+        kind: 'note',
+        summary: 'Task-gated DAG context says worker assignments should receive judged context.',
+      }),
+      node('note:rag', 'RAG assignment context', {
+        kind: 'note',
+        summary: 'Broad RAG context says Subconscious should filter raw search hits before workers see them.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null });
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.subconscious_context.kind, 'subconscious_agentic_search_context');
+  assert.deepEqual(
+    res.body.subconscious_context.search_steps.map((step) => step.mode),
+    ['dag_task_gated', 'rag_broad']
+  );
+  assert.equal(res.body.subconscious_context.search_steps[0].gated, true);
+  assert.equal(res.body.subconscious_context.search_steps[1].gated, false);
+  assert(res.body.context_task_keys.includes('note:dag'));
+  assert(res.body.subconscious_context.context.every((item) => item.relevance_verdict === 'valuable_for_task'));
+  assert.equal(res.body.internal.filtered_count, res.body.subconscious_context.filtered_count);
+});
+
+test('subconscious assignment prepare carries and wires agentic search context envelope', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore();
+  const ov = overlayStore.EMPTY();
+  const calls = [];
+  const graph = {
+    tasks: [
+      node('codex/impl', 'Implement agentic context assignment', {
+        status: 'ready',
+        context_deps: ['note:dag'],
+        context_weights: { 'note:dag': 0.9 },
+      }),
+      node('note:dag', 'DAG assignment context', {
+        kind: 'note',
+        summary: 'Task-gated context should be selected by Subconscious before worker dispatch.',
+      }),
+      node('note:rag', 'RAG assignment context', {
+        kind: 'note',
+        summary: 'Broad search context should be filtered before entering worker handoff.',
+      }),
+    ],
+  };
+  const ctx = makeCtx({ graph, workspace: ws, store, body: null, overlay: ov });
+  ctx.now = () => '2026-06-21T12:00:00.000Z';
+  ctx.notifyChange = (workspace) => calls.push({ fn: 'notifyChange', workspace });
+  ctx.resolveRepo = (key, repoPath, overlay, workspace) => repoPath || workspace;
+  ctx.git = {
+    isRepo(repo) { calls.push({ fn: 'isRepo', repo }); return true; },
+    createWorktree(repo, key, options) {
+      calls.push({ fn: 'createWorktree', repo, key, options });
+      return { branch: 'orch/attempt/codex-impl', worktree: path.join(ws, 'attempt'), head: 'abc123' };
+    },
+  };
+
+  const res = await callRoute(ctx, '/subconscious/assignment', {
+    workspace: ws,
+    action: 'prepare',
+    task_key: 'codex/impl',
+    subject: 'Implement agentic context assignment',
+    agent_id: 'dispatcher-a',
+    search_context: true,
+    context_query: 'Need DAG and broad RAG assignment context before worker dispatch.',
+    repo_path: ws,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.assignment.agentic_search_context.kind, 'subconscious_agentic_search_context');
+  assert.equal(res.body.assignment.context.agentic_search_context.kind, 'subconscious_agentic_search_context');
+  assert.deepEqual(
+    res.body.assignment.context.agentic_search_context.search_steps.map((step) => step.mode),
+    ['dag_task_gated', 'rag_broad']
+  );
+  assert(res.body.assignment.context.context_task_keys.includes('note:dag'));
+  assert(res.body.assignment.context.dependency_summaries.some((summary) => summary.key === 'note:dag' && summary.via === 'subconscious_agentic_search'));
+  assert(ov.edges.some((edge) =>
+    edge.from === 'note:dag' &&
+    edge.to === 'codex/impl' &&
+    edge.kind === 'context' &&
+    edge.by === 'subconscious' &&
+    edge.judged === true &&
+    edge.origin === 'subconscious-agentic-search'
+  ));
+});
+
 test('subconscious_loop MCP tool forwards to loop routes', async () => {
   const tool = TOOLS.find((candidate) => candidate.name === 'subconscious_loop');
   assert(tool, 'subconscious_loop tool exists');
