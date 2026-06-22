@@ -241,6 +241,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         const o = { id: t.id, label: t.label, status: t.status, deps: t.deps };
         if (t.kind) o.kind = t.kind;
         if (t.agent_id) o.assignee = t.agent_id;
+        if (t.review_state) o.review_state = t.review_state;
+        if (t.review_verdict) o.review_verdict = t.review_verdict;
+        if (t.merge_state) o.merge_state = t.merge_state;
         if (t.git && t.git.merged) o.merged = true;
         return o;
       });
