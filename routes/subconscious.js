@@ -47,6 +47,10 @@ function defaultJudgeTaskKey(taskKey) {
   return `${taskKey.slice(0, i + 1)}${taskKey.slice(i + 1)}-judge`;
 }
 
+function wantsSameNodeReview(body) {
+  return body && (body.create_judge === true || body.judge === true || body.judge_requested === true || !!cleanString(body.judge_task_key));
+}
+
 function activeClaimForPermit(ov, input) {
   if (!ov || !input) return null;
   const sessionId = cleanString(input.session_id);
@@ -143,6 +147,8 @@ function buildAssignmentEnvelope(ctx, T, input) {
   const graph = typeof ctx.buildGraph === 'function' ? ctx.buildGraph(T.ws) : { tasks: [] };
   const taskKey = input.task_key;
   const gitInfo = (T.ov.git && T.ov.git[taskKey]) || {};
+  const lifecycle = overlayStore.reviewLifecycleFor(T.ov, taskKey, T.ov.status && T.ov.status[taskKey]);
+  const reviewRequested = input.review_requested === true || lifecycle.review_state === 'requested' || lifecycle.review_state === 'pending';
   const repoPath = input.repo_path || (T.ov.repos && T.ov.repos[taskKey]) || T.ws || null;
   const parentKeys = normalizeStringArray(input.parent_task_keys);
   const contextKeys = normalizeStringArray(input.context_task_keys);
@@ -153,7 +159,11 @@ function buildAssignmentEnvelope(ctx, T, input) {
   const envelope = {
     version: 1,
     task_key: taskKey,
-    judge_task_key: input.judge_task_key || null,
+    judge_task_key: null,
+    review_task_key: taskKey,
+    review_requested: reviewRequested,
+    review_state: lifecycle.review_state || null,
+    legacy_judge_task_key: input.legacy_judge_task_key || lifecycle.legacy_judge_task_key || null,
     branch: gitInfo.branch || null,
     worktree: gitInfo.worktree || null,
     repo_path: repoPath,
@@ -183,7 +193,8 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     if (!taskKey) { send(res, 400, { ok: false, error: 'task_key required' }); return true; }
     const input = {
       task_key: taskKey,
-      judge_task_key: cleanString(u.searchParams.get('judge_task_key')),
+      legacy_judge_task_key: cleanString(u.searchParams.get('judge_task_key')),
+      review_requested: !!cleanString(u.searchParams.get('judge_task_key')),
       repo_path: cleanString(u.searchParams.get('repo_path')),
       base: cleanString(u.searchParams.get('base')),
     };
@@ -259,10 +270,9 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
         if (dep.relevance_score != null) agenticContextScores.set(key, dep.relevance_score);
       }
     }
-    const createJudge = b.create_judge === true || b.judge === true || b.judge_requested === true || !!cleanString(b.judge_task_key);
-    const judgeTaskKey = createJudge ? (cleanString(b.judge_task_key) || defaultJudgeTaskKey(taskKey)) : null;
+    const reviewRequested = wantsSameNodeReview(b);
+    const legacyJudgeTaskKey = reviewRequested ? (cleanString(b.judge_task_key) || defaultJudgeTaskKey(taskKey)) : null;
     const creatingKeys = new Set([taskKey]);
-    if (judgeTaskKey) creatingKeys.add(judgeTaskKey);
     const unknownDependency = parentKeys.concat(contextKeys).find((key) => !assignmentDependencyExists(ctx, T, key, creatingKeys));
     if (unknownDependency) {
       send(res, 404, { ok: false, error: `unknown task: ${unknownDependency}` });
@@ -280,19 +290,28 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
         ? { origin: 'subconscious-agentic-search', by: 'subconscious', judged: true, score: agenticContextScores.get(key) }
         : { origin: 'subconscious-assignment' });
     }
-    if (judgeTaskKey) {
-      ensureTaskSnapshot(ctx, T, judgeTaskKey, {
-        subject: b.judge_subject || `Judge ${taskKey}`,
-        description: b.judge_description || `Review attempt for ${taskKey}.`,
-      }, `Judge ${taskKey}`);
-      overlayStore.addEdge(T.ov, taskKey, judgeTaskKey, null, 'blocking', null, { origin: 'subconscious-assignment' });
+    if (reviewRequested) {
+      const reviewPatch = {
+        review_state: 'requested',
+        merge_state: 'review_pending',
+        legacy_judge_task_key: legacyJudgeTaskKey,
+      };
+      const requestedBy = cleanString(b.agent_id);
+      const requestedAt = typeof ctx.now === 'function' ? ctx.now() : new Date().toISOString();
+      const reviewNote = cleanString(b.judge_description || b.judge_subject);
+      if (requestedBy) reviewPatch.review_requested_by = requestedBy;
+      if (requestedAt) reviewPatch.review_requested_at = requestedAt;
+      if (reviewNote) {
+        reviewPatch.review_note = reviewNote;
+        reviewPatch.review_reason = reviewNote;
+      }
+      overlayStore.setReviewLifecycle(T.ov, taskKey, reviewPatch);
     }
 
     const repoPath = cleanString(b.repo_path);
     const repo = ctx.resolveRepo ? ctx.resolveRepo(taskKey, repoPath, T.ov, T.ws) : (repoPath || T.ws);
     if (!repo) { send(res, 400, { ok: false, error: 'repo_path or workspace required' }); return true; }
     overlayStore.setRepo(T.ov, taskKey, repo);
-    if (judgeTaskKey) overlayStore.setRepo(T.ov, judgeTaskKey, repo);
     if (b.test_cmd !== undefined) overlayStore.setTestCmd(T.ov, repo, b.test_cmd || '');
 
     let gitInfo = T.ov.git && T.ov.git[taskKey];
@@ -323,7 +342,8 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     if (typeof ctx.notifyChange === 'function') ctx.notifyChange(T.ws);
     const assignment = buildAssignmentEnvelope(ctx, T, {
       task_key: taskKey,
-      judge_task_key: judgeTaskKey,
+      review_requested: reviewRequested,
+      legacy_judge_task_key: legacyJudgeTaskKey,
       repo_path: repo,
       base: cleanString(b.base),
       parent_task_keys: parentKeys,
@@ -336,7 +356,11 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       workspace: T.ws,
       assignment,
       task_key: taskKey,
-      judge_task_key: judgeTaskKey,
+      judge_task_key: null,
+      review_task_key: taskKey,
+      review_requested: assignment.review_requested,
+      review_state: assignment.review_state,
+      legacy_judge_task_key: assignment.legacy_judge_task_key,
       branch: assignment.branch,
       worktree: assignment.worktree,
       repo_path: assignment.repo_path,

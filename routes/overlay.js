@@ -556,8 +556,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     const hasTopLevelReviewFields = [
       'review_state', 'review_verdict', 'review_note', 'review_reason', 'review_agent',
-      'reviewed_at', 'merge_state', 'attempt_branch', 'attempt_worktree', 'attempt_head',
-      'merge_sha', 'merged_at',
+      'reviewed_at', 'review_requested_at', 'review_requested_by', 'merge_state',
+      'attempt_branch', 'attempt_worktree', 'attempt_head', 'merge_sha', 'merged_at',
+      'legacy_judge_task_key',
     ].some((field) => Object.prototype.hasOwnProperty.call(b, field));
     if (hasTopLevelReviewFields) overlayStore.setReviewLifecycle(T.ov, b.key, b);
     overlayStore.clearSpawnLease(T.ov, b.key);   // release the spawn-dispatch lease on claim/terminal (task /3)
