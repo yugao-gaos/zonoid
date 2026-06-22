@@ -11,3 +11,4 @@
 {"evt":"edge_promoted","from":"note:note-mqohd5sxhcq","to":"codex/embedding-store-interface-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T00:32:04.051Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqohd5sxhcq","to":"codex/embedding-store-interface-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T00:34:06.295Z","weight":1,"by":"autowire","judged":false}
 {"evt":"edge_promoted","from":"note:note-mqohd5sxhcq","to":"codex/embedding-store-interface","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:36:19.399Z","weight":0.636,"by":"judge","judged":true,"score":0.636,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqohd5sxhcq","to":"codex/embed-provider-eval-docs","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:38:30.676Z","weight":0.595,"by":"judge","judged":true,"score":0.595,"origin":"autowire-semantic"}
