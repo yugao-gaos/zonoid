@@ -1,1 +1,3 @@
 {"evt":"edge_removed","from":"judge/phase4-unification","to":"judge/phase2-entity-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:02.264Z"}
+{"evt":"edge_added","from":"judge/phase4-unification","to":"phase4/unification","kind":"blocking","actor":"overlay-sync","ts":"2026-06-22T16:59:56.392Z","by":"judge","judged":true,"score":0.783,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"judge/phase4-unification","to":"phase4/unification","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:59:56.392Z"}

@@ -16,3 +16,8 @@
 {"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"1e01ab32-97eb-4eec-9b28-6632a1dc44f6/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:28:36.162Z"}
 {"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/25","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:28:36.162Z"}
 {"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"bench/bench-trial-14-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:28:36.162Z"}
+{"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"eeadb38f-7472-4703-9689-fbf24eebee4d/4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:59:53.681Z"}
+{"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"followup/write-judge-edge-scorecard-md-tqui","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:59:53.681Z"}
+{"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"followup/write-judge-edge-scorecard-md-retry-as-s-pe6u","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:59:53.681Z"}
+{"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"followup/add-self-register-on-claim-fallback-so-h-fbtd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:59:53.681Z"}
+{"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:59:53.681Z"}

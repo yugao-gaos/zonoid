@@ -1,3 +1,4 @@
 {"evt":"edge_removed","from":"bench/context-inject-4arm-run-sonnet","to":"bench/context-inject-4arm-runner","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:21.684Z"}
 {"evt":"edge_removed","from":"bench/context-inject-4arm-run-sonnet","to":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:21.684Z"}
 {"evt":"edge_removed","from":"bench/context-inject-4arm-run-sonnet","to":"eeadb38f-7472-4703-9689-fbf24eebee4d/22","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:57:21.684Z"}
+{"evt":"edge_promoted","from":"bench/context-inject-4arm-run-sonnet","to":"bench/context-inject-arm-flags","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:00:48.537Z","weight":0.623,"by":"judge","judged":true,"score":0.623,"origin":"autowire-semantic"}

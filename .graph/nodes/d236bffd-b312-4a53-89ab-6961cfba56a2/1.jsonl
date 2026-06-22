@@ -1,0 +1,2 @@
+{"evt":"edge_promoted","from":"d236bffd-b312-4a53-89ab-6961cfba56a2/1","to":"local/dg1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:00:37.728Z","weight":0.672,"by":"judge","judged":true,"score":0.672,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"d236bffd-b312-4a53-89ab-6961cfba56a2/1","to":"followup/add-multi-claim-gate-tests-33-34-qjr3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:00:37.728Z","weight":0.618,"by":"judge","judged":true,"score":0.618,"origin":"autowire-semantic"}

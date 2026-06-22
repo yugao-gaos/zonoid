@@ -1,0 +1,1 @@
+{"evt":"edge_promoted","from":"bench/context-inject-sliding-window","to":"bench/context-inject-global-summary","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:00:48.537Z","weight":0.667,"by":"judge","judged":true,"score":0.667,"origin":"autowire-semantic"}
