@@ -4703,13 +4703,14 @@ let cloudSig='';               // signature of node/link set; only reheat sim wh
 let cloudRaf=null;             // projected cloud animation frame
 const cloudThreeStates=new WeakMap(); // surface element -> Three.js point-cloud scene state
 let cloudSearchText='';        // current force-cloud search query
-let cloudSearchKeys=new Set(); // ids returned by /search for the current force-cloud query
+let cloudSearchKeys=new Set(); // ids selected by Subconscious for the current force-cloud query
 let cloudSearchResolvedText='';
 let cloudSearchPending=false;
 let cloudSearchError=false;
 let cloudSearchSeq=0;
 let cloudSearchTimer=null;
 let cloudSearchTrace=null;     // visual-only trace of the last /search result set
+let cloudSearchContext=null;   // raw Subconscious agentic-search envelope shown in the summary
 let cloudSearchStartedAt=0;
 let cloudSearchFrameTimers=[];
 let cloudSearchFitKey='';
@@ -5697,6 +5698,7 @@ function setView(v){
     cloudSearchPending=false;
     cloudSearchError=false;
     cloudSearchTrace=null;
+    cloudSearchContext=null;
     if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
     const si=document.getElementById('cloudSearchInput'); if(si) si.value='';
   } else if(cloudSearchText.trim()) {
@@ -5749,11 +5751,17 @@ function buildCloudSearchTrace(items, query, startedAt=Date.now()){
     }
     if(!itemMeta.has(key)){
       itemMeta.set(key, {
+        key,
+        rawKey:item&&item.rawKey||item&&item.task_key||item&&item.key||key,
         kind:item&&item.kind||'',
         title:item&&item.title||'',
         summary:item&&item.summary||'',
         tier:item&&item.tier||'',
-        score:Number(item&&item.score)||0
+        score:Number(item&&item.score)||0,
+        searchMode:item&&item.search_mode||item&&item.mode||'',
+        evidenceQuality:item&&item.evidence_quality,
+        relevanceVerdict:item&&item.relevance_verdict||'',
+        reason:item&&item.reason||''
       });
     }
     if(item&&(item.reranked||item.ceScore!=null)) rerankedKeys.add(key);
@@ -5786,6 +5794,53 @@ function buildCloudSearchTrace(items, query, startedAt=Date.now()){
   for(const key of rerankedKeys) finalKeys.add(key);
   return { query, startedAt, readyAt, hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys, itemMeta };
 }
+function normalizeCloudSearchItem(item){
+  if(!item) return null;
+  const rawKey=item.key||item.task_key;
+  const key=cloudNodeKey(rawKey);
+  if(!key) return null;
+  const score=Number(item.rank_score??item.relevance_score??item.score??item.evidence_quality??0)||0;
+  return {
+    ...item,
+    key,
+    rawKey,
+    title:item.title||item.label||key,
+    summary:item.summary||'',
+    kind:item.kind||'task',
+    tier:item.tier||item.search_mode||item.via||'subconscious',
+    score,
+    reranked:item.relevance_verdict==='valuable_for_task'||item.evidence_quality!=null
+  };
+}
+function cloudItemsFromSubconscious(data){
+  const ctx=data&&data.subconscious_context||{};
+  const selected=Array.isArray(ctx.context)&&ctx.context.length?ctx.context:(Array.isArray(ctx.context_deps)?ctx.context_deps:[]);
+  return selected.map(normalizeCloudSearchItem).filter(Boolean);
+}
+async function fetchLegacyCloudSearch(query, signal){
+  const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50&node_first=1',{ signal });
+  const data=await res.json();
+  return { items:Array.isArray(data)?data:(data.results||[]), context:null };
+}
+async function fetchSubconsciousCloudSearch(query, signal){
+  const res=await dfetch('/subconscious/search-context',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      agent_id:'dashboard-graph-search',
+      query,
+      intent:'surface the same Subconscious context a foreground agent would receive for this dashboard search',
+      situation:'Dashboard user is inspecting graph search results and wants to see the context that would be supplied to a live foreground agent.',
+      k:CLOUD_SEARCH_FINAL_TOP_K,
+      max_rounds:4,
+      include_internal:true
+    }),
+    signal
+  });
+  const data=await res.json();
+  if(!res.ok||!data||data.ok===false) throw new Error((data&&data.error)||('HTTP '+res.status));
+  return { items:cloudItemsFromSubconscious(data), context:data.subconscious_context||null };
+}
 function scheduleCloudSearch(){
   const query=cloudSearchText.trim();
   const q=query.toLowerCase();
@@ -5800,6 +5855,7 @@ function scheduleCloudSearch(){
     cloudSearchPending=false;
     cloudSearchError=false;
     cloudSearchTrace=null;
+    cloudSearchContext=null;
     cloudSearchStartedAt=0;
     if(lastState) renderCloud(lastState);
     return;
@@ -5809,6 +5865,7 @@ function scheduleCloudSearch(){
   cloudSearchPending=true;
   cloudSearchError=false;
   cloudSearchTrace=null;
+  cloudSearchContext=null;
   const seq=++cloudSearchSeq;
   cloudSearchStartedAt=Date.now();
   if(lastState) renderCloud(lastState);
@@ -5819,9 +5876,16 @@ function scheduleCloudSearch(){
     const ctl=new AbortController();
     const timeout=setTimeout(()=>ctl.abort(),30000);
     try{
-      const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50&node_first=1',{ signal:ctl.signal });
-      const data=await res.json();
-      items=Array.isArray(data)?data:(data.results||[]);
+      let searchContext=null;
+      try{
+        const agentic=await fetchSubconsciousCloudSearch(query,ctl.signal);
+        items=agentic.items;
+        searchContext=agentic.context;
+      }catch(agenticError){
+        const legacy=await fetchLegacyCloudSearch(query,ctl.signal);
+        items=legacy.items;
+        searchContext=null;
+      }
       if(seq!==cloudSearchSeq) return;
       const keys=new Set();
       for(const item of items){
@@ -5835,6 +5899,7 @@ function scheduleCloudSearch(){
       cloudSearchResolvedText=q;
       cloudSearchPending=false;
       cloudSearchError=false;
+      cloudSearchContext=searchContext?{...searchContext, query:q, source:'subconscious_search_context'}:null;
       cloudSearchTrace=buildCloudSearchTrace(items,q,cloudSearchStartedAt||Date.now());
       scheduleCloudSearchFrames(seq);
     }catch(e){
@@ -5845,6 +5910,7 @@ function scheduleCloudSearch(){
       cloudSearchPending=false;
       cloudSearchError=true;
       cloudSearchTrace=null;
+      cloudSearchContext=null;
     }finally{
       clearTimeout(timeout);
     }
@@ -5900,6 +5966,7 @@ function renderCloud(d, opts={}){
   const q=isOnboard?'':cloudSearchText.trim().toLowerCase();
   const remoteFresh=q&&cloudSearchResolvedText===q&&!cloudSearchError;
   const trace=(cloudSearchTrace&&cloudSearchTrace.query===q)?cloudSearchTrace:null;
+  const searchContext=(cloudSearchContext&&cloudSearchContext.query===q)?cloudSearchContext:null;
   const searchStartedAt=trace?.startedAt||cloudSearchStartedAt||Date.now();
   const searchElapsedMs=q?Math.max(0,Date.now()-searchStartedAt):0;
   const traceReadyElapsedMs=trace?Math.max(0,(trace.readyAt||trace.startedAt||Date.now())-searchStartedAt):0;
@@ -6284,7 +6351,7 @@ function renderCloud(d, opts={}){
   if(countEl) countEl.textContent=q?(cloudSearchPending?'searching...':(matchCount+' match'+(matchCount===1?'':'es'))):'';
   const traceEl=document.getElementById('cloudTraceLegend');
   if(traceEl){
-    if(q&&cloudSearchPending){ traceEl.textContent='RAG pending'; traceEl.classList.add('show'); }
+    if(q&&cloudSearchPending){ traceEl.textContent='Subconscious pending'; traceEl.classList.add('show'); }
     else if(q&&cloudSearchError){
       const localOnly=simNodes.filter(n=>!n.archive&&localMatch(n)).length;
       traceEl.textContent=localOnly?('local '+localOnly+' · search failed'):'search failed';
@@ -6293,7 +6360,8 @@ function renderCloud(d, opts={}){
     else if(q&&trace){
       const reranked=trace.rerankedKeys.size;
       const shownEdges=searchPhase==='final'?(finalRelatedKeys.size||fallbackFinalEdgeKeys.size):((searchPhase==='activate'||searchPhase==='shrink')?stagedRelatedKeys.size:0);
-      const traceParts=['RAG '+trace.hitRank.size];
+      const selectedCount=searchContext&&Array.isArray(searchContext.context_task_keys)?searchContext.context_task_keys.length:trace.hitRank.size;
+      const traceParts=[searchContext?('Subconscious '+selectedCount):('RAG fallback '+trace.hitRank.size)];
       if(searchPhase==='hits') traceParts.push('nodes');
       else {
         const edgeLabel=searchPhase==='final'?'final edges ':(searchPhase==='shrink'?'shrinking edges ':'edges ');
@@ -6302,6 +6370,8 @@ function renderCloud(d, opts={}){
       if(searchFinalized&&trace.walkEdges.size) traceParts.push('path walk '+trace.walkEdges.size);
       if(searchFinalized) traceParts.push('top '+trace.finalKeys.size);
       if(searchFinalized&&reranked) traceParts.push('rerank '+reranked);
+      if(searchFinalized&&searchContext&&searchContext.confidence!=null) traceParts.push(Math.round(Number(searchContext.confidence)*100)+'% conf');
+      if(searchFinalized&&searchContext&&searchContext.decisions&&searchContext.decisions.rounds) traceParts.push(searchContext.decisions.rounds+' rounds');
       traceEl.textContent=traceParts.join(' · ');
       traceEl.classList.add('show');
     } else {
@@ -6312,8 +6382,10 @@ function renderCloud(d, opts={}){
   const summaryEl=document.getElementById('cloudSearchSummary');
   if(summaryEl){
     if(q&&searchFinalized){
-      const summaryKeys=trace?[...trace.finalKeys]:[...finalNodeKeys];
-      if(!summaryKeys.length) for(const id of fallbackFinalNodeKeys) summaryKeys.push(id);
+      let summaryKeys=trace?[...trace.finalKeys]:[...finalNodeKeys];
+      if(searchContext&&Array.isArray(searchContext.context_task_keys)) summaryKeys=searchContext.context_task_keys.map(cloudNodeKey).filter(Boolean);
+      if(!summaryKeys.length&&!searchContext) for(const id of fallbackFinalNodeKeys) summaryKeys.push(id);
+      summaryKeys=[...new Set(summaryKeys)];
       const summaryNodes=summaryKeys
         .map(id=>byNode[id])
         .filter(n=>n&&!n.archive&&n.t)
@@ -6321,7 +6393,31 @@ function renderCloud(d, opts={}){
           const ar=traceRankOf(a.id), br=traceRankOf(b.id);
           return ar-br || (localSeedMatch(a)===localSeedMatch(b)?0:(localSeedMatch(a)?-1:1)) || a.id.localeCompare(b.id);
         });
-      if(summaryNodes.length){
+      const snippet=(s,max=118)=>{
+        s=String(s||'').replace(/\s+/g,' ').trim();
+        return s.length>max?s.slice(0,max-1)+'…':s;
+      };
+      const cleanLabel=s=>String(s||'').replace(/_/g,' ').replace(/\s+/g,' ').trim();
+      const percent=v=>{
+        const n=Number(v);
+        return Number.isFinite(n)?Math.round(n*100)+'%':'';
+      };
+      if(searchContext&&!summaryNodes.length){
+        const verdict=cleanLabel(searchContext.verdict||'no selected context');
+        const confidence=percent(searchContext.confidence);
+        const stop=cleanLabel(searchContext.decisions&&searchContext.decisions.stop_reason);
+        const filtered=Number(searchContext.filtered_count||0);
+        const brief=[
+          `For "${snippet(q,54)}", Subconscious did not select foreground-agent context from this search.`,
+          verdict?`Verdict: ${verdict}${confidence?` (${confidence} confidence)`:''}.`:'',
+          stop?`Stopped because ${stop}.`:'',
+          filtered?`${filtered} low-value candidates were filtered out.`:''
+        ].filter(Boolean).join(' ');
+        summaryEl.innerHTML =
+          `<div class="cloud-search-summary-title"><span>Search context</span><span class="cloud-search-summary-meta">0 selected</span></div>`+
+          `<div class="cloud-search-summary-brief">${esc(brief)}</div>`;
+        summaryEl.classList.add('show');
+      } else if(summaryNodes.length){
         const countPairs=(fn,limit=4)=>{
           const m=new Map();
           for(const n of summaryNodes){
@@ -6336,10 +6432,6 @@ function renderCloud(d, opts={}){
         const kindPairs=countPairs(n=>n.t.kind==='note'?'notes':'tasks');
         const statusLine=statusPairs.map(labelCount).join(' · ');
         const kindLine=kindPairs.map(labelCount).join(' · ');
-        const snippet=(s,max=118)=>{
-          s=String(s||'').replace(/\s+/g,' ').trim();
-          return s.length>max?s.slice(0,max-1)+'…':s;
-        };
         const naturalList=items=>{
           items=items.filter(Boolean);
           if(items.length<2) return items[0]||'';
@@ -6353,21 +6445,38 @@ function renderCloud(d, opts={}){
         const dominant=statusPairs[0];
         const statusText=dominant?`Most of the context is ${humanStatus(dominant[0])} work${dominant[1]>1?` (${dominant[1]} nodes)`:''}${statusPairs.length>1?', followed by '+naturalList(statusPairs.slice(1,3).map(statusItem)):''}`:'the results span mixed statuses';
         const kindText=kindPairs.length?`The set includes ${naturalList(kindPairs.map(labelCount))}`:'';
+        const verdict=cleanLabel(searchContext&&searchContext.verdict);
+        const prediction=snippet(searchContext&&searchContext.prediction,150);
+        const confidence=percent(searchContext&&searchContext.confidence);
+        const stop=cleanLabel(searchContext&&searchContext.decisions&&searchContext.decisions.stop_reason);
+        const rounds=searchContext&&searchContext.decisions&&searchContext.decisions.rounds;
+        const filtered=searchContext&&Number(searchContext.filtered_count||0);
+        const sourceLead=searchContext
+          ? `Subconscious selected ${plural(summaryNodes.length,'context item')} for the foreground agent.`
+          : `Search fallback found ${plural(summaryNodes.length,'highlighted node')} that look relevant.`;
+        const verdictLine=searchContext&&verdict
+          ? `Verdict: ${verdict}${confidence?` (${confidence} confidence)`:''}${stop?`; stopped because ${stop}`:''}${rounds?` after ${rounds} search round${rounds===1?'':'s'}`:''}.`
+          : '';
         const summaryBrief=[
-          `For "${snippet(q,54)}", Subconscious found ${plural(summaryNodes.length,'highlighted node')} that look relevant.`,
+          `For "${snippet(q,54)}", ${sourceLead}`,
+          verdictLine,
+          prediction?`Overall signal: ${prediction}.`:'',
           topicTitles.length?`The strongest signals point to ${naturalList(topicTitles)}.`:'',
-          `${statusText}. ${kindText}.`
+          `${statusText}. ${kindText}.`,
+          searchContext&&filtered?`${filtered} lower-value candidates were filtered out before this context was surfaced.`:''
         ].filter(Boolean).join(' ');
         const itemRows=summaryNodes.slice(0,5).map(n=>{
           const meta=trace?.itemMeta?.get(n.id)||{};
           const ds=taskDisplayStatus(n.t,byId);
           const title=snippet(meta.title||n.t.label||n.id,64);
           const body=snippet(meta.summary||n.t.summary||n.t.description||n.t.note||'',126);
-          const source=meta.tier||meta.kind||ds.label;
-          return `<div class="cloud-search-summary-item"><b>${esc(title)}</b> <span>${esc(source)}</span>${body?`<div>${esc(body)}</div>`:''}</div>`;
+          const source=meta.searchMode||meta.tier||meta.kind||ds.label;
+          const reason=snippet(meta.reason,120);
+          const details=[body,reason?`Why selected: ${reason}`:''].filter(Boolean).map(line=>`<div>${esc(line)}</div>`).join('');
+          return `<div class="cloud-search-summary-item"><b>${esc(title)}</b> <span>${esc(source)}</span>${details}</div>`;
         }).join('');
         summaryEl.innerHTML =
-          `<div class="cloud-search-summary-title"><span>Search context</span><span class="cloud-search-summary-meta">${summaryNodes.length} highlighted</span></div>`+
+          `<div class="cloud-search-summary-title"><span>Search context</span><span class="cloud-search-summary-meta">${summaryNodes.length} selected</span></div>`+
           `<div class="cloud-search-summary-brief">${esc(summaryBrief)}</div>`+
           `<div class="cloud-search-summary-line">${esc([statusLine,kindLine].filter(Boolean).join(' · '))}</div>`+
           `<div class="cloud-search-summary-items">${itemRows}</div>`;
