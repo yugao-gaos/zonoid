@@ -229781,6 +229781,142 @@
       },
       "last_actor": "overlay-sync",
       "last_agent_id": "019eeccb-cdf6-7500-b2ce-586b5aecf418"
+    },
+    "codex/diffusion-predictive-shadow-benchmark-judge-judge": {
+      "id": "codex/diffusion-predictive-shadow-benchmark-judge-judge",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "codex/diffusion-predictive-shadow-benchmark",
+        "description": "Review attempt for codex/diffusion-predictive-shadow-benchmark-judge.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T01:27:13.719Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-22T01:27:13.719Z",
+        "lastChanged": "2026-06-22T01:27:13.719Z",
+        "lastStatus": "pending"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/diffusion-predictive-shadow-benchmark": {
+      "id": "codex/diffusion-predictive-shadow-benchmark",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Added offline diffusion predictive shadow benchmark module, CLI report generator, synthetic tests, and sparse current-workspace report. Verified direct baseline, diffused updates, TN no-op, bounds, and no structural edge mutation.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Build diffusion-style predictive learning shadow benchmark",
+        "description": "Implement an offline shadow benchmark for diffusion-style predictive learning over Zonoid retrieval weights. It should replay existing gate-labeled / recall-outcome data, compare the current direct-edge reinforcement baseline with a reversible diffused prediction-error strategy, report metrics, and avoid changing live retrieval-weight behavior.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T01:16:12.335Z"
+      },
+      "assignee": "worker-diffusion-shadow-benchmark",
+      "timestamps": {
+        "firstSeen": "2026-06-22T01:16:12.335Z",
+        "lastChanged": "2026-06-22T01:17:13.269Z",
+        "lastStatus": "in_progress"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-git-claim-release-push-hook-judge": {
+      "id": "codex/fix-git-claim-release-push-hook-judge",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "APPROVED. The attempt is narrowly scoped to git claim bookkeeping pushes, adds --no-verify in the shared push helper for both acquire and finalize paths, and includes a focused regression that proves finalize bypasses a failing local pre-push hook. Focused test passed: node --test test/git-claims.test.js.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Judge codex/fix-git-claim-release-push-hook",
+        "description": "Review attempt for codex/fix-git-claim-release-push-hook.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T01:19:20.643Z"
+      },
+      "assignee": "codex-main-fix-git-claim-release-push-hook-judge",
+      "timestamps": {
+        "firstSeen": "2026-06-22T01:19:20.643Z",
+        "lastChanged": "2026-06-22T01:19:22.588Z",
+        "lastStatus": "not_ready"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-git-claim-release-push-hook": {
+      "id": "codex/fix-git-claim-release-push-hook",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Patched git claim bookkeeping pushes to use git push --no-verify for both upstream and first-push paths, preventing local pre-push test hooks from blocking advisory claim acquire/release metadata. Added a regression that installs a failing pre-push hook before finalize() and verifies release still pushes. Verified with node --test test/git-claims.test.js.",
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Bypass pre-push hooks for git claim bookkeeping pushes",
+        "description": "Fix advisory git claim release push failures caused by claim bookkeeping invoking the repo pre-push test hook. Claim acquire/release pushes should use git push --no-verify and tests should cover a failing local pre-push hook.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T01:19:20.643Z"
+      },
+      "assignee": "codex-main-fix-git-claim-release-push-hook",
+      "timestamps": {
+        "firstSeen": "2026-06-22T01:19:20.643Z",
+        "lastChanged": "2026-06-22T01:20:29.123Z",
+        "lastStatus": "in_progress"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -275086,7 +275222,11 @@
       "from": "note:note-mqoiovclnq6",
       "to": "codex/diffusion-predictive-shadow-benchmark",
       "kind": "context",
-      "origin": "subconscious-assignment"
+      "origin": "autowire-semantic",
+      "by": "autowire",
+      "judged": false,
+      "weight": 0,
+      "score": 0.605
     },
     {
       "from": "codex/brain-search-activation-engine",
@@ -275107,20 +275247,6 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "codex/diffusion-predictive-shadow-benchmark",
-      "to": "codex/diffusion-predictive-shadow-benchmark-judge",
-      "kind": "blocking",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/embed-provider-contract",
-      "to": "codex/embed-provider-local-adapter",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
-    },
-    {
       "from": "codex/judge-predictive-learning-gate-feedback",
       "to": "codex/diffusion-predictive-shadow-benchmark",
       "kind": "context",
@@ -275137,7 +275263,151 @@
       "to": "codex/diffusion-predictive-shadow-benchmark",
       "kind": "context",
       "origin": "subconscious-assignment"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-5-1-npx-zonoid-cli-init-installs-a-loc-209f57a7bf",
+      "to": "codex/fix-git-claim-release-push-hook",
+      "kind": "context",
+      "weight": 0.6,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-readme-md-1-1-the-pre-push-guard-runs-npm-run-test-all-23ef26e27b",
+      "to": "codex/fix-git-claim-release-push-hook",
+      "kind": "context",
+      "weight": 0.7,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqoiovclnq6",
+      "to": "codex/diffusion-predictive-shadow-benchmark-judge",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
+    },
+    {
+      "from": "note:note-mqoj5e2wxv8",
+      "to": "codex/fix-git-claim-release-push-hook",
+      "kind": "context",
+      "weight": 0,
+      "judged": false,
+      "by": "autowire",
+      "score": 0.83,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoj5e2wxv8",
+      "to": "knowledge:source_chunk:chunk-readme-md-1-1-the-pre-push-guard-runs-npm-run-test-all-23ef26e27b",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.716,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoj5e2wxv8",
+      "to": "note:note-mqk0pyjpxtc",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.627,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoj5e2wxv8",
+      "to": "knowledge:source_chunk:chunk-contributing-md-5-1-npx-zonoid-cli-init-installs-a-loc-209f57a7bf",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.593,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoj5e2wxv8",
+      "to": "codex/fix-git-claim-release-push-hook-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.682,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/diffusion-predictive-shadow-benchmark-judge-judge",
+      "to": "codex/diffusion-predictive-shadow-benchmark-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.913,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/diffusion-predictive-shadow-benchmark-judge-judge",
+      "to": "codex/diffusion-predictive-shadow-benchmark",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.825,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/diffusion-predictive-shadow-benchmark-judge",
+      "to": "codex/diffusion-predictive-shadow-benchmark-judge-judge",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/diffusion-predictive-shadow-benchmark",
+      "to": "codex/diffusion-predictive-shadow-benchmark-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.617,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/embed-provider-contract",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/fix-git-claim-release-push-hook-judge",
+      "to": "codex/fix-git-claim-release-push-hook",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.717,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-git-claim-release-push-hook",
+      "to": "codex/fix-git-claim-release-push-hook-judge",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/fix-git-claim-release-push-hook",
+      "to": "knowledge:source_chunk:chunk-readme-md-1-1-the-pre-push-guard-runs-npm-run-test-all-23ef26e27b",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.596,
+      "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-22T01:16:16.452Z"
+  "compacted_at": "2026-06-22T01:28:52.269Z"
 }
