@@ -5,7 +5,8 @@
 // relative to this hook (<install-root>/daemon.js) rather than via $HOME guessing.
 const path = require('path');
 const fs = require('fs');
-const { spawn, execFileSync } = require('child_process');
+const { spawn } = require('child_process');
+const { runtimePath } = require('../lib/runtime-paths');
 const k = require('./lib/hookkit');
 const { repoRoot } = require('../lib/workspace-registry');
 const codexSessionBridge = require('../lib/codex-session-bridge');
@@ -15,16 +16,12 @@ function hasDaemonProcess() {
   const port = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
   if (port !== 8787) return false;
   try {
-    const out = execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' });
-    return out.split(/\r?\n/).some((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return false;
-      const m = trimmed.match(/^(\d+)\s+(.+)$/);
-      if (!m || Number(m[1]) === process.pid) return false;
-      return /(?:^|\s)\S*\/daemon\.js(?:\s|$)/.test(m[2]);
-    });
+    const pid = Number(fs.readFileSync(runtimePath('daemon.pid'), 'utf8').trim());
+    if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) return false;
+    process.kill(pid, 0); // throws ESRCH when the pid is not alive
+    return true;
   } catch {
-    return false;
+    return false; // no pidfile, malformed pid, or not alive ⇒ treat as no daemon
   }
 }
 
