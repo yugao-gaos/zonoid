@@ -6311,7 +6311,7 @@ function renderCloud(d, opts={}){
   const summaryEl=document.getElementById('cloudSearchSummary');
   if(summaryEl){
     if(q&&searchFinalized){
-      const summaryKeys=[...finalNodeKeys];
+      const summaryKeys=trace?[...trace.finalKeys]:[...finalNodeKeys];
       if(!summaryKeys.length) for(const id of fallbackFinalNodeKeys) summaryKeys.push(id);
       const summaryNodes=summaryKeys
         .map(id=>byNode[id])
