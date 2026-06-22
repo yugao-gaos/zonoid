@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/fix-dashboard-search-link-comparator-scope",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "019eef9f-bc70-7541-8f76-379400ff71e1",
+  "branch": "orch/attempt/codex-fix-dashboard-search-link-comparator-scope",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T15:01:27.557Z",
+  "lease_until": "2026-06-22T16:01:27.557Z"
+}
