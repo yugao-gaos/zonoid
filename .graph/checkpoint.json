@@ -228775,8 +228775,8 @@
       "assignee": "codex-main-rescue-migrate-surface-messages-judge",
       "timestamps": {
         "firstSeen": "2026-06-22T00:47:34.208Z",
-        "lastChanged": "2026-06-22T00:51:56.924Z",
-        "lastStatus": "ready"
+        "lastChanged": "2026-06-22T01:11:18.795Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -274734,17 +274734,17 @@
       "from": "note:note-mqogmgwobj3",
       "to": "codex/probe-subconscious-assignment-main-live",
       "kind": "context",
-      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false
+      "judged": false,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mqohd5sxhcq",
       "to": "codex/embedding-store-interface",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.636,
       "origin": "autowire-semantic"
     },
@@ -274753,8 +274753,8 @@
       "to": "codex/embedding-store-interface-impl",
       "kind": "context",
       "weight": 1,
-      "judged": false,
-      "by": "autowire"
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mqohd5sxhcq",
@@ -274801,8 +274801,8 @@
       "to": "codex/predictive-learning-gate-feedback",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.649,
       "origin": "autowire-semantic"
     },
@@ -274811,8 +274811,8 @@
       "to": "codex-desktop/assess-codebase-tightness",
       "kind": "context",
       "weight": 0,
-      "judged": false,
       "by": "autowire",
+      "judged": false,
       "score": 0.657,
       "origin": "autowire-semantic"
     },
@@ -274897,14 +274897,6 @@
       "weight": 0.8,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "codex/embed-provider-contract",
-      "to": "codex/embed-provider-local-adapter",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/judge-predictive-learning-gate-feedback",
@@ -275089,7 +275081,63 @@
       "weight": 0.58,
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqoiovclnq6",
+      "to": "codex/diffusion-predictive-shadow-benchmark",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/brain-search-activation-engine",
+      "to": "codex/diffusion-predictive-shadow-benchmark",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/brain-search-task-context",
+      "to": "codex/diffusion-predictive-shadow-benchmark",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/brain-search-weight-evolution",
+      "to": "codex/diffusion-predictive-shadow-benchmark",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/diffusion-predictive-shadow-benchmark",
+      "to": "codex/diffusion-predictive-shadow-benchmark-judge",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-contract",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/judge-predictive-learning-gate-feedback",
+      "to": "codex/diffusion-predictive-shadow-benchmark",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/predictive-learning-gate-feedback",
+      "to": "codex/diffusion-predictive-shadow-benchmark",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/search-diagnostic-retrieval-weight-feedback",
+      "to": "codex/diffusion-predictive-shadow-benchmark",
+      "kind": "context",
+      "origin": "subconscious-assignment"
     }
   ],
-  "compacted_at": "2026-06-22T01:10:34.282Z"
+  "compacted_at": "2026-06-22T01:16:16.452Z"
 }
