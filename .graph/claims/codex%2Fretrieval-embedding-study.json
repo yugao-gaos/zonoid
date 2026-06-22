@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-desktop-retrieval-embedding-study",
   "branch": "orch/attempt/codex-retrieval-embedding-study",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-22T01:32:58.262Z",
-  "lease_until": "2026-06-22T02:32:58.262Z"
+  "lease_until": "2026-06-22T02:32:58.262Z",
+  "completed_at": "2026-06-22T01:42:56.074Z"
 }
