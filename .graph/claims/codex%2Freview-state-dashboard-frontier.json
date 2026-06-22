@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-49822-e0fc9ff8fecd4ad2828ef25eec9ddd0e",
   "branch": "orch/attempt/codex-review-state-dashboard-frontier",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T20:50:01.004Z",
-  "lease_until": "2026-06-22T21:50:01.004Z"
+  "lease_until": "2026-06-22T21:50:01.004Z",
+  "completed_at": "2026-06-22T20:57:39.173Z"
 }
