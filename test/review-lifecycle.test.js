@@ -104,11 +104,16 @@ const REVIEWED_AT = '2026-06-22T12:00:00.000Z';
     review_note: 'large detail',
     review_agent: 'reviewer-a',
     reviewed_at: REVIEWED_AT,
+    review_requested_at: REVIEWED_AT,
+    review_requested_by: 'dispatcher-a',
     merge_state: 'pending',
+    merge_sha: 'def456',
+    merged_at: REVIEWED_AT,
     attempt_branch: 'orch/attempt/codex-review-state-lifecycle-contract',
   });
   ok('frontier slim keeps lightweight review fields', slim.review_state === 'approved' && slim.review_verdict === 'APPROVE' && slim.merge_state === 'pending');
-  ok('frontier slim keeps reviewer timestamp context', slim.review_agent === 'reviewer-a' && slim.reviewed_at === REVIEWED_AT);
+  ok('frontier slim keeps reviewer and request timestamp context', slim.review_agent === 'reviewer-a' && slim.reviewed_at === REVIEWED_AT && slim.review_requested_at === REVIEWED_AT && slim.review_requested_by === 'dispatcher-a');
+  ok('frontier slim keeps merge completion fields', slim.merge_sha === 'def456' && slim.merged_at === REVIEWED_AT);
   ok('frontier slim drops heavy review detail and branch pointers', !('review_note' in slim) && !('attempt_branch' in slim));
 }
 

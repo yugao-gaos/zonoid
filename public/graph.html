@@ -90,6 +90,12 @@
   #flowstats { flex-shrink: 0; }
   /* (legacy DAG-column view removed — Flow is the structure view) */
   .badge { display: inline-block; font-size: 10px; background: #1f6feb33; color: #79c0ff; border: 1px solid #1f6feb55; border-radius: 9px; padding: 0 6px; margin-left: 6px; }
+  .review-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; }
+  .rvb { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; padding: 1px 7px; border-radius: 9px; border: 1px solid #30363d; color: #8b949e; background: #161b22; }
+  .rvb b { color: #6e7681; font-weight: 600; }
+  .rvb.ok { color: #7ee787; border-color: #2ea04366; background: #2ea04318; }
+  .rvb.wait { color: #f0d77a; border-color: #bb800966; background: #bb800918; }
+  .rvb.bad { color: #ff7b72; border-color: #f8514966; background: #f8514918; }
   .s-not_ready  { border-left-color: #6e7681; opacity: .55; } .s-not_ready .st { color: #6e7681; }
   .s-needs_guidance,.s-needs_approval { border-left-color: #d29922; } .s-needs_guidance .st,.s-needs_approval .st { color: #e3b341; }
   .s-waiting_deps { border-left-color: #6e7681; opacity: .55; } .s-waiting_deps .st { color: #6e7681; }
@@ -5103,6 +5109,7 @@ async function openDetail(key){
     (t.status!==ds.key?`<span class="muted" style="font-size:10px"> (engine: ${esc(t.status)})</span>`:'')+
     (t.agent_id?`<span class="badge">${esc(t.agent_id)}</span>`:'')+
     `</div>`+
+    reviewBadgesHtml(t)+
     (u&&!u.error&&t.kind!=='note'?`<div class="kv"><div class="k">Token usage</div><div class="v usage"><div>total <b>${fmtK(u.total||0)}</b></div><div>out <b>${fmtK(u.output_tokens||0)}</b></div><div>in ${fmtK(u.input_tokens||0)}</div><div>cache ${fmtK(u.cache_read_input_tokens||0)}</div></div></div>`:'')+
     (t.note&&(ds.key==='needs_guidance'||ds.key==='needs_approval'||ds.key==='blocked')?`<div class="kv"><div class="k">Hold reason</div><div class="v" style="font-size:12px;color:#e3b341">${esc(t.note)}</div></div>`:'')+
     `<div style="margin-bottom:12px"><button id="focusToggleBtn" style="width:100%;background:none;border:1px solid #30363d;color:#8b949e;border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;text-align:center;letter-spacing:.02em" onclick="toggleFocus('${esc(key)}')">${currentView==='focus'&&focusedId===key?'✕ Exit Focus':'⌖ Focus view'}</button></div>`+
@@ -5137,11 +5144,66 @@ function refreshCronTok(){
 let lastRenderFp='';
 function stateFingerprint(d){
   const s=d.summary||{}, sc=s.statuses||{};
-  const taskFp=(d.tasks||[]).map(t=>t.id+':'+t.status+(t.agent_id?'/'+t.agent_id:'')).sort().join('|');
+  const taskFp=(d.tasks||[]).map(t=>[
+    t.id,
+    t.status,
+    t.agent_id||'',
+    t.review_state||'',
+    t.review_verdict||'',
+    t.merge_state||'',
+    t.review_requested_at||'',
+    t.reviewed_at||''
+  ].join(':')).sort().join('|');
   const guidFp=(d.guidance||[]).map(g=>g.id+':'+g.resolved).join('|');
   return JSON.stringify({sc, taskFp, guidFp, agents: s.agents, archived: s.archived});
 }
 function statusLabel(s){ const m={'not_ready':'Not ready','in_progress':'In progress','canceled':'Canceled','not ready':'Not ready','in progress':'In progress','needs_guidance':'Needs guidance','needs_approval':'Needs approval','waiting_deps':'Waiting on deps','waiting_ghost':'Waiting on ghost','blocked':'Blocked'}; return m[s]||(s.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())); }
+function reviewText(s){ return String(s||'').replace(/_/g,' ').replace(/\s+/g,' ').trim(); }
+function reviewTone(value){
+  const s=String(value||'').toLowerCase();
+  if(/kick|reject|block|fail|conflict/.test(s)) return 'bad';
+  if(/pending|request|review/.test(s)) return 'wait';
+  if(/approve|merge|merged|land|closed|done/.test(s)) return 'ok';
+  return '';
+}
+function reviewCue(t){
+  if(!t||t.kind==='note') return '';
+  const state=String(t.review_state||'').toLowerCase();
+  const verdict=String(t.review_verdict||'').toUpperCase();
+  const merge=String(t.merge_state||'').toLowerCase();
+  if(merge==='merged'||state==='landed') return 'merged';
+  if(merge==='conflict') return 'merge conflict';
+  if(merge==='failed') return 'merge failed';
+  if(verdict==='KICK_BACK'||state==='rejected') return 'kickback';
+  if(merge==='review_pending'||state==='pending'||state==='requested') return 'review';
+  if(merge==='pending') return 'merge pending';
+  if(verdict==='APPROVE'||state==='approved') return 'approved';
+  return reviewText(state||merge);
+}
+function reviewCueColor(t){
+  const cue=reviewCue(t);
+  const tone=reviewTone(cue||t?.review_state||t?.merge_state||t?.review_verdict);
+  if(tone==='bad') return '#ff7b72';
+  if(tone==='wait') return '#e3b341';
+  if(tone==='ok') return '#3fb950';
+  return '#8b949e';
+}
+function shortTime(v){
+  if(!v) return '';
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime())) return String(v);
+  return d.toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+function reviewBadgesHtml(t){
+  if(!t||t.kind==='note') return '';
+  const items=[];
+  if(t.review_state) items.push({ k:'review', v:reviewText(t.review_state), tone:reviewTone(t.review_state) });
+  if(t.review_verdict) items.push({ k:'verdict', v:t.review_verdict==='KICK_BACK'?'kickback':reviewText(t.review_verdict).toLowerCase(), tone:reviewTone(t.review_verdict) });
+  if(t.merge_state) items.push({ k:'merge', v:reviewText(t.merge_state), tone:reviewTone(t.merge_state) });
+  if(t.review_requested_at) items.push({ k:'requested', v:shortTime(t.review_requested_at), tone:'wait' });
+  if(!items.length) return '';
+  return `<div class="review-badges">${items.map(x=>`<span class="rvb ${esc(x.tone)}"><b>${esc(x.k)}</b>${esc(x.v)}</span>`).join('')}</div>`;
+}
 const DISPLAY_STATUS_COLOR={needs_guidance:'#e3b341',needs_approval:'#e3b341',waiting_deps:'#6e7681',waiting_ghost:'#a371f7',blocked:'#ff7b72'};
 const GUIDANCE_HOLD_RE=/disruptive follow-up|gated on guidance|held by user|user_hold|scheduled for|cost_gate|awaiting user|awaiting approval|review required|force-claim|explicit.*hold/i;
 function pendingFollowUpForTask(taskId){
@@ -5394,7 +5456,7 @@ async function tick(){
   }
   if(selected){
   const dt=lastState&&lastState.tasks&&lastState.tasks.find(t=>t.id===selected);
-  const fp=dt?dt.status+(dt.agent_id||'')+(dt.summary||''):'';
+  const fp=dt?[dt.status,dt.agent_id||'',dt.summary||'',dt.review_state||'',dt.review_verdict||'',dt.merge_state||'',dt.review_requested_at||'',dt.reviewed_at||''].join(':'):'';
   if(fp!==lastDetailFp){ lastDetailFp=fp; openDetail(selected); }
 }
   const rt=document.getElementById('routes');
@@ -6816,7 +6878,9 @@ function renderDagSubset(view, nodes, links, byId){
   const NW=250, NH_BASE=52, NH_EXTRA=16, CHARS_PER_LINE=32;
   const nodeLabel=t=>(t.kind==='note'?(t.validTo?'🕓 ':'📌 '):'')+t.label;
   const nodeLines=t=>wrapLabel(nodeLabel(t),CHARS_PER_LINE);
-  const nodeH=t=>NH_BASE+Math.max(0,nodeLines(t).length-1)*NH_EXTRA;
+  const nodeH=t=>NH_BASE+Math.max(0,nodeLines(t).length-1)*NH_EXTRA+(reviewCue(t)?14:0);
+  const titleY=t=>(nodeLines(t).length>1||reviewCue(t))?-nodeH(t)/2+18:6;
+  const statusY=t=>(nodeLines(t).length>1||reviewCue(t))?nodeH(t)/2-10:16;
   const g=new dagre.graphlib.Graph(); g.setGraph({rankdir:'LR', nodesep:24, ranksep:64, marginx:20, marginy:20}); g.setDefaultEdgeLabel(()=>({}));
   for(const t of nodes) g.setNode(t.id,{width:NW,height:nodeH(t)});
   for(const l of sub) g.setEdge(l.from,l.to,{kind:l.kind,w:l.w});
@@ -6884,6 +6948,7 @@ function renderDagSubset(view, nodes, links, byId){
   en.append('rect').attr('class','flbar').attr('width',4).attr('x',-NW/2);
   en.append('text').attr('class','ftxt').attr('fill','#e6edf3').attr('font-weight',600).attr('font-size',13);
   en.append('text').attr('class','fst').attr('x',-NW/2+12);
+  en.append('text').attr('class','frev').attr('text-anchor','end').attr('font-size',10).attr('font-weight',700);
   const na=en.merge(np);
   na.select('.fhalo').attr('x',-NW/2-4).attr('y',t=>-nodeH(t)/2-4).attr('width',NW+8).attr('height',t=>nodeH(t)+8);
   na.select('.fbg').attr('width',NW).attr('height',t=>nodeH(t)).attr('y',t=>-nodeH(t)/2);
@@ -6900,10 +6965,11 @@ function renderDagSubset(view, nodes, links, byId){
   na.attr('transform',t=>{ const n=g.node(t.id); return `translate(${n.x},${n.y})`+(isFocus(t)?' scale(1.12)':''); });
   na.select('.fbg').attr('fill','#161b22').attr('stroke',t=>isFocus(t)?'#e3b341':t.status==='in_progress'?'#58a6ff':t.id===selected?'#58a6ff':'#30363d').attr('stroke-width',t=>isFocus(t)?2.5:(t.status==='in_progress'||t.id===selected)?2:1);
   na.select('.flbar').attr('fill',t=>taskDisplayStatus(t,byId).color);
-  na.select('.ftxt').attr('y',t=>nodeLines(t).length>1?-nodeH(t)/2+18:6).each(function(t){ const ls=nodeLines(t); d3.select(this).selectAll('tspan').data(ls).join('tspan').attr('x',-NW/2+12).attr('dy',(d,i)=>i===0?0:NH_EXTRA+'px').text(d=>d); });
+  na.select('.ftxt').attr('y',titleY).each(function(t){ const ls=nodeLines(t); d3.select(this).selectAll('tspan').data(ls).join('tspan').attr('x',-NW/2+12).attr('dy',(d,i)=>i===0?0:NH_EXTRA+'px').text(d=>d); });
   // Superseded notes (validTo set) read as dimmed history; current/active notes stay full-opacity.
   na.attr('opacity', t=>(t.kind==='note'&&t.validTo)?0.5:1);
-  na.select('.fst').attr('fill',t=>taskDisplayStatus(t,byId).color).attr('y',t=>nodeLines(t).length>1?nodeH(t)/2-10:16).text(t=>taskStatusLine(t,byId));
+  na.select('.fst').attr('fill',t=>taskDisplayStatus(t,byId).color).attr('y',statusY).text(t=>taskStatusLine(t,byId));
+  na.select('.frev').attr('x',NW/2-12).attr('y',statusY).attr('fill',reviewCueColor).text(reviewCue);
   na.on('click',(ev,t)=>openDetail(t.id));
   na.classed('wip', t=>t.status==='in_progress'&&t.agent_id&&liveAgentIds.has(t.agent_id));   // left-to-right shine sweep
   na.classed('focused', isFocus);                   // steady amber halo on the focused node
