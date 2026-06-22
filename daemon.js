@@ -910,19 +910,29 @@ function staleVerdictKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
   }
   return out;
 }
-// Reset stale verdict-pending hand-offs back to pending so the loop re-dispatches them.
-// The agent that picks them up can read the codebase and task description to determine current
-// state — no human escalation needed. Mirrors sweepStaleClaims in structure.
+function hasPendingStaleVerdictGuidance(ov, key) {
+  return Array.isArray(ov.guidance) && ov.guidance.some((g) => !g.resolved
+    && (g.verdictKey === key
+      || (g.action && g.action.kind === 'stale-verdict' && (g.action.task_key === key || g.action.verdictKey === key))));
+}
+
+// Surface stale verdict-pending hand-offs for review. Do not mutate status/assignee or write native
+// pending: a stale tested/ready handoff is evidence to inspect, not work to auto-requeue.
 function sweepStaleVerdicts(ws, ov) {
   const stale = staleVerdictKeys(ov, state.agents, Date.now());
   if (!stale.length) return false;
   let dirty = false;
   for (const { key, status, agentId } of stale) {
-    delete ov.status[key];
-    delete ov.assignee[key];
-    ov.notes[key] = `auto-requeued: '${status}' owner '${agentId || '?'}' not running — reset to pending for re-dispatch`;
-    try { writeTaskStatus(ws, key, 'pending'); } catch { /* best effort */ }
-    console.log(`[self-heal] task ${key} (was ${status}) reset to pending — owner gone`);
+    if (hasPendingStaleVerdictGuidance(ov, key)) continue;
+    const gid = overlayStore.addGuidance(ov, {
+      question: `Stale ${status} verdict handoff for ${key} needs review`,
+      context: `Task ${key} has overlay status '${status}', but owner '${agentId || '?'}' is not running and the status timestamp is stale. The self-heal sweep left status and assignee unchanged.`,
+      trigger: 'stale_verdict',
+      severity: 'review',
+      action: { kind: 'stale-verdict', task_key: key, status, agent_id: agentId || null },
+    });
+    overlayStore.annotateGuidance(ov, gid, { verdictKey: key });
+    console.log(`[self-heal] task ${key} (was ${status}) surfaced for review — owner gone`);
     dirty = true;
   }
   if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
@@ -1461,7 +1471,7 @@ function decideAll() {
   const sweepWsSet = registeredWorkspaces();
   for (const ws of sweepWsSet) {
     const ov = overlayFor(ws);
-    sweepStaleVerdicts(ws, ov);   // reset abandoned verdict-pending hand-offs per-workspace
+    sweepStaleVerdicts(ws, ov);   // surface abandoned verdict-pending hand-offs per-workspace
     sweepStaleGuidance(ws, ov);   // auto-resolve stale blocking guidance per-workspace
     sweepFailedTasks(ws, ov);     // auto-retry: flip failed tasks back to pending (already (ws,ov)) per-workspace
     // Note: sweepStaleClaims is NOT called here — buildGraph already handles per-ws claim liveness

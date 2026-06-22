@@ -58,16 +58,21 @@ __setAgentsForTest({
 
   const dirty = sweepStaleVerdicts(SECONDARY_WS, secondOv);
   ok('(a1) sweepStaleVerdicts: dirty=true when stale verdict in secondary ws', dirty === true);
-  ok('(a1) sweepStaleVerdicts: stale tested task reset to pending', !secondOv.status['s/101']);
+  ok('(a1) sweepStaleVerdicts: stale tested task status preserved', secondOv.status['s/101'] === 'tested');
+  ok('(a1) sweepStaleVerdicts: stale tested task assignee preserved', secondOv.assignee['s/101'] === 'dead-judge');
+  const surfaced = secondOv.guidance.find((g) => g.verdictKey === 's/101');
+  ok('(a1) sweepStaleVerdicts: stale tested task surfaced as guidance', !!surfaced);
+  ok('(a1) sweepStaleVerdicts: guidance is review severity with stale-verdict action', surfaced && surfaced.severity === 'review' && surfaced.action && surfaced.action.kind === 'stale-verdict' && surfaced.action.task_key === 's/101');
   ok('(a1) sweepStaleVerdicts: fresh tested task NOT swept', secondOv.status['s/102'] === 'tested');
   ok('(a1) sweepStaleVerdicts: live-owner task NOT swept', secondOv.status['s/103'] === 'tested');
 
   // Primary workspace overlay must be untouched
-  ok('(a1) sweepStaleVerdicts: primary overlay NOT mutated', !primaryOv.status['s/101']);
+  ok('(a1) sweepStaleVerdicts: primary overlay NOT mutated', !primaryOv.status['s/101'] && (!Array.isArray(primaryOv.guidance) || primaryOv.guidance.length === 0));
 
-  // Idempotency: second pass on already-reset task returns false (nothing left to sweep)
+  // Idempotency: second pass leaves the unresolved tagged guidance as the single surfaced item
   const dirty2 = sweepStaleVerdicts(SECONDARY_WS, secondOv);
   ok('(a1) sweepStaleVerdicts: idempotent — second pass is clean', dirty2 === false);
+  ok('(a1) sweepStaleVerdicts: idempotent — no duplicate guidance', secondOv.guidance.filter((g) => g.verdictKey === 's/101').length === 1);
 }
 
 // ─── (a2) sweepStaleGuidance on a SECONDARY workspace overlay ────────────────
