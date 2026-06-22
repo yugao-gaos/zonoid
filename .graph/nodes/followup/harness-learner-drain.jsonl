@@ -264,3 +264,4 @@
 {"evt":"edge_removed","from":"followup/harness-learner-drain","to":"ce0b4fd0-93df-4f10-99aa-49b7156c351a/10","kind":"context","actor":"overlay-sync","ts":"2026-06-21T18:50:48.619Z"}
 {"evt":"edge_removed","from":"followup/harness-learner-drain","to":"eb25339f-1c71-4fc9-a316-ea83fb6a25d3/7","kind":"context","actor":"overlay-sync","ts":"2026-06-21T18:50:48.619Z"}
 {"evt":"edge_removed","from":"followup/harness-learner-drain","to":"f38c7d2a-e05b-4d1d-a418-ae62c414fba2/6","kind":"context","actor":"overlay-sync","ts":"2026-06-21T18:50:48.619Z"}
+{"evt":"edge_removed","from":"followup/harness-learner-drain","to":"6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:02:14.264Z"}

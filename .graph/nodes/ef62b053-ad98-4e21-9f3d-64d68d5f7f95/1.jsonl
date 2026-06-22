@@ -51,3 +51,6 @@
 {"evt":"edge_removed","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"eb25339f-1c71-4fc9-a316-ea83fb6a25d3/4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:45:42.355Z"}
 {"evt":"edge_removed","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/10","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:46:15.695Z"}
 {"evt":"edge_removed","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"af585417-07f3-4b6f-8c96-d9b784271d32/6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:46:33.192Z"}
+{"evt":"edge_removed","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"local/arch-cloud","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:03:25.627Z"}
+{"evt":"edge_removed","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"local/arch-orphan","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:03:25.627Z"}
+{"evt":"edge_removed","from":"ef62b053-ad98-4e21-9f3d-64d68d5f7f95/1","to":"codex/force-cloud-cascade-search-animation","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:03:25.627Z"}
