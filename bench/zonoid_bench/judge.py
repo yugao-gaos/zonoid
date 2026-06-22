@@ -247,13 +247,15 @@ _EDGE_JUDGE_RUBRIC = """\
 You are the Zonoid note-graph edge-judge. You adjudicate whether RAG-recalled note neighbours are
 SOUND context edges, and whether near-duplicate note clusters are the SAME fact.
 
-You are given ANCHOR note N and a list of CANDIDATE neighbour notes the daemon autowired to N by
-cosine similarity. For EACH candidate decide:
+You are given ANCHOR note/task N and a list of CANDIDATE neighbour notes the daemon autowired to N
+by cosine similarity. For EACH candidate decide:
 
   edge:
     "keep"  — N and the candidate are a SOUND context relation: working on one would genuinely
               benefit from seeing the other (same subsystem/file/bug-class/fix-pattern, or one is
-              real prerequisite context for the other).
+              real prerequisite context for the other). If N is a task/question probe, keep a
+              candidate that contains evidence needed to answer or complete that probe, including
+              exact identifiers, run-specific codes, facts, constraints, or prior decisions.
     "prune" — the candidate is merely cosine-similar (shares vocabulary/library/framing) but is
               NOT sound context for N: different subsystem, unrelated bug, no transfer of insight.
 
@@ -384,7 +386,7 @@ class EdgeJudge:
             )
         prompt = (
             _EDGE_JUDGE_RUBRIC
-            + "\n\nANCHOR note N (key="
+            + "\n\nANCHOR note/task N (key="
             + anchor_key
             + "):\n"
             + anchor_summary[:2000]

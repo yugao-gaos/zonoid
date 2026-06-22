@@ -249,4 +249,4 @@ source references.
 | `ValueError: workspace must be an absolute path` | Relative workspace | Use `os.path.abspath(...)` |
 | `/task/context` returns empty `dependencySummaries` | Wiring race | Sleep 3-6 s after `post_note` before `task_suggest` |
 | cold arm scores as well as ON arm | Fact is world-knowledge | Choose a more obscure planted fact |
-| A2 fails (no wired edges) | ceScore below threshold | Increase `ZONOID_BENCH_CE_THRESHOLD`; check embedder is warm |
+| A2 fails (no wired edges) | EdgeJudge timed out, failed, or returned prune verdicts before posting a verified `keepEdge` | Inspect candidate verdicts and `claude -p` health, then rerun the smoke |

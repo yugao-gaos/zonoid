@@ -124,19 +124,19 @@ def _make_token() -> str:
 # Generated at import time so it's consistent for a single run.
 PLANTED_FACT_TOKEN: str = _make_token()
 
-_PLANTED_NOTE_TITLE   = "Bench smoke -- integration run secret"
+_PLANTED_NOTE_TITLE   = "Bench smoke -- integration run code"
 
 def _make_summaries() -> tuple[str, str]:
     """Build the planted and distractor summaries around the runtime token."""
     tok = PLANTED_FACT_TOKEN
     planted = (
-        f"The one-time secret token for this bench smoke run is {tok}. "
+        f"The one-time verification code for this bench smoke run is {tok}. "
         f"This value is stored only in this isolated knowledge base and is "
         f"not present in any model training corpus or public source."
     )
     distractor = (
         "A separate session identifier SMK-AAAA-BBBB-CCCC belongs to a legacy "
-        "test run and is unrelated to the current smoke session's secret token."
+        "test run and is unrelated to the current smoke session's verification code."
     )
     return planted, distractor
 
@@ -145,7 +145,7 @@ _PLANTED_NOTE_SUMMARY, _DISTRACTOR_NOTE_SUMMARY = _make_summaries()
 _DISTRACTOR_NOTE_TITLE = "Bench smoke -- distractor session id"
 
 _PROBE_QUESTION = (
-    "What is the one-time secret token stored in this bench smoke session's knowledge base?"
+    "What is the one-time verification code stored in this bench smoke session's knowledge base?"
 )
 
 
