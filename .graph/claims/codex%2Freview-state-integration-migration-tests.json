@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/review-state-integration-migration-tests",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-50483-cfbb9a60a6b2aa38cb7daf65ac7eec26",
+  "branch": "orch/attempt/codex-review-state-integration-migration-tests",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T21:15:48.186Z",
+  "lease_until": "2026-06-22T22:15:48.186Z"
+}
