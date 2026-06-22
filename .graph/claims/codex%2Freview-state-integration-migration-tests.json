@@ -3,8 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-50483-cfbb9a60a6b2aa38cb7daf65ac7eec26",
   "branch": "orch/attempt/codex-review-state-integration-migration-tests",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-22T21:15:48.186Z",
   "lease_until": "2026-06-22T22:15:48.186Z",
-  "completed_at": "2026-06-22T21:27:14.878Z"
+  "completed_at": "2026-06-22T21:28:24.866Z"
 }
