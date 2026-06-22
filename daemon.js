@@ -68,6 +68,7 @@ const { taskEmbedText } = require('./lib/node-tags');
 const headlessDrain = require('./lib/headless-drain');
 const registry = require('./lib/workspace-registry');
 const runtimePaths = require('./lib/runtime-paths');
+const { ensureManagedGraphLoop } = require('./lib/loop-autostart');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -406,7 +407,7 @@ const STALE_PROGRESS_MIN_DEFAULT = 30;   // a loop with no progress past this ma
 const GC_LOOP_RETAIN_MS = 60 * 60 * 1000;   // prune inactive loop entries idle longer than this (registry-leak guard, task /3)
 function newLoop(over) {
   return { id: null, active: false, iterations: 0, spent: 0, baseline: 0, real: false, startedAt: null,
-    session: null, lastProgress: null, workspace: null,
+    session: null, lastProgress: null, workspace: null, managed: null,
     config: { tokenBudget: 5000000, maxIterations: 6250, minPoll: 30, maxPoll: 1200, estPerTick: 800, batch: 8, maxConcurrency: 10, judgeParallelCap: 6 },
     ...over };
 }
@@ -469,6 +470,7 @@ async function loadState() {
   advanceBoot('loops');
   await yieldLoop();
   restoreLoops();
+  try { ensureManagedGraphLoops(); } catch (e) { process.stderr.write(`managed graph loop ensure failed: ${e.message}\n`); }
 
   // Fully operational
   advanceBoot('ready');
@@ -1422,6 +1424,33 @@ function decideOne(L, ctx) {
   return { ...base, action: 'stop', reason: 'DAG drained (nothing ready, running, or externally pending)' };
 }
 
+function loopDecisionContext(ws, batch = null) {
+  const ov = ws ? overlayFor(ws) : overlayStore.EMPTY();
+  const pend = overlayStore.pendingGuidance(ov);
+  return {
+    ws, ov,
+    graph: buildGraph(ws),
+    pendingGuidance: pend.filter((g) => g.severity !== 'review'),
+    reviewPending: pend.filter((g) => g.severity === 'review').length,
+    batch,
+  };
+}
+
+function ensureManagedGraphLoops(ctxByWs = null) {
+  let dirty = false;
+  for (const ws of registeredWorkspaces()) {
+    let c = ctxByWs && ctxByWs.get(ws);
+    if (!c) {
+      c = loopDecisionContext(ws, null);
+      if (ctxByWs) ctxByWs.set(ws, c);
+    }
+    const r = ensureManagedGraphLoop({ ctx: { loops, newLoop, now }, workspace: ws, graph: c.graph, overlay: c.ov });
+    if (r.created) dirty = true;
+  }
+  if (dirty) { saveLoops(); notifyChange(); }
+  return dirty;
+}
+
 // ONE heartbeat drives the WHOLE registry. Iterate every ACTIVE loop, compute each one's decision
 // honoring its own budget/config/session, and return a batched array [{ loopId, action, ... }]. The
 // `batch` config multiplexes across loops via a shared per-tick spawn pool (max of the active loops'
@@ -1431,7 +1460,6 @@ function decideAll() {
   // Sweep across the REAL set of registered workspaces (workspaces.json), not the single daemon-
   // global state.workspace pointer (P2b). registeredWorkspaces() already unions in active-loop
   // workspaces defensively, so a loop pinned to a not-yet-registered ws is still swept.
-  const active = [...loops.values()].filter((L) => L.active);
   const sweepWsSet = registeredWorkspaces();
   for (const ws of sweepWsSet) {
     const ov = overlayFor(ws);
@@ -1441,6 +1469,10 @@ function decideAll() {
     // Note: sweepStaleClaims is NOT called here — buildGraph already handles per-ws claim liveness
     // in the ctxFor() loop below; calling it here again would be a redundant double-sweep.
   }
+  const managedCtxByWs = new Map();
+  ensureManagedGraphLoops(managedCtxByWs);
+
+  const active = [...loops.values()].filter((L) => L.active);
   // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
   // concurrency bound is about total spawned workers, not per-workspace.
   const batch = { remaining: active.reduce((m, L) => Math.max(m, L.config.batch || 0), 0) };
@@ -1451,21 +1483,14 @@ function decideAll() {
   // always pinned (exec.js sets L.workspace on /loop). The test-only holder (__testWs) supplies the
   // workspace when a unit test drives decideAll with an unpinned loop; if neither exists, overlayFor
   // / buildGraph handle the null ws as an empty graph (the loop simply finds nothing to do).
-  const ctxByWs = new Map();
+  const ctxByWs = new Map(managedCtxByWs);
   function ctxFor(ws) {
     let c = ctxByWs.get(ws);
     if (!c) {
-      const ov = ws ? overlayFor(ws) : overlayStore.EMPTY();
-      const pend = overlayStore.pendingGuidance(ov);
-      c = {
-        ws, ov,
-        graph: buildGraph(ws),
-        pendingGuidance: pend.filter((g) => g.severity !== 'review'),   // BLOCKING only — gates await_user
-        reviewPending: pend.filter((g) => g.severity === 'review').length,
-        batch,
-      };
+      c = loopDecisionContext(ws, batch);
       ctxByWs.set(ws, c);
     }
+    c.batch = batch;
     return c;
   }
   const out = [];
@@ -2540,7 +2565,7 @@ function isPrimaryCheckout(root = __dirname) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, decideAll, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
+  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).
@@ -2690,7 +2715,7 @@ if (require.main === module) {
   // Periodic liveness sweep: reclaim zombie loops even when NO driver is polling next_action (a loop
   // bound to a closed conversation is otherwise never re-evaluated). decideAll already sweeps on each
   // heartbeat; this catches the un-driven case. Cheap; unref'd so it never holds the process open.
-  setInterval(() => { try { sweepStaleLoops(); } catch { /* best effort */ } }, 60000).unref();
+  setInterval(() => { try { sweepStaleLoops(); ensureManagedGraphLoops(); } catch { /* best effort */ } }, 60000).unref();
 
   // Headless drain runner: unless ORCH_HEADLESS_DRAINS explicitly opts out, runs due background
   // maintenance drains (learner/judge/label). This is the NO-SESSION path; real ready-task impl
