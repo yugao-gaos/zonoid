@@ -5724,7 +5724,7 @@ function renderCloud(d, opts={}){
     .classed('cloud-search-related', l=>searchEdgeRelated(l))
     .classed('cloud-search-final-edge', l=>searchEdgeFinal(l))
     .classed('cloud-breathe', () => shouldAnimateCloud)
-    .style('animation-delay', l=>searchEdgeRelated(l)?(Math.min(edgeActivationIndex(l),8)*45)+'ms':null);
+    .style('animation-delay', l=>searchEdgeRelated(l)?(Math.min(edgeActivationIndex(l),8)*45)+'ms':(isOnboard?((l._idx%9)*120)+'ms':null));
 
   const nodeSel=nodeG.selectAll('g.cn').data(simNodes, n=>n.id);
   nodeSel.exit().remove();
@@ -5749,7 +5749,7 @@ function renderCloud(d, opts={}){
     .classed('cloud-search-reranked', n=>stagedTraceReranked(n))
     .classed('cloud-depth', true)
     .classed('cloud-breathe', () => shouldAnimateCloud)
-    .style('animation-delay', n=>stagedTraceHit(n)?(Math.min(trace.hitRank.get(n.id)||0,8)*45)+'ms':null);
+    .style('animation-delay', n=>stagedTraceHit(n)?(Math.min(trace.hitRank.get(n.id)||0,8)*45)+'ms':(isOnboard?Math.round(((n.z+1)/2)*900)+'ms':null));
   const isDirectSearchMatch=n=>!n.archive&&(localSearch(n)||remoteMatch(n)||traceHit(n));
   const matchCount=q?simNodes.filter(isDirectSearchMatch).length:0;
   const countEl=document.getElementById('cloudMatchCount');
@@ -5781,14 +5781,31 @@ function renderCloud(d, opts={}){
       traceEl.classList.remove('show');
     }
   }
-  const showCloudLabel=n=> q?(!n.archive&&activatedSearch(n)):(n.archive||n.tier==='fg');
+  const onboardLabelIds = new Set();
+  if (isOnboard) {
+    const onboardNodeIndex = n => {
+      const m = String(n.id || '').match(/\/(\d+)$/);
+      return m ? Number(m[1]) : 9999;
+    };
+    const onboardRank = n => n.t?.status === 'in_progress' ? 0 : (n.t?.kind === 'note' ? 1 : 2);
+    const onboardLimit = Math.min(5, Math.max(2, Math.ceil(simNodes.length / 18)));
+    simNodes
+      .filter(n => !n.archive && n.t)
+      .sort((a, b) => onboardRank(a) - onboardRank(b) || (b.deg || 0) - (a.deg || 0) || onboardNodeIndex(a) - onboardNodeIndex(b))
+      .slice(0, onboardLimit)
+      .forEach(n => onboardLabelIds.add(n.id));
+  }
+  const showCloudLabel=n=> isOnboard?onboardLabelIds.has(n.id):(q?(!n.archive&&activatedSearch(n)):(n.archive||n.tier==='fg'));
+  const cloudLabelText=n=> n.archive?('🗄 '+n.count):(isOnboard?truncate(n.t.label,18):((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22)));
   nodeAll.select('title')
-    .text(n=> n.archive?'Archived — stale done/canceled and superseded notes':'');
+    .text(n=> n.archive?'Archived — stale done/canceled and superseded notes':(isOnboard&&n.t?[n.t.label,n.t.description].filter(Boolean).join('\n'):''));
   nodeAll.select('text')
-    .text(n=> showCloudLabel(n)?(n.archive?('🗄 '+n.count):((n.t.kind==='note'?'📌 ':'')+truncate(n.t.label,22))):'')
+    .text(n=> showCloudLabel(n)?cloudLabelText(n):'')
     .attr('fill-opacity', n=>showCloudLabel(n)?0.9:0);
   if(isOnboard){
-    nodeAll.on('click',null).on('mouseenter',null).on('mouseleave',null);
+    nodeAll.on('click',null)
+      .on('mouseenter',function(ev,n){ if(!n.archive&&n.t) d3.select(this).select('text').text(truncate(n.t.label,18)).attr('fill-opacity',0.82); })
+      .on('mouseleave',function(ev,n){ d3.select(this).select('text').text(showCloudLabel(n)?cloudLabelText(n):'').attr('fill-opacity',showCloudLabel(n)?0.9:0); });
   } else {
     nodeAll.on('click',(ev,n)=>{ if(n.archive){ cloudArchiveOpen=!cloudArchiveOpen; cloudSig=''; renderCloud(lastState); } else openDetail(n.id); })
       .on('mouseenter',function(ev,n){ if(!n.archive&&(!q||activatedSearch(n))) d3.select(this).select('text').text(truncate(n.t.label,22)).attr('fill-opacity',0.9); })
@@ -6766,7 +6783,11 @@ async function checkOnboardingState() {
     try {
       const r = await dfetch('/onboard/drain-queue?repo=' + encodeURIComponent(workspace) + '&outDir=' + encodeURIComponent(storedOutDir));
       const st = await r.json();
-      if (st.ok && st.status && !onboardStatusComplete(st.status)) {
+      if (st.ok && st.status && onboardStatusComplete(st.status)) {
+        completeOnboardLearning();
+        return;
+      }
+      if (st.ok && st.status) {
         const shouldResumeDrain = onboardStatusNeedsResume(st.status);
         showOnboardLanding();
         const landing = document.getElementById('onboard-landing');
@@ -6840,7 +6861,8 @@ function setOnboardStatus(msg, isError) {
 function setOnboardStage(stage) {
   const label = document.getElementById('onboardStageLabel');
   if (label) {
-    label.textContent = stage === 'review' ? 'Finalizing live injection' :
+    label.textContent = stage === 'complete' ? 'Learning complete' :
+      stage === 'review' ? 'Finalizing live injection' :
       stage === 'validate' ? 'Validating learned candidates' :
       'Mining repository candidates';
   }
@@ -6926,11 +6948,22 @@ function completeOnboardLearning() {
 }
 
 function onboardStatusComplete(s) {
-  return !!(s && s.done && (s.injected || (!s.autoInject && s.needsReview === false)));
+  return !!(s && (onboardStatusDrained(s) || (s.done === true && (s.injected || (!s.autoInject && s.needsReview === false)))));
+}
+
+function onboardStatusDrained(s) {
+  if (!s || s.error) return false;
+  const total = Math.max(0, Number(s.total) || 0);
+  if (total <= 0) return false;
+  const remaining = Math.max(0, Number(s.remaining) || 0);
+  const processed = typeof s.processed === 'number' ? s.processed : Math.max(0, total - remaining);
+  const visualProcessed = Math.max(processed, Number(s.visualProcessed) || 0);
+  const inflight = Math.max(0, Number(s.inflight) || 0);
+  return remaining === 0 && inflight === 0 && Math.max(processed, visualProcessed) >= total;
 }
 
 function onboardStatusNeedsResume(s) {
-  return !!(s && (s.done !== true || s.recovered || s.active === false || !s.injected));
+  return !!(s && !onboardStatusComplete(s) && (s.done !== true || s.recovered || s.active === false || !s.injected));
 }
 
 async function ensureOnboardLearning(repo) {
@@ -6969,8 +7002,7 @@ async function ensureOnboardLearning(repo) {
       body: JSON.stringify({repo, outDir, autoInject: true, liveInject: true})
     })).json();
     if (!dr.ok) throw new Error(dr.error || 'drain failed');
-    updateOnboardFromStatus(dr.status || {});
-    pollOnboardLearning();
+    if (!updateOnboardFromStatus(dr.status || {})) pollOnboardLearning();
   } catch (e) {
     setOnboardStatus(String(e && e.message || e), true);
     const landing = document.getElementById('onboard-landing');
@@ -7006,14 +7038,15 @@ function updateOnboardFromStatus(s) {
   const kept = typeof s.kept === 'number' ? s.kept : 0;
   const injected = typeof s.injectedKept === 'number' ? s.injectedKept : (s.injected ? kept : 0);
   const cloud = document.querySelector('.ol-cloud');
-  if (cloud) cloud.classList.toggle('is-live', !s.done && !s.error);
+  const drained = onboardStatusDrained(s);
+  if (cloud) cloud.classList.toggle('is-live', !onboardStatusComplete(s) && !s.error);
   setOnboardProgress(processed, total, kept, injected, inflight);
   renderOnboardCloud({ ...s, total, processed, visualProcessed, kept, inflight, injectedKept: injected });
   if (s.error) {
     setOnboardStatus(s.error, true);
     return true;
   }
-  if (!s.done) {
+  if (!s.done && !drained) {
     setOnboardStage('validate');
     const live = inflight ? `; learning ${inflight} live candidates now` : '';
     setOnboardStatus(`Processed ${processed}/${total}${live}; live notes appear as they are kept.`);
@@ -7022,9 +7055,15 @@ function updateOnboardFromStatus(s) {
   const landing = document.getElementById('onboard-landing');
   if (landing) landing.dataset.draining = '';
   if (s.injected) {
-    setOnboardStage('review');
+    setOnboardStage('complete');
     setOnboardStatus('Injected. Refreshing graph...');
     setTimeout(completeOnboardLearning, 800);
+    return true;
+  }
+  if (drained) {
+    setOnboardStage('complete');
+    setOnboardStatus(injected > 0 ? `Learning complete; ${injected} reviewed notes were injected. Opening dashboard...` : 'Learning complete; no reviewed notes were injected. Opening dashboard...');
+    setTimeout(completeOnboardLearning, 1000);
     return true;
   }
   setOnboardStage('review');
