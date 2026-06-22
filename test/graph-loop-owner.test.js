@@ -137,9 +137,13 @@ test('active managed graph loop is reused, while foreground session loop may coe
   const loops = loopsById();
 
   assert.equal(loops.size, 2);
-  assert.equal([...loops.values()].filter((L) => L.active && L.managed === 'graph' && L.workspace === ws).length, 1);
+  assert.equal(loops.get(loopId).managed, 'graph');
+  assert.equal(loops.get(loopId).workspace, ws);
   assert.ok(decisions.some((d) => d.loopId === loopId), 'managed loop should be decided');
   assert.ok(decisions.some((d) => d.loopId === 'foreground'), 'foreground loop should still coexist');
+  assert.equal(decisions[0].loopId, 'foreground', 'foreground loop gets first chance at ready work');
+  assert.equal(decisions[0].action, 'spawn');
+  assert.deepEqual(decisions[0].tasks, [{ key: 'codex/reuse-ready', label: 'Reuse ready work' }]);
 });
 
 test('inactive restored managed graph loop is reactivated in place', () => {

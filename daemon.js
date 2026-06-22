@@ -1470,7 +1470,11 @@ function decideAll() {
   const managedCtxByWs = new Map();
   ensureManagedGraphLoops(managedCtxByWs);
 
-  const active = [...loops.values()].filter((L) => L.active);
+  // Foreground/request loops get first chance to spend the shared spawn pool; managed graph loops
+  // are the background safety net and must not preempt an explicit driver loop for the same work.
+  const active = [...loops.values()]
+    .filter((L) => L.active)
+    .sort((a, b) => (a.managed ? 1 : 0) - (b.managed ? 1 : 0));
   // ONE spawn pool shared across ALL loops this tick (regardless of workspace) — the daemon-wide
   // concurrency bound is about total spawned workers, not per-workspace.
   const batch = { remaining: active.reduce((m, L) => Math.max(m, L.config.batch || 0), 0) };
