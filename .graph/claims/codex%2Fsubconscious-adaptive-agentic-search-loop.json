@@ -3,8 +3,7 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-27358-1aa5940eacb2a876fcc0757c5d126d98",
   "branch": "orch/attempt/codex-subconscious-adaptive-agentic-search-loop",
-  "status": "tested",
-  "claimed_at": "2026-06-22T03:36:11.492Z",
-  "lease_until": "2026-06-22T04:36:11.492Z",
-  "completed_at": "2026-06-22T03:49:03.302Z"
+  "status": "claimed",
+  "claimed_at": "2026-06-22T03:50:56.495Z",
+  "lease_until": "2026-06-22T04:50:56.495Z"
 }
