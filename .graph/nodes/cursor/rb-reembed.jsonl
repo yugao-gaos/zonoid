@@ -4,3 +4,5 @@
 {"evt":"edge_promoted","from":"cursor/rb-reembed","to":"codex/fix-search-kb-recall-semantics","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:39:45.113Z","weight":0.6,"origin":"asserted"}
 {"evt":"edge_promoted","from":"cursor/rb-reembed","to":"codex/fix-search-kb-recall-semantics","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:41:07.937Z","weight":0.6,"origin":"asserted"}
 {"evt":"edge_promoted","from":"cursor/rb-reembed","to":"codex/fix-search-kb-recall-semantics","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:41:54.292Z","weight":0.6,"origin":"asserted"}
+{"evt":"edge_promoted","from":"cursor/rb-reembed","to":"codex/fix-search-kb-recall-semantics","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:42:21.796Z","weight":0.6,"origin":"asserted"}
+{"evt":"edge_promoted","from":"cursor/rb-reembed","to":"codex/fix-search-kb-recall-semantics","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:42:33.596Z","weight":0.6,"origin":"asserted"}
