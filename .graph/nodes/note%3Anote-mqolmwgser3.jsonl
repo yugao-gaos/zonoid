@@ -53,3 +53,4 @@
 {"evt":"edge_removed","from":"note:note-mqolmwgser3","to":"codex/reconcile-post-subconscious-feature-with-main","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:19:04.120Z"}
 {"evt":"edge_removed","from":"note:note-mqolmwgser3","to":"codex/verify-post-subconscious-review-fixes-after-main-reconcile","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:19:04.120Z"}
 {"evt":"edge_added","from":"note:note-mqolmwgser3","to":"note:note-mqoxvl18k5p","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:38:52.786Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"note:note-mqoxvl18k5p","kind":"context","actor":"overlay-sync","ts":"2026-06-22T21:17:39.374Z","weight":0.65,"by":"judge","judged":true}
