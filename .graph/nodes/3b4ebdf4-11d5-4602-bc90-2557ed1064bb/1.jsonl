@@ -2,3 +2,4 @@
 {"evt":"timestamps_set","id":"3b4ebdf4-11d5-4602-bc90-2557ed1064bb/1","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-22T15:32:48.007Z","lastChanged":"2026-06-22T15:32:48.007Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-22T15:32:49.210Z"}
 {"evt":"status_changed","id":"3b4ebdf4-11d5-4602-bc90-2557ed1064bb/1","workspace":"D:\\zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-22T15:36:03.329Z"}
 {"evt":"assignee_set","id":"3b4ebdf4-11d5-4602-bc90-2557ed1064bb/1","workspace":"D:\\zonoid","assignee":"worker-win-portable-hooks","actor":"overlay-sync","ts":"2026-06-22T15:36:03.329Z"}
+{"evt":"timestamps_set","id":"3b4ebdf4-11d5-4602-bc90-2557ed1064bb/1","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-22T15:32:48.007Z","lastChanged":"2026-06-22T15:36:03.238Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-22T15:37:47.785Z"}
