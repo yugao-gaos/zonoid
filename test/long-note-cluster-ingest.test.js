@@ -18,6 +18,7 @@ try {
 } catch { /* lexical fallback is fine */ }
 
 const overlayStore = require('../lib/overlay');
+const filedrop = require('../lib/filedrop-tasks');
 const { expandStructuralContext } = require('../lib/search/memory-search');
 
 const PORT = 19950 + Math.floor(Math.random() * 100);
@@ -64,6 +65,12 @@ function graphFromOverlay(ov) {
   return { tasks };
 }
 
+function dropStub(harness, id) {
+  const dir = path.join(filedrop.dirFor(WS), harness);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify({ id, subject: `${harness} task ${id}`, status: 'pending' }, null, 2));
+}
+
 test('long note ingestion creates source cluster without changing short notes or explicit wires', async () => {
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_RERANK: '0' },
@@ -94,6 +101,8 @@ function evidence${i + 1}() {
 \`\`\`
 `).join('\n');
     const wiredTask = 'hardening/task';
+    dropStub('hardening', 'task');
+    await post('/sync', { workspace: WS });
     const long = await post('/overlay/note', {
       title: 'Distilled retrieval hardening fact',
       summary: longPayload,

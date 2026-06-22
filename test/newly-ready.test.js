@@ -54,6 +54,17 @@ async function waitForPing(ms = 8000) {
   return false;
 }
 
+async function waitForNotJudging(key, ms = 5000) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    const g = (await req('GET', `/peek?workspace=${encodeURIComponent(WS)}`)).body;
+    const t = g.tasks.find((x) => x.id === key);
+    if (t && !t.judging) return true;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+}
+
 function dropStub(harness, id, extra = {}) {
   const dir = path.join(filedrop.dirFor(WS), harness);
   fs.mkdirSync(dir, { recursive: true });
@@ -75,7 +86,7 @@ function dropStub(harness, id, extra = {}) {
 (async () => {
   git.initRepo(WS); // claim gate needs a registered worktree, which needs a git repo
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ZONOID_EMBED_PROVIDER: 'voyage', VOYAGE_API_KEY: '' },
     stdio: 'ignore',
   });
   try {
@@ -87,6 +98,9 @@ function dropStub(harness, id, extra = {}) {
     dropStub('h', 'bystander', { blockedBy: ['blocker'] });
 
     await req('POST', '/mark-root', { workspace: WS, task_key: 'h/blocker', reason: 'test root' });
+    await waitForNotJudging('h/blocker');
+    await waitForNotJudging('h/blocked');
+    await waitForNotJudging('h/bystander');
     // DG1/DG2 claim gate: register a worktree + supply session_id on the in_progress claim.
     await req('POST', '/git/worktree', { workspace: WS, key: 'h/blocker', repo_path: WS });
     const claim = await req('POST', '/overlay/status', { workspace: WS, key: 'h/blocker', status: 'in_progress', agent_id: 'w1', session_id: 'nr-worker-sid' });
@@ -94,7 +108,7 @@ function dropStub(harness, id, extra = {}) {
     ok('in_progress has no newly_ready', claim.body.newly_ready === undefined);
 
     const done = await req('POST', '/overlay/status', {
-      workspace: WS, key: 'h/blocker', status: 'done', summary: 'blocker finished.',
+      workspace: WS, key: 'h/blocker', status: 'done', agent_id: 'w1', session_id: 'nr-worker-sid', summary: 'blocker finished.',
     });
     ok('terminal done accepted', done.status === 200 && done.body.ok === true);
     ok('newly_ready is an array', Array.isArray(done.body.newly_ready));

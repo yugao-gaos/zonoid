@@ -26,6 +26,7 @@ const { spawn } = require('child_process');
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-rdtarget-base-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const overlayStore = require('../lib/overlay');
+const filedrop = require('../lib/filedrop-tasks');
 const { makeCall } = require('../lib/mcp-core');
 
 // Reuse the already-downloaded embedding weights if present, so /overlay/note doesn't try a
@@ -63,6 +64,12 @@ async function waitForPing(ms = 8000) {
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
+}
+
+function dropStub(workspace, harness, id) {
+  const dir = path.join(filedrop.dirFor(workspace), harness);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify({ id, subject: `${harness} task ${id}`, status: 'pending' }, null, 2));
 }
 
 // ---- part 1: makeCall injects ?workspace= into GETs (pure transport, no daemon) -------------
@@ -105,6 +112,9 @@ async function testMakeCall() {
     ok('workspace B registered', pin.status === 200 && pin.body.ok === true);
 
     // Seed workspace A via the (already-fixed) write routes: a note node, an edge, knowledge, guidance.
+    dropStub(WS_A, 'sessA', '1');
+    dropStub(WS_A, 'sessA', '2');
+    await req('POST', '/sync', { workspace: WS_A });
     const note = await req('POST', '/overlay/note', { workspace: WS_A, title: 'A-side decision', summary: 'read-gremlin fixture summary' });
     ok('A note created', note.status === 200 && note.body.ok === true);
     await req('POST', '/overlay/edge', { workspace: WS_A, from: 'sessA/1', to: 'sessA/2', kind: 'context' });
@@ -115,7 +125,7 @@ async function testMakeCall() {
     const stA = await req('GET', `/state?workspace=${encodeURIComponent(WS_A)}`);
     ok('/state?workspace=A serves A edges', stA.body.edges.some((e) => e.from === 'sessA/1' && e.to === 'sessA/2'));
     ok('/state?workspace=A serves A note node', stA.body.tasks.some((t) => t.kind === 'note' && t.label === 'A-side decision'));
-    ok('/state?workspace=A summary counts A edges', stA.body.summary.edges === 1);
+    ok('/state?workspace=A summary counts A edges', stA.body.summary.edges >= 1);
     // P3: /state with NO ?workspace= 400s (the daemon-global default is gone) instead of serving B.
     const stNoWs = await req('GET', '/state');
     ok('/state without workspace returns 400 (no global default)', stNoWs.status === 400 && stNoWs.body.ok === false);

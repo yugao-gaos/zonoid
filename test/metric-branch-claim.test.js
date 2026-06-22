@@ -87,7 +87,7 @@ function stopChild(child) {
   fs.writeFileSync(path.join(TASKS_DIR, '2.json'), JSON.stringify({ id: '2', subject: 'plain claim guard beta', status: 'pending' }));
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
     stdio: 'ignore',
   });
   try {
