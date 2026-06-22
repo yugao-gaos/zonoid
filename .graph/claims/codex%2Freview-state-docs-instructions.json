@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/review-state-docs-instructions",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-13165-ecbbbf97fc75b58cb50fd811c247e7ea",
+  "branch": "orch/attempt/codex-review-state-docs-instructions",
+  "status": "claimed",
+  "claimed_at": "2026-06-22T21:04:51.285Z",
+  "lease_until": "2026-06-22T22:04:51.285Z"
+}
