@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "019eed39-a944-7352-8ff3-007c6ea30cdc",
   "branch": "orch/attempt/codex-dim-non-highlight-point-cloud-nodes",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T15:16:04.459Z",
-  "lease_until": "2026-06-22T16:16:04.459Z"
+  "lease_until": "2026-06-22T16:16:04.459Z",
+  "completed_at": "2026-06-22T15:18:13.147Z"
 }
