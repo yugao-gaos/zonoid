@@ -124,7 +124,7 @@ const ok = (label, cond) => {
   }
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '' },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
     stdio: 'ignore',
   });
 

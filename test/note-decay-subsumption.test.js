@@ -60,6 +60,12 @@ function identical(v) { return v.slice(); }
 
 // A vec that is orthogonal to `v` (all zeros → NOT a valid zero-magnitude check, use distinct axes).
 // For our tests we use unitVec to get proper orthogonal pairs.
+const EMBED_DIMS = 384;
+function embedVec(values) {
+  const v = new Array(EMBED_DIMS).fill(0);
+  values.forEach((x, i) => { v[i] = x; });
+  return v;
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 1. cosineSim — unit tests
@@ -123,8 +129,8 @@ const HOUR = 3600 * SEC;
 // 2a: above threshold → found
 {
   // Two nearly-identical vectors: dot ≈ 1.0 (all ones, same length)
-  const newVec  = [1, 1, 1, 1];
-  const oldVec  = [1, 1, 1, 1];  // identical → cosine 1.0, well above 0.92
+  const newVec  = embedVec([1, 1, 1, 1]);
+  const oldVec  = embedVec([1, 1, 1, 1]);  // identical → cosine 1.0, well above 0.92
 
   const oldNote = makeNote('old-1', NOW, HOUR, { vec: oldVec });
   const newNote = makeNote('new-1', NOW, 0);
@@ -142,9 +148,9 @@ const HOUR = 3600 * SEC;
 
 // 2b: below threshold → skipped
 {
-  const newVec = unitVec(0, 4);  // [1, 0, 0, 0]
+  const newVec = unitVec(0, EMBED_DIMS);  // [1, 0, 0, 0, ...]
   // 45-degree vector → cosine = 1/sqrt(2) ≈ 0.707, below 0.92
-  const oldVec = [1, 1, 0, 0];
+  const oldVec = embedVec([1, 1, 0, 0]);
   const oldNote = makeNote('old-2', NOW, HOUR, { vec: oldVec });
   const nn = { 'old-2': oldNote, 'new-2': makeNote('new-2', NOW, 0) };
   nn['new-2'].validFrom = NOW;
@@ -155,7 +161,7 @@ const HOUR = 3600 * SEC;
 
 // 2c: already-retired note (validTo set) → skipped even if very similar
 {
-  const vec = [1, 1, 1, 1];
+  const vec = embedVec([1, 1, 1, 1]);
   const retiredNote = makeNote('retired-1', NOW, HOUR, { vec, validTo: new Date(Date.now() - SEC).toISOString() });
   const nn = { 'retired-1': retiredNote, 'new-3': makeNote('new-3', NOW, 0) };
   nn['new-3'].validFrom = NOW;
@@ -166,7 +172,7 @@ const HOUR = 3600 * SEC;
 
 // 2d: newer-or-equal notes → skipped (subsumption only applies to older notes)
 {
-  const vec = [1, 1, 1, 1];
+  const vec = embedVec([1, 1, 1, 1]);
   // Same validFrom as new note (not strictly older)
   const sameTime = makeNote('same-time', NOW, 0, { vec });
   sameTime.validFrom = NOW;
@@ -179,7 +185,7 @@ const HOUR = 3600 * SEC;
 
 // 2e: note with no vec AND no vecs → skipped
 {
-  const vec = [1, 1, 1, 1];
+  const vec = embedVec([1, 1, 1, 1]);
   const noVecNote = makeNote('no-vec', NOW, HOUR, { vec: null, vecs: null });
   const nn = { 'no-vec': noVecNote, 'new-5': makeNote('new-5', NOW, 0) };
   nn['new-5'].validFrom = NOW;
@@ -190,8 +196,8 @@ const HOUR = 3600 * SEC;
 
 // 2f: note with vecs[0] but no pooled vec → falls back to vecs[0]
 {
-  const newVec  = [1, 1, 1, 1];
-  const vecs0   = [1, 1, 1, 1];  // identical → cosine 1.0
+  const newVec  = embedVec([1, 1, 1, 1]);
+  const vecs0   = embedVec([1, 1, 1, 1]);  // identical → cosine 1.0
   const oldNote = makeNote('vecs-only', NOW, HOUR, { vec: null, vecs: [vecs0] });
   const nn = { 'vecs-only': oldNote, 'new-6': makeNote('new-6', NOW, 0) };
   nn['new-6'].validFrom = NOW;
@@ -203,7 +209,7 @@ const HOUR = 3600 * SEC;
 
 // 2g: newVec falsy → returns [] (guard)
 {
-  const oldNote = makeNote('old-g', NOW, HOUR, { vec: [1, 1, 1, 1] });
+  const oldNote = makeNote('old-g', NOW, HOUR, { vec: embedVec([1, 1, 1, 1]) });
   const nn = { 'old-g': oldNote, 'new-g': makeNote('new-g', NOW, 0) };
   nn['new-g'].validFrom = NOW;
   const overlay = makeOverlay(nn);
@@ -215,7 +221,7 @@ const HOUR = 3600 * SEC;
 
 // 2h: note missing validFrom → skipped (phantom note)
 {
-  const vec = [1, 1, 1, 1];
+  const vec = embedVec([1, 1, 1, 1]);
   const phantom = makeNote('phantom', NOW, HOUR, { vec });
   phantom.validFrom = null;
   const nn = { 'phantom': phantom, 'new-h': makeNote('new-h', NOW, 0) };
@@ -227,7 +233,7 @@ const HOUR = 3600 * SEC;
 
 // 2i: new note itself not returned in results
 {
-  const vec = [1, 1, 1, 1];
+  const vec = embedVec([1, 1, 1, 1]);
   const nn = { 'self': makeNote('self', NOW, 0, { vec }) };
   nn['self'].validFrom = NOW;
   const overlay = makeOverlay(nn);
@@ -237,9 +243,9 @@ const HOUR = 3600 * SEC;
 
 // 2j: multiple older notes at/above threshold — all found
 {
-  const newVec = [1, 1, 1, 1];
-  const old1 = makeNote('multi-a', NOW, HOUR, { vec: [1, 1, 1, 1] });
-  const old2 = makeNote('multi-b', NOW, 2 * HOUR, { vec: [1, 1, 1, 1] });
+  const newVec = embedVec([1, 1, 1, 1]);
+  const old1 = makeNote('multi-a', NOW, HOUR, { vec: embedVec([1, 1, 1, 1]) });
+  const old2 = makeNote('multi-b', NOW, 2 * HOUR, { vec: embedVec([1, 1, 1, 1]) });
   const newNote = makeNote('new-multi', NOW, 0);
   newNote.validFrom = NOW;
   const overlay = makeOverlay({ 'multi-a': old1, 'multi-b': old2, 'new-multi': newNote });
@@ -251,9 +257,9 @@ const HOUR = 3600 * SEC;
 {
   // cos([1,1,0,0], [1,1,0,0]) = 1.0 → above any threshold
   // cos([1,1,0,0], [1,0,0,0]) = 1/sqrt(2) ≈ 0.707
-  const newVec = [1, 1, 0, 0];
-  const highSim = makeNote('high-sim', NOW, HOUR, { vec: [1, 1, 0, 0] });  // sim=1.0
-  const lowSim  = makeNote('low-sim',  NOW, HOUR, { vec: [1, 0, 0, 0] });  // sim≈0.707
+  const newVec = embedVec([1, 1, 0, 0]);
+  const highSim = makeNote('high-sim', NOW, HOUR, { vec: embedVec([1, 1, 0, 0]) });  // sim=1.0
+  const lowSim  = makeNote('low-sim',  NOW, HOUR, { vec: embedVec([1, 0, 0, 0]) });  // sim≈0.707
   const newNote = makeNote('new-k', NOW, 0);
   newNote.validFrom = NOW;
   const overlay = makeOverlay({ 'high-sim': highSim, 'low-sim': lowSim, 'new-k': newNote });

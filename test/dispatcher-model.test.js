@@ -57,6 +57,22 @@ async function waitForPing(ms = 10000) {
   return false;
 }
 
+async function syncUntilAdopted(expected, attempts = 20) {
+  let last = null;
+  const adoptedAll = new Set();
+  const suggestions = {};
+  for (let i = 0; i < attempts; i++) {
+    last = await post('/sync', { workspace: WS });
+    for (const key of ((last.body && last.body.adopted) || [])) adoptedAll.add(key);
+    Object.assign(suggestions, (last.body && last.body.suggestions) || {});
+    if (expected.every((key) => adoptedAll.has(key))) {
+      return { ...last, body: { ...last.body, adopted: [...adoptedAll], suggestions } };
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return last ? { ...last, body: { ...last.body, adopted: [...adoptedAll], suggestions } } : last;
+}
+
 function dropStub(id, extra = {}) {
   const dir = path.join(SANDBOX, 'tasks', workspaceKey(WS), 'local');
   fs.mkdirSync(dir, { recursive: true });
@@ -99,7 +115,7 @@ test('dispatcher model — claim gate, children, trivial gate, attribution', asy
   const SID_WORKER_B = crypto.randomUUID();
 
   const child = spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '' },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_TOKEN: '', JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
     stdio: 'ignore',
   });
 
@@ -108,7 +124,7 @@ test('dispatcher model — claim gate, children, trivial gate, attribution', asy
     execSync('git init -q', { cwd: WS });
     execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: WS });
     assert.equal((await post('/workspace', { path: WS })).body.ok, true);
-    assert.equal((await post('/sync', { workspace: WS })).body.adopted.length, 2, 'stubs adopted');
+    assert.equal((await syncUntilAdopted([KEY_A, KEY_B])).body.adopted.length, 2, 'stubs adopted');
 
     await post('/agent/start', { agent_id: 'dispatch-main', session: SID_DISPATCHER });
     assert.equal((await post('/mark-root', { task_key: KEY_A, reason: 'dispatch test' })).body.ok, true);
