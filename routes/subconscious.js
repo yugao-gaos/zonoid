@@ -184,7 +184,7 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       }
       const info = ctx.git.createWorktree(repo, taskKey, { base: cleanString(b.base) || undefined });
       if (info && info.contended) {
-        send(res, 409, { ...info, ok: false, repo, error: 'worktree path is currently leased by another creator; retry subconscious_assignment prepare' });
+        send(res, 409, { ...info, ok: false, repo, error: 'worktree path is currently leased by another creator; retry subconscious_assignment action:"prepare"' });
         return true;
       }
       overlayStore.setGit(T.ov, taskKey, info);

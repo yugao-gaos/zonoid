@@ -39,8 +39,8 @@ parallelizable work, with a token-efficient context handoff between dependent ta
      substantive multi-file work gets it.
    - **Substantial multi-task work gets a two-tier feature branch** (dispatcher-decides, same
      complexity axis as the judge). The dispatcher `create_feature(key)` → `orch/feature/<slug>` +
-     worktree, groups tasks under it (`configure_task repo_path=<feature worktree>`, dispatch with
-     `branch_task base=orch/feature/<slug>` so attempts fork off the **stable feature branch, not
+     worktree, groups tasks under it (`configure_task repo_path=<feature worktree>`, prepare assignments with
+     `subconscious_assignment action:"prepare" base=orch/feature/<slug>` so attempts fork off the **stable feature branch, not
      the drifting main**). **Tier-1:** the single-attempt judge auto-merges each approved attempt
      into the feature branch (cheap/reversible). **Tier-2:** the dispatcher makes the GATED
      `merge_feature(key)` call (feature→main) once complete — never automatic. The **dispatcher
@@ -50,15 +50,17 @@ parallelizable work, with a token-efficient context handoff between dependent ta
      single-task work skips the feature tier and uses the flat attempt→main flow.
 
 4. **Each subagent follows this contract** (this is what saves tokens):
-   - **On start — call `mcp__orchestrator-graph__branch_task(task_key)` FIRST** to create an
-     isolated worktree (branch `orch/attempt/<key>`). Then call
-     **`mcp__orchestrator-graph__start_task(task_key, agent_id)`** — the daemon rejects the
-     claim if no worktree is registered, so the order is mandatory. `start_task` also **registers
-     the worker on claim**: the `SubagentStart` hook does NOT fire for `run_in_background` spawns,
-     so registration rides the claim instead — a claim bearing an `agent_id` and backed by the
-     worktree `branch_task` just created is accepted and registered (a claim with no worktree is
-     refused; the worktree is the security boundary). Copy `task_key`, `agent_id`, and `branch`
-     straight from the `handoff_envelope`. All file writes must happen
+   - **On start — accept the Subconscious assignment.** The dispatcher/daemon prepares the
+     assignment first with `mcp__orchestrator-graph__subconscious_assignment(action:"prepare")`,
+     which creates the isolated worktree (branch `orch/attempt/<key>`) and returns the envelope.
+     The worker then calls
+     **`mcp__orchestrator-graph__subconscious_assignment(action:"accept", task_key, agent_id)`**.
+     The daemon rejects the accept if no worktree is registered, so preparation is mandatory.
+     Accepting also **registers the worker on claim**: the `SubagentStart` hook does NOT fire for
+     `run_in_background` spawns, so registration rides the accepted assignment instead — a claim
+     bearing an `agent_id` and backed by the prepared worktree is accepted and registered (a claim
+     with no worktree is refused; the worktree is the security boundary). Copy `task_key`,
+     `agent_id`, `branch`, and `worktree` straight from the assignment envelope. All file writes must happen
      inside the worktree; NEVER edit the live checkout. Both `Edit`/`Write` tools **and** `Bash`
      file-write commands are gated to `orch/attempt/*` branches for subagents. `ORCH_GATE_OFF=1`
      as an inline env prefix does **not** work — the hook is a separate process. Your dependency
@@ -72,15 +74,15 @@ parallelizable work, with a token-efficient context handoff between dependent ta
    - **While working:** attach reusable context with `attach_knowledge(task_key, item)` so
      dependents can fetch it precisely instead of you re-deriving it.
    - **On finish — commit FIRST, then complete:** `git add -A && git commit` all your changes
-     onto the `orch/attempt/<key>` branch BEFORE calling `complete_task`. `complete_task` does
+     onto the `orch/attempt/<key>` branch BEFORE calling `subconscious_assignment action:"complete"`. Completion does
      NOT auto-commit your worktree — if you leave changes uncommitted the attempt branch tip
-     stays equal to base, and a later `merge_attempt` is a silent no-op (returns `merged:true`
+     stays equal to base, and the lower-level merge path (`merge_attempt`) is a silent no-op (returns `merged:true`
      with the head unchanged but lands nothing on the target branch/base). Only after committing call
-     `mcp__orchestrator-graph__complete_task(task_key, summary, agent_id)` with
+     `mcp__orchestrator-graph__subconscious_assignment(action:"complete", task_key, summary, agent_id)` with
      a SHORT, precise summary — the interface your task exposes (what you produced, key
      decisions, where outputs live). Dependents read this as their Tier-1 base context, so
-     keep it tight. Use `set_status(..., "failed"|"tested")` for those cases.
-     (Complementary hardening, not in scope here: `merge_attempt` could warn or refuse when the
+     keep it tight. Use `subconscious_assignment action:"complete"` with status `"failed"` or `"tested"` for those cases.
+     (Complementary hardening, not in scope here: lower-level `merge_attempt` could warn or refuse when the
      branch tip equals base.)
 
 5. **Cross-workspace:** if a task depends on work in another repo, add a ghost edge with

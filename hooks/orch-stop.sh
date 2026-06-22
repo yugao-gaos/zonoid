@@ -35,7 +35,7 @@ if printf '%s' "$RESP" | jq -e '.stop == true' >/dev/null 2>&1; then
   # Completion notice: output structured guidance so the agent gracefully records state
   # before halting, rather than silently dropping work.
   REASON=$(printf '%s' "$RESP" | jq -r '.reason // "cancellation/stop requested"' 2>/dev/null)
-  MSG="STOP: ${REASON} — halt current work now. Completion notice: before exiting, call set_status(\"failed\") or complete_task to record your progress in the graph. Then call ScheduleWakeup(delaySeconds=7200, reason=\"idle heartbeat\", prompt=\"<<autonomous-loop-dynamic>>\") so the session stays reachable for future tasks."
+  MSG="STOP: ${REASON} — halt current work now. Completion notice: before exiting, call subconscious_assignment action:\"complete\" with status \"failed\" to record your progress in the graph. Then call ScheduleWakeup(delaySeconds=7200, reason=\"idle heartbeat\", prompt=\"<<autonomous-loop-dynamic>>\") so the session stays reachable for future tasks."
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":%s}}' "$(printf '%s' "$MSG" | jq -Rs .)"
   printf '%s\n' "$MSG" >&2   # smoke test captures stderr; stdout carries the JSON hookSpecificOutput
   exit 2

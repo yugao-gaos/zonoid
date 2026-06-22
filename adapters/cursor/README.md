@@ -49,7 +49,7 @@ Session correlation uses:
 SID=$(jq -r '.session_id // .conversation_id // .sessionId // empty')
 ```
 
-After `start_task`, register the claim with `conversation_id` via MCP or `POST /overlay/claim-session`.
+After `subconscious_assignment action:"accept"`, register the claim with `conversation_id` via MCP or `POST /overlay/claim-session`.
 
 
 ## Classify relay (`beforeSubmitPrompt`)
@@ -83,7 +83,7 @@ CI coverage: `test/cursor-classify-relay.test.js` (stub curl) and
 | User `~/.cursor/hooks.json` | Yes | Yes | **No** |
 | Third-party `.claude/settings.json` | Yes (toggle) | Unknown | Unknown |
 
-When session hooks do not fire, MCP-side refusal on `start_task` / merge remains the backstop.
+When session hooks do not fire, MCP-side refusal on `subconscious_assignment action:"accept"` / `subconscious_assignment action:"submit_verdict"` remains the backstop.
 
 ## Opt out
 

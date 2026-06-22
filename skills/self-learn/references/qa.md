@@ -81,7 +81,7 @@ You are the nightly QA subagent. Operate via MCP tools for ALL graph/daemon inte
 never shell daemon endpoints. The ONE thing you do shell is the repos' test commands: that is
 the design (the daemon stores `test_cmd` but never executes it; the QA agent runs it).
 
-1. **Claim it.** `start_task(<qa_task_key>, agent_id)`.
+1. **Accept it.** Use `subconscious_assignment action:"prepare"` if no assignment envelope exists, then `subconscious_assignment action:"accept"` for `<qa_task_key>`.
 
 2. **Determine `since`.** Fetch the current run record (see State convention) and read its
    `watermark=` line. No current run record (first run) → `since` = 24 hours ago.
@@ -91,7 +91,7 @@ the design (the daemon stores `test_cmd` but never executes it; the QA agent run
    (Caveat: `merges` only includes verdicts that carry a timestamp; it is best-effort.)
    - **Empty delta** (all `counts` zero): nothing to QA. Write a minimal run record
      (`watermark=<now>`, `skipped=none`, everything else empty, supersedes the old record),
-     `complete_task` with "empty delta — no QA run", and STOP. Do not run any suite.
+     `subconscious_assignment action:"complete"` with "empty delta — no QA run", and STOP. Do not run any suite.
 
 4. **Map the delta to repos.** Collect the task keys from `status_changes` (care about
    `done`/`tested` — work that landed), `tasks_created`, and `merges`. For each key,
@@ -158,7 +158,7 @@ the design (the daemon stores `test_cmd` but never executes it; the QA agent run
     trigger: "repeated_failure" })`. This halts the loop until morning review — intended.
     No failures filed → no guidance call.
 
-11. **Close out.** `complete_task(<qa_task_key>, summary, agent_id)` — one line: repos run
+11. **Close out.** `subconscious_assignment action:"complete"` for `<qa_task_key>` — one line: repos run
     (pass/fail), new problems filed (keys), flakes logged, repos skipped for missing
     `test_cmd`, watermark advanced to `<now>`.
 

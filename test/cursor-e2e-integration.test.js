@@ -184,7 +184,7 @@ srv.listen(${gatePort}, '127.0.0.1', () => { process.stdout.write('ready\\n'); }
     stubProc.kill('SIGKILL');
     try { fs.rmSync(stubFile, { recursive: true, force: true }); } catch { /* best effort */ }
     ok('gate: unclaimed subagent Write → exit 2', gr.status === 2);
-    ok('gate: denial message mentions claim', /no task claimed|start_task/i.test(gr.stderr));
+    ok('gate: denial message mentions assignment', /no task claimed|subconscious_assignment/i.test(gr.stderr));
   }
 
   // ── 4) post-todo-adopt mints cursor/<id>.json stubs from fixture stdin ─────

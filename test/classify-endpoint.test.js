@@ -86,7 +86,7 @@ async function waitForPing(ms = 12000) {
     ok('context_classify nested', typeof r.body.context_classify === 'object');
     ok('additional_context has model routing', String(r.body.additional_context).includes('[Model routing]'));
     ok('additional_context has gate reminder', String(r.body.additional_context).includes('[Orch gate]'));
-    ok('gate reminder blocks dispatcher start_task', String(r.body.additional_context).includes('must NOT call start_task'));
+    ok('gate reminder points dispatcher to Subconscious assignments', String(r.body.additional_context).includes('subconscious_assignment action:"prepare"'));
     ok('additional_context has heartbeat', String(r.body.additional_context).includes('[Orchestrator heartbeat]'));
 
     const DISPATCHER_SID = 'classify-dispatcher-parent';

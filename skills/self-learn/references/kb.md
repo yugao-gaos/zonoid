@@ -126,7 +126,7 @@ no shell daemon endpoints.
    skipped_reason=<"none" or the skip reason from step 1>
    ```
 
-8. **Close out.** `complete_task(<kb_task_key>, summary, agent_id)` — one line: candidates
+8. **Close out.** `subconscious_assignment action:"complete"` for `<kb_task_key>` — one line: candidates
    created (keys), stale flags created (keys), watermark advanced to `<now>`, or skipped
    reason if skipped.
 
