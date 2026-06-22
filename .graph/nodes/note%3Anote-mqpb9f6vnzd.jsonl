@@ -12,3 +12,4 @@
 {"evt":"edge_promoted","from":"note:note-mqpb9f6vnzd","to":"codex/fix-bench-sdk-a2-edgejudge-timeout-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:29:05.966Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqpb9f6vnzd","to":"codex/fix-bench-sdk-a2-edgejudge-timeout","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:29:20.283Z","weight":1,"by":"autowire","judged":false}
 {"evt":"edge_promoted","from":"note:note-mqpb9f6vnzd","to":"codex/fix-bench-sdk-a2-edgejudge-timeout-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:29:20.283Z","weight":1,"by":"autowire","judged":false}
+{"evt":"edge_promoted","from":"note:note-mqpb9f6vnzd","to":"codex/fix-bench-sdk-a2-edgejudge-timeout-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:11:14.632Z","weight":0,"by":"autowire","judged":false,"score":0.726,"origin":"autowire-semantic"}
