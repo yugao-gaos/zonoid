@@ -20,3 +20,4 @@
 {"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:41:07.937Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"codex/verify-post-subconscious-review-fixes","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:41:07.937Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_added","from":"note:note-mqolmwgser3","to":"codex/fix-shell-opencode-write-gates-kickback","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:10:45.813Z","origin":"subconscious-assignment"}
+{"evt":"edge_added","from":"note:note-mqolmwgser3","to":"codex/fix-dashboard-config-smoke-kickback","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:10:51.795Z","origin":"subconscious-assignment"}
