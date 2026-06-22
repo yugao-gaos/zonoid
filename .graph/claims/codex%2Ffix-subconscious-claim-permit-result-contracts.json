@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-bg-auto-fix-subconscious-claim-contracts-retry-20260622",
   "branch": "orch/attempt/codex-fix-subconscious-claim-permit-result-contracts",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-22T16:36:30.711Z",
-  "lease_until": "2026-06-22T17:36:30.711Z"
+  "lease_until": "2026-06-22T17:36:30.711Z",
+  "completed_at": "2026-06-22T17:14:43.340Z"
 }
