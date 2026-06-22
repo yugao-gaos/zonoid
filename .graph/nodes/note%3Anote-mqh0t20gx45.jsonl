@@ -16,3 +16,13 @@
 {"evt":"edge_added","from":"note:note-mqh0t20gx45","to":"judge/bench-combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:47:41.509Z","weight":0,"by":"autowire","judged":false,"score":0.581,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqh0t20gx45","to":"judge/bench-combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z","weight":0,"by":"autowire","judged":false,"score":0.581,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqh0t20gx45","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-18T22:59:41.522Z","weight":0,"by":"autowire","judged":false,"score":0.644,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqh0t20gx45","to":"note:note-mqh0gwz1mxc","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}
+{"evt":"edge_removed","from":"note:note-mqh0t20gx45","to":"note:note-mqfmkwytf2n","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}
+{"evt":"edge_removed","from":"note:note-mqh0t20gx45","to":"note:note-mqgt2bjvle5","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}
+{"evt":"edge_removed","from":"note:note-mqh0t20gx45","to":"note:note-mqgwr63ms7q","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}
+{"evt":"edge_removed","from":"note:note-mqh0t20gx45","to":"note:note-mqgtgbdm0mh","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}
+{"evt":"edge_removed","from":"note:note-mqh0t20gx45","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/30","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}
+{"evt":"edge_removed","from":"note:note-mqh0t20gx45","to":"followup/investigate-search-arm-0-notes-not-appea-o05d","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}
+{"evt":"edge_removed","from":"note:note-mqh0t20gx45","to":"followup/judge-review-phase-1-distiller-impl-q0x0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}
+{"evt":"edge_removed","from":"note:note-mqh0t20gx45","to":"judge/bench-combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}
+{"evt":"edge_removed","from":"note:note-mqh0t20gx45","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}

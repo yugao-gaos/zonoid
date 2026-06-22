@@ -21,3 +21,6 @@
 {"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"codex/fix-subconscious-claim-permit-result-contracts-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:59:12.415Z"}
 {"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"codex/fix-shell-opencode-write-gates-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:59:12.415Z"}
 {"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"codex/fix-shell-opencode-relative-git-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:59:12.415Z"}
+{"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"note:note-mqe5s77kk7e","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:09:48.126Z"}
+{"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"note:note-mqend24x8gj","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:09:48.126Z"}
+{"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"note:note-mqen9jm4hyi","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:09:48.126Z"}

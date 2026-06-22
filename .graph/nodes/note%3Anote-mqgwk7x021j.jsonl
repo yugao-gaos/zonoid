@@ -14,3 +14,4 @@
 {"evt":"edge_removed","from":"note:note-mqgwk7x021j","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:49:36.214Z"}
 {"evt":"edge_removed","from":"note:note-mqgwk7x021j","to":"note:note-mqfn8l1hpiw","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:49:36.214Z"}
 {"evt":"edge_removed","from":"note:note-mqgwk7x021j","to":"note:note-mqfnyddvxdj","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:49:36.214Z"}
+{"evt":"edge_removed","from":"note:note-mqgwk7x021j","to":"note:note-mqgwd1f5f77","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:25.820Z"}

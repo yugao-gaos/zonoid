@@ -19,3 +19,6 @@
 {"evt":"edge_added","from":"note:note-mqh250aamjb","to":"judge/bench-combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:47:41.509Z","weight":0,"by":"autowire","judged":false,"score":0.554,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqh250aamjb","to":"judge/bench-combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z","weight":0,"by":"autowire","judged":false,"score":0.554,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqh250aamjb","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-18T22:59:41.522Z","weight":0,"by":"autowire","judged":false,"score":0.641,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqh250aamjb","to":"followup/judge-review-phase-1-distiller-impl-q0x0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}
+{"evt":"edge_removed","from":"note:note-mqh250aamjb","to":"judge/bench-combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}
+{"evt":"edge_removed","from":"note:note-mqh250aamjb","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:32.175Z"}

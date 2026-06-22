@@ -50,3 +50,4 @@
 {"evt":"edge_removed","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/10","to":"200e8c1e-f491-462e-aa2b-7174b4468475/3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:41:19.682Z"}
 {"evt":"edge_removed","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/10","to":"230ef36e-7ed7-4620-bc1c-df7e6dfaae71/29","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:44:57.206Z"}
 {"evt":"edge_removed","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/10","to":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:45:00.703Z"}
+{"evt":"edge_removed","from":"38e5ec0b-859b-4d1d-8686-71f3519fc56d/10","to":"da4fd8b6-ebb6-4b8e-85bf-8fa36128d510/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:44.501Z"}

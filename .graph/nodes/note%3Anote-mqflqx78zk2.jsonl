@@ -15,3 +15,6 @@
 {"evt":"edge_removed","from":"note:note-mqflqx78zk2","to":"note:note-mqf7j1hinjg","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:07:41.588Z"}
 {"evt":"edge_removed","from":"note:note-mqflqx78zk2","to":"note:note-mqf9al6pjvv","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:07:41.588Z"}
 {"evt":"edge_removed","from":"note:note-mqflqx78zk2","to":"followup/harness-learner-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:07:41.588Z"}
+{"evt":"edge_removed","from":"note:note-mqflqx78zk2","to":"note:note-mqflngdgy51","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:09:23.953Z"}
+{"evt":"edge_removed","from":"note:note-mqflqx78zk2","to":"note:note-mqfla5ogbhw","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:42.140Z"}
+{"evt":"edge_removed","from":"note:note-mqflqx78zk2","to":"note:note-mqf9plgeajc","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:11:42.140Z"}
