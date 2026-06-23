@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-87316-fc519196fd0e21358d745040b7cb9b57",
   "branch": "orch/attempt/codex-fix-costflow-pruned-snapshot-session-splits",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-23T04:56:53.887Z",
-  "lease_until": "2026-06-23T05:56:53.887Z"
+  "lease_until": "2026-06-23T05:56:53.887Z",
+  "completed_at": "2026-06-23T05:01:22.410Z"
 }
