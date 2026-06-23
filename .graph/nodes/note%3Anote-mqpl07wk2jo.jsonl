@@ -13,3 +13,4 @@
 {"evt":"edge_added","from":"note:note-mqpl07wk2jo","to":"codex/progressive-disclosure-context-verification","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:00:29.496Z","origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqpl07wk2jo","to":"codex/progressive-disclosure-context-implementation","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:05:55.591Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqpl07wk2jo","to":"codex/progressive-disclosure-context-verification","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:05:55.591Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
+{"evt":"edge_removed","from":"note:note-mqpl07wk2jo","to":"codex/progressive-disclosure-context-implementation","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:06:51.398Z"}
