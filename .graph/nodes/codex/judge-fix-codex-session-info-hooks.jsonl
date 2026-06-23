@@ -1,3 +1,0 @@
-{"evt":"edge_promoted","from":"codex/judge-fix-codex-session-info-hooks","to":"codex/fix-codex-session-info-hooks","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:22:56.922Z","weight":0.761,"by":"judge","judged":true,"score":0.761,"origin":"autowire-semantic"}
-{"evt":"edge_removed","from":"codex/judge-fix-codex-session-info-hooks","to":"codex/judge-fix-codex-session-propagation","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:22:56.922Z"}
-{"evt":"edge_removed","from":"codex/judge-fix-codex-session-info-hooks","to":"codex/fix-codex-session-propagation","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:22:56.922Z"}

@@ -1,4 +1,0 @@
-{"evt":"edge_added","from":"ab391029-f543-48ba-bcec-7c9e2b9280f9/4","to":"ab391029-f543-48ba-bcec-7c9e2b9280f9/3","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T04:21:54.551Z","by":"judge","judged":true,"score":0.556,"origin":"autowire-semantic"}
-{"evt":"edge_removed","from":"ab391029-f543-48ba-bcec-7c9e2b9280f9/4","to":"ab391029-f543-48ba-bcec-7c9e2b9280f9/2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:21:54.551Z"}
-{"evt":"edge_removed","from":"ab391029-f543-48ba-bcec-7c9e2b9280f9/4","to":"followup/harness-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:21:54.551Z"}
-{"evt":"edge_removed","from":"ab391029-f543-48ba-bcec-7c9e2b9280f9/4","to":"ab391029-f543-48ba-bcec-7c9e2b9280f9/3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:21:54.551Z"}

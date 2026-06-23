@@ -1,2 +1,0 @@
-{"evt":"edge_added","from":"codex/judge-exec-brain-state-seam","to":"codex/judge-exec-brain-state-seam-session-claim-impl","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T04:22:56.922Z","by":"judge","judged":true,"score":0.577,"origin":"autowire-semantic"}
-{"evt":"edge_removed","from":"codex/judge-exec-brain-state-seam","to":"codex/judge-exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:22:56.922Z"}

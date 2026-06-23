@@ -1,2 +1,0 @@
-{"evt":"edge_added","from":"codex/opencode-arm-review","to":"codex/opencode-arm-hardening","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T04:22:56.922Z","by":"judge","judged":true,"score":0.923,"origin":"autowire-semantic"}
-{"evt":"edge_removed","from":"codex/opencode-arm-review","to":"codex/opencode-arm-hardening","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:22:56.922Z"}

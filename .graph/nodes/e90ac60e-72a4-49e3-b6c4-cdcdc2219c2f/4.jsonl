@@ -1,0 +1,7 @@
+{"evt":"edge_removed","from":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:40:22.333Z"}
+{"evt":"edge_removed","from":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4","to":"795f9614-a20d-4c3d-8aff-e297696f4938/2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:40:22.333Z"}
+{"evt":"edge_added","from":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/3","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T04:41:45.510Z","by":"judge","judged":true,"score":0.605,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:41:45.510Z"}
+{"evt":"edge_removed","from":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4","to":"f1653e44-5863-4644-bebc-963582c76510/11","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:41:45.510Z"}
+{"evt":"edge_removed","from":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4","to":"f1653e44-5863-4644-bebc-963582c76510/12","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:41:45.510Z"}
+{"evt":"edge_removed","from":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:41:45.510Z"}
