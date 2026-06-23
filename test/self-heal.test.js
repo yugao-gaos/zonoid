@@ -21,6 +21,7 @@ const FRESH = 60000;        // 1m ago — within the window
 // --- (a) REAPER: dead-agent in_progress orphan is released once, then idempotent --------------
 {
   const overlay = ov.EMPTY();
+  overlay.config.stale_minutes = 10;   // pin the window so the 20m/1m boundary is independent of the default (now 60m)
   overlay.status['s/1'] = 'in_progress';
   overlay.assignee['s/1'] = 'dead-worker';
   overlay.timestamps['s/1'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
@@ -50,6 +51,7 @@ const FRESH = 60000;        // 1m ago — within the window
 // --- (a2) REAPER: adopted snapshot in_progress orphan is released once ------------------------
 {
   const overlay = ov.EMPTY();
+  overlay.config.stale_minutes = 10;   // pin the window (default is now 60m) so 20m counts as stale
   ov.setSnapshot(overlay, 's/20', { subject: 'orphan snapshot', description: '', status: 'in_progress', blockedBy: [] });
   overlay.timestamps['s/20'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
   // Explicit overlay status still belongs to staleClaimKeys, not the snapshot fallback selector.
@@ -75,6 +77,7 @@ const FRESH = 60000;        // 1m ago — within the window
 // --- (a3) REAPER: native in_progress echo is released once ------------------------
 {
   const overlay = ov.EMPTY();
+  overlay.config.stale_minutes = 10;   // pin the window (default is now 60m) so 20m counts as stale
   overlay.timestamps['s/30'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
   overlay.timestamps['s/31'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
   overlay.status['s/31'] = 'in_progress';

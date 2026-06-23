@@ -81,7 +81,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         }
       }
     } else {
-      const sweepOv = staleMins !== (ovWs.config.stale_minutes ?? 10)
+      const sweepOv = staleMins !== (ovWs.config.stale_minutes ?? (ctx.STALE_MINUTES_DEFAULT ?? 60))
         ? { ...ovWs, config: { ...ovWs.config, stale_minutes: staleMins } } : ovWs;
       for (const { key, agentId, mins } of staleClaimKeys(sweepOv, state.agents, nowMs)) {
         const tp = taskTranscript(key, null, true, stWsSweep);
