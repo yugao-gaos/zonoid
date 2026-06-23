@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-35035-e850e65d7ecebe7efb53104c8dfecbce",
   "branch": "orch/attempt/codex-progressive-disclosure-context-contract",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-23T14:49:38.530Z",
-  "lease_until": "2026-06-23T15:49:38.530Z"
+  "lease_until": "2026-06-23T15:49:38.530Z",
+  "completed_at": "2026-06-23T14:52:25.257Z"
 }
