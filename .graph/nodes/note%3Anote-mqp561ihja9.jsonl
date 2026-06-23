@@ -2,3 +2,4 @@
 {"evt":"edge_added","from":"note:note-mqp561ihja9","to":"note:note-mqauhcjermz","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:38:07.067Z","weight":0,"by":"autowire","judged":false,"score":0.566,"origin":"autowire-semantic"}
 {"evt":"summary_set","id":"note:note-mqp561ihja9","workspace":"/Users/imyu/Desktop/zonoid","summary":"The heldout benchmark gives the `cron-next` candidate a 900-second timeout, extending it beyond the base 600-second harness timeout. That makes this path an explicit long-run exception rather than a normal case.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp561ihja9","to":"note:note-mqauhcjermz","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:33:31.203Z"}
+{"evt":"edge_added","from":"note:note-mqp561ihja9","to":"note:note-mqauhcjermz","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:01:27.082Z","weight":0.6,"by":"judge","judged":true}
