@@ -21,3 +21,4 @@
 {"evt":"edge_promoted","from":"note:note-mq87hnkfo3w","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:17:41.463Z","weight":0.13,"by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":3,"ts":"2026-06-23T05:22:57.991Z"}
 {"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":3,"ts":"2026-06-23T06:03:07.610Z"}
+{"evt":"edge_removed","from":"note:note-mq87hnkfo3w","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:27:23.299Z"}

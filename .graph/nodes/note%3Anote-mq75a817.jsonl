@@ -23,3 +23,4 @@
 {"evt":"edge_promoted","from":"note:note-mq75a817","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:29:49.178Z","weight":0.75,"by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":3,"ts":"2026-06-23T05:22:57.991Z"}
 {"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":3,"ts":"2026-06-23T06:03:07.610Z"}
+{"evt":"edge_promoted","from":"note:note-mq75a817","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:27:23.299Z","weight":0.5,"by":"judge","judged":true,"origin":"subconscious-assignment"}
