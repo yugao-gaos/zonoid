@@ -7,3 +7,5 @@
 {"evt":"edge_removed","from":"note:note-mqp5b5juikc","to":"knowledge:source_chunk:chunk-agents-md-2-11-worker-registration-rides-the-assignmen-0391cc4c88","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:53:11.443Z"}
 {"evt":"edge_removed","from":"note:note-mqp5b5juikc","to":"knowledge:source_chunk:chunk-agents-md-2-11-worker-registration-rides-the-claim-not-ca5e5fdbee","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:53:11.443Z"}
 {"evt":"edge_removed","from":"note:note-mqp5b5juikc","to":"knowledge:source_chunk:chunk-claude-md-2-11-worker-registration-rides-the-claim-not-84b5b5f30f","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:53:11.443Z"}
+{"evt":"edge_removed","from":"note:note-mqp5b5juikc","to":"note:note-mqiu6f2zd0k","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:47:22.906Z"}
+{"evt":"edge_removed","from":"note:note-mqp5b5juikc","to":"note:note-mqf5cvswa49","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:47:22.906Z"}
