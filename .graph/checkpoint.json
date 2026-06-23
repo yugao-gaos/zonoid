@@ -225215,9 +225215,13 @@
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
       "summary": "Implemented long/source-like note clustering for /overlay/note: compact notes remain semantic handles while raw evidence is persisted as source_doc/source_section/source_chunk nodes with provenance context edges; added regression coverage for short notes, explicit wires_to, and structural search expansion.",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
       "snapshot": {
         "subject": "Harden long note ingestion into structured knowledge clusters",
         "description": "Implement the remaining ingest hardening pass for the layered knowledge model. Goal: arbitrary long direct notes should be normalized into structured clusters instead of remaining one oversized semantic object. Scope: detect long note/source payloads, preserve a compact distilled note as the semantic handle, create source_doc/source_section/source_chunk knowledge nodes for evidence text where appropriate, wire source_chunk/source_section/source_doc provenance edges and source_chunk -> note evidence/context edges, preserve explicit note -> task wires, and add/adjust tests proving search can retrieve the distilled note directly and expand to evidence chunks, parents, and sibling facts. Keep the change surgical and compatible with existing /overlay/note, /overlay/knowledge-node, onboard-learn, and retrieval-cluster-expansion behavior. Avoid rewriting unrelated ingestion paths.",
@@ -225735,9 +225739,13 @@
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
       "summary": "APPROVE: reviewed long-note source-cluster diff, ran focused syntax and regression tests, and merged implementation attempt into feature branch. No blocking findings.",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
       "snapshot": {
         "subject": "Review long note cluster ingest hardening attempt",
         "description": "Judge task for codex/long-note-cluster-ingest-hardening. Use self-learn-judge in single-attempt review mode against the implementation attempt branch orch/attempt/codex/long-note-cluster-ingest-hardening in repo /Users/imyu/.claude/orchestrator/.zonoid/worktrees/62dae274979b8432/feature-long-note-cluster-ingest-hardening. Review the attempt diff with get_attempt_diff and the code-review rubric: correctness, scope discipline, dead/redundant code, tests, and style. If approved under the feature-tier flow, record an APPROVE/merge_attempt verdict so the attempt can merge into orch/feature/long-note-cluster-ingest-hardening; do not merge feature->main. If flawed, KICK BACK with failed status and a wired record_decision explaining the actionable fix. Never force-merge conflicts.",
@@ -232043,6 +232051,8 @@
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
       "snapshot": {
         "subject": "Judge #4: review grader integration attempt",
         "description": "SKILL: self-learn-judge (single-attempt review mode). Review attempt branch orch/attempt/4 for impl task #4 (integrate LLM grader into runAgenticContextSearches). get_attempt_diff, apply code-review rubric: correctness (grader replaces heuristic loop control correctly, heuristic kept as prefilter/fallback, cost caps + feature flag present, no regression to the wedge), scope, dead code, tests (mocked backend asserts loop respects grader decisions), style. Automode under feature: APPROVE → complete_task verdicts [{action:\"merge\", task_key:\"4\", reason:\"APPROVE: ...\"}]; KICK BACK → set_status(4,\"failed\") + wired record_decision. Never force-merge.",
@@ -232057,6 +232067,491 @@
         "firstSeen": "2026-06-23T16:11:05.617Z",
         "lastChanged": "2026-06-23T18:48:26.659Z",
         "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/add-daemon-global-backend-credentials-file": {
+      "id": "codex/add-daemon-global-backend-credentials-file",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Approved: scoped global secret storage to daemon runtime backend.env, preserved per-workspace overlay selection, kept keys out of graph/dashboard config, and passed focused backend/config/runtime/headless-drain verification.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Add daemon global backend credentials file",
+        "description": "Add a daemon-global credentials file for hosted LLM backend API keys so one daemon serving multiple projects does not rely on any workspace .env.local. Keep provider/model selection per workspace overlay, keep secrets out of graph/dashboard overlay, update tests and docs/UI copy as needed.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-23T11:55:36.034Z"
+      },
+      "assignee": "codex-global-backend-credentials-reviewer",
+      "timestamps": {
+        "firstSeen": "2026-06-23T11:24:29.826Z",
+        "lastChanged": "2026-06-23T12:14:34.350Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/add-reusable-conversation-session-distiller": {
+      "id": "codex/add-reusable-conversation-session-distiller",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Reviewed session distiller refactor. New lib/session-distiller.js is pure/offline, extract-decisions keeps the prior CLI and exported test API, and focused tests passed: node test/session-distiller.test.js; node test/extract-decisions.test.js; git diff --check.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Add reusable conversation session distiller",
+        "description": "Add a reusable conversation/session distiller that extracts structured observations from transcript turns: decision, question, task, hypothesis, and outcome. Reuse or refactor the existing scripts/extract-decisions.js heuristics instead of creating a parallel parser. Preserve existing extract-decisions behavior/tests, and add focused tests for the new structured kinds. Do not touch AST graph integration.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-23T14:12:47.981Z"
+      },
+      "assignee": "codex-main-reviewer-20260623",
+      "timestamps": {
+        "firstSeen": "2026-06-23T14:12:47.981Z",
+        "lastChanged": "2026-06-23T14:22:24.321Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/back-entities-with-append-only-graph-store-events": {
+      "id": "codex/back-entities-with-append-only-graph-store-events",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Reviewed diff for graph-store-backed entities. Entity nodes are appended/replayed via entity_node_upserted, entity relation edges preserve relation/origin metadata, overlay.load rehydrates entities from .graph, buildGraph projects non-task entity nodes, and focused tests passed: node test/entity-graph-store.test.js; node test/knowledge-nodes.test.js; node test/context-compiler-search.test.js.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Back entities with append-only graph-store events",
+        "description": "Implement graph-store-backed entity nodes and entity edges so entity data is replayable from .graph and projected into buildGraph. Keep changes scoped to existing overlay, graph-store, daemon, entity route patterns. Do not touch pending AST graph integration.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-23T13:58:18.729Z"
+      },
+      "assignee": "codex-main-reviewer-20260623",
+      "timestamps": {
+        "firstSeen": "2026-06-23T13:58:18.729Z",
+        "lastChanged": "2026-06-23T14:11:35.735Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/capture-causal-edges-from-task-results": {
+      "id": "codex/capture-causal-edges-from-task-results",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": "KICK_BACK: causal_edges are intended to write non-blocking context evidence, but applyCausalEdges currently calls overlayStore.addEdge(kind:'context') directly. addEdge dedupes by endpoints and upgrades an existing blocking edge with the same from/to pair into context, so a task_result causal assertion can silently remove a scheduling dependency. Add a regression test and preserve blocking edges when recording causal metadata.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Capture causal edges from task results",
+        "description": "Add a narrow causal/task outcome edge slice by extending structured task_result with explicit causal_edges. Validate allowed relations such as caused, fixed, blocked, depends_on, supports, contradicts; preserve existing task_result strictness; write accepted causal_edges as non-blocking relation-bearing context edges with origin task-result-causal. Also allow overlay.addEdge to carry relation metadata on context edges so graph-store replay/search activation can see it. Do not infer causality from prose and do not touch AST graph work.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-23T14:45:45.192Z"
+      },
+      "assignee": "codex-main-reviewer-20260623",
+      "timestamps": {
+        "firstSeen": "2026-06-23T14:45:45.192Z",
+        "lastChanged": "2026-06-23T15:03:16.601Z",
+        "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/define-artifact-provider-contract-without-ast-shapes": {
+      "id": "codex/define-artifact-provider-contract-without-ast-shapes",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Reviewed artifact provider contract branch. It adds a concise provider-neutral docs contract and parseable v1 JSON schema, links docs/index.md, avoids runtime ingestion and concrete AST node shapes, and keeps validation/cross-reference boundaries clear. Verified schema parse and git diff --check.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Define artifact provider contract without concrete AST shapes",
+        "description": "Add a small architecture contract for artifact decomposition providers so future PDF/doc/conversation/code/image providers can plug into the unified memory graph without forcing the AST graph implementation now. Scope is docs/schema only: create a provider-neutral contract that defines provider identity, artifact/source provenance, emitted logical nodes, relation edges, chunk/section hierarchy, idempotency expectations, and validation boundaries. Do not define concrete AST node shapes or ingestion implementation; leave code AST details to the remote AST graph workspace. Avoid touching existing causal-edge handoff schema files to reduce merge conflicts.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-23T15:09:53.668Z"
+      },
+      "assignee": "codex-main-reviewer-20260623",
+      "timestamps": {
+        "firstSeen": "2026-06-23T15:03:06.742Z",
+        "lastChanged": "2026-06-23T15:12:09.965Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/harden-long-note-cluster-ingest-daemon-startup": {
+      "id": "codex/harden-long-note-cluster-ingest-daemon-startup",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Reviewed long-note flake hardening. The patch only changes test/long-note-cluster-ingest.test.js startup harness: 30s bounded wait/backoff, capped daemon stdout/stderr buffers, early-exit detection, and diagnostics only on startup failure. Source-cluster assertions are unchanged. Verified the test twice and git diff --check.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Harden long note cluster ingest daemon startup wait",
+        "description": "Fix the long-note cluster ingest test flake without changing product behavior. The test sometimes fails at 'sandboxed daemon came up' because the sandboxed daemon can exceed the 10s ping window, especially while spawning embedding sidecar/model setup, and stdio is ignored so failures are hard to diagnose. Scope should stay in test/long-note-cluster-ingest.test.js unless a shared test helper already exists. Increase the bounded startup wait/backoff enough for loaded local runs, capture daemon stdout/stderr to a buffer, detect early daemon exit if practical, and include useful diagnostics only when startup fails. Verify by running node test/long-note-cluster-ingest.test.js at least twice and git diff --check.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-23T15:17:29.818Z"
+      },
+      "assignee": "codex-main-reviewer-20260623",
+      "timestamps": {
+        "firstSeen": "2026-06-23T15:05:27.180Z",
+        "lastChanged": "2026-06-23T15:20:29.097Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/merge-origin-sync": {
+      "id": "codex/merge-origin-sync",
+      "label": null,
+      "kind": null,
+      "workspace": "D:\\zonoid",
+      "status": "tested",
+      "summary": "Merged origin/main into local line: merge commit 880fda9d (parents c998bd3f local + 71285b1c origin) on orch/attempt/codex-merge-origin-sync. 3 code conflicts resolved keeping BOTH sides (graph-store.js + overlay.js: code_node AND entity_node/reviews coexist; daemon.js: provisional:false strict gate + reviewLifecycle spread). .graph taken wholesale from ours. 21 conflict-area/feature unit tests pass (entity-graph-store, review-lifecycle, code-extract, judging-gate, reaper, belief/causal/costflow). Full-suite 'failures' are pre-existing load-sensitive daemon flakes reproducing identically on origin/main and pre-merge HEAD - zero regressions, zero conflict markers. main + remote untouched, not pushed.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Reconcile origin/main into local main — careful conflict resolution on an isolated branch (do NOT land on main)",
+        "description": "Produce a fully-resolved, tested merge of origin/main into the local line, ON THE ISOLATED ATTEMPT BRANCH ONLY. Do NOT push, do NOT touch main — the dispatcher lands it later during a daemon-quiet window. (The live daemon commits to main every ~minute; that's why this happens in isolation.)\n\nSETUP: in your attempt worktree (forked from current main), run `git merge origin/main`. Expect conflicts. (origin/main is already fetched.)\n\n.graph CONFLICTS (~677 files): NOT real conflicts — .graph is daemon-regenerated state. Take LOCAL/ours wholesale: `git checkout --ours -- .graph && git add .graph` (the daemon reconciles it on restart). Do the same for any other generated/snapshot artifacts (judge-next.json, *.jsonl journals under .graph). Do NOT hand-merge .graph.\n\nCODE CONFLICTS — 11 files, resolve to PRESERVE BOTH SIDES' intent:\n  daemon.js, routes/overlay.js, routes/meta.js, lib/headless-drain.js, lib/overlay.js, lib/schedule-wakeup.js, lib/graph-store.js, lib/search/memory-search.js, lib/codex-wakeup-delivery.js, lib/proc-list.js, test/self-heal.test.js\n\nTHIS SESSION's changes you MUST PRESERVE (local commits): \n  - 3ec165df: dep-satisfaction gate now {done,tested} (DEP_SATISFIED_STATUSES) + claim-stale window 60min/ORCH_STALE_MINUTES + worktreeVouchesLive (daemon.js, routes/meta.js, lib/git.js, test/self-heal.test.js).\n  - e3e91f6c: sweepStaleWakeups + opt-in sweepOrphanProcesses janitor (lib/schedule-wakeup.js + daemon.js sweep wiring).\n  - P6 (6f12fd03): strict JUDGING gate, no timeout (routes/overlay.js, lib/judge.js, lib/search/memory-search.js pendingDup split).\n  - P1/P7 (b18aeb7b/291c3332): runJudgeDrainSync + cli-kind backend (lib/headless-drain.js).\n\nORIGIN's overlapping changes you MUST INTEGRATE (don't drop them): review-lifecycle (route review queues through daemon drains, same-node review state), `Fix stale verdict sweep requeue` (adcc30de — touches the SAME stale-claim/verdict sweep area as this session's reaper fix; reconcile so BOTH the reaper-readiness fix AND origin's verdict-sweep-requeue coexist), causal-edge capture, belief lifecycle, costflow attribution, daemon-global backend creds, windowsHide spawns.\n\nMost conflicts are different functions in the same file → keep both. The DELICATE one is the daemon.js / sweep / self-heal.test.js overlap (this session's reaper/readiness/sweep vs origin's verdict-sweep + review-lifecycle): resolve so both behaviors hold, and if you cannot confidently reconcile a hunk, leave a clear `// MERGE-FLAG:` comment + describe it in your report rather than guessing.\n\nVERIFY: run the FULL test suite (check package.json — likely `npm test` or `node --test test/`). It MUST pass (note any failures that are identical on origin/main as pre-existing). The green suite is the merge's correctness gate.\n\nCOMMIT the resolved merge on the attempt branch (`git commit` to finish the merge — keep the merge commit). Do NOT push. Do NOT merge to main.\n\nReport: conflicts resolved per file, any MERGE-FLAG items, the full-suite result, and confirmation main/remote were untouched. Complete with status:\"tested\".",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-23T20:07:29.193Z"
+      },
+      "assignee": "merge-sync",
+      "timestamps": {
+        "firstSeen": "2026-06-23T18:22:43.602Z",
+        "lastChanged": "2026-06-23T20:08:30.069Z",
+        "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/progressive-disclosure-context-audit": {
+      "id": "codex/progressive-disclosure-context-audit",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Audited Subconscious-to-agent context surfaces. Current layers: assignment prepare/read envelopes, task dependency summaries, task detail, agentic search context, state/frontier/dashboard projections, and classify prompt hints. Safest progressive-disclosure insertion is additive fields on assignment.context plus MCP descriptions/UI labels, keeping existing keys stable.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Audit Subconscious to live agent context surfaces for progressive disclosure",
+        "description": "Map every path where Subconscious provides information to live agents, especially subconscious_assignment prepare/read envelopes, agentic search context, dependency summaries, handoff_envelope fields, dashboard/frontier context display, and any prompt-building helpers. Success criteria: produce a concise inventory of surfaces, current payload shape, consumers, and the safest insertion points for layered context without changing behavior.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-23T13:58:46.514Z"
+      },
+      "assignee": "progressive-disclosure-context-audit-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-23T13:58:46.514Z",
+        "lastChanged": "2026-06-23T14:48:41.338Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/progressive-disclosure-context-contract": {
+      "id": "codex/progressive-disclosure-context-contract",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Defined the additive progressive_disclosure_context contract for Subconscious live-agent envelopes in the v1 handoff schema and README. Layer 1 contains task/why/next_action/must_know_constraints/blockers; Layer 2 contains required dependency summaries; Layer 3 contains optional drill-down handles for notes/tasks/files/prior attempts/full trace. Compatibility rules keep existing fields stable, avoid /state expansion, keep /task/context cheap, and reserve /task/detail/include_internal/debug for deep payloads.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Design layered Subconscious context envelope contract",
+        "description": "Define the progressive-disclosure contract for Subconscious-provided live-agent info. Include required Layer 1 fields (task, why, next action, must-know constraints, blockers), Layer 2 fields (required context/dependency summaries), Layer 3 optional drill-down handles (related notes/tasks/files/prior attempts/full trace), and compatibility rules for existing consumers. Success criteria: produce a typed shape or schema update plan with naming, ordering, truncation, and backward-compat behavior.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-23T13:59:17.646Z"
+      },
+      "assignee": "progressive-disclosure-context-contract-worker",
+      "timestamps": {
+        "firstSeen": "2026-06-23T13:59:17.646Z",
+        "lastChanged": "2026-06-23T16:31:04.309Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/progressive-disclosure-context-implementation": {
+      "id": "codex/progressive-disclosure-context-implementation",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "failed",
+      "summary": "Implementation does not match the landed progressive_disclosure_context contract. The contract in schemas/handoff.v1.schema.json and schemas/README.md uses layer1/layer2/layer3 with layer2.dependency_summaries and structured Layer 3 handles, but the attempt emits/tests layer_1/layer_2/layer_3 with layer_2.required_context and a different handle shape. This would create an incompatible additive API rather than implementing the contract. Rework should preserve the landed contract names/shapes and update runtime/tests to match it.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Implement progressive disclosure in Subconscious live-agent context",
+        "description": "Implement the layered context envelope defined by the contract task across Subconscious live-agent surfaces. Preserve existing fields for compatibility while adding a concise default layer and drill-down handles for deeper context. Likely scope includes subconscious_assignment prepare/read output, agentic search context formatting, dependency summary shaping, and dashboard/search-context consumers only where needed. Success criteria: existing consumers keep working, default live-agent context becomes concise/actionable, deeper context remains addressable, and focused tests cover layer ordering, truncation, and backwards compatibility.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-23T13:59:56.847Z"
+      },
+      "assignee": "codex-main-reviewer-20260623",
+      "timestamps": {
+        "firstSeen": "2026-06-23T13:59:56.847Z",
+        "lastChanged": "2026-06-23T16:37:26.510Z",
+        "lastStatus": "failed"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/reapply-belief-lifecycle-status-as-source-only-attempt": {
+      "id": "codex/reapply-belief-lifecycle-status-as-source-only-attempt",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Reviewed clean source-only belief lifecycle reapply. Diff contains only daemon.js, lib/overlay.js, lib/search/context-compiler.js, lib/search/memory-search.js, and test/belief-lifecycle.test.js with no .graph paths. Tests passed: node test/belief-lifecycle.test.js; node test/temporal-knowledge.test.js; node test/search-knowledge.test.js; git diff --check.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Reapply belief lifecycle status as source-only attempt",
+        "description": "The approved belief lifecycle attempt could not merge cleanly because its attempt branch carries daemon-owned .graph claim/journal drift. Reapply the same source changes from commit 0b8b23f68 onto current main in a clean attempt branch, excluding all .graph changes, rerun the focused tests, and commit source-only changes.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-23T14:36:22.918Z"
+      },
+      "assignee": "codex-main-reviewer-20260623",
+      "timestamps": {
+        "firstSeen": "2026-06-23T14:36:22.918Z",
+        "lastChanged": "2026-06-23T14:44:17.834Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/reapply-causal-edges-preserve-blocking-dependencies": {
+      "id": "codex/reapply-causal-edges-preserve-blocking-dependencies",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Reviewed causal edge rework. addEdge now dedupes by canonical kind so same-endpoint context evidence no longer mutates blocking scheduler edges; regression covers a native blockedBy edge plus causal_edges with the same endpoints. Verified causal/handoff/graph-store/weighted-edge tests plus blocking-dep context seed/native adoption checks and diff-check.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Reapply causal edges without downgrading blocking dependencies",
+        "description": "Rework the causal task_result edge implementation from the prior kicked-back attempt. Preserve structured task_result.causal_edges validation/schema/docs and graph-store metadata persistence, but fix the bug where applyCausalEdges calls overlayStore.addEdge(kind:'context') and can convert an existing blocking edge with the same from/to pair into context. Add a regression test proving an existing blocking dependency remains blocking when a causal edge with the same endpoints is reported; still record causal evidence in a non-blocking/relation-aware way. Run node test/causal-task-result.test.js, node test/handoff-validation.test.js, node test/graph-store-edge-meta.test.js, and git diff --check.",
+        "status": "completed",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-23T15:13:31.240Z"
+      },
+      "assignee": "codex-main-reviewer-20260623",
+      "timestamps": {
+        "firstSeen": "2026-06-23T15:00:07.685Z",
+        "lastChanged": "2026-06-23T15:17:26.726Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/surface-note-belief-lifecycle-status": {
+      "id": "codex/surface-note-belief-lifecycle-status",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Reviewed belief lifecycle metadata slice. It adds derived note belief_status values from existing temporal/pending/explicit note fields, surfaces them in graph/search/context projections, preserves retrieval filtering, and focused tests passed: node test/belief-lifecycle.test.js; node test/temporal-knowledge.test.js; node test/search-knowledge.test.js.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Surface note belief lifecycle status",
+        "description": "Formalize note/belief lifecycle status using existing note mechanics. Add a small helper that derives statuses suggested, verified, stale, contradicted, and superseded from note fields/pendingDup/explicit status where appropriate, surface it on graph/search note projections, and add focused tests. Do not introduce a separate belief store or touch AST graph work.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-23T14:23:35.001Z"
+      },
+      "assignee": "codex-main-reviewer-20260623",
+      "timestamps": {
+        "firstSeen": "2026-06-23T14:23:35.001Z",
+        "lastChanged": "2026-06-23T14:32:43.480Z",
+        "lastStatus": "tested"
       },
       "metrics": null,
       "measurements": null,
@@ -264636,14 +265131,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqqu4akhnz5",
-      "to": "codex/onboard-code-cli-sync",
-      "kind": "context",
-      "weight": 0.5,
-      "by": "judge",
-      "judged": true
-    },
-    {
       "from": "note:note-mqqv4ix36dd",
       "to": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/5",
       "kind": "context",
@@ -265399,6 +265886,95 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/4",
+      "to": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/8",
+      "kind": "context",
+      "weight": 0.624,
+      "by": "judge",
+      "judged": true,
+      "score": 0.624,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/4",
+      "to": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/3",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.667,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/merge-origin-sync",
+      "to": "codex/merge-origin-sync-judge",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
+      "to": "note:note-mqr366hr6af",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "note:note-mqr366hr6af",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3",
+      "to": "note:note-mqr366hr6af",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_doc:note-mqr366hr6af",
+      "to": "knowledge:source_section:note-mqr366hr6af#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_section:note-mqr366hr6af#note-evidence",
+      "to": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_section:note-mqr366hr6af#note-evidence",
+      "to": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_section:note-mqr366hr6af#note-evidence",
+      "to": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_section:note-mqr366hr6af#note-evidence",
+      "to": "note:note-mqr366hr6af",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
       "from": "note:note-mq6qgcuz",
       "to": "note:note-mq6sict8",
       "kind": "context",
@@ -265413,6 +265989,16 @@
       "weight": 0.6,
       "by": "judge",
       "judged": true
+    },
+    {
+      "from": "note:note-mq75a80y",
+      "to": "codex/merge-origin-sync-judge",
+      "kind": "context",
+      "weight": 0.558,
+      "by": "judge",
+      "judged": true,
+      "score": 0.558,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mq75a82e",
@@ -266104,6 +266690,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqp59bb1f4l",
+      "to": "codex/merge-origin-sync-judge",
+      "kind": "context",
+      "weight": 0.627,
+      "by": "judge",
+      "judged": true,
+      "score": 0.627,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqp59ulbxqf",
       "to": "note:note-mqp59nrfuo0",
       "kind": "context",
@@ -266214,6 +266810,320 @@
       "judged": true
     },
     {
+      "from": "note:note-mqpk034sqnp",
+      "to": "codex/search-summary-human-readable",
+      "kind": "context",
+      "weight": 0.721,
+      "judged": true,
+      "by": "judge",
+      "score": 0.721,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpk034sqnp",
+      "to": "codex/dashboard-use-subconscious-agentic-search",
+      "kind": "context",
+      "weight": 0.566,
+      "by": "judge",
+      "judged": true,
+      "score": 0.566,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpk034sqnp",
+      "to": "codex/subconscious-summary-brief-wording",
+      "kind": "context",
+      "weight": 0.566,
+      "by": "judge",
+      "judged": true,
+      "score": 0.566,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpl07wk2jo",
+      "to": "codex/dashboard-use-subconscious-agentic-search",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqpl07wk2jo",
+      "to": "codex/progressive-disclosure-context-contract",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "judge",
+      "judged": true,
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "note:note-mq7zoijxpsz",
+      "kind": "context",
+      "weight": 0.555,
+      "by": "judge",
+      "judged": true,
+      "score": 0.555,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/subconscious-context-human-summary",
+      "kind": "context",
+      "weight": 0.846,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.846,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/subconscious-summary-brief-wording",
+      "kind": "context",
+      "weight": 0.845,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.845,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/review-state-subconscious-flow",
+      "kind": "context",
+      "weight": 0.854,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.854,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "judge",
+      "judged": true,
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/review-state-dashboard-frontier",
+      "kind": "context",
+      "weight": 0.884,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.884,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 0.925,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.925,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/make-dashboard-settings-popup-centered-modal-overlay",
+      "kind": "context",
+      "weight": 0.846,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.846,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/fix-token-accounting-attribution",
+      "kind": "context",
+      "weight": 0.867,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.867,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/add-standalone-zai-glm-api-backend-provider",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/fix-codex-task-transcript-attribution",
+      "kind": "context",
+      "weight": 0.88,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.88,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/add-cost-cause-ledger-to-costflow-billing",
+      "kind": "context",
+      "weight": 0.844,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.844,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/add-daemon-global-backend-credentials-file",
+      "kind": "context",
+      "weight": 0.845,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.845,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/reapply-causal-edges-preserve-blocking-dependencies",
+      "kind": "context",
+      "weight": 0.875,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.875,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/define-artifact-provider-contract-without-ast-shapes",
+      "kind": "context",
+      "weight": 0.86,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.86,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/harden-long-note-cluster-ingest-daemon-startup",
+      "kind": "context",
+      "weight": 0.872,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.872,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
+      "kind": "context",
+      "weight": 0.623,
+      "by": "judge",
+      "judged": true,
+      "score": 0.623,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "knowledge:source_chunk:chunk-claude-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-ed1147fac7",
+      "kind": "context",
+      "weight": 0.621,
+      "by": "judge",
+      "judged": true,
+      "score": 0.621,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "note:note-mqh5elf8cq8",
+      "kind": "context",
+      "weight": 0.583,
+      "by": "judge",
+      "judged": true,
+      "score": 0.583,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "note:note-mqe1cey1lux",
+      "kind": "context",
+      "weight": 0.574,
+      "by": "judge",
+      "judged": true,
+      "score": 0.574,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "note:note-mqp5937smpk",
+      "kind": "context",
+      "weight": 0.561,
+      "by": "judge",
+      "judged": true,
+      "score": 0.561,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 0.555,
+      "by": "judge",
+      "judged": true,
+      "score": 0.555,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-dashboard-frontier",
+      "kind": "context",
+      "weight": 0.552,
+      "by": "judge",
+      "judged": true,
+      "score": 0.552,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-docs-instructions",
+      "kind": "context",
+      "weight": 1,
+      "by": "subconscious",
+      "judged": true,
+      "score": 1,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-lifecycle-contract",
+      "kind": "context",
+      "weight": 0.555,
+      "origin": "autowire-semantic",
+      "judged": true,
+      "by": "judge",
+      "score": 0.555
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-subconscious-flow",
+      "kind": "context",
+      "weight": 1,
+      "origin": "asserted",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-state-integration-migration-tests",
+      "kind": "context",
+      "weight": 0.996,
+      "origin": "subconscious-agentic-search",
+      "judged": true,
+      "by": "subconscious",
+      "score": 0.996
+    },
+    {
       "from": "note:note-mqpnhesryti",
       "to": "note:note-mqpna41fj59",
       "kind": "context",
@@ -266254,12 +267164,176 @@
       "judged": true
     },
     {
+      "from": "note:note-mqq2ugme4vr",
+      "to": "codex/token-accounting-attribution-audit",
+      "kind": "context",
+      "weight": 0.5,
+      "judged": true,
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqq2ugme4vr",
+      "to": "note:note-mqe9hy58oqj",
+      "kind": "context",
+      "weight": 0.615,
+      "by": "judge",
+      "judged": true,
+      "score": 0.615,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqq2ugme4vr",
+      "to": "note:note-mqff4agm67d",
+      "kind": "context",
+      "weight": 0.578,
+      "by": "judge",
+      "judged": true,
+      "score": 0.578,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqq2ugme4vr",
+      "to": "codex/fix-token-accounting-attribution",
+      "kind": "context",
+      "weight": 0.5,
+      "origin": "subconscious-assignment",
+      "judged": true,
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqq2ugme4vr",
+      "to": "codex/fix-codex-task-transcript-attribution",
+      "kind": "context",
+      "weight": 0.8,
+      "origin": "asserted",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqq2ugme4vr",
+      "to": "codex/fix-costflow-durable-claim-session-provenance",
+      "kind": "context",
+      "origin": "autowire-semantic",
+      "by": "judge",
+      "judged": true,
+      "weight": 0.561,
+      "score": 0.561
+    },
+    {
+      "from": "note:note-mqq2ugme4vr",
+      "to": "codex/constrain-costflow-claim-session-to-accounting-source",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "judge",
+      "judged": true,
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mqq2ugme4vr",
+      "to": "codex/fix-costflow-pruned-snapshot-session-splits",
+      "kind": "context",
+      "weight": 0.593,
+      "by": "judge",
+      "judged": true,
+      "score": 0.593,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqq2ugme4vr",
+      "to": "codex/add-cost-cause-ledger-to-costflow-billing",
+      "kind": "context",
+      "weight": 0.9,
+      "origin": "asserted",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqq3p7ul2pe",
+      "to": "codex/add-standalone-zai-glm-api-backend-provider",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqqjxaewu58",
+      "to": "note:note-mqgu5ovs60x",
+      "kind": "context",
+      "weight": 0.637,
+      "by": "judge",
+      "judged": true,
+      "score": 0.637,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqqjxaewu58",
+      "to": "codex/add-cost-cause-ledger-to-costflow-billing",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqqjxaewu58",
+      "to": "codex/add-daemon-global-backend-credentials-file",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqqjxaewu58",
+      "to": "codex/reapply-causal-edges-preserve-blocking-dependencies",
+      "kind": "context",
+      "weight": 0.839,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.839,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqqjxaewu58",
+      "to": "codex/define-artifact-provider-contract-without-ast-shapes",
+      "kind": "context",
+      "weight": 0.5,
+      "origin": "subconscious-assignment",
+      "judged": true,
+      "by": "judge"
+    },
+    {
+      "from": "note:note-mqqjxaewu58",
+      "to": "codex/harden-long-note-cluster-ingest-daemon-startup",
+      "kind": "context",
+      "weight": 0.848,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.848,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqqlz3oc3we",
+      "to": "codex/add-daemon-global-backend-credentials-file",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
       "from": "note:note-mqqmeewyhir",
       "to": "codex/p4-migrate-benches-sdk",
       "kind": "context",
       "weight": 0.6,
       "by": "judge",
       "judged": true
+    },
+    {
+      "from": "note:note-mqqoju0dw11",
+      "to": "codex/define-artifact-provider-contract-without-ast-shapes",
+      "kind": "context",
+      "weight": 0.5,
+      "origin": "subconscious-assignment",
+      "judged": true,
+      "by": "judge"
     },
     {
       "from": "note:note-mqqtne9zs3u",
@@ -266295,11 +267369,46 @@
     },
     {
       "from": "note:note-mqqwu05983g",
-      "to": "note:note-mqqu4akhnz5",
+      "to": "note:note-mqr2jk9hawd",
       "kind": "context",
       "weight": 0.7,
       "by": "judge",
       "judged": true
+    },
+    {
+      "from": "note:note-mqr2jk9hawd",
+      "to": "codex/onboard-code-cli-sync",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqr366hr6af",
+      "to": "codex/merge-origin-sync",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqr366hr6af",
+      "to": "knowledge:source_section:note-mqr366hr6af#note-evidence",
+      "kind": "context",
+      "weight": 0.938,
+      "by": "judge",
+      "judged": true,
+      "score": 0.938,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqr366hr6af",
+      "to": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.938,
+      "by": "judge",
+      "judged": true,
+      "score": 0.938,
+      "origin": "autowire-semantic"
     },
     {
       "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/22",
@@ -266318,25 +267427,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.69,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/4",
-      "to": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/8",
-      "kind": "context",
-      "weight": 0.624,
-      "by": "judge",
-      "judged": true,
-      "score": 0.624,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/4",
-      "to": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/3",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.667,
       "origin": "autowire-semantic"
     },
     {
@@ -266375,6 +267465,44 @@
       "judged": true
     },
     {
+      "from": "codex/add-cost-cause-ledger-to-costflow-billing",
+      "to": "codex/define-artifact-provider-contract-without-ast-shapes",
+      "kind": "context",
+      "weight": 0.766,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.766,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/add-daemon-global-backend-credentials-file",
+      "to": "codex/define-artifact-provider-contract-without-ast-shapes",
+      "kind": "context",
+      "weight": 0.766,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.766,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/add-visible-search-highlights-to-three-point-cloud",
+      "to": "codex/fix-dark-three-point-cloud-nodes-and-missing-search-edges",
+      "kind": "context",
+      "weight": 0.576,
+      "by": "judge",
+      "judged": true,
+      "score": 0.576,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/capture-causal-edges-from-task-results",
+      "to": "codex/reapply-causal-edges-preserve-blocking-dependencies",
+      "kind": "context",
+      "weight": 1,
+      "origin": "subconscious-assignment",
+      "judged": true
+    },
+    {
       "from": "codex/exec-brain-state-seam-session-claim-impl",
       "to": "codex/judge-exec-brain-state-seam-session-claim-impl",
       "kind": "context",
@@ -266403,6 +267531,70 @@
       "judged": true,
       "score": 0.589,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-dashboard-config-smoke-recovery",
+      "to": "codex/fix-dashboard-config-smoke-recovery-judge",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/fix-dashboard-config-smoke-recovery",
+      "to": "codex/fix-dashboard-smoke-pinned-drift-recovery",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/fix-dashboard-config-smoke-recovery",
+      "to": "codex/fix-dashboard-config-smoke-kickback-judge",
+      "kind": "context",
+      "weight": 0.676,
+      "by": "judge",
+      "judged": true,
+      "score": 0.676,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-dashboard-config-test-contract",
+      "to": "codex/fix-post-subconscious-review-findings",
+      "kind": "context",
+      "weight": 0.8,
+      "origin": "asserted",
+      "judged": true
+    },
+    {
+      "from": "codex/fix-dashboard-config-test-contract",
+      "to": "codex/fix-dashboard-config-smoke-kickback",
+      "kind": "context",
+      "weight": 1,
+      "origin": "subconscious-assignment",
+      "judged": true
+    },
+    {
+      "from": "codex/fix-dashboard-smoke-pinned-drift-recovery",
+      "to": "codex/verify-post-subconscious-review-fixes",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/fix-dashboard-smoke-pinned-drift-recovery",
+      "to": "codex/fix-broad-npm-test-regressions-after-post-review",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/fix-dashboard-smoke-pinned-drift-recovery",
+      "to": "codex/verify-post-subconscious-review-fixes-final",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/fix-dashboard-smoke-pinned-drift-recovery",
+      "to": "codex/fix-dashboard-config-smoke-recovery",
+      "kind": "context",
+      "weight": 0.685,
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "codex/fix-featurebench-dag-only-parity",
@@ -266445,10 +267637,298 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/merge-origin-sync",
-      "to": "codex/merge-origin-sync-judge",
+      "from": "codex/fix-subconscious-prepare-unknown-dependency-snapshot",
+      "to": "codex/verify-post-subconscious-review-fixes-final-after-snapshot-fix",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/review-graph-overlay-dispatch-loops",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/review-hooks-adapters-write-gates",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/review-search-kb-learning-skills",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/review-api-ui-docs-tests",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/fix-post-subconscious-review-findings",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/fix-subconscious-claim-permit-result-contracts",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/fix-shell-opencode-write-gates",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/fix-graph-dispatch-invariants",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/fix-search-kb-recall-semantics",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/fix-dashboard-config-test-contract",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/verify-post-subconscious-review-fixes",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/fix-broad-npm-test-regressions-after-post-review",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/verify-post-subconscious-review-fixes-final",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/full-system-review-subconscious-landed",
+      "to": "codex/reconcile-post-subconscious-feature-with-main",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/long-note-cluster-ingest-hardening-judge",
+      "to": "codex/harden-long-note-cluster-ingest-daemon-startup",
+      "kind": "context",
+      "weight": 0.7,
+      "origin": "subconscious-assignment",
+      "judged": true
+    },
+    {
+      "from": "codex/long-note-cluster-ingest-hardening",
+      "to": "codex/harden-long-note-cluster-ingest-daemon-startup",
+      "kind": "context",
+      "weight": 0.9,
+      "origin": "subconscious-assignment",
+      "judged": true
+    },
+    {
+      "from": "codex/move-dashboard-onboarding-output-out-of-bench",
+      "to": "codex/move-dashboard-onboarding-output-out-of-bench-judge",
+      "kind": "context",
+      "weight": 0.866,
+      "by": "judge",
+      "judged": true,
+      "score": 0.866,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/progressive-disclosure-context-audit",
+      "to": "codex/progressive-disclosure-context-contract",
       "kind": "blocking",
       "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/progressive-disclosure-context-audit",
+      "to": "codex/progressive-disclosure-context-implementation",
+      "kind": "context",
+      "origin": "autowire-semantic",
+      "weight": 0.802,
+      "by": "judge",
+      "judged": true,
+      "score": 0.802
+    },
+    {
+      "from": "codex/progressive-disclosure-context-audit",
+      "to": "codex/progressive-disclosure-context-verification",
+      "kind": "context",
+      "weight": 0.625,
+      "by": "judge",
+      "judged": true,
+      "score": 0.625,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/progressive-disclosure-context-contract",
+      "to": "codex/progressive-disclosure-context-implementation",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/progressive-disclosure-context-contract",
+      "to": "codex/progressive-disclosure-context-verification",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/progressive-disclosure-context-contract",
+      "to": "codex/subconscious-agentic-search-envelope-code-review",
+      "kind": "context",
+      "weight": 0.565,
+      "by": "judge",
+      "judged": true,
+      "score": 0.565,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/progressive-disclosure-context-contract",
+      "to": "codex/subconscious-agent-facing-migration",
+      "kind": "context",
+      "weight": 0.561,
+      "by": "judge",
+      "judged": true,
+      "score": 0.561,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/reapply-causal-edges-preserve-blocking-dependencies",
+      "to": "codex/capture-causal-edges-from-task-results",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.671,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/reapply-causal-edges-preserve-blocking-dependencies",
+      "to": "codex/define-artifact-provider-contract-without-ast-shapes",
+      "kind": "context",
+      "weight": 0.761,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.761,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/reconcile-post-subconscious-feature-with-main",
+      "to": "codex/verify-post-subconscious-review-fixes-after-main-reconcile",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/reconcile-post-subconscious-feature-with-main",
+      "to": "codex/fix-subconscious-prepare-unknown-dependency-snapshot",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/review-subconscious-assignment-lifecycle",
+      "to": "codex/subconscious-permit-gate",
+      "kind": "context",
+      "weight": 0.55,
+      "by": "judge",
+      "judged": true,
+      "score": 0.55,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-subconscious-assignment-lifecycle",
+      "to": "codex/fix-subconscious-claim-permit-result-contracts",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/review-subconscious-assignment-lifecycle",
+      "to": "codex/fix-claim-permit-result-contract-kickback",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/search-summary-human-readable",
+      "to": "codex/dashboard-use-subconscious-agentic-search",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/surface-note-belief-lifecycle-status",
+      "to": "codex/reapply-belief-lifecycle-status-as-source-only-attempt",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/verify-post-subconscious-review-fixes-after-main-reconcile",
+      "to": "codex/fix-subconscious-prepare-unknown-dependency-snapshot",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/verify-post-subconscious-review-fixes-after-main-reconcile",
+      "to": "codex/verify-post-subconscious-review-fixes-final-after-snapshot-fix",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/verify-post-subconscious-review-fixes-after-main-reconcile",
+      "to": "codex/fix-post-subconscious-review-findings",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.587,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/verify-post-subconscious-review-fixes-final-after-snapshot-fix",
+      "to": "codex/fix-post-subconscious-review-findings",
+      "kind": "context",
+      "weight": 0.561,
+      "by": "judge",
+      "judged": true,
+      "score": 0.561,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/verify-post-subconscious-review-fixes",
+      "to": "codex/judge-subconscious-live-polish",
+      "kind": "context",
+      "weight": 0.579,
+      "by": "judge",
+      "judged": true,
+      "score": 0.579,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/verify-post-subconscious-review-fixes",
+      "to": "codex/fix-broad-npm-test-regressions-after-post-review",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/verify-post-subconscious-review-fixes",
+      "to": "codex/fix-post-subconscious-review-findings",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
     },
     {
       "from": "dc3ec43f-f1a8-4a77-9403-14c5a43e2e17/5",
@@ -266495,5 +267975,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-23T19:53:46.258Z"
+  "compacted_at": "2026-06-23T20:57:01.983Z"
 }
