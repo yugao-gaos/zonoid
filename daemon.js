@@ -25,6 +25,7 @@ const measure = require('./lib/measure');
 const optimize = require('./lib/optimize');
 const {
   embed,
+  embedBatch,
   embedWithMeta,
   cosine,
   nodeVecs,
@@ -2491,7 +2492,7 @@ const ctx = {
   mainTranscriptForSession: (sid) => sessionBindings.mainTranscriptForSession(state, sid),
   sessionCount: () => sessionBindings.sessionCount(state),
   snapshotNative, now, isTruthy,
-  embed, embedWithMeta, embeddingMeta, vectorMatchesMeta, cosine, embedStatus, DIMS, EMBED_MODEL,
+  embed, embedBatch, embedWithMeta, embeddingMeta, vectorMatchesMeta, cosine, embedStatus, DIMS, EMBED_MODEL,
   gateTask, haikusGate,
   scoreMatchesSemantic, scoreNodeAgainstTokens, suggestToks, suggestForTask,
   SUGGEST_DUP_THRESHOLD, SEMANTIC_DUP_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD,

@@ -5,7 +5,7 @@ const filedropGc = require('../lib/filedrop-gc');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
 const path = require('path');
-const { noteEmbedText, noteFieldTexts, taskEmbedText } = require('../lib/node-tags');
+const { noteEmbedText, codeNodeEmbedText, noteFieldTexts, taskEmbedText } = require('../lib/node-tags');
 const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
 const recallJournal = require('../lib/recall-outcome-journal');
@@ -1020,6 +1020,199 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       };
     }
     sendOp(res, b, 200, resp); return true;
+  }
+
+  // BULK note ingest — the concurrency path for onboarding 1k+ code symbols. The single-note handler
+  // above serializes (per-field embeds + an O(n) dup-cosine scan PER note); that degrades the daemon
+  // under inject load. This route is purpose-built for KNOWN-DISTINCT bulk symbols, so it:
+  //   - embeds every note's pooled text with embedBatch in chunks (ONE inference per chunk, not per note),
+  //   - SKIPS the near-duplicate guard entirely (bulk = distinct by construction; the O(n) scan is the
+  //     quadratic cost we're removing — stragglers remain the dup-judge's job, not the write gate's),
+  //   - bumps the epoch EXACTLY ONCE at the end (not once per note).
+  // The single-note path stays byte-identical; this is purely additive.
+  if (p === '/overlay/notes/bulk' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    if (!Array.isArray(b.notes) || !b.notes.length) { send(res, 400, { ok: false, error: 'notes[] required (non-empty array)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const invalid = b.notes.findIndex((n) => !n || !n.title || !n.summary);
+    if (invalid !== -1) { send(res, 400, { ok: false, error: `notes[${invalid}] missing title or summary` }); return true; }
+
+    // Pooled embedding text per note — the SAME noteEmbedText the single-note path feeds to .vec, so
+    // bulk-ingested notes are retrievable/dedupable identically. Field-level .vecs are intentionally
+    // omitted here (pooled .vec is what /search gates on); keeping it to one vector per note is the
+    // point of the fast path.
+    const pooledTexts = b.notes.map((n) => noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
+
+    // embedBatch in chunks of ~48 (one MiniLM forward pass per chunk). ctx.embedBatch is injectable
+    // for tests; fall back to the real client. Each chunk result is [{ vec }], aligned to its slice.
+    const embedBatchFn = (typeof ctx.embedBatch === 'function') ? ctx.embedBatch : require('../lib/embed').embedBatch;
+    const CHUNK = 48;
+    const vecs = new Array(pooledTexts.length).fill(null);
+    for (let off = 0; off < pooledTexts.length; off += CHUNK) {
+      const slice = pooledTexts.slice(off, off + CHUNK);
+      let batch;
+      try { batch = await embedBatchFn(slice, { mode: 'document', overlay: T.ov }); }
+      catch { batch = slice.map(() => ({ vec: null })); }
+      for (let i = 0; i < slice.length; i++) {
+        const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
+        vecs[off + i] = v;
+      }
+    }
+
+    const meta = (typeof ctx.embeddingMeta === 'function') ? ctx.embeddingMeta(T.ov) : null;
+    const created = [];
+    for (let i = 0; i < b.notes.length; i++) {
+      const n = b.notes[i];
+      const payload = {
+        title: n.title,
+        summary: n.summary,
+        knowledge: n.knowledge,
+        category: n.category,
+        tags: n.tags,
+        vec: vecs[i],
+        vecMeta: vecs[i] ? meta : null,
+      };
+      const id = overlayStore.addNoteNode(T.ov, payload);
+      created.push('note:' + id);
+    }
+    // Exactly ONE epoch bump for the whole batch (vs one per note on the single path) — bulk is a
+    // single logical mutation for retrieval-staleness purposes.
+    overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, created: created.length, keys: created, workspace: T.ws }); return true;
+  }
+
+  // BULK code-node ingest — the dedicated code-index write path (Phase 2 of the native onboarder).
+  // MIRRORS /overlay/notes/bulk exactly (batched embeds, NO dup-guard, ONE epoch bump) but writes into
+  // the SEPARATE overlay.code_nodes map via upsertCodeNode, so the dup-judge / delta / note-learner
+  // (all of which iterate note_nodes) never see these symbols. Per-node embed text is
+  //   `${name} — ${signature} in ${file}`
+  // so a symbol is semantically retrievable by name, signature shape, and location together. The
+  // single-note/knowledge-node paths stay byte-identical; this is purely additive.
+  if (p === '/overlay/code-nodes/bulk' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    if (!Array.isArray(b.nodes) || !b.nodes.length) { send(res, 400, { ok: false, error: 'nodes[] required (non-empty array)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    // Each code node needs a name + kind (kind is the extractor's symbol kind). file may be empty for
+    // a top-level/synthetic symbol but name+kind are required to form a key and a meaningful node.
+    const invalid = b.nodes.findIndex((n) => !n || !n.name || !n.kind);
+    if (invalid !== -1) { send(res, 400, { ok: false, error: `nodes[${invalid}] missing name or kind` }); return true; }
+
+    // Pooled embedding text per symbol — name + signature + file, the direct-RAG retrieval surface.
+    const pooledTexts = b.nodes.map((n) => codeNodeEmbedText(n));
+
+    // embedBatch in chunks of ~48 (one MiniLM forward pass per chunk), identical to the notes path.
+    const embedBatchFn = (typeof ctx.embedBatch === 'function') ? ctx.embedBatch : require('../lib/embed').embedBatch;
+    const CHUNK = 48;
+    const vecs = new Array(pooledTexts.length).fill(null);
+    for (let off = 0; off < pooledTexts.length; off += CHUNK) {
+      const slice = pooledTexts.slice(off, off + CHUNK);
+      let batch;
+      try { batch = await embedBatchFn(slice, { mode: 'document', overlay: T.ov }); }
+      catch { batch = slice.map(() => ({ vec: null })); }
+      for (let i = 0; i < slice.length; i++) {
+        const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
+        vecs[off + i] = v;
+      }
+    }
+
+    const meta = (typeof ctx.embeddingMeta === 'function') ? ctx.embeddingMeta(T.ov) : null;
+    const created = [];
+    for (let i = 0; i < b.nodes.length; i++) {
+      const n = b.nodes[i];
+      const r = overlayStore.upsertCodeNode(T.ov, {
+        key: n.key,
+        name: n.name,
+        kind: n.kind,
+        file: n.file,
+        start_line: n.start_line,
+        end_line: n.end_line,
+        signature: n.signature,
+        summary: n.summary,
+        exported: n.exported,
+        vec: vecs[i],
+        vecMeta: vecs[i] ? meta : null,
+      });
+      if (r.ok) created.push(r.key);
+    }
+    // Exactly ONE epoch bump for the whole batch (same as notes/bulk).
+    overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, created: created.length, keys: created, workspace: T.ws }); return true;
+  }
+
+  // PER-FILE code-node invalidation — the write half of incremental git-diff sync (DESIGN
+  // note-mqpzfgjlux8). Two shapes, both keyed by a repo-relative `file`:
+  //   DELETE /overlay/code-nodes { file, workspace }            — remove ALL code_nodes for that file
+  //                                                               (a DELETED source file).
+  //   POST   /overlay/code-nodes/replace { file, nodes, ws }    — remove-by-file THEN bulk-upsert the
+  //                                                               supplied nodes (a MODIFIED/ADDED file:
+  //                                                               its prior symbols are replaced wholesale
+  //                                                               so renamed/deleted symbols don't linger).
+  // Both go through removeCodeNodesForFile (emits code_node_removed via the prev-state diff on save),
+  // so the deletion survives a daemon reload. The replace path reuses the SAME embed-and-upsert flow as
+  // /overlay/code-nodes/bulk (batched MiniLM, ONE epoch bump). Additive — notes/knowledge paths untouched.
+  if (p === '/overlay/code-nodes' && m === 'DELETE') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    const file = String(b.file || u.searchParams.get('file') || '').trim();
+    if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const { removed } = overlayStore.removeCodeNodesForFile(T.ov, file);
+    if (removed.length) overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, file, deleted: removed.length, keys: removed, workspace: T.ws }); return true;
+  }
+
+  if (p === '/overlay/code-nodes/replace' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    const file = String(b.file || '').trim();
+    if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
+    if (!Array.isArray(b.nodes)) { send(res, 400, { ok: false, error: 'nodes[] required (array; may be empty to just clear the file)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const invalid = b.nodes.findIndex((n) => !n || !n.name || !n.kind);
+    if (invalid !== -1) { send(res, 400, { ok: false, error: `nodes[${invalid}] missing name or kind` }); return true; }
+
+    // 1) Drop the file's prior code_nodes (wholesale replace).
+    const { removed } = overlayStore.removeCodeNodesForFile(T.ov, file);
+
+    // 2) Embed + upsert the fresh nodes — identical batching to /overlay/code-nodes/bulk.
+    const pooledTexts = b.nodes.map((n) => codeNodeEmbedText(n));
+    const embedBatchFn = (typeof ctx.embedBatch === 'function') ? ctx.embedBatch : require('../lib/embed').embedBatch;
+    const CHUNK = 48;
+    const vecs = new Array(pooledTexts.length).fill(null);
+    for (let off = 0; off < pooledTexts.length; off += CHUNK) {
+      const slice = pooledTexts.slice(off, off + CHUNK);
+      let batch;
+      try { batch = await embedBatchFn(slice, { mode: 'document', overlay: T.ov }); }
+      catch { batch = slice.map(() => ({ vec: null })); }
+      for (let i = 0; i < slice.length; i++) {
+        const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
+        vecs[off + i] = v;
+      }
+    }
+    const meta = (typeof ctx.embeddingMeta === 'function') ? ctx.embeddingMeta(T.ov) : null;
+    const created = [];
+    for (let i = 0; i < b.nodes.length; i++) {
+      const n = b.nodes[i];
+      const r = overlayStore.upsertCodeNode(T.ov, {
+        key: n.key, name: n.name, kind: n.kind, file: n.file,
+        start_line: n.start_line, end_line: n.end_line,
+        signature: n.signature, summary: n.summary, exported: n.exported,
+        vec: vecs[i], vecMeta: vecs[i] ? meta : null,
+      });
+      if (r.ok) created.push(r.key);
+    }
+    overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, file, deleted: removed.length, created: created.length, keys: created, workspace: T.ws }); return true;
   }
 
   if (p === '/overlay/gate' && m === 'POST') {
