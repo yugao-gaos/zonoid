@@ -5120,3 +5120,4 @@
 {"ts":1782180589206,"from":"note:note-mqq01krivx2","to":"note:note-mqpna41fj59","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
 {"ts":1782180589206,"from":"note:note-mqq01krivx2","to":"note:note-mqpnhesryti","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
 {"ts":1782180589207,"from":"note:note-mqq01krivx2","to":"note:note-mqpzvfu3u72","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782180811538,"from":"codex/paper-code-retrieval-economy","to":"codex/paper-code-retrieval-economy-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.6182629755456066,"cosine":0.632,"model_version":"v1"}
