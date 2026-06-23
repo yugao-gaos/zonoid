@@ -2179,6 +2179,8 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
   for (const [noteId, n] of Object.entries(ovWs.note_nodes || {})) {
     const bareNoteId = n.id || noteId;
     const noteKey = 'note:' + bareNoteId;
+    const pendingDup = !!(ovWs.pendingDup && ovWs.pendingDup[noteKey]);
+    const dupMatch = (ovWs.pendingDup && ovWs.pendingDup[noteKey] && ovWs.pendingDup[noteKey].match) || null;
     tasks.push({ id: noteKey, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptCtxDeps[noteKey] || [], context_weights: keptCtxWeights[noteKey] || {}, note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null, vecMeta: n.vecMeta || null, vecs: Array.isArray(n.vecs) ? n.vecs : null, vecsMeta: Array.isArray(n.vecsMeta) ? n.vecsMeta : null,
       // Temporal/state-change fields (null on pre-temporal notes — back-compat): validFrom/validTo
       // bound when the fact was true; supersedes/supersededBy chain it to the note it replaced / was
@@ -2187,11 +2189,12 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
       created_at: n.created_at || null,   // transaction time (when the KB learned this) — read by /search?knownAsOf
       supersedes: n.supersedes ? 'note:' + n.supersedes : null,
       supersededBy: n.supersededBy ? 'note:' + n.supersededBy : null,
+      belief_status: overlayStore.beliefStatusForNote(n, { pendingDup }),
       // pending_dup: this note was admitted PROVISIONAL on a write-time dup-guard fire and is awaiting
       // the dup-judge. While set it is RETRIEVAL-INVISIBLE (the /search recall path excludes it). Derived
       // from the local overlay.pendingDup map (round-trips via save's LOCAL_FIELDS) — NOT a note_node field.
-      pending_dup: !!(ovWs.pendingDup && ovWs.pendingDup[noteKey]),
-      dup_match: (ovWs.pendingDup && ovWs.pendingDup[noteKey] && ovWs.pendingDup[noteKey].match) || null,
+      pending_dup: pendingDup,
+      dup_match: dupMatch,
       category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [] });
   }
   // Append typed knowledge nodes for source/provenance structure. They are graph/search nodes only:
