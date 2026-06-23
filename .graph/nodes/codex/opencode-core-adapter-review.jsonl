@@ -1,0 +1,2 @@
+{"evt":"edge_added","from":"codex/opencode-core-adapter-review","to":"codex/opencode-core-adapter-parity","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T04:22:56.922Z","by":"judge","judged":true,"score":0.865,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"codex/opencode-core-adapter-review","to":"codex/opencode-core-adapter-parity","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:22:56.922Z"}

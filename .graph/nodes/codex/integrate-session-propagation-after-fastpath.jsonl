@@ -1,0 +1,1 @@
+{"evt":"edge_promoted","from":"codex/integrate-session-propagation-after-fastpath","to":"codex/fix-codex-session-propagation","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:25:03.172Z","weight":0.657,"by":"judge","judged":true,"score":0.657,"origin":"autowire-semantic"}
