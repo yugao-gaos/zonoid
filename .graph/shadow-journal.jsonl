@@ -5221,3 +5221,9 @@
 {"ts":1782184523007,"from":"note:note-mqq2d9u1f7x","to":"note:note-mqh79ecn05l","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.28319466461615117,"cosine":0.692,"model_version":"v1"}
 {"ts":1782184523008,"from":"note:note-mqq2d9u1f7x","to":"note:note-mqherq0dwip","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.28648726796112306,"cosine":0.7,"model_version":"v1"}
 {"ts":1782184523009,"from":"note:note-mqq2d9u1f7x","to":"note:note-mqq0frbreww","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.29397869967523277,"cosine":0.718,"model_version":"v1"}
+{"ts":1782184770878,"from":"codex/p3-deport-bench-judge-judge","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/16","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.5917144130976774,"cosine":0.577,"model_version":"v1"}
+{"ts":1782184770879,"from":"codex/p3-deport-bench-judge-judge","to":"codex/p1-sync-judge-drain-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5868243446877152,"cosine":0.567,"model_version":"v1"}
+{"ts":1782184770880,"from":"codex/p3-deport-bench-judge-judge","to":"codex/search-economy-retrieval-phase1-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5917144130976774,"cosine":0.577,"model_version":"v1"}
+{"ts":1782184829927,"from":"codex/p3-deport-bench-judge-judge","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/16","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5917144130976774,"cosine":0.577,"model_version":"v1"}
+{"ts":1782184829928,"from":"codex/p3-deport-bench-judge-judge","to":"codex/p1-sync-judge-drain-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5868243446877152,"cosine":0.567,"model_version":"v1"}
+{"ts":1782184829929,"from":"codex/p3-deport-bench-judge-judge","to":"codex/search-economy-retrieval-phase1-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5917144130976774,"cosine":0.577,"model_version":"v1"}
