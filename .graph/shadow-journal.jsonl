@@ -5216,3 +5216,8 @@
 {"ts":1782184151920,"from":"codex/p6-strict-judging-gate-judge","to":"codex/p6-strict-judging-gate","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6272811545508281,"cosine":0.651,"model_version":"v1"}
 {"ts":1782184151922,"from":"note:note-mqe763h3dhy","to":"codex/p6-strict-judging-gate-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.36799269858999795,"cosine":0.552,"model_version":"v1"}
 {"ts":1782184151923,"from":"note:note-mqitz7bosgt","to":"codex/p6-strict-judging-gate-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3689330072899663,"cosine":0.554,"model_version":"v1"}
+{"ts":1782184523005,"from":"note:note-mqq2d9u1f7x","to":"note:note-mqgt2bjvle5","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.300308057786781,"cosine":0.733,"model_version":"v1"}
+{"ts":1782184523006,"from":"note:note-mqq2d9u1f7x","to":"note:note-mqh5elf8cq8","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.29650109779780803,"cosine":0.724,"model_version":"v1"}
+{"ts":1782184523007,"from":"note:note-mqq2d9u1f7x","to":"note:note-mqh79ecn05l","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.28319466461615117,"cosine":0.692,"model_version":"v1"}
+{"ts":1782184523008,"from":"note:note-mqq2d9u1f7x","to":"note:note-mqherq0dwip","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.28648726796112306,"cosine":0.7,"model_version":"v1"}
+{"ts":1782184523009,"from":"note:note-mqq2d9u1f7x","to":"note:note-mqq0frbreww","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.29397869967523277,"cosine":0.718,"model_version":"v1"}
