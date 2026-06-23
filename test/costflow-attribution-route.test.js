@@ -38,6 +38,14 @@ const { claimedOutputForSession } = analyticsRoute._internal;
   ok('claimedOutputForSession matches usage-record sessions when no transcript path exists', claimed === 200);
 }
 
+{
+  const claims = [{ id: 'T4', session: 'S2', transcript: '/tmp/S1.jsonl' }];
+  const ownTok = new Map([['T4', 300]]);
+  const byTranscript = claimedOutputForSession({ id: 'S1', path: '/tmp/S1.jsonl', total: 700 }, claims, ownTok);
+  const bySession = claimedOutputForSession({ id: 'S2', path: '/tmp/S2.jsonl', total: 800 }, claims, ownTok);
+  ok('claimedOutputForSession prefers transcript match over conflicting session id', byTranscript === 300 && bySession === 0);
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

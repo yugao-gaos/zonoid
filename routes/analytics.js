@@ -29,7 +29,10 @@ function claimedOutputForSession(session, claims, ownTok) {
   let total = 0;
   for (const c of claims || []) {
     if (!c || !c.id) continue;
-    if ((c.session && c.session === sid) || (transcript && c.transcript === transcript) || c.transcript === sid) {
+    const claimTranscript = c.transcript || c.transcript_path || c.path || null;
+    const matchesTranscript = claimTranscript && (transcript ? claimTranscript === transcript : claimTranscript === sid);
+    const matchesSession = !claimTranscript && c.session && c.session === sid;
+    if (matchesTranscript || matchesSession) {
       total += ownTok.get(c.id) || 0;
     }
   }

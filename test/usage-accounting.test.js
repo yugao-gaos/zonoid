@@ -103,6 +103,33 @@ const ok = (label, cond) => {
   ok('reconcile save + notify called', saved && notified);
 }
 
+{
+  const ov = {
+    usage_reconcile_snapshot: {
+      harness: 'codex',
+      codex: {
+        cost: { usd: 4.56, source: 'real', by_model: { 'gpt-5-codex': { tokens: 100, usd: 4.56 } } },
+      },
+    },
+  };
+  const merged = usageAccounting.sumUsageRecords(ov);
+  ok('sumUsageRecords falls back to active nested reconcile cost', merged.cost.usd === 4.56 && merged.cost.by_model['gpt-5-codex'].usd === 4.56);
+}
+
+{
+  const ov = {
+    usage_reconcile_snapshot: {
+      harness: 'codex',
+      cost: { usd: 2, source: 'real', by_model: { top: { tokens: 1, usd: 2 } } },
+      codex: {
+        cost: { usd: 2, source: 'real', by_model: { nested: { tokens: 1, usd: 2 } } },
+      },
+    },
+  };
+  const merged = usageAccounting.sumUsageRecords(ov);
+  ok('sumUsageRecords does not double-count nested cost when top-level cost exists', merged.cost.usd === 2 && !merged.cost.by_model.nested);
+}
+
 // --- gross/delta split: by_model stays gross, scalar totals go delta ----------------------------
 {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-gross-'));
