@@ -12,3 +12,4 @@
 {"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:30:18.018Z","weight":0.85,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:33:40.029Z","weight":0.85,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:34:27.830Z","weight":0.85,"origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:34:40.478Z","weight":0.85,"origin":"subconscious-assignment"}
