@@ -50,3 +50,4 @@
 {"evt":"edge_promoted","from":"note:note-mqpv6qx0gzv","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:00:38.380Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqpv6qx0gzv","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:01:09.730Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqpv6qx0gzv","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:01:14.707Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpv6qx0gzv","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:30:21.554Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
