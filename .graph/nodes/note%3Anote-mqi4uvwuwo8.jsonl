@@ -15,3 +15,4 @@
 {"evt":"edge_removed","from":"note:note-mqi4uvwuwo8","to":"note:note-mqgvjghmn2z","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:29.566Z"}
 {"evt":"edge_removed","from":"note:note-mqi4uvwuwo8","to":"codex/trace-daemon-lifecycle-codex","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:29.566Z"}
 {"evt":"edge_removed","from":"note:note-mqi4uvwuwo8","to":"note:note-mqgwhrs2aom","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:24:25.770Z"}
+{"evt":"edge_added","from":"note:note-mqi4uvwuwo8","to":"codex/daemon-process-reaper-sweep","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:11:21.008Z","origin":"asserted"}
