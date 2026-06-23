@@ -290,15 +290,12 @@ def start(
         # Without this, the embedded daemon's drain loop blocks indefinitely
         # when there are no tasks — observed to hang bench runs for hours.
         "ORCH_HEADLESS_DRAINS": "0",
-        # Drop the production cosine floor so the eager-judge sees all top-K reranked candidates
-        # instead of a hard cosine cutoff. Cost is bounded by TASK_CREATE_FANOUT (5 per kind)
-        # and the ORCH_AUTOWIRE_K cap (top-K pre-filter before fan-out). Production daemon stays
-        # at its default (env not set). Bench uses ~0 to maximise recall for the eager-judge to
-        # arbitrate.
-        "ORCH_AUTOWIRE_THRESHOLD": os.environ.get("ORCH_AUTOWIRE_THRESHOLD", "0.0"),
-        # Top-K cosine candidates passed to the fan-out before the per-kind TASK_CREATE_FANOUT cap
-        # applies. Bounds cost: at most K cosine scores + fan-out cap kept edges, not all 114 notes.
-        "ORCH_AUTOWIRE_K":         os.environ.get("ORCH_AUTOWIRE_K", "20"),
+        # NOTE: the bench no longer overrides ORCH_AUTOWIRE_THRESHOLD or ORCH_AUTOWIRE_K. P2 dropped
+        # the production cosine floor to 0 (daemon.js SEMANTIC_AUTOWIRE_THRESHOLD defaults to 0 — top-
+        # per-kind candidates are seeded unconditionally and the eager-judge arbitrates) and leaves K
+        # uncapped (cost bounded by TASK_CREATE_FANOUT=5 per kind). The bench INHERITS these production
+        # defaults so it measures the real production autowire policy, not a bench-special one. Only
+        # ORCH_PORT / CLAUDE_PLUGIN_DATA isolation + the headless-drain off-switch remain bench-set.
     }
 
     # node must be on PATH; this is a hard requirement (see §3 of design doc).
