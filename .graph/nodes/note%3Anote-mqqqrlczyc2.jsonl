@@ -71,3 +71,5 @@
 {"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:56:46.435Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:57:33.338Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:57:33.338Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T16:03:28.740Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T16:03:28.740Z","weight":1}
