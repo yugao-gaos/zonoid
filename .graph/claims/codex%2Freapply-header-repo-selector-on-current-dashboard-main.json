@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-66906-5661e80764a5f2d8b08fc6a3a24c7992",
   "branch": "orch/attempt/codex-reapply-header-repo-selector-on-current-dashboard-main",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-23T03:34:36.543Z",
-  "lease_until": "2026-06-23T04:34:36.543Z"
+  "lease_until": "2026-06-23T04:34:36.543Z",
+  "completed_at": "2026-06-23T03:38:00.289Z"
 }
