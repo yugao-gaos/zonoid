@@ -1,3 +1,0 @@
-{"evt":"edge_promoted","from":"codex/subconscious-context-human-summary","to":"codex/subconscious-agent-facing-migration","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:20:46.897Z","weight":0.563,"by":"judge","judged":true,"score":0.563,"origin":"autowire-semantic"}
-{"evt":"edge_removed","from":"codex/subconscious-context-human-summary","to":"codex/subconscious-adaptive-agentic-search-loop-code-review","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:21:17.916Z"}
-{"evt":"edge_removed","from":"codex/subconscious-context-human-summary","to":"codex/subconscious-pressure-protocol","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:21:40.933Z"}

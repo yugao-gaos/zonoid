@@ -1,6 +1,0 @@
-{"evt":"edge_removed","from":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/1","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:11:11.160Z"}
-{"evt":"edge_removed","from":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/1","to":"bench/bench-trial-11-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:11:11.160Z"}
-{"evt":"edge_promoted","from":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/1","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/4","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T05:20:31.209Z","by":"judge","judged":true,"origin":"blocking-dep-seed"}
-{"evt":"edge_removed","from":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/1","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/4","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:20:31.209Z"}
-{"evt":"edge_promoted","from":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/1","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/4","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T05:20:32.031Z"}
-{"evt":"edge_removed","from":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/1","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/4","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T05:22:58.025Z"}

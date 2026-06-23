@@ -1,3 +1,0 @@
-{"evt":"edge_removed","from":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases-judge","to":"codex/judge-subconscious-assignment-surface","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:37.354Z"}
-{"evt":"edge_removed","from":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases-judge","to":"codex/judge-subconscious-assignment-surface-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:37.354Z"}
-{"evt":"edge_removed","from":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases-judge","to":"knowledge:source_chunk:chunk-contributing-md-6-0-graph-is-intentionally-git-version-deb5a14c25","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:37.354Z"}

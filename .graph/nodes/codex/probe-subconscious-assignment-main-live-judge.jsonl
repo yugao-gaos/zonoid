@@ -1,5 +1,0 @@
-{"evt":"edge_removed","from":"codex/probe-subconscious-assignment-main-live-judge","to":"codex/judge-subconscious-assignment-surface-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:46.683Z"}
-{"evt":"edge_removed","from":"codex/probe-subconscious-assignment-main-live-judge","to":"codex/judge-subconscious-idea-scheduler-policy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:48.630Z"}
-{"evt":"edge_removed","from":"codex/probe-subconscious-assignment-main-live-judge","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:14:21.470Z"}
-{"evt":"edge_removed","from":"codex/probe-subconscious-assignment-main-live-judge","to":"codex/judge-subconscious-pressure-protocol","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:57:55.346Z"}
-{"evt":"edge_promoted","from":"codex/probe-subconscious-assignment-main-live-judge","to":"codex/probe-subconscious-assignment-main-live","kind":"context","actor":"overlay-sync","ts":"2026-06-23T09:00:01.844Z","weight":0.697,"by":"judge","judged":true,"score":0.697,"origin":"autowire-semantic"}

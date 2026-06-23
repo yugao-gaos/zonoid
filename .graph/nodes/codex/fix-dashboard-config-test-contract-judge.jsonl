@@ -1,3 +1,0 @@
-{"evt":"edge_promoted","from":"codex/fix-dashboard-config-test-contract-judge","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:17:01.295Z","weight":0.966,"by":"judge","judged":true,"score":0.966,"origin":"autowire-semantic"}
-{"evt":"edge_removed","from":"codex/fix-dashboard-config-test-contract-judge","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:17:55.037Z"}
-{"evt":"edge_removed","from":"codex/fix-dashboard-config-test-contract-judge","to":"codex/verify-post-subconscious-review-fixes","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:17:55.037Z"}
