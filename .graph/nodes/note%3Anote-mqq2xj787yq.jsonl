@@ -7,3 +7,12 @@
 {"evt":"edge_added","from":"note:note-mqq2xj787yq","to":"note:note-mqpz36sv7ns","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:23:17.993Z","weight":0,"by":"autowire","judged":false,"score":0.704,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqq2xj787yq","to":"note:note-mq74lpeq","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:23:17.993Z","weight":0,"by":"autowire","judged":false,"score":0.7,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqq2xj787yq","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:25:38.601Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq2xj787yq","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:26:57.793Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq2xj787yq","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:29:13.510Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq2xj787yq","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:30:01.457Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq2xj787yq","to":"note:note-mqpzfgjlux8","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:30:01.457Z","weight":0.725,"by":"judge","judged":true,"score":0.725,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqq2xj787yq","to":"knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:30:01.457Z"}
+{"evt":"edge_removed","from":"note:note-mqq2xj787yq","to":"knowledge:source_section:note-mqpzfgjlux8#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:30:01.457Z"}
+{"evt":"edge_removed","from":"note:note-mqq2xj787yq","to":"note:note-mqpz36sv7ns","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:30:01.457Z"}
+{"evt":"edge_removed","from":"note:note-mqq2xj787yq","to":"note:note-mq74lpeq","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:30:01.457Z"}
+{"evt":"edge_promoted","from":"note:note-mqq2xj787yq","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:30:13.007Z","weight":1}
