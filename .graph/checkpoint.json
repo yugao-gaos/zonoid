@@ -141306,6 +141306,8 @@
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "canceled",
       "summary": null,
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
@@ -146166,8 +146168,11 @@
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
       "summary": "Added entity node kind (createEntity upsert-by-name, addEntityEdge with relation field, checkEntityContradiction async fire-and-forget) to lib/overlay.js. entity_nodes added to EMPTY() and LOCAL_FIELDS so it persists. POST /entity and POST /entity/link routes added to routes/overlay.js; /entity/link triggers async contradiction check via haiku subprocess. distill.py updated: extraction prompt now requests entity_name+entity_type per fact, _parse_facts carries them through, distill_session upserts entity via POST /entity and wires each fact note via POST /entity/link (best-effort, never fails fact ingest). Committed on orch/attempt/phase2-entity-layer (adff6b0).",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "phase2/entity-layer",
         "description": "",
@@ -146198,6 +146203,8 @@
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
       "summary": "Implemented Phase 3 hybrid retrieval in routes/graph.js. Change A: replaced scoreHybrid either/or cosine-fallback with RRF(cosine, BM25) fusion — both signals always contribute via 1/(k+rank_cosine)+1/(k+rank_bm25), k=60, BM25 uses stdlib-only TF-IDF with k1=1.2/b=0.75; gracefully degrades to BM25-only when embedding sidecar is loading. Change B: entity-seeded graph expansion added before ranking — matched entity nodes (by name substring or cosine>0.5) expand 1-2 hops along context edges to surface related notes; expansion is additive and no-op when entity_nodes is empty. All existing tests pass (search-knowledge: 5/5, phase2-integration: 31/31, structboost: 19/19, note-decay: 30/30). Committed on orch/attempt/phase3-hybrid-retrieval.",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
@@ -220703,8 +220710,11 @@
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
       "summary": "Made opencode.json portable: opencodeMcpEntry(cwd) now emits a relative \"mcp-graph.js\" command arg when cwd equals INSTALL_DIR (committable in-repo opencode.json), and the absolute path otherwise (global installs across workspaces). Updated the writeOpencodeMcp call site to pass cwd. Commit c068ff7d on orch/attempt/opencode-opencode-json-portable; full test/cli-init.test.js suite passes (exit 0), including 2 new portable-path assertions.",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "Make opencode.json portable (relative mcp-graph.js path when in-workspace)",
         "description": "writeOpencodeMcp currently emits an absolute /Users/.../mcp-graph.js command path even when the install dir IS the workspace, making opencode.json machine-specific and uncommittable. Mirror writeMcp (claude/.mcp.json): when INSTALL_DIR resolves to the target workspace, emit a relative \"mcp-graph.js\" so opencode.json is portable like .mcp.json. Files: packages/cli/bin/zonoid.js (opencodeMcpEntry + writeOpencodeMcp call site), test/cli-init.test.js (assert relative path when in-workspace), and the local opencode.json (repin to relative). Exercising the opencode dispatcher→worker loop end-to-end.",
@@ -220733,8 +220743,11 @@
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "canceled",
       "summary": null,
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
       "snapshot": {
         "subject": "opencode adapter parity verification",
         "description": "Smoke task minted to confirm the opencode plugin's task_create tool works end-to-end (file-drop stub + POST /sync).",
@@ -224924,6 +224937,8 @@
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "canceled",
       "summary": "Added a dependency-free skill evaluation harness that records active-vs-candidate version measurements to JSONL with deterministic evaluation ids, version provenance, metric comparisons, guardrail no-regression status, and deterministic case-run aggregation. Covered win/loss/tie, zero-valued metrics, guardrail regression, dedup persistence, and case-run persistence with focused tests; full npm test passed.",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
@@ -235083,6 +235098,42 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/fix-costflow-pruned-snapshot-session-splits": {
+      "id": "codex/fix-costflow-pruned-snapshot-session-splits",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Approved 1d89746b1. /costflow now uses represented snapshot session rows as grouping keys and returns snapshot totals before rereading transcript files, so pruned Codex rollouts can still be split and subtracted. Absent-from-snapshot guard remains intact. Focused tests pass from the attempt worktree.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "snapshot": {
+        "subject": "Fix costflow pruned snapshot session splits",
+        "description": "Fix remaining live /costflow attribution issue: the reconcile snapshot has session rows with path/id/total for historical Codex rollouts, but some rollout files have since been pruned from ~/.codex/sessions. taskTranscript returns null due fs.existsSync, so splitSessionTokens cannot assign represented session totals to durable-claim tasks, leaving large snapshot sessions as catch-all waste. In routes/analytics.js, when a claim's attribution session matches a represented session row, use that row's transcript/path as the grouping key even if the file is gone, and make usageOutputOnly return that session row's total from the snapshot before trying to re-read/sample the file. Keep absent-from-snapshot guard intact so out-of-source on-disk rollouts are not counted. Add regression where represented durable claim session row has total/path but the referenced rollout file is missing; /costflow still splits the snapshot total and subtracts catch-all.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-23T04:56:14.740Z"
+      },
+      "assignee": "codex-reviewer-main",
+      "timestamps": {
+        "firstSeen": "2026-06-23T04:56:14.740Z",
+        "lastChanged": "2026-06-23T05:01:34.721Z",
+        "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -235122,20 +235173,6 @@
     },
     {
       "from": "note:note-mq4k4b9u",
-      "to": "6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/5",
-      "kind": "context",
-      "by": "autowire",
-      "judged": false
-    },
-    {
-      "from": "note:note-mq4k4b9u",
-      "to": "6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/4",
-      "kind": "context",
-      "by": "autowire",
-      "judged": false
-    },
-    {
-      "from": "note:note-mq4k4b9u",
       "to": "ce0b4fd0-93df-4f10-99aa-49b7156c351a/7",
       "kind": "context",
       "weight": 0.341,
@@ -235145,15 +235182,17 @@
       "from": "note:note-mq4kj2ga",
       "to": "ce0b4fd0-93df-4f10-99aa-49b7156c351a/13",
       "kind": "context",
-      "by": "autowire",
-      "judged": false
+      "by": "judge",
+      "judged": true,
+      "weight": 0.5
     },
     {
       "from": "note:note-mq4kj2ga",
       "to": "ce0b4fd0-93df-4f10-99aa-49b7156c351a/17",
       "kind": "context",
-      "by": "autowire",
-      "judged": false
+      "by": "judge",
+      "judged": true,
+      "weight": 0.5
     },
     {
       "from": "note:note-mq4nb73n",
@@ -248647,16 +248686,6 @@
     },
     {
       "from": "local/gate-worktree-all-subagents",
-      "to": "1e01ab32-97eb-4eec-9b28-6632a1dc44f6/1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "local/gate-worktree-all-subagents",
       "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/1",
       "kind": "context",
       "weight": 0,
@@ -249339,9 +249368,9 @@
       "from": "note:note-mqeeo0qpcmt",
       "to": "eeadb38f-7472-4703-9689-fbf24eebee4d/12",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.668,
+      "by": "judge",
+      "judged": true,
       "score": 0.668,
       "origin": "autowire-semantic"
     },
@@ -249879,16 +249908,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqeolw11e46",
-      "to": "note:note-mq8w3p79db1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.631,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqepum5450l",
       "to": "9195fb5e-f196-497d-962f-69616733d2e9/1",
       "kind": "context",
@@ -250051,86 +250070,6 @@
       "kind": "context",
       "weight": 1,
       "judged": true
-    },
-    {
-      "from": "note:note-mqf624kvlk9",
-      "to": "note:note-mqe1cey1lux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.582,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf624kvlk9",
-      "to": "note:note-mqeapqae6jf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.559,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf624kvlk9",
-      "to": "note:note-mqeh1zs40t4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.554,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7grmhgrn",
-      "to": "note:note-mqf54c6qlxf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.875,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7grmhgrn",
-      "to": "note:note-mq8aoc7vu8n",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.685,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7grmhgrn",
-      "to": "note:note-mq82mggjhu5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.588,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7grmhgrn",
-      "to": "note:note-mq893v1vuxe",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.58,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7grmhgrn",
-      "to": "note:note-mqetzhodzyt",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.571,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqf7j1hinjg",
@@ -250445,16 +250384,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "f1653e44-5863-4644-bebc-963582c76510/11",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.565,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "f1653e44-5863-4644-bebc-963582c76510/1",
       "to": "f1653e44-5863-4644-bebc-963582c76510/8",
       "kind": "context",
@@ -250702,16 +250631,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqfbygur4go",
-      "to": "note:note-mqfbt5qqpta",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.666,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqfcbjui4zk",
       "to": "d2128058-5f0d-4e2f-a8f8-f8a6a0062513/1",
       "kind": "context",
@@ -250729,16 +250648,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.717,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqfcbjui4zk",
-      "to": "note:note-mqf9al6pjvv",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.66,
       "origin": "autowire-semantic"
     },
     {
@@ -251006,9 +250915,9 @@
       "from": "note:note-mqeeo0qpcmt",
       "to": "df48eca4-5e3f-4f70-aae8-0a21d3a6ec50/1",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.601,
+      "by": "judge",
+      "judged": true,
       "score": 0.601,
       "origin": "autowire-semantic"
     },
@@ -251112,16 +251021,6 @@
       "kind": "context",
       "weight": 1,
       "judged": true
-    },
-    {
-      "from": "note:note-mqfhmxul2io",
-      "to": "f5bb5b09-a7b8-4546-a74c-0108ecb5d134/1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.745,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqfi331z1rl",
@@ -251914,32 +251813,12 @@
     },
     {
       "from": "note:note-mqfcbjui4zk",
-      "to": "note:note-mq87ubxn2d4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.655,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqfcbjui4zk",
       "to": "note:note-mq88d6gotlo",
       "kind": "context",
       "weight": 0.576,
       "by": "judge",
       "judged": true,
       "score": 0.576,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqfcbjui4zk",
-      "to": "note:note-mqf82fketm9",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.557,
       "origin": "autowire-semantic"
     },
     {
@@ -252142,16 +252021,6 @@
     },
     {
       "from": "note:note-mqg14209j5s",
-      "to": "note:note-mqd6hrlnbhp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.695,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqg14209j5s",
       "to": "note:note-mqd8r0dulaw",
       "kind": "context",
       "weight": 0,
@@ -252168,16 +252037,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.621,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqg14209j5s",
-      "to": "note:note-mqfnyddvxdj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.596,
       "origin": "autowire-semantic"
     },
     {
@@ -252252,36 +252111,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.8,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqg2tv7nvgc",
-      "to": "note:note-mqg14209j5s",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.786,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqg2tv7nvgc",
-      "to": "note:note-mqd6hrlnbhp",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.595,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqg2tv7nvgc",
-      "to": "ab391029-f543-48ba-bcec-7c9e2b9280f9/5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.587,
       "origin": "autowire-semantic"
     },
     {
@@ -252443,16 +252272,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.669,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "followup/harness-judge-drain",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.636,
       "origin": "autowire-semantic"
     },
     {
@@ -253237,16 +253056,6 @@
     },
     {
       "from": "note:note-mqgtdsl1abm",
-      "to": "note:note-mqgsot6ywxr",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.8,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgtdsl1abm",
       "to": "note:note-mqgt2bjvle5",
       "kind": "context",
       "weight": 0,
@@ -253312,16 +253121,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgtihmabbs",
-      "to": "note:note-mqgqarwuqkz",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.796,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgtiljwcn2",
       "to": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/1",
       "kind": "context",
@@ -253341,16 +253140,6 @@
       "kind": "context",
       "weight": 0,
       "judged": true
-    },
-    {
-      "from": "note:note-mqgtiljwcn2",
-      "to": "note:note-mqd7e4qngzi",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.556,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqgtiljwcn2",
@@ -253388,26 +253177,6 @@
     },
     {
       "from": "note:note-mqgtvw168ex",
-      "to": "note:note-mqgsb1mcnid",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.783,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgtvw168ex",
-      "to": "note:note-mqgtgbdm0mh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.715,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgtvw168ex",
       "to": "note:note-mqgt2bjvle5",
       "kind": "context",
       "weight": 0,
@@ -253424,36 +253193,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.645,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgtvw168ex",
-      "to": "note:note-mqg67dvm816",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.593,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgtvw168ex",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/7",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.602,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgtvw168ex",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.572,
       "origin": "autowire-semantic"
     },
     {
@@ -253947,36 +253686,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.68,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgwd1f5f77",
-      "to": "note:note-mqfn8l1hpiw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.655,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgwd1f5f77",
-      "to": "note:note-mqfnyddvxdj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.601,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgwd1f5f77",
-      "to": "note:note-mqeolw11e46",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.595,
       "origin": "autowire-semantic"
     },
     {
@@ -254808,16 +254517,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mqgtvw168ex",
-      "to": "codex/headless-drains-default-often",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.575,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqi6mvx3gip",
       "to": "codex/headless-drains-default-often",
       "kind": "context",
@@ -255256,16 +254955,6 @@
     },
     {
       "from": "codex/trace-daemon-lifecycle-codex",
-      "to": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.559,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/trace-daemon-lifecycle-codex",
       "to": "codex/fix-judging-claim-fastpath",
       "kind": "context",
       "weight": 0.9,
@@ -255351,16 +255040,6 @@
       "weight": 0.85,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/28",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.6,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqgtihmabbs",
@@ -255825,16 +255504,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.658,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8j0n8lak",
-      "to": "note:note-mqft8cz9ula",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.57,
       "origin": "autowire-semantic"
     },
     {
@@ -257616,9 +257285,9 @@
       "from": "judge/phase2-entity-layer",
       "to": "phase2/entity-layer",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.842,
+      "by": "judge",
+      "judged": true,
       "score": 0.842,
       "origin": "autowire-semantic"
     },
@@ -257626,9 +257295,9 @@
       "from": "judge/phase3-hybrid-retrieval",
       "to": "phase3/hybrid-retrieval",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.865,
+      "by": "judge",
+      "judged": true,
       "score": 0.865,
       "origin": "autowire-semantic"
     },
@@ -257764,36 +257433,9 @@
       "from": "phase2/entity-layer",
       "to": "phase3/hybrid-retrieval",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "phase2/entity-layer",
-      "to": "judge/phase2-entity-layer",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "phase3/hybrid-retrieval",
-      "to": "phase4/unification",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "phase3/hybrid-retrieval",
-      "to": "judge/phase3-hybrid-retrieval",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
       "origin": "blocking-dep-seed"
     },
     {
@@ -257888,16 +257530,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqecnw7hs7k",
-      "to": "followup/harness-learner-drain",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.614,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqenc9e44v4",
       "to": "bench/combined-bench-raw-2-discovered",
       "kind": "context",
@@ -257944,16 +257576,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.656,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "judge-fix-search-arm-pending-dup",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.594,
       "origin": "autowire-semantic"
     },
     {
@@ -258863,9 +258485,9 @@
       "from": "note:note-mqjx578adxz",
       "to": "9195fb5e-f196-497d-962f-69616733d2e9/5",
       "kind": "context",
-      "weight": 1,
-      "by": "autowire",
-      "judged": false
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "230ef36e-7ed7-4620-bc1c-df7e6dfaae71/29",
@@ -259763,22 +259385,12 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "judge/bench-combined-arm",
-      "to": "bench/combined-arm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.811,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "judge/distill-search-floor-fix",
       "to": "fix/distill-search-floor",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.799,
+      "by": "judge",
+      "judged": true,
       "score": 0.799,
       "origin": "autowire-semantic"
     },
@@ -259792,32 +259404,12 @@
     },
     {
       "from": "note-decay-bugfix/1",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.609,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note-decay-bugfix/1",
       "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/11",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
       "score": 0.584,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note-decay-bugfix/1",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/12",
-      "kind": "context",
-      "weight": 0.583,
-      "by": "judge",
-      "judged": true,
-      "score": 0.583,
       "origin": "autowire-semantic"
     },
     {
@@ -259890,17 +259482,17 @@
       "from": "note:note-mqjyqrg5t5f",
       "to": "codex/exec-brain-state-seam",
       "kind": "context",
-      "weight": 1,
-      "by": "autowire",
-      "judged": false
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "note:note-mqjyqrg5t5f",
       "to": "codex/exec-brain-state-seam-minimal-patch",
       "kind": "context",
-      "weight": 1,
-      "by": "autowire",
-      "judged": false
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "note:note-mqjyqrg5t5f",
@@ -260442,16 +260034,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.569,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgodf6qjvs",
       "to": "codex/migrate-runtime-artifacts-to-zonoid",
       "kind": "context",
@@ -260485,9 +260067,9 @@
       "from": "note:note-mqicz2g835c",
       "to": "codex/fix-codex-desktop-wakeup-session",
       "kind": "context",
-      "weight": 1,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
       "origin": "asserted"
     },
     {
@@ -260552,9 +260134,9 @@
       "from": "note:note-mqk70rcwbxq",
       "to": "codex/judge-git-claim-lock-git-user-session",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.617,
+      "by": "judge",
+      "judged": true,
       "score": 0.617,
       "origin": "autowire-semantic"
     },
@@ -260619,15 +260201,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqkzbyez8m4",
-      "to": "codex/headroom-eval",
-      "kind": "context",
-      "weight": 0.8,
-      "by": "autowire",
-      "judged": false,
-      "origin": "asserted"
-    },
-    {
       "from": "note:note-mqkzd9i1t3s",
       "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2",
       "kind": "context",
@@ -260655,26 +260228,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqkzd9i1t3s",
-      "to": "note:note-mqf7j1hinjg",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.561,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqkzd9i1t3s",
-      "to": "note:note-mqg9mzarifw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.56,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqkzes2dwxe",
       "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/2",
       "kind": "context",
@@ -260690,16 +260243,6 @@
     },
     {
       "from": "note:note-mqkzes2dwxe",
-      "to": "note:note-mqkzd9i1t3s",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.848,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqkzes2dwxe",
       "to": "note:note-mqh5r4fxl5t",
       "kind": "context",
       "weight": 0,
@@ -260707,15 +260250,6 @@
       "judged": false,
       "score": 0.754,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mql0cbookug",
-      "to": "codex/verify-featurebench-production-faithful",
-      "kind": "context",
-      "weight": 1,
-      "by": "autowire",
-      "judged": false,
-      "origin": "asserted"
     },
     {
       "from": "note:note-mql0cbookug",
@@ -261474,76 +261008,6 @@
       "origin": "asserted"
     },
     {
-      "from": "opencode/opencode-json-portable",
-      "to": "af585417-07f3-4b6f-8c96-d9b784271d32/8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.676,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "opencode/opencode-json-portable",
-      "to": "af585417-07f3-4b6f-8c96-d9b784271d32/7",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.648,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "opencode/opencode-parity-verify",
-      "to": "codex/opencode-core-adapter-parity",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.598,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "opencode/opencode-parity-verify",
-      "to": "codex/opencode-core-adapter-review",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.588,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "opencode/opencode-parity-verify",
-      "to": "codex/opencode-prompt-workspace-parity-review",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.568,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "opencode/opencode-parity-verify",
-      "to": "codex/complete-hook-enforcement-parity",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.567,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "opencode/opencode-parity-verify",
-      "to": "codex/opencode-arm-review",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.554,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq4jxzjg",
       "to": "codex/long-note-cluster-ingest-hardening",
       "kind": "context",
@@ -261610,24 +261074,6 @@
       "judged": true,
       "score": 0.571,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgtvw168ex",
-      "to": "followup/harness-daemon-restart",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.597,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqlapu0wi63",
-      "to": "codex/verify-featurebench-production-faithful",
-      "kind": "context",
-      "weight": 1,
-      "by": "autowire",
-      "judged": false
     },
     {
       "from": "note:note-mqlapu0wi63",
@@ -261833,16 +261279,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.652,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqnnn02rf0d",
-      "to": "note:note-mqiu0vkd4em",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.597,
       "origin": "autowire-semantic"
     },
     {
@@ -262762,9 +262198,9 @@
       "from": "codex/subconscious-skill-abtest-evaluator",
       "to": "codex/subconscious-auto-skill-integration",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
       "origin": "blocking-dep-seed"
     },
     {
@@ -265323,16 +264759,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqoxvl18k5p",
-      "to": "codex/fix-post-subconscious-review-findings",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.944,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqp52vxy0op",
       "to": "codex/diffusion-predictive-shadow-benchmark",
       "kind": "context",
@@ -265944,26 +265370,6 @@
     },
     {
       "from": "note:note-mqpb1ref05h",
-      "to": "note:note-mq89y47bsrz",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.606,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpb1ref05h",
-      "to": "note:note-mqenc9e44v4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.598,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpb1ref05h",
       "to": "note:note-mq7dzydv",
       "kind": "context",
       "weight": 0.55,
@@ -266164,92 +265570,12 @@
     },
     {
       "from": "note:note-mqpk034sqnp",
-      "to": "note:note-mqpjjud9jn0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.659,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpk034sqnp",
-      "to": "knowledge:source_chunk:chunk-readme-md-4-0-after-each-session-zonoid-mines-the-comp-7eb25e4957",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.55,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpk034sqnp",
-      "to": "knowledge:source_section:section-readme-md-4-self-improvement-loop-be64cf7dc2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.55,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpk034sqnp",
       "to": "codex/dashboard-use-subconscious-agentic-search",
       "kind": "context",
       "weight": 0.566,
       "by": "judge",
       "judged": true,
       "score": 0.566,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpkkyjb3gd",
-      "to": "note:note-mqonvqqre1d",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.678,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpkkyjb3gd",
-      "to": "note:note-mq7gpd48",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.644,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpkkyjb3gd",
-      "to": "note:note-mqgwr63ms7q",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.573,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpkkyjb3gd",
-      "to": "note:note-mqjotmlck7u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.562,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpkkyjb3gd",
-      "to": "note:note-mqp4l9znaqf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.56,
       "origin": "autowire-semantic"
     },
     {
@@ -268586,16 +267912,6 @@
     },
     {
       "from": "codex/subconscious-agentic-search-envelope-judge",
-      "to": "codex/subconscious-agent-facing-migration",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.636,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/subconscious-agentic-search-envelope-judge",
       "to": "codex/research-subconscious-positioning-2026-06-21",
       "kind": "context",
       "weight": 0,
@@ -269090,56 +268406,6 @@
     },
     {
       "from": "followup/write-judge-edge-scorecard-md-tqui",
-      "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/22",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.695,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "followup/write-judge-edge-scorecard-md-tqui",
-      "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/16",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.658,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "followup/write-judge-edge-scorecard-md-tqui",
-      "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/19",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.625,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "followup/write-judge-edge-scorecard-md-tqui",
-      "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/17",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.623,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "followup/write-judge-edge-scorecard-md-tqui",
-      "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/15",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.587,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "followup/write-judge-edge-scorecard-md-tqui",
       "to": "followup/write-judge-edge-scorecard-md-retry-as-s-pe6u",
       "kind": "context"
     },
@@ -269147,9 +268413,9 @@
       "from": "judge/bench-combined-arm",
       "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/30",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.654,
+      "by": "judge",
+      "judged": true,
       "score": 0.654,
       "origin": "autowire-semantic"
     },
@@ -269157,9 +268423,9 @@
       "from": "judge/phase4-unification",
       "to": "phase4/unification",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.783,
+      "by": "judge",
+      "judged": true,
       "score": 0.783,
       "origin": "autowire-semantic"
     },
@@ -269167,9 +268433,9 @@
       "from": "judge/phase4-unification",
       "to": "judge/phase2-entity-layer",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.586,
+      "by": "judge",
+      "judged": true,
       "score": 0.586,
       "origin": "autowire-semantic"
     },
@@ -269201,16 +268467,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.565,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp50ehggc3",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.566,
       "origin": "autowire-semantic"
     },
     {
@@ -269475,9 +268731,9 @@
       "from": "note:note-mqnnn02rf0d",
       "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.553,
+      "by": "judge",
+      "judged": true,
       "score": 0.553,
       "origin": "autowire-semantic"
     },
@@ -269496,56 +268752,6 @@
       "weight": 0.8,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqoxvl18k5p",
-      "to": "codex/review-state-subconscious-flow",
-      "kind": "context",
-      "weight": 0.8,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.584,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqp4zen4gpi",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.59,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp4zldlzj0",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.557,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp4zrwfwjp",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.577,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp50ehggc3",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/15-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.566,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqp5937smpk",
@@ -270613,16 +269819,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqq3p7ul2pe",
-      "to": "note:note-mqq2noxbat8",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.722,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/5",
       "to": "codex/token-accounting-attribution-audit",
       "kind": "context",
@@ -270919,17 +270115,18 @@
       "from": "note:note-mqiu439wu0h",
       "to": "codex/fix-costflow-durable-claim-session-provenance",
       "kind": "context",
-      "by": "autowire",
-      "judged": false,
-      "origin": "subconscious-assignment"
+      "by": "judge",
+      "judged": true,
+      "origin": "subconscious-assignment",
+      "weight": 0.5
     },
     {
       "from": "note:note-mqq2ugme4vr",
       "to": "codex/fix-costflow-durable-claim-session-provenance",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.561,
+      "by": "judge",
+      "judged": true,
       "score": 0.561,
       "origin": "autowire-semantic"
     },
@@ -271079,22 +270276,12 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "note:note-mq89ptfjx0y",
-      "to": "codex/fix-costflow-durable-claim-session-provenance",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.572,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqb0gi2648n",
       "to": "codex/fix-costflow-durable-claim-session-provenance",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.568,
+      "by": "judge",
+      "judged": true,
       "score": 0.568,
       "origin": "autowire-semantic"
     },
@@ -271102,9 +270289,9 @@
       "from": "note:note-mqeo9elelvo",
       "to": "codex/fix-costflow-durable-claim-session-provenance",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.572,
+      "by": "judge",
+      "judged": true,
       "score": 0.572,
       "origin": "autowire-semantic"
     },
@@ -271112,9 +270299,9 @@
       "from": "note:note-mqk0pyjpxtc",
       "to": "codex/fix-costflow-durable-claim-session-provenance",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.567,
+      "by": "judge",
+      "judged": true,
       "score": 0.567,
       "origin": "autowire-semantic"
     },
@@ -271122,9 +270309,10 @@
       "from": "note:note-mqq2ugme4vr",
       "to": "codex/constrain-costflow-claim-session-to-accounting-source",
       "kind": "context",
-      "by": "autowire",
-      "judged": false,
-      "origin": "subconscious-assignment"
+      "by": "judge",
+      "judged": true,
+      "origin": "subconscious-assignment",
+      "weight": 0.5
     },
     {
       "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/23",
@@ -271147,16 +270335,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.586,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/constrain-costflow-claim-session-to-accounting-source",
-      "to": "codex/fix-costflow-durable-claim-session-provenance",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.672,
       "origin": "autowire-semantic"
     },
     {
@@ -271187,26 +270365,6 @@
       "to": "codex/constrain-costflow-claim-session-to-accounting-source",
       "kind": "context",
       "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/fix-costflow-durable-claim-session-provenance",
-      "to": "codex/token-accounting-attribution-audit",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.568,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/fix-costflow-durable-claim-session-provenance",
-      "to": "codex/fix-token-accounting-attribution",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.565,
-      "origin": "autowire-semantic"
     },
     {
       "from": "codex/fix-costflow-durable-claim-session-provenance",
@@ -271274,11 +270432,74 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqq2ugme4vr",
+      "to": "codex/fix-costflow-pruned-snapshot-session-splits",
+      "kind": "context",
+      "weight": 0.593,
+      "by": "judge",
+      "judged": true,
+      "score": 0.593,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/24",
+      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/23",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.644,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "5c69bd16-96fa-4c6f-95a5-2d3aaab97893/write-task",
+      "to": "6c4f4a60-c30e-405f-b8ec-f1e1c388445c/write-task",
+      "kind": "supersede"
+    },
+    {
+      "from": "703d3dcc-ae30-4ad7-8959-5d98069473cc/2",
+      "to": "6c4f4a60-c30e-405f-b8ec-f1e1c388445c/write-task",
+      "kind": "supersede"
+    },
+    {
+      "from": "9195fb5e-f196-497d-962f-69616733d2e9/10",
+      "to": "9195fb5e-f196-497d-962f-69616733d2e9/7",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.566,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/constrain-costflow-claim-session-to-accounting-source",
+      "to": "codex/fix-costflow-pruned-snapshot-session-splits",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/fix-codex-task-transcript-attribution",
+      "to": "codex/fix-costflow-pruned-snapshot-session-splits",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/fix-costflow-durable-claim-session-provenance",
+      "to": "codex/fix-costflow-pruned-snapshot-session-splits",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/fix-token-accounting-attribution",
+      "to": "codex/fix-costflow-pruned-snapshot-session-splits",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
       "from": "note:note-mq4jswuc",
       "to": "66a514fd-59a6-4d96-b3c4-a40c1e3652c0/7",
       "kind": "context",
-      "by": "autowire",
-      "judged": false
+      "by": "judge",
+      "judged": true,
+      "weight": 0.5
     },
     {
       "from": "note:note-mq5iflmh",
@@ -271665,13 +270886,6 @@
     },
     {
       "from": "note:note-mqe0szihwix",
-      "to": "followup/judge-event-triggered",
-      "kind": "context",
-      "by": "autowire",
-      "judged": false
-    },
-    {
-      "from": "note:note-mqe0szihwix",
       "to": "followup/harness-daemon-restart",
       "kind": "context",
       "weight": 0,
@@ -271688,16 +270902,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.641,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqe0szihwix",
-      "to": "followup/surfacecluster-auto-distinct",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.589,
       "origin": "autowire-semantic"
     },
     {
@@ -271751,16 +270955,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqe2awxnjjf",
-      "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/24",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.638,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqe5sbyj4uq",
       "to": "codex/fix-graph-dispatch-invariants-judge",
       "kind": "context",
@@ -271784,30 +270978,10 @@
       "from": "note:note-mqecnw7hs7k",
       "to": "followup/drain-final-13-onboarding-learner-candid-l29o",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.617,
+      "by": "judge",
+      "judged": true,
       "score": 0.617,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqecnw7hs7k",
-      "to": "followup/harness-daemon-restart",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.564,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqedjw0rypf",
-      "to": "2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.596,
       "origin": "autowire-semantic"
     },
     {
@@ -271818,36 +270992,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.629,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqefrogaql8",
-      "to": "note:note-mq7lck6j3l9",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.6,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqefrogaql8",
-      "to": "note:note-mq81rkqks1l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.593,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqefrogaql8",
-      "to": "note:note-mq81tou6okm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.578,
       "origin": "autowire-semantic"
     },
     {
@@ -272112,56 +271256,6 @@
     },
     {
       "from": "note:note-mqetzhodzyt",
-      "to": "note:note-mq4nsovf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.617,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqetzhodzyt",
-      "to": "note:note-mqeapqae6jf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.617,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqetzhodzyt",
-      "to": "note:note-mq7lck6j3l9",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.582,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqetzhodzyt",
-      "to": "note:note-mq780b1f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.577,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqetzhodzyt",
-      "to": "note:note-mqedjw0rypf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.563,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqetzhodzyt",
       "to": "note:note-mqfbygur4go",
       "kind": "context",
       "weight": 0,
@@ -272188,66 +271282,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.566,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "note:note-mq81rkqks1l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.706,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "note:note-mq7lck6j3l9",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.698,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "note:note-mq81tou6okm",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.693,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "note:note-mq780b1f",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.692,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "note:note-mqetzhodzyt",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.678,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "note:note-mqfbygur4go",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.692,
       "origin": "autowire-semantic"
     },
     {
@@ -272351,26 +271385,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqfbt5qqpta",
-      "to": "note:note-mqenc9e44v4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.668,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqfbt5qqpta",
-      "to": "note:note-mqfbygur4go",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.725,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqfbygur4go",
       "to": "note:note-mq7dzydv",
       "kind": "context",
@@ -272382,30 +271396,11 @@
     },
     {
       "from": "note:note-mqfbygur4go",
-      "to": "note:note-mq7lck6j3l9",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.586,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqfbygur4go",
       "to": "4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/28",
       "kind": "context",
-      "by": "autowire",
-      "judged": false
-    },
-    {
-      "from": "note:note-mqfbygur4go",
-      "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/28",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.619,
-      "origin": "autowire-semantic"
+      "by": "judge",
+      "judged": true,
+      "weight": 0.5
     },
     {
       "from": "note:note-mqfj0lgtpk5",
@@ -273137,46 +272132,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgtihmabbs",
-      "to": "note:note-mqgrel2bjak",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.796,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgtihmabbs",
-      "to": "note:note-mqfnyddvxdj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.683,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgtihmabbs",
-      "to": "note:note-mqfla5ogbhw",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.636,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgtihmabbs",
-      "to": "note:note-mqfl5llz4rj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.634,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgu1e5450o",
       "to": "note:note-mqflqx78zk2",
       "kind": "context",
@@ -273576,26 +272531,6 @@
     },
     {
       "from": "note:note-mqh0t20gx45",
-      "to": "note:note-mqgt2bjvle5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.75,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqh0t20gx45",
-      "to": "note:note-mqgtgbdm0mh",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.687,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqh0t20gx45",
       "to": "followup/judge-review-phase-1-distiller-impl-q0x0",
       "kind": "context",
       "weight": 0,
@@ -273752,16 +272687,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqhdjggg6h1",
-      "to": "note:note-mqh7u46ct3u",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.685,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqheiw4iv5t",
       "to": "note:note-mqfnyddvxdj",
       "kind": "context",
@@ -273810,26 +272735,6 @@
       "origin": "blocking-dep-seed"
     },
     {
-      "from": "note:note-mqherq0dwip",
-      "to": "note:note-mqgt2bjvle5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.733,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhgkkxsv3o",
-      "to": "note:note-mqh0gwz1mxc",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.686,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqhgkkxsv3o",
       "to": "note:note-mqd8r0dulaw",
       "kind": "context",
@@ -273867,16 +272772,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.733,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhopcw5kjd",
-      "to": "note:note-mqgt2bjvle5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.736,
       "origin": "autowire-semantic"
     },
     {
@@ -274023,126 +272918,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.689,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8xdsfq6k",
-      "to": "note:note-mqi83fujsx0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8xdsfq6k",
-      "to": "note:note-mqi86cwfsvg",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8ydwdxdy",
-      "to": "note:note-mqi8469x6hi",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8ydwdxdy",
-      "to": "note:note-mqi8712cfqe",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8ydwdxdy",
-      "to": "bench/realistic-B-116245",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.689,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8ydwdxdy",
-      "to": "bench/realistic-B-983103",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.689,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8yezu1i9",
-      "to": "note:note-mqi8473etpl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8yezu1i9",
-      "to": "note:note-mqi871ui4i3",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8z1yzyf0",
-      "to": "note:note-mqi84tb52ib",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8z1yzyf0",
-      "to": "note:note-mqi87rk9gof",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8z2t2pbf",
-      "to": "note:note-mqi84uzm7u0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqi8z2t2pbf",
-      "to": "note:note-mqi87sbhkkl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
       "origin": "autowire-semantic"
     },
     {
@@ -275261,31 +274036,11 @@
     },
     {
       "from": "note:note-mqjx578adxz",
-      "to": "note:note-mqepum5450l",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.664,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqjx578adxz",
-      "to": "note:note-mqiwte4ddob",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.564,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqjx578adxz",
       "to": "followup/run-featurebench-smoke-and-15-instance-p-0ys9",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.737,
+      "by": "judge",
+      "judged": true,
       "score": 0.737,
       "origin": "autowire-semantic"
     },
@@ -275308,6 +274063,29 @@
       "judged": false,
       "score": 0.57,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzbyez8m4",
+      "to": "codex/headroom-eval",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mql0cbookug",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqlapu0wi63",
+      "to": "codex/verify-featurebench-production-faithful",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "note:note-mqlc786kcl2",
@@ -275367,56 +274145,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.718,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqoxvl18k5p",
-      "to": "codex/full-system-review-subconscious-landed",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.713,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqoxvl18k5p",
-      "to": "codex/verify-post-subconscious-review-fixes",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.647,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqoxvl18k5p",
-      "to": "codex/review-subconscious-assignment-lifecycle",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.637,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqoxvl18k5p",
-      "to": "codex/reconcile-post-subconscious-feature-with-main",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.593,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqoxvl18k5p",
-      "to": "codex/verify-post-subconscious-review-fixes-after-main-reconcile",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.627,
       "origin": "autowire-semantic"
     },
     {
@@ -275611,52 +274339,12 @@
     },
     {
       "from": "note:note-mqp4zen4gpi",
-      "to": "note:note-mqe1cey1lux",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.575,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp4zen4gpi",
-      "to": "note:note-mqgufbod1fe",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.563,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp4zen4gpi",
       "to": "note:note-mqi7rypye1d",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.563,
+      "by": "judge",
+      "judged": true,
       "score": 0.563,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp4zen4gpi",
-      "to": "note:note-mq75a81s",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.561,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp4zen4gpi",
-      "to": "note:note-mqgwagrdguj",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.555,
       "origin": "autowire-semantic"
     },
     {
@@ -275677,16 +274365,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.583,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp4zrwfwjp",
-      "to": "note:note-mqp4zldlzj0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.684,
       "origin": "autowire-semantic"
     },
     {
@@ -275740,16 +274418,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqp50ehggc3",
-      "to": "note:note-mqp4x16kkmi",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.559,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqp50kopn36",
       "to": "note:note-mqhdjggg6h1",
       "kind": "context",
@@ -275783,9 +274451,9 @@
       "from": "note:note-mqp51ky1bsb",
       "to": "note:note-mqp4zldlzj0",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.703,
+      "by": "judge",
+      "judged": true,
       "score": 0.703,
       "origin": "autowire-semantic"
     },
@@ -276482,21 +275150,10 @@
     {
       "from": "note:note-mqpbgshdalw",
       "to": "codex/headroom-eval",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
       "score": 0.78,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqq2ugme4vr",
-      "to": "codex/fix-costflow-pruned-snapshot-session-splits",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.593,
       "origin": "autowire-semantic"
     },
     {
@@ -276510,39 +275167,11 @@
     },
     {
       "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/24",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/23",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.644,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/24",
       "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/19",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
       "score": 0.69,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "5c69bd16-96fa-4c6f-95a5-2d3aaab97893/write-task",
-      "to": "6c4f4a60-c30e-405f-b8ec-f1e1c388445c/write-task",
-      "kind": "supersede"
-    },
-    {
-      "from": "703d3dcc-ae30-4ad7-8959-5d98069473cc/2",
-      "to": "6c4f4a60-c30e-405f-b8ec-f1e1c388445c/write-task",
-      "kind": "supersede"
-    },
-    {
-      "from": "9195fb5e-f196-497d-962f-69616733d2e9/10",
-      "to": "9195fb5e-f196-497d-962f-69616733d2e9/7",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.566,
       "origin": "autowire-semantic"
     },
     {
@@ -276581,12 +275210,6 @@
       "judged": true
     },
     {
-      "from": "codex/constrain-costflow-claim-session-to-accounting-source",
-      "to": "codex/fix-costflow-pruned-snapshot-session-splits",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
       "from": "codex/embed-provider-contract",
       "to": "codex/embed-provider-local-adapter",
       "kind": "blocking",
@@ -276603,18 +275226,6 @@
       "judged": false,
       "score": 0.75,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/fix-codex-task-transcript-attribution",
-      "to": "codex/fix-costflow-pruned-snapshot-session-splits",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/fix-costflow-durable-claim-session-provenance",
-      "to": "codex/fix-costflow-pruned-snapshot-session-splits",
-      "kind": "context",
-      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/fix-featurebench-dag-only-parity",
@@ -276667,30 +275278,6 @@
       "origin": "blocking-dep-seed"
     },
     {
-      "from": "codex/fix-token-accounting-attribution",
-      "to": "codex/fix-costflow-pruned-snapshot-session-splits",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
-      "to": "codex/judge-prevent-judge-reverse-blocking-edges",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.698,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
-      "to": "codex/judge-subconscious-skill-promotion-gate",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.573,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "dc3ec43f-f1a8-4a77-9403-14c5a43e2e17/5",
       "to": "af585417-07f3-4b6f-8c96-d9b784271d32/8",
       "kind": "context",
@@ -276735,15 +275322,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "eeadb38f-7472-4703-9689-fbf24eebee4d/8",
-      "to": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/13",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.653,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "followup/harness-learner-drain",
       "to": "6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/6",
       "kind": "context",
@@ -276752,7 +275330,61 @@
       "judged": true,
       "score": 0.553,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-json-portable",
+      "to": "af585417-07f3-4b6f-8c96-d9b784271d32/8",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.676,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-json-portable",
+      "to": "af585417-07f3-4b6f-8c96-d9b784271d32/7",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.648,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-parity-verify",
+      "to": "codex/opencode-core-adapter-parity",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.598,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-parity-verify",
+      "to": "codex/opencode-core-adapter-review",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.588,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-parity-verify",
+      "to": "codex/complete-hook-enforcement-parity",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.567,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "opencode/opencode-parity-verify",
+      "to": "codex/opencode-arm-review",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.554,
+      "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-23T04:59:35.082Z"
+  "compacted_at": "2026-06-23T05:09:55.614Z"
 }

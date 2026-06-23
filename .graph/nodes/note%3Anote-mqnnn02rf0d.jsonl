@@ -15,3 +15,5 @@
 {"evt":"edge_removed","from":"note:note-mqnnn02rf0d","to":"note:note-mqe5sbyj4uq","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:31:48.295Z"}
 {"evt":"edge_removed","from":"note:note-mqnnn02rf0d","to":"codex/subconscious-agentic-search-envelope-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:31:48.295Z"}
 {"evt":"edge_added","from":"note:note-mqnnn02rf0d","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/16","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:38:04.990Z","weight":0,"by":"autowire","judged":false,"score":0.553,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqnnn02rf0d","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/16","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:06:25.870Z","weight":0.553,"by":"judge","judged":true,"score":0.553,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqnnn02rf0d","to":"note:note-mqiu0vkd4em","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:06:25.870Z"}

@@ -24,3 +24,4 @@
 {"evt":"edge_removed","from":"note:note-mqiu439wu0h","to":"note:note-mqf516f3zz9","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:19:14.189Z"}
 {"evt":"edge_added","from":"note:note-mqiu439wu0h","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:32:58.512Z","origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqiu439wu0h","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:33:48.372Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqiu439wu0h","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:09:26.406Z","weight":0.5,"by":"judge","judged":true,"origin":"subconscious-assignment"}

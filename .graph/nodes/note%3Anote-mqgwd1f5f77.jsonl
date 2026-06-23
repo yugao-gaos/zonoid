@@ -16,3 +16,4 @@
 {"evt":"edge_removed","from":"note:note-mqgwd1f5f77","to":"note:note-mqfn8l1hpiw","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:04:52.489Z"}
 {"evt":"edge_removed","from":"note:note-mqgwd1f5f77","to":"note:note-mqfnyddvxdj","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:04:52.489Z"}
 {"evt":"edge_removed","from":"note:note-mqgwd1f5f77","to":"note:note-mqeolw11e46","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:04:52.489Z"}
+{"evt":"edge_removed","from":"note:note-mqgwd1f5f77","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:10:45.985Z"}

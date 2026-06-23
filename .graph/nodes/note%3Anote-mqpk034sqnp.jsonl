@@ -10,3 +10,6 @@
 {"evt":"edge_promoted","from":"note:note-mqpk034sqnp","to":"codex/search-summary-human-readable","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:04:10.405Z","weight":0.721,"by":"judge","judged":true,"score":0.721,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqpk034sqnp","to":"codex/dashboard-use-subconscious-agentic-search","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:04:10.405Z","weight":0.566,"by":"judge","judged":true,"score":0.566,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqpk034sqnp","to":"codex/subconscious-summary-brief-wording","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:04:10.405Z","weight":0.566,"by":"judge","judged":true,"score":0.566,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqpk034sqnp","to":"note:note-mqpjjud9jn0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:06:37.769Z"}
+{"evt":"edge_removed","from":"note:note-mqpk034sqnp","to":"knowledge:source_chunk:chunk-readme-md-4-0-after-each-session-zonoid-mines-the-comp-7eb25e4957","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:06:37.769Z"}
+{"evt":"edge_removed","from":"note:note-mqpk034sqnp","to":"knowledge:source_section:section-readme-md-4-self-improvement-loop-be64cf7dc2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:06:37.769Z"}
