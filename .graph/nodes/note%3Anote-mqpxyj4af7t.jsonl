@@ -6,3 +6,12 @@
 {"evt":"edge_added","from":"note:note-mqpxyj4af7t","to":"note:note-mqpv6qx0gzv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:04:06.262Z","weight":0,"by":"autowire","judged":false,"score":0.731,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqpxyj4af7t","to":"note:note-mqppi1wigd1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:04:06.262Z","weight":0,"by":"autowire","judged":false,"score":0.723,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqpxyj4af7t","to":"knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:04:06.262Z","weight":0,"by":"autowire","judged":false,"score":0.707,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqpxyj4af7t","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:09:08.838Z","weight":1}
+{"evt":"edge_removed","from":"note:note-mqpxyj4af7t","to":"note:note-mqpxr6kyk2y","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:10:58.546Z"}
+{"evt":"edge_removed","from":"note:note-mqpxyj4af7t","to":"note:note-mqpna41fj59","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:10:58.546Z"}
+{"evt":"edge_removed","from":"note:note-mqpxyj4af7t","to":"note:note-mqpv6qx0gzv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:10:58.546Z"}
+{"evt":"edge_removed","from":"note:note-mqpxyj4af7t","to":"note:note-mqppi1wigd1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:10:58.546Z"}
+{"evt":"edge_removed","from":"note:note-mqpxyj4af7t","to":"knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:10:58.546Z"}
+{"evt":"edge_promoted","from":"note:note-mqpxyj4af7t","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:11:50.507Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpxyj4af7t","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:12:21.625Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpxyj4af7t","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:12:36.890Z","weight":1}
