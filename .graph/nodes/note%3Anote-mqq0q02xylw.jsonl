@@ -20,3 +20,7 @@
 {"evt":"edge_promoted","from":"note:note-mqq0q02xylw","to":"codex/p2-drop-cosine-floor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:25:37.326Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqq0q02xylw","to":"codex/p1-sync-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:25:59.884Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqq0q02xylw","to":"codex/p2-drop-cosine-floor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:25:59.884Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq0q02xylw","to":"codex/p1-sync-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:26:39.067Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq0q02xylw","to":"codex/p2-drop-cosine-floor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:26:39.067Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq0q02xylw","to":"codex/p1-sync-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:26:45.239Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq0q02xylw","to":"codex/p2-drop-cosine-floor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:26:45.239Z","weight":1}
