@@ -65,7 +65,7 @@ async function fullOnboard({ repoAbs, workspace, daemon, async }) {
     try { await httpDaemonClient(daemon).setLastIndexedCommit({ key: repoAbs, commit: head, workspace }); }
     catch (e) { console.warn(`[onboard-code] warning: failed to record lastIndexedCommit: ${e.message}`); }
   }
-  return { mode: 'full', repo: result.repo, symbols: result.symbols, created: result.created, batches: result.batches, stats: result.stats, head };
+  return { mode: 'full', repo: result.repo, symbols: result.symbols, created: result.created, edges: result.edges, edges_added: result.edges_added, batches: result.batches, stats: result.stats, head };
 }
 
 async function main() {
@@ -104,6 +104,7 @@ function printSummary(r, { workspace, daemon }) {
   if (r.mode === 'full') {
     console.log(`  symbols:    ${r.symbols}`);
     console.log(`  ingested:   ${r.created} (in ${r.batches} batch${r.batches === 1 ? '' : 'es'})`);
+    if (r.edges != null) console.log(`  edges:      ${r.edges} resolved -> ${r.edges_added != null ? r.edges_added : r.edges} added (code↔code)`);
     if (r.stats && r.stats.by_language) {
       const langs = Object.entries(r.stats.by_language)
         .map(([ext, s]) => `${ext}:${s.symbols}`).join(' ');
@@ -118,6 +119,7 @@ function printSummary(r, { workspace, daemon }) {
       console.log(`  changed:    ${r.changed_files.length} file(s)`);
       console.log(`  replaced:   ${r.files_replaced} file(s) -> ${r.upserted} symbol(s) upserted`);
       console.log(`  deleted:    ${r.files_deleted} file(s) -> ${r.deleted} symbol(s) removed`);
+      if (r.edges_replaced != null || r.edges_deleted != null) console.log(`  edges:      ${r.edges_replaced || 0} replaced, ${r.edges_deleted || 0} removed (code↔code)`);
       if (r.skipped && r.skipped.length) console.log(`  skipped:    ${r.skipped.length} non-code file(s)`);
       console.log(`  HEAD:       ${r.head}  (advanced lastIndexedCommit)`);
     }
