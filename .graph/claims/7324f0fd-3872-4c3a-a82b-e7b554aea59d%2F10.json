@@ -1,0 +1,9 @@
+{
+  "task_key": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/10",
+  "git_user": "Yu Gao <yu.gao@gaos.ca>",
+  "session_id": "7324f0fd-3872-4c3a-a82b-e7b554aea59d",
+  "branch": "orch/attempt/7324f0fd-3872-4c3a-a82b-e7b554aea59d-10",
+  "status": "claimed",
+  "claimed_at": "2026-06-23T16:35:30.969Z",
+  "lease_until": "2026-06-23T17:35:30.969Z"
+}
