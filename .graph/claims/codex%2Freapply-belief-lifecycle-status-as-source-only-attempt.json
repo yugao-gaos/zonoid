@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-79553-1ea6311fd01ead6eb63235434480fcc6",
   "branch": "orch/attempt/codex-reapply-belief-lifecycle-status-as-source-only-attempt",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-23T14:37:07.995Z",
-  "lease_until": "2026-06-23T15:37:07.995Z"
+  "lease_until": "2026-06-23T15:37:07.995Z",
+  "completed_at": "2026-06-23T14:42:32.800Z"
 }
