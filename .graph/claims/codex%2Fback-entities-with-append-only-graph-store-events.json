@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-29044-b475a5ac0cde52cae7c8e4df1cb463e4",
   "branch": "orch/attempt/codex-back-entities-with-append-only-graph-store-events",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-23T13:59:31.114Z",
-  "lease_until": "2026-06-23T14:59:31.114Z"
+  "lease_until": "2026-06-23T14:59:31.114Z",
+  "completed_at": "2026-06-23T14:09:01.396Z"
 }
