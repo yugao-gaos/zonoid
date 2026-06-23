@@ -1,0 +1,2 @@
+{"evt":"edge_added","from":"59fc18e1-744e-4f7a-9093-a8e12d43087b/42","to":"judge/distiller-phase1","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T04:23:47.824Z","by":"judge","judged":true,"origin":"blocking-dep-seed"}
+{"evt":"edge_removed","from":"59fc18e1-744e-4f7a-9093-a8e12d43087b/42","to":"judge/distiller-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:23:47.824Z"}

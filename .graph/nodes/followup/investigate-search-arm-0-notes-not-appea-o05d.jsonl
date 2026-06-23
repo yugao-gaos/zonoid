@@ -1,4 +1,0 @@
-{"evt":"edge_promoted","from":"followup/investigate-search-arm-0-notes-not-appea-o05d","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/30","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:08:58.298Z","weight":0.607,"by":"judge","judged":true,"score":0.607,"origin":"autowire-semantic"}
-{"evt":"edge_removed","from":"followup/investigate-search-arm-0-notes-not-appea-o05d","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/31","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:08:58.298Z"}
-{"evt":"edge_removed","from":"followup/investigate-search-arm-0-notes-not-appea-o05d","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/35","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:08:58.298Z"}
-{"evt":"edge_removed","from":"followup/investigate-search-arm-0-notes-not-appea-o05d","to":"b1c48279-9822-4abe-81a5-1b7b2a329970/2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:08:58.298Z"}

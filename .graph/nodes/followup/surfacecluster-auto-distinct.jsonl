@@ -1,2 +1,0 @@
-{"evt":"edge_promoted","from":"followup/surfacecluster-auto-distinct","to":"d50d3db8-2ae4-4098-bcaf-0d154392ef1d/1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:08:58.298Z","weight":0.576,"by":"judge","judged":true,"score":0.576,"origin":"autowire-semantic"}
-{"evt":"edge_removed","from":"followup/surfacecluster-auto-distinct","to":"e0c18996-aabe-40bb-ab1c-24e7daaa6ccb/3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:08:58.298Z"}

@@ -7,3 +7,4 @@
 {"evt":"edge_added","from":"note:note-mqiu0n5yomz","to":"bench/bench-trial-18-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z","weight":0.708,"by":"judge","judged":true,"score":0.708,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqiu0n5yomz","to":"note:note-mqb0gi2648n","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:34:09.977Z"}
 {"evt":"edge_added","from":"note:note-mqiu0n5yomz","to":"note:note-mqb0gi2648n","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.629,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqiu0n5yomz","to":"note:note-mqb0gi2648n","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:18:26.624Z"}

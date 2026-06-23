@@ -1,2 +1,1 @@
-{"evt":"edge_removed","from":"bench/combined-bench-raw-1-discovered","to":"bench/bench-trial-18-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:05:30.920Z"}
-{"evt":"edge_removed","from":"bench/combined-bench-raw-1-discovered","to":"bench/bench-trial-36-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:05:30.920Z"}
+{"evt":"edge_removed","from":"bench/combined-bench-raw-1-discovered","to":"bench/combined-bench-0-0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:22:29.428Z"}
