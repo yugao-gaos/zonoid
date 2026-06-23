@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-81003-f2bd10ce2305b45a843f712cce816c60",
   "branch": "orch/attempt/codex-fix-costflow-durable-claim-session-provenance",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-23T04:33:54.913Z",
-  "lease_until": "2026-06-23T05:33:54.913Z"
+  "lease_until": "2026-06-23T05:33:54.913Z",
+  "completed_at": "2026-06-23T04:39:26.866Z"
 }
