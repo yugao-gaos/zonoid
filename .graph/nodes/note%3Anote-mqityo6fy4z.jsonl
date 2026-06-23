@@ -39,3 +39,4 @@
 {"evt":"edge_removed","from":"note:note-mqityo6fy4z","to":"note:note-mqfn8l1hpiw","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:01:50.789Z"}
 {"evt":"edge_removed","from":"note:note-mqityo6fy4z","to":"bench/bench-trial-7-9","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:01:50.789Z"}
 {"evt":"edge_removed","from":"note:note-mqityo6fy4z","to":"d08e0c33-36f1-49a6-b946-dff7dff71c5c/2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:01:50.789Z"}
+{"evt":"edge_removed","from":"note:note-mqityo6fy4z","to":"note:note-mqe4ln7imat","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:09:29.723Z"}

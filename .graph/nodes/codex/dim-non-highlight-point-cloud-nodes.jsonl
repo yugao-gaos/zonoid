@@ -34,3 +34,4 @@
 {"evt":"timestamps_set","id":"codex/dim-non-highlight-point-cloud-nodes","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-22T15:15:49.256Z","lastChanged":"2026-06-22T18:15:03.469Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-22T18:15:28.837Z"}
 {"evt":"edge_removed","from":"codex/dim-non-highlight-point-cloud-nodes","to":"codex/add-emissive-node-cores-to-three-point-cloud","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:38:46.709Z"}
 {"evt":"edge_removed","from":"codex/dim-non-highlight-point-cloud-nodes","to":"codex/add-visible-search-highlights-to-three-point-cloud","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:54:43.440Z"}
+{"evt":"edge_removed","from":"codex/dim-non-highlight-point-cloud-nodes","to":"codex/use-constant-emissive-core-material-for-point-cloud","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:09:40.295Z"}

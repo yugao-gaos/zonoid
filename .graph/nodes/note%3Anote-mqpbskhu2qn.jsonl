@@ -48,3 +48,5 @@
 {"evt":"edge_promoted","from":"note:note-mqpbskhu2qn","to":"codex/headroom-eval","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:04:10.405Z","weight":0.5,"by":"judge","judged":true}
 {"evt":"edge_promoted","from":"note:note-mqpbskhu2qn","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/15","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:04:10.405Z","weight":0.5,"by":"judge","judged":true}
 {"evt":"edge_promoted","from":"note:note-mqpbskhu2qn","to":"codex/fix-bench-sdk-a2-edgejudge-timeout","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:44:15.025Z","weight":0.5,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqpbskhu2qn","to":"codex/dashboard-knowledge-cluster-view","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:08:47.493Z"}
+{"evt":"edge_removed","from":"note:note-mqpbskhu2qn","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:09:34.958Z"}

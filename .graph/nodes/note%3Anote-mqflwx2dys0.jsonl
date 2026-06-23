@@ -20,3 +20,6 @@
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"codex/fix-stale-tested-verdict-requeue-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:58:59.803Z"}
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"codex/fix-claim-permit-result-contract-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:43:43.886Z"}
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"codex/fix-broad-npm-test-regressions-after-post-review-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:17:10.014Z"}
+{"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"note:note-mqf9al6pjvv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:09:27.795Z"}
+{"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"note:note-mqf9plgeajc","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:09:27.795Z"}
+{"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"codex/fix-graph-dispatch-invariants-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:09:27.795Z"}

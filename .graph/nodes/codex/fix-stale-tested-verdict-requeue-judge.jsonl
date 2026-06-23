@@ -17,3 +17,4 @@
 {"evt":"timestamps_set","id":"codex/fix-stale-tested-verdict-requeue-judge","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-22T14:40:18.314Z","lastChanged":"2026-06-22T15:23:09.952Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-22T15:23:27.477Z"}
 {"evt":"edge_removed","from":"codex/fix-stale-tested-verdict-requeue-judge","to":"codex/fix-stale-tested-verdict-requeue-judge-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:38:46.709Z"}
 {"evt":"edge_removed","from":"codex/fix-stale-tested-verdict-requeue-judge","to":"codex/fix-stale-tested-verdict-requeue","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:38:46.709Z"}
+{"evt":"edge_removed","from":"codex/fix-stale-tested-verdict-requeue-judge","to":"codex/probe-subconscious-assignment-main-live-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:09:42.229Z"}
