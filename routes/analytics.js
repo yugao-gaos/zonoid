@@ -5,6 +5,7 @@ const { execFileSync } = require('child_process');
 const overlayStore = require('../lib/overlay');
 const costflow = require('../lib/costflow');
 const usageAccounting = require('../lib/usage-accounting');
+const { readLocalClaim } = require('../lib/git-claims');
 const { agreementRate } = require('../lib/shadow-journal');
 const { getPromotionState } = require('../lib/promotion-gate');
 const { estimatedSavings } = require('../lib/economy');
@@ -39,6 +40,20 @@ function claimedOutputForSession(session, claims, ownTok) {
   return total;
 }
 
+function nonEmptyString(raw) {
+  const value = String(raw == null ? '' : raw).trim();
+  return value || null;
+}
+
+function attributionSessionForTask(repo, ov, task) {
+  const id = task && task.id;
+  const overlaySession = id && ov && ov.claimSessions && nonEmptyString(ov.claimSessions[id]);
+  if (overlaySession) return overlaySession;
+  const durableClaim = id ? readLocalClaim(repo, id) : null;
+  const durableSession = durableClaim && nonEmptyString(durableClaim.session_id);
+  return durableSession || nonEmptyString(task && task.session);
+}
+
 function harnessNameForWorkspace(state, ov, workspace, fallback) {
   const sessions = Object.values((state && state.sessions) || {})
     .filter((s) => s && s.workspace === workspace && s.harness)
@@ -65,13 +80,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (cfHit !== undefined) { send(res, 200, cfHit); return true; }
     const g = buildGraph(T.ws);
     const stWs = { ...state, overlay: T.ov };
-    const claims = g.tasks.filter((t) => t.kind !== 'note').map((t) => ({
-      id: t.id,
-      session: t.session || null,
-      transcript: taskTranscript(t.id, t.session, true, stWs),
-      window: { start: t.firstSeen, end: t.lastChanged },
-      work_sessions: (T.ov.work_sessions && T.ov.work_sessions[t.id]) || null,
-    }));
+    const claims = g.tasks.filter((t) => t.kind !== 'note').map((t) => {
+      const session = attributionSessionForTask(T.ws, T.ov, t);
+      return {
+        id: t.id,
+        session,
+        transcript: taskTranscript(t.id, session, true, stWs),
+        window: { start: t.firstSeen, end: t.lastChanged },
+        work_sessions: (T.ov.work_sessions && T.ov.work_sessions[t.id]) || null,
+      };
+    });
     const tr = activeHarness.transcripts;
     const taskUsageFromAgent = tr.taskUsageFromAgent || (() => null);
     const usageOutputOnly = (tp, claim) => {
