@@ -5313,3 +5313,13 @@
 {"ts":1782219704807,"from":"note:note-mqqnit1ph68","to":"knowledge:source_section:note-mqqnit1ph68#note-evidence","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.4643582353962831,"cosine":0.749,"model_version":"v1"}
 {"ts":1782220085789,"from":"note:note-mqqnit1ph68","to":"knowledge:source_chunk:note-mqqnit1ph68#note-evidence:chunk-1","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.4698903932244117,"cosine":0.76,"model_version":"v1"}
 {"ts":1782220085791,"from":"note:note-mqqnit1ph68","to":"knowledge:source_chunk:note-mqqnit1ph68#note-evidence:chunk-2","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.5519985521798758,"cosine":0.923,"model_version":"v1"}
+{"ts":1782221623337,"from":"codex/fix-stale-reaper-readiness","to":"codex/fix-stale-reaper-readiness-judge","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6533314990543605,"cosine":0.707,"model_version":"v1"}
+{"ts":1782221623338,"from":"note:note-mqq1rh9jnxp","to":"codex/fix-stale-reaper-readiness","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.4905646466320412,"cosine":0.801,"model_version":"v1"}
+{"ts":1782221623339,"from":"note:note-mqeo9elelvo","to":"codex/fix-stale-reaper-readiness","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.37554272741484734,"cosine":0.568,"model_version":"v1"}
+{"ts":1782221623341,"from":"note:note-mq7gh2hy","to":"codex/fix-stale-reaper-readiness","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.3722318954272869,"cosine":0.561,"model_version":"v1"}
+{"ts":1782221623342,"from":"note:note-mqgufbod1fe","to":"codex/fix-stale-reaper-readiness","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.3750690302688023,"cosine":0.567,"model_version":"v1"}
+{"ts":1782221698548,"from":"codex/fix-stale-reaper-readiness","to":"codex/fix-stale-reaper-readiness-judge","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6533314990543605,"cosine":0.707,"model_version":"v1"}
+{"ts":1782221698549,"from":"note:note-mq7gh2hy","to":"codex/fix-stale-reaper-readiness","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782221698550,"from":"note:note-mqeo9elelvo","to":"codex/fix-stale-reaper-readiness","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782221698551,"from":"note:note-mqgufbod1fe","to":"codex/fix-stale-reaper-readiness","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782221698551,"from":"note:note-mqq1rh9jnxp","to":"codex/fix-stale-reaper-readiness","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
