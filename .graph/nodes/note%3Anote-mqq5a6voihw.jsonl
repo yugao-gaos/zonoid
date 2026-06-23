@@ -31,3 +31,17 @@
 {"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:33:59.147Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:33:59.147Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/code-ast-extractor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:33:59.147Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:34:31.791Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:34:31.791Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/code-ast-extractor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:34:31.791Z","weight":1}
+{"evt":"edge_removed","from":"note:note-mqq5a6voihw","to":"knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:36:01.228Z"}
+{"evt":"edge_removed","from":"note:note-mqq5a6voihw","to":"knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:36:16.337Z"}
+{"evt":"edge_removed","from":"note:note-mqq5a6voihw","to":"knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:36:19.986Z"}
+{"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:37:47.225Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:37:47.225Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/code-ast-extractor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:37:47.225Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:38:09.672Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:38:09.672Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqq5a6voihw","to":"codex/code-ast-extractor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:38:09.672Z","weight":1}
+{"evt":"edge_removed","from":"note:note-mqq5a6voihw","to":"note:note-mqpv6qx0gzv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:38:09.672Z"}
+{"evt":"edge_removed","from":"note:note-mqq5a6voihw","to":"note:note-mqq2xj787yq","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:39:03.325Z"}
