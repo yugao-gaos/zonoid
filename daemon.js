@@ -350,6 +350,18 @@ const AGENTS_FILE = path.join(BASE, 'agents.json');
 // or still inside the one-stale-window post-boot grace for survivors to re-assert.
 const BOOT_MS = Date.now();
 const BOOTED_AT = new Date(BOOT_MS).toISOString();
+// Claim-sweep staleness default (minutes). Raised from 10 → 60 to ALIGN with the 1h git worktree
+// lease (lib/git.js LEASE_STALE_MS = 3600000): a worker holding a registered attempt worktree owns
+// its lease for an hour, so reaping its claim at 10min spuriously released LIVE long-running workers
+// — and a late completion from the reaped worker then failed to ready its blocked_by judge
+// (note-mqq1rh9jnxp). 60min lets a legitimately slow worker finish; genuinely-orphaned/dead claims
+// still recover (the worktree-commit vouch below + the wall-clock cutoff both still fire). Override
+// per-process with ORCH_STALE_MINUTES or per-workspace with config.stale_minutes (?? honors an
+// explicit 0). The manual force sweep (/sweep stale_minutes=1) is unaffected — it passes its own window.
+const STALE_MINUTES_DEFAULT = (() => {
+  const v = Number(process.env.ORCH_STALE_MINUTES);
+  return Number.isFinite(v) && v >= 0 ? v : 60;
+})();
 // /version build identity (frozen at boot): the git HEAD this RUNNING process was started from.
 // After a deploy, /version.head ≠ `git rev-parse HEAD` on disk ⇒ "restart required" — the check
 // hooks/restart-daemon.sh asserts. null when the source dir isn't a git checkout.
@@ -686,20 +698,46 @@ function vouchedLive(agent, mins, nowMs, bootMs) {
   const seen = Math.max(Date.parse(agent.lastSeen || '') || 0, Date.parse(agent.startedAt || '') || 0);
   return seen >= bootMs || nowMs - bootMs < mins * 60000;
 }
+// worktreeVouchesLive (pure-ish): is this claim backed by a registered attempt worktree whose branch
+// has RECENT commits? A hookless background worker (Agent-tool spawn) never fires SubagentStart, so
+// vouchedLive can't see it once its agent record ages out — yet if it holds a registered worktree
+// (branch_task ran) AND its attempt branch tip was committed within the staleness window, it is
+// DEMONSTRABLY still producing work and must NOT be reaped (note-mqq1rh9jnxp: long impl workers were
+// spuriously released at 10min, breaking judge-readiness). This is the commit-evidence companion to
+// the raised time window. Genuinely-orphaned claims fall through: no worktree, or a branch whose last
+// commit is OLDER than the window (the worker died after its last commit) ⇒ not vouched ⇒ reaped by
+// the wall-clock cutoff. Best-effort: any git/fs error ⇒ not vouched (fail toward reaping, so a stuck
+// claim still recovers). `gitProbe(worktree, args)` is injected for unit-testing; defaults to gitSafe.
+function worktreeVouchesLive(overlay, key, mins, nowMs, gitProbe) {
+  const rec = overlay.git && overlay.git[key];
+  const wt = rec && rec.worktree;
+  if (!wt) return false;                                  // no registered worktree → not vouched
+  try { if (!fs.existsSync(wt)) return false; } catch { return false; }
+  const probe = gitProbe || ((w, args) => git.gitSafe ? git.gitSafe(w, args) : null);
+  // Last commit time on the worktree's HEAD (the attempt branch). %ct = committer epoch seconds.
+  const ctRaw = probe(wt, ['log', '-1', '--format=%ct']);
+  const ct = ctRaw ? Number(String(ctRaw).trim()) : NaN;
+  if (!Number.isFinite(ct)) return false;                 // no commits / not a repo → not vouched
+  // "recent" = committed within the staleness window. mins===0 ⇒ nothing is recent (honor explicit 0).
+  if (mins <= 0) return false;
+  return (nowMs - ct * 1000) <= mins * 60000;
+}
 // staleClaimKeys (pure): which in_progress claims are abandoned orphans — worker not vouched live
-// AND status unchanged for stale_minutes (kill / crash / idle / cross-session / daemon restart).
-// Wall-clock based (persisted ISO timestamps), so time the daemon spent DOWN counts toward
-// staleness. Parameterized on (overlay, agents, nowMs, bootMs) so it is unit-testable;
-// sweepStaleClaims releases them.
-function staleClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
-  const mins = overlay.config.stale_minutes ?? 10;   // ?? not || so an explicit 0 is honored
+// (by agent registry OR by a recently-committed attempt worktree) AND status unchanged for
+// stale_minutes (kill / crash / idle / cross-session / daemon restart). Wall-clock based (persisted
+// ISO timestamps), so time the daemon spent DOWN counts toward staleness. Parameterized on
+// (overlay, agents, nowMs, bootMs) so it is unit-testable; sweepStaleClaims releases them. `gitProbe`
+// is an optional git runner injected for tests (defaults to the real git.gitSafe via worktreeVouchesLive).
+function staleClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS, gitProbe) {
+  const mins = overlay.config.stale_minutes ?? STALE_MINUTES_DEFAULT;   // ?? not || so an explicit 0 is honored
   const cutoff = nowMs - mins * 60000;
   const out = [];
   for (const [key, st] of Object.entries(overlay.status)) {
     if (st !== 'in_progress') continue;
     const agentId = overlay.assignee[key];
     const agent = agentId ? agents[agentId] : null;
-    if (vouchedLive(agent, mins, nowMs, bootMs)) continue;     // live worker — leave it alone
+    if (vouchedLive(agent, mins, nowMs, bootMs)) continue;     // live worker (agent registry) — leave it alone
+    if (worktreeVouchesLive(overlay, key, mins, nowMs, gitProbe)) continue; // live worker (fresh attempt commits) — leave it alone
     const ts = overlay.timestamps[key];
     if (ts && Date.parse(ts.lastChanged) > cutoff) continue;   // changed recently — give it time
     out.push({ key, status: st, agentId: agentId || null, mins });
@@ -712,7 +750,7 @@ function staleClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
 // in_progress, the task kept deriving as "ongoing" forever with no agent to reap. Select those
 // orphan snapshot claims separately so the sweep can reset their snapshot/native echo to pending.
 function staleSnapshotClaimKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
-  const mins = overlay.config.stale_minutes ?? 10;
+  const mins = overlay.config.stale_minutes ?? STALE_MINUTES_DEFAULT;   // claim staleness — align with staleClaimKeys
   const cutoff = nowMs - mins * 60000;
   const out = [];
   for (const [key, snap] of Object.entries(overlay.snapshots || {})) {
@@ -757,7 +795,7 @@ function releaseSnapshotClaim(key, reason, ov, ctx = null, ws) {
 }
 
 function staleNativeClaimKeys(overlay, agents, tasks, nowMs, bootMs = BOOT_MS) {
-  const mins = overlay.config.stale_minutes ?? 10;
+  const mins = overlay.config.stale_minutes ?? STALE_MINUTES_DEFAULT;   // claim staleness — align with staleClaimKeys
   const cutoff = nowMs - mins * 60000;
   const out = [];
   for (const t of tasks || []) {
@@ -1513,6 +1551,15 @@ function decideAll() {
 const now = () => new Date().toISOString();
 const agentsArr = () => Object.values(state.agents);
 function baseStatus(s) { return s === 'completed' ? 'done' : s === 'in_progress' ? 'in_progress' : 'pending'; }
+// A blocking dependency is SATISFIED (unblocks its dependents) when it reaches a terminal-SUCCESS
+// status — 'done' OR 'tested'. 'tested' is the impl-worker terminal status (status MUST be 'tested'
+// when an attempt is committed but its paired judge has not yet merged it — see the orchestrator
+// auto-judge contract): a tested impl is finished work, so it MUST ready its blocked_by dependents
+// (the paired judge), exactly like 'done'. Keying readiness off ONLY 'done' left the judge stuck at
+// not_ready forever (note-mqq1rh9jnxp). 'failed'/'canceled' are terminal but NOT success → never
+// satisfy a dependency (the dependent stays gated until the dep is retried/re-done).
+const DEP_SATISFIED_STATUSES = new Set(['done', 'tested']);
+function depSatisfied(status) { return DEP_SATISFIED_STATUSES.has(status); }
 
 // Relevance scoring shared by /task/suggest and auto-wiring: rank every other node in the graph
 // by token-overlap of label+summary against `target`. Returns matches sorted desc by score, each
@@ -1962,7 +2009,7 @@ function makeResolver() {
     const base = baseStatus(t.native_status);
     if (base !== 'pending') return (memo[id] = base);
     seen.add(id);
-    const ready = depRefs(ws, key).filter((d) => d.kind !== 'context').every((d) => effective(d.ws, d.key, seen) === 'done'); // context edges never block
+    const ready = depRefs(ws, key).filter((d) => d.kind !== 'context').every((d) => depSatisfied(effective(d.ws, d.key, seen))); // context edges never block; a dep is satisfied by terminal-success (done OR tested)
     seen.delete(id);
     if (!ready) return (memo[id] = 'not_ready');
     // JUDGING→READY gate (task D / P6 STRICT): blocking deps are satisfied, but if this task still
@@ -2489,7 +2536,7 @@ const ctx = {
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
   get bootState() { return bootState; },
-  GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE,
+  GIT_HEAD, BOOTED_AT, FEATURES, PUBLIC, BASE, MCP_CALL, WORKSPACES_FILE, STALE_MINUTES_DEFAULT,
   sseClients, agentsArr,
   taskTranscript, usageCached, harnessTranscriptForTask,
   touchAgent, staleClaimKeys, releaseClaim, reapAgent, sweepStaleClaims, sweepStaleLoops,
@@ -2582,7 +2629,7 @@ function isPrimaryCheckout(root = __dirname) {
 
 // Export pure helpers for unit tests (no port binding). When run as the main module the daemon
 // still starts its listeners below; when require()d (tests) it just exposes the functions.
-module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings,
+module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings, worktreeVouchesLive, depSatisfied, vouchedLive, STALE_MINUTES_DEFAULT,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
   decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
