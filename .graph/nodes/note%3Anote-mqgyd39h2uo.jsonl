@@ -36,3 +36,4 @@
 {"evt":"edge_added","from":"note:note-mqgyd39h2uo","to":"codex/fix-shell-opencode-write-gates-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.642,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqgyd39h2uo","to":"codex/fix-shell-opencode-relative-git-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.586,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqgyd39h2uo","to":"codex/fix-shell-opencode-relative-git-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:53:45.243Z"}
+{"evt":"edge_removed","from":"note:note-mqgyd39h2uo","to":"codex/fix-shell-opencode-write-gates-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:54:40.484Z"}
