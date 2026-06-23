@@ -139,7 +139,11 @@ function git(repo, args) { return String(execFileSync('git', ['-C', repo, ...arg
     git(FIXTURE, ['config', 'user.email', 'e2e@test']);
     git(FIXTURE, ['config', 'user.name', 'e2e']);
     fs.mkdirSync(path.join(FIXTURE, 'src'), { recursive: true });
-    fs.writeFileSync(path.join(FIXTURE, 'src', 'keep.js'), 'export function keepBaseline(){ return 1; }\n');
+    // helper.js exports helperFn; keep.js imports + calls it -> exercises BOTH an import edge
+    // (keep.js -> helper.js#helperFn) and a call edge (keep.js -> helper.js#helperFn) end-to-end.
+    fs.writeFileSync(path.join(FIXTURE, 'src', 'helper.js'), 'export function helperFn(n){ return n + 1; }\n');
+    fs.writeFileSync(path.join(FIXTURE, 'src', 'keep.js'),
+      "import { helperFn } from './helper.js';\nexport function keepBaseline(){ return helperFn(1); }\n");
     fs.writeFileSync(path.join(FIXTURE, 'src', 'doomed.js'), 'export function willBeDeleted(){ return 99; }\n');
     git(FIXTURE, ['add', '-A']); git(FIXTURE, ['commit', '-q', '-m', 'baseline']);
 
@@ -149,15 +153,36 @@ function git(repo, args) { return String(execFileSync('git', ['-C', repo, ...arg
       const fxFull = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'onboard-code.js'),
         '--repo', FIXTURE, '--workspace', FWS, '--daemon', DAEMON], { encoding: 'utf8', timeout: 120000 });
       ok('fixture FULL onboard exited 0', fxFull.status === 0);
+      // The full onboard resolved + persisted code↔code edges (keep.js -> helper.js#helperFn). The CLI
+      // summary now prints an "edges:" line with a non-zero added count.
+      ok('fixture FULL onboard reported code edges added (>0)',
+        /edges:\s+\d+ resolved -> [1-9]\d* added/.test(fxFull.stdout || ''));
+      // Authoritative check: the daemon persisted the edges into the workspace graph-store. Load the
+      // workspace .graph from disk and confirm a code edge originates from src/keep.js.
+      {
+        const graphStore = require('../lib/graph-store');
+        // wait briefly for the daemon's deferred .graph write
+        let codeEdges = [];
+        for (let i = 0; i < 20; i++) {
+          try { codeEdges = (graphStore.loadGraph(graphStore.open(path.join(FWS, '.graph'))).codeEdges) || []; } catch { codeEdges = []; }
+          if (codeEdges.some((e) => e.from_file === 'src/keep.js')) break;
+          await sleep(500);
+        }
+        ok('fixture FULL onboard: a code edge FROM src/keep.js persisted in the graph-store',
+          codeEdges.some((e) => e.from_file === 'src/keep.js'));
+        ok('fixture FULL onboard: keep.js edge resolves to helper.js#helperFn (call or import)',
+          codeEdges.some((e) => e.from_file === 'src/keep.js' && e.to === 'code:src/helper.js#helperFn'));
+      }
 
       // Baseline: willBeDeleted present, brandNewlyAdded absent.
       const base = await searchUntil('willBeDeleted doomed function', FWS,
         (r) => r.kind === 'code_node' && /willBeDeleted/.test(r.title || r.key || ''), 60000);
       ok('fixture baseline: doomed symbol indexed', base.hit);
 
-      // CHANGE: add a function to keep.js, delete doomed.js, commit.
+      // CHANGE: add a function to keep.js (KEEPING the helperFn import + call so the code edge
+      // legitimately survives the recompute), delete doomed.js, commit.
       fs.writeFileSync(path.join(FIXTURE, 'src', 'keep.js'),
-        'export function keepBaseline(){ return 1; }\nexport function brandNewlyAdded(z){ return z + 7; }\n');
+        "import { helperFn } from './helper.js';\nexport function keepBaseline(){ return helperFn(1); }\nexport function brandNewlyAdded(z){ return z + 7; }\n");
       fs.rmSync(path.join(FIXTURE, 'src', 'doomed.js'));
       git(FIXTURE, ['add', '-A']); git(FIXTURE, ['commit', '-q', '-m', 'add fn + delete file']);
 
@@ -172,6 +197,20 @@ function git(repo, args) { return String(execFileSync('git', ['-C', repo, ...arg
         /diff:\s+\S+\.\.\S+/.test(fxSync.stdout || '') && /changed:\s+\d+ file/.test(fxSync.stdout || ''));
       ok('sync replaced keep.js and deleted doomed.js (1 replaced, 1 deleted)',
         /replaced:\s+1 file/.test(fxSync.stdout || '') && /deleted:\s+1 file/.test(fxSync.stdout || ''));
+      // The sync recomputed code edges for the changed file: its "edges:" summary line is present, and
+      // keep.js's edge to helper.js#helperFn still resolves after the modify (recompute, not stale).
+      ok('sync reported a code-edge recompute line', /edges:\s+\d+ replaced, \d+ removed/.test(fxSync.stdout || ''));
+      {
+        const graphStore = require('../lib/graph-store');
+        let codeEdges = [];
+        for (let i = 0; i < 20; i++) {
+          try { codeEdges = (graphStore.loadGraph(graphStore.open(path.join(FWS, '.graph'))).codeEdges) || []; } catch { codeEdges = []; }
+          if (codeEdges.some((e) => e.from_file === 'src/keep.js' && e.to === 'code:src/helper.js#helperFn')) break;
+          await sleep(500);
+        }
+        ok('after --sync: keep.js -> helper.js#helperFn edge still present (recomputed, not dropped)',
+          codeEdges.some((e) => e.from_file === 'src/keep.js' && e.to === 'code:src/helper.js#helperFn'));
+      }
 
       // ASSERT: the new symbol now appears.
       const added = await searchUntil('brandNewlyAdded new function', FWS,

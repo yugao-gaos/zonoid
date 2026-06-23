@@ -1,0 +1,10 @@
+{
+  "task_key": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/1",
+  "git_user": "Yu Gao <yu.gao@gaos.ca>",
+  "session_id": "worker-cgllm-1-session",
+  "branch": "orch/attempt/7324f0fd-3872-4c3a-a82b-e7b554aea59d-1",
+  "status": "done",
+  "claimed_at": "2026-06-23T16:19:50.877Z",
+  "lease_until": "2026-06-23T17:19:50.877Z",
+  "completed_at": "2026-06-23T17:06:37.321Z"
+}

@@ -1141,10 +1141,18 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       });
       if (r.ok) created.push(r.key);
     }
+    // OPTIONAL code edges — a full onboard sends symbols + resolved AST edges together (the resolver
+    // ran client-side: lib/code-extract/resolve-edges.js). These are deterministic code↔code edges, so
+    // they go straight into the SEPARATE overlay.code_edges layer (no embed, no judge). Idempotent add.
+    let edgesAdded = 0;
+    if (Array.isArray(b.edges) && b.edges.length) {
+      const r = overlayStore.addCodeEdges(T.ov, b.edges);
+      edgesAdded = r.added.length;
+    }
     // Exactly ONE epoch bump for the whole batch (same as notes/bulk).
     overlayStore.bumpEpoch(T.ov);
     T.save(); notifyChange(T.ws);
-    send(res, 200, { ok: true, created: created.length, keys: created, workspace: T.ws }); return true;
+    send(res, 200, { ok: true, created: created.length, keys: created, edges_added: edgesAdded, workspace: T.ws }); return true;
   }
 
   // PER-FILE code-node invalidation — the write half of incremental git-diff sync (DESIGN
@@ -1212,9 +1220,53 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       });
       if (r.ok) created.push(r.key);
     }
+    // OPTIONAL per-file code edges — incremental sync recomputes the changed file's AST edges and sends
+    // them alongside its symbols. Wholesale-replace exactly this file's code edges (mirrors the node
+    // replace above). Absent `edges` ⇒ leave the file's existing code edges untouched (back-compat:
+    // a caller that only updates nodes does not clobber edges).
+    let edgesReplaced = null;
+    if (Array.isArray(b.edges)) {
+      const er = overlayStore.replaceCodeEdgesForFile(T.ov, file, b.edges);
+      edgesReplaced = { removed: er.removed, added: er.added.length };
+    }
     overlayStore.bumpEpoch(T.ov);
     T.save(); notifyChange(T.ws);
-    send(res, 200, { ok: true, file, deleted: removed.length, created: created.length, keys: created, workspace: T.ws }); return true;
+    const resp = { ok: true, file, deleted: removed.length, created: created.length, keys: created, workspace: T.ws };
+    if (edgesReplaced) resp.edges = edgesReplaced;
+    send(res, 200, resp); return true;
+  }
+
+  // PER-FILE code-EDGE invalidation — the edge analogue of the code-node routes above (DESIGN: code
+  // edges are keyed by from_file, so per-file replace/remove mirrors the node layer during git-diff
+  // sync). Both go through the overlay's code_edges layer (emits code_edge_added/removed via the
+  // prev-state diff on save), so the change survives a daemon reload. Deterministic edges — NO embed,
+  // NO judge. These exist for callers that update edges SEPARATELY from nodes; the common path folds
+  // edges into /overlay/code-nodes/{bulk,replace} above.
+  //   DELETE /overlay/code-edges          { file, workspace }          — remove ALL code edges FROM file
+  //   POST   /overlay/code-edges/replace  { file, edges, workspace }   — replace ALL code edges FROM file
+  if (p === '/overlay/code-edges' && m === 'DELETE') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    const file = String(b.file || u.searchParams.get('file') || '').trim();
+    if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const { removed } = overlayStore.removeCodeEdgesForFile(T.ov, file);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, file, deleted: removed, workspace: T.ws }); return true;
+  }
+
+  if (p === '/overlay/code-edges/replace' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    const file = String(b.file || '').trim();
+    if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
+    if (!Array.isArray(b.edges)) { send(res, 400, { ok: false, error: 'edges[] required (array; may be empty to just clear the file)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const er = overlayStore.replaceCodeEdgesForFile(T.ov, file, b.edges);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, file, deleted: er.removed, created: er.added.length, workspace: T.ws }); return true;
   }
 
   if (p === '/overlay/gate' && m === 'POST') {
