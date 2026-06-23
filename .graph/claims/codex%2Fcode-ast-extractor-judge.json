@@ -1,7 +1,9 @@
 {
   "task_key": "codex/code-ast-extractor-judge",
-  "git_user": "Yu Gao <yu.gao@gaos.ca>",
-  "session_id": null,
-  "status": "canceled",
-  "completed_at": "2026-06-23T01:59:32.183Z"
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-51638-ad0606fe9360122a1d03d4ed07222741",
+  "branch": "orch/attempt/codex-code-ast-extractor-judge",
+  "status": "claimed",
+  "claimed_at": "2026-06-23T21:34:08.786Z",
+  "lease_until": "2026-06-23T22:34:08.786Z"
 }
