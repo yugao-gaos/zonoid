@@ -16,3 +16,6 @@
 {"evt":"edge_added","from":"note:note-mqp59bb1f4l","to":"note:note-mqh2eifaveh","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.629,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqp59bb1f4l","to":"note:note-mqh2eifaveh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:14:34.054Z","weight":0.629,"by":"judge","judged":true,"score":0.629,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqp59bb1f4l","to":"knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:55:58.407Z","weight":0.712,"by":"judge","judged":true,"score":0.712,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp59bb1f4l","to":"note:note-mq75a80y","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:38:48.587Z"}
+{"evt":"edge_removed","from":"note:note-mqp59bb1f4l","to":"note:note-mq75a80k","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:38:48.587Z"}
+{"evt":"edge_removed","from":"note:note-mqp59bb1f4l","to":"knowledge:source_chunk:chunk-claude-md-7-3-judge-workers-in-automode-must-include-t-fc20b76631","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:38:48.587Z"}
