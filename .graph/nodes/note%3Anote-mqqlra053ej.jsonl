@@ -8,3 +8,15 @@
 {"evt":"edge_added","from":"note:note-mqqlra053ej","to":"note:note-mqgtgbdm0mh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:10:18.901Z","weight":0,"by":"autowire","judged":false,"score":0.653,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqqlra053ej","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:12:34.668Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqqlra053ej","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:12:47.048Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqlra053ej","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:13:28.324Z","weight":1}
+{"evt":"note_supersedes","id":"note-mqqlra053ej","supersedes":"note-mqq5a6voihw","ts":"2026-06-23T12:10:16.037Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mqqlra053ej","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:15:36.736Z","weight":1,"judged":true}
+{"evt":"edge_added","from":"note:note-mqqlra053ej","to":"codex/code-ast-extractor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:15:36.736Z","weight":1,"judged":true}
+{"evt":"edge_removed","from":"note:note-mqqlra053ej","to":"note:note-mqq5a6voihw","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:15:36.736Z"}
+{"evt":"edge_removed","from":"note:note-mqqlra053ej","to":"note:note-mqpv6qx0gzv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:15:52.543Z"}
+{"evt":"edge_removed","from":"note:note-mqqlra053ej","to":"note:note-mqpwne6dbsp","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:15:52.543Z"}
+{"evt":"edge_removed","from":"note:note-mqqlra053ej","to":"note:note-mqpywsqkwff","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:15:52.543Z"}
+{"evt":"edge_removed","from":"note:note-mqqlra053ej","to":"note:note-mqgtgbdm0mh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:15:52.543Z"}
+{"evt":"note_supersedes","id":"note-mqqlra053ej","supersedes":"note-mqq5a6voihw","ts":"2026-06-23T12:10:16.037Z","actor":"supersede"}
+{"evt":"note_supersedes","id":"note-mqqlra053ej","supersedes":"note-mqq5a6voihw","ts":"2026-06-23T12:10:16.037Z","actor":"supersede"}
+{"evt":"note_supersedes","id":"note-mqqlra053ej","supersedes":"note-mqq5a6voihw","ts":"2026-06-23T12:10:16.037Z","actor":"supersede"}
