@@ -20,3 +20,4 @@
 {"evt":"edge_removed","from":"note:note-mqp528pspcb","to":"note:note-mq75a81h","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
 {"evt":"edge_removed","from":"note:note-mqp528pspcb","to":"note:note-mqiuf091u3n","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
 {"evt":"edge_removed","from":"note:note-mqp528pspcb","to":"note:note-mqp5068xfba","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
+{"evt":"edge_added","from":"note:note-mqp528pspcb","to":"note:note-mqgr5ehxqv4","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:21:24.076Z","by":"judge","judged":true}

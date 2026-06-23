@@ -8,3 +8,4 @@
 {"evt":"edge_removed","from":"note:note-mqp53r1aap1","to":"knowledge:source_chunk:chunk-claude-md-5-2-do-not-store-task-specific-context-or-ep-1f62e96bb0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
 {"evt":"edge_removed","from":"note:note-mqp53r1aap1","to":"note:note-mq75a81j","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:34.410Z"}
 {"evt":"edge_removed","from":"note:note-mqp53r1aap1","to":"note:note-mqelk8e5ths","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:34.410Z"}
+{"evt":"edge_added","from":"note:note-mqp53r1aap1","to":"note:note-mq75a81j","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:21:24.076Z","by":"judge","judged":true}

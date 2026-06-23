@@ -4,3 +4,5 @@
 {"evt":"summary_set","id":"note:note-mqp53j4cr1y","workspace":"/Users/imyu/Desktop/zonoid","summary":"The same retrieval-weight clamp caps the high end at 1.5. That keeps repeated positive reinforcement from making a single note dominate ranking indefinitely.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp53j4cr1y","to":"note:note-mqp53c8ktx9","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
 {"evt":"edge_removed","from":"note:note-mqp53j4cr1y","to":"note:note-mqp5351e3qw","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
+{"evt":"edge_added","from":"note:note-mqp53j4cr1y","to":"note:note-mqp53c8ktx9","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:21:24.076Z","by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqp53j4cr1y","to":"note:note-mqp5351e3qw","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:21:24.076Z","by":"judge","judged":true}
