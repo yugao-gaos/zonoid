@@ -227,3 +227,4 @@ genuine prerequisite.
 - **Harness**: `scripts/bench-economy.js`, `scripts/bench-economy-dag.js`, `scripts/bench-suite.js`
 - **Related**: [Paper 001 — KB Injection Lifts Agent Solve Rate](../quality-gain/)
 - **Related**: [Paper 002 — Measuring Autonomous Leverage](../autonomy-score/)
+- **Related**: [Paper 004 — Code-Navigation Retrieval Token Economy](../code-retrieval-economy/) — a different token-economy axis: onboarded KB retrieval vs external code-graph tools on a deliver-code basis
