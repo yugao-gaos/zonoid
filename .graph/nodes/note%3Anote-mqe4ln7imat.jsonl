@@ -11,3 +11,4 @@
 {"evt":"edge_removed","from":"note:note-mqe4ln7imat","to":"codex/fix-broad-npm-test-regressions-after-post-review-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:30:16.165Z"}
 {"evt":"edge_removed","from":"note:note-mqe4ln7imat","to":"codex/fix-stale-tested-verdict-requeue-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:30:16.165Z"}
 {"evt":"edge_added","from":"note:note-mqe4ln7imat","to":"codex/p1-sync-judge-drain-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:40:50.602Z","weight":0,"by":"autowire","judged":false,"score":0.562,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqe4ln7imat","to":"codex/p1-sync-judge-drain-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:45:41.667Z"}

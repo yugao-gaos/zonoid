@@ -5172,3 +5172,15 @@
 {"ts":1782182392639,"from":"codex/code-extractor-multilang-judge","to":"knowledge:source_doc:note-mqq0ygn0hwg","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.623968585741634,"cosine":0.644,"model_version":"v1"}
 {"ts":1782182392639,"from":"codex/code-extractor-multilang-judge","to":"knowledge:source_section:note-mqq0ygn0hwg#note-evidence","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.623968585741634,"cosine":0.644,"model_version":"v1"}
 {"ts":1782182392640,"from":"codex/paper-code-retrieval-economy","to":"codex/paper-code-retrieval-economy-judge","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6182629755456066,"cosine":0.632,"model_version":"v1"}
+{"ts":1782182741636,"from":"codex/p1-sync-judge-drain-judge","to":"codex/p1-sync-judge-drain","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6784943075517039,"cosine":0.763,"model_version":"v1"}
+{"ts":1782182741637,"from":"note:note-mqawaybb608","to":"codex/p1-sync-judge-drain-judge","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.40194056078708,"cosine":0.623,"model_version":"v1"}
+{"ts":1782182741638,"from":"note:note-mqd64xspaoc","to":"codex/p1-sync-judge-drain-judge","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.3779147717232364,"cosine":0.573,"model_version":"v1"}
+{"ts":1782182741639,"from":"note:note-mqe4ln7imat","to":"codex/p1-sync-judge-drain-judge","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.37270414637198257,"cosine":0.562,"model_version":"v1"}
+{"ts":1782182741640,"from":"note:note-mqgt2bjvle5","to":"codex/p1-sync-judge-drain-judge","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.4077823770137298,"cosine":0.635,"model_version":"v1"}
+{"ts":1782182741642,"from":"note:note-mqq0vwgsq1k","to":"codex/p1-sync-judge-drain-judge","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.37081660824271684,"cosine":0.558,"model_version":"v1"}
+{"ts":1782182774326,"from":"codex/p1-sync-judge-drain-judge","to":"codex/p1-sync-judge-drain","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6784943075517039,"cosine":0.763,"model_version":"v1"}
+{"ts":1782182774327,"from":"note:note-mqawaybb608","to":"codex/p1-sync-judge-drain-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782182774328,"from":"note:note-mqd64xspaoc","to":"codex/p1-sync-judge-drain-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782182774328,"from":"note:note-mqe4ln7imat","to":"codex/p1-sync-judge-drain-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782182774329,"from":"note:note-mqgt2bjvle5","to":"codex/p1-sync-judge-drain-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782182774330,"from":"note:note-mqq0vwgsq1k","to":"codex/p1-sync-judge-drain-judge","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}

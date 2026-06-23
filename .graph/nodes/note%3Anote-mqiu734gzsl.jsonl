@@ -7,3 +7,4 @@
 {"evt":"edge_removed","from":"note:note-mqiu734gzsl","to":"note:note-mqa3j03bqhi","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:39:52.049Z"}
 {"evt":"edge_removed","from":"note:note-mqiu734gzsl","to":"note:note-mqd5cck16d4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:39:52.049Z"}
 {"evt":"edge_removed","from":"note:note-mqiu734gzsl","to":"bench/bench-trial-3-3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:39:52.049Z"}
+{"evt":"edge_added","from":"note:note-mqiu734gzsl","to":"codex/p2-drop-cosine-floor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:43:44.277Z","weight":0,"by":"autowire","judged":false,"score":0.571,"origin":"autowire-semantic"}

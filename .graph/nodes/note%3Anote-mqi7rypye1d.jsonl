@@ -34,3 +34,4 @@
 {"evt":"edge_removed","from":"note:note-mqi7rypye1d","to":"note:note-mqhha58fz9k","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:24:25.770Z"}
 {"evt":"edge_removed","from":"note:note-mqi7rypye1d","to":"followup/harness-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:24:25.770Z"}
 {"evt":"edge_added","from":"note:note-mqi7rypye1d","to":"codex/p6-strict-judging-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:26:52.593Z","origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mqi7rypye1d","to":"codex/p6-strict-judging-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:44:36.886Z","weight":0,"by":"autowire","judged":false,"score":0.608,"origin":"autowire-semantic"}
