@@ -5371,3 +5371,8 @@
 {"ts":1782228705996,"from":"note:note-mqgwh4xhfa0","to":"codex/daemon-process-reaper-sweep-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.39902994963870453,"cosine":0.617,"model_version":"v1"}
 {"ts":1782228705998,"from":"note:note-mqi7rypye1d","to":"codex/daemon-process-reaper-sweep-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3841092532874209,"cosine":0.586,"model_version":"v1"}
 {"ts":1782228705999,"from":"note:note-mqqqrlczyc2","to":"codex/daemon-process-reaper-sweep-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.390822482367149,"cosine":0.6,"model_version":"v1"}
+{"ts":1782229256321,"from":"note:note-mqqt68limis","to":"knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-3","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.481479979697969,"cosine":0.783,"model_version":"v1"}
+{"ts":1782229256323,"from":"note:note-mqqt68limis","to":"knowledge:source_chunk:note-mqqpqf49a5m#note-evidence:chunk-3","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.4764378438411051,"cosine":0.773,"model_version":"v1"}
+{"ts":1782229256325,"from":"note:note-mqqt68limis","to":"note:note-mqppi1wigd1","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2836049862884601,"cosine":0.693,"model_version":"v1"}
+{"ts":1782229256326,"from":"note:note-mqqt68limis","to":"note:note-mqpxr6kyk2y","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.28648726796112306,"cosine":0.7,"model_version":"v1"}
+{"ts":1782229256328,"from":"note:note-mqqt68limis","to":"note:note-mqpxyj4af7t","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.28814213365777436,"cosine":0.704,"model_version":"v1"}
