@@ -8,3 +8,5 @@
 {"evt":"timestamps_set","id":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/4","workspace":"D:\\zonoid","timestamps":{"firstSeen":"2026-06-23T16:10:47.619Z","lastChanged":"2026-06-23T16:24:40.595Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-23T16:24:41.055Z"}
 {"evt":"status_changed","id":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/4","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-23T18:26:09.395Z"}
 {"evt":"status_changed","id":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/4","workspace":"D:\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-23T18:26:28.589Z"}
+{"evt":"status_changed","id":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/4","workspace":"D:\\zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-23T18:27:28.296Z"}
+{"evt":"assignee_set","id":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/4","workspace":"D:\\zonoid","assignee":"worker-cgllm-4","actor":"overlay-sync","ts":"2026-06-23T18:27:28.296Z"}
