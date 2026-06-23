@@ -24,3 +24,5 @@
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"codex/fix-claim-permit-result-contract-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:08:56.679Z"}
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"codex/fix-broad-npm-test-regressions-after-post-review-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:08:56.679Z"}
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"codex/fix-stale-tested-verdict-requeue-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:08:56.679Z"}
+{"evt":"edge_added","from":"note:note-mqflwx2dys0","to":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/8","kind":"context","actor":"overlay-sync","ts":"2026-06-23T16:30:55.151Z","weight":0,"by":"autowire","judged":false,"score":0.595,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/8","kind":"context","actor":"overlay-sync","ts":"2026-06-23T16:33:21.151Z"}
