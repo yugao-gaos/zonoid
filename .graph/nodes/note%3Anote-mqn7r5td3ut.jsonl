@@ -45,3 +45,5 @@
 {"evt":"edge_promoted","from":"note:note-mqn7r5td3ut","to":"codex/dashboard-use-subconscious-agentic-search","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:21:21.357Z","weight":0.556,"by":"judge","judged":true,"score":0.556,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqn7r5td3ut","to":"codex/subconscious-agentic-search-envelope-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:21:21.357Z"}
 {"evt":"edge_removed","from":"note:note-mqn7r5td3ut","to":"codex/subconscious-adaptive-agentic-search-loop-code-review-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:21:21.357Z"}
+{"evt":"edge_added","from":"note:note-mqn7r5td3ut","to":"codex/progressive-disclosure-context-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:49:51.737Z","weight":0,"by":"autowire","judged":false,"score":0.587,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqn7r5td3ut","to":"codex/progressive-disclosure-context-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:50:43.356Z","weight":0.587,"by":"judge","judged":true,"score":0.587,"origin":"autowire-semantic"}
