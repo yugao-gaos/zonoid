@@ -27,3 +27,4 @@
 {"evt":"edge_promoted","from":"note:note-mqq2ugme4vr","to":"codex/fix-costflow-pruned-snapshot-session-splits","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:06:34.024Z","weight":0.593,"by":"judge","judged":true,"score":0.593,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqq2ugme4vr","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:09:26.406Z","weight":0.561,"by":"judge","judged":true,"score":0.561,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqq2ugme4vr","to":"codex/fix-codex-uuid-session-transcript-resolution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:57:51.488Z"}
+{"evt":"edge_added","from":"note:note-mqq2ugme4vr","to":"codex/add-cost-cause-ledger-to-costflow-billing","kind":"context","actor":"overlay-sync","ts":"2026-06-23T11:23:52.994Z","weight":0.9,"origin":"asserted"}

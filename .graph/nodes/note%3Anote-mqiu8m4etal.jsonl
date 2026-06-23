@@ -12,3 +12,4 @@
 {"evt":"edge_added","from":"note:note-mqiu8m4etal","to":"bench/combined-bench-raw-3-14","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z","weight":0.589,"by":"judge","judged":true,"score":0.589,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqiu8m4etal","to":"note:note-mq7hefcsydi","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:03:08.095Z","weight":0.606,"by":"judge","judged":true,"score":0.606,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqiu8m4etal","to":"note:note-mq70mq8w","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:03:08.095Z"}
+{"evt":"edge_added","from":"note:note-mqiu8m4etal","to":"note:note-mq9gifkl7hh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T11:25:25.535Z","weight":0.6,"by":"judge","judged":true}
