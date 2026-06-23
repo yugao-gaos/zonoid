@@ -4,3 +4,4 @@
 {"evt":"edge_promoted","from":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/5","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:15:57.416Z","weight":0.58,"origin":"asserted"}
 {"evt":"edge_promoted","from":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/5","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:16:13.494Z","weight":0.58,"origin":"asserted"}
 {"evt":"edge_promoted","from":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/5","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:16:22.060Z","weight":0.58,"origin":"asserted"}
+{"evt":"edge_promoted","from":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/5","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:16:36.227Z","weight":0.948,"by":"subconscious","judged":true,"score":0.948,"origin":"subconscious-agentic-search"}

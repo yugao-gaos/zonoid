@@ -2,3 +2,4 @@
 {"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:15:57.416Z","weight":0.39,"origin":"asserted"}
 {"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:16:13.494Z","weight":0.39,"origin":"asserted"}
 {"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:16:22.060Z","weight":0.39,"origin":"asserted"}
+{"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:16:36.227Z","weight":0.926,"by":"subconscious","judged":true,"score":0.926,"origin":"subconscious-agentic-search"}
