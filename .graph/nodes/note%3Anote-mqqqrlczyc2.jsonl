@@ -25,3 +25,5 @@
 {"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:44:21.604Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:48:15.194Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:48:15.194Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:51:46.789Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:51:46.789Z","weight":1}
