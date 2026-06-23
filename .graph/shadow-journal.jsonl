@@ -5250,3 +5250,7 @@
 {"ts":1782186303488,"from":"codex/onboard-code-cli-sync","to":"knowledge:source_doc:note-mqpzfgjlux8","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3111513309136735,"cosine":0,"model_version":"v1"}
 {"ts":1782186303489,"from":"codex/onboard-code-cli-sync","to":"knowledge:source_section:note-mqpzfgjlux8#note-evidence","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3111513309136735,"cosine":0,"model_version":"v1"}
 {"ts":1782186303489,"from":"note:note-mqpzfgjlux8","to":"codex/onboard-code-cli-sync","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782188577796,"from":"codex/p3-deport-bench-judge","to":"codex/p4-migrate-benches-sdk","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3111513309136735,"cosine":0,"model_version":"v1"}
+{"ts":1782188577798,"from":"codex/p3-deport-bench-judge","to":"codex/p5-terminal-bench-sdk","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3111513309136735,"cosine":0,"model_version":"v1"}
+{"ts":1782188577799,"from":"codex/p7-sync-judge-cli-backend","to":"codex/p4-migrate-benches-sdk","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3111513309136735,"cosine":0,"model_version":"v1"}
+{"ts":1782188577801,"from":"codex/p7-sync-judge-cli-backend","to":"codex/p5-terminal-bench-sdk","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3111513309136735,"cosine":0,"model_version":"v1"}
