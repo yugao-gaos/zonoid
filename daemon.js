@@ -1984,13 +1984,24 @@ function snapshotTranscriptForTaskByWindow(st, key) {
   return best;
 }
 
+function codexTranscriptForTaskSession(st, key, session) {
+  if (!session) return null;
+  let h;
+  try { h = harnessRegistry.route(key); } catch { return null; }
+  if (!h || h.name !== 'codex' || !h.transcripts || typeof h.transcripts.sessionTranscriptPath !== 'function') return null;
+  const main = sessionBindings.mainTranscriptForSession(st, session);
+  return h.transcripts.sessionTranscriptPath(main, session);
+}
+
 // Resolve the transcript JSONL holding a task's token usage. Prefer the assignee agent's own
-// transcript (accurate). Else fall back to a same-session harness agent whose run window overlaps
-// the task's claim (the SubagentStart-registered record that actually holds transcript_path; the
-// assignee key never matches it directly). Else fall back to the task's session transcript —
-// gated by `anySession`: taskTokens only allows it when the session maps to a single task (so it
-// never paints the same conversation-wide total across many tasks); /costflow always allows it
-// because splitSessionTokens divides a shared total honestly. null = unknown.
+// transcript (accurate). Else, when session-level attribution is allowed, let Codex file-drop tasks
+// resolve their rollout by exact session id before broader by-window fallbacks. Else fall back to a
+// same-session harness agent whose run window overlaps the task's claim (the SubagentStart-registered
+// record that actually holds transcript_path; the assignee key never matches it directly). Else fall
+// back to the task's session transcript — gated by `anySession`: taskTokens only allows it when the
+// session maps to a single task (so it never paints the same conversation-wide total across many
+// tasks); /costflow always allows it because splitSessionTokens divides a shared total honestly.
+// null = unknown.
 function taskTranscript(key, session, anySession, st = state) {
   // P3: there is no daemon-global state.overlay — callers pass st={...state, overlay:<resolved ov>}.
   // Guard the lookup so a st without an overlay (or the bare `state` default) degrades to no-assignee
@@ -2002,6 +2013,7 @@ function taskTranscript(key, session, anySession, st = state) {
   if (!tp && agent && agent.session) {                                   // derive from per-session binding
     tp = sessionBindings.resolveSessionTranscriptPath(st, agent.session, agent.subagent_session || agent.session);
   }
+  if (!tp && anySession && session) tp = codexTranscriptForTaskSession(st, key, session);
   if (!tp) tp = harnessTranscriptForTask(st, key, session);             // time-window correlation fallback
   if (!tp) tp = snapshotTranscriptForTaskByWindow(st, key);             // reconcile snapshot by-window fallback
   if (!tp && anySession && session) {                                    // task's shared session transcript
