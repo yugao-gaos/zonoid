@@ -19,8 +19,12 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const child_process = require('node:child_process');
 const { EventEmitter } = require('node:events');
+const os = require('node:os');
+const fs = require('node:fs');
+const pathMod = require('node:path');
 
 const backend = require('../lib/llm-backend');
+const EMPTY_BACKEND_DATA_DIR = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'zonoid-empty-backend-env-'));
 
 // ---- in-process mock helpers (api-backend path) ------------------------------------------------
 
@@ -80,6 +84,7 @@ async function assertNoChildProcess(fn) {
 function withEnv(overrides) {
   const keys = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENROUTER_API_KEY', 'OPENROUTER_KEY',
     'ZAI_API_KEY', 'GLM_API_KEY', 'ZHIPUAI_API_KEY', 'BIGMODEL_API_KEY',
+    'ORCH_DATA', 'ZONOID_DATA', 'CLAUDE_PLUGIN_DATA',
     'ZONOID_CLAUDE_BIN', 'CLAUDE_BIN',
     // Codex/Cursor agentic-cli provider env (bin overrides + auth keys).
     'CODEX_BIN', 'CODEX_API_KEY', 'OPENAI_API_KEY', 'CODEX_HOME',
@@ -90,6 +95,11 @@ function withEnv(overrides) {
   for (const k of keys) saved[k] = process.env[k];
   for (const k of keys) delete process.env[k];
   for (const [k, v] of Object.entries(overrides || {})) process.env[k] = v;
+  if (!overrides || (!Object.prototype.hasOwnProperty.call(overrides, 'ORCH_DATA')
+    && !Object.prototype.hasOwnProperty.call(overrides, 'ZONOID_DATA')
+    && !Object.prototype.hasOwnProperty.call(overrides, 'CLAUDE_PLUGIN_DATA'))) {
+    process.env.ORCH_DATA = EMPTY_BACKEND_DATA_DIR;
+  }
   return function restore() {
     for (const k of keys) {
       if (saved[k] === undefined) delete process.env[k];
@@ -332,6 +342,32 @@ test('api provider: Z.AI isAuthed reflects ZAI_API_KEY and GLM aliases', () => {
   } finally { restore(); }
 });
 
+test('api provider: hosted API keys can come from daemon-global backend.env', async () => {
+  const dataDir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'zonoid-backend-env-'));
+  fs.writeFileSync(pathMod.join(dataDir, backend.BACKEND_CREDENTIAL_ENV_FILE), [
+    'OPENROUTER_API_KEY=global-openrouter',
+    'ZAI_API_KEY=global-zai',
+    '',
+  ].join('\n'));
+  const restore = withEnv({ ORCH_DATA: dataDir });
+  try {
+    assert.equal(backend.backendCredentialEnvPath(), pathMod.join(dataDir, 'backend.env'));
+    assert.equal(backend.openRouterProvider.isAuthed(), true, 'OpenRouter key resolves from global backend.env');
+    assert.equal(backend.zaiProvider.isAuthed(), true, 'Z.AI key resolves from global backend.env');
+
+    const fake = makeFakeHttp((opts) => {
+      assert.equal(opts.hostname, 'api.z.ai');
+      assert.equal(opts.headers.Authorization, 'Bearer global-zai');
+      return { status: 200, body: { choices: [{ message: { content: 'from global key' } }] } };
+    });
+    const out = await backend.callZaiApi({ messages: [{ role: 'user', content: 'hi' }], httpsModule: fake });
+    assert.equal(out.text, 'from global key');
+  } finally {
+    restore();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 // --- API provider: callApi (IN-PROCESS HTTPS, no child process) --------------------------------
 test('api provider: callApi does an IN-PROCESS HTTPS call and returns { text, usage } (no spawn)', async () => {
   const restore = withEnv({ OPENROUTER_API_KEY: 'or-key' });
@@ -519,10 +555,6 @@ test('api provider: runJudgeLoop requires a daemonUrl (clean failure result, not
 // them at a real temp file for the "installed" case and clearing them for the "not-installed" case
 // (bare-name fallback ⇒ isAvailable false, no throw). withEnv() manages those keys so the runner's
 // ambient PATH/creds can't make these flaky.
-
-const os = require('node:os');
-const fs = require('node:fs');
-const pathMod = require('node:path');
 
 // A real temp file that exists on disk, so an env-override bin resolves AND fs.existsSync() is true.
 const INSTALLED_BIN = pathMod.join(os.tmpdir(), `zonoid-fake-cli-${process.pid}`);
