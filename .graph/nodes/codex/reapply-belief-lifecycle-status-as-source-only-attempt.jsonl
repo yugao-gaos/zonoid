@@ -11,3 +11,4 @@
 {"evt":"status_changed","id":"codex/reapply-belief-lifecycle-status-as-source-only-attempt","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-23T14:44:20.677Z"}
 {"evt":"edge_added","from":"codex/reapply-belief-lifecycle-status-as-source-only-attempt","to":"codex/capture-causal-edges-from-task-results","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:45:45.936Z","origin":"subconscious-assignment"}
 {"evt":"timestamps_set","id":"codex/reapply-belief-lifecycle-status-as-source-only-attempt","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-23T14:36:22.918Z","lastChanged":"2026-06-23T14:44:17.834Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-23T14:45:45.936Z"}
+{"evt":"edge_removed","from":"codex/reapply-belief-lifecycle-status-as-source-only-attempt","to":"codex/capture-causal-edges-from-task-results","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:39:05.582Z"}
