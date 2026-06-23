@@ -83,6 +83,7 @@ const ok = (label, cond) => {
   ok('billing hero uses /costflow.cost.usd for task-session cost', /const\s+billCost\s*=\s*cf&&cf\.cost\?Number\(cf\.cost\.usd\|\|0\):null/.test(html));
   ok('billing popup uses server session cost label', /const\s+sessionCost\s*=\s*serverCost\?Number\(serverCost\.usd\|\|0\):0/.test(html));
   ok('model rows use server-provided cost.by_model dollars', html.includes('const serverCostByModel=serverCost&&serverCost.by_model||{}') && html.includes('serverCostByModel[m]'));
+  ok('billing popup renders server-provided By Cause ledger', html.includes('cf.cost_by_cause||cf.cause_ledger||{}') && html.includes('By Cause'));
   ok('unrouted wording is pre-flow, not a trapped subset claim', html.includes('unrouted session remainder before graph flow') && !html.includes('subset of trapped'));
 }
 

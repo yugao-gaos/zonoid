@@ -17,6 +17,7 @@ const ok = (label, cond) => {
   if (cond) { console.log(`PASS  ${label}`); pass++; }
   else { console.log(`FAIL  ${label}`); fail++; }
 };
+const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
 
 const { claimedOutputForSession } = analyticsRoute._internal;
 
@@ -264,6 +265,54 @@ async function runAsyncTests() {
     ok('/costflow splits represented durable claim snapshot total when rollout file is pruned', ownByTask[prunedDurableTaskA] === 750 && ownByTask[prunedDurableTaskB] === 250);
     ok('/costflow flow total does not exceed accounting snapshot output', res.body.totals.total === 4000 && res.body.totals.total <= res.body.totals.output_tokens);
     ok('/costflow subtracts claimed Codex rollout tokens from catch-all remainder', res.body.sessions.unattributed === 0);
+
+    const usage = (output) => ({
+      input_tokens: 0,
+      output_tokens: output,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+      by_model: { m1: { input_tokens: 0, output_tokens: output, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } },
+    });
+    const cost = (usd, tokens) => ({ usd, source: 'real', by_model: { m1: { tokens, usd } } });
+    const causeWorkerTask = 'codex/cause-worker';
+    const causeReviewTask = 'codex/cause-review';
+    const causeDrainTask = 'followup/harness-judge-drain';
+    const causeOv = {
+      assignee: {},
+      timestamps: {},
+      work_sessions: {},
+      usage_records: {
+        worker: { harness: 'codex', agent_id: 'worker', session_id: 'worker-session', task_key: causeWorkerTask, usage: usage(10), cost: cost(1, 10) },
+        review: { harness: 'codex', agent_id: 'reviewer', session_id: 'review-session', task_key: causeReviewTask, role: 'review', judged_node: causeWorkerTask, usage: usage(20), cost: cost(2, 20) },
+        daemon: { harness: 'codex', agent_id: 'drain', session_id: 'daemon-session', task_key: causeDrainTask, usage: usage(5), cost: cost(0.5, 5) },
+        unknown: { harness: 'codex', session_id: 'mystery-session', usage: usage(3), cost: cost(0.4, 3) },
+      },
+      usage_reconcile_snapshot: {
+        harness: 'codex',
+        totals: usage(50),
+        cost: cost(5, 50),
+        human: { tokens: 0, chars: 0, messages: 0, dropped: 0 },
+        sessions: [{ id: 'snapshot-session', total: 50 }],
+      },
+      edges: [],
+      guidance: [],
+      snapshots: {},
+    };
+    const causeTasks = [
+      { id: causeWorkerTask, kind: 'task', session: 'codex', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Cause worker' },
+      { id: causeReviewTask, kind: 'task', session: 'codex', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Cause review' },
+      { id: causeDrainTask, kind: 'task', session: 'codex', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'harness: judge drain' },
+    ];
+    const causeRes = {};
+    const causeRoute = makeCostflowRoute(causeTasks, causeOv, routeWorkspace);
+    const causeHandled = await causeRoute('/costflow', 'GET', {}, causeRes, new URL(`http://127.0.0.1/costflow?workspace=${encodeURIComponent(routeWorkspace)}&since=causes`), null);
+    const byCause = causeRes.body && causeRes.body.cost_by_cause
+      ? Object.fromEntries(causeRes.body.cost_by_cause.buckets.map((b) => [b.key, b]))
+      : {};
+    ok('/costflow exposes cost_by_cause ledger', causeHandled === true && !!(causeRes.body && causeRes.body.cost_by_cause && causeRes.body.cost_by_cause.total));
+    ok('/costflow cause ledger classifies worker/review/daemon usage', near(byCause.worker.usd, 1) && near(byCause.review.usd, 2) && near(byCause.daemon.usd, 0.5));
+    ok('/costflow cause ledger keeps unknown plus merged-basis remainder unknown', near(byCause.unknown.usd, 5.4) && byCause.unknown.tokens === 53);
+    ok('/costflow cause USD total equals /costflow.cost.usd within cents', near(causeRes.body.cost_by_cause.total.usd, causeRes.body.cost.usd, 0.01));
   } finally {
     if (prevHome === undefined) delete process.env.CODEX_HOME;
     else process.env.CODEX_HOME = prevHome;
