@@ -167,6 +167,7 @@ const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
   ok('costCauseLedger adds merged-basis remainder dollars to unknown', near(byCause.unknown.usd, 5.5) && byCause.unknown.tokens === 58);
   ok('costCauseLedger total reconciles to merged cost basis', near(ledger.total.usd, merged.cost.usd));
   ok('costCauseForSlice does not treat bare task_key provenance as productive', usageAccounting.costCauseForSlice({ task_key: 'codex/bare', usage: usage(1), cost: cost(0.1, 1) }) === 'unknown');
+  ok('costCauseForSlice treats node-scoped harness drain slices as review', usageAccounting.costCauseForSlice({ task_key: HARNESS_JUDGE_DRAIN_KEY, judged_node: 'codex/build', usage: usage(1), cost: cost(0.1, 1) }, { tasks: [{ id: HARNESS_JUDGE_DRAIN_KEY, label: 'harness: judge drain' }] }) === 'review');
 }
 
 {
