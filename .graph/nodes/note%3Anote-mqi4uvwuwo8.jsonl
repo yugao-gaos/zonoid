@@ -14,3 +14,4 @@
 {"evt":"edge_removed","from":"note:note-mqi4uvwuwo8","to":"note:note-mqgsb1mcnid","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:17:48.511Z"}
 {"evt":"edge_removed","from":"note:note-mqi4uvwuwo8","to":"note:note-mqgvjghmn2z","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:17:48.511Z"}
 {"evt":"edge_removed","from":"note:note-mqi4uvwuwo8","to":"codex/trace-daemon-lifecycle-codex","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:17:48.511Z"}
+{"evt":"edge_removed","from":"note:note-mqi4uvwuwo8","to":"note:note-mqgwagrdguj","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:32:53.830Z"}

@@ -3,3 +3,4 @@
 {"evt":"summary_set","id":"note:note-mqp50sg0wuf","workspace":"/Users/imyu/Desktop/zonoid","summary":"The in-process HTTPS API seam gives each request a 60 second wall-clock timeout. This bounds backend hangs and keeps the drain governor from waiting forever on a stuck provider.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp50sg0wuf","to":"note:note-mqivisw9s2s","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:40:12.861Z"}
 {"evt":"edge_added","from":"note:note-mqp50sg0wuf","to":"note:note-mqivisw9s2s","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.577,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp50sg0wuf","to":"note:note-mqivisw9s2s","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:29:53.435Z"}
