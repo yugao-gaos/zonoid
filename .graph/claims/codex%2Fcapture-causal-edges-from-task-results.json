@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/capture-causal-edges-from-task-results",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-15578-48ae4b42ce5aa6ac5b2faf05817c5251",
+  "branch": "orch/attempt/codex-capture-causal-edges-from-task-results",
+  "status": "claimed",
+  "claimed_at": "2026-06-23T14:46:51.673Z",
+  "lease_until": "2026-06-23T15:46:51.673Z"
+}
