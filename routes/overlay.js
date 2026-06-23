@@ -5,7 +5,7 @@ const filedropGc = require('../lib/filedrop-gc');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
 const path = require('path');
-const { noteEmbedText, noteFieldTexts, taskEmbedText } = require('../lib/node-tags');
+const { noteEmbedText, codeNodeEmbedText, noteFieldTexts, taskEmbedText } = require('../lib/node-tags');
 const newlyReady = require('../lib/newly-ready');
 const { requeueStandingHarness } = require('../lib/harness-task');
 const recallJournal = require('../lib/recall-outcome-journal');
@@ -1079,6 +1079,67 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     // Exactly ONE epoch bump for the whole batch (vs one per note on the single path) — bulk is a
     // single logical mutation for retrieval-staleness purposes.
+    overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, created: created.length, keys: created, workspace: T.ws }); return true;
+  }
+
+  // BULK code-node ingest — the dedicated code-index write path (Phase 2 of the native onboarder).
+  // MIRRORS /overlay/notes/bulk exactly (batched embeds, NO dup-guard, ONE epoch bump) but writes into
+  // the SEPARATE overlay.code_nodes map via upsertCodeNode, so the dup-judge / delta / note-learner
+  // (all of which iterate note_nodes) never see these symbols. Per-node embed text is
+  //   `${name} — ${signature} in ${file}`
+  // so a symbol is semantically retrievable by name, signature shape, and location together. The
+  // single-note/knowledge-node paths stay byte-identical; this is purely additive.
+  if (p === '/overlay/code-nodes/bulk' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    if (!Array.isArray(b.nodes) || !b.nodes.length) { send(res, 400, { ok: false, error: 'nodes[] required (non-empty array)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    // Each code node needs a name + kind (kind is the extractor's symbol kind). file may be empty for
+    // a top-level/synthetic symbol but name+kind are required to form a key and a meaningful node.
+    const invalid = b.nodes.findIndex((n) => !n || !n.name || !n.kind);
+    if (invalid !== -1) { send(res, 400, { ok: false, error: `nodes[${invalid}] missing name or kind` }); return true; }
+
+    // Pooled embedding text per symbol — name + signature + file, the direct-RAG retrieval surface.
+    const pooledTexts = b.nodes.map((n) => codeNodeEmbedText(n));
+
+    // embedBatch in chunks of ~48 (one MiniLM forward pass per chunk), identical to the notes path.
+    const embedBatchFn = (typeof ctx.embedBatch === 'function') ? ctx.embedBatch : require('../lib/embed').embedBatch;
+    const CHUNK = 48;
+    const vecs = new Array(pooledTexts.length).fill(null);
+    for (let off = 0; off < pooledTexts.length; off += CHUNK) {
+      const slice = pooledTexts.slice(off, off + CHUNK);
+      let batch;
+      try { batch = await embedBatchFn(slice, { mode: 'document', overlay: T.ov }); }
+      catch { batch = slice.map(() => ({ vec: null })); }
+      for (let i = 0; i < slice.length; i++) {
+        const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
+        vecs[off + i] = v;
+      }
+    }
+
+    const meta = (typeof ctx.embeddingMeta === 'function') ? ctx.embeddingMeta(T.ov) : null;
+    const created = [];
+    for (let i = 0; i < b.nodes.length; i++) {
+      const n = b.nodes[i];
+      const r = overlayStore.upsertCodeNode(T.ov, {
+        key: n.key,
+        name: n.name,
+        kind: n.kind,
+        file: n.file,
+        start_line: n.start_line,
+        end_line: n.end_line,
+        signature: n.signature,
+        summary: n.summary,
+        exported: n.exported,
+        vec: vecs[i],
+        vecMeta: vecs[i] ? meta : null,
+      });
+      if (r.ok) created.push(r.key);
+    }
+    // Exactly ONE epoch bump for the whole batch (same as notes/bulk).
     overlayStore.bumpEpoch(T.ov);
     T.save(); notifyChange(T.ws);
     send(res, 200, { ok: true, created: created.length, keys: created, workspace: T.ws }); return true;
