@@ -10,3 +10,4 @@
 {"evt":"assignee_set","id":"codex/fix-codex-uuid-session-transcript-resolution","workspace":"/Users/imyu/Desktop/zonoid","assignee":"codex-reviewer-main","actor":"overlay-sync","ts":"2026-06-23T04:28:54.155Z"}
 {"evt":"status_changed","id":"codex/fix-codex-uuid-session-transcript-resolution","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-23T04:29:29.136Z"}
 {"evt":"timestamps_set","id":"codex/fix-codex-uuid-session-transcript-resolution","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-23T04:16:04.792Z","lastChanged":"2026-06-23T04:29:25.093Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-23T04:29:29.136Z"}
+{"evt":"edge_added","from":"codex/fix-codex-uuid-session-transcript-resolution","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:32:58.512Z","origin":"subconscious-assignment"}

@@ -46,3 +46,4 @@
 {"evt":"status_changed","id":"codex/exec-brain-state-seam-session-claim-impl","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-22T17:24:10.678Z"}
 {"evt":"timestamps_set","id":"codex/exec-brain-state-seam-session-claim-impl","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-18T21:21:03.008Z","lastChanged":"2026-06-22T17:24:08.832Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-22T17:24:10.678Z"}
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam-session-claim-impl","to":"codex/judge-exec-brain-state-seam-agent-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:16:11.808Z"}
+{"evt":"edge_removed","from":"codex/exec-brain-state-seam-session-claim-impl","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:32:27.914Z"}
