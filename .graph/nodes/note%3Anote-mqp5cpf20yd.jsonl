@@ -18,3 +18,4 @@
 {"evt":"edge_removed","from":"note:note-mqp5cpf20yd","to":"knowledge:source_chunk:chunk-agents-md-5-2-do-not-store-task-specific-context-or-ep-45d2dfd2f0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:47:04.727Z"}
 {"evt":"edge_removed","from":"note:note-mqp5cpf20yd","to":"knowledge:source_chunk:chunk-claude-md-5-2-do-not-store-task-specific-context-or-ep-1f62e96bb0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:47:42.296Z"}
 {"evt":"edge_promoted","from":"note:note-mqp5cpf20yd","to":"note:note-mqp5cdxavy0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:47:56.193Z","weight":0.605,"by":"judge","judged":true,"score":0.605,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp5cpf20yd","to":"note:note-mq75a80n","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:05:39.875Z"}

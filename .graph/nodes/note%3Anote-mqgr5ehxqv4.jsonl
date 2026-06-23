@@ -52,3 +52,4 @@
 {"evt":"edge_removed","from":"note:note-mqgr5ehxqv4","to":"note:note-mq8w3p79db1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:25:32.185Z"}
 {"evt":"edge_removed","from":"note:note-mqgr5ehxqv4","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:25:32.185Z"}
 {"evt":"edge_removed","from":"note:note-mqgr5ehxqv4","to":"note:note-mq7h7ht01ut","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:25:32.185Z"}
+{"evt":"edge_promoted","from":"note:note-mqgr5ehxqv4","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/5","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:04:38.952Z","weight":0.637,"by":"judge","judged":true,"score":0.637,"origin":"autowire-semantic"}

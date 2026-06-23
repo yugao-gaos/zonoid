@@ -17,3 +17,4 @@
 {"evt":"edge_added","from":"note:note-mqp528pspcb","to":"note:note-mqp5068xfba","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.564,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp528pspcb","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/5","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:14:31.038Z","weight":0,"by":"autowire","judged":false,"score":0.578,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqp528pspcb","to":"note:note-mqp5068xfba","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:28:06.130Z"}
+{"evt":"edge_removed","from":"note:note-mqp528pspcb","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/5","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:04:38.952Z"}
