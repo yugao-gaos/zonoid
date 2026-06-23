@@ -167,6 +167,31 @@ test('GET /config/backend: defaults to claude when unset, lists providers with r
   assert.equal(typeof zai.isAuthed, 'boolean', 'api provider still reports isAuthed');
 });
 
+test('GET /config/backend: API readiness can read daemon-global backend.env', async () => {
+  const saved = {
+    ZAI_API_KEY: process.env.ZAI_API_KEY,
+    GLM_API_KEY: process.env.GLM_API_KEY,
+    ZHIPUAI_API_KEY: process.env.ZHIPUAI_API_KEY,
+    BIGMODEL_API_KEY: process.env.BIGMODEL_API_KEY,
+  };
+  const backendEnv = path.join(SANDBOX, 'backend.env');
+  for (const k of Object.keys(saved)) delete process.env[k];
+  fs.writeFileSync(backendEnv, 'ZAI_API_KEY=global-zai-for-config\n');
+  try {
+    const ws = freshWorkspace();
+    const { route, captured } = makeCtx(ws);
+    await route('/config/backend', 'GET', {}, {}, U, null);
+    const zai = captured.body.providers.find((p) => p.id === 'zai');
+    assert.equal(zai.isAuthed, true, 'Z.AI provider is authed from daemon-global backend.env');
+  } finally {
+    try { fs.unlinkSync(backendEnv); } catch { /* ignore */ }
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
 test('GET /config/backend: reflects a previously-set selection', async () => {
   const ws = freshWorkspace();
   // Pre-set the selection on disk.
