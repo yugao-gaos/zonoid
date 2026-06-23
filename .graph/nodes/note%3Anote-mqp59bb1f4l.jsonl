@@ -20,3 +20,4 @@
 {"evt":"edge_removed","from":"note:note-mqp59bb1f4l","to":"note:note-mq75a80k","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:26.449Z"}
 {"evt":"edge_removed","from":"note:note-mqp59bb1f4l","to":"knowledge:source_chunk:chunk-claude-md-7-3-judge-workers-in-automode-must-include-t-fc20b76631","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:08:26.449Z"}
 {"evt":"edge_added","from":"note:note-mqp59bb1f4l","to":"codex/merge-origin-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T20:11:02.069Z","weight":0,"by":"autowire","judged":false,"score":0.627,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqp59bb1f4l","to":"codex/merge-origin-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T20:13:16.036Z","weight":0.627,"by":"judge","judged":true,"score":0.627,"origin":"autowire-semantic"}

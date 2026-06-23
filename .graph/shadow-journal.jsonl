@@ -5505,3 +5505,7 @@
 {"ts":1782245047466,"from":"note:note-mqr2jk9hawd","to":"note:note-mqqu4akhnz5","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
 {"ts":1782245047467,"from":"note:note-mqr2jk9hawd","to":"note:note-mq74lpeq","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.29063506793227295,"cosine":0.71,"model_version":"v1"}
 {"ts":1782245047468,"from":"note:note-mqr2jk9hawd","to":"note:note-mq7lck6j3l9","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2889716967912638,"cosine":0.706,"model_version":"v1"}
+{"ts":1782245596005,"from":"note:note-mq75a80y","to":"codex/merge-origin-sync-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.37081660824271684,"cosine":0.558,"model_version":"v1"}
+{"ts":1782245596006,"from":"note:note-mqn5eugc0vj","to":"codex/merge-origin-sync-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.37554272741484734,"cosine":0.568,"model_version":"v1"}
+{"ts":1782245596007,"from":"note:note-mqp59bb1f4l","to":"codex/merge-origin-sync-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.4038848288756281,"cosine":0.627,"model_version":"v1"}
+{"ts":1782245596008,"from":"note:note-mqp5a3fxoit","to":"codex/merge-origin-sync-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.40973554332527556,"cosine":0.639,"model_version":"v1"}
