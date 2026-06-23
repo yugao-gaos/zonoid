@@ -55,6 +55,7 @@ const headlessDrain = require('./lib/headless-drain');
 const registry = require('./lib/workspace-registry');
 const runtimePaths = require('./lib/runtime-paths');
 const { ensureManagedGraphLoop } = require('./lib/loop-autostart');
+const { sweepStaleWakeups, sweepOrphanProcesses } = require('./lib/schedule-wakeup');
 
 const PORT = process.env.ORCH_PORT ? Number(process.env.ORCH_PORT) : 8787;
 const PUBLIC = path.join(__dirname, 'public');
@@ -2927,6 +2928,22 @@ if (require.main === module) {
   // multiple workspaces, so a per-workspace agent sweep would incorrectly dead-mark a live
   // cross-workspace worker.
   setInterval(() => { try { sweepStaleAgents(); } catch { /* best effort */ } }, 60000).unref();
+
+  // Periodic scheduled-wakeup registry reaper (PART 1, always on, safe): reconcile the
+  // .graph/scheduled-wakeups.json registry against process reality every 60s — prune entries
+  // whose sleeper has died (fired+exited), and kill+prune any sleeper that is alive but long
+  // past its fireAt (a stuck sleeper). Reuses the existing isPidAlive/killPid primitives in
+  // lib/schedule-wakeup.js — no second liveness/kill path. Workspace-agnostic (one global
+  // registry keyed by session), like sweepStaleAgents above.
+  setInterval(() => { try { sweepStaleWakeups(); } catch { /* best effort */ } }, 60000).unref();
+
+  // Periodic orphan node-process janitor (PART 2, OPT-IN, default OFF): gated behind
+  // ORCH_PROCESS_JANITOR — a pure no-op unless that env is set. When on, kills only OS node
+  // processes that BOTH match a narrow ephemeral allowlist (test runners, `node -e
+  // require('./daemon')` blobs, inline test-port daemons) AND exceed ORCH_PROCESS_JANITOR_MAX_MIN
+  // (default 20min), always excluding this daemon + the embed/rerank sidecars + mcp-graph. It is
+  // structurally impossible to kill a service/long-runner (see lib/schedule-wakeup.js).
+  setInterval(() => { try { sweepOrphanProcesses(); } catch { /* best effort */ } }, 60000).unref();
 
   // Periodic orphan-note self-heal: re-wire note nodes that are still orphaned as the graph grows
   // (a zero-match note at creation can gain a real neighbor later). Re-check is side-effect-free —
