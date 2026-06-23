@@ -1950,6 +1950,256 @@ test('subconscious skill records third-party recommendations without applying cl
   assert.equal(fs.readFileSync(skillPath, 'utf8'), 'third-party installed skill file\n');
 });
 
+// ---------------------------------------------------------------------------------------------------
+// LLM-GRADER integration tests (task #4). The grader is the ADDITIVE controller layer; these assert
+// the four BINDING constraints: (a) the loop invokes the grader and respects continue/nextQuery/kept/
+// aggregate; (b) the returned set is never fewer/worse than the single-shot + structural FLOOR; (c)
+// grader `abstain` keeps the floor (never empties); (d) the round cap holds. All use a MOCKED backend
+// (zero network) injected via ctx.graderBackend, enabled per-request with use_grader:true.
+// ---------------------------------------------------------------------------------------------------
+
+// Build a mock grader backend that returns a scripted JSON verdict per call (round-indexed). Records
+// every call so tests can assert the loop invoked it and what candidates/intent it saw.
+function mockGraderBackend(scripts, log) {
+  let call = 0;
+  return {
+    async complete({ prompt, system }) {
+      const idx = call;
+      call += 1;
+      if (log) log.push({ call: idx, prompt, system });
+      const script = typeof scripts === 'function' ? scripts(idx, prompt) : (scripts[idx] || scripts[scripts.length - 1]);
+      const verdict = typeof script === 'function' ? script(prompt) : script;
+      return { text: JSON.stringify(verdict) };
+    },
+  };
+}
+
+// Shared graph fixture with a guaranteed heuristic FLOOR: a task-gated DAG context note (always
+// selected as structural evidence) plus a couple of broad notes the grader can keep/add.
+function graderGraph() {
+  return {
+    tasks: [
+      node('task/target', 'Grader integration target', {
+        status: 'ready',
+        context_deps: ['note:dag'],
+        context_weights: { 'note:dag': 0.95 },
+      }),
+      node('note:dag', 'DAG floor context', {
+        kind: 'note',
+        summary: 'Task-gated DAG floor context is the guaranteed structural floor for worker assignment.',
+      }),
+      node('note:broad', 'Broad RAG context', {
+        kind: 'note',
+        summary: 'Broad RAG assignment context the grader may keep or add on top of the floor.',
+      }),
+    ],
+  };
+}
+
+test('grader integration: loop invokes grader and respects continue/nextQuery/kept/aggregate', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const log = [];
+  const ctx = makeCtx({ graph: graderGraph(), workspace: ws, store, body: null });
+  // Round 1: continue with a reformulated query; round 2: stop, keep the DAG floor note, aggregate.
+  ctx.graderBackend = mockGraderBackend([
+    { continue: true, nextQuery: 'reformulated intent-driven query', kept: ['note:dag'], abstain: false, aggregate: 'partial' },
+    { continue: false, nextQuery: null, kept: ['note:dag'], abstain: false, aggregate: 'final aggregate summary' },
+  ], log);
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    use_grader: true,
+    max_rounds: 4,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  // (a) the grader was invoked.
+  assert(log.length >= 1, 'grader backend was called at least once');
+  assert.equal(res.body.subconscious_context.grader.enabled, true);
+  assert(res.body.subconscious_context.grader.rounds >= 1);
+  // it respected nextQuery — a later search step carries the grader's reformulated query.
+  const steps = res.body.subconscious_context.search_steps;
+  assert(steps.some((s) => s.grader_reformulated === true && s.query === 'reformulated intent-driven query'),
+    'a follow-up step used the grader reformulated query');
+  // it respected kept — the kept DAG note is in the returned context.
+  assert(res.body.context_task_keys.includes('note:dag'));
+  // it respected aggregate — the final aggregate is surfaced.
+  assert.equal(res.body.subconscious_context.grader.aggregate, 'final aggregate summary');
+  assert.equal(res.body.grader.aggregate, 'final aggregate summary');
+  // it respected continue:false — the loop stopped on the grader's terminal verdict.
+  assert(['grader_stop', 'grader_fallback_stop', 'budget_exhausted', 'grader_round_cap'].includes(res.body.subconscious_context.decisions.stop_reason));
+});
+
+test('grader integration: returned set is never fewer/worse than the single-shot + structural floor', async () => {
+  const ws = makeWorkspace();
+  const graph = graderGraph();
+
+  // Baseline: heuristic path (grader off) — capture the floor it produces.
+  const baseStore = createSubconsciousStore({ maxEvents: 5 });
+  const baseCtx = makeCtx({ graph, workspace: ws, store: baseStore, body: null });
+  const baseRes = await callRoute(baseCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    max_rounds: 4,
+  });
+  const floorKeys = new Set(baseRes.body.context_task_keys);
+  assert(floorKeys.size >= 1, 'baseline floor is non-empty for a retrieval intent');
+
+  // Grader path with the SAME inputs — grader keeps only the DAG note and abstains on the rest.
+  const gradeStore = createSubconsciousStore({ maxEvents: 5 });
+  const gradeCtx = makeCtx({ graph, workspace: ws, store: gradeStore, body: null });
+  gradeCtx.graderBackend = mockGraderBackend([
+    { continue: false, nextQuery: null, kept: ['note:dag'], abstain: false, aggregate: 'kept floor note' },
+  ]);
+  const gradeRes = await callRoute(gradeCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    use_grader: true,
+    max_rounds: 4,
+  });
+
+  // (b) superset-or-equal: every floor key is still present with the grader on.
+  const gradedKeys = new Set(gradeRes.body.context_task_keys);
+  for (const key of floorKeys) {
+    assert(gradedKeys.has(key), `grader output preserves floor key ${key}`);
+  }
+  assert(gradedKeys.size >= floorKeys.size, 'grader output is superset-or-equal in size to the floor');
+  assert.notEqual(gradeRes.body.subconscious_context.verdict, 'abstain_no_context');
+  assert.equal(gradeRes.body.subconscious_context.grader.floor_size, floorKeys.size);
+});
+
+test('grader integration: grader abstain keeps the floor (does not empty the result)', async () => {
+  const ws = makeWorkspace();
+  const graph = graderGraph();
+
+  // Baseline floor (heuristic).
+  const baseStore = createSubconsciousStore({ maxEvents: 5 });
+  const baseCtx = makeCtx({ graph, workspace: ws, store: baseStore, body: null });
+  const baseRes = await callRoute(baseCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    max_rounds: 4,
+  });
+  const floorKeys = new Set(baseRes.body.context_task_keys);
+  assert(floorKeys.size >= 1);
+
+  // Grader ABSTAINS on every round (kept empty, abstain true) — meaning "nothing to ADD beyond floor".
+  const gradeStore = createSubconsciousStore({ maxEvents: 5 });
+  const gradeCtx = makeCtx({ graph, workspace: ws, store: gradeStore, body: null });
+  gradeCtx.graderBackend = mockGraderBackend([
+    { continue: false, nextQuery: null, kept: [], abstain: true, aggregate: '' },
+  ]);
+  const gradeRes = await callRoute(gradeCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    use_grader: true,
+    max_rounds: 4,
+  });
+
+  // (c) abstain must NOT empty the result — the floor is still returned in full.
+  assert.notEqual(gradeRes.body.subconscious_context.verdict, 'abstain_no_context');
+  const gradedKeys = new Set(gradeRes.body.context_task_keys);
+  for (const key of floorKeys) {
+    assert(gradedKeys.has(key), `floor key ${key} survives grader abstain`);
+  }
+  assert(gradeRes.body.context_task_keys.length >= floorKeys.size);
+  assert.equal(gradeRes.body.subconscious_context.grader.added_beyond_floor, 0);
+});
+
+test('grader integration: round cap holds even when the grader always asks to continue', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const log = [];
+  const ctx = makeCtx({ graph: graderGraph(), workspace: ws, store, body: null });
+  // The grader ALWAYS wants another round — only the hard cap can stop the loop.
+  ctx.graderBackend = mockGraderBackend(
+    () => ({ continue: true, nextQuery: 'keep going forever', kept: ['note:dag'], abstain: false, aggregate: 'loop' }),
+    log
+  );
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context',
+    use_grader: true,
+    grader_max_rounds: 2,
+    max_rounds: 6,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  // (d) the cap holds: grader rounds never exceed the configured grader_max_rounds.
+  assert(res.body.subconscious_context.grader.rounds <= 2, `grader rounds (${res.body.subconscious_context.grader.rounds}) within cap 2`);
+  // and the planner search rounds never exceed the hard planner budget.
+  assert(res.body.subconscious_context.search_steps.length <= 6);
+  assert(['grader_round_cap', 'budget_exhausted'].includes(res.body.subconscious_context.decisions.stop_reason),
+    `stop reason ${res.body.subconscious_context.decisions.stop_reason} is a cap`);
+  // floor still preserved despite the runaway grader.
+  assert(res.body.context_task_keys.includes('note:dag'));
+});
+
+test('grader integration: backend failure degrades cleanly to the heuristic floor (no abstain-below-floor)', async () => {
+  const ws = makeWorkspace();
+  const graph = graderGraph();
+
+  // Floor baseline.
+  const baseStore = createSubconsciousStore({ maxEvents: 5 });
+  const baseCtx = makeCtx({ graph, workspace: ws, store: baseStore, body: null });
+  const baseRes = await callRoute(baseCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    max_rounds: 4,
+  });
+  const floorKeys = new Set(baseRes.body.context_task_keys);
+
+  // A backend that THROWS — gradeSearchRound returns its conservative fallback (stop, abstain). Because
+  // abstain is additive, the floor must still be returned (clean degrade to single-shot).
+  const gradeStore = createSubconsciousStore({ maxEvents: 5 });
+  const gradeCtx = makeCtx({ graph, workspace: ws, store: gradeStore, body: null });
+  gradeCtx.graderBackend = { async complete() { throw new Error('mock backend down'); } };
+  const gradeRes = await callRoute(gradeCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    use_grader: true,
+    max_rounds: 4,
+  });
+
+  assert.equal(gradeRes.status, 200);
+  assert.notEqual(gradeRes.body.subconscious_context.verdict, 'abstain_no_context');
+  const gradedKeys = new Set(gradeRes.body.context_task_keys);
+  for (const key of floorKeys) {
+    assert(gradedKeys.has(key), `floor key ${key} survives grader backend failure`);
+  }
+});
+
 (async () => {
   const oldRerank = process.env.ORCH_RERANK;
   process.env.ORCH_RERANK = '0';
