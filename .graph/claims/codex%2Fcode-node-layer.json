@@ -3,8 +3,8 @@
   "git_user": "Yu Gao <yu.gao@gaos.ca>",
   "session_id": "worker-code-node-layer",
   "branch": "orch/attempt/codex-code-node-layer",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-23T03:03:35.875Z",
   "lease_until": "2026-06-23T04:03:35.875Z",
-  "completed_at": "2026-06-23T03:32:05.880Z"
+  "completed_at": "2026-06-23T03:35:12.257Z"
 }
