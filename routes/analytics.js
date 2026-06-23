@@ -45,13 +45,63 @@ function nonEmptyString(raw) {
   return value || null;
 }
 
-function attributionSessionForTask(repo, ov, task) {
+function normalizeSessionRef(raw) {
+  const value = nonEmptyString(raw);
+  if (!value) return null;
+  const base = path.basename(value, path.extname(value)).replace(/^rollout-/, '');
+  return nonEmptyString(base);
+}
+
+function sessionUuidSuffix(raw) {
+  const value = normalizeSessionRef(raw);
+  if (!value) return null;
+  const m = value.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  return m ? m[0] : null;
+}
+
+function addSessionRepresentation(out, raw) {
+  const value = nonEmptyString(raw);
+  if (!value) return;
+  out.add(value);
+  const normalized = normalizeSessionRef(value);
+  if (normalized) out.add(normalized);
+  const suffix = sessionUuidSuffix(value);
+  if (suffix) out.add(suffix);
+}
+
+function representedSessionIds(sessions) {
+  const out = new Set();
+  for (const s of sessions || []) {
+    if (!s) continue;
+    addSessionRepresentation(out, s.id);
+    addSessionRepresentation(out, s.session_id);
+    addSessionRepresentation(out, s.path);
+    addSessionRepresentation(out, s.transcript_path);
+    addSessionRepresentation(out, s.transcript);
+  }
+  return out;
+}
+
+function sessionIsRepresented(represented, raw) {
+  if (!represented) return true;
+  const value = nonEmptyString(raw);
+  if (!value) return false;
+  if (represented.has(value)) return true;
+  const normalized = normalizeSessionRef(value);
+  if (normalized && represented.has(normalized)) return true;
+  const suffix = sessionUuidSuffix(value);
+  return !!(suffix && represented.has(suffix));
+}
+
+function attributionSessionForTask(repo, ov, task, represented) {
   const id = task && task.id;
+  const graphSession = nonEmptyString(task && task.session);
   const overlaySession = id && ov && ov.claimSessions && nonEmptyString(ov.claimSessions[id]);
-  if (overlaySession) return overlaySession;
+  if (overlaySession) return sessionIsRepresented(represented, overlaySession) ? overlaySession : graphSession;
   const durableClaim = id ? readLocalClaim(repo, id) : null;
   const durableSession = durableClaim && nonEmptyString(durableClaim.session_id);
-  return durableSession || nonEmptyString(task && task.session);
+  if (durableSession) return sessionIsRepresented(represented, durableSession) ? durableSession : graphSession;
+  return graphSession;
 }
 
 function harnessNameForWorkspace(state, ov, workspace, fallback) {
@@ -80,8 +130,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (cfHit !== undefined) { send(res, 200, cfHit); return true; }
     const g = buildGraph(T.ws);
     const stWs = { ...state, overlay: T.ov };
+    const sessList = sessionsFromOverlay(T.ov);
+    const representedSessions = representedSessionIds(sessList);
     const claims = g.tasks.filter((t) => t.kind !== 'note').map((t) => {
-      const session = attributionSessionForTask(T.ws, T.ov, t);
+      const session = attributionSessionForTask(T.ws, T.ov, t, representedSessions);
       return {
         id: t.id,
         session,
@@ -144,7 +196,6 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       for (const d of t.deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: 1 });
       for (const d of t.context_deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: (t.context_weights && t.context_weights[d]) ?? overlayStore.DEFAULT_CONTEXT_WEIGHT });
     }
-    const sessList = sessionsFromOverlay(T.ov);
     const sessions = sessList.map((s) => {
       const id = s.id;
       const sessTotal = s.total;
@@ -362,4 +413,4 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   return false;
 };
 
-module.exports._internal = { sessionsFromOverlay, claimedOutputForSession, harnessNameForWorkspace };
+module.exports._internal = { sessionsFromOverlay, claimedOutputForSession, harnessNameForWorkspace, representedSessionIds };
