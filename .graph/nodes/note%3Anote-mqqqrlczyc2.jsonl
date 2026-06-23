@@ -31,3 +31,5 @@
 {"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:10:28.312Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:12:12.203Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:12:12.203Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:14:13.836Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:14:13.836Z","weight":1}

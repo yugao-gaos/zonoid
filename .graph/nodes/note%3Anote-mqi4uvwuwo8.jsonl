@@ -17,3 +17,4 @@
 {"evt":"edge_removed","from":"note:note-mqi4uvwuwo8","to":"note:note-mqgwhrs2aom","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:24:25.770Z"}
 {"evt":"edge_added","from":"note:note-mqi4uvwuwo8","to":"codex/daemon-process-reaper-sweep","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:11:21.008Z","origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqi4uvwuwo8","to":"codex/daemon-process-reaper-sweep","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:12:12.203Z","weight":0,"by":"autowire","judged":false,"score":0.648,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqi4uvwuwo8","to":"codex/daemon-process-reaper-sweep","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:14:13.836Z"}
