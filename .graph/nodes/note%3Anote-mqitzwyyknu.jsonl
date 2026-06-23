@@ -25,3 +25,7 @@
 {"evt":"edge_removed","from":"note:note-mqitzwyyknu","to":"note:note-mqf624kvlk9","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:14:58.307Z"}
 {"evt":"edge_removed","from":"note:note-mqitzwyyknu","to":"bench/bench-trial-12-6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:14:58.307Z"}
 {"evt":"edge_removed","from":"note:note-mqitzwyyknu","to":"note:note-mqiucrf0b3g","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:14:58.307Z"}
+{"evt":"edge_added","from":"note:note-mqitzwyyknu","to":"note:note-mqiucctyt56","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:00:13.150Z","by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqitzwyyknu","to":"note:note-mqiu51a07d3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:00:13.150Z","by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqitzwyyknu","to":"note:note-mqf624kvlk9","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:00:13.150Z","by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqitzwyyknu","to":"note:note-mqiu0hk3hxq","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:00:13.150Z","by":"judge","judged":true}
