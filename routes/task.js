@@ -80,8 +80,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const spec = T.ov.metrics && T.ov.metrics[b.key];
     if (!spec) { send(res, 409, { ok: false, error: 'no metric spec on task: set one with configure_task (metric) first' }); return true; }
     const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
-    if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
-    const cwd = b.baseline ? repo : git.createWorktree(repo, b.key).worktree;
+    if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
+    const cwd = b.baseline ? repo : (await git.createWorktreeAsync(repo, b.key)).worktree;
     let result;
     try { result = measure.runMeasure(cwd, spec); }
     catch (e) { send(res, 422, { ok: false, error: String(e.message || e) }); return true; }
@@ -229,8 +229,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
     const T = targetOverlay(null, u);
     const repo = resolveRepo(key, u.searchParams.get('repo_path'), T.ov, T.ws);
-    if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo' }); return true; }
-    const r = git.attemptDiff(repo, key);
+    if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo' }); return true; }
+    const r = await git.attemptDiffAsync(repo, key);
     if (!r.ok) { send(res, 404, { ok: false, error: r.reason, key }); return true; }
     send(res, 200, { ok: true, key, branch: r.branch, base: r.base, stat: r.stat, diff: r.diff }); return true;
   }

@@ -297,20 +297,20 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
 
     let gitInfo = T.ov.git && T.ov.git[taskKey];
     if (!gitInfo || !gitInfo.worktree || b.reallocate === true) {
-      if (!ctx.git || typeof ctx.git.createWorktree !== 'function') {
+      if (!ctx.git || typeof ctx.git.createWorktreeAsync !== 'function') {
         send(res, 500, { ok: false, error: 'git worktree primitive unavailable' });
         return true;
       }
-      if (typeof ctx.git.isRepo === 'function' && !ctx.git.isRepo(repo)) {
-        if (typeof ctx.git.initRepo === 'function') {
-          const init = ctx.git.initRepo(repo);
+      if (typeof ctx.git.isRepoAsync === 'function' && !(await ctx.git.isRepoAsync(repo))) {
+        if (typeof ctx.git.initRepoAsync === 'function') {
+          const init = await ctx.git.initRepoAsync(repo);
           if (init && init.error) { send(res, 409, { ok: false, error: init.error, init }); return true; }
         } else {
           send(res, 409, { ok: false, error: 'target repo is not a git repo' });
           return true;
         }
       }
-      const info = ctx.git.createWorktree(repo, taskKey, { base: cleanString(b.base) || undefined });
+      const info = await ctx.git.createWorktreeAsync(repo, taskKey, { base: cleanString(b.base) || undefined });
       if (info && info.contended) {
         send(res, 409, { ...info, ok: false, repo, error: 'worktree path is currently leased by another creator; retry subconscious_assignment action:"prepare"' });
         return true;

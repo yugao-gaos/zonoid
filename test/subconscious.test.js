@@ -743,7 +743,13 @@ test('subconscious assignment prepare creates assignment envelope and wires task
   ctx.resolveRepo = (key, repoPath, overlay, workspace) => repoPath || workspace;
   ctx.git = {
     isRepo(repo) { calls.push({ fn: 'isRepo', repo }); return true; },
+    isRepoAsync(repo) { calls.push({ fn: 'isRepo', repo }); return true; },
+    initRepoAsync(repo) { calls.push({ fn: 'initRepo', repo }); return { initialized: false, head: 'abc123' }; },
     createWorktree(repo, key, options) {
+      calls.push({ fn: 'createWorktree', repo, key, options });
+      return { branch: 'orch/attempt/codex-impl', worktree: path.join(ws, 'attempt'), head: 'abc123' };
+    },
+    createWorktreeAsync(repo, key, options) {
       calls.push({ fn: 'createWorktree', repo, key, options });
       return { branch: 'orch/attempt/codex-impl', worktree: path.join(ws, 'attempt'), head: 'abc123' };
     },
@@ -1046,7 +1052,13 @@ test('subconscious assignment prepare carries and wires agentic search context e
   ctx.resolveRepo = (key, repoPath, overlay, workspace) => repoPath || workspace;
   ctx.git = {
     isRepo(repo) { calls.push({ fn: 'isRepo', repo }); return true; },
+    isRepoAsync(repo) { calls.push({ fn: 'isRepo', repo }); return true; },
+    initRepoAsync(repo) { calls.push({ fn: 'initRepo', repo }); return { initialized: false, head: 'abc123' }; },
     createWorktree(repo, key, options) {
+      calls.push({ fn: 'createWorktree', repo, key, options });
+      return { branch: 'orch/attempt/codex-impl', worktree: path.join(ws, 'attempt'), head: 'abc123' };
+    },
+    createWorktreeAsync(repo, key, options) {
       calls.push({ fn: 'createWorktree', repo, key, options });
       return { branch: 'orch/attempt/codex-impl', worktree: path.join(ws, 'attempt'), head: 'abc123' };
     },

@@ -2301,6 +2301,25 @@ function buildGraph(ws) {
   return { tasks: projection.tasks, ghosts: projection.ghosts, summary: summaryFor(projection.tasks, projection.ghosts, ovWs) };
 }
 
+// Search-path graph snapshot cache. The agentic context-search compiler (lib/search/context-compiler.js)
+// reads the graph ONCE PER ROUND (up to MAX_SEARCH_CONTEXT_ROUNDS rounds per /subconscious/search-context
+// request). With no readGraphSnapshot on the ctx it fell back to calling the synchronous buildGraph()
+// every round — a full projection (O(graph)) repeated 4-6x per request, the measured search-latency
+// climb. Cache the built graph per workspace, keyed by the overlay file mtime (the SAME stamp the
+// overlay + response caches use) so any mutation rebuilds immediately; within one read-only multi-round
+// search the stamp is stable, so the whole request reuses ONE buildGraph. buildGraph may itself save the
+// overlay (first-seen stamping / adopt), so re-stamp AFTER building — mirrors respCachePut.
+const snapCache = new Map();   // ws -> { graph, stamp }
+function readGraphSnapshot(ws) {
+  if (!ws) return { graph: buildGraph(ws), overlay: overlayStore.EMPTY() };
+  const stamp = overlayStamp(ws);
+  const hit = snapCache.get(ws);
+  if (hit && hit.stamp === stamp) return { graph: hit.graph, overlay: overlayFor(ws) };
+  const graph = buildGraph(ws);
+  snapCache.set(ws, { graph, stamp: overlayStamp(ws) });
+  return { graph, overlay: overlayFor(ws) };
+}
+
 function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
   const real = tasks.filter((t) => !overlayStore.isNonTaskNode(t)); // note/knowledge nodes aren't tasks
   const notes = tasks.filter((t) => t.kind === 'note').length;
@@ -2532,7 +2551,7 @@ const ctx = {
   repoToWorkspace: registry.repoToWorkspace,
   workspaceForRepo: (repoPath) => registry.repoToWorkspace(registry.loadRegistry(WORKSPACES_FILE)).get(repoPath) || null,
   repoRoot: registry.repoRoot,
-  send, sendOp, readBody, notifyChange, buildGraph, targetOverlay, overlayFor, resolveRepo, nodeExistsInGraph, registeredWorkspaces,
+  send, sendOp, readBody, notifyChange, buildGraph, readGraphSnapshot, targetOverlay, overlayFor, resolveRepo, nodeExistsInGraph, registeredWorkspaces,
   validateMetricSpec, validateBenchmark,
   overlayStore, harness: claudeHarness, harnessRegistry, filedrop, writeTaskStatus, readNativeTask, git, measure, graphStore, analytics, analyticsState, analyticsFlush,
   cache, loops, saveLoops, saveAgents,
