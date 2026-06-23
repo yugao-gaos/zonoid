@@ -4,3 +4,5 @@
 {"evt":"edge_added","from":"note:note-mqp55tbezpn","to":"note:note-mqe5sbyj4uq","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:37:56.351Z","weight":0,"by":"autowire","judged":false,"score":0.565,"origin":"autowire-semantic"}
 {"evt":"summary_set","id":"note:note-mqp55tbezpn","workspace":"/Users/imyu/Desktop/zonoid","summary":"The default promotion threshold is 0.92 unless edge-clf/config.json overrides it. That is a deliberately high bar, so promotion should be treated as opt-in and unusually confident.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp55tbezpn","to":"note:note-mqe5sbyj4uq","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:15:10.379Z"}
+{"evt":"edge_removed","from":"note:note-mqp55tbezpn","to":"note:note-mqp51zczq8p","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:03:07.639Z"}
+{"evt":"edge_removed","from":"note:note-mqp55tbezpn","to":"note:note-mqp4zyztt79","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:03:07.639Z"}

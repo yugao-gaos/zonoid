@@ -20,3 +20,4 @@
 {"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqatk2hs8sr","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:57:48.320Z"}
 {"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqb975duzqu","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:57:48.320Z"}
 {"evt":"edge_promoted","from":"note:note-mqeo9elelvo","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:09:26.406Z","weight":0.572,"by":"judge","judged":true,"score":0.572,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqatewqwmt8","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:58:08.344Z"}
