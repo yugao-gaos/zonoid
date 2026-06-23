@@ -30,3 +30,4 @@
 {"evt":"edge_removed","from":"note:note-mqpbk7985gd","to":"codex/fix-bench-sdk-a2-edgejudge-timeout-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:32:25.498Z"}
 {"evt":"edge_removed","from":"note:note-mqpbk7985gd","to":"codex/fix-bench-sdk-a2-edgejudge-timeout-judge-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:32:25.498Z"}
 {"evt":"edge_removed","from":"note:note-mqpbk7985gd","to":"note:note-mqb0kr66rg9","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:33:11.345Z"}
+{"evt":"edge_added","from":"note:note-mqpbk7985gd","to":"codex/reapply-causal-edges-preserve-blocking-dependencies","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:00:13.072Z","weight":0,"by":"autowire","judged":false,"score":0.567,"origin":"autowire-semantic"}
