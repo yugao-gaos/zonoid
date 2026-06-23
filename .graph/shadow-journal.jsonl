@@ -5030,3 +5030,13 @@
 {"ts":1782174871477,"from":"note:note-mqpwriu892d","to":"knowledge:source_doc:note-mqpwriu892d","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.39999937189332385,"cosine":0.619,"model_version":"v1"}
 {"ts":1782174871478,"from":"note:note-mqpwriu892d","to":"knowledge:source_section:note-mqpwriu892d#note-evidence","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.41757614647636715,"cosine":0.655,"model_version":"v1"}
 {"ts":1782175369585,"from":"note:note-mqpwne6dbsp","to":"codex/inject-concurrency-batch-ingest","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.37128812558956437,"cosine":0.559,"model_version":"v1"}
+{"ts":1782176428267,"from":"note:note-mqpxr6kyk2y","to":"knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-1","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.4658661938235641,"cosine":0.752,"model_version":"v1"}
+{"ts":1782176428268,"from":"note:note-mqpxr6kyk2y","to":"knowledge:source_section:note-mqpwriu892d#note-evidence","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.4658661938235641,"cosine":0.752,"model_version":"v1"}
+{"ts":1782176428270,"from":"note:note-mqpxr6kyk2y","to":"note:note-mqg14209j5s","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2902186955306982,"cosine":0.709,"model_version":"v1"}
+{"ts":1782176428271,"from":"note:note-mqpxr6kyk2y","to":"note:note-mqpna41fj59","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.31016222220128287,"cosine":0.756,"model_version":"v1"}
+{"ts":1782176428272,"from":"note:note-mqpxr6kyk2y","to":"note:note-mqppi1wigd1","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.2969227129483287,"cosine":0.725,"model_version":"v1"}
+{"ts":1782176580848,"from":"note:note-mqpxr6kyk2y","to":"knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-1","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782176580848,"from":"note:note-mqpxr6kyk2y","to":"knowledge:source_section:note-mqpwriu892d#note-evidence","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782176580849,"from":"note:note-mqpxr6kyk2y","to":"note:note-mqg14209j5s","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782176580850,"from":"note:note-mqpxr6kyk2y","to":"note:note-mqpna41fj59","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782176580852,"from":"note:note-mqpxr6kyk2y","to":"note:note-mqppi1wigd1","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
