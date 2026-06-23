@@ -1,6 +1,7 @@
 'use strict';
 const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
+const headlessDrain = require('../lib/headless-drain');
 const graphStore = require('../lib/graph-store');
 const { computeNoteUsageEvidence, scoreNoteNecessity, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-journal');
 const { nodeVecs, embeddingMeta } = require('../lib/embed');
@@ -505,6 +506,31 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     }
     T.save(); notifyChange();
     send(res, 200, { ok: true, epoch, applied, edges: T.ov.edges.length }); return true;
+  }
+
+  // POST /judge/drain?node=<key>&budget=<N>&sync=1[&workspace=<ws>]
+  // SYNCHRONOUS, node-scoped, budget-bounded judge drain. Drives the node's unjudged autowire
+  // candidate edge-set to idle (or the budget/round ceiling) in ONE request, REUSING the in-process
+  // judge (lib/headless-drain.runJudgeDrainSync → resolveJudgeBackend → provider.runJudgeLoop, the
+  // kind:'api' Node-http judge) — same prompt (buildJudgePrompt), same /judge/next?node= + verdict
+  // path the eager drain uses, NO second judge implementation. The drain is bounded by the SAME
+  // per-call timeout the background drain applies, so the async drain's hang class cannot return; it
+  // does NOT touch the background-drain governor. Returns { judged, kept, pruned, idle }.
+  if (p === '/judge/drain' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
+    const node = u.searchParams.get('node') || b.node;
+    if (!node) { send(res, 400, { ok: false, error: 'node required' }); return true; }
+    // budget clamps 1..50 in runJudgeDrainSync (same as buildJudgePrompt); read it loosely here.
+    const rawBudget = u.searchParams.get('budget') != null ? u.searchParams.get('budget') : b.budget;
+    const budget = rawBudget != null ? (parseInt(rawBudget, 10) || undefined) : undefined;
+    const out = await headlessDrain.runJudgeDrainSync({ workspaceRoot: T.ws, node: String(node), budget });
+    send(res, 200, {
+      ok: true, workspace: T.ws, node: String(node),
+      judged: out.judged, kept: out.kept, pruned: out.pruned, idle: out.idle,
+      rounds: out.rounds, ...(out.skipped ? { skipped: out.skipped } : {}),
+    }); return true;
   }
 
   // POST /judge/rejudge-edges
