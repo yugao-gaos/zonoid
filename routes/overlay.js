@@ -541,6 +541,26 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.status === 'canceled') { T.ov.cancel_requested[b.key] = now(); overlayStore.markForRejudge(T.ov, b.key); }
     else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
     overlayStore.setStatus(T.ov, b.key, b.status, b.note);
+    if (newlyReady.isTerminalStatus(b.status)) {
+      const gitInfo = T.ov.git && T.ov.git[b.key];
+      overlayStore.setReviewFromStatus(T.ov, b.key, b.status, {
+        agent_id: b.agent_id,
+        note: b.note,
+        summary: b.summary,
+        now: now(),
+        merge_state: gitInfo && gitInfo.merged ? 'merged' : undefined,
+      });
+    }
+    if (b.review && typeof b.review === 'object' && !Array.isArray(b.review)) {
+      overlayStore.setReviewLifecycle(T.ov, b.key, b.review);
+    }
+    const hasTopLevelReviewFields = [
+      'review_state', 'review_verdict', 'review_note', 'review_reason', 'review_agent',
+      'reviewed_at', 'review_requested_at', 'review_requested_by', 'merge_state',
+      'attempt_branch', 'attempt_worktree', 'attempt_head', 'merge_sha', 'merged_at',
+      'legacy_judge_task_key',
+    ].some((field) => Object.prototype.hasOwnProperty.call(b, field));
+    if (hasTopLevelReviewFields) overlayStore.setReviewLifecycle(T.ov, b.key, b);
     overlayStore.clearSpawnLease(T.ov, b.key);   // release the spawn-dispatch lease on claim/terminal (task /3)
     if (b.max_retries != null) {
       if (!T.ov.retryConfig) T.ov.retryConfig = {};

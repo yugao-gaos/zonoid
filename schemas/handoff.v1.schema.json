@@ -12,11 +12,11 @@
         "version": { "const": 1, "description": "Schema major version. Const so consumers can reject mismatched envelopes." },
         "task_key": {
           "type": "string",
-          "description": "Graph task key the worker claims (start_task / branch_task)."
+          "description": "Implementation task key the worker claims with subconscious_assignment accept."
         },
         "agent_id": {
           "type": "string",
-          "description": "Stable worker agent id used on start_task and complete_task."
+          "description": "Stable worker agent id used on subconscious_assignment accept and complete."
         },
         "branch": {
           "type": "string",
@@ -99,7 +99,7 @@
     "task_result": {
       "type": "object",
       "title": "task_result",
-      "description": "Inbound: what a worker returns via complete_task → POST /overlay/status terminal write. T2 will enforce this at terminal validation. metric_measurements is required ONLY when the task carries a metric spec (see allOf conditional).",
+      "description": "Inbound: what a worker returns via subconscious_assignment complete → POST /overlay/status terminal write. T2 will enforce this at terminal validation. metric_measurements is required ONLY when the task carries a metric spec (see allOf conditional).",
       "properties": {
         "version": { "const": 1, "description": "Schema major version." },
         "status": {
