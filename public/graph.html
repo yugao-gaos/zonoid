@@ -145,6 +145,61 @@
   .toggle { display: inline-flex; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
   .toggle button { background: #161b22; color: #8b949e; border: none; padding: 3px 12px; cursor: pointer; font: inherit; }
   .toggle button.on { background: #1f6feb33; color: #79c0ff; }
+  @media (max-width: 1180px) {
+    :root { --hdr-h: 116px; }
+    header { align-content: flex-start; gap: 0 10px; padding: 0 14px; }
+    .hd-left { order: 1; height: 52px; min-width: 0; }
+    .hd-right { order: 2; height: 52px; margin-left: auto; }
+    .hd-mid {
+      order: 3;
+      flex: 0 0 calc(100% + 28px);
+      width: calc(100% + 28px);
+      margin: 0 -14px;
+      padding: 7px 14px 8px;
+      border-top: 1px solid #21262d;
+      background: #0d1117;
+      box-sizing: border-box;
+      align-items: center;
+      justify-content: flex-start;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .hd-mid::-webkit-scrollbar { display: none; }
+    .hd-mid .hero { flex: 0 0 auto; min-width: 96px; padding: 0 12px; }
+    .hd-mid .hero:first-child { padding-left: 0; }
+    .hd-mid .hero .hval { font-size: 15px; }
+  }
+  @media (max-width: 640px) {
+    :root { --hdr-h: 120px; }
+    header { gap: 0 8px; padding: 0 10px; }
+    h1 { font-size: 14px; gap: 6px; }
+    .hd-left { gap: 8px; height: 52px; }
+    .hd-right { gap: 6px; height: 52px; }
+    .toggle { min-width: 0; }
+    .toggle button { min-width: 0; padding: 3px 8px; font-size: 11px; white-space: nowrap; }
+    .repo-btn { max-width: 150px; padding: 0 7px; }
+    .repo-btn-label { display: none; }
+    .repo-btn-name { max-width: 104px; }
+    .hd-mid {
+      flex-basis: calc(100% + 20px);
+      width: calc(100% + 20px);
+      margin: 0 -10px;
+      padding: 7px 10px 8px;
+    }
+    .hd-mid .hero { min-width: 86px; padding: 0 9px; }
+    .hd-mid .hero .hlabel { font-size: 8px; }
+    .hd-mid .hero .hval { font-size: 14px; }
+    .hd-mid .hero .hval-sub { font-size: 9px; }
+  }
+  @media (max-width: 480px) {
+    :root { --hdr-h: 144px; }
+    .hd-left { flex: 0 0 100%; height: 50px; justify-content: space-between; }
+    .hd-right { flex: 0 0 100%; height: 34px; justify-content: flex-end; margin-left: 0; }
+    .hd-mid { padding-top: 6px; padding-bottom: 8px; }
+    .repo-list { right: 0; }
+  }
   /* cloud view */
   #cloud { display: none; width: 100%; height: 100%; position: relative; }
   #cloud.show { display: block; }
@@ -5398,7 +5453,7 @@ async function tick(){
   // estimate weekly rate: costCache refreshes periodically; use total as proxy for "lifetime"
   // show plan fit based on absolute total (lifetime context)
   const planRec=outTokTotal>50e6?'API direct (Max plan capacity far exceeded)':outTokTotal>10e6?'API direct or Max 20× ($200/mo)':outTokTotal>3e6?'Max 20× ($200/mo) or API direct':outTokTotal>1e6?'Max 5× ($100/mo) or Max 20×':'Max 5× ($100/mo) likely sufficient';
-  // Header: 4 hero metrics
+  // Header metrics; CSS moves this strip into a second row on narrow screens.
   const autoRaw=cf&&cf.autonomy_score!=null?cf.autonomy_score:null;
   // Industry benchmarks: autonomy ~3–5× typical agentic; productive% ~40–60% of total
   const autoMedian=4, autoMax=10;
