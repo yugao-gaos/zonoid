@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/fix-codex-uuid-session-transcript-resolution",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-716-46dc54a4f51ac0ce4471e9b92bc0a837",
+  "branch": "orch/attempt/codex-fix-codex-uuid-session-transcript-resolution",
+  "status": "claimed",
+  "claimed_at": "2026-06-23T04:17:04.640Z",
+  "lease_until": "2026-06-23T05:17:04.640Z"
+}
