@@ -32,6 +32,9 @@ What a worker returns via `subconscious_assignment complete` → `POST /overlay/
   JSON Schema conditional: T2 injects `has_metric_spec: true` from `overlay.metrics[key]` before
   validating, and the `allOf`/`if`/`then` makes `metric_measurements` required in that case.
   `has_metric_spec` is a validation-time discriminator, not persisted result data.
+- `causal_edges` is optional structured outcome data. The daemon accepts only the small relation
+  set in the schema, validates both endpoints against the current graph/snapshots, and writes
+  accepted entries as non-blocking context edges with `origin: "task-result-causal"`.
 - `decisions[].wires_to` carries note provenance — always includes the current `task_key`
   (the one wiring only the worker knows).
 

@@ -1709,7 +1709,7 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
 // Called at block-edge creation and at task adoption so prerequisites flow as retrieval context.
 // Gate nodes (kind==='gate') are structural — seed their predecessors instead (1-hop transit).
 // Pure on (overlay, ws, taskId) — mutates `overlay` in place; the CALLER is responsible for saving.
-// Idempotent: addEdge dedupes on (from, to, fromWorkspace) — safe to call multiple times.
+// Idempotent: addEdge dedupes on (from, to, fromWorkspace, kind) — safe to call multiple times.
 // Uses ov.edges directly for blocking-edge lookup (buildGraph output does not expose edges array).
 // `_g` is an optional pre-built graph (for unit tests — omit in production and buildGraph(ws) is used).
 function seedBlockingDepContext(ov, ws, taskId, _g) {
