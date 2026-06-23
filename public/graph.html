@@ -19,6 +19,21 @@
   .notif-btn.show { display: flex; }
   .notif-btn:hover { background: #161b22; color: #e6edf3; }
   .notif-btn.has-pending { border-color: #bb8009; color: #f0d77a; }
+  .repo-menu { position: relative; display: none; }
+  .repo-menu.show { display: block; }
+  .repo-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; height: 28px; max-width: 260px; padding: 0 9px; cursor: pointer; font: inherit; font-size: 11px; display: flex; align-items: center; gap: 6px; }
+  .repo-btn:hover, .repo-menu.open .repo-btn { background: #161b22; color: #e6edf3; }
+  .repo-btn-name { color: #e6edf3; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .repo-btn-caret { color: #6e7681; }
+  .repo-list { display: none; position: absolute; top: calc(100% + 6px); right: 0; width: min(360px, calc(100vw - 28px)); max-height: min(60vh, 420px); overflow: auto; background: #11151c; border: 1px solid #30363d; border-radius: 8px; box-shadow: 0 10px 34px #0009; z-index: 80; padding: 8px; }
+  .repo-menu.open .repo-list { display: block; }
+  .repo-group-label { color: #8b949e; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin: 8px 4px 4px; }
+  .repo-group-label:first-child { margin-top: 0; }
+  .repo-choice { width: 100%; display: block; text-align: left; background: #0d1117; color: #c9d1d9; border: 1px solid #21262d; border-radius: 6px; padding: 6px 8px; margin: 4px 0; cursor: pointer; font: inherit; }
+  .repo-choice:hover { border-color: #3d444d; background: #161b22; }
+  .repo-choice.active { border-color: #1f6feb88; background: #1f6feb14; color: #e6edf3; }
+  .repo-choice-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .repo-choice-path { display: block; margin-top: 1px; color: #6e7681; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* settings popup */
   #settingsPopup { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(1, 4, 9, .74); box-sizing: border-box; }
   #settingsPopup.show { display: flex; }
@@ -586,6 +601,14 @@
   </div>
   <div class="hd-mid" id="sum"></div>
   <div class="hd-right">
+    <div class="repo-menu" id="repoMenu">
+      <button class="repo-btn" id="repoBtn" type="button" title="Open Repo" aria-haspopup="true" aria-expanded="false" onclick="toggleRepoMenu(event)">
+        <span class="repo-btn-label">Open Repo</span>
+        <span class="repo-btn-name" id="repoBtnName"></span>
+        <span class="repo-btn-caret">▾</span>
+      </button>
+      <div class="repo-list" id="repoList" role="menu"></div>
+    </div>
     <button class="notif-btn" id="notifBtn" title="Notifications" onclick="toggleGuidancePopup()">🗂 <span id="notifCount">0</span></button>
     <button class="settings-btn" title="Settings" onclick="toggleSettingsPopup()">⚙</button>
   </div>
@@ -682,7 +705,6 @@
 <div class="wrap">
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
-    <div id="wsPickerWrap" style="padding:0 16px 8px;display:none"><select id="wsPicker" style="font-size:11px;background:#161b22;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 6px;cursor:pointer;max-width:220px"></select></div>
     <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
     <div id="flowstats"></div>
@@ -4583,9 +4605,9 @@ function dfetch(pathAndQuery, init) {
 }
 // flattenWorkspaceRepos: GET /workspaces returns U3's GROUPED shape
 //   [{ name, repos:[{path,name,current}], current }] (orphans under "(unregistered)").
-// The picker pins a single REPO PATH as WS, so flatten the groups to the underlying repo
+// The dashboard pins a single REPO PATH as WS, so flatten the groups to the underlying repo
 // list [{path,name,current,group}] (group = the workspace name the repo belongs to) for the
-// option/button layer, which still selects by repo path. Tolerant of the legacy flat shape
+// repo menu, which still selects by repo path. Tolerant of the legacy flat shape
 // [{path,name,current}] (e.g. ?flat=1) too — a flat entry has .path and no .repos.
 function flattenWorkspaceRepos(list) {
   const out = [];
@@ -4598,45 +4620,97 @@ function flattenWorkspaceRepos(list) {
   }
   return out;
 }
-// Load the workspace picker from GET /workspaces and wire on-change to switch repos. Renders an
-// <optgroup label=workspaceName> per workspace, one <option value=repoPath> per repo under it.
+let workspaceMenuData = [];
+let workspaceMenuRepos = [];
+function repoBasename(path) {
+  const clean = String(path || '').replace(/[\\/]+$/, '');
+  return clean.split(/[\\/]/).filter(Boolean).pop() || '';
+}
+function currentRepoName() {
+  const repo = workspaceMenuRepos.find((r) => r.path === WS);
+  return (repo && repo.name) || repoBasename(WS);
+}
+function updateRepoButton() {
+  const btn = document.getElementById('repoBtn');
+  const name = document.getElementById('repoBtnName');
+  if (!btn || !name) return;
+  const selectedName = WS ? currentRepoName() : '';
+  name.textContent = selectedName;
+  name.style.display = selectedName ? '' : 'none';
+  btn.title = selectedName ? WS : 'Open Repo';
+  btn.setAttribute('aria-label', selectedName ? 'Open Repo ' + selectedName : 'Open Repo');
+}
+function closeRepoMenu() {
+  const menu = document.getElementById('repoMenu');
+  const btn = document.getElementById('repoBtn');
+  if (menu) menu.classList.remove('open');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+function toggleRepoMenu(ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const menu = document.getElementById('repoMenu');
+  const btn = document.getElementById('repoBtn');
+  if (!menu || !menu.classList.contains('show')) return;
+  renderRepoMenu();
+  const willOpen = !menu.classList.contains('open');
+  menu.classList.toggle('open', willOpen);
+  if (btn) btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+}
+function renderRepoMenu() {
+  const menu = document.getElementById('repoMenu');
+  const list = document.getElementById('repoList');
+  if (!menu || !list) return;
+  list.innerHTML = '';
+  if (!workspaceMenuRepos.length) {
+    menu.classList.remove('show');
+    closeRepoMenu();
+    updateRepoButton();
+    return;
+  }
+  for (const w of workspaceMenuData) {
+    const isGrouped = Array.isArray(w.repos);
+    const reposIn = isGrouped ? w.repos : [w];
+    if (isGrouped) {
+      const label = document.createElement('div');
+      label.className = 'repo-group-label';
+      label.textContent = w.name;
+      list.appendChild(label);
+    }
+    for (const r of reposIn) {
+      if (!r || !r.path) continue;
+      const choice = document.createElement('button');
+      choice.type = 'button';
+      choice.className = 'repo-choice' + (WS && r.path === WS ? ' active' : '');
+      choice.setAttribute('role', 'menuitem');
+      choice.onclick = () => selectWorkspace(r.path);
+      const choiceName = document.createElement('span');
+      choiceName.className = 'repo-choice-name';
+      choiceName.textContent = r.name || repoBasename(r.path);
+      const choicePath = document.createElement('span');
+      choicePath.className = 'repo-choice-path';
+      choicePath.textContent = r.path;
+      choice.append(choiceName, choicePath);
+      list.appendChild(choice);
+    }
+  }
+  menu.classList.add('show');
+  updateRepoButton();
+}
+// Load the repo menu from GET /workspaces and wire choices to switch repos. Renders a
+// group label per workspace, with one button per repo under it.
 async function loadWorkspacePicker() {
-  const sel = document.getElementById('wsPicker');
-  const wrap = document.getElementById('wsPickerWrap');
-  if (!sel || !wrap) return;
+  const menu = document.getElementById('repoMenu');
+  if (!menu) return;
   let data;
   try { data = await (await dfetch('/workspaces')).json(); } catch { return; }
   if (!data || !data.workspaces) return;
-  const repos = flattenWorkspaceRepos(data.workspaces);
-  if (repos.length <= 1) return; // nothing to switch
-  sel.innerHTML = '';
-  for (const w of data.workspaces) {
-    const isGrouped = Array.isArray(w.repos);
-    const reposIn = isGrouped ? w.repos : [w];                 // legacy flat: the entry is itself a repo
-    let container = sel;
-    if (isGrouped) {
-      const og = document.createElement('optgroup');
-      og.label = w.name;
-      sel.appendChild(og);
-      container = og;
-    }
-    for (const r of reposIn) {
-      const opt = document.createElement('option');
-      opt.value = r.path;
-      opt.textContent = r.name;
-      if (r.current && !WS) opt.selected = true;
-      if (WS && r.path === WS) opt.selected = true;
-      container.appendChild(opt);
-    }
-  }
-  wrap.style.display = '';
-  sel.onchange = function() {
-    selectWorkspace(this.value);
-  };
+  workspaceMenuData = data.workspaces;
+  workspaceMenuRepos = flattenWorkspaceRepos(workspaceMenuData);
+  renderRepoMenu();
 }
 // Commit an EXPLICIT workspace choice: pin WS, mark resolved, reflect in the URL (so a reload /
 // shared link carries it), and repaint. The single chokepoint every workspace selection routes
-// through (picker onchange, single-ws auto-select, prompt buttons) so WS is never set silently.
+// through (repo menu choices, single-ws auto-select, prompt buttons) so WS is never set silently.
 function selectWorkspace(wsPath) {
   WS = wsPath || '';
   WS_RESOLVED = !!WS;
@@ -4644,8 +4718,8 @@ function selectWorkspace(wsPath) {
   if (WS) u.searchParams.set('workspace', WS);
   else u.searchParams.delete('workspace');
   history.replaceState(null, '', u.toString());
-  const sel = document.getElementById('wsPicker');
-  if (sel && WS) sel.value = WS;
+  renderRepoMenu();
+  closeRepoMenu();
   removeWorkspaceGate();
   // Repaint: clear caches and re-run tick + guidance + costflow
   lastRenderFp = ''; lastDetailFp = ''; costAt = 0; guidSig = '';
@@ -7437,6 +7511,7 @@ document.addEventListener('click', ev=>{
   if((panel&&panel.contains(ev.target))||(ev.target.closest&&ev.target.closest('.settings-btn'))) return;
   p.classList.remove('show');
 });
+document.addEventListener('click', ev=>{ const p=document.getElementById('repoMenu'); if(!p||!p.classList.contains('open')) return; if(p.contains(ev.target)) return; closeRepoMenu(); });
 async function toggleCronPopup(){
   const p=document.getElementById('cronPopup'); p.classList.toggle('show');
   if(!p.classList.contains('show')) return;
@@ -8091,7 +8166,7 @@ async function injectOnboardLearning() {
 // Run the onboarding check once after the first tick has a chance to populate state.
 // A short delay ensures the page has rendered before we potentially inject the banner.
 setTimeout(checkOnboardingState, 500);
-// Load the workspace picker once at boot (only shows when >1 workspace exists).
+// Load the header repo menu once at boot.
 loadWorkspacePicker();
 </script>
 </body>
