@@ -10,7 +10,8 @@ per-bench implementations called out in docs/bench-sdk-design.md §1:
 
 Canonical ON-arm wiring (design §5) — PRODUCTION-FAITHFUL eager-judge pipeline
 (OVERRIDE note-mqhha58fz9k corrects the earlier FeatureBench port: the canonical arm must run the
-REAL LLM eager-judge over autowire candidates, NOT a ceScore threshold):
+REAL LLM eager-judge over autowire candidates, NOT a ceScore threshold. P3 de-ports the judge:
+the bench no longer runs ANY judge LLM of its own — it DRIVES the production sync judge over HTTP):
 
   1. mint the unit as a TASK PROBE  ......... workspace.drop_task_stub + client.post_status
                                               (status="not_ready", summary=question). The status
@@ -19,22 +20,28 @@ REAL LLM eager-judge over autowire candidates, NOT a ceScore threshold):
                                               markEagerJudge): autowire SEEDS weight-0 candidate
                                               context edges from NOTE providers INTO the probe
                                               according to the daemon's configured candidate policy.
-                                              The canonical bench daemon uses threshold 0.0 + top-K,
-                                              so EdgeJudge arbitrates the candidate set instead of
-                                              a hard cosine floor. The probe is stamped `judging`
-                                              (judgingSince).
+                                              The canonical bench daemon inherits production's 0-floor
+                                              + top-K, so the production judge arbitrates the candidate
+                                              set instead of a hard cosine floor. The probe is stamped
+                                              `judging` (judgingSince).
   2. workspace-scoped search bullets  ......  client.search(q=task_summary) for diagnostic
                                               provenance only — NOT injected into AGENTS.md and
                                               NOT how the DAG edges are chosen.
-  3. PULL the autowire candidate set  ....... client.judge_next(node=<probe>) — the production
-                                              eager-judge read (/judge/next?node=). Returns THIS
-                                              probe's whole unjudged candidate edge-set in one slice.
-  4. RUN the LLM eager-judge  ............... judge.EdgeJudge over the candidates with the keep/prune
-                                              rubric (DEFAULT prune: similarity is necessary, not
-                                              sufficient). keepEdge promotes the weight-0 autowire
-                                              candidate IN PLACE (judged:true + real weight off the
-                                              recall score) so it re-enters ranked retrieval;
-                                              pruneEdge deletes it. Posted via client.post_verdict.
+  3. DRIVE the PRODUCTION sync judge  ....... client.judge_drain(node=<probe>, budget=N) — ONE call
+                                              to POST /judge/drain (P1). The daemon's in-process judge
+                                              (lib/headless-drain.runJudgeDrainSync → resolveJudgeBackend
+                                              → provider.runJudgeLoop) pulls THIS probe's unjudged
+                                              autowire candidate edge-set via /judge/next?node=, applies
+                                              the SAME keep/prune rubric (buildJudgePrompt), and posts
+                                              keepEdge/pruneEdge — keepEdge promotes the weight-0 autowire
+                                              candidate IN PLACE so it re-enters ranked retrieval, pruneEdge
+                                              deletes it. The bench runs NO judge LLM, holds NO rubric,
+                                              parses NO verdict — there is ONE judge, in production.
+                                              Returns {judged, kept, pruned, idle, rounds}.
+  4. read the frozen judged DAG  ............ read_wired_context(probe) via GET /task/context — the
+                                              candidate edges the production judge KEPT surface as
+                                              weight>0 context deps. These are the verified wired edges
+                                              (the bench reads them back; it does not author them).
   5. read = production task search  ......... client.search(..., task_key=<probe>) — after eager
                                               judgment, a settled probe returns system notes plus
                                               frozen DAG context. It is DAG-only: semantic RAG is
@@ -46,16 +53,16 @@ WHY a TASK probe + a LIVE-bound daemon (note-mqgwrh5a63x, note-mqh0gwz1mxc):
     a task PROBE (the question is its summary), not a note. A note is a context PROVIDER, never the
     consumer that owns task-scoped retrieval.
   - keepEdge promotes a PRE-EXISTING weight-0 autowire candidate edge in place (lib/judge.js). It
-    only fires for a candidate the daemon actually seeded. The canonical bench daemon intentionally
-    drops the old hard floor via ORCH_AUTOWIRE_THRESHOLD=0.0 and bounds the candidate pool with
-    ORCH_AUTOWIRE_K/top-K fan-out, so candidate selection is broad and the LLM EdgeJudge performs
-    the keep/prune arbitration. There is still no createEdge rescue path.
-  - /judge/next and the keepEdge save are HARD-BOUND to the daemon's live state.workspace
-    (routes/judge.js): a keepEdge on a non-live (isolated) workspace is not visible to the settled
-    task-scoped read (note-mqgwrh5a63x). So the bench runs ONE embedded daemon per unit whose LIVE
-    workspace IS the unit dir (daemon.start(workspace=)); the whole pipeline then operates on one
-    consistent in-memory + persisted overlay and the kept edge surfaces through task-scoped
-    retrieval.
+    only fires for a candidate the daemon actually seeded. The canonical bench daemon inherits the
+    production 0-floor (P2) + uncapped top-K fan-out, so candidate selection is broad and the
+    PRODUCTION judge (driven via /judge/drain) performs the keep/prune arbitration. There is still no
+    createEdge rescue path.
+  - /judge/drain, /judge/next, and the keepEdge save are ALL HARD-BOUND to the daemon's live
+    state.workspace (routes/judge.js): a keepEdge on a non-live (isolated) workspace is not visible to
+    the settled task-scoped read (note-mqgwrh5a63x). The drain itself runs IN the daemon process and
+    reads state.workspace, so the bench runs ONE embedded daemon per unit whose LIVE workspace IS the
+    unit dir (daemon.start(workspace=)); the whole pipeline then operates on one consistent in-memory +
+    persisted overlay and the kept edge surfaces through task-scoped retrieval.
 
 Pluggable executor (design §5):
   - ``agent_in_container``   : build the AGENTS.md for a REAL agent with API-only memory/search
@@ -76,11 +83,11 @@ Autowire candidate coverage (honest limitation)
 -----------------------------------------------
 Because the kept edge MUST be a real autowire candidate (keepEdge promotes in place — it cannot
 manufacture an edge autowire never seeded), the ON arm can only keep candidates returned by the
-daemon's configured autowire policy. The canonical bench daemon starts with
-ORCH_AUTOWIRE_THRESHOLD=0.0 and ORCH_AUTOWIRE_K top-K bounds, so stale hard-floor miss language
-does not apply to SDK bench runs. If an externally supplied daemon uses a stricter policy and
-returns no candidates, the arm reports judge_idle honestly and still never falls back to createEdge
-or the old ceScore-threshold + overlay_edge path.
+daemon's configured autowire policy. The canonical bench daemon inherits the production 0-floor (P2)
++ uncapped top-K, so stale hard-floor miss language does not apply to SDK bench runs. If an
+externally supplied daemon uses a stricter policy and the production judge keeps nothing, the arm
+reports judge_idle honestly and still never falls back to createEdge or the old ceScore-threshold +
+overlay_edge path.
 
 Runtime: stdlib ONLY (urllib/json/subprocess via client.py + judge.py). Runs on the embeddable
 Python 3.12 at C:\\Users\\Imyu\\AppData\\Local\\py312embed\\python.exe as well as Mac/Linux CPython.
@@ -115,8 +122,8 @@ from zonoid_bench.workspace import drop_task_stub  # noqa: E402
 # Tunables (env-overridable, same convention as the rest of the SDK)
 # ---------------------------------------------------------------------------
 
-# Budget for the eager-judge candidate pull (GET /judge/next?node=&budget=). The daemon clamps
-# this to [1, 50]; the per-node candidate set is small so 20 is ample headroom.
+# Per-round adjudication budget forwarded to the production sync judge (POST /judge/drain?budget=).
+# The daemon clamps this to [1, 50]; the per-node candidate set is small so 20 is ample headroom.
 JUDGE_BUDGET: int = int(os.environ.get("ZONOID_BENCH_JUDGE_BUDGET", "20"))
 
 # Minimum plain-cosine score for a /search hit to be retained as diagnostic context provenance.
@@ -138,10 +145,6 @@ ADOPT_TIMEOUT_S: float = float(os.environ.get("ZONOID_BENCH_ADOPT_TIMEOUT", "20"
 # How long to let the ingest funnel embed + autowire after the status write before reading.
 AUTOWIRE_SETTLE_S: float = float(os.environ.get("ZONOID_BENCH_AUTOWIRE_SETTLE", "6"))
 _POLL_INTERVAL_S: float = 0.75
-
-# Maximum number of claude_p retries on a per-call timeout (mirrors the production retry pattern
-# from lib/headless-drain.js). After JUDGE_MAX_RETRIES exhausted, the edge is kept PROVISIONAL.
-JUDGE_MAX_RETRIES: int = int(os.environ.get("ZONOID_BENCH_JUDGE_MAX_RETRIES", "2"))
 
 # Harness namespace for unit task/probe stubs (avoid "followup" and UUID-like names — see
 # workspace.drop_task_stub).
@@ -186,31 +189,43 @@ _COLD_TEMPLATE = (
 class WiringResult:
     """The outcome of the canonical ON-arm eager-judge wiring for one unit.
 
+    P3: the bench no longer runs its own judge — it DRIVES the production sync judge via
+    POST /judge/drain. The {judged,kept,pruned,idle,rounds} fields are the daemon's drain counts;
+    wired_edges is read back from /task/context (the kept weight>0 context edges the production
+    judge promoted). The bench authors NO verdict.
+
     Attributes
     ----------
     task_key        : the probe TASK key in the graph (the node autowire seeds context edges INTO).
     node_kind       : always "task" — the eager judge is task-centric (see module docstring).
     context_deps    : diagnostic /search bullets {label, summary, score} retained for provenance
                       only — NOT injected into AGENTS.md and NOT how DAG edges are chosen.
-    wired_edges     : the candidate PROVIDER keys the eager judge KEPT (keepEdge from=provider,
-                      to=probe) — i.e. the autowire candidates promoted into verified context.
-                      Does NOT include provisional edges (timeout fallback; those stay weight-0).
-    candidates_seen : every autowire candidate the eager-judge pull returned, with its verdict
-                      {key, title, edge:"keep"|"prune"}.
-    pruned_edges    : the candidate PROVIDER keys the eager judge PRUNED (pruneEdge).
-    judge_idle      : True when /judge/next?node= returned no candidates (autowire seeded none under
-                      the daemon's configured candidate policy). Distinguishes "judged, kept nothing"
-                      from "nothing to judge".
+    wired_edges     : the candidate PROVIDER keys the PRODUCTION judge KEPT, read back from
+                      /task/context as the weight>0 context deps of the probe (keepEdge promoted
+                      them in place). The bench reads these; it does not author them.
+    candidates_seen : the kept providers, with their post-drain verdict {key, title, edge:"keep"}.
+                      (The drain returns counts, not per-candidate pruned keys, so only KEPT
+                      providers — the ones that surface in /task/context — are enumerated here.)
+    pruned_edges    : retained for API stability; the production drain returns a pruned COUNT
+                      (see `pruned`), not the individual pruned provider keys, so this stays empty.
+    judge_idle      : True when the production judge had NO candidate to keep — it judged nothing,
+                      kept nothing, and no weight>0 context edge surfaced. Distinguishes "judged,
+                      kept nothing / kept something" from "nothing was ever seeded to judge".
     search_hits     : raw /search hit keys (provenance).
-    timeout_kills   : number of claude_p calls that hit the hard per-call timeout and were retried or
-                      fell back to keep-provisional. Mirrors the production retry/provisional path:
-                      daemon.js:1640-1646 keeps timed-out edges provisional rather than pruning them.
-    judge_idle_count: how many times judge_next returned no candidates for this wiring call.
-                      Currently 0 or 1 (one judge_next pull per run_canonical_wiring), but exposed
-                      as a count so callers can aggregate across a batch.
-    provisional_kept: number of candidate edges kept PROVISIONAL (not judged) because all retries
-                      timed out. Mirrors production: timed-out edges stay accessible in get_task_context
-                      as provisional (not pruned). A run with provisional_kept=0 is fully faithful.
+    judged          : production drain count — candidate edges that left the unjudged set (kept+pruned).
+    kept            : production drain count — keepEdge verdicts the production judge applied.
+    pruned          : production drain count — pruneEdge verdicts the production judge applied.
+    rounds          : production drain count — runJudgeLoop rounds the sync judge ran (bounded).
+    drain_skipped   : the drain's `skipped` reason when the backend was unusable (e.g. no_backend),
+                      else None. A skip is an honest clean pause, not a wiring error.
+    timeout_kills   : retained for report API stability. The PER-CALL timeout now lives inside the
+                      production drain (runJudgeDrainSync wraps each round in cfg.timeoutMs); the
+                      bench no longer runs/retries a judge call, so this stays 0 here.
+    judge_idle_count: how many times the production judge had no candidate to keep for this wiring
+                      call. Currently 0 or 1 (one drain per run_canonical_wiring), exposed as a count
+                      so callers can aggregate across a batch.
+    provisional_kept: retained for report API stability. Provisional-on-timeout handling now lives
+                      inside the production drain, so the bench reports 0 here.
     """
 
     task_key: str
@@ -221,7 +236,13 @@ class WiringResult:
     pruned_edges: list[str] = field(default_factory=list)
     judge_idle: bool = True
     search_hits: list[str] = field(default_factory=list)
-    # Production-faithful timeout/retry/provisional counters (Step 3 fidelity fix).
+    # Production sync-judge drain counts (POST /judge/drain → runJudgeDrainSync).
+    judged: int = 0
+    kept: int = 0
+    pruned: int = 0
+    rounds: int = 0
+    drain_skipped: Optional[str] = None
+    # Retained for report.py API stability (the timeout/provisional path now lives in the daemon).
     timeout_kills: int = 0
     judge_idle_count: int = 0
     provisional_kept: int = 0
@@ -315,16 +336,6 @@ def _wait_for_adoption(client: ZonoidClient, task_key: str, timeout_s: float) ->
     return False
 
 
-def _candidate_summary(item: dict[str, Any]) -> str:
-    """Best-effort summary text for an eager-judge candidate edge item.
-
-    /judge/next returns each candidate's `from` endpoint as {key, title, summary} (summary clipped
-    to 200 chars by the daemon). Fall back to the title when the summary is empty.
-    """
-    frm = item.get("from") or {}
-    return str(frm.get("summary") or frm.get("title") or "")
-
-
 def _is_note_hit(hit: dict[str, Any]) -> bool:
     """Return True iff *hit* is an ingested session NOTE, not a harness task stub.
 
@@ -345,61 +356,25 @@ def _is_note_hit(hit: dict[str, Any]) -> bool:
     return True
 
 
-def _judge_with_retry(
-    ej: Any,
-    anchor_key: str,
-    anchor_summary: str,
-    candidates: list[dict[str, Any]],
-    result: "WiringResult",
-) -> Optional[dict[str, dict[str, Any]]]:
-    """Run EdgeJudge.judge with bounded retry on timeout/kill, recording counters on *result*.
-
-    Production behaviour (daemon.js:1640-1646, lib/headless-drain.js):
-    - A per-call claude_p timeout/kill is retried up to JUDGE_MAX_RETRIES times.
-    - After retries exhausted with no verdict, the candidates are kept PROVISIONAL:
-      they remain in get_task_context but are flagged (provisional_kept counter incremented).
-      Production NEVER ceScore→overlay_edge and NEVER prunes on timeout.
-
-    Returns the verdict dict on success, or None if retries exhausted (caller keeps provisional).
-    """
-    for attempt in range(JUDGE_MAX_RETRIES + 1):
-        raw = ej._llm_judge(anchor_key, anchor_summary, candidates)  # type: ignore[attr-defined]
-        if raw is not None:
-            return raw
-        # _llm_judge returned None — a claude_p timeout/kill.
-        result.timeout_kills += 1
-        if attempt < JUDGE_MAX_RETRIES:
-            print(
-                f"[arms] EdgeJudge timeout (attempt {attempt + 1}/{JUDGE_MAX_RETRIES + 1}); "
-                f"retrying ...",
-                file=sys.stderr,
-            )
-        else:
-            # Retries exhausted — keep candidates PROVISIONAL (never prune on timeout).
-            print(
-                f"[arms] EdgeJudge timeout_kills={result.timeout_kills}; "
-                f"retries exhausted — keeping {len(candidates)} candidate(s) PROVISIONAL "
-                f"(production-faithful: timed-out edges are never pruned).",
-                file=sys.stderr,
-            )
-            result.provisional_kept += len(candidates)
-    return None
-
-
 def run_canonical_wiring(
     client: ZonoidClient,
     unit_id: str,
     task_summary: str,
     *,
     data_dir: Optional[str] = None,
-    judge: Optional[Any] = None,
+    judge: Optional[Any] = None,  # noqa: ARG001 — accepted for signature stability; bench runs no judge
     judge_budget: int = JUDGE_BUDGET,
     # Accepted for back-compat with older callers; the eager judge is always task-based so these
     # are advisory only (the unit is ALWAYS minted as a task probe).
     as_task: bool = True,  # noqa: ARG001 — kept for signature stability
     tags: Optional[list[str]] = None,  # noqa: ARG001 — unused in the task-probe path
 ) -> WiringResult:
-    """Run the PRODUCTION-FAITHFUL canonical ON-arm eager-judge wiring for one unit.
+    """Run the PRODUCTION-FAITHFUL canonical ON-arm wiring for one unit — DRIVING the prod judge.
+
+    P3: the bench runs NO judge LLM of its own. It mints the probe, then makes ONE call to the
+    production sync judge (POST /judge/drain → lib/headless-drain.runJudgeDrainSync), and reads the
+    kept edges back. The keep/prune rubric, /judge/next pull, and /judge/verdict write all live in
+    production — there is exactly one judge implementation.
 
     Steps (see module docstring for the full rationale + note provenance):
 
@@ -407,16 +382,16 @@ def run_canonical_wiring(
          according to daemon candidate policy) + markEagerJudge.  (_mint_probe_task)
       2. client.search(q=task_summary, workspace=...) → /search provenance bullets
          (diagnostics ONLY — NOT injected into AGENTS.md and NOT how DAG edges are chosen).
-      3. client.judge_next(node=<probe>) → pull the autowire candidate edge-set (the eager-judge read).
-      4. judge.EdgeJudge over the candidates (keep/prune, DEFAULT prune) → client.post_verdict with
-         keepEdge for kept (promotes the weight-0 autowire candidate in place) / pruneEdge for pruned.
-      5. (read is the caller's job — read_wired_context / get_task_context for the frozen judged DAG.)
+      3. client.judge_drain(node=<probe>, budget=...) → drive the PRODUCTION sync judge to drain the
+         probe's autowire candidate edge-set to idle (keepEdge/pruneEdge applied IN the daemon).
+      4. read_wired_context(<probe>) → the weight>0 context deps the production judge KEPT.
 
-    `judge` is an optional pre-built judge.EdgeJudge (so a batch run can share one instance + model
-    config); a fresh one is created when None. `judge_budget` is forwarded to /judge/next.
+    `judge` is accepted for signature stability but ignored (the bench holds no judge). `judge_budget`
+    is forwarded to /judge/drain (per-round adjudication budget, clamped 1..50 by the daemon).
 
-    Returns a WiringResult capturing the probe key, diagnostic /search bullets, the KEPT provider
-    keys (verified context), the pruned keys, and judge_idle (autowire seeded no candidate at all).
+    Returns a WiringResult capturing the probe key, diagnostic /search bullets, the production drain
+    counts {judged,kept,pruned,rounds}, the KEPT provider keys read back from /task/context, and
+    judge_idle (the production judge had no candidate to keep).
     """
     node_key = _mint_probe_task(client, unit_id, task_summary, data_dir=data_dir)
 
@@ -437,92 +412,43 @@ def run_canonical_wiring(
         if h.get("key"):
             result.search_hits.append(h["key"])
 
-    # ---- Step 3: pull the eager-judge autowire candidate set (production read) ----
-    pull = client.judge_next(node_key, budget=judge_budget)
-    items = [it for it in (pull.get("items") or []) if it.get("kind") == "edge"]
-    result.judge_idle = bool(pull.get("idle")) or not items
+    # ---- Step 3: DRIVE the production sync judge (POST /judge/drain) ----
+    # ONE call drains the probe's whole unjudged autowire candidate edge-set to idle (or the
+    # budget/round ceiling) by REUSING the in-process production judge: runJudgeDrainSync →
+    # resolveJudgeBackend → provider.runJudgeLoop, the SAME prompt + /judge/next + /judge/verdict
+    # path the eager/background drains use. The bench holds NO rubric and parses NO verdict.
+    drain = client.judge_drain(node_key, budget=judge_budget)
+    result.judged = int(drain.get("judged") or 0)
+    result.kept = int(drain.get("kept") or 0)
+    result.pruned = int(drain.get("pruned") or 0)
+    result.rounds = int(drain.get("rounds") or 0)
+    result.drain_skipped = drain.get("skipped")
+
+    # ---- Step 4: read back the KEPT context edges (the production judge's keepEdge promotions) ----
+    # read_wired_context filters /task/context to weight>0 context deps — exactly the candidates the
+    # production judge promoted in place via keepEdge. The bench reads these; it authors nothing.
+    try:
+        kept_ctx = read_wired_context(client, node_key)
+    except Exception as exc:  # noqa: BLE001 — context read is best-effort; treat as empty on failure
+        print(f"[arms] read_wired_context failed (non-fatal): {exc}", file=sys.stderr)
+        kept_ctx = []
+    for d in kept_ctx:
+        key = d.get("key")
+        if not key:
+            continue
+        result.wired_edges.append(key)
+        result.candidates_seen.append({
+            "key": key, "title": d.get("label", ""), "edge": "keep"
+        })
+
+    # judge_idle = the production judge had NOTHING to keep: it judged nothing, kept nothing, and no
+    # weight>0 context edge surfaced. (A drain that judged>0 but kept 0 — pruned everything — is NOT
+    # idle: there WERE candidates, the judge just kept none. Only "no candidate seeded at all" is
+    # idle.) The drain's own `idle` flag means "queue drained", NOT "no candidates", so it is not
+    # used directly here.
+    result.judge_idle = (result.judged == 0 and result.kept == 0 and not result.wired_edges)
     if result.judge_idle:
-        # Autowire seeded NO candidate for this probe under the daemon's configured candidate policy.
-        # Nothing for the eager judge to keep — the probe goes ready with empty context. This is an
-        # honest idle result, not an error (see module docstring "Autowire candidate coverage").
-        # NEVER fall back to ceScore→overlay_edge here — that inflates the score vs production
-        # (production wires nothing when idle). The bench reports this honestly.
         result.judge_idle_count = 1
-        return result
-
-    # ---- Step 4: run the LLM eager-judge (keep/prune, DEFAULT prune) ----
-    # Build the EdgeJudge candidate list: each /judge/next edge item is provider(from) -> probe(to);
-    # the anchor we judge against is the PROBE (its summary == the question). is_dup is not exercised
-    # here (autowire task-context candidates are never near-dup note clusters), so default False.
-    #
-    # DEFENSIVE: exclude harness task stub nodes from candidacy. autowireNewTaskWholeGraph also seeds
-    # task→task candidate edges (anchor→other-task), so other probe/bench stub nodes CAN appear as
-    # providers (from) in /judge/next results for this probe. Stubs are structural ANCHORS, not
-    # session MEMORY — including them wastes judge budget and risks a spurious keepEdge on a stub.
-    # Exclude by: (a) from-node kind=='task', (b) key prefixed 'probe/' or 'bench/'.
-    def _is_note_provider(it: dict[str, Any]) -> bool:
-        frm = it.get("from") or {}
-        key = frm.get("key") or ""
-        if frm.get("kind") == "task":
-            return False
-        if key.startswith("probe/") or key.startswith("bench/"):
-            return False
-        return bool(key)
-
-    ej = judge if judge is not None else judge_mod.EdgeJudge()
-    candidates = [
-        {
-            "key": (it.get("from") or {}).get("key"),
-            "title": (it.get("from") or {}).get("title", ""),
-            "summary": _candidate_summary(it),
-            "is_dup": False,
-        }
-        for it in items
-        if _is_note_provider(it)
-    ]
-    # If ALL items were harness stubs (filtered away), treat as idle — nothing to judge.
-    if not candidates:
-        result.judge_idle = True
-        result.judge_idle_count = 1
-        return result
-
-    # Production-faithful retry semantics: per-call timeout → retry up to JUDGE_MAX_RETRIES.
-    # After retries exhausted → keep-provisional (NEVER prune, NEVER ceScore fallback).
-    # Mirrors daemon.js:1640-1646 + lib/headless-drain.js provisional handling.
-    verdicts_raw = _judge_with_retry(ej, node_key, task_summary, candidates, result)
-
-    if verdicts_raw is None:
-        # Retries exhausted — edges are kept PROVISIONAL (result.provisional_kept already set).
-        # No /judge/verdict call: provisional edges stay weight-0/judged:false in the daemon.
-        # They are NOT pruned (production-faithful: daemon.js:1640-1646 never drops timed-out edges).
-        # They stay in the eager-judge queue for a later drain.
-        # Record all as "provisional" in candidates_seen for provenance/counting.
-        # Do NOT add to wired_edges (they are NOT verified kept context — they are deferred).
-        # read_wired_context filters weight>0 so provisional weight-0 edges won't surface to the
-        # answerer this run — that is the production-faithful result (answerer sees honest empty ctx).
-        for c in candidates:
-            result.candidates_seen.append({
-                "key": c["key"], "title": c.get("title", ""), "edge": "provisional"
-            })
-        return result
-
-    # Normal path: verdicts returned — translate to /judge/verdict.
-    # Translate per-candidate keep/prune verdicts into /judge/verdict wrapped items. EdgeJudge's
-    # to_verdict_list orients edges provider(from) -> anchor(to) — exactly the autowire direction,
-    # so keepEdge promotes the right weight-0 candidate in place.
-    verdict_items = ej.to_verdict_list(node_key, candidates, verdicts_raw)
-    if verdict_items:
-        client.post_verdict(verdict_items)
-
-    # Record provenance: which providers were kept (verified context) vs pruned.
-    for c in candidates:
-        key = c["key"]
-        edge = (verdicts_raw.get(key) or {}).get("edge", "prune")
-        result.candidates_seen.append({"key": key, "title": c.get("title", ""), "edge": edge})
-        if edge == "keep":
-            result.wired_edges.append(key)
-        else:
-            result.pruned_edges.append(key)
 
     return result
 
@@ -860,20 +786,21 @@ def run_rag_control(
 def _smoke(daemon: Optional[str] = None) -> int:
     """End-to-end smoke for the production-faithful eager-judge ON arm.
 
-    Spawns an EMBEDDED daemon bound LIVE to the unit workspace (so /judge/next?node= + keepEdge
-    resolve to the unit dir — note-mqgwrh5a63x) unless *daemon* is an explicit base URL, in which
-    case it binds that daemon's live workspace to the unit dir via POST /workspace.
+    Spawns an EMBEDDED daemon bound LIVE to the unit workspace (so /judge/drain + /judge/next?node=
+    + keepEdge resolve to the unit dir — note-mqgwrh5a63x) unless *daemon* is an explicit base URL,
+    in which case it binds that daemon's live workspace to the unit dir via POST /workspace.
 
     Steps:
       1. warm_up the embedder.
       2. Ingest a planted note + an off-topic distractor note. The embedded canonical bench daemon
-         uses threshold 0.0/top-K autowire, then EdgeJudge keeps or prunes candidates.
+         inherits production's 0-floor/top-K autowire; the PRODUCTION judge (driven via /judge/drain)
+         keeps or prunes candidates.
       3. run_retrieve_and_answer on the planted fact: mint probe → autowire seeds the candidate →
-         EAGER JUDGE keeps it (keepEdge promotes in place) → read /search?task_key.
+         PRODUCTION JUDGE (via /judge/drain) keeps it (keepEdge promotes in place) → read /search?task_key.
     Assertions:
       A1  ON answer CONTAINS the planted fact.
-      A2  the eager-judge keepEdge PERSISTED — the planted note surfaces in task-scoped search
-          context (on.context_keys), and wiring.wired_edges came from a keepEdge verdict (NOT idle).
+      A2  the keepEdge PERSISTED — the planted note surfaces in task-scoped search context
+          (on.context_keys), and wiring.wired_edges came from a keepEdge promotion (NOT idle).
       A3  cold answer does NOT contain the fact (rigging guard).
     Also runs an off-topic probe and REPORTS (does not assert) whether the distractor surfaced under
     the current daemon candidate policy.
@@ -898,8 +825,8 @@ def _smoke(daemon: Optional[str] = None) -> int:
     )
     question = "What is the internal codename for the Zonoid bench arms calibration unit?"
     # An off-topic note (no lexical/semantic overlap with the calibration question). Under the
-    # canonical bench daemon it may still be considered as a top-K candidate, but EdgeJudge should
-    # prune it.
+    # canonical bench daemon it may still be considered as a top-K candidate, but the production
+    # judge should prune it.
     distractor = (
         "The cafeteria on the third floor serves lunch between 11:30 and 14:00 on weekdays; the "
         "espresso machine in the north break room was replaced last quarter."
