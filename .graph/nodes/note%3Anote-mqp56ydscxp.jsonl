@@ -3,3 +3,4 @@
 {"evt":"summary_set","id":"note:note-mqp56ydscxp","workspace":"/Users/imyu/Desktop/zonoid","summary":"The stale-spawn GC uses a 24-hour maximum lifetime by default. This is the outer bound on how long orphaned spawns can survive before cleanup starts, which matters for leak containment.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp56ydscxp","to":"note:note-mqp54meqdrv","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:40:15.925Z"}
 {"evt":"edge_added","from":"note:note-mqp56ydscxp","to":"note:note-mqp54meqdrv","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.572,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp56ydscxp","to":"note:note-mqp54meqdrv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:27:56.968Z"}
