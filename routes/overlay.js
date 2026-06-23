@@ -720,8 +720,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         for (const r of verdictResults) {
           if (r.action !== 'merge') continue;
           const repo = ctx.resolveRepo(r.task_key, undefined, T.ov, T.ws);
-          if (!repo || !ctx.git.isRepo(repo)) continue;
-          const mr = ctx.git.mergeBranch(repo, r.task_key, { message: `automode: merge attempt ${r.task_key} (${r.reason})` });
+          if (!repo || !(await ctx.git.isRepoAsync(repo))) continue;
+          const mr = await ctx.git.mergeBranchAsync(repo, r.task_key, { message: `automode: merge attempt ${r.task_key} (${r.reason})` });
           if (mr.merged) {
             ctx.overlayStore.setGit(T.ov, r.task_key, { merged: true, merge_sha: mr.head || null, merged_at: ctx.now() });
             r.auto_merged = true; r.merge_sha = mr.head || null;

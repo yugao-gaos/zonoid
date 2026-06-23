@@ -22,7 +22,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
     if (!repo) { send(res, 400, { ok: false, error: 'no repo: set a workspace or pass repo_path' }); return true; }
-    const r = git.initRepo(repo);
+    const r = await git.initRepoAsync(repo);
     notifyChange();
     send(res, 200, { ...r, repo }); return true;
   }
@@ -31,7 +31,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(null, u);
     const repo = resolveRepo(u.searchParams.get('key'), u.searchParams.get('repo_path'), T.ov, T.ws);
     if (!repo) { send(res, 200, { isRepo: false }); return true; }
-    send(res, 200, { repo, isRepo: git.isRepo(repo), worktrees: git.listWorktrees(repo), test_cmd: overlayStore.testCmdFor(T.ov, repo) }); return true;
+    send(res, 200, { repo, isRepo: await git.isRepoAsync(repo), worktrees: await git.listWorktreesAsync(repo), test_cmd: overlayStore.testCmdFor(T.ov, repo) }); return true;
   }
 
   if (p === '/git/worktree' && m === 'POST') {
@@ -39,8 +39,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
     const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
-    if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
-    const info = git.createWorktree(repo, b.key, { base: b.base });
+    if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
+    const info = await git.createWorktreeAsync(repo, b.key, { base: b.base });
     if (info && info.contended) {
       send(res, 409, { ...info, ok: false, repo, error: 'worktree path is currently leased by another creator; retry branch_task' }); return true;
     }
@@ -54,7 +54,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
     const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
-    if (repo) git.removeWorktree(repo, b.key);
+    if (repo) await git.removeWorktreeAsync(repo, b.key);
     delete T.ov.git[b.key];
     T.save(); notifyChange();
     send(res, 200, { ok: true }); return true;
@@ -65,8 +65,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
     const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
-    if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
-    const result = git.mergeBranch(repo, b.key, { message: b.message });
+    if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
+    const result = await git.mergeBranchAsync(repo, b.key, { message: b.message });
     if (result.merged) {
       overlayStore.setGit(T.ov, b.key, { merged: true, merge_sha: result.head || null, merged_at: now() });
       T.save();
@@ -84,8 +84,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
     const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
-    if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
-    const info = git.createFeatureWorktree(repo, b.key, { base: b.base });
+    if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
+    const info = await git.createFeatureWorktreeAsync(repo, b.key, { base: b.base });
     if (info && info.contended) {
       send(res, 409, { ...info, ok: false, repo, error: 'feature worktree path is currently leased by another creator; retry create_feature' }); return true;
     }
@@ -100,8 +100,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
     const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
-    if (!repo || !git.isRepo(repo)) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
-    const result = git.mergeFeature(repo, b.key, { message: b.message });
+    if (!repo || !(await git.isRepoAsync(repo))) { send(res, 409, { ok: false, error: 'target repo is not a git repo: POST /git/init first (branch_task auto-inits)' }); return true; }
+    const result = await git.mergeFeatureAsync(repo, b.key, { message: b.message });
     if (result.merged) {
       overlayStore.setFeature(T.ov, b.key, { merged: true, merge_sha: result.head || null, merged_at: now() });
       T.save();
@@ -115,7 +115,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const T = targetOverlay(b, u);
     if (!b.key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
     const repo = resolveRepo(b.key, b.repo_path, T.ov, T.ws);
-    if (repo) git.removeFeatureWorktree(repo, b.key);
+    if (repo) await git.removeFeatureWorktreeAsync(repo, b.key);
     if (T.ov.features) delete T.ov.features[b.key];
     T.save(); notifyChange();
     send(res, 200, { ok: true }); return true;
