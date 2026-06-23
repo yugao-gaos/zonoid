@@ -30,3 +30,8 @@
 {"evt":"edge_promoted","from":"note:note-mqpzfgjlux8","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:03:16.720Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqpzfgjlux8","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:04:14.994Z","weight":1}
 {"evt":"edge_added","from":"note:note-mqpzfgjlux8","to":"codex/code-extractor-multilang","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:04:42.951Z","origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqpzfgjlux8","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:06:16.632Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpzfgjlux8","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:08:08.181Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpzfgjlux8","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:09:03.962Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpzfgjlux8","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:09:27.563Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpzfgjlux8","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:09:46.877Z","weight":1}
