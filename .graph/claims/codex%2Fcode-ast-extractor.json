@@ -3,8 +3,8 @@
   "git_user": "Yu Gao <yu.gao@gaos.ca>",
   "session_id": "7324f0fd-3872-4c3a-a82b-e7b554aea59d",
   "branch": "orch/attempt/codex-code-ast-extractor",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-23T01:48:13.519Z",
   "lease_until": "2026-06-23T02:48:13.519Z",
-  "completed_at": "2026-06-23T01:57:07.332Z"
+  "completed_at": "2026-06-23T01:59:15.039Z"
 }
