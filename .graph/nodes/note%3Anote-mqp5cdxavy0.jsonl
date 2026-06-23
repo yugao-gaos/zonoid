@@ -19,3 +19,4 @@
 {"evt":"edge_removed","from":"note:note-mqp5cdxavy0","to":"knowledge:source_chunk:chunk-claude-md-5-0-notes-created-with-category-system-are-a-5317cec415","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:49:20.577Z"}
 {"evt":"edge_removed","from":"note:note-mqp5cdxavy0","to":"knowledge:source_section:section-agents-md-5-durable-spec-system-nodes-ad66a92836","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:49:20.577Z"}
 {"evt":"edge_removed","from":"note:note-mqp5cdxavy0","to":"knowledge:source_section:section-claude-md-5-durable-spec-system-nodes-df7972af6b","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:49:20.577Z"}
+{"evt":"edge_added","from":"note:note-mqp5cdxavy0","to":"note:note-mqp5cpf20yd","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:40:35.236Z","weight":0.6,"by":"judge","judged":true}

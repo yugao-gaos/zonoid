@@ -9,3 +9,4 @@
 {"evt":"edge_removed","from":"note:note-mqp5dogdrfg","to":"knowledge:source_chunk:chunk-agents-md-2-13-gate-contract-for-subagents-normal-work-5df8a2dfa0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:03:01.722Z"}
 {"evt":"edge_removed","from":"note:note-mqp5dogdrfg","to":"note:note-mqp5bqqxk82","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:03:01.722Z"}
 {"evt":"edge_removed","from":"note:note-mqp5dogdrfg","to":"note:note-mqda7rpovti","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:03:01.722Z"}
+{"evt":"edge_added","from":"note:note-mqp5dogdrfg","to":"note:note-mqp5bqqxk82","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:40:35.236Z","weight":0.6,"by":"judge","judged":true}
