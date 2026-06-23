@@ -23,3 +23,4 @@
 {"evt":"edge_removed","from":"note:note-mqgtvw168ex","to":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/8","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:04:52.489Z"}
 {"evt":"edge_removed","from":"note:note-mqgtvw168ex","to":"codex/headless-drains-default-often","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:04:52.489Z"}
 {"evt":"edge_removed","from":"note:note-mqgtvw168ex","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:04:52.489Z"}
+{"evt":"edge_removed","from":"note:note-mqgtvw168ex","to":"note:note-mqgt2bjvle5","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:54:11.396Z"}
