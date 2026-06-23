@@ -1523,9 +1523,9 @@ const SUGGEST_STOP = new Set(['the', 'and', 'for', 'task', 'with', 'that', 'this
 const suggestToks = (s) => new Set((String(s || '').toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter((w) => !SUGGEST_STOP.has(w)));
 const SUGGEST_DUP_THRESHOLD = 0.6;   // high label/summary overlap with an OPEN task ⇒ likely a re-plan duplicate
 // Semantic-scale duplicate bar for scoreMatchesSemantic's cosine path. MiniLM cosine runs hotter than
-// token overlap: ~0.55 is merely "related" (SEMANTIC_AUTOWIRE_THRESHOLD), so a DUPLICATE must sit well
-// above that — ~0.85 ≈ near-paraphrase / same task re-planned. High-precision initial estimate (a false
-// dup-warning only nudges supersede; a miss just lets a dup through), calibrate as data accrues.
+// token overlap: ~0.55 is merely "related", so a DUPLICATE must sit well above that — ~0.85 ≈
+// near-paraphrase / same task re-planned. High-precision initial estimate (a false dup-warning only
+// nudges supersede; a miss just lets a dup through), calibrate as data accrues.
 const SEMANTIC_DUP_THRESHOLD = 0.85;
 // Score a single node's label+summary against a precomputed set of QUERY tokens (`qt`), using the
 // IDENTICAL cosine-style token-overlap as scoreMatchesSemantic's lexical fallback — but anchored on a free-text query instead
@@ -1671,9 +1671,11 @@ function scoreMatchesSemantic(g, target, targetVec, options = {}) {
 // than lexical token-overlap (related prose lands ~0.4–0.7 cosine, where it scored ~0 lexically), so
 // the lexical 0.25 bar is wrong here — it would wire nearly everything into a clique. Tuned on the
 // post-backfill cloude corpus (128 notes); see STEP 2. Used only by the semantic note-wiring path.
-// ENV OVERRIDE: ORCH_AUTOWIRE_THRESHOLD (bench daemons set this to ~0 so the eager-judge sees the
-// full top-K reranked pool instead of a cosine cutoff; production stays at 0.55 by default).
-const SEMANTIC_AUTOWIRE_THRESHOLD = process.env.ORCH_AUTOWIRE_THRESHOLD !== undefined ? parseFloat(process.env.ORCH_AUTOWIRE_THRESHOLD) : 0.55;
+// Production now seeds the top-per-kind autowire candidates unconditionally and the eager-judge
+// arbitrates; cosine is a ranking signal, not a floor. Every new node seeds up to TASK_CREATE_FANOUT
+// (=5) notes + 5 tasks and triggers an eager-judge pass; bounded by FANOUT.
+// ENV OVERRIDE: ORCH_AUTOWIRE_THRESHOLD (env-overridable for bench or tuning runs).
+const SEMANTIC_AUTOWIRE_THRESHOLD = process.env.ORCH_AUTOWIRE_THRESHOLD !== undefined ? parseFloat(process.env.ORCH_AUTOWIRE_THRESHOLD) : 0;
 // Auto-wire a NOTE as a context PROVIDER: write weighted context edges (note -> neighbor) so the
 // note's summary flows INTO each relevant open task instead of the note sitting as an orphan root.
 // The note FEEDS existing consumers (the inverse of a consumer pulling in providers). `g` is the rebuilt graph; the note need not be in `g` yet (we build
@@ -1963,14 +1965,13 @@ function makeResolver() {
     const ready = depRefs(ws, key).filter((d) => d.kind !== 'context').every((d) => effective(d.ws, d.key, seen) === 'done'); // context edges never block
     seen.delete(id);
     if (!ready) return (memo[id] = 'not_ready');
-    // JUDGING→READY gate (task D): blocking deps are satisfied, but if this task still carries
-    // outstanding unjudged autowire candidate edges its inherited context is provisional — hold it in
-    // 'not_ready' (the 'judging' phase) so it is NOT spawned/claimable yet. TIMEOUT FALLBACK: once the
-    // edges have sat unjudged past judgingTimeoutMs the task FALLS BACK to 'ready' (a judge hiccup can
-    // never permanently deadlock it); the surviving unjudged edges are surfaced as a provisional flag
-    // in the task projection (buildGraph), not silently trusted.
-    const js = judge.judgingState(overlay, key, Date.now(), judge.judgingTimeoutMs(overlay), judge.judgingHardCeilingMs(overlay));
-    if (js.judging && !js.timedOut) return (memo[id] = 'not_ready');
+    // JUDGING→READY gate (task D / P6 STRICT): blocking deps are satisfied, but if this task still
+    // carries ANY unjudged autowire candidate edge its inherited context is provisional — hold it in
+    // 'not_ready' (the 'judging' phase) so it is NOT spawned/claimable yet. P6: STRICT, no time-based
+    // release — the task holds until the candidate set drains (eager judge on node-add is the happy
+    // path; `node scripts/judge-drain-once.js --node <key> --workspace <ws>` is the on-demand un-gate).
+    const js = judge.judgingState(overlay, key);
+    if (js.judging) return (memo[id] = 'not_ready');
     return (memo[id] = 'ready');
   }
 
@@ -2093,9 +2094,11 @@ function commitGraphProjectionEffects(ws, ovWs, effects) {
       for (const n of effects.newlyAdopted) {
         try {
           const r = await ingestNode(ovWs, buildGraph(ws), n.key, { title: n.title, summary: n.summary }, ws);
-          // If ingest found no edges to seed (embed disabled, isolated node, etc.), the ADOPT-HOLD
-          // judgingSince stamp we set synchronously above would keep the node in not_ready forever.
-          // Clear it so the node can progress to ready without waiting for a judge that will never come.
+          // If ingest found no edges to seed (embed disabled, isolated node, etc.), there are no
+          // unjudged candidate edges, so the STRICT judgingState gate already reports judging:false and
+          // the node progresses to ready on the next build — no judge is needed. We still clear the
+          // vestigial judgingSince anchor here purely to keep the overlay tidy (the gate no longer reads
+          // it; readiness is derived solely from unverifiedEdgesForNode).
           if (r.seeded === 0) { overlayStore.clearJudgingSince(ovWs, n.key); }
           if (r.vec || r.seeded === 0) { overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange(); }
         } catch { /* best-effort birth ingest */ }
@@ -2153,21 +2156,22 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
       ts.lastChanged = now(); ts.lastStatus = status; effects.tsDirty = true;
     }
     const _rc = ovWs.retryConfig && ovWs.retryConfig[t.key];
-    // JUDGING→READY gate (task D): expose the judging phase so the dashboard / next_action can show
-    // it. `judging` = task still has unjudged autowire edges within the timeout (held not_ready above);
-    // `provisional` = the timeout fired so the task fell back to ready but its surviving unjudged edges
-    // are NOT yet adjudicated (a consuming agent should treat inherited context as not-yet-verified).
-    const _js = judge.judgingState(ovWs, t.key, now(), judge.judgingTimeoutMs(ovWs), judge.judgingHardCeilingMs(ovWs));
+    // JUDGING→READY gate (task D / P6 STRICT): expose the judging phase so the dashboard / next_action
+    // can show it. `judging` = task still has unjudged autowire edges (held not_ready above, with NO
+    // time-based release). `provisional` is retained for projection-shape stability but is now always
+    // false: P6 removed the timeout fallback, so there is no "fell back to ready while still unjudged"
+    // state — a task is either fully judging (held) or fully ready.
+    const _js = judge.judgingState(ovWs, t.key);
     // ADOPT-HOLD projection fix: R.effective() memoized status BEFORE we stamped markEagerJudge at
     // adoption. For newly adopted nodes that would otherwise be 'ready', hold them at 'not_ready' and
-    // show judging:true so this build's projection is consistent with the persist (which carries the
-    // judgingSince stamp). The hold expires when the async ingest either seeds edges (which the normal
-    // judgingState gate will then manage) or finds nothing to seed (which clears judgingSince).
+    // show judging:true so this build's projection is consistent with the persist. The hold expires
+    // when the async ingest either seeds edges (which the strict judgingState gate then manages) or
+    // finds nothing to seed (which clears the eager mark).
     const _adoptHold = effects.newlyAdoptedSet.has(t.key) && status === 'ready';
-    const _status = (_adoptHold || (_js.judging && !_js.timedOut && status === 'ready')) ? 'not_ready' : status;
-    const _judging = _adoptHold || (_js.judging && !_js.timedOut);
+    const _status = (_adoptHold || (_js.judging && status === 'ready')) ? 'not_ready' : status;
+    const _judging = _adoptHold || _js.judging;
     const taskVecNode = embeddingStore.taskNode(ovWs, t.key);
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: _js.judging && _js.timedOut, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
   // KEPT context edges → context_deps for overlay-only graph nodes. The structBoost reranker
   // (/search) and BFS path tier read each node's context_deps as graph adjacency. Mirror the task-side

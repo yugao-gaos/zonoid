@@ -14,3 +14,21 @@
 {"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:35:42.963Z","weight":0.82,"by":"judge","judged":true,"score":0.82,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqqmixayq8m","to":"knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-4","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:35:42.963Z"}
 {"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:36:31.199Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:37:29.138Z","weight":1}
+{"evt":"edge_added","from":"note:note-mqqmixayq8m","to":"codex/code-node-embed-enrich","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:39:38.499Z","origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:39:48.678Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:41:48.150Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:42:47.306Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:43:33.182Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:44:36.394Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:45:04.221Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:47:22.938Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:47:57.053Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:48:33.460Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:52:22.557Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:54:45.027Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:59:40.829Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:01:44.837Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:01:52.609Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqmixayq8m","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:01:55.179Z","weight":1,"judged":true}
+{"evt":"summary_set","id":"note:note-mqqmixayq8m","workspace":"D:\\zonoid","summary":"Measured a fully first-party deliver-code arm (OUR lib/code-extract AST extractor -> OUR /overlay/code-nodes/bulk code_node layer -> OUR /search retrieval -> file:line snippet fetch) on the 13-query search-economy corpus, isolated daemon :8799 at main commit 0915d0c, workspace D:/zonoid-firstparty, scoped to lib/+routes/. Same locate-then-fetch metric as the other arms (top-6 located code_nodes, 12k char cap, recall = relevant-symbols-intersect-identifier-tokens, tokens = ceil(chars/4)).\n\n[Long raw evidence preserved as structured source chunks.]","actor":"overlay-sync","ts":"2026-06-23T13:01:55.179Z"}

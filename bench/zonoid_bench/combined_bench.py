@@ -45,13 +45,15 @@ replicates the production memory-retrieval path call-for-call:
      status=not_ready, summary=question). That status write drives the SAME daemon ingest funnel a
      real task triggers: embed → setTaskVec → autowireNewTaskWholeGraph (SEED weight-0 NOTE→probe
      candidate context edges according to the daemon candidate policy) → markEagerJudge.
-  2. ``GET /judge/next?node=<probe>`` pulls the probe's whole unjudged autowire candidate edge-set —
-     the production eager-judge read (routes/judge.js EAGER MODE).
-  3. The LLM eager judge (``judge.EdgeJudge``, keep/prune rubric, DEFAULT prune) adjudicates each
-     candidate; ``keepEdge`` promotes the weight-0 candidate IN PLACE (it re-enters ranked retrieval),
-     ``pruneEdge`` deletes it — posted via ``POST /judge/verdict``. This is exactly how production
-     freezes a task's judged DAG context BEFORE the task goes ready.
-  4. ``GET /search?q=<question>&task_key=<probe>`` reads the production task-scoped result. A settled
+  2. ``POST /judge/drain?node=<probe>`` drives the PRODUCTION sync judge (P3 de-port): one call
+     drains the probe's whole unjudged autowire candidate edge-set to idle by REUSING the in-process
+     production judge (lib/headless-drain.runJudgeDrainSync → resolveJudgeBackend → runJudgeLoop),
+     the SAME keep/prune rubric + /judge/next pull + keepEdge/pruneEdge write the eager/background
+     drains use. The bench holds NO judge LLM, NO rubric, and parses NO verdict — there is exactly
+     one judge, in production. ``keepEdge`` promotes a weight-0 candidate IN PLACE (it re-enters
+     ranked retrieval), ``pruneEdge`` deletes it. This is exactly how production freezes a task's
+     judged DAG context BEFORE the task goes ready.
+  3. ``GET /search?q=<question>&task_key=<probe>`` reads the production task-scoped result. A settled
      probe returns system notes plus frozen judged DAG context; semantic RAG is omitted. If a probe
      remains provisional, an actual RAG tier is preserved exactly as the daemon returned it.
 
@@ -364,8 +366,10 @@ def run_on_arm(
 
     # --- Step A: production-faithful retrieval (the seam under test) ---
     # arms.run_canonical_wiring is the audited production path. It mints the probe TASK, drives
-    # autowire (NOTE→probe candidates under daemon candidate policy), pulls /judge/next, runs the EdgeJudge
-    # keep/prune, posts keepEdge/pruneEdge, then reads the production task-scoped search response.
+    # autowire (NOTE→probe candidates under daemon candidate policy), then DRIVES the production sync
+    # judge via POST /judge/drain (P3 de-port — no bench judge LLM): the daemon's in-process
+    # runJudgeDrainSync runs the keep/prune rubric and applies keepEdge/pruneEdge. The kept context
+    # edges are then read back from the production task-scoped search response.
     wiring = arms_mod.run_canonical_wiring(client, unit_id, summary, data_dir=data_dir)
 
     # Production task context: settled probes return system + frozen DAG tiers and no semantic RAG fill.
