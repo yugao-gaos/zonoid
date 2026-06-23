@@ -5,3 +5,4 @@
 {"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:16:36.227Z","weight":0.926,"by":"subconscious","judged":true,"score":0.926,"origin":"subconscious-agentic-search"}
 {"evt":"edge_added","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:28:38.258Z","weight":0.85,"origin":"asserted"}
 {"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:28:43.949Z","weight":0.85,"origin":"asserted"}
+{"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/2","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:29:09.507Z","weight":0.85,"origin":"subconscious-assignment"}
