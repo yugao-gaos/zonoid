@@ -1,9 +1,10 @@
 {
   "task_key": "codex/add-cost-cause-ledger-to-costflow-billing",
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
-  "session_id": "019ef439-7e25-7e31-887b-38caac88010e",
+  "session_id": "codex-mcp-31055-0be77d7fbec0930de0e9925dbdcb8cd4",
   "branch": "orch/attempt/codex-add-cost-cause-ledger-to-costflow-billing",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-23T11:25:55.741Z",
-  "lease_until": "2026-06-23T12:25:55.741Z"
+  "lease_until": "2026-06-23T12:25:55.741Z",
+  "completed_at": "2026-06-23T11:40:43.836Z"
 }
