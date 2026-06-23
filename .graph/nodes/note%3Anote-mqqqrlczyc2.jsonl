@@ -40,3 +40,6 @@
 {"evt":"edge_added","from":"note:note-mqqqrlczyc2","to":"codex/daemon-process-reaper-sweep-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:22:32.735Z","weight":0,"by":"autowire","judged":false,"score":0.6,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:22:53.271Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:22:53.271Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:30:26.825Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:30:26.825Z","weight":1}
+{"evt":"edge_removed","from":"note:note-mqqqrlczyc2","to":"codex/daemon-process-reaper-sweep-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:31:46.028Z"}

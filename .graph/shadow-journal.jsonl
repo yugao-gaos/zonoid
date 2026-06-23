@@ -5365,3 +5365,9 @@
 {"ts":1782227653800,"from":"note:note-mqiznf3kk2j","to":"codex/daemon-process-reaper-sweep","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.3821991470097706,"cosine":0.582,"model_version":"v1"}
 {"ts":1782227653801,"from":"note:note-mqqosxptv7i","to":"codex/daemon-process-reaper-sweep","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3774398910206905,"cosine":0.572,"model_version":"v1"}
 {"ts":1782228233281,"from":"codex/daemon-process-reaper-sweep-judge","to":"codex/daemon-process-reaper-sweep","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6086814074504704,"cosine":0.612,"model_version":"v1"}
+{"ts":1782228705990,"from":"codex/daemon-process-reaper-sweep-judge","to":"codex/fix-stale-reaper-readiness-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.587314139911709,"cosine":0.568,"model_version":"v1"}
+{"ts":1782228705992,"from":"note:note-mqawaybb608","to":"codex/daemon-process-reaper-sweep-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.38076894896724944,"cosine":0.579,"model_version":"v1"}
+{"ts":1782228705994,"from":"note:note-mqe1cey1lux","to":"codex/daemon-process-reaper-sweep-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.40048437737684994,"cosine":0.62,"model_version":"v1"}
+{"ts":1782228705996,"from":"note:note-mqgwh4xhfa0","to":"codex/daemon-process-reaper-sweep-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.39902994963870453,"cosine":0.617,"model_version":"v1"}
+{"ts":1782228705998,"from":"note:note-mqi7rypye1d","to":"codex/daemon-process-reaper-sweep-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3841092532874209,"cosine":0.586,"model_version":"v1"}
+{"ts":1782228705999,"from":"note:note-mqqqrlczyc2","to":"codex/daemon-process-reaper-sweep-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.390822482367149,"cosine":0.6,"model_version":"v1"}
