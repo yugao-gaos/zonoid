@@ -5008,3 +5008,4 @@
 {"ts":1782172146393,"from":"note:note-mqpv6qx0gzv","to":"note:note-mq7carej","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.26628985301487434,"cosine":0.65,"model_version":"v1"}
 {"ts":1782172146394,"from":"note:note-mqpv6qx0gzv","to":"note:note-mq7fm2f2","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2604106269496505,"cosine":0.635,"model_version":"v1"}
 {"ts":1782172146395,"from":"note:note-mqpv6qx0gzv","to":"note:note-mqfgcwu5yqi","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2592449261936382,"cosine":0.632,"model_version":"v1"}
+{"ts":1782173415771,"from":"codex/search-economy-phase1b-cmm-judge","to":"codex/search-economy-phase1b-cmm","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6177860076078956,"cosine":0.631,"model_version":"v1"}
