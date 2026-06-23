@@ -5254,3 +5254,4 @@
 {"ts":1782188577798,"from":"codex/p3-deport-bench-judge","to":"codex/p5-terminal-bench-sdk","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3111513309136735,"cosine":0,"model_version":"v1"}
 {"ts":1782188577799,"from":"codex/p7-sync-judge-cli-backend","to":"codex/p4-migrate-benches-sdk","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3111513309136735,"cosine":0,"model_version":"v1"}
 {"ts":1782188577801,"from":"codex/p7-sync-judge-cli-backend","to":"codex/p5-terminal-bench-sdk","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3111513309136735,"cosine":0,"model_version":"v1"}
+{"ts":1782188720595,"from":"note:note-mqq52ygnlmd","to":"knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-2","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.40680688121272485,"cosine":0.633,"model_version":"v1"}
