@@ -1145,6 +1145,76 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, { ok: true, created: created.length, keys: created, workspace: T.ws }); return true;
   }
 
+  // PER-FILE code-node invalidation — the write half of incremental git-diff sync (DESIGN
+  // note-mqpzfgjlux8). Two shapes, both keyed by a repo-relative `file`:
+  //   DELETE /overlay/code-nodes { file, workspace }            — remove ALL code_nodes for that file
+  //                                                               (a DELETED source file).
+  //   POST   /overlay/code-nodes/replace { file, nodes, ws }    — remove-by-file THEN bulk-upsert the
+  //                                                               supplied nodes (a MODIFIED/ADDED file:
+  //                                                               its prior symbols are replaced wholesale
+  //                                                               so renamed/deleted symbols don't linger).
+  // Both go through removeCodeNodesForFile (emits code_node_removed via the prev-state diff on save),
+  // so the deletion survives a daemon reload. The replace path reuses the SAME embed-and-upsert flow as
+  // /overlay/code-nodes/bulk (batched MiniLM, ONE epoch bump). Additive — notes/knowledge paths untouched.
+  if (p === '/overlay/code-nodes' && m === 'DELETE') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    const file = String(b.file || u.searchParams.get('file') || '').trim();
+    if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const { removed } = overlayStore.removeCodeNodesForFile(T.ov, file);
+    if (removed.length) overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, file, deleted: removed.length, keys: removed, workspace: T.ws }); return true;
+  }
+
+  if (p === '/overlay/code-nodes/replace' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    const file = String(b.file || '').trim();
+    if (!file) { send(res, 400, { ok: false, error: 'file required (repo-relative path)' }); return true; }
+    if (!Array.isArray(b.nodes)) { send(res, 400, { ok: false, error: 'nodes[] required (array; may be empty to just clear the file)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const invalid = b.nodes.findIndex((n) => !n || !n.name || !n.kind);
+    if (invalid !== -1) { send(res, 400, { ok: false, error: `nodes[${invalid}] missing name or kind` }); return true; }
+
+    // 1) Drop the file's prior code_nodes (wholesale replace).
+    const { removed } = overlayStore.removeCodeNodesForFile(T.ov, file);
+
+    // 2) Embed + upsert the fresh nodes — identical batching to /overlay/code-nodes/bulk.
+    const pooledTexts = b.nodes.map((n) => codeNodeEmbedText(n));
+    const embedBatchFn = (typeof ctx.embedBatch === 'function') ? ctx.embedBatch : require('../lib/embed').embedBatch;
+    const CHUNK = 48;
+    const vecs = new Array(pooledTexts.length).fill(null);
+    for (let off = 0; off < pooledTexts.length; off += CHUNK) {
+      const slice = pooledTexts.slice(off, off + CHUNK);
+      let batch;
+      try { batch = await embedBatchFn(slice, { mode: 'document', overlay: T.ov }); }
+      catch { batch = slice.map(() => ({ vec: null })); }
+      for (let i = 0; i < slice.length; i++) {
+        const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
+        vecs[off + i] = v;
+      }
+    }
+    const meta = (typeof ctx.embeddingMeta === 'function') ? ctx.embeddingMeta(T.ov) : null;
+    const created = [];
+    for (let i = 0; i < b.nodes.length; i++) {
+      const n = b.nodes[i];
+      const r = overlayStore.upsertCodeNode(T.ov, {
+        key: n.key, name: n.name, kind: n.kind, file: n.file,
+        start_line: n.start_line, end_line: n.end_line,
+        signature: n.signature, summary: n.summary, exported: n.exported,
+        vec: vecs[i], vecMeta: vecs[i] ? meta : null,
+      });
+      if (r.ok) created.push(r.key);
+    }
+    overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, file, deleted: removed.length, created: created.length, keys: created, workspace: T.ws }); return true;
+  }
+
   if (p === '/overlay/gate' && m === 'POST') {
     const b = await readBody(req);
     if (ctx.opReplay(res, b)) return true;
