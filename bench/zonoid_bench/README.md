@@ -40,8 +40,8 @@ No `pip install` needed -- `bench/` is on `sys.path` via the bootstrap in each m
 
 ```
 bench/zonoid_bench/
-  client.py     -- ZonoidClient + module-level HTTP helpers
-  judge.py      -- claude_p, parse_strict_json, EdgeJudge
+  client.py     -- ZonoidClient + module-level HTTP helpers (incl. judge_drain)
+  judge.py      -- claude_p, claude_p_with_usage, parse_strict_json (tool-less completion only)
   workspace.py  -- workspace_key, isolated_ws, drop_task_stub
   daemon.py     -- start(), stop(), DaemonHandle
   warm.py       -- load_snapshot(), produce_snapshot()
@@ -93,18 +93,19 @@ The model weight files (`Xenova/all-MiniLM-L6-v2`, `Xenova/ms-marco-MiniLM-L-6-v
 are symlinked (or copied on Windows) from `~/.claude/orchestrator/models` into the
 bench data dir so the embed/rerank sidecars don't re-download them.
 
-### Caveat: daemon auto-drain is off by default
+### Caveat: daemon background auto-drain is off by default
 
-The eager-judge quarantine runs node-scoped.  If a node is in quarantine
-(`idle:false` on `GET /judge/next?node=<key>`), drain it manually before reading
-its context:
+The bench daemon runs with `ORCH_HEADLESS_DRAINS=0`, so the daemon's background drain loop does not
+fire. The ON arm does not rely on it: it drives the **production sync judge** explicitly with one
+`POST /judge/drain?node=<key>&budget=<n>` call, which drains the node to idle in-process and returns
+`{judged, kept, pruned, idle, rounds}`. `arms.run_canonical_wiring` does this for you via
+`client.judge_drain(node, budget)`; to drive it by hand:
 
 ```bash
-# Pull candidates and post verdicts until idle:true (typically <=3 rounds).
-curl http://localhost:<port>/judge/next?node=<key>&budget=20
-curl -X POST http://localhost:<port>/judge/verdict \
+# Drain the node's autowire candidate edge-set to idle via the production sync judge (one call).
+curl -X POST "http://localhost:<port>/judge/drain?node=<key>&budget=20" \
   -H 'Content-Type: application/json' \
-  -d '{"workspace":"/abs/path/to/per-trial-workspace","verdicts":[{"keepEdge":{"from":"<from>","to":"<to>","kind":"context"}}]}'
+  -d '{"workspace":"/abs/path/to/per-trial-workspace"}'
 ```
 
 ---
@@ -166,7 +167,8 @@ result = arms.run_retrieve_and_answer(
 
 ## Canonical ON-arm wiring
 
-The active five-step pipeline in `arms.run_canonical_wiring`:
+The bench runs **no judge LLM of its own** — it **drives the production sync judge**. The active
+four-step pipeline in `arms.run_canonical_wiring`:
 
 1. **Register** the bench unit as a task probe using `workspace.drop_task_stub`, then
    `POST /overlay/status` with the task summary. This drives embed -> autowire ->
@@ -174,17 +176,26 @@ The active five-step pipeline in `arms.run_canonical_wiring`:
 2. **Collect diagnostic search provenance** using workspace-scoped `/search`. These hits
    are retained in `WiringResult.context_deps` for reporting only; they are not injected
    into `AGENTS.md` and they do not choose DAG edges.
-3. **Pull candidate edges** with `GET /judge/next?node=<probe>&budget=<n>`.
-4. **Judge candidates** with the real LLM `EdgeJudge`, then submit `keepEdge`/`pruneEdge`
-   through `POST /judge/verdict` with the isolated workspace. There is no `ceScore`
-   threshold and no `POST /overlay/edge` rescue path.
-5. **Read** frozen judged DAG context with `GET /task/context`. `retrieve_and_answer`
-   injects that context into its answer prompt; `agent_in_container` exposes only API
-   instructions so the spawned agent must use the daemon/bench APIs.
+3. **Drive the production judge** with a single `POST /judge/drain?node=<probe>&budget=<n>`
+   (P1). The daemon's in-process judge
+   (`lib/headless-drain.runJudgeDrainSync` -> `resolveJudgeBackend` -> `provider.runJudgeLoop`)
+   pulls the probe's unjudged autowire candidate edge-set via `/judge/next?node=`, applies the
+   **same** keep/prune rubric production uses (`buildJudgePrompt`), and posts `keepEdge`/`pruneEdge`
+   itself. The bench holds **no rubric**, parses **no verdict**, and makes **no** `/judge/verdict`
+   call — there is one judge implementation, in production. `/judge/drain` returns
+   `{judged, kept, pruned, idle, rounds}`. There is no `ceScore` threshold and no
+   `POST /overlay/edge` rescue path.
+4. **Read** the frozen judged DAG context with `GET /task/context`: the candidate edges the
+   production judge **kept** surface as weight>0 context deps (the bench reads them back; it does
+   not author them). `retrieve_and_answer` injects that context into its answer prompt;
+   `agent_in_container` exposes only API instructions so the spawned agent must use the
+   daemon/bench APIs.
 
-The canonical embedded daemon starts with `ORCH_AUTOWIRE_THRESHOLD=0.0` and
-`ORCH_AUTOWIRE_K` top-K bounds. That drops the stale hard cosine floor in SDK bench
-runs while still bounding judge cost.
+The canonical embedded daemon **inherits production's autowire defaults** — the 0 cosine floor
+(P2: `SEMANTIC_AUTOWIRE_THRESHOLD` defaults to 0, top-per-kind candidates seeded unconditionally for
+the eager-judge to arbitrate) and an uncapped top-K (cost bounded by `TASK_CREATE_FANOUT=5` per
+kind). The bench no longer sets `ORCH_AUTOWIRE_THRESHOLD`/`ORCH_AUTOWIRE_K`, so it measures the real
+production policy, not a bench-special one.
 
 ---
 
@@ -218,7 +229,8 @@ Spawns its own isolated local daemon (never touches `:8787`), ingests a toy unit
 planted fact + distractor, runs all three arms, scores them, and asserts:
 
 - **A1** ON answer contains the planted fact.
-- **A2** Canonical wiring persisted a real `keepEdge` into `/task/context`.
+- **A2** The production judge (driven via `/judge/drain`) persisted a real `keepEdge` — the planted
+  note surfaces in `/task/context` and the kept edge came from a keepEdge promotion (not idle).
 - **A3** Cold answer does NOT contain the planted fact (rigging guard).
 
 All assertions must PASS for the feature branch to be merge-eligible.

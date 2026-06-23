@@ -12,6 +12,8 @@ POST /overlay/note      — write a note (no ``force``; lets autowire + dup-guar
 GET  /search            — semantic/lexical search, workspace-scoped, tiered results
 GET  /judge/next        — eager-judge: pull a node's unjudged autowire candidate edge-set
 POST /judge/verdict     — post edge/dup verdicts; body MUST be wrapped {workspace, verdicts:[...]}
+POST /judge/drain       — drive the PRODUCTION sync judge to drain a node to idle (the de-ported
+                          judge path: NO bench LLM; reuses lib/headless-drain.runJudgeDrainSync)
 GET  /task/context      — read frozen DAG context for a node
 POST /overlay/status    — update a node's status
 POST /workspace         — bind the daemon's LIVE state.workspace (eager-judge prerequisite)
@@ -338,6 +340,47 @@ def judge_next(
         return {"items": [], "idle": True, "total": 0, "error": str(exc)}
 
 
+def judge_drain(
+    base_url: str,
+    node: str,
+    workspace: str,
+    budget: int = 20,
+    timeout: int = 120,
+) -> dict[str, Any]:
+    """POST /judge/drain?node=&budget=&workspace= — drive the PRODUCTION sync judge for *node*.
+
+    This is the de-ported judge path: instead of the bench pulling /judge/next, running its own LLM
+    edge-judge, and posting /judge/verdict, it makes ONE call to the production endpoint that drains
+    the node's whole unjudged autowire candidate edge-set to idle (or the budget/round ceiling) by
+    REUSING the in-process production judge (lib/headless-drain.runJudgeDrainSync →
+    resolveJudgeBackend → provider.runJudgeLoop). There is NO judge LLM in the bench: the prompt,
+    keep/prune rubric, /judge/next pull, and /judge/verdict write all live in production.
+
+    node       — the probe key whose candidate edges to drain (the /judge/next?node= target).
+    workspace  — the (absolute) bench workspace; the daemon must be LIVE-bound to it for the eager
+                 read to resolve (note-mqgwrh5a63x). Passed in the body; node/budget ride the query.
+    budget     — per-round adjudication budget (the daemon clamps to 1..50).
+
+    Returns the raw daemon response dict:
+      {"ok": True, "workspace", "node", "judged", "kept", "pruned", "idle", "rounds", ...}
+    On error returns {"ok": False, "idle": True, "error": "..."} so callers never crash.
+    """
+    # Finding #1: workspace must be absolute (the body carries it for targetOverlay resolution).
+    if not (workspace.startswith("/") or (len(workspace) >= 2 and workspace[1] == ":")):
+        raise ValueError(
+            f"workspace must be an absolute filesystem path (finding #1), got: {workspace!r}"
+        )
+    # node + budget ride the query-string (the route reads u.searchParams first, then body); the
+    # workspace rides the body so targetOverlay(b, u) resolves the right overlay.
+    qs = urllib.parse.urlencode({"node": node, "budget": budget})
+    url = f"{_base(base_url)}/judge/drain?{qs}"
+    body: dict[str, Any] = {"workspace": workspace}
+    try:
+        return _http_post(url, body, timeout)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "idle": True, "judged": 0, "kept": 0, "pruned": 0, "error": str(exc)}
+
+
 def set_workspace(
     base_url: str,
     path: str,
@@ -575,6 +618,27 @@ class ZonoidClient:
             node,
             budget=budget,
             workspace=workspace or self.workspace,
+            timeout=timeout or self.timeout,
+        )
+
+    def judge_drain(
+        self,
+        node: str,
+        budget: int = 20,
+        workspace: str | None = None,
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
+        """POST /judge/drain — drive the PRODUCTION sync judge to drain *node* to idle.
+
+        Single call replacing the old pull(/judge/next)→EdgeJudge→post(/judge/verdict) loop: the
+        bench runs NO judge LLM; production's runJudgeDrainSync does the keep/prune adjudication.
+        Returns {ok, judged, kept, pruned, idle, rounds, ...}.
+        """
+        return judge_drain(
+            self.base_url,
+            node,
+            self._ws(workspace),
+            budget=budget,
             timeout=timeout or self.timeout,
         )
 
