@@ -19,3 +19,5 @@
 {"evt":"edge_removed","from":"codex/progressive-disclosure-context-audit","to":"knowledge:source_chunk:chunk-readme-md-0-0-the-agent-s-subconscious-for-coding-work-2ef7ace6c3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:34:20.776Z"}
 {"evt":"edge_removed","from":"codex/progressive-disclosure-context-audit","to":"knowledge:source_doc:doc-readme-md-f8cd5fd8ad","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:34:20.776Z"}
 {"evt":"edge_removed","from":"codex/progressive-disclosure-context-audit","to":"knowledge:source_section:section-readme-md-0-zonoid-9b67f5a8c7","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:34:20.776Z"}
+{"evt":"status_changed","id":"codex/progressive-disclosure-context-audit","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-23T14:48:41.355Z"}
+{"evt":"timestamps_set","id":"codex/progressive-disclosure-context-audit","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-23T13:58:46.514Z","lastChanged":"2026-06-23T14:48:41.338Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-23T14:48:41.355Z"}
