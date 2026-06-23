@@ -28,3 +28,4 @@
 {"evt":"edge_removed","from":"note:note-mqiu39gvwdo","to":"note:note-mqabxxjzab3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:19:14.189Z"}
 {"evt":"edge_removed","from":"note:note-mqiu39gvwdo","to":"note:note-mqb975duzqu","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:19:14.189Z"}
 {"evt":"edge_removed","from":"note:note-mqiu39gvwdo","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:32:27.914Z"}
+{"evt":"edge_promoted","from":"note:note-mqiu39gvwdo","to":"note:note-mqa88m0kqag","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:36:05.154Z","weight":0.595,"by":"judge","judged":true,"score":0.595,"origin":"autowire-semantic"}

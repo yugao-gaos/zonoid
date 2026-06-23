@@ -1,0 +1,2 @@
+{"evt":"edge_added","from":"codex/codex-desktop-wakeup-e2e","to":"codex/judge-fix-codex-desktop-wakeup-session","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T04:38:46.709Z","by":"judge","judged":true,"score":0.586,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"codex/codex-desktop-wakeup-e2e","to":"codex/judge-fix-codex-desktop-wakeup-session","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:38:46.709Z"}

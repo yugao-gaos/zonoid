@@ -23,3 +23,4 @@
 {"evt":"timestamps_set","id":"eeadb38f-7472-4703-9689-fbf24eebee4d/8","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-14T23:23:22.849Z","lastChanged":"2026-06-16T20:44:08.626Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-23T03:15:14.415Z"}
 {"evt":"edge_removed","from":"eeadb38f-7472-4703-9689-fbf24eebee4d/8","to":"eeadb38f-7472-4703-9689-fbf24eebee4d/6","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:08:23.430Z"}
 {"evt":"edge_removed","from":"eeadb38f-7472-4703-9689-fbf24eebee4d/8","to":"ddccf8ca-a541-49a7-8912-43ff5c7ccc63/14","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:08:23.430Z"}
+{"evt":"edge_removed","from":"eeadb38f-7472-4703-9689-fbf24eebee4d/8","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/24","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:38:38.515Z"}

@@ -7,3 +7,4 @@
 {"evt":"edge_promoted","from":"note:note-mqa3vbpct2c","to":"codex/fix-codex-task-transcript-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:59:50.517Z","weight":0.573,"by":"judge","judged":true,"score":0.573,"origin":"asserted"}
 {"evt":"edge_added","from":"note:note-mqa3vbpct2c","to":"codex/fix-codex-uuid-session-transcript-resolution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:16:05.609Z","origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqa3vbpct2c","to":"codex/fix-codex-uuid-session-transcript-resolution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:16:52.451Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
+{"evt":"edge_removed","from":"note:note-mqa3vbpct2c","to":"codex/fix-codex-uuid-session-transcript-resolution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:39:06.748Z"}
