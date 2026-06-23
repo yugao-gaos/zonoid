@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/fix-codex-task-transcript-attribution",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-transcript-attribution-fixer-1",
+  "branch": "orch/attempt/codex-fix-codex-task-transcript-attribution",
+  "status": "claimed",
+  "claimed_at": "2026-06-23T04:00:09.104Z",
+  "lease_until": "2026-06-23T05:00:09.104Z"
+}
