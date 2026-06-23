@@ -1,2 +1,0 @@
-{"evt":"edge_promoted","from":"bench/context-inject-verdict-report","to":"bench/context-inject-global-summary","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:29:37.369Z","weight":0.584,"by":"judge","judged":true,"score":0.584,"origin":"autowire-semantic"}
-{"evt":"edge_promoted","from":"bench/context-inject-verdict-report","to":"bench/context-inject-4arm-runner","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:29:37.369Z","weight":0.61,"by":"judge","judged":true,"score":0.61,"origin":"autowire-semantic"}

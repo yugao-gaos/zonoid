@@ -1,1 +1,0 @@
-{"evt":"edge_promoted","from":"bench/context-inject-arm-flags","to":"bench/context-inject-global-summary","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:29:37.369Z","weight":0.556,"by":"judge","judged":true,"score":0.556,"origin":"autowire-semantic"}
