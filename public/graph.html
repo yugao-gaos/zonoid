@@ -7164,12 +7164,13 @@ function renderBackendPanel(){
     const r=bkProviderReadiness(prov);
     const isSel=prov.id===_bkSelected;
     const isActive=prov.id===activeId;
+    const detail=r.detail+(prov.defaultModel?(' - default '+prov.defaultModel):'');
     return `<label class="bk-prov${isSel?' active':''}">`
       +`<input type="radio" name="bk-prov" value="${esc(prov.id)}" ${isSel?'checked':''} onchange="selectBackendProvider('${esc(prov.id)}')" />`
       +`<span class="bk-main"><span class="bk-name">${esc(prov.displayName||prov.id)}`
       +`<span class="bk-kind">${esc(prov.kind||'?')}</span>`
       +(isActive?'<span class="bk-active-tag">active</span>':'')
-      +`</span><span class="bk-detail">${esc(r.detail)}</span></span>`
+      +`</span><span class="bk-detail">${esc(detail)}</span></span>`
       +`<span class="bk-badge ${r.ok?'ok':'bad'}">${esc(r.label)}</span>`
       +`</label>`;
   }).join('');
@@ -7181,6 +7182,8 @@ function updateAvNotice(){
   const box=document.getElementById('bk-avnotice');
   const prov=_bkData&&_bkData.providers.find(p=>p.id===_bkSelected);
   const kind=prov&&prov.kind;
+  const model=document.getElementById('bk-model');
+  if(model) model.placeholder=(prov&&prov.defaultModel)?('default: '+prov.defaultModel):'default for provider';
   if(bkShouldShowAvNotice(kind)){
     // Render `code` spans for the inline command/binary names; rest is escaped text.
     document.getElementById('bk-avnotice-body').innerHTML=

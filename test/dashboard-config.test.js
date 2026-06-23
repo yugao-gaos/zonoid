@@ -19,6 +19,9 @@ ok('saved daemonUrl initializes mutable BASE', html.includes('let BASE = loadSav
 ok('settings save refreshes mutable BASE', html.includes('setDaemonBase(url);'));
 ok('workspace discovery uses token-aware dfetch',
   !html.includes("fetch(BASE + '/workspaces')") && (html.match(/dfetch\('\/workspaces'\)/g) || []).length >= 2);
+ok('backend provider rows surface default model metadata', html.includes("default '+prov.defaultModel"));
+ok('backend model input placeholder follows selected provider default',
+  html.includes("model.placeholder=(prov&&prov.defaultModel)?('default: '+prov.defaultModel):'default for provider'"));
 
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
