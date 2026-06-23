@@ -1,10 +1,10 @@
 {
   "task_key": "codex/fix-token-accounting-attribution",
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
-  "session_id": "codex-mcp-38512-28cc367e5b5d6d8d08173b941864e141",
+  "session_id": "codex-mcp-25015-0c9867064518cdb01243b27b2624639f",
   "branch": "orch/attempt/codex-fix-token-accounting-attribution",
-  "status": "tested",
+  "status": "failed",
   "claimed_at": "2026-06-23T03:30:16.681Z",
   "lease_until": "2026-06-23T04:30:16.681Z",
-  "completed_at": "2026-06-23T03:39:16.084Z"
+  "completed_at": "2026-06-23T03:42:21.350Z"
 }
