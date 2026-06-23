@@ -5364,3 +5364,4 @@
 {"ts":1782227653798,"from":"note:note-mqi4uvwuwo8","to":"codex/daemon-process-reaper-sweep","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.4141405061300562,"cosine":0.648,"model_version":"v1"}
 {"ts":1782227653800,"from":"note:note-mqiznf3kk2j","to":"codex/daemon-process-reaper-sweep","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.3821991470097706,"cosine":0.582,"model_version":"v1"}
 {"ts":1782227653801,"from":"note:note-mqqosxptv7i","to":"codex/daemon-process-reaper-sweep","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3774398910206905,"cosine":0.572,"model_version":"v1"}
+{"ts":1782228233281,"from":"codex/daemon-process-reaper-sweep-judge","to":"codex/daemon-process-reaper-sweep","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6086814074504704,"cosine":0.612,"model_version":"v1"}

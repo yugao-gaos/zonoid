@@ -26,3 +26,4 @@
 {"evt":"edge_removed","from":"note:note-mqe1cey1lux","to":"codex/fix-graph-dispatch-invariants-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:30:16.165Z"}
 {"evt":"edge_added","from":"note:note-mqe1cey1lux","to":"codex/p1-sync-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:18:00.174Z","weight":0,"by":"autowire","judged":false,"score":0.586,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqe1cey1lux","to":"codex/p1-sync-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:23:07.591Z"}
+{"evt":"edge_added","from":"note:note-mqe1cey1lux","to":"codex/daemon-process-reaper-sweep-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:22:32.735Z","weight":0,"by":"autowire","judged":false,"score":0.62,"origin":"autowire-semantic"}
