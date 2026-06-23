@@ -22,6 +22,23 @@ function sessionsFromOverlay(ov) {
   return [...bySession.values()];
 }
 
+function claimedOutputForSession(session, claims, ownTok) {
+  if (!session || !session.id) return 0;
+  const sid = session.id;
+  const transcript = session.path || session.transcript_path || session.transcript || null;
+  let total = 0;
+  for (const c of claims || []) {
+    if (!c || !c.id) continue;
+    const claimTranscript = c.transcript || c.transcript_path || c.path || null;
+    const matchesTranscript = claimTranscript && (transcript ? claimTranscript === transcript : claimTranscript === sid);
+    const matchesSession = !claimTranscript && c.session && c.session === sid;
+    if (matchesTranscript || matchesSession) {
+      total += ownTok.get(c.id) || 0;
+    }
+  }
+  return total;
+}
+
 function harnessNameForWorkspace(state, ov, workspace, fallback) {
   const sessions = Object.values((state && state.sessions) || {})
     .filter((s) => s && s.workspace === workspace && s.harness)
@@ -50,6 +67,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const stWs = { ...state, overlay: T.ov };
     const claims = g.tasks.filter((t) => t.kind !== 'note').map((t) => ({
       id: t.id,
+      session: t.session || null,
       transcript: taskTranscript(t.id, t.session, true, stWs),
       window: { start: t.firstSeen, end: t.lastChanged },
       work_sessions: (T.ov.work_sessions && T.ov.work_sessions[t.id]) || null,
@@ -59,7 +77,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const usageOutputOnly = (tp, claim) => {
       if (claim && claim.id) {
         const fromRec = usageAccounting.taskOutputFromRecords(T.ov, claim.id);
-        if (fromRec > 0) return { total: fromRec };
+        if (fromRec > 0) return { total: fromRec, task_specific: true };
       }
       if (tp) { const u2 = usageCached(tp); return { total: (u2 && u2.output_tokens) || 0 }; }
       const aid = claim && claim.id && stWs.overlay.assignee[claim.id];
@@ -101,10 +119,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       for (const d of t.deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: 1 });
       for (const d of t.context_deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: (t.context_weights && t.context_weights[d]) ?? overlayStore.DEFAULT_CONTEXT_WEIGHT });
     }
-    const claimedByTp = new Map();
-    for (const c of claims) if (c.transcript) claimedByTp.set(c.transcript, (claimedByTp.get(c.transcript) || 0) + (ownTok.get(c.id) || 0));
     const sessList = sessionsFromOverlay(T.ov);
-    const sessions = sessList.map(({ id, total: sessTotal }) => {
+    const sessions = sessList.map((s) => {
+      const id = s.id;
+      const sessTotal = s.total;
       let total = sessTotal || 0;
       if (!total) {
         const recTotal = [...Object.values(T.ov.usage_records || {})]
@@ -112,7 +130,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           .reduce((sum, s) => sum + ((s.usage && s.usage.output_tokens) || 0), 0);
         total = recTotal;
       }
-      return { id, total, claimed: claimedByTp.get(id) || 0 };
+      return { id, total, claimed: claimedOutputForSession(s, claims, ownTok) };
     });
     const catchalls = costflow.sessionCatchalls(sessions, g.tasks, overlayStore.DEFAULT_CONTEXT_WEIGHT);
     for (const cn of catchalls.nodes) if (!seen.has(cn.id)) { nodes.push(cn); seen.add(cn.id); }
@@ -196,7 +214,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const usageOutputOnly = (tp, claim) => {
         if (claim && claim.id) {
           const fromRec = usageAccounting.taskOutputFromRecords(T.ov, claim.id);
-          if (fromRec > 0) return { total: fromRec };
+          if (fromRec > 0) return { total: fromRec, task_specific: true };
         }
         const u2 = usageCached(tp);
         return { total: (u2 && u2.output_tokens) || 0 };
@@ -318,3 +336,5 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   return false;
 };
+
+module.exports._internal = { sessionsFromOverlay, claimedOutputForSession, harnessNameForWorkspace };

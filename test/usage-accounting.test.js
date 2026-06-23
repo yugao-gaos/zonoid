@@ -65,6 +65,71 @@ const ok = (label, cond) => {
   fs.rmSync(SANDBOX, { recursive: true, force: true });
 }
 
+{
+  const ov = {
+    usage_reconcile: {},
+    usage_reconcile_snapshot: {
+      other_harness: {
+        cost: { usd: 99, source: 'real', by_model: { stale: { tokens: 1, usd: 99 } } },
+      },
+    },
+  };
+  let saved = false;
+  let notified = false;
+  const report = {
+    totals: {
+      input_tokens: 10,
+      output_tokens: 20,
+      cache_read_input_tokens: 30,
+      cache_creation_input_tokens: 0,
+      by_model: { m1: { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 30 } },
+    },
+    cost: { usd: 1.23, source: 'estimated', by_model: { m1: { tokens: 60, usd: 1.23 } } },
+    human: { tokens: 2, chars: 8, messages: 1, dropped: 0 },
+    sessions: [{ id: 'S1', path: '/tmp/S1.jsonl', total: 20 }],
+  };
+  const ctx = {
+    harnessRegistry: { get: (name) => ({ name, usage: { reconcile: () => report } }) },
+    targetOverlay: () => ({ ws: '/tmp/reconcile-cost-ws', ov, save: () => { saved = true; } }),
+    now: () => '2026-06-20T00:00:00.000Z',
+    notifyChange: () => { notified = true; },
+  };
+  const forced = runUsageReconcile(ctx, { harness: 'fake', workspace: '/tmp/reconcile-cost-ws', force: true });
+  ok('reconcile snapshot stores active harness cost', forced.ok && ov.usage_reconcile_snapshot.cost.usd === 1.23);
+  ok('reconcile snapshot keeps sessions for catch-all attribution', ov.usage_reconcile_snapshot.sessions[0].id === 'S1');
+  ok('reconcile snapshot preserves nested harness reports', ov.usage_reconcile_snapshot.other_harness.cost.usd === 99 && ov.usage_reconcile_snapshot.fake === report);
+  const merged = usageAccounting.sumUsageRecords(ov);
+  ok('sumUsageRecords includes top-level reconcile cost exactly once', merged.cost.usd === 1.23 && !merged.cost.by_model.stale);
+  ok('reconcile save + notify called', saved && notified);
+}
+
+{
+  const ov = {
+    usage_reconcile_snapshot: {
+      harness: 'codex',
+      codex: {
+        cost: { usd: 4.56, source: 'real', by_model: { 'gpt-5-codex': { tokens: 100, usd: 4.56 } } },
+      },
+    },
+  };
+  const merged = usageAccounting.sumUsageRecords(ov);
+  ok('sumUsageRecords falls back to active nested reconcile cost', merged.cost.usd === 4.56 && merged.cost.by_model['gpt-5-codex'].usd === 4.56);
+}
+
+{
+  const ov = {
+    usage_reconcile_snapshot: {
+      harness: 'codex',
+      cost: { usd: 2, source: 'real', by_model: { top: { tokens: 1, usd: 2 } } },
+      codex: {
+        cost: { usd: 2, source: 'real', by_model: { nested: { tokens: 1, usd: 2 } } },
+      },
+    },
+  };
+  const merged = usageAccounting.sumUsageRecords(ov);
+  ok('sumUsageRecords does not double-count nested cost when top-level cost exists', merged.cost.usd === 2 && !merged.cost.by_model.nested);
+}
+
 // --- gross/delta split: by_model stays gross, scalar totals go delta ----------------------------
 {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-gross-'));

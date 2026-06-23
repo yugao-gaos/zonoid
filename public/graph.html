@@ -5381,13 +5381,11 @@ async function tick(){
   // totalRaw: DELTA basis (prod+expl+trap) — denominator for productivity% and token-economy
   const totalRaw=cf?cf.totals.total:null;
   const totalTok=cf?fmtK(totalRaw):'—';
-  // Per-model pricing ($/M tokens): [input, output, cache_read]
-  const MODEL_RATES={'claude-opus-4-8':[15,75,1.5],'claude-opus-4-7':[15,75,1.5],'claude-sonnet-4-6':[3,15,0.3],'claude-sonnet-4-5':[3,15,0.3],'claude-haiku-4-5':[0.8,4,0.08],'claude-fable-5':[3,15,0.3]};
-  const rateFor=m=>{ for(const k of Object.keys(MODEL_RATES)) if(m&&m.startsWith(k.slice(0,-2))) return MODEL_RATES[k]; return [3,15,0.3]; };
-  const modelCost=(m,v)=>{ const [ri,ro,rc]=rateFor(m); return (v.input_tokens/1e6)*ri+(v.output_tokens/1e6)*ro+(v.cache_read/1e6)*rc; };
   const bm=cf&&cf.by_model||{};
-  // billCost: GROSS basis (Σ by_model) — includes inherited/baseline context (it is billed)
-  const billCost=cf?Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[m,v])=>s+modelCost(m,v),0):null;
+  const costByModel=cf&&cf.cost&&cf.cost.by_model||{};
+  const serverModelCost=m=>costByModel[m]&&costByModel[m].usd!=null?Number(costByModel[m].usd):null;
+  // billCost: server-priced GROSS session dollars from /costflow.cost (adapter-priced, daemon-summed)
+  const billCost=cf&&cf.cost?Number(cf.cost.usd||0):null;
   const fmtUSD=n=>n==null?'—':n>=1000?'$'+Math.round(n/1000)+'K':n>=1?'$'+n.toFixed(0):'$'+n.toFixed(2);
   // cronCostCached: from harnessOhCache (populated by refreshInfraHero); use 0 if not yet loaded
   const cronCostCached=harnessOhCache?harnessOhCache.cronCost:0;
@@ -5413,18 +5411,22 @@ async function tick(){
   const prodMedianPct=50;
   const prodBarColor=prodPct==null?'#484f58':prodPct>=prodMedianPct?'#3fb950':'#e3b341';
   const prodVs=prodPct==null?'':(prodPct>=prodMedianPct?`<b style="color:#3fb950">+${prodPct-prodMedianPct}pp above median</b>`:`<b style="color:#e3b341">${prodMedianPct-prodPct}pp below median</b>`);
-  const topModelEntry=Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&((bm[m].input_tokens||0)+(bm[m].output_tokens||0))>0).sort(([ma,va],[mb,vb])=>modelCost(mb,vb)-modelCost(ma,va))[0];
+  const topModelEntry=Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&((bm[m].input_tokens||0)+(bm[m].output_tokens||0))>0).sort(([ma,va],[mb,vb])=>{
+    const ca=serverModelCost(ma), cb=serverModelCost(mb);
+    if(ca!=null||cb!=null) return (cb||0)-(ca||0);
+    return (vb.output_tokens||0)-(va.output_tokens||0);
+  })[0];
   const topModelShort=topModelEntry?topModelEntry[0].replace('claude-','').replace(/-\d{8}$/,''):'';
-  const topModelCost=topModelEntry?fmtUSD(modelCost(topModelEntry[0],topModelEntry[1])):'';
+  const topModelUsd=topModelEntry?serverModelCost(topModelEntry[0]):null;
+  const topModelCost=topModelUsd!=null?fmtUSD(topModelUsd):'';
   const autoSubColor=autoRaw==null?'#484f58':autoRaw>=autoMedian?'#3fb950':'#e3b341';
   const autoSubVs=autoRaw==null?'no data':autoRaw>=autoMedian?`+${(autoRaw-autoMedian).toFixed(1)}× median`:`${(autoMedian-autoRaw).toFixed(1)}× below median`;
   // Harness cost hero — uses cached overhead data populated by refreshInfraHero
   const oh_h=harnessOhCache;
   const cronCost_h=oh_h?oh_h.cronCost:0;
-  const inCacheCost_h=cf?Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[m,v])=>{const[ri,,rc]=rateFor(m);return s+(v.input_tokens||0)*ri/1e6+(v.cache_read||0)*rc/1e6;},0):null;
-  const inCacheTok_h=cf?Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[,v])=>s+(v.input_tokens||0)+(v.cache_read||0),0):0;
-  const blendedRate_h=inCacheTok_h>0&&inCacheCost_h!=null?inCacheCost_h/inCacheTok_h:3/1e6;
-  const overheadEst_h=oh_h!=null?oh_h.ohTok*blendedRate_h:null;
+  const grossTok_h=cf&&cf.gross_totals?(cf.gross_totals.input_tokens||0)+(cf.gross_totals.output_tokens||0)+(cf.gross_totals.cache_read||0):0;
+  const blendedRate_h=grossTok_h>0&&billCost!=null?billCost/grossTok_h:null;
+  const overheadEst_h=oh_h!=null&&blendedRate_h!=null?oh_h.ohTok*blendedRate_h:null;
   const totalHarnessCost=overheadEst_h!=null?cronCost_h+overheadEst_h:null;
   const harnessHval=totalHarnessCost!=null?fmtUSD(totalHarnessCost):(cronTokCache!=null?fmtK(cronTokCache):'—');
   const harnessHsub=totalHarnessCost!=null?'direct + injected':'cron only';
@@ -5459,7 +5461,7 @@ async function tick(){
     `<span><b style="color:#e3b341">~ Exploration</b> — canceled / superseded / attempt branches</span><b style="color:#e3b341">${cf?fmtK(cf.totals.exploration??0):'—'}</b>` +
     `<span><b style="color:#6e7681">✕ Trapped</b> — terminal dead-ends with no captured output</span><b style="color:#6e7681">${cf?fmtK(cf.totals.trapped):'—'}</b>` +
     `<span style="color:#484f58">Total (attributed work)</span><b style="color:#e6edf3">${totalTok}</b>` +
-    `<span style="color:#484f58;font-size:9px">○ unrouted session tokens (subset of trapped)</span><b style="color:#484f58;font-size:9px">${unroutedTok}</b>` +
+    `<span style="color:#484f58;font-size:9px">○ unrouted session remainder (pre-flow)</span><b style="color:#484f58;font-size:9px">${unroutedTok}</b>` +
     `</div>` +
     `<div class="tip-bench-label" style="margin-top:6px">productive % vs median (${prodMedianPct}%)</div>` +
     `<div class="tip-bar"><div class="tip-bar-fill" style="width:${prodPct??0}%;background:${prodBarColor}"></div></div>` +
@@ -5473,7 +5475,7 @@ async function tick(){
     `</span>` +
     `<span class="hero" onclick="toggleBillingPopup()">` +
     `<span class="hlabel">Billing <span style="font-size:8px;color:#484f58;font-weight:400;text-transform:none">gross</span></span><span class="hval" style="color:#d29922">${billStr}</span>` +
-    `<span class="hval-sub">${topModelShort?topModelShort+' '+topModelCost:'sessions + cron'}</span>` +
+    `<span class="hval-sub">${topModelShort?topModelShort+(topModelCost?' '+topModelCost:' gross tokens'):'sessions + cron'}</span>` +
     `<span class="htip" style="width:200px"><div class="tip-title">Estimated API Cost</div>Sessions (gross, all models) + cron/gate. Click for full breakdown: productive vs trapped, infra overhead, per-model split.</span>` +
     `</span>` +
     (()=>{
@@ -7372,6 +7374,8 @@ async function toggleBillingPopup(){
 
   const t=cf.totals||{};
   const bm=cf.by_model||{};
+  const serverCost=cf.cost||null;
+  const serverCostByModel=serverCost&&serverCost.by_model||{};
   const human=cf.human||{};
   const entries=(cd&&cd.entries)||[];
 
@@ -7382,13 +7386,13 @@ async function toggleBillingPopup(){
   const cronTotal=cronIn+cronOut+cronCache;
 
   // Cost helpers
-  const rateFor=m=>{ if(m.includes('opus')) return [15,75,1.5]; if(m.includes('haiku')) return [0.8,4,0.08]; if(m.includes('fable')) return [3,15,0.3]; return [3,15,0.3]; };
-  const modelCost=(m,v)=>{ const [ri,ro,rc]=rateFor(m); return ((v.input_tokens||0)*ri+(v.output_tokens||0)*ro+(v.cache_read||0)*rc)/1e6; };
-  const cronCost=entries.reduce((s,e)=>{ const [ri,ro,rc]=rateFor(e.model||''); return s+(e.input_tokens||0)*ri/1e6+(e.output_tokens||0)*ro/1e6+(e.cache_read_tokens||0)*rc/1e6; },0);
+  const cronRateFor=m=>{ if(m.includes('opus')) return [15,75,1.5]; if(m.includes('haiku')) return [0.8,4,0.08]; if(m.includes('fable')) return [3,15,0.3]; return [3,15,0.3]; };
+  const cronCost=entries.reduce((s,e)=>{ const [ri,ro,rc]=cronRateFor(e.model||''); return s+(e.input_tokens||0)*ri/1e6+(e.output_tokens||0)*ro/1e6+(e.cache_read_tokens||0)*rc/1e6; },0);
   const fmtUSD=v=>v<0.01?'<$0.01':v<1?'$'+v.toFixed(2):'$'+Math.round(v).toLocaleString();
   const fmtN=n=>n==null?'—':Number(n).toLocaleString();
 
-  const totalCost=Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[m,v])=>s+modelCost(m,v),0);
+  const sessionCost=serverCost?Number(serverCost.usd||0):0;
+  const sessionCostLabel=serverCost?`${fmtUSD(sessionCost)}${serverCost.source==='estimated'?' ≈':''}`:'—';
   const productive=t.productive||0, exploration=t.exploration||0, trapped=t.trapped||0;
   // econTok: DELTA basis (prod+expl+trap) — denominator for token-economy partition so buckets sum to ~100%
   const econTok=t.total||(productive+exploration+trapped)||0;
@@ -7401,12 +7405,12 @@ async function toggleBillingPopup(){
   const modelRows=Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&((bm[m].input_tokens||0)+(bm[m].output_tokens||0))>0)
     .sort(([,a],[,b])=>(b.output_tokens||0)-(a.output_tokens||0))
     .map(([m,v])=>{
-      const cost=modelCost(m,v);
+      const cost=serverCostByModel[m]&&serverCostByModel[m].usd!=null?Number(serverCostByModel[m].usd):null;
       const dot=m.includes('opus')?'#79c0ff':m.includes('fable')?'#d29922':m.includes('haiku')?'#3fb950':'#8b949e';
       const short=m.replace('claude-','').replace(/-\d{8}$/,'');
       return `<div class="bprow"><span class="bpdot" style="background:${dot}"></span><span class="bplabel">${short}</span>`+
         `<span class="bpnum" style="color:#6e7681;font-size:10px">in ${fmtK(v.input_tokens)} · out ${fmtK(v.output_tokens)} · cache ${fmtK(v.cache_read)}</span>`+
-        `<span class="bpcost">${fmtUSD(cost)}</span></div>`;
+        `<span class="bpcost">${cost!=null?fmtUSD(cost):'—'}</span></div>`;
     }).join('');
 
   el.innerHTML=
@@ -7418,21 +7422,18 @@ async function toggleBillingPopup(){
       `<div class="bpbar"><div class="bpbar-fill" style="width:${explPct}%;background:#e3b341"></div></div>`:'')+
     `<div class="bprow"><span class="bpdot" style="background:#484f58"></span><span class="bplabel">Trapped / wasted</span><span class="bpnum">${fmtK(trapped)}</span><span class="bpcost" style="color:#6e7681">${trapPct}%</span></div>`+
     `<div class="bpbar"><div class="bpbar-fill" style="width:${trapPct}%;background:#484f58"></div></div>`+
-    `<div style="font-size:10px;color:#6e7681;margin-top:4px">Total attributed: ${fmtK(econTok)} tok · <span style="color:#484f58">unrouted session tokens (subset of trapped): ${unroutedTokPopup}</span></div>`+
+    `<div style="font-size:10px;color:#6e7681;margin-top:4px">Total attributed: ${fmtK(econTok)} tok · <span style="color:#484f58">unrouted session remainder before graph flow: ${unroutedTokPopup}</span></div>`+
     `</div>`+
 
     `<div class="bpdiv"></div>`+
 
-    `<div class="bpsec"><h3>By Model <span style="font-size:9px;color:#484f58;font-weight:400">(gross billed)</span></h3>${modelRows}</div>`+
+    `<div class="bpsec"><h3>By Model <span style="font-size:9px;color:#484f58;font-weight:400">(gross billed, server-priced)</span></h3>${modelRows}</div>`+
 
     `<div class="bpdiv"></div>`+
 
-    `<div class="bptotal"><span>Task sessions est.</span><span style="color:#d29922">${fmtUSD(totalCost)}</span></div>`+
-    // Server-priced $ (CDX-3): cf.cost is the daemon-summed, adapter-priced (pricing.json) dollar
-    // overlay over per-slice cost.usd. "≈" marks an estimated rollup (some chars/4 fallback usage).
-    (cf.cost?`<div class="bprow" style="padding-top:2px"><span class="bpdot" style="background:#d29922"></span><span class="bplabel" title="Adapter-priced from pricing.json, daemon-summed per-slice cost.usd">server-priced ($/slice)</span><span class="bpcost">$${Number(cf.cost.usd||0).toFixed(2)}${cf.cost.source==='estimated'?' ≈':''}</span></div>`:'')+
+    `<div class="bptotal"><span title="Adapter-priced from pricing.json, daemon-summed per-slice cost.usd">Task sessions</span><span style="color:#d29922">${sessionCostLabel}</span></div>`+
     `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ cron/gate API cost (extra, not in sessions)</span><span style="color:#8b949e;font-size:11px">${fmtUSD(cronCost)}</span></div>`+
-    `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px;font-size:15px;font-weight:700"><span>Total est. <span style="font-size:10px;font-weight:400;color:#484f58">this project</span></span><span style="color:#d29922;font-size:18px">${fmtUSD(totalCost+cronCost)}</span></div>`+
+    `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px;font-size:15px;font-weight:700"><span>Total est. <span style="font-size:10px;font-weight:400;color:#484f58">this project</span></span><span style="color:#d29922;font-size:18px">${fmtUSD(sessionCost+cronCost)}</span></div>`+
     (()=>{
       const tasks=(delta&&delta.tasks_created)||[];
       const oldest=tasks.reduce((min,tk)=>{ const at=Date.parse(tk.firstSeen||''); return(at&&at<min)?at:min; },Infinity);
@@ -7477,7 +7478,7 @@ async function toggleBillingPopup(){
       let overflowLine='';
       if(plan.includes('overflow')&&wTotal&&wTotal>0&&allQ&&weeks&&weeks>0){
         const overflowFrac=Math.max(0,(wTotal-allQ)/wTotal);
-        const overflowMo=totalCost/weeks*4.33*overflowFrac;
+        const overflowMo=sessionCost/weeks*4.33*overflowFrac;
         overflowLine=`<div style="margin-top:4px;font-size:11px;color:#ff7b72">Est. API overflow: ~${fmtUSD(overflowMo)}/mo</div>`;
       }
       return `<div style="margin-top:12px;padding:10px 12px;background:#161b22;border-radius:6px;border-left:3px solid #d29922">`+
@@ -7504,7 +7505,7 @@ async function toggleBillingPopup(){
         `<div style="margin-top:5px;font-size:9px;color:#484f58">Anthropic does not publish real-time quota limits. Budget % is estimated from observed usage (Max 20× ≈ 80M/wk all-models).</div>`+
         `</div>`;
     })()+
-    `<div style="margin-top:8px;font-size:10px;color:#6e7681">Rates: Sonnet $3/$15/M · Opus $15/$75/M · Haiku $0.8/$4/M (input/output). Cache reads at 10% of input rate.</div>`+
+    `<div style="margin-top:8px;font-size:10px;color:#6e7681">Task-session dollars are server-priced from /costflow. Cron/gate API cost remains an auxiliary estimate from logged model hints.</div>`+
     `<div style="margin-top:6px;font-size:10px;color:#484f58">Data as of ${new Date().toLocaleTimeString()} · daemon re-reads transcripts every ~4s</div>`;
 }
 document.addEventListener('click', ev=>{
