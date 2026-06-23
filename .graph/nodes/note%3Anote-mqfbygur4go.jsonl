@@ -35,3 +35,4 @@
 {"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"note:note-mq561rur","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:58:05.811Z"}
 {"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"followup/write-judge-edge-scorecard-md-retry-as-s-pe6u","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:58:05.811Z"}
 {"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:58:05.811Z"}
+{"evt":"edge_promoted","from":"note:note-mqfbygur4go","to":"note:note-mq7dzydv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:14:54.584Z","weight":0.589,"by":"judge","judged":true,"score":0.589,"origin":"autowire-semantic"}

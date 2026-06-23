@@ -19,3 +19,4 @@
 {"evt":"edge_promoted","from":"note:note-mqogmgwobj3","to":"codex/subconscious-assignment-surface","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:33:58.175Z","weight":0.5,"by":"judge","judged":true}
 {"evt":"edge_promoted","from":"note:note-mqogmgwobj3","to":"note:note-mqiu5lpjox6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:11:02.383Z","weight":0.592,"by":"judge","judged":true,"score":0.592,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqogmgwobj3","to":"note:note-mqn7x0d9lv8","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:16:54.053Z","weight":0.668,"by":"judge","judged":true,"score":0.668,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqogmgwobj3","to":"note:note-mqh2eifaveh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:14:34.054Z"}
