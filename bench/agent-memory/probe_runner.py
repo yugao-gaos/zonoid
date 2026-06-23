@@ -9,13 +9,14 @@ probe THREE ways, sharing one answerer model + one answer-prompt template:
       ``arms.run_retrieve_and_answer`` (bench/zonoid_bench/arms.py), which does the
       EXACT production eager-judge pipeline:
         mint probe task → autowire (daemon-configured top-K candidate seeding) →
-        judge_next pull → LLM EdgeJudge keep/prune → keepEdge (promote in place) →
+        POST /judge/drain (DRIVE the production sync judge — P3 de-port; the bench runs no
+        judge LLM) → keepEdge/pruneEdge applied IN the daemon →
         get_task_context → answer from ONLY kept context summaries.
 
       For each conversation, an EMBEDDED daemon is started with its LIVE workspace bound
       to the conversation's isolated workspace dir.  Session notes are ingested directly
-      into that embedded daemon so judge_next + keepEdge resolve against them.  The
-      embedded daemon is stopped after all probes for the conversation complete.
+      into that embedded daemon so the drain's /judge/next pull + keepEdge resolve against
+      them.  The embedded daemon is stopped after all probes for the conversation complete.
 
       The SDK bench daemon drops the old hard cosine floor with ORCH_AUTOWIRE_THRESHOLD=0.0
       and bounds candidate cost with ORCH_AUTOWIRE_K/top-K; keepEdge still only promotes a
@@ -46,17 +47,19 @@ The ``our-way`` arm delegates ENTIRELY to ``arms.run_retrieve_and_answer``, whic
 2. Fires the ingest funnel (embed → setTaskVec → autowireNewTaskWholeGraph → markEagerJudge):
    autowire seeds weight-0 NOTE→probe candidate edges according to the daemon's configured
    candidate policy (canonical bench default: threshold 0.0 + top-K cap).
-3. Pulls the autowire candidate set via client.judge_next(node=<probe>).
-4. Runs the LLM EdgeJudge (keep/prune, DEFAULT prune) — keepEdge promotes weight-0
+3. DRIVES the production sync judge via client.judge_drain(node=<probe>): ONE POST /judge/drain
+   reuses the in-process production judge (runJudgeDrainSync) to pull the autowire candidate set
+   (/judge/next), run the keep/prune rubric, and apply keepEdge/pruneEdge — all in the daemon.
+   The bench holds NO judge LLM and parses NO verdict (P3 de-port). keepEdge promotes a weight-0
    candidate IN PLACE (judged:true + real weight); pruneEdge deletes it.
-5. Reads GET /task/context → dependencySummaries (weight>0 = kept context edges).
-6. Answers from ONLY those summaries via a tool-less claude -p.
+4. Reads GET /task/context → dependencySummaries (weight>0 = kept context edges).
+5. Answers from ONLY those summaries via a tool-less claude -p.
 
 WHY embedded daemon (note-mqgwrh5a63x):
-  keepEdge and judge_next are HARD-BOUND to the daemon's LIVE state.workspace.
-  A keepEdge on a non-live (isolated) workspace does NOT surface in /task/context.
+  /judge/drain, /judge/next and the keepEdge save are HARD-BOUND to the daemon's LIVE
+  state.workspace. A keepEdge on a non-live (isolated) workspace does NOT surface in /task/context.
   One embedded daemon per conversation whose live workspace IS the conv dir ensures
-  the whole pipeline (autowire seed → markEagerJudge → judge_next → keepEdge save →
+  the whole pipeline (autowire seed → markEagerJudge → /judge/drain → keepEdge save →
   /task/context) operates on ONE consistent in-memory + persisted overlay.
 
 Runtime (note-mqgz977tbqe): embeddable Python 3.12 — stdlib ONLY (urllib.request, json,
@@ -412,7 +415,8 @@ def run_our_way(
 
     Delegates to ``arms.run_retrieve_and_answer`` which does:
       mint probe task → autowire (daemon-configured top-K candidate seeding) →
-      judge_next pull → LLM EdgeJudge keep/prune → keepEdge (promote in place) →
+      POST /judge/drain (DRIVE the production sync judge — P3 de-port; no bench judge LLM) →
+      keepEdge/pruneEdge applied IN the daemon →
       get_task_context (read kept context) → answer.
 
     If *_embedded_client* is provided (pre-started embedded daemon, see
@@ -635,7 +639,8 @@ def run_probe_dag_combined(
     """ARM dag-combined: settled task context plus distill fact search, merged context.
 
     Merges two production-faithful retrieval surfaces then answers ONCE:
-      1. Task context : autowire candidate set → LLM EdgeJudge → task-scoped search. A settled
+      1. Task context : autowire candidate set → production sync judge (POST /judge/drain, P3
+                        de-port — no bench judge LLM) → task-scoped search. A settled
                         probe yields system + frozen DAG context, not a synthetic RAG fill.
       2. Distill tier : top-k vector search over atomic fact notes (*distill_workspace*).
 
