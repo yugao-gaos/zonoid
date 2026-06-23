@@ -110,6 +110,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     send(res, 200, sig ? { stop: true, ...sig } : { stop: false }); return true;
   }
 
+  // Read the workspace config (the persisted overlay.config map). The native onboarder's incremental
+  // sync uses this to resolve a repo's lastIndexedCommit before diffing — POST /config persists it,
+  // GET /config reads it back. Workspace-scoped via ?workspace=; returns {} for an unknown workspace.
+  if (p === '/config' && m === 'GET') {
+    const T = targetOverlay(null, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass ?workspace=' }); return true; }
+    send(res, 200, { ok: true, workspace: T.ws, config: T.ov.config || {} }); return true;
+  }
+
   if (p === '/config' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
@@ -117,6 +126,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const bad = Object.keys(b.test_cmds).find((rp) => !path.isAbsolute(rp));
       if (bad) { send(res, 400, { ok: false, error: `test_cmds keys must be absolute repo paths: got "${bad}"` }); return true; }
       for (const [rp, cmd] of Object.entries(b.test_cmds)) overlayStore.setTestCmd(T.ov, rp, cmd);
+    }
+    // Code-index sync watermark (native onboarder). { key, commit } advances the per-repo
+    // lastIndexedCommit the incremental git-diff sync diffs from; a falsy commit clears it. Stored
+    // under overlay.config.lastIndexedCommit (config is persisted), so this round-trips with no new wiring.
+    if (b.last_indexed_commit && typeof b.last_indexed_commit === 'object') {
+      const { key, commit } = b.last_indexed_commit;
+      if (!key) { send(res, 400, { ok: false, error: 'last_indexed_commit.key required' }); return true; }
+      overlayStore.setLastIndexedCommit(T.ov, key, commit);
     }
     if (b.require_review != null) T.ov.config.require_review = !!b.require_review;
     if (b.self_plan != null) T.ov.config.self_plan = !!b.self_plan;
