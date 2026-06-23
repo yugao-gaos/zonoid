@@ -50,3 +50,4 @@
 {"evt":"edge_removed","from":"note:note-mqfn8l1hpiw","to":"9195fb5e-f196-497d-962f-69616733d2e9/26","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:15.910Z"}
 {"evt":"edge_removed","from":"note:note-mqfn8l1hpiw","to":"bench/bench-trial-20-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:15.910Z"}
 {"evt":"edge_removed","from":"note:note-mqfn8l1hpiw","to":"followup/investigate-search-arm-0-notes-not-appea-o05d","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:15.910Z"}
+{"evt":"edge_removed","from":"note:note-mqfn8l1hpiw","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

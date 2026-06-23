@@ -20,3 +20,6 @@
 {"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"codex/fix-stale-reaper-readiness-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:29:36.531Z"}
 {"evt":"edge_added","from":"note:note-mqqosxptv7i","to":"codex/daemon-process-reaper-sweep","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:12:12.203Z","weight":0,"by":"autowire","judged":false,"score":0.572,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"codex/daemon-process-reaper-sweep","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:14:13.836Z"}
+{"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"codex/p1-sync-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"codex/p6-strict-judging-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

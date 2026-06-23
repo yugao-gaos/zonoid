@@ -19,3 +19,4 @@
 {"evt":"edge_removed","from":"note:note-mqp5byzb5hu","to":"knowledge:source_section:section-claude-md-3-predict-by-default-request-guidance-is-a-362516c7ac","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:09:09.545Z"}
 {"evt":"edge_removed","from":"note:note-mqp5byzb5hu","to":"note:note-mqiu51a07d3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:09:09.545Z"}
 {"evt":"edge_removed","from":"note:note-mqp5byzb5hu","to":"knowledge:source_chunk:chunk-agents-md-3-0-when-you-hit-a-decision-the-user-might-o-ff8b950fe0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:43:14.075Z"}
+{"evt":"edge_added","from":"note:note-mqp5byzb5hu","to":"note:note-mqf624kvlk9","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.6,"by":"judge","judged":true}

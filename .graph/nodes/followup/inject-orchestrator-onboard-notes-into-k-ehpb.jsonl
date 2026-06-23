@@ -1,0 +1,2 @@
+{"evt":"edge_added","from":"followup/inject-orchestrator-onboard-notes-into-k-ehpb","to":"230ef36e-7ed7-4620-bc1c-df7e6dfaae71/1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.57,"by":"judge","judged":true,"score":0.57,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"followup/inject-orchestrator-onboard-notes-into-k-ehpb","to":"c0bd3682-e50c-41f2-b061-4a6d9fbf243a/12","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.55,"by":"judge","judged":true,"score":0.55,"origin":"autowire-semantic"}

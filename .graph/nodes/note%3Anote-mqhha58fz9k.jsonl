@@ -27,3 +27,5 @@
 {"evt":"edge_removed","from":"note:note-mqhha58fz9k","to":"note:note-mqfmkwytf2n","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:29.566Z"}
 {"evt":"edge_removed","from":"note:note-mqhha58fz9k","to":"followup/harness-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:29.566Z"}
 {"evt":"edge_removed","from":"note:note-mqhha58fz9k","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:29.566Z"}
+{"evt":"edge_added","from":"note:note-mqhha58fz9k","to":"note:note-mqeapqae6jf","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.753,"by":"judge","judged":true,"score":0.753,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqhha58fz9k","to":"note:note-mqe1cey1lux","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.733,"by":"judge","judged":true,"score":0.733,"origin":"autowire-semantic"}

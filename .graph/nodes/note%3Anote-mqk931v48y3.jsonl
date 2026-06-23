@@ -19,3 +19,4 @@
 {"evt":"edge_promoted","from":"note:note-mqk931v48y3","to":"codex/judge-bench-canonical-sdk-on-arms","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:34.410Z","weight":0.606,"by":"judge","judged":true,"score":0.606,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqk931v48y3","to":"codex/fix-bench-sdk-a2-edgejudge-timeout-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:34.410Z"}
 {"evt":"edge_removed","from":"note:note-mqk931v48y3","to":"codex/fix-bench-sdk-a2-edgejudge-timeout-judge-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:34.410Z"}
+{"evt":"edge_removed","from":"note:note-mqk931v48y3","to":"note:note-mqhha58fz9k","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

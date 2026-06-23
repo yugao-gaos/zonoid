@@ -17,3 +17,4 @@
 {"evt":"edge_promoted","from":"knowledge:source_doc:note-mqqpp70ivco","to":"knowledge:source_section:note-mqqpp70ivco#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:17:41.741Z","weight":1,"origin":"note-source-cluster"}
 {"evt":"edge_promoted","from":"knowledge:source_doc:note-mqqpp70ivco","to":"knowledge:source_section:note-mqqpp70ivco#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:17:45.416Z","weight":1,"judged":true,"origin":"note-source-cluster"}
 {"evt":"summary_set","id":"knowledge:source_doc:note-mqqpp70ivco","workspace":"D:\\zonoid","summary":"Raw evidence captured from long note note:note-mqqpp70ivco.","actor":"overlay-sync","ts":"2026-06-23T14:17:45.416Z"}
+{"evt":"edge_removed","from":"knowledge:source_doc:note-mqqpp70ivco","to":"knowledge:source_section:note-mqqpp70ivco#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

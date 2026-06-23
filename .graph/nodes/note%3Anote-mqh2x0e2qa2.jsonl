@@ -17,3 +17,4 @@
 {"evt":"edge_removed","from":"note:note-mqh2x0e2qa2","to":"note:note-mqh2w30pk52","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:22:25.235Z"}
 {"evt":"edge_removed","from":"note:note-mqh2x0e2qa2","to":"note:note-mqh2vyvtlhd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:22:25.235Z"}
 {"evt":"edge_removed","from":"note:note-mqh2x0e2qa2","to":"note:note-mqh2w3t9or8","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:22:25.235Z"}
+{"evt":"edge_added","from":"note:note-mqh2x0e2qa2","to":"note:note-mqh2w3t9or8","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.5,"by":"judge","judged":true,"origin":"blocking-dep-seed"}

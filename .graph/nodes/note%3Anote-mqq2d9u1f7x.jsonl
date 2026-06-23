@@ -17,3 +17,5 @@
 {"evt":"edge_promoted","from":"note:note-mqq2d9u1f7x","to":"codex/p7-sync-judge-cli-backend","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:09:16.983Z","by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_removed","from":"note:note-mqq2d9u1f7x","to":"codex/p7-sync-judge-cli-backend","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:12:47.048Z"}
 {"evt":"edge_added","from":"note:note-mqq2d9u1f7x","to":"note:note-mqqmeewyhir","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:05:47.476Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqq2d9u1f7x","to":"codex/p3-deport-bench-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_removed","from":"note:note-mqq2d9u1f7x","to":"note:note-mqqmeewyhir","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

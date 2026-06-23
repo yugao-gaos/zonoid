@@ -4,3 +4,4 @@
 {"evt":"edge_promoted","from":"knowledge:source_doc:note-mqqnit1ph68","to":"knowledge:source_section:note-mqqnit1ph68#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:01:52.609Z","weight":1,"origin":"note-source-cluster"}
 {"evt":"edge_promoted","from":"knowledge:source_doc:note-mqqnit1ph68","to":"knowledge:source_section:note-mqqnit1ph68#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:01:55.179Z","weight":1,"judged":true,"origin":"note-source-cluster"}
 {"evt":"summary_set","id":"knowledge:source_doc:note-mqqnit1ph68","workspace":"D:\\zonoid","summary":"Raw evidence captured from long note note:note-mqqnit1ph68.","actor":"overlay-sync","ts":"2026-06-23T13:01:55.179Z"}
+{"evt":"edge_removed","from":"knowledge:source_doc:note-mqqnit1ph68","to":"knowledge:source_section:note-mqqnit1ph68#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

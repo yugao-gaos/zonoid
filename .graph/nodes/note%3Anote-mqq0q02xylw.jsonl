@@ -50,3 +50,4 @@
 {"evt":"edge_added","from":"note:note-mqq0q02xylw","to":"codex/p6-strict-judging-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:44:36.886Z","weight":0,"by":"autowire","judged":false,"score":0.612,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqq0q02xylw","to":"codex/p6-strict-judging-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:49:36.026Z"}
 {"evt":"edge_removed","from":"note:note-mqq0q02xylw","to":"codex/p2-drop-cosine-floor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:49:55.984Z"}
+{"evt":"edge_removed","from":"note:note-mqq0q02xylw","to":"codex/p1-sync-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
