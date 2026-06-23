@@ -1,0 +1,2 @@
+{"evt":"edge_added","from":"codex/exec-brain-state-seam-post-gate-fix","to":"codex/judge-exec-brain-state-seam","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T06:09:25.819Z","by":"judge","judged":true,"score":0.597,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"codex/exec-brain-state-seam-post-gate-fix","to":"codex/judge-exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:09:25.819Z"}

@@ -1,0 +1,5 @@
+{"evt":"edge_removed","from":"codex/fix-post-subconscious-review-findings","to":"codex/full-system-review-subconscious-landed","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:50.363Z"}
+{"evt":"edge_promoted","from":"codex/fix-post-subconscious-review-findings","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:14:21.470Z","weight":0.598,"by":"judge","judged":true,"score":0.598,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"codex/fix-post-subconscious-review-findings","to":"codex/review-subconscious-assignment-lifecycle","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:14:23.281Z"}
+{"evt":"edge_removed","from":"codex/fix-post-subconscious-review-findings","to":"codex/verify-post-subconscious-review-fixes","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:14:40.741Z"}
+{"evt":"edge_removed","from":"codex/fix-post-subconscious-review-findings","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:14:40.741Z"}

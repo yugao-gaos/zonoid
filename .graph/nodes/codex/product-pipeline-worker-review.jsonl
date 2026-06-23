@@ -1,0 +1,1 @@
+{"evt":"edge_promoted","from":"codex/product-pipeline-worker-review","to":"codex/product-pipeline-synthesis","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:19:10.909Z","weight":0.5,"by":"judge","judged":true,"origin":"blocking-dep-seed"}
