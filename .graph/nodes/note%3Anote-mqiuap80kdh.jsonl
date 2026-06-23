@@ -18,3 +18,4 @@
 {"evt":"edge_added","from":"note:note-mqiuap80kdh","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:28:48.067Z","weight":0.75,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqiuap80kdh","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:29:09.507Z","weight":0.75,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqiuap80kdh","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:29:27.215Z","weight":0.75,"origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqiuap80kdh","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:29:49.178Z","weight":0.75,"by":"autowire","judged":false,"origin":"subconscious-assignment"}

@@ -9,3 +9,4 @@
 {"evt":"edge_promoted","from":"note:note-mqq2ugme4vr","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:28:43.949Z","weight":1,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqq2ugme4vr","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:29:09.507Z","weight":1,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqq2ugme4vr","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:29:27.215Z","weight":1,"origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqq2ugme4vr","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:29:49.178Z","weight":1,"by":"autowire","judged":false,"origin":"subconscious-assignment"}
