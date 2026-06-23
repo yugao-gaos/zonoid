@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "019ef278-43d1-7320-b826-f09be2d8b4ef",
   "branch": "orch/attempt/codex-add-standalone-zai-glm-api-backend-provider",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-23T03:37:46.684Z",
-  "lease_until": "2026-06-23T04:37:46.684Z"
+  "lease_until": "2026-06-23T04:37:46.684Z",
+  "completed_at": "2026-06-23T03:42:52.640Z"
 }
