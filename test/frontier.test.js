@@ -42,6 +42,21 @@ const T = (id, status, extra = {}) => ({ id, label: id, status, deps: [], contex
   ok('ordinary ready task remains visible', keep.has('ordinary-ready'));
 }
 
+// --- frontierKeep: visible judge machinery hidden unless explicitly requested ---
+{
+  const tasks = [
+    T('codex/impl', 'ready', { deps: ['codex/impl-judge'] }),
+    T('codex/impl-judge', 'ready', { label: 'Judge: codex/impl' }),
+    T('codex/real-judge-feature', 'ready', { label: 'User-facing judge feature' }),
+  ];
+  const keep = F.frontierKeep(tasks);
+  ok('paired judge task omitted from default frontier', !keep.has('codex/impl-judge'));
+  ok('implementation remains visible with internal dep stripped', keep.has('codex/impl'));
+  ok('non-paired judge-named feature remains visible', keep.has('codex/real-judge-feature'));
+  const internal = F.frontierKeep(tasks, { includeInternal: true });
+  ok('includeInternal keeps paired judge task for debugging', internal.has('codex/impl-judge'));
+}
+
 // --- frontierKeep: hop-weight formula (blocking) ---
 {
   // depth 1 blocking dep (weight=1.0 >= 0.30): kept
@@ -198,6 +213,26 @@ const T = (id, status, extra = {}) => ({ id, label: id, status, deps: [], contex
   ok('slim omits empty weight/summary/assignee', !('context_weights' in n) && !('summary' in n) && !('assignee' in n));
 }
 
+// --- slimNode: same-node review lifecycle fields stay lightweight ---
+{
+  const s = F.slimNode(T('reviewed', 'tested', {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    review_requested_at: '2026-06-10T12:00:00.000Z',
+    review_requested_by: 'dispatcher',
+    reviewed_at: '2026-06-10T12:05:00.000Z',
+    review_agent: 'reviewer',
+    merge_state: 'pending',
+    merge_sha: 'abc123',
+    merged_at: '2026-06-10T12:06:00.000Z',
+    review_note: 'long detail',
+    attempt_branch: 'orch/attempt/reviewed',
+  }));
+  ok('slim keeps compact review lifecycle fields', s.review_state === 'approved' && s.review_verdict === 'APPROVE' && s.review_requested_at && s.review_requested_by === 'dispatcher');
+  ok('slim keeps compact merge fields', s.merge_state === 'pending' && s.merge_sha === 'abc123' && s.merged_at);
+  ok('slim still drops heavy review detail and attempt pointers', !('review_note' in s) && !('attempt_branch' in s));
+}
+
 // --- archivedSlimNode + archivedTaskList: lean /state archived_tasks projection ---
 {
   const tasks = [
@@ -220,6 +255,7 @@ const T = (id, status, extra = {}) => ({ id, label: id, status, deps: [], contex
   const tasks = [
     T('a', 'ready', { deps: ['b', 'ghost:other|x'], summary: 'live' }),
     T(HARNESS_JUDGE_DRAIN_KEY, 'ready'),
+    T('a-judge', 'ready', { label: 'Judge: a' }),
     T('b', 'done', { summary: 'dep summary' }),
     T('far', 'done', { lastChanged: iso(30) }),    // outside frontier AND stale ⇒ archived
     T('meh', 'done', { lastChanged: iso(1) }),     // outside frontier, recent ⇒ just not in digest
@@ -233,6 +269,7 @@ const T = (id, status, extra = {}) => ({ id, label: id, status, deps: [], contex
   const ids = new Set(f.tasks.map((t) => t.id));
   ok('digest keeps frontier only', ids.has('a') && ids.has('b') && !ids.has('far') && !ids.has('meh'));
   ok('digest omits standing harness drains', !ids.has(HARNESS_JUDGE_DRAIN_KEY));
+  ok('digest omits paired judge tasks by default', !ids.has('a-judge'));
   ok('digest filters edges to kept nodes', f.edges.length === 1 && f.edges[0].from === 'b');
   ok('digest keeps only referenced ghosts', f.ghosts.length === 1 && f.ghosts[0].key === 'x');
   ok('digest reports archived count', f.archived === 1);

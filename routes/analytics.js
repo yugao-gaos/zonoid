@@ -5,6 +5,7 @@ const { execFileSync } = require('child_process');
 const overlayStore = require('../lib/overlay');
 const costflow = require('../lib/costflow');
 const usageAccounting = require('../lib/usage-accounting');
+const { readLocalClaim } = require('../lib/git-claims');
 const { agreementRate } = require('../lib/shadow-journal');
 const { getPromotionState } = require('../lib/promotion-gate');
 const { estimatedSavings } = require('../lib/economy');
@@ -20,6 +21,129 @@ function sessionsFromOverlay(ov) {
     bySession.set(slice.session_id, prev);
   }
   return [...bySession.values()];
+}
+
+function claimedOutputForSession(session, claims, ownTok) {
+  if (!session || !session.id) return 0;
+  const sid = session.id;
+  const transcript = session.path || session.transcript_path || session.transcript || null;
+  let total = 0;
+  for (const c of claims || []) {
+    if (!c || !c.id) continue;
+    const claimTranscript = c.transcript || c.transcript_path || c.path || null;
+    const matchesTranscript = claimTranscript && (transcript ? claimTranscript === transcript : claimTranscript === sid);
+    const matchesSession = !claimTranscript && c.session && c.session === sid;
+    if (matchesTranscript || matchesSession) {
+      total += ownTok.get(c.id) || 0;
+    }
+  }
+  return total;
+}
+
+function nonEmptyString(raw) {
+  const value = String(raw == null ? '' : raw).trim();
+  return value || null;
+}
+
+function normalizeSessionRef(raw) {
+  const value = nonEmptyString(raw);
+  if (!value) return null;
+  const base = path.basename(value, path.extname(value)).replace(/^rollout-/, '');
+  return nonEmptyString(base);
+}
+
+function sessionUuidSuffix(raw) {
+  const value = normalizeSessionRef(raw);
+  if (!value) return null;
+  const m = value.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  return m ? m[0] : null;
+}
+
+function addSessionRepresentation(out, raw) {
+  const value = nonEmptyString(raw);
+  if (!value) return;
+  out.add(value);
+  const normalized = normalizeSessionRef(value);
+  if (normalized) out.add(normalized);
+  const suffix = sessionUuidSuffix(value);
+  if (suffix) out.add(suffix);
+}
+
+function representedSessionIds(sessions) {
+  const out = new Set();
+  for (const s of sessions || []) {
+    if (!s) continue;
+    addSessionRepresentation(out, s.id);
+    addSessionRepresentation(out, s.session_id);
+    addSessionRepresentation(out, s.path);
+    addSessionRepresentation(out, s.transcript_path);
+    addSessionRepresentation(out, s.transcript);
+  }
+  return out;
+}
+
+function sessionGroupingKey(session) {
+  if (!session) return null;
+  return nonEmptyString(session.path)
+    || nonEmptyString(session.transcript_path)
+    || nonEmptyString(session.transcript)
+    || nonEmptyString(session.id)
+    || nonEmptyString(session.session_id);
+}
+
+function representedSessionIndex(sessions) {
+  const byRef = new Map();
+  for (const s of sessions || []) {
+    const key = sessionGroupingKey(s);
+    if (!key) continue;
+    const refs = new Set();
+    addSessionRepresentation(refs, s.id);
+    addSessionRepresentation(refs, s.session_id);
+    addSessionRepresentation(refs, s.path);
+    addSessionRepresentation(refs, s.transcript_path);
+    addSessionRepresentation(refs, s.transcript);
+    for (const ref of refs) if (!byRef.has(ref)) byRef.set(ref, s);
+  }
+  return { byRef };
+}
+
+function representedSessionRow(index, raw) {
+  if (!index) return null;
+  const value = nonEmptyString(raw);
+  if (!value) return null;
+  if (index.byRef.has(value)) return index.byRef.get(value);
+  const normalized = normalizeSessionRef(value);
+  if (normalized && index.byRef.has(normalized)) return index.byRef.get(normalized);
+  const suffix = sessionUuidSuffix(value);
+  return suffix ? (index.byRef.get(suffix) || null) : null;
+}
+
+function sessionSnapshotTotal(session) {
+  if (!session) return null;
+  const total = Number(session.total);
+  return Number.isFinite(total) ? Math.max(0, total) : null;
+}
+
+function sessionIsRepresented(represented, raw) {
+  if (!represented) return true;
+  const value = nonEmptyString(raw);
+  if (!value) return false;
+  if (represented.has(value)) return true;
+  const normalized = normalizeSessionRef(value);
+  if (normalized && represented.has(normalized)) return true;
+  const suffix = sessionUuidSuffix(value);
+  return !!(suffix && represented.has(suffix));
+}
+
+function attributionSessionForTask(repo, ov, task, represented) {
+  const id = task && task.id;
+  const graphSession = nonEmptyString(task && task.session);
+  const overlaySession = id && ov && ov.claimSessions && nonEmptyString(ov.claimSessions[id]);
+  if (overlaySession) return sessionIsRepresented(represented, overlaySession) ? overlaySession : graphSession;
+  const durableClaim = id ? readLocalClaim(repo, id) : null;
+  const durableSession = durableClaim && nonEmptyString(durableClaim.session_id);
+  if (durableSession) return sessionIsRepresented(represented, durableSession) ? durableSession : graphSession;
+  return graphSession;
 }
 
 function harnessNameForWorkspace(state, ov, workspace, fallback) {
@@ -48,20 +172,42 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (cfHit !== undefined) { send(res, 200, cfHit); return true; }
     const g = buildGraph(T.ws);
     const stWs = { ...state, overlay: T.ov };
-    const claims = g.tasks.filter((t) => t.kind !== 'note').map((t) => ({
-      id: t.id,
-      transcript: taskTranscript(t.id, t.session, true, stWs),
-      window: { start: t.firstSeen, end: t.lastChanged },
-      work_sessions: (T.ov.work_sessions && T.ov.work_sessions[t.id]) || null,
-    }));
+    const sessList = sessionsFromOverlay(T.ov);
+    const representedSessions = representedSessionIds(sessList);
+    const representedIndex = representedSessionIndex(sessList);
+    const claims = g.tasks.filter((t) => t.kind !== 'note').map((t) => {
+      const session = attributionSessionForTask(T.ws, T.ov, t, representedSessions);
+      const snapshotSession = representedSessionRow(representedIndex, session);
+      const snapshotTranscript = sessionGroupingKey(snapshotSession);
+      return {
+        id: t.id,
+        session,
+        transcript: taskTranscript(t.id, session, true, stWs) || snapshotTranscript,
+        snapshot_session: snapshotSession,
+        window: { start: t.firstSeen, end: t.lastChanged },
+        work_sessions: (T.ov.work_sessions && T.ov.work_sessions[t.id]) || null,
+      };
+    });
     const tr = activeHarness.transcripts;
     const taskUsageFromAgent = tr.taskUsageFromAgent || (() => null);
     const usageOutputOnly = (tp, claim) => {
       if (claim && claim.id) {
         const fromRec = usageAccounting.taskOutputFromRecords(T.ov, claim.id);
-        if (fromRec > 0) return { total: fromRec };
+        if (fromRec > 0) return { total: fromRec, task_specific: true };
       }
-      if (tp) { const u2 = usageCached(tp); return { total: (u2 && u2.output_tokens) || 0 }; }
+      const snapshotSession = (claim && claim.snapshot_session)
+        || representedSessionRow(representedIndex, tp)
+        || representedSessionRow(representedIndex, claim && claim.session);
+      const snapshotTotal = sessionSnapshotTotal(snapshotSession);
+      if (snapshotTotal != null) return { total: snapshotTotal };
+      if (tp) {
+        if (activeHarness && activeHarness.name === 'codex' && activeHarness.usage && typeof activeHarness.usage.sample === 'function') {
+          const slice = activeHarness.usage.sample(tp, { transcript_path: tp });
+          return { total: (slice && slice.usage && slice.usage.output_tokens) || 0 };
+        }
+        const u2 = usageCached(tp);
+        return { total: (u2 && u2.output_tokens) || 0 };
+      }
       const aid = claim && claim.id && stWs.overlay.assignee[claim.id];
       const agent = aid && stWs.agents && stWs.agents[aid];
       const ru = agent && taskUsageFromAgent(agent);
@@ -101,10 +247,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       for (const d of t.deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: 1 });
       for (const d of t.context_deps || []) if (seen.has(d)) edges.push({ from: d, to: t.id, weight: (t.context_weights && t.context_weights[d]) ?? overlayStore.DEFAULT_CONTEXT_WEIGHT });
     }
-    const claimedByTp = new Map();
-    for (const c of claims) if (c.transcript) claimedByTp.set(c.transcript, (claimedByTp.get(c.transcript) || 0) + (ownTok.get(c.id) || 0));
-    const sessList = sessionsFromOverlay(T.ov);
-    const sessions = sessList.map(({ id, total: sessTotal }) => {
+    const sessions = sessList.map((s) => {
+      const id = s.id;
+      const sessTotal = s.total;
       let total = sessTotal || 0;
       if (!total) {
         const recTotal = [...Object.values(T.ov.usage_records || {})]
@@ -112,7 +257,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
           .reduce((sum, s) => sum + ((s.usage && s.usage.output_tokens) || 0), 0);
         total = recTotal;
       }
-      return { id, total, claimed: claimedByTp.get(id) || 0 };
+      return { id, total, claimed: claimedOutputForSession(s, claims, ownTok) };
     });
     const catchalls = costflow.sessionCatchalls(sessions, g.tasks, overlayStore.DEFAULT_CONTEXT_WEIGHT);
     for (const cn of catchalls.nodes) if (!seen.has(cn.id)) { nodes.push(cn); seen.add(cn.id); }
@@ -157,6 +302,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       acc.cache_read += v.cache_read || 0;
       return acc;
     }, { input_tokens: 0, output_tokens: 0, cache_read: 0 });
+    const costByCause = usageAccounting.costCauseLedger(T.ov, {
+      tasks: g.tasks,
+      snapshots: T.ov.snapshots,
+      totalCost: merged.cost,
+      totalUsage: merged.totals,
+    });
     send(res, 200, respCachePut(cfWs, cfKey, {
       workspace: T.ws,
       autonomy_score: human.tokens > 0 ? Math.round((flow.totals.productive / human.tokens) * 10) / 10 : null,
@@ -170,6 +321,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       // from pricing.json); it does NOT price here. source is weakest-wins ('estimated' if any
       // contributing slice was a chars/4 estimate, else 'real'). ADDITIVE to the token figures above.
       cost: { usd: Math.round(((merged.cost && merged.cost.usd) || 0) * 100) / 100, source: (merged.cost && merged.cost.source) || 'real', by_model: (merged.cost && merged.cost.by_model) || {} },
+      cost_by_cause: costByCause,
+      cause_ledger: costByCause,
       sessions: { count: catchalls.nodes.length, unattributed: rnd(catchalls.nodes.reduce((s, n) => s + n.own, 0)) },
       results: flow.results.map((r) => ({ task: r.task, kind: kindOf(r.task), label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
       waste: wasteTrapped.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),
@@ -196,7 +349,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const usageOutputOnly = (tp, claim) => {
         if (claim && claim.id) {
           const fromRec = usageAccounting.taskOutputFromRecords(T.ov, claim.id);
-          if (fromRec > 0) return { total: fromRec };
+          if (fromRec > 0) return { total: fromRec, task_specific: true };
         }
         const u2 = usageCached(tp);
         return { total: (u2 && u2.output_tokens) || 0 };
@@ -318,3 +471,5 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
 
   return false;
 };
+
+module.exports._internal = { sessionsFromOverlay, claimedOutputForSession, harnessNameForWorkspace, representedSessionIds };

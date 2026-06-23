@@ -33,6 +33,14 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const {
+  turnsFromTranscriptText,
+  candidatesFromText,
+  splitSentences,
+  scoreSentence,
+  titleFromSentence,
+  dedupSelf,
+} = require('../lib/session-distiller');
 
 const DAEMON = process.env.ORCH_DAEMON || 'http://localhost:8787';
 const PREFIX = '[auto] ';
@@ -48,127 +56,8 @@ const TURNS_FILE = flagVal('--turns');
 const POSITIONAL = argv.filter((a, i) => !a.startsWith('--') && argv[i - 1] !== '--out' && argv[i - 1] !== '--turns');
 const TRANSCRIPT = POSITIONAL[0] || null;
 
-// ===========================================================================
-// 1. TURN EXTRACTION
-// ===========================================================================
-// A "solo turn" is the assistant's own prose (text blocks) for one assistant message.
-// We concatenate the text blocks; thinking blocks are ignored (private, often empty here).
-// Returns: [{ text, idx }]
 function turnsFromTranscript(file) {
-  const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
-  const turns = [];
-  for (const line of lines) {
-    let ev;
-    try { ev = JSON.parse(line); } catch { continue; }
-    if (ev.type !== 'assistant') continue;
-    const content = ev.message && ev.message.content;
-    if (!Array.isArray(content)) continue;
-    const text = content
-      .filter((b) => b && b.type === 'text' && typeof b.text === 'string')
-      .map((b) => b.text)
-      .join('\n')
-      .trim();
-    if (text) turns.push({ text, idx: turns.length });
-  }
-  return turns;
-}
-
-// ===========================================================================
-// 2. CANDIDATE EXTRACTION (heuristic)
-// ===========================================================================
-// We look for sentences that signal a DURABLE DECISION / RATIONALE / NON-OBVIOUS FINDING —
-// the same bar record_decision documents. The signal is a verb/connective pattern plus a
-// reason or constraint, NOT transient status ("running tests", "let me read"). We deliberately
-// bias toward PRECISION (drop borderline) per the task's note-node-noise guidance.
-
-// Cue phrases that flag a durable decision / finding / constraint, each with a weight.
-// STRONG cues (>=1.5) clear the precision gate on their own — an explicit decision verb, a
-// root-cause/finding, or a hard constraint is durable even without a separate because-clause.
-// WEAK cues (1.0) need a second signal (another cue or a REASON connective) to qualify.
-const DECISION_CUES = [
-  { re: /\bchose\b|\bchoosing\b|\bdecided to\b|\bdecision\b|\bwent with\b|\bopted (?:for|to)\b|\bsettled on\b/i, w: 1.5 },
-  { re: /\bturns out\b|\bit turns out\b|\bthe (?:root )?cause (?:is|was)\b|\bthe key (?:insight|finding)\b/i, w: 1.5 },
-  { re: /\bgotcha\b|\bcaveat\b|\bconstraint\b|\bmust (?:not|never|always)\b|\bcan(?:not|'t) be\b/i, w: 1.5 },
-  { re: /\b(?:because|since|so that|in order to|the reason)\b.*\b(?:rather than|instead of|over|vs\.?)\b/i, w: 1.5 },
-  { re: /\brather than\b|\binstead of\b|\bover (?:the )?alternative\b/i, w: 1.0 },
-  { re: /\bthe trick is\b|\bthe fix is\b|\bthe approach is\b|\bwe (?:should|need to|must)\b/i, w: 1.0 },
-];
-
-// Transient / chatter patterns — if a sentence is dominated by these, it's NOT durable.
-const TRANSIENT = [
-  /\b(?:let me|i'?ll|i will|now i'?ll|next,? i)\b/i,
-  /\b(?:running|reading|looking at|checking|opening|let'?s see|first,? )\b/i,
-  /\b(?:here'?s|here is) (?:the|a|what)\b/i,
-  /\bdone\b\.?$|\ball set\b|\blooks good\b|\bgreat\b[.!]/i,
-];
-
-// A reason connective makes a decision durable (decision + WHY).
-const REASON = /\b(because|since|so that|in order to|to avoid|to prevent|which means|so it|otherwise)\b/i;
-
-function splitSentences(text) {
-  // Keep it simple: split on sentence terminators + newlines, drop list bullets/markup noise.
-  return text
-    .replace(/```[\s\S]*?```/g, ' ')          // strip fenced code
-    .replace(/`[^`]*`/g, ' ')                  // strip inline code
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((s) => s.replace(/^[-*\d.)\s]+/, '').trim())
-    .filter((s) => s.length >= 25 && s.length <= 400);
-}
-
-function scoreSentence(s) {
-  let score = 0;
-  let cueHits = 0;
-  for (const c of DECISION_CUES) if (c.re.test(s)) { score += c.w; cueHits += 1; }
-  if (REASON.test(s)) score += 1;
-  for (const re of TRANSIENT) if (re.test(s)) score -= 1.5;
-  // A bare imperative with no cue and no reason is almost always chatter.
-  if (cueHits === 0 && !REASON.test(s)) score -= 2;
-  return { score, cueHits };
-}
-
-function titleFromSentence(s) {
-  // Compact noun-phrase-ish title: trim leading connectives, cap length.
-  let t = s
-    .replace(/^(so|and|but|because|since|thus|therefore|we|i|the reason is that|note that)\b[,:\s]*/i, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  t = t.charAt(0).toUpperCase() + t.slice(1);
-  if (t.length > 72) t = t.slice(0, 69).replace(/\s+\S*$/, '') + '…';
-  return t;
-}
-
-// Extract candidates from ONE turn's text. Returns [{title, summary, knowledge[], _score, _turn}].
-function candidatesFromText(text, turnIdx) {
-  const out = [];
-  for (const s of splitSentences(text)) {
-    const { score, cueHits } = scoreSentence(s);
-    if (score < 1.5) continue;            // precision gate: require a real signal
-    out.push({
-      title: titleFromSentence(s),
-      summary: s,
-      knowledge: [
-        `origin:auto-extract`,
-        `turn:${turnIdx}`,
-        `signal:${cueHits ? 'decision-cue' : 'reason'}`,
-      ],
-      _score: Math.round(score * 100) / 100,
-      _turn: turnIdx,
-    });
-  }
-  return out;
-}
-
-// Dedup WITHIN this batch (same sentence surfacing twice across turns).
-function dedupSelf(cands) {
-  const seen = new Set();
-  const out = [];
-  for (const c of cands.sort((a, b) => b._score - a._score)) {
-    const key = c.summary.toLowerCase().replace(/[^a-z0-9 ]/g, '').slice(0, 80);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(c);
-  }
-  return out;
+  return turnsFromTranscriptText(fs.readFileSync(file, 'utf8'));
 }
 
 // ===========================================================================

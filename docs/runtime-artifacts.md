@@ -18,9 +18,15 @@ Universal daemon state lives directly under `.zonoid/`:
 - `agents.json`, `loops.json`, `loop.json`, `workspaces.json`
 - `overlay/`, `tasks/`, `worktrees/`, `wake/`, `scheduled-tasks/`
 - `op-cache.json`, `tool-analytics.json`, `token`, `certs/`
+- `backend.env` for daemon-global hosted LLM backend credentials, such as `ZAI_API_KEY` or `OPENROUTER_API_KEY`
 - `embed.pid`, `rerank.pid`, `embed-server.log`, `rerank-server.log`, `*.sock`
 - `models/`
 - `sessions/` for hook opt-out markers and hook-local counters
+
+`backend.env` is intentionally daemon-global, not workspace-global. A single daemon serving many
+projects reads the same hosted-backend credentials from the runtime data dir while each workspace
+keeps only its selected provider/model in overlay config. Existing process environment variables
+still win over values in `backend.env`.
 
 Legacy root-level ignores remain in `.gitignore` so old installs can be cleaned up without accidentally committing runtime files.
 

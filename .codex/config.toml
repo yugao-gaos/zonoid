@@ -13,3 +13,9 @@ approval_mode = "approve"
 
 [mcp_servers.orchestrator-graph.tools.get_dependency_summaries]
 approval_mode = "approve"
+
+[mcp_servers.orchestrator-graph.tools.ScheduleWakeup]
+approval_mode = "approve"
+
+[mcp_servers.orchestrator-graph.tools.subconscious_assignment]
+approval_mode = "approve"
