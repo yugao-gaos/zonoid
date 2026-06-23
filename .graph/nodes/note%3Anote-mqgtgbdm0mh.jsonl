@@ -19,3 +19,4 @@
 {"evt":"edge_removed","from":"note:note-mqgtgbdm0mh","to":"note:note-mqfmkwytf2n","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:25:53.968Z"}
 {"evt":"edge_removed","from":"note:note-mqgtgbdm0mh","to":"note:note-mqflqx78zk2","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:25:53.968Z"}
 {"evt":"edge_removed","from":"note:note-mqgtgbdm0mh","to":"followup/harness-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:25:53.968Z"}
+{"evt":"edge_removed","from":"note:note-mqgtgbdm0mh","to":"note:note-mqgt2bjvle5","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:40:08.755Z"}
