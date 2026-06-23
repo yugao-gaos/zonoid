@@ -129,16 +129,38 @@ async function runAsyncTests() {
     ].join('\n') + '\n');
     fs.utimesSync(durableRolloutPath, new Date('2026-06-22T11:05:00.000Z'), new Date('2026-06-22T11:05:00.000Z'));
 
+    const absentDurableUuid = '339eef9f-bc70-7541-8f76-379400ff71e4';
+    const absentDurableFullId = '2026-06-22T12-00-00-' + absentDurableUuid;
+    const absentDurableRolloutPath = path.join(uuidDir, 'rollout-' + absentDurableFullId + '.jsonl');
+    fs.writeFileSync(absentDurableRolloutPath, [
+      JSON.stringify({ type: 'session_meta', payload: { model: 'gpt-5-codex' } }),
+      JSON.stringify({
+        type: 'event_msg',
+        payload: {
+          type: 'token_count',
+          info: { total_token_usage: { input_tokens: 1200, cached_input_tokens: 200, output_tokens: 1000 } },
+        },
+      }),
+    ].join('\n') + '\n');
+    fs.utimesSync(absentDurableRolloutPath, new Date('2026-06-22T12:05:00.000Z'), new Date('2026-06-22T12:05:00.000Z'));
+
     const taskA = 'codex/task-a';
     const taskB = 'codex/task-b';
     const uuidTaskA = 'codex/uuid-task-a';
     const uuidTaskB = 'codex/uuid-task-b';
     const durableTaskA = 'codex/durable-task-a';
     const durableTaskB = 'codex/durable-task-b';
+    const absentDurableTaskA = 'codex/absent-durable-task-a';
+    const absentDurableTaskB = 'codex/absent-durable-task-b';
     for (const taskKey of [durableTaskA, durableTaskB]) {
       const claimPath = path.join(routeWorkspace, claimRelPath(taskKey));
       fs.mkdirSync(path.dirname(claimPath), { recursive: true });
       fs.writeFileSync(claimPath, JSON.stringify({ task_key: taskKey, session_id: durableUuid, status: 'released' }, null, 2) + '\n');
+    }
+    for (const taskKey of [absentDurableTaskA, absentDurableTaskB]) {
+      const claimPath = path.join(routeWorkspace, claimRelPath(taskKey));
+      fs.mkdirSync(path.dirname(claimPath), { recursive: true });
+      fs.writeFileSync(claimPath, JSON.stringify({ task_key: taskKey, session_id: absentDurableUuid, status: 'released' }, null, 2) + '\n');
     }
     const ov = {
       assignee: {},
@@ -149,6 +171,8 @@ async function runAsyncTests() {
         [uuidTaskB]: { firstSeen: '2026-06-22T08:15:00.000Z', lastChanged: '2026-06-22T08:20:00.000Z' },
         [durableTaskA]: { firstSeen: '2026-06-22T08:30:00.000Z', lastChanged: '2026-06-22T08:45:00.000Z' },
         [durableTaskB]: { firstSeen: '2026-06-22T08:45:00.000Z', lastChanged: '2026-06-22T08:50:00.000Z' },
+        [absentDurableTaskA]: { firstSeen: '2026-06-22T07:00:00.000Z', lastChanged: '2026-06-22T07:15:00.000Z' },
+        [absentDurableTaskB]: { firstSeen: '2026-06-22T07:15:00.000Z', lastChanged: '2026-06-22T07:20:00.000Z' },
       },
       work_sessions: {
         [taskA]: [{ start_ts: '2026-06-22T10:00:00.000Z', end_ts: '2026-06-22T10:15:00.000Z' }],
@@ -157,6 +181,8 @@ async function runAsyncTests() {
         [uuidTaskB]: [{ start_ts: '2026-06-22T08:15:00.000Z', end_ts: '2026-06-22T08:20:00.000Z' }],
         [durableTaskA]: [{ start_ts: '2026-06-22T08:30:00.000Z', end_ts: '2026-06-22T08:45:00.000Z' }],
         [durableTaskB]: [{ start_ts: '2026-06-22T08:45:00.000Z', end_ts: '2026-06-22T08:50:00.000Z' }],
+        [absentDurableTaskA]: [{ start_ts: '2026-06-22T07:00:00.000Z', end_ts: '2026-06-22T07:15:00.000Z' }],
+        [absentDurableTaskB]: [{ start_ts: '2026-06-22T07:15:00.000Z', end_ts: '2026-06-22T07:20:00.000Z' }],
       },
       usage_records: {},
       usage_reconcile_snapshot: {
@@ -198,6 +224,8 @@ async function runAsyncTests() {
       { id: uuidTaskB, kind: 'task', session: uuid, firstSeen: '2026-06-22T08:15:00.000Z', lastChanged: '2026-06-22T08:20:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex UUID task B' },
       { id: durableTaskA, kind: 'task', session: 'codex', firstSeen: '2026-06-22T08:30:00.000Z', lastChanged: '2026-06-22T08:45:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex durable claim task A' },
       { id: durableTaskB, kind: 'task', session: 'codex', firstSeen: '2026-06-22T08:45:00.000Z', lastChanged: '2026-06-22T08:50:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex durable claim task B' },
+      { id: absentDurableTaskA, kind: 'task', session: 'codex', firstSeen: '2026-06-22T07:00:00.000Z', lastChanged: '2026-06-22T07:15:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex absent durable claim task A' },
+      { id: absentDurableTaskB, kind: 'task', session: 'codex', firstSeen: '2026-06-22T07:15:00.000Z', lastChanged: '2026-06-22T07:20:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex absent durable claim task B' },
     ];
     const res = {};
     const route = makeCostflowRoute(tasks, ov, routeWorkspace);
@@ -207,6 +235,8 @@ async function runAsyncTests() {
     ok('/costflow splits Codex rollout own tokens by task windows', ownByTask[taskA] === 750 && ownByTask[taskB] === 250);
     ok('/costflow splits UUID-resolved Codex rollout own tokens by task windows', ownByTask[uuidTaskA] === 750 && ownByTask[uuidTaskB] === 250);
     ok('/costflow uses durable git claim session_id for Codex rollout attribution', ownByTask[durableTaskA] === 750 && ownByTask[durableTaskB] === 250);
+    ok('/costflow ignores durable git claim session_id absent from accounting snapshot', ownByTask[absentDurableTaskA] === 0 && ownByTask[absentDurableTaskB] === 0);
+    ok('/costflow flow total does not exceed accounting snapshot output', res.body.totals.total === 3000 && res.body.totals.total <= res.body.totals.output_tokens);
     ok('/costflow subtracts claimed Codex rollout tokens from catch-all remainder', res.body.sessions.unattributed === 0);
   } finally {
     if (prevHome === undefined) delete process.env.CODEX_HOME;
