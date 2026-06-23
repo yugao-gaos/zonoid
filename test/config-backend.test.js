@@ -150,14 +150,21 @@ test('GET /config/backend: defaults to claude when unset, lists providers with r
   const ids = captured.body.providers.map((p) => p.id);
   assert.ok(ids.includes('claude'), 'claude provider listed');
   assert.ok(ids.includes('openrouter'), 'openrouter provider listed');
+  assert.ok(ids.includes('zai'), 'standalone Z.AI GLM provider listed');
   const claude = captured.body.providers.find((p) => p.id === 'claude');
   assert.equal(claude.kind, 'agentic-cli');
   assert.equal(typeof claude.isAvailable, 'boolean', 'agentic-cli provider reports isAvailable boolean');
   assert.equal(typeof claude.isAuthed, 'boolean', 'provider reports isAuthed boolean');
   const openrouter = captured.body.providers.find((p) => p.id === 'openrouter');
   assert.equal(openrouter.kind, 'api');
+  assert.equal(typeof openrouter.defaultModel, 'string', 'providers may expose a default model');
   assert.equal(openrouter.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
   assert.equal(typeof openrouter.isAuthed, 'boolean', 'api provider still reports isAuthed');
+  const zai = captured.body.providers.find((p) => p.id === 'zai');
+  assert.equal(zai.kind, 'api');
+  assert.equal(zai.defaultModel, 'glm-5.2', 'Z.AI provider advertises the GLM 5.2 default model');
+  assert.equal(zai.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
+  assert.equal(typeof zai.isAuthed, 'boolean', 'api provider still reports isAuthed');
 });
 
 test('GET /config/backend: reflects a previously-set selection', async () => {
@@ -180,17 +187,17 @@ test('GET /config/backend: reflects a previously-set selection', async () => {
 test('POST /config/backend: sets a known provider and persists it', async () => {
   const ws = freshWorkspace();
   const { route, captured } = makeCtx(ws);
-  const req = { __body: { provider: 'openrouter', model: 'anthropic/claude-3.5' } };
+  const req = { __body: { provider: 'zai', model: 'glm-5.2' } };
   const handled = await route('/config/backend', 'POST', req, {}, U, null);
   assert.equal(handled, true, 'route handled the POST');
   assert.equal(captured.code, 200);
   assert.equal(captured.body.ok, true);
-  assert.equal(captured.body.active.provider, 'openrouter');
-  assert.equal(captured.body.active.model, 'anthropic/claude-3.5');
+  assert.equal(captured.body.active.provider, 'zai');
+  assert.equal(captured.body.active.model, 'glm-5.2');
   assert.ok(captured.notified >= 1, 'notifyChange called on a successful write');
   // Persisted to the overlay on disk.
   const reloaded = overlayStore.load(ws);
-  assert.deepEqual(overlayStore.getBackendConfig(reloaded), { provider: 'openrouter', model: 'anthropic/claude-3.5' });
+  assert.deepEqual(overlayStore.getBackendConfig(reloaded), { provider: 'zai', model: 'glm-5.2' });
 });
 
 test('POST /config/backend: REJECTS an unknown provider id with 400 (no write)', async () => {

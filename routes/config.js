@@ -8,7 +8,7 @@
  * getActiveBackend(overlay) in lib/llm-backend.js.
  *
  *   GET  /config/backend → { ok, active: { provider, model }, providers: [ { id, displayName, kind,
- *                            isAvailable, isAuthed }, ... ] }. The active backend is the resolved
+ *                            defaultModel, isAvailable, isAuthed }, ... ] }. The active backend is the resolved
  *                          provider id + model (defaults to Claude when unset). EACH provider is
  *                          annotated with detected isAvailable + isAuthed so the dashboard can show
  *                          readiness per provider. isAvailable is meaningful only for agentic-cli
@@ -39,7 +39,7 @@ function requireWorkspace(T, send, res) {
 // the whole listing (a misbehaving adapter degrades to false/null, not a 500).
 function annotateProvider(prov) {
   const safe = (fn) => { try { return !!fn(); } catch { return false; } };
-  return {
+  const out = {
     id: prov.id,
     displayName: prov.displayName,
     kind: prov.kind,
@@ -49,6 +49,8 @@ function annotateProvider(prov) {
       : null,
     isAuthed: typeof prov.isAuthed === 'function' ? safe(prov.isAuthed.bind(prov)) : false,
   };
+  if (prov.defaultModel) out.defaultModel = prov.defaultModel;
+  return out;
 }
 
 const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
