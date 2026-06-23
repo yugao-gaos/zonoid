@@ -5096,3 +5096,11 @@
 {"ts":1782179690913,"from":"codex/paper-code-retrieval-economy","to":"codex/paper-code-retrieval-economy-judge","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6182629755456066,"cosine":0.632,"model_version":"v1"}
 {"ts":1782179690913,"from":"codex/paper-code-retrieval-economy","to":"knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-1","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6130039738759013,"cosine":0.621,"model_version":"v1"}
 {"ts":1782179690914,"from":"codex/paper-code-retrieval-economy","to":"knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-2","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6091625491997633,"cosine":0.613,"model_version":"v1"}
+{"ts":1782180135787,"from":"codex/code-ast-extractor-judge","to":"codex/paper-code-retrieval-economy-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5838819958908466,"cosine":0.561,"model_version":"v1"}
+{"ts":1782180135788,"from":"codex/paper-code-retrieval-economy-judge","to":"codex/paper-code-retrieval-economy","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.603858505486667,"cosine":0.602,"model_version":"v1"}
+{"ts":1782180183474,"from":"codex/code-ast-extractor-judge","to":"codex/paper-code-retrieval-economy-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5838819958908466,"cosine":0.561,"model_version":"v1"}
+{"ts":1782180196696,"from":"note:note-mqpzvfu3u72","to":"codex/code-ast-extractor","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.39274828788224625,"cosine":0.604,"model_version":"v1"}
+{"ts":1782180196697,"from":"note:note-mqpzvfu3u72","to":"note:note-mq8zin6e3bt","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.23410651818261277,"cosine":0.565,"model_version":"v1"}
+{"ts":1782180196698,"from":"note:note-mqpzvfu3u72","to":"note:note-mqflqx78zk2","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2392163605301675,"cosine":0.579,"model_version":"v1"}
+{"ts":1782180196699,"from":"note:note-mqpzvfu3u72","to":"note:note-mqgudrqpuzc","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.23338276092167165,"cosine":0.563,"model_version":"v1"}
+{"ts":1782180196700,"from":"note:note-mqpzvfu3u72","to":"note:note-mqh314qvxgo","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2366519235305996,"cosine":0.572,"model_version":"v1"}
