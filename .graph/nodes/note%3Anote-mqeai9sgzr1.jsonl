@@ -24,3 +24,4 @@
 {"evt":"edge_promoted","from":"note:note-mqeai9sgzr1","to":"codex/review-state-lifecycle-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:36:25.934Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqeai9sgzr1","to":"codex/review-state-lifecycle-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:36:36.976Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqeai9sgzr1","to":"codex/review-state-lifecycle-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:36:46.260Z","weight":0.8,"origin":"asserted"}
+{"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":6,"ts":"2026-06-23T05:22:57.992Z"}

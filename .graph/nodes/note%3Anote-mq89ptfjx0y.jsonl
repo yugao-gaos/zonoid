@@ -21,3 +21,4 @@
 {"evt":"edge_removed","from":"note:note-mq89ptfjx0y","to":"4114fba8-df22-4ebd-a73b-12bac12f8b99/1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:07:48.428Z"}
 {"evt":"edge_added","from":"note:note-mq89ptfjx0y","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:39:44.920Z","weight":0,"by":"autowire","judged":false,"score":0.572,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mq89ptfjx0y","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:09:26.406Z"}
+{"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":3,"ts":"2026-06-23T05:22:57.992Z"}

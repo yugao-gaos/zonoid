@@ -16,3 +16,4 @@
 {"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"note:note-mqiu5lpjox6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:11:02.383Z"}
 {"evt":"edge_added","from":"note:note-mqokgnd2wnw","to":"codex/review-state-dashboard-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:36:40.828Z","weight":0.7,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqokgnd2wnw","to":"codex/review-state-dashboard-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:36:46.260Z","weight":0.7,"origin":"asserted"}
+{"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":3,"ts":"2026-06-23T05:22:57.993Z"}

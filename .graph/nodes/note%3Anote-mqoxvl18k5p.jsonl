@@ -44,3 +44,4 @@
 {"evt":"edge_removed","from":"note:note-mqoxvl18k5p","to":"codex/review-subconscious-assignment-lifecycle","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:06:07.873Z"}
 {"evt":"edge_removed","from":"note:note-mqoxvl18k5p","to":"codex/reconcile-post-subconscious-feature-with-main","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:06:07.873Z"}
 {"evt":"edge_removed","from":"note:note-mqoxvl18k5p","to":"codex/verify-post-subconscious-review-fixes-after-main-reconcile","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:06:07.873Z"}
+{"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":4,"ts":"2026-06-23T05:22:57.993Z"}

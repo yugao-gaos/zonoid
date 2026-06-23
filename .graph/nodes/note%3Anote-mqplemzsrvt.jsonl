@@ -13,3 +13,4 @@
 {"evt":"edge_added","from":"note:note-mqplemzsrvt","to":"codex/fix-codex-task-transcript-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:57:03.886Z","weight":0.88,"by":"subconscious","judged":true,"score":0.88,"origin":"subconscious-agentic-search"}
 {"evt":"edge_promoted","from":"note:note-mqplemzsrvt","to":"note:note-mq7zoijxpsz","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:04:10.405Z","weight":0.555,"by":"judge","judged":true,"score":0.555,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqplemzsrvt","to":"codex/review-state-daemon-queues","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:04:10.405Z","weight":0.5,"by":"judge","judged":true,"origin":"subconscious-assignment"}
+{"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":18,"ts":"2026-06-23T05:22:57.993Z"}
