@@ -5273,3 +5273,11 @@
 {"ts":1782190890408,"from":"codex/p7-sync-judge-cli-backend-judge","to":"codex/p3-deport-bench-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5828998720495769,"cosine":0.559,"model_version":"v1"}
 {"ts":1782190890409,"from":"codex/p7-sync-judge-cli-backend-judge","to":"knowledge:source_section:section-readme-md-10-judge-kb-9f9851fe2d","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5897605061620864,"cosine":0.573,"model_version":"v1"}
 {"ts":1782190920483,"from":"codex/p7-sync-judge-cli-backend-judge","to":"codex/onboard-code-cli-sync-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.645049237445378,"cosine":0.689,"model_version":"v1"}
+{"ts":1782216767020,"from":"note:note-mqpzfgjlux8","to":"codex/code-node-layer","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782216767021,"from":"note:note-mqpzvfu3u72","to":"codex/code-node-layer","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782216767022,"from":"note:note-mqpzvfu3u72","to":"codex/onboard-code-cli-sync","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782216767023,"from":"note:note-mqq2d9u1f7x","to":"codex/p7-sync-judge-cli-backend","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782216767024,"from":"note:note-mqpxyj4af7t","to":"codex/paper-code-retrieval-economy","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782216767025,"from":"note:note-mqpz36sv7ns","to":"codex/code-node-layer","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782216767026,"from":"note:note-mqpzfgjlux8","to":"codex/code-ast-extractor","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782216767026,"from":"note:note-mqpzfgjlux8","to":"codex/code-extractor-multilang","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
