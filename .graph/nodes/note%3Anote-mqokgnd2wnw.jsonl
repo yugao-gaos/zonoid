@@ -19,3 +19,5 @@
 {"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":3,"ts":"2026-06-23T05:22:57.993Z"}
 {"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:37.354Z"}
 {"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"codex/reconcile-post-subconscious-feature-with-main-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:43.148Z"}
+{"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"note:note-mqogmgwobj3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:00:51.623Z"}
+{"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"note:note-mqn5eugc0vj","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:01:00.374Z"}

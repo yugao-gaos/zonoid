@@ -31,3 +31,4 @@
 {"evt":"edge_removed","from":"note:note-mqn5eugc0vj","to":"codex/consolidate-universal-skills","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z"}
 {"evt":"edge_removed","from":"note:note-mqn5eugc0vj","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:37.354Z"}
 {"evt":"edge_removed","from":"note:note-mqn5eugc0vj","to":"codex/reconcile-post-subconscious-feature-with-main-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:43.148Z"}
+{"evt":"edge_removed","from":"note:note-mqn5eugc0vj","to":"codex/ensure-managed-subconscious-loop-owner-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:01:02.205Z"}

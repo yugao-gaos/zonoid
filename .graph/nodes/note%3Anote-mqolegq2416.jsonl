@@ -9,3 +9,7 @@
 {"evt":"edge_promoted","from":"note:note-mqolegq2416","to":"note:note-mqn7x0d9lv8","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:16:54.053Z","weight":0.641,"by":"judge","judged":true,"score":0.641,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqolegq2416","to":"note:note-mqh2eifaveh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:14:34.054Z"}
 {"evt":"edge_removed","from":"note:note-mqolegq2416","to":"codex/reconcile-post-subconscious-feature-with-main-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:43.148Z"}
+{"evt":"edge_removed","from":"note:note-mqolegq2416","to":"note:note-mqogmgwobj3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:00:51.623Z"}
+{"evt":"edge_promoted","from":"note:note-mqolegq2416","to":"note:note-mqf9plgeajc","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:00:54.026Z","weight":0.662,"by":"judge","judged":true,"score":0.662,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqolegq2416","to":"note:note-mqokgnd2wnw","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:01:00.374Z"}
+{"evt":"edge_removed","from":"note:note-mqolegq2416","to":"note:note-mqf9plgeajc","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:01:07.393Z"}
