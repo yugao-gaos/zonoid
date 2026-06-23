@@ -14,3 +14,7 @@
 {"evt":"edge_added","from":"note:note-mqflwx2dys0","to":"codex/fix-claim-permit-result-contract-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:31:27.523Z","weight":0,"by":"autowire","judged":false,"score":0.56,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqflwx2dys0","to":"codex/fix-broad-npm-test-regressions-after-post-review-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T07:56:02.419Z","weight":0,"by":"autowire","judged":false,"score":0.629,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqflwx2dys0","to":"codex/fix-stale-tested-verdict-requeue-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:06:14.596Z","weight":0,"by":"autowire","judged":false,"score":0.554,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"note:note-mqf7j1hinjg","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:58:59.803Z"}
+{"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"note:note-mqd6hrlnbhp","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:58:59.803Z"}
+{"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"note:note-mqeapqae6jf","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:58:59.803Z"}
+{"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"codex/fix-stale-tested-verdict-requeue-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:58:59.803Z"}

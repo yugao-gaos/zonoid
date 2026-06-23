@@ -9,3 +9,12 @@
 {"evt":"edge_added","from":"note:note-mqp51dnukaw","to":"note:note-mq7hef63bam","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.823,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp51dnukaw","to":"note:note-mqp4zen4gpi","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.588,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp51dnukaw","to":"note:note-mqp50sg0wuf","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.582,"origin":"autowire-semantic"}
+{"evt":"note_supersedes","id":"note-mqp51dnukaw","supersedes":"note-mq7hef63bam","ts":"2026-06-22T11:34:27.690Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mqp51dnukaw","to":"dd7f0a33-336f-4b56-a200-35c38c51cc51/3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:56:14.604Z","weight":0.5,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqp51dnukaw","to":"note:note-mq7hef63bam","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:56:14.604Z"}
+{"evt":"note_supersedes","id":"note-mqp51dnukaw","supersedes":"note-mq7hef63bam","ts":"2026-06-22T11:34:27.690Z","actor":"supersede"}
+{"evt":"note_superseded","id":"note-mqp51dnukaw","supersededBy":"note-mq7hef63bam","validTo":"2026-06-10T03:00:40.395Z","ts":"2026-06-10T03:00:40.395Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mqp51dnukaw","to":"note:note-mqp4zen4gpi","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:57:18.836Z"}
+{"evt":"edge_removed","from":"note:note-mqp51dnukaw","to":"note:note-mqp50sg0wuf","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:57:18.836Z"}
+{"evt":"edge_removed","from":"note:note-mqp51dnukaw","to":"dd7f0a33-336f-4b56-a200-35c38c51cc51/3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:57:18.836Z"}
+{"evt":"note_superseded","id":"note-mqp51dnukaw","supersededBy":"note-mq7hef63bam","validTo":"2026-06-10T03:00:40.395Z","ts":"2026-06-10T03:00:40.395Z","actor":"supersede"}

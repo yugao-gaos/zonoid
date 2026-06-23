@@ -14,3 +14,14 @@
 {"evt":"edge_added","from":"note:note-mqp5cw2yjp6","to":"knowledge:source_chunk:chunk-claude-md-6-0-override-signal-when-a-note-contradicts--7a2cdbb38f","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.767,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp5cw2yjp6","to":"knowledge:source_section:section-agents-md-6-kb-note-authoring-5b2e2d6033","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.767,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp5cw2yjp6","to":"knowledge:source_section:section-claude-md-6-kb-note-authoring-6405cb40a9","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.767,"origin":"autowire-semantic"}
+{"evt":"note_supersedes","id":"note-mqp5cw2yjp6","supersedes":"note-mqiu6jpwect","ts":"2026-06-22T11:43:24.778Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mqp5cw2yjp6","to":"bench/bench-trial-19-13","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:56:14.604Z","weight":0,"by":"autowire","judged":false,"score":0.602,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp5cw2yjp6","to":"note:note-mqiu6jpwect","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:56:14.604Z"}
+{"evt":"note_supersedes","id":"note-mqp5cw2yjp6","supersedes":"note-mqiu6jpwect","ts":"2026-06-22T11:43:24.778Z","actor":"supersede"}
+{"evt":"note_superseded","id":"note-mqp5cw2yjp6","supersededBy":"note-mqiu6jpwect","validTo":"2026-06-18T01:43:55.988Z","ts":"2026-06-18T01:43:55.988Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mqp5cw2yjp6","to":"knowledge:source_chunk:chunk-agents-md-6-0-override-signal-when-a-note-contradicts--39045fffe2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:57:18.836Z"}
+{"evt":"edge_removed","from":"note:note-mqp5cw2yjp6","to":"knowledge:source_chunk:chunk-claude-md-6-0-override-signal-when-a-note-contradicts--7a2cdbb38f","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:57:18.836Z"}
+{"evt":"edge_removed","from":"note:note-mqp5cw2yjp6","to":"knowledge:source_section:section-agents-md-6-kb-note-authoring-5b2e2d6033","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:57:18.836Z"}
+{"evt":"edge_removed","from":"note:note-mqp5cw2yjp6","to":"knowledge:source_section:section-claude-md-6-kb-note-authoring-6405cb40a9","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:57:18.836Z"}
+{"evt":"edge_removed","from":"note:note-mqp5cw2yjp6","to":"bench/bench-trial-19-13","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:57:18.836Z"}
+{"evt":"note_superseded","id":"note-mqp5cw2yjp6","supersededBy":"note-mqiu6jpwect","validTo":"2026-06-18T01:43:55.988Z","ts":"2026-06-18T01:43:55.988Z","actor":"supersede"}
