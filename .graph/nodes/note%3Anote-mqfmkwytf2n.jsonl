@@ -35,3 +35,4 @@
 {"evt":"edge_removed","from":"note:note-mqfmkwytf2n","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:11:48.286Z"}
 {"evt":"edge_removed","from":"note:note-mqfmkwytf2n","to":"followup/harness-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:11:48.286Z"}
 {"evt":"edge_removed","from":"note:note-mqfmkwytf2n","to":"followup/surfacecluster-auto-distinct","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:11:48.286Z"}
+{"evt":"edge_removed","from":"note:note-mqfmkwytf2n","to":"note:note-mqflqx78zk2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:59:00.332Z"}

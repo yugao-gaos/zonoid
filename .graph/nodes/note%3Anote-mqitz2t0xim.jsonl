@@ -24,3 +24,4 @@
 {"evt":"edge_removed","from":"note:note-mqitz2t0xim","to":"note:note-mqd5cck16d4","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:01:50.789Z"}
 {"evt":"edge_removed","from":"note:note-mqitz2t0xim","to":"bench/bench-trial-10-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:01:50.789Z"}
 {"evt":"edge_removed","from":"note:note-mqitz2t0xim","to":"note:note-mqityo6fy4z","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:01:50.789Z"}
+{"evt":"edge_removed","from":"note:note-mqitz2t0xim","to":"note:note-mq7hef5did3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:51:55.896Z"}

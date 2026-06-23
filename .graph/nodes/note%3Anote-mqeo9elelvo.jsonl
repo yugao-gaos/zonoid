@@ -17,3 +17,5 @@
 {"evt":"edge_promoted","from":"note:note-mqeo9elelvo","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:39:10.141Z","weight":0.631,"by":"judge","judged":true,"score":0.631,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqeo9elelvo","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:39:10.141Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
 {"evt":"edge_added","from":"note:note-mqeo9elelvo","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:39:44.920Z","weight":0,"by":"autowire","judged":false,"score":0.572,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqatk2hs8sr","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:57:48.320Z"}
+{"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqb975duzqu","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:57:48.320Z"}
