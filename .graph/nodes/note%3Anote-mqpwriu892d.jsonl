@@ -9,3 +9,14 @@
 {"evt":"edge_promoted","from":"note:note-mqpwriu892d","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:30:49.359Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqpwriu892d","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:30:54.434Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqpwriu892d","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:32:02.410Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpwriu892d","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:33:01.949Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpwriu892d","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:33:49.695Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpwriu892d","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:34:22.290Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpwriu892d","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:34:28.998Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpwriu892d","to":"knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:34:31.497Z","weight":0.881,"by":"judge","judged":true,"score":0.881,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqpwriu892d","to":"knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:34:31.497Z"}
+{"evt":"edge_removed","from":"note:note-mqpwriu892d","to":"knowledge:source_section:note-mqpwriu892d#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:34:31.497Z"}
+{"evt":"edge_removed","from":"note:note-mqpwriu892d","to":"knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:34:31.497Z"}
+{"evt":"edge_removed","from":"note:note-mqpwriu892d","to":"knowledge:source_doc:note-mqpwriu892d","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:34:31.497Z"}
+{"evt":"edge_promoted","from":"note:note-mqpwriu892d","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:35:18.710Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpwriu892d","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T00:36:06.036Z","weight":1}
