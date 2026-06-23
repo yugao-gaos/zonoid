@@ -3,3 +3,4 @@
 {"evt":"summary_set","id":"note:note-mqp585nxj80","workspace":"/Users/imyu/Desktop/zonoid","summary":"The loop script also points `ORCH_DAEMON` at `http://localhost:8787` by default. Both onboarding entrypoints therefore target the same local daemon unless the operator overrides the environment.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp585nxj80","to":"note:note-mqp57jlmzn1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:40:15.925Z"}
 {"evt":"edge_added","from":"note:note-mqp585nxj80","to":"note:note-mqp57jlmzn1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.703,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp585nxj80","to":"note:note-mqp57jlmzn1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:26:11.738Z"}
