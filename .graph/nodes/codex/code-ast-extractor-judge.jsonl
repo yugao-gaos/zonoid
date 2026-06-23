@@ -1,0 +1,7 @@
+{"evt":"edge_removed","from":"codex/code-ast-extractor-judge","to":"codex/paper-code-retrieval-economy-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"status_changed","id":"codex/code-ast-extractor-judge","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"timestamps_set","id":"codex/code-ast-extractor-judge","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-23T01:46:28.756Z","lastChanged":"2026-06-23T21:23:17.056Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-23T21:23:21.735Z"}
+{"evt":"timestamps_set","id":"codex/code-ast-extractor-judge","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-23T01:46:28.756Z","lastChanged":"2026-06-23T21:23:20.352Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-23T21:23:22.490Z"}
+{"evt":"status_changed","id":"codex/code-ast-extractor-judge","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-23T21:34:13.828Z"}
+{"evt":"assignee_set","id":"codex/code-ast-extractor-judge","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-code-ast-extractor-judge","actor":"overlay-sync","ts":"2026-06-23T21:34:13.828Z"}
+{"evt":"timestamps_set","id":"codex/code-ast-extractor-judge","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-23T01:46:28.756Z","lastChanged":"2026-06-23T21:34:12.076Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-23T21:34:13.828Z"}
