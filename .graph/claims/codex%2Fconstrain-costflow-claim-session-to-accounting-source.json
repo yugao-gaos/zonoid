@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/constrain-costflow-claim-session-to-accounting-source",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "costflow-source-scope-fixer-1",
+  "branch": "orch/attempt/codex-constrain-costflow-claim-session-to-accounting-source",
+  "status": "claimed",
+  "claimed_at": "2026-06-23T04:45:48.764Z",
+  "lease_until": "2026-06-23T05:45:48.764Z"
+}
