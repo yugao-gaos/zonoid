@@ -26,3 +26,4 @@
 {"evt":"edge_promoted","from":"knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-3","to":"note:note-mqqyd0ugp2b","kind":"context","actor":"overlay-sync","ts":"2026-06-23T19:58:28.443Z","weight":1,"origin":"note-source-cluster"}
 {"evt":"edge_promoted","from":"knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-3","to":"note:note-mqqyd0ugp2b","kind":"context","actor":"overlay-sync","ts":"2026-06-23T20:00:09.632Z","weight":1,"origin":"note-source-cluster"}
 {"evt":"edge_promoted","from":"knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-3","to":"note:note-mqqyd0ugp2b","kind":"context","actor":"overlay-sync","ts":"2026-06-23T20:00:56.751Z","weight":1,"origin":"note-source-cluster"}
+{"evt":"edge_promoted","from":"knowledge:source_chunk:note-mqqyd0ugp2b#note-evidence:chunk-3","to":"note:note-mqqyd0ugp2b","kind":"context","actor":"overlay-sync","ts":"2026-06-23T20:02:31.999Z","weight":1,"origin":"note-source-cluster"}
