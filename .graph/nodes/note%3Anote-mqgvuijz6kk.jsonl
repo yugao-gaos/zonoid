@@ -22,3 +22,4 @@
 {"evt":"edge_removed","from":"note:note-mqgvuijz6kk","to":"note:note-mqfmkwytf2n","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:38:05.903Z"}
 {"evt":"edge_removed","from":"note:note-mqgvuijz6kk","to":"note:note-mqe2awxnjjf","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:38:05.903Z"}
 {"evt":"edge_removed","from":"note:note-mqgvuijz6kk","to":"ae0d4490-d7c7-4efd-be15-3916d9e059bf/3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:38:05.903Z"}
+{"evt":"edge_added","from":"note:note-mqgvuijz6kk","to":"codex/reapply-causal-edges-preserve-blocking-dependencies","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:01:52.354Z","weight":0.721,"by":"subconscious","judged":true,"score":0.721,"origin":"subconscious-agentic-search"}
