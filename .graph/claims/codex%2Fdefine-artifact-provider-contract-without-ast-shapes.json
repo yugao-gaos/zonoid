@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "019ef4d3-be14-7ea3-986e-530d06a5678e",
   "branch": "orch/attempt/codex-define-artifact-provider-contract-without-ast-shapes",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-23T15:05:15.256Z",
-  "lease_until": "2026-06-23T16:05:15.256Z"
+  "lease_until": "2026-06-23T16:05:15.256Z",
+  "completed_at": "2026-06-23T15:09:38.900Z"
 }
