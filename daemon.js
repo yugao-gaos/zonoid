@@ -2224,6 +2224,34 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
       updated_at: n.updated_at || null,
     });
   }
+  // Append entity nodes for the conversational-memory layer. They are graph/search nodes only:
+  // visible in the projection and usable as context providers, but never runnable tasks.
+  for (const [entityId, n] of Object.entries(ovWs.entity_nodes || {})) {
+    if (!n) continue;
+    const bareId = String(n.id || entityId).replace(/^entity:/, '');
+    if (!bareId || n.validTo) continue;
+    const key = 'entity:' + bareId;
+    tasks.push({
+      id: key,
+      label: n.name || key,
+      kind: 'entity',
+      status: 'entity',
+      session: null,
+      deps: [],
+      context_deps: keptCtxDeps[key] || [],
+      context_weights: keptCtxWeights[key] || {},
+      note: '',
+      agent_id: null,
+      summary: Array.isArray(n.aliases) && n.aliases.length ? `Aliases: ${n.aliases.join(', ')}` : '',
+      vec: Array.isArray(n.vec) ? n.vec : null,
+      vecMeta: n.vecMeta || null,
+      type: n.type || 'concept',
+      aliases: Array.isArray(n.aliases) ? n.aliases : [],
+      validFrom: n.validFrom || null,
+      validTo: n.validTo || null,
+      supersededBy: n.supersededBy || null,
+    });
+  }
   const ghosts = Object.values(ghostMap);
   return { tasks, ghosts, effects };
 }
@@ -2242,9 +2270,10 @@ function buildGraph(ws) {
 }
 
 function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
-  const real = tasks.filter((t) => !overlayStore.isNonTaskNode(t)); // note/knowledge nodes aren't tasks
+  const real = tasks.filter((t) => !overlayStore.isNonTaskNode(t)); // note/knowledge/entity nodes aren't tasks
   const notes = tasks.filter((t) => t.kind === 'note').length;
-  const knowledge_nodes = tasks.length - real.length - notes;
+  const knowledge_nodes = tasks.filter((t) => overlayStore.isKnowledgeNodeKind(t.kind)).length;
+  const entity_nodes = tasks.filter((t) => t.kind === 'entity').length;
   const c = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0]));
   for (const t of real) c[t.status] = (c[t.status] || 0) + 1;
   c.local_in_progress = localInProgressCount(real, ov);
@@ -2253,6 +2282,7 @@ function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
     tasks_total: real.length,
     notes,
     knowledge_nodes,
+    entity_nodes,
     statuses: c,
     sessions: new Set(real.map((t) => t.session)).size,
     edges: ov.edges.length,
