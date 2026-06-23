@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-41022-f8ea26de7ee0297bee191ee2d27de561",
   "branch": "orch/attempt/codex-surface-note-belief-lifecycle-status",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-23T14:24:45.799Z",
-  "lease_until": "2026-06-23T15:24:45.799Z"
+  "lease_until": "2026-06-23T15:24:45.799Z",
+  "completed_at": "2026-06-23T14:32:32.030Z"
 }
