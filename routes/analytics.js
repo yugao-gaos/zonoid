@@ -302,6 +302,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       acc.cache_read += v.cache_read || 0;
       return acc;
     }, { input_tokens: 0, output_tokens: 0, cache_read: 0 });
+    const costByCause = usageAccounting.costCauseLedger(T.ov, {
+      tasks: g.tasks,
+      snapshots: T.ov.snapshots,
+      totalCost: merged.cost,
+      totalUsage: merged.totals,
+    });
     send(res, 200, respCachePut(cfWs, cfKey, {
       workspace: T.ws,
       autonomy_score: human.tokens > 0 ? Math.round((flow.totals.productive / human.tokens) * 10) / 10 : null,
@@ -315,6 +321,8 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       // from pricing.json); it does NOT price here. source is weakest-wins ('estimated' if any
       // contributing slice was a chars/4 estimate, else 'real'). ADDITIVE to the token figures above.
       cost: { usd: Math.round(((merged.cost && merged.cost.usd) || 0) * 100) / 100, source: (merged.cost && merged.cost.source) || 'real', by_model: (merged.cost && merged.cost.by_model) || {} },
+      cost_by_cause: costByCause,
+      cause_ledger: costByCause,
       sessions: { count: catchalls.nodes.length, unattributed: rnd(catchalls.nodes.reduce((s, n) => s + n.own, 0)) },
       results: flow.results.map((r) => ({ task: r.task, kind: kindOf(r.task), label: r.label, members: r.members.length > 1 ? r.members : undefined, T: rnd(r.T), own: rnd(r.own), inherited: rnd(r.inherited) })),
       waste: wasteTrapped.map((w) => ({ task: w.task, kind: kindOf(w.task), label: w.label, members: w.members.length > 1 ? w.members : undefined, trapped: rnd(w.trapped) })),

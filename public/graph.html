@@ -7448,6 +7448,16 @@ async function toggleBillingPopup(){
 
   const sessionCost=serverCost?Number(serverCost.usd||0):0;
   const sessionCostLabel=serverCost?`${fmtUSD(sessionCost)}${serverCost.source==='estimated'?' ≈':''}`:'—';
+  const costByCause=cf.cost_by_cause||cf.cause_ledger||{};
+  const causeColor={foreground:'#79c0ff',worker:'#3fb950',review:'#d29922',daemon:'#a371f7',auxiliary:'#8b949e',unknown:'#484f58'};
+  const causeRows=(costByCause.buckets||[]).filter(b=>b&&((b.tokens||0)>0||(b.usd||0)>0)).map(b=>{
+    const usd=Number(b.usd||0), tok=Number(b.tokens||0);
+    const sub=[tok>0?fmtK(tok)+' tok':null,b.records?b.records+' rec':null,b.session_count?b.session_count+' sessions':null].filter(Boolean).join(' · ');
+    return `<div class="bprow"><span class="bpdot" style="background:${causeColor[b.key]||'#8b949e'}"></span><span class="bplabel">${esc(b.label||b.key||'Unknown')}</span>`+
+      `<span class="bpnum" style="color:#6e7681;font-size:10px">${sub||'no token detail'}</span>`+
+      `<span class="bpcost">${usd>0?fmtUSD(usd):'—'}</span></div>`;
+  }).join('');
+  const causeTotal=costByCause.total?Number(costByCause.total.usd||0):0;
   const productive=t.productive||0, exploration=t.exploration||0, trapped=t.trapped||0;
   // econTok: DELTA basis (prod+expl+trap) — denominator for token-economy partition so buckets sum to ~100%
   const econTok=t.total||(productive+exploration+trapped)||0;
@@ -7489,6 +7499,10 @@ async function toggleBillingPopup(){
     `<div class="bptotal"><span title="Adapter-priced from pricing.json, daemon-summed per-slice cost.usd">Task sessions</span><span style="color:#d29922">${sessionCostLabel}</span></div>`+
     `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ cron/gate API cost (extra, not in sessions)</span><span style="color:#8b949e;font-size:11px">${fmtUSD(cronCost)}</span></div>`+
     `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px;font-size:15px;font-weight:700"><span>Total est. <span style="font-size:10px;font-weight:400;color:#484f58">this project</span></span><span style="color:#d29922;font-size:18px">${fmtUSD(sessionCost+cronCost)}</span></div>`+
+    `<div class="bpdiv"></div>`+
+    `<div class="bpsec"><h3>By Cause <span style="font-size:9px;color:#484f58;font-weight:400">(task sessions)</span></h3>`+
+    (causeRows||`<div style="font-size:10px;color:#484f58">No task-session cause ledger available.</div>`)+
+    `<div style="font-size:10px;color:#6e7681;margin-top:5px">Cause total: ${fmtUSD(causeTotal)} · unknown is unclassified provenance, not productive work.</div></div>`+
     (()=>{
       const tasks=(delta&&delta.tasks_created)||[];
       const oldest=tasks.reduce((min,tk)=>{ const at=Date.parse(tk.firstSeen||''); return(at&&at<min)?at:min; },Infinity);
