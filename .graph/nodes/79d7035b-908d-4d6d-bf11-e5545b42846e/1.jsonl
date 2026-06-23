@@ -1,1 +1,2 @@
 {"evt":"edge_added","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/1","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:15:47.248Z","weight":0.51,"origin":"asserted"}
+{"evt":"edge_promoted","from":"79d7035b-908d-4d6d-bf11-e5545b42846e/1","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:15:57.416Z","weight":0.51,"origin":"asserted"}
