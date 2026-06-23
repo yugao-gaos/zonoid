@@ -22,3 +22,4 @@
 {"evt":"summary_set","id":"knowledge:source_doc:note-mqqyd0ugp2b","workspace":"D:\\zonoid","summary":"Raw evidence captured from long note note:note-mqqyd0ugp2b.","actor":"overlay-sync","ts":"2026-06-23T18:41:06.141Z"}
 {"evt":"edge_promoted","from":"knowledge:source_doc:note-mqqyd0ugp2b","to":"knowledge:source_section:note-mqqyd0ugp2b#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T18:41:12.156Z","weight":1,"origin":"note-source-cluster"}
 {"evt":"edge_promoted","from":"knowledge:source_doc:note-mqqyd0ugp2b","to":"knowledge:source_section:note-mqqyd0ugp2b#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T18:41:42.744Z","weight":1,"origin":"note-source-cluster"}
+{"evt":"edge_promoted","from":"knowledge:source_doc:note-mqqyd0ugp2b","to":"knowledge:source_section:note-mqqyd0ugp2b#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T18:48:26.789Z","weight":1,"origin":"note-source-cluster"}
