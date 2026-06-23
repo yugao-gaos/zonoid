@@ -23,3 +23,4 @@
 {"evt":"edge_removed","from":"note:note-mq89ptfjx0y","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:09:26.406Z"}
 {"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":3,"ts":"2026-06-23T05:22:57.992Z"}
 {"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":3,"ts":"2026-06-23T06:03:07.610Z"}
+{"evt":"edge_promoted","from":"note:note-mq89ptfjx0y","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:38:05.903Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
