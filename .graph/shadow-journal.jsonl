@@ -5352,3 +5352,5 @@
 {"ts":1782223684447,"from":"note:note-mqqpqf49a5m","to":"codex/onboard-code-cli-sync","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5900866464627216,"cosine":1,"model_version":"v1"}
 {"ts":1782224447350,"from":"note:note-mqqlra053ej","to":"codex/code-node-embed-enrich","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
 {"ts":1782224447351,"from":"note:note-mqqpp70ivco","to":"codex/onboard-code-cli-sync","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5900866464627216,"cosine":1,"model_version":"v1"}
+{"ts":1782224976485,"from":"codex/fix-stale-reaper-readiness-judge","to":"codex/fix-stale-reaper-readiness","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6385465407049321,"cosine":0.675,"model_version":"v1"}
+{"ts":1782224976488,"from":"note:note-mqqosxptv7i","to":"codex/fix-stale-reaper-readiness-judge","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.4623486421714161,"cosine":0.745,"model_version":"v1"}
