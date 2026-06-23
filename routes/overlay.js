@@ -1022,6 +1022,68 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     sendOp(res, b, 200, resp); return true;
   }
 
+  // BULK note ingest — the concurrency path for onboarding 1k+ code symbols. The single-note handler
+  // above serializes (per-field embeds + an O(n) dup-cosine scan PER note); that degrades the daemon
+  // under inject load. This route is purpose-built for KNOWN-DISTINCT bulk symbols, so it:
+  //   - embeds every note's pooled text with embedBatch in chunks (ONE inference per chunk, not per note),
+  //   - SKIPS the near-duplicate guard entirely (bulk = distinct by construction; the O(n) scan is the
+  //     quadratic cost we're removing — stragglers remain the dup-judge's job, not the write gate's),
+  //   - bumps the epoch EXACTLY ONCE at the end (not once per note).
+  // The single-note path stays byte-identical; this is purely additive.
+  if (p === '/overlay/notes/bulk' && m === 'POST') {
+    const b = await readBody(req);
+    if (ctx.opReplay(res, b)) return true;
+    const T = targetOverlay(b, u);
+    if (!Array.isArray(b.notes) || !b.notes.length) { send(res, 400, { ok: false, error: 'notes[] required (non-empty array)' }); return true; }
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const invalid = b.notes.findIndex((n) => !n || !n.title || !n.summary);
+    if (invalid !== -1) { send(res, 400, { ok: false, error: `notes[${invalid}] missing title or summary` }); return true; }
+
+    // Pooled embedding text per note — the SAME noteEmbedText the single-note path feeds to .vec, so
+    // bulk-ingested notes are retrievable/dedupable identically. Field-level .vecs are intentionally
+    // omitted here (pooled .vec is what /search gates on); keeping it to one vector per note is the
+    // point of the fast path.
+    const pooledTexts = b.notes.map((n) => noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
+
+    // embedBatch in chunks of ~48 (one MiniLM forward pass per chunk). ctx.embedBatch is injectable
+    // for tests; fall back to the real client. Each chunk result is [{ vec }], aligned to its slice.
+    const embedBatchFn = (typeof ctx.embedBatch === 'function') ? ctx.embedBatch : require('../lib/embed').embedBatch;
+    const CHUNK = 48;
+    const vecs = new Array(pooledTexts.length).fill(null);
+    for (let off = 0; off < pooledTexts.length; off += CHUNK) {
+      const slice = pooledTexts.slice(off, off + CHUNK);
+      let batch;
+      try { batch = await embedBatchFn(slice, { mode: 'document', overlay: T.ov }); }
+      catch { batch = slice.map(() => ({ vec: null })); }
+      for (let i = 0; i < slice.length; i++) {
+        const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
+        vecs[off + i] = v;
+      }
+    }
+
+    const meta = (typeof ctx.embeddingMeta === 'function') ? ctx.embeddingMeta(T.ov) : null;
+    const created = [];
+    for (let i = 0; i < b.notes.length; i++) {
+      const n = b.notes[i];
+      const payload = {
+        title: n.title,
+        summary: n.summary,
+        knowledge: n.knowledge,
+        category: n.category,
+        tags: n.tags,
+        vec: vecs[i],
+        vecMeta: vecs[i] ? meta : null,
+      };
+      const id = overlayStore.addNoteNode(T.ov, payload);
+      created.push('note:' + id);
+    }
+    // Exactly ONE epoch bump for the whole batch (vs one per note on the single path) — bulk is a
+    // single logical mutation for retrieval-staleness purposes.
+    overlayStore.bumpEpoch(T.ov);
+    T.save(); notifyChange(T.ws);
+    send(res, 200, { ok: true, created: created.length, keys: created, workspace: T.ws }); return true;
+  }
+
   if (p === '/overlay/gate' && m === 'POST') {
     const b = await readBody(req);
     if (ctx.opReplay(res, b)) return true;
