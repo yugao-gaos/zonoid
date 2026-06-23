@@ -7,7 +7,7 @@
 //     depend on state.workspace (state.workspace is only included if it is ALSO registered).
 // (b) decideAll() sweeps stale verdicts across MULTIPLE registered workspaces — a stale verdict in
 //     a registered workspace that is NEITHER state.workspace NOR backed by an active loop is still
-//     reset. This is the core P2b behavior: sweeps no longer key off the global pointer.
+//     surfaced for review. This is the core P2b behavior: sweeps no longer key off the global pointer.
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -70,7 +70,7 @@ const WS_LOOP    = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-r
 {
   __clearOverlayCacheForTest();
   // state.workspace = PRIMARY (unregistered). Registry = [A, B]. NO active loops. A stale verdict
-  // sits in BOTH A and B. decideAll must reset BOTH (proving it iterates the REGISTERED set, not
+  // sits in BOTH A and B. decideAll must surface BOTH (proving it iterates the REGISTERED set, not
   // just state.workspace — which isn't even registered here).
   fs.writeFileSync(WORKSPACES_FILE, JSON.stringify([WS_REG_A, WS_REG_B]));
   __setWorkspaceForTest(WS_PRIMARY);
@@ -95,8 +95,12 @@ const WS_LOOP    = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-r
 
   const afterA = ov.load(WS_REG_A);
   const afterB = ov.load(WS_REG_B);
-  ok('(b) stale verdict in registered ws A reset by decideAll', !afterA.status['a/1']);
-  ok('(b) stale verdict in registered ws B reset by decideAll', !afterB.status['b/1']);
+  const surfacedA = afterA.guidance && afterA.guidance.find((g) => g.verdictKey === 'a/1');
+  const surfacedB = afterB.guidance && afterB.guidance.find((g) => g.verdictKey === 'b/1');
+  ok('(b) stale verdict in registered ws A preserved by decideAll', afterA.status['a/1'] === 'tested');
+  ok('(b) stale verdict in registered ws B preserved by decideAll', afterB.status['b/1'] === 'tested');
+  ok('(b) stale verdict in registered ws A surfaced by decideAll', surfacedA && surfacedA.action && surfacedA.action.kind === 'stale-verdict');
+  ok('(b) stale verdict in registered ws B surfaced by decideAll', surfacedB && surfacedB.action && surfacedB.action.kind === 'stale-verdict');
 
   // PRIMARY (state.workspace, NOT registered) must be untouched — there's nothing in it, but more
   // importantly the sweep set is the registry, so a verdict placed in PRIMARY would NOT be swept.

@@ -14,6 +14,15 @@ const ok = (label, cond) => {
 };
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'graph.html'), 'utf8');
+const checkStart = html.indexOf('async function checkOnboardingState() {');
+const checkEnd = html.indexOf('\nfunction currentOnboardWorkspace', checkStart);
+const checkOnboardingBody = checkStart >= 0 && checkEnd > checkStart ? html.slice(checkStart, checkEnd) : '';
+const beforeInCheck = (first, second) => {
+  const a = checkOnboardingBody.indexOf(first);
+  const b = checkOnboardingBody.indexOf(second);
+  return a >= 0 && b >= 0 && a < b;
+};
+const lastInCheck = (needle) => checkOnboardingBody.lastIndexOf(needle);
 const functionBody = (name) => {
   const match = html.match(new RegExp(`function ${name}\\(s\\) \\{([\\s\\S]*?)\\n\\}`));
   return match ? match[1] : '';
@@ -34,12 +43,16 @@ ok('auto-start calls enqueue endpoint', html.includes("dfetch('/onboard/enqueue'
 ok('auto-start calls drain endpoint', html.includes("dfetch('/onboard/drain-queue'"));
 ok('auto-start requests live auto inject', html.includes('autoInject: true') && html.includes('liveInject: true'));
 ok('stored outDir resumes without enqueue guard', html.includes("const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || ''") && html.includes('if (!outDir)'));
-ok('completed latch exits reload before note-search restart', /if \(workspace && !storedOutDir && localStorage\.getItem\(onboardCompletedKey\(\)\) === '1'\) \{[\s\S]*completeOnboardLearning\(\);[\s\S]*return;[\s\S]*\}/.test(html));
+ok('completed latch exits reload before ingest note check', /if \(workspace && !storedOutDir && localStorage\.getItem\(onboardCompletedKey\(\)\) === '1'\) \{[\s\S]*completeOnboardLearning\(\);[\s\S]*return;[\s\S]*\}/.test(html) && beforeInCheck("localStorage.getItem(onboardCompletedKey()) === '1'", 'const onboardNotesPresent = await hasInjectedOnboardNotes();'));
+ok('ingest note helper handles search result shapes', /async function hasInjectedOnboardNotes\(\) \{[\s\S]*dfetch\('\/search\?q=ingest&k=5'\)[\s\S]*const items = Array\.isArray\(data\) \? data : \(data\.results \|\| \[\]\);[\s\S]*return items\.some\(n => n\.kind === 'note'[\s\S]*n\.title\.startsWith\('\[ingest\]'\)\);[\s\S]*return null;[\s\S]*\}/.test(html));
+ok('ingest notes bypass default and legacy queue probes', beforeInCheck('const onboardNotesPresent = await hasInjectedOnboardNotes();', 'for (const candidateOutDir of candidateOnboardOutDirs(workspace))') && /if \(onboardNotesPresent === true\) \{[\s\S]*completeOnboardLearning\(\);[\s\S]*return;[\s\S]*\}[\s\S]*for \(const candidateOutDir of candidateOnboardOutDirs\(workspace\)\)/.test(checkOnboardingBody));
+ok('ingest notes bypass stale stored outDir resume', beforeInCheck('const onboardNotesPresent = await hasInjectedOnboardNotes();', 'if (workspace && storedOutDir)') && /if \(onboardNotesPresent === true\) \{[\s\S]*completeOnboardLearning\(\);[\s\S]*return;[\s\S]*\}[\s\S]*if \(workspace && storedOutDir\)/.test(checkOnboardingBody));
+ok('search failure blocks fresh auto-start after queue recovery chance', beforeInCheck('if (workspace && storedOutDir)', 'if (onboardNotesPresent === null)') && lastInCheck('showOnboardLanding();') > checkOnboardingBody.indexOf('if (onboardNotesPresent === null)') && /if \(onboardNotesPresent === null\) \{\s*return;\s*\}/.test(checkOnboardingBody));
 ok('default onboarding output uses ignored .zonoid state', /function defaultOnboardOutDir\(workspace\) \{[\s\S]*'\.zonoid'[\s\S]*'onboard'[\s\S]*\}/.test(html));
 ok('legacy onboarding output candidates are still checked', /function legacyOnboardOutDirs\(workspace\) \{[\s\S]*'\.graph'[\s\S]*'bench'[\s\S]*'onboard'[\s\S]*\}/.test(html));
-ok('missing outDir checks default and legacy queues before enqueue', /for \(const candidateOutDir of candidateOnboardOutDirs\(workspace\)\) \{[\s\S]*\/onboard\/drain-queue\?repo=[\s\S]*candidateOutDir[\s\S]*onboardStatusComplete\(st\.status\)[\s\S]*localStorage\.setItem\(onboardStoreKey\('outdir'\), candidateOutDir\)[\s\S]*No existing default\/legacy queue/.test(html));
+ok('missing ingest notes can still recover default and legacy queues', /for \(const candidateOutDir of candidateOnboardOutDirs\(workspace\)\) \{[\s\S]*\/onboard\/drain-queue\?repo=[\s\S]*candidateOutDir[\s\S]*onboardStatusComplete\(st\.status\)[\s\S]*localStorage\.setItem\(onboardStoreKey\('outdir'\), candidateOutDir\)[\s\S]*No existing default\/legacy queue/.test(html));
 ok('stored completed job exits onboarding before note search restart', /if \(st\.ok && st\.status && onboardStatusComplete\(st\.status\)\) \{[\s\S]*completeOnboardLearning\(\);[\s\S]*return;[\s\S]*\}/.test(html));
-ok('stored incomplete job keeps landing despite early ingest notes', /if \(st\.ok && st\.status\) \{[\s\S]*showOnboardLanding\(\);[\s\S]*updateOnboardFromStatus\(st\.status\)/.test(html));
+ok('stored incomplete job resumes only after ingest notes are absent', beforeInCheck('const onboardNotesPresent = await hasInjectedOnboardNotes();', 'if (workspace && storedOutDir)') && /if \(workspace && storedOutDir\) \{[\s\S]*if \(st\.ok && st\.status\) \{[\s\S]*showOnboardLanding\(\);[\s\S]*updateOnboardFromStatus\(st\.status\)/.test(checkOnboardingBody));
 ok('stored incomplete queue restarts drain via POST resume path', /const shouldResumeDrain = onboardStatusNeedsResume\(st\.status\);[\s\S]*landing\.dataset\.draining = shouldResumeDrain \? '' : '1';[\s\S]*if \(shouldResumeDrain\) ensureOnboardLearning\(workspace\);\s*else pollOnboardLearning\(\);/.test(html));
 ok('resume predicate covers incomplete recovered inactive statuses', /function onboardStatusNeedsResume\(s\) \{[\s\S]*s\.done !== true[\s\S]*s\.recovered[\s\S]*s\.active === false[\s\S]*!s\.injected/.test(html));
 ok('shared cloud renderer is reused for onboarding', html.includes("renderCloud(buildOnboardCloudState(status), { mode: 'onboard'"));
@@ -65,7 +78,9 @@ ok('dashboard search starts activation during debounce and pending', html.includ
 ok('dashboard search staggers DAG activation by node and edge', html.includes('const activationDelayMs=key=>CLOUD_SEARCH_EDGE_MIN_DELAY_MS') && html.includes('activeNodeTimes.set(id,activationAt)') && html.includes('activeEdgeTimes.set(meta.key,activationAt)') && html.includes('const edgeAt=item.time+activationDelayMs(meta.key)') && html.includes("localSeedMatch(n)&&activeNodeHops.has(n.id)"));
 ok('dashboard search visibly expands then organically shrinks', html.includes('const readyAt=Date.now()') && html.includes('CLOUD_SEARCH_RAG_SEED_STEP_MS') && html.includes("searchPhase='shrink'") && html.includes('edgeReleaseTimes.set(key') && html.includes('nodeReleaseTimes.set(id') && html.includes("'shrinking edges '"));
 ok('dashboard search hides persistent labels but keeps hover labels', html.includes('const showCloudLabel=n=> isOnboard?onboardLabelIds.has(n.id):(q?false:') && html.includes('if(st.hoverNode&&!seen.has(st.hoverNode.id)) labelNodes.push(st.hoverNode)') && html.includes('hoverLabelText(n)'));
-ok('dashboard search finalizes into context summary panel', html.includes('id="cloudSearchSummary"') && html.includes('const summaryEl=document.getElementById') && html.includes('const summaryKeys=trace?[...trace.finalKeys]:[...finalNodeKeys]') && html.includes('trace?.itemMeta?.get(n.id)') && html.includes('Search context') && html.includes('cloud-search-summary-items'));
+ok('dashboard search uses Subconscious agentic context route first', html.includes("dfetch('/subconscious/search-context'") && html.includes('subconscious_context') && html.includes('human_summary') && html.includes('cloudSearchContext') && html.includes('fetchLegacyCloudSearch'));
+ok('dashboard search finalizes into foreground-agent context summary panel', html.includes('id="cloudSearchSummary"') && html.includes('const summaryEl=document.getElementById') && html.includes('let summaryKeys=trace?[...trace.finalKeys]:[...finalNodeKeys]') && html.includes('searchContext.context_task_keys') && html.includes('trace?.itemMeta?.get(n.id)') && html.includes('Subconscious brief') && html.includes('cloud-search-summary-items'));
+ok('dashboard search summary prefers backend human-readable foreground context brief', html.includes('cloud-search-summary-brief') && html.includes('if(searchContext&&searchContext.human_summary)') && html.includes('esc(searchContext.human_summary)') && html.includes("summaryTitle=searchContext&&searchContext.human_summary?'Subconscious brief':'Search context'") && html.includes('for the foreground agent') && html.includes('Overall signal:') && html.includes('The strongest signals point to') && html.includes('Most of the context is') && html.includes('naturalList=items=>'));
 ok('dashboard search fallback keeps link comparator in scope', html.includes("let linkCmp=(a,b)=>String((a&&a.key)||'').localeCompare(String((b&&b.key)||''))") && html.includes('linkCmp=(a,b)=>{') && html.includes('activationEdgeMeta.values()].sort(linkCmp)'));
 ok('dashboard point cloud caps default labels through the shared profile', html.includes('maxLabels:narrowCloud?8:24') && html.includes('const dashboardLabelIds = new Set()') && html.includes('dashboardLabelIds.has(n.id)'));
 ok('dashboard point cloud dedupes repeated label text', html.includes('const seenDashboardLabels = new Set()') && html.includes('seenText.has(textKey)'));

@@ -175,10 +175,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (!t) { send(res, 404, { ok: false, error: 'unknown task' }); return true; }
     const assignee = T.ov.assignee[key] || null;
     const agent = assignee ? state.agents[assignee] : null;
+    const review = overlayStore.reviewLifecycleFor(T.ov, key, t.status);
     send(res, 200, {
-      task: t,
+      task: { ...t, ...review },
       summary: T.ov.summaries[key] || '',
       knowledge: T.ov.knowledge[key] || [],
+      review,
       git: T.ov.git[key] || null,
       repo: (T.ov.repos && T.ov.repos[key]) || null,
       test_cmd: overlayStore.testCmdFor(T.ov, (T.ov.repos && T.ov.repos[key]) || null),

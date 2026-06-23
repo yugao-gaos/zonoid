@@ -1,0 +1,281 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://zonoid.orchestrator/schemas/artifact-provider.v1.schema.json",
+  "title": "Artifact provider emission contract (v1)",
+  "description": "Provider-neutral evidence envelope for artifact graph providers. Providers emit immutable observations and provenance; ingestion, truth resolution, durable identity, supersession, and concrete AST shapes are out of scope.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Schema major version for this emission envelope."
+    },
+    "emission_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Deterministic id for this provider, source set, and provider version."
+    },
+    "provider": {
+      "$ref": "#/definitions/provider"
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/source"
+      },
+      "description": "Input artifacts or streams this emission is based on. source_id values must be unique within the batch."
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/node"
+      },
+      "description": "Provider-owned logical evidence nodes. logical_id values must be unique within the batch."
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/relation"
+      },
+      "description": "Evidence edges between emitted nodes. logical_id values must be unique within the batch."
+    }
+  },
+  "required": ["version", "emission_id", "provider", "sources", "nodes", "relations"],
+  "additionalProperties": false,
+  "definitions": {
+    "provider": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{1,127}$",
+          "description": "Stable provider id, for example reverse-DNS or slug style."
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Provider implementation version. Bump when logical ID, node category, or relation semantics change."
+        },
+        "contract_version": {
+          "const": 1,
+          "description": "Artifact provider contract major version."
+        },
+        "artifact_types": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/artifact_type"
+          },
+          "description": "Artifact families this provider can emit."
+        }
+      },
+      "required": ["id", "version", "contract_version", "artifact_types"],
+      "additionalProperties": false
+    },
+    "artifact_type": {
+      "type": "string",
+      "enum": ["pdf", "document", "conversation", "code", "image", "other"]
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Provider-local deterministic source id referenced by provenance records."
+        },
+        "artifact_type": {
+          "$ref": "#/definitions/artifact_type"
+        },
+        "uri": {
+          "type": "string",
+          "description": "Origin URI, repository path, message stream id, or other source reference when safe to store."
+        },
+        "media_type": {
+          "type": "string",
+          "description": "MIME type or provider-specific media type when known."
+        },
+        "content_digest": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9+.-]*:[A-Za-z0-9_.:/+=-]+$",
+          "description": "Digest of source bytes or canonical source content, for example sha256:<hex>."
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the provider observed this source."
+        },
+        "metadata": {
+          "$ref": "#/definitions/metadata"
+        }
+      },
+      "required": ["source_id", "artifact_type"],
+      "additionalProperties": false
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "logical_id": {
+          "$ref": "#/definitions/logical_id"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["artifact", "container", "segment", "observation", "mention", "reference"],
+          "description": "Provider-neutral evidence category. Concrete AST node shapes are intentionally not part of this contract."
+        },
+        "artifact_type": {
+          "$ref": "#/definitions/artifact_type"
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable display label. Not a stable identifier."
+        },
+        "text": {
+          "type": "string",
+          "description": "Optional observed text or concise summary for this node."
+        },
+        "content_digest": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9+.-]*:[A-Za-z0-9_.:/+=-]+$",
+          "description": "Digest of this node's canonical content when available."
+        },
+        "provenance": {
+          "$ref": "#/definitions/provenance"
+        },
+        "metadata": {
+          "$ref": "#/definitions/metadata"
+        }
+      },
+      "required": ["logical_id", "category", "artifact_type", "provenance"],
+      "additionalProperties": false
+    },
+    "relation": {
+      "type": "object",
+      "properties": {
+        "logical_id": {
+          "$ref": "#/definitions/logical_id"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "contains",
+            "derived_from",
+            "observed_in",
+            "mentions",
+            "references",
+            "supports",
+            "contradicts",
+            "duplicates",
+            "related_to"
+          ],
+          "description": "Evidence relation. These edges do not command ingestion, merge, delete, or supersession behavior."
+        },
+        "from": {
+          "$ref": "#/definitions/logical_id"
+        },
+        "to": {
+          "$ref": "#/definitions/logical_id"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "provenance": {
+          "$ref": "#/definitions/provenance"
+        },
+        "metadata": {
+          "$ref": "#/definitions/metadata"
+        }
+      },
+      "required": ["logical_id", "kind", "from", "to", "provenance"],
+      "additionalProperties": false
+    },
+    "logical_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:.+$",
+      "description": "Deterministic provider-owned URI-like id. It must not depend on ingestion time, database ids, process ids, or mutable display labels."
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "source_id of the source record this evidence came from."
+        },
+        "locators": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/locator"
+          },
+          "description": "Replayable source-native coordinates for this evidence."
+        },
+        "derived_from": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/logical_id"
+          },
+          "description": "Logical ids of emitted nodes this evidence was derived from."
+        }
+      },
+      "required": ["source_id"],
+      "additionalProperties": false
+    },
+    "locator": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "byte_range",
+            "char_range",
+            "line_range",
+            "page_range",
+            "time_range",
+            "cell_range",
+            "dom_path",
+            "image_region",
+            "message_range",
+            "provider_native"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Provider-neutral serialized coordinate, such as 10:20, page=3, x,y,w,h, or a native selector."
+        },
+        "metadata": {
+          "$ref": "#/definitions/metadata"
+        }
+      },
+      "required": ["kind", "value"],
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          { "type": "string" },
+          { "type": "number" },
+          { "type": "integer" },
+          { "type": "boolean" },
+          { "type": "null" },
+          {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "number" },
+                { "type": "integer" },
+                { "type": "boolean" },
+                { "type": "null" }
+              ]
+            }
+          }
+        ]
+      },
+      "description": "Small provider-specific annotations. Do not put identity, hierarchy, or provenance only in metadata."
+    }
+  }
+}

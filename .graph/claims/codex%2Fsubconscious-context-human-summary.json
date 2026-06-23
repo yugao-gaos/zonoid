@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/subconscious-context-human-summary",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "019eed39-a944-7352-8ff3-007c6ea30cdc",
+  "branch": "orch/attempt/codex-subconscious-context-human-summary",
+  "status": "tested",
+  "claimed_at": "2026-06-22T19:24:59.900Z",
+  "lease_until": "2026-06-22T20:24:59.900Z",
+  "completed_at": "2026-06-22T19:30:46.550Z"
+}

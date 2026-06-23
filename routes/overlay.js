@@ -136,11 +136,14 @@ const TASK_RESULT_ALLOWED = new Set([
   'files_changed',
   'tests_run',
   'decisions',
+  'causal_edges',
   'metric_measurements',
   'has_metric_spec',
 ]);
 const TASK_RESULT_REQUIRED = ['version', 'status', 'summary', 'files_changed', 'tests_run', 'decisions'];
 const TASK_RESULT_STATUSES = new Set(['tested', 'failed']);
+const CAUSAL_EDGE_RELATIONS = new Set(['caused', 'fixed', 'blocked', 'depends_on', 'supports', 'contradicts']);
+const CAUSAL_EDGE_ALLOWED = new Set(['from', 'to', 'relation', 'confidence', 'evidence']);
 
 function isPlainObject(value) {
   return !!(value && typeof value === 'object' && !Array.isArray(value));
@@ -149,6 +152,35 @@ function isPlainObject(value) {
 function validateStringArray(value, field) {
   if (!Array.isArray(value)) return `${field} must be an array`;
   if (value.some((item) => typeof item !== 'string')) return `${field} must contain only strings`;
+  return null;
+}
+
+function validateCausalEdges(causalEdges) {
+  if (causalEdges == null) return null;
+  if (!Array.isArray(causalEdges)) {
+    return { error: 'invalid task_result.causal_edges: expected array', field: 'causal_edges' };
+  }
+  for (let i = 0; i < causalEdges.length; i++) {
+    const edge = causalEdges[i];
+    const field = `causal_edges[${i}]`;
+    if (!isPlainObject(edge)) return { error: 'invalid task_result.causal_edges item: expected object', field };
+    const extra = Object.keys(edge).filter((key) => !CAUSAL_EDGE_ALLOWED.has(key));
+    if (extra.length) return { error: 'invalid task_result.causal_edges item: additional fields are not allowed', field, extra };
+    const missing = ['from', 'to', 'relation'].filter((key) => !Object.prototype.hasOwnProperty.call(edge, key));
+    if (missing.length) return { error: 'invalid task_result.causal_edges item: missing required field(s)', field, missing };
+    if (typeof edge.from !== 'string' || !edge.from) return { error: 'invalid task_result.causal_edges item: from required', field: `${field}.from` };
+    if (typeof edge.to !== 'string' || !edge.to) return { error: 'invalid task_result.causal_edges item: to required', field: `${field}.to` };
+    if (!CAUSAL_EDGE_RELATIONS.has(edge.relation)) {
+      return { error: 'invalid task_result.causal_edges item: relation is not allowed', field: `${field}.relation`, allowed: [...CAUSAL_EDGE_RELATIONS], actual: edge.relation };
+    }
+    if (Object.prototype.hasOwnProperty.call(edge, 'confidence')
+      && (typeof edge.confidence !== 'number' || !Number.isFinite(edge.confidence) || edge.confidence < 0 || edge.confidence > 1)) {
+      return { error: 'invalid task_result.causal_edges item: confidence must be a number from 0 to 1', field: `${field}.confidence` };
+    }
+    if (Object.prototype.hasOwnProperty.call(edge, 'evidence') && typeof edge.evidence !== 'string') {
+      return { error: 'invalid task_result.causal_edges item: evidence must be a string', field: `${field}.evidence` };
+    }
+  }
   return null;
 }
 
@@ -192,6 +224,8 @@ function validateTaskResult(taskResult, routeStatus, hasMetricSpec) {
   if (Object.prototype.hasOwnProperty.call(taskResult, 'has_metric_spec') && typeof taskResult.has_metric_spec !== 'boolean') {
     return { error: 'invalid task_result.has_metric_spec: expected boolean', field: 'has_metric_spec' };
   }
+  const causalEdgesErr = validateCausalEdges(taskResult.causal_edges);
+  if (causalEdgesErr) return causalEdgesErr;
 
   if (hasMetricSpec && !Object.prototype.hasOwnProperty.call(taskResult, 'metric_measurements')) {
     return { error: 'invalid task_result: metric task requires task_result.metric_measurements.value', missing: 'metric_measurements' };
@@ -215,6 +249,37 @@ function validateTaskResult(taskResult, routeStatus, hasMetricSpec) {
   }
 
   return null;
+}
+
+function validateCausalEdgeEndpoints(T, taskResult, acceptsTaskKey) {
+  if (!taskResult || !Array.isArray(taskResult.causal_edges)) return null;
+  for (let i = 0; i < taskResult.causal_edges.length; i++) {
+    const edge = taskResult.causal_edges[i];
+    if (!acceptsTaskKey(T, edge.from)) {
+      return { status: 404, error: `unknown task: ${edge.from}`, field: `causal_edges[${i}].from` };
+    }
+    if (!acceptsTaskKey(T, edge.to)) {
+      return { status: 404, error: `unknown task: ${edge.to}`, field: `causal_edges[${i}].to` };
+    }
+  }
+  return null;
+}
+
+function applyCausalEdges(T, taskResult, ensureTaskSnapshot) {
+  if (!taskResult || !Array.isArray(taskResult.causal_edges)) return 0;
+  let count = 0;
+  for (const edge of taskResult.causal_edges) {
+    ensureTaskSnapshot(T, edge.from);
+    ensureTaskSnapshot(T, edge.to);
+    overlayStore.addEdge(T.ov, edge.from, edge.to, null, 'context', undefined, {
+      origin: 'task-result-causal',
+      relation: edge.relation,
+      confidence: edge.confidence,
+      evidence: edge.evidence,
+    });
+    count++;
+  }
+  return count;
 }
 
 function validateTerminalClaimOwner(ov, body) {
@@ -518,6 +583,10 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (taskResultError) {
         send(res, 409, { ok: false, key: b.key, ...taskResultError }); return true;
       }
+      const causalEndpointError = validateCausalEdgeEndpoints(T, b.task_result, acceptsTaskKey);
+      if (causalEndpointError) {
+        send(res, causalEndpointError.status, { ok: false, key: b.key, error: causalEndpointError.error, field: causalEndpointError.field }); return true;
+      }
     }
     if (newlyReady.isTerminalStatus(b.status) && gitClaimMode.enabled) {
       const repo = ctx.resolveRepo ? ctx.resolveRepo(b.key, b.repo_path, T.ov, T.ws) : T.ws;
@@ -543,6 +612,29 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.status === 'canceled') { T.ov.cancel_requested[b.key] = now(); overlayStore.markForRejudge(T.ov, b.key); }
     else if ((b.force || b.reopen) && cur === 'canceled') delete T.ov.cancel_requested[b.key];
     overlayStore.setStatus(T.ov, b.key, b.status, b.note);
+    if (newlyReady.isTerminalStatus(b.status) && b.task_result != null) {
+      applyCausalEdges(T, b.task_result, ensureTaskSnapshot);
+    }
+    if (newlyReady.isTerminalStatus(b.status)) {
+      const gitInfo = T.ov.git && T.ov.git[b.key];
+      overlayStore.setReviewFromStatus(T.ov, b.key, b.status, {
+        agent_id: b.agent_id,
+        note: b.note,
+        summary: b.summary,
+        now: now(),
+        merge_state: gitInfo && gitInfo.merged ? 'merged' : undefined,
+      });
+    }
+    if (b.review && typeof b.review === 'object' && !Array.isArray(b.review)) {
+      overlayStore.setReviewLifecycle(T.ov, b.key, b.review);
+    }
+    const hasTopLevelReviewFields = [
+      'review_state', 'review_verdict', 'review_note', 'review_reason', 'review_agent',
+      'reviewed_at', 'review_requested_at', 'review_requested_by', 'merge_state',
+      'attempt_branch', 'attempt_worktree', 'attempt_head', 'merge_sha', 'merged_at',
+      'legacy_judge_task_key',
+    ].some((field) => Object.prototype.hasOwnProperty.call(b, field));
+    if (hasTopLevelReviewFields) overlayStore.setReviewLifecycle(T.ov, b.key, b);
     overlayStore.clearSpawnLease(T.ov, b.key);   // release the spawn-dispatch lease on claim/terminal (task /3)
     if (b.max_retries != null) {
       if (!T.ov.retryConfig) T.ov.retryConfig = {};

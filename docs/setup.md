@@ -72,6 +72,11 @@ available but Claude won't use them automatically.
 | `ZONOID_EMBED_LOCAL_API_KEY` | unset | Optional bearer token for local OpenAI-compatible embedding servers. |
 | `VOYAGE_API_KEY` / `COHERE_API_KEY` / `GEMINI_API_KEY` | unset | Hosted embedding provider credentials. Missing keys make the provider return `null` and retrieval falls back lexically. |
 
+Hosted LLM backend keys may also live in daemon-global `<runtime-data-dir>/backend.env`. This is the
+preferred place when one daemon serves multiple projects: put values such as `ZAI_API_KEY=...` or
+`OPENROUTER_API_KEY=...` there, and keep workspace overlay config limited to provider/model
+selection. Real process environment variables still take precedence over `backend.env`.
+
 ## First run
 
 The daemon starts automatically via the `SessionStart` hook. On first use with semantic search

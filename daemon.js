@@ -950,19 +950,29 @@ function staleVerdictKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
   }
   return out;
 }
-// Reset stale verdict-pending hand-offs back to pending so the loop re-dispatches them.
-// The agent that picks them up can read the codebase and task description to determine current
-// state — no human escalation needed. Mirrors sweepStaleClaims in structure.
+function hasPendingStaleVerdictGuidance(ov, key) {
+  return Array.isArray(ov.guidance) && ov.guidance.some((g) => !g.resolved
+    && (g.verdictKey === key
+      || (g.action && g.action.kind === 'stale-verdict' && (g.action.task_key === key || g.action.verdictKey === key))));
+}
+
+// Surface stale verdict-pending hand-offs for review. Do not mutate status/assignee or write native
+// pending: a stale tested/ready handoff is evidence to inspect, not work to auto-requeue.
 function sweepStaleVerdicts(ws, ov) {
   const stale = staleVerdictKeys(ov, state.agents, Date.now());
   if (!stale.length) return false;
   let dirty = false;
   for (const { key, status, agentId } of stale) {
-    delete ov.status[key];
-    delete ov.assignee[key];
-    ov.notes[key] = `auto-requeued: '${status}' owner '${agentId || '?'}' not running — reset to pending for re-dispatch`;
-    try { writeTaskStatus(ws, key, 'pending'); } catch { /* best effort */ }
-    console.log(`[self-heal] task ${key} (was ${status}) reset to pending — owner gone`);
+    if (hasPendingStaleVerdictGuidance(ov, key)) continue;
+    const gid = overlayStore.addGuidance(ov, {
+      question: `Stale ${status} verdict handoff for ${key} needs review`,
+      context: `Task ${key} has overlay status '${status}', but owner '${agentId || '?'}' is not running and the status timestamp is stale. The self-heal sweep left status and assignee unchanged.`,
+      trigger: 'stale_verdict',
+      severity: 'review',
+      action: { kind: 'stale-verdict', task_key: key, status, agent_id: agentId || null },
+    });
+    overlayStore.annotateGuidance(ov, gid, { verdictKey: key });
+    console.log(`[self-heal] task ${key} (was ${status}) surfaced for review — owner gone`);
     dirty = true;
   }
   if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
@@ -1297,66 +1307,10 @@ function decideOne(L, ctx) {
   const running = g.tasks.filter((t) => t.status === 'in_progress').length;
   const ghostWait = g.tasks.filter((t) => t.status === 'not_ready' && t.deps.some((d) => d.startsWith('ghost:'))).length;
 
-  // CAPACITY-FILL: spare concurrency this loop may use this tick. Tasks always win — they're spawned
-  // into headroom FIRST; the edge-judge then fans out PARALLEL efforts into whatever slots are LEFT.
+  // CAPACITY-FILL: spare concurrency this loop may use this tick. Tasks spawned by /next-action are
+  // user/task work only; judge/review queue drains are daemon-owned internal jobs run by headless-drain.
   // headroom = maxConcurrency − running (in-flight workers), floored at 0.
   const headroom = Math.max(0, L.config.maxConcurrency - running);
-
-  // Compute a PARALLEL judge directive that fills `headroom − spawnedThisTick` leftover slots, capped
-  // by the queue depth and judgeParallelCap, then CLAMPED to what the loop's remaining token budget can
-  // afford (≈ estPerTick per parallel effort). Charges L.spent for all K efforts so the loop still STOPS
-  // at tokenBudget even with judge work pending. Returns { parallel, budget } or null when no slots /
-  // empty queue / no budget. The per-effort budget is config.judge.budgetPerRun (items per /judge/next).
-  function judgeDirective(spawnedThisTick) {
-    // Same cap guards as the top of decideOne — never schedule judge work past budget/iteration caps.
-    if (L.spent > L.config.tokenBudget || L.iterations > L.config.maxIterations) return null;
-    const depth = judge.judgeQueueDepth(ov, g);
-    let slots = Math.min(Math.max(0, headroom - spawnedThisTick), depth, L.config.judgeParallelCap);
-    if (slots <= 0) return null;
-    // Token-budget clamp: each parallel judge effort costs ~estPerTick. The current tick already charged
-    // ONE estPerTick (above). Cap K so K × estPerTick fits the remaining budget; never overspend.
-    const est = L.config.estPerTick || 0;
-    if (est > 0) {
-      const affordable = Math.floor(remaining / est);
-      slots = Math.min(slots, Math.max(0, affordable));
-    }
-    if (slots <= 0) return null;
-    L.spent += slots * est;                                   // account for all K efforts so the loop stops at budget
-    const budget = (ov.config.judge?.budgetPerRun) ?? 6;
-    return { parallel: slots, budget };
-  }
-
-  // EAGER judge directive (task C) — the PRIMARY judge trigger, computed BEFORE the periodic drain.
-  // When a node was just added/wired its candidate edge-set was marked in ov.eagerJudge; dispatch a
-  // node-scoped judge for each pending node THIS tick (one dispatch per node's WHOLE edge-set, never
-  // per-edge). CONCURRENCY CAP: a burst of node creation (planner minting 10 tasks) can't fork-bomb
-  // judges — take at most min(leftover slots, judgeParallelCap) nodes; the EXCESS stays queued in
-  // ov.eagerJudge and drains on the next tick as slots free. Token-clamped like judgeDirective so the
-  // loop still STOPS at budget. Returns { nodes:[key,...], budget } or null. eagerJudgeNodes() prunes
-  // already-drained marks as a pure side effect (persisted by the caller's save path).
-  function eagerJudgeDirective(spawnedThisTick) {
-    if (L.spent > L.config.tokenBudget || L.iterations > L.config.maxIterations) return null;
-    const pending = judge.eagerJudgeNodes(ov);   // self-prunes drained marks
-    if (!pending.length) return null;
-    let slots = Math.min(Math.max(0, headroom - spawnedThisTick), pending.length, L.config.judgeParallelCap);
-    if (slots <= 0) return null;
-    const est = L.config.estPerTick || 0;
-    if (est > 0) {
-      const affordable = Math.floor(remaining / est);
-      slots = Math.min(slots, Math.max(0, affordable));
-    }
-    if (slots <= 0) return null;
-    L.spent += slots * est;                                   // account for the K node-judges so the loop stops at budget
-    const budget = (ov.config.judge?.budgetPerRun) ?? 6;
-    const dispatchNodes = pending.slice(0, slots);
-    // Lease each node atomically so concurrent loops skip it (double-dispatch guard, task 27).
-    let leased = false;
-    for (const nodeKey of dispatchNodes) {
-      if (overlayStore.acquireEagerJudgeLease(ov, nodeKey, L.id, 60000)) leased = true;
-    }
-    if (leased) saveDispatchOverlay(ws, ov);
-    return { nodes: dispatchNodes, budget };       // FIFO; excess stays marked for next tick
-  }
 
   // EXPENSIVE-TASK GATE (Lever 2): tasks carrying a metric spec (cost:"high" proxy) are held
   // for explicit user approval when cost_gate is enabled (ov.config.cost_gate:true, default off).
@@ -1411,44 +1365,13 @@ function decideOne(L, ctx) {
         if (overlayStore.acquireSpawnLease(ov, t.id, L.id, 60000)) leased = true;
       }
       if (leased) saveDispatchOverlay(ws, ov);
-      const dec = withWire({ ...base, action: 'spawn', tasks: picked.map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll });
-      // A SINGLE heartbeat does BOTH: tasks first, then judge into the leftover slots. EAGER (task C)
-      // is the PRIMARY judge trigger — node-scoped dispatch for freshly-wired nodes. Account for the
-      // eager nodes' slot use so the periodic drain only fills what eager left. The periodic depth
-      // drain is now a FALLBACK: it runs only with the slots eager did not consume.
-      const eg = eagerJudgeDirective(take);
-      if (eg) dec.eager = eg;
-      const jd = judgeDirective(take + (eg ? eg.nodes.length : 0));
-      if (jd) dec.judge = jd;
-      return dec;
+      return withWire({ ...base, action: 'spawn', tasks: picked.map((t) => ({ key: t.id, label: t.label })), next_poll_seconds: L.config.minPoll });
     }
     // Pool exhausted by earlier loops this tick — idle briefly and retry next heartbeat.
     return withWire({ ...base, action: 'idle', reason: 'spawn batch exhausted this tick', next_poll_seconds: L.config.minPoll });
   }
-  // CAPACITY-FILL self-learning (LOW priority — strictly after spawn): no ready task spawned this tick
-  // (none ready, or no headroom). If the edge-judge queue has pending work and there are leftover slots
-  // AND the budget/iteration cap is NOT exhausted (judgeDirective re-checks + clamps to budget), fan out
-  // K parallel judge efforts. Token accounting: L.iterations + one estPerTick were advanced above, and
-  // judgeDirective charges the K efforts onto L.spent, so the loop still STOPS at its budget even with
-  // judge work pending (next tick the cap guard fires first). Empty queue / no slots → fall through to
-  // the in-flight / ghost-wait / drained idle branches exactly as before.
-  // EAGER (task C) is the PRIMARY judge trigger: a freshly-wired node is dispatched node-scoped THIS
-  // tick, ahead of the periodic depth drain. One dispatch per node's whole edge-set; the concurrency
-  // cap holds a creation burst to judgeParallelCap, the excess draining on later ticks.
-  const eg = eagerJudgeDirective(0);
-  if (eg) {
-    // Periodic drain becomes a FALLBACK that only fills slots eager left this tick (it may be empty).
-    const jd2 = judgeDirective(eg.nodes.length);
-    const dec = withWire({ ...base, action: 'judge_eager', nodes: eg.nodes, budget: eg.budget, next_poll_seconds: L.config.minPoll });
-    if (jd2) dec.judge = { parallel: jd2.parallel, budget: jd2.budget };
-    return dec;
-  }
-  // FALLBACK: no eager nodes pending — periodic depth-driven drain (task D adds timeout-fallback
-  // semantics; here it is simply no longer the PRIMARY trigger).
-  const jd = judgeDirective(0);
-  if (jd) {
-    return withWire({ ...base, action: 'judge_edges', parallel: jd.parallel, budget: jd.budget, next_poll_seconds: L.config.minPoll });
-  }
+  // Review/edge-judge queues may still have due work here. They are intentionally absent from the
+  // loop action surface: the daemon's headless drain runner owns discovery, leasing, and execution.
   if (running > 0) return withWire({ ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(L.config.maxPoll, L.config.minPoll * 2) });
   if (ghostWait > 0) return withWire({ ...base, action: 'idle', reason: 'waiting on cross-workspace dependencies', next_poll_seconds: L.config.maxPoll });
   // ONLY unwired ready tasks remain: the DAG is NOT drained — they become spawnable once wired.
@@ -1501,7 +1424,7 @@ function decideAll() {
   const sweepWsSet = registeredWorkspaces();
   for (const ws of sweepWsSet) {
     const ov = overlayFor(ws);
-    sweepStaleVerdicts(ws, ov);   // reset abandoned verdict-pending hand-offs per-workspace
+    sweepStaleVerdicts(ws, ov);   // surface abandoned verdict-pending hand-offs per-workspace
     sweepStaleGuidance(ws, ov);   // auto-resolve stale blocking guidance per-workspace
     sweepFailedTasks(ws, ov);     // auto-retry: flip failed tasks back to pending (already (ws,ov)) per-workspace
     // Note: sweepStaleClaims is NOT called here — buildGraph already handles per-ws claim liveness
@@ -1837,7 +1760,7 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
 // Called at block-edge creation and at task adoption so prerequisites flow as retrieval context.
 // Gate nodes (kind==='gate') are structural — seed their predecessors instead (1-hop transit).
 // Pure on (overlay, ws, taskId) — mutates `overlay` in place; the CALLER is responsible for saving.
-// Idempotent: addEdge dedupes on (from, to, fromWorkspace) — safe to call multiple times.
+// Idempotent: addEdge dedupes on (from, to, fromWorkspace, kind) — safe to call multiple times.
 // Uses ov.edges directly for blocking-edge lookup (buildGraph output does not expose edges array).
 // `_g` is an optional pre-built graph (for unit tests — omit in production and buildGraph(ws) is used).
 function seedBlockingDepContext(ov, ws, taskId, _g) {
@@ -2055,13 +1978,80 @@ function harnessTranscriptForTask(st, key, session) {
   return best;
 }
 
+function rolloutStartMs(idOrPath) {
+  const base = path.basename(String(idOrPath || ''), '.jsonl').replace(/^rollout-/, '');
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-/.exec(base);
+  if (!m) return NaN;
+  return Date.parse(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}.000Z`);
+}
+
+function taskClaimIntervals(st, key) {
+  const ov = st.overlay || {};
+  const sessions = ov.work_sessions && ov.work_sessions[key];
+  const out = [];
+  if (Array.isArray(sessions)) {
+    for (const ws of sessions) {
+      const start = Date.parse(ws && ws.start_ts);
+      if (!Number.isFinite(start)) continue;
+      const end = Date.parse(ws && ws.end_ts);
+      out.push({ start, end: Number.isFinite(end) ? end : Date.now() });
+    }
+  }
+  if (out.length) return out;
+  const ts = ov.timestamps && ov.timestamps[key];
+  const start = Date.parse(ts && ts.firstSeen);
+  if (!Number.isFinite(start)) return [];
+  const end = Date.parse(ts && ts.lastChanged);
+  return [{ start, end: Number.isFinite(end) ? end : Date.now() }];
+}
+
+function snapshotTranscriptForTaskByWindow(st, key) {
+  const snap = st.overlay && st.overlay.usage_reconcile_snapshot;
+  const intervals = taskClaimIntervals(st, key);
+  if (!snap || !intervals.length) return null;
+  const sessions = [];
+  if (Array.isArray(snap.sessions)) sessions.push(...snap.sessions);
+  for (const v of Object.values(snap)) {
+    if (v && typeof v === 'object' && Array.isArray(v.sessions)) sessions.push(...v.sessions);
+  }
+  let best = null, bestOverlap = -1;
+  for (const s of sessions) {
+    const tp = s && (s.path || s.transcript_path || s.transcript);
+    if (!tp) continue;
+    let start = Date.parse(s.startedAt || s.start || s.start_ts || s.created_at);
+    if (!Number.isFinite(start)) start = rolloutStartMs(s.id || tp);
+    if (!Number.isFinite(start)) continue;
+    let end = Date.parse(s.endedAt || s.end || s.end_ts || s.updated_at);
+    if (!Number.isFinite(end)) {
+      try { end = fs.statSync(tp).mtimeMs; } catch { end = Date.now(); }
+    }
+    if (!Number.isFinite(end) || end < start) end = start;
+    for (const w of intervals) {
+      const overlap = Math.min(w.end, end) - Math.max(w.start, start);
+      if (overlap >= 0 && overlap > bestOverlap) { best = tp; bestOverlap = overlap; }
+    }
+  }
+  return best;
+}
+
+function codexTranscriptForTaskSession(st, key, session) {
+  if (!session) return null;
+  let h;
+  try { h = harnessRegistry.route(key); } catch { return null; }
+  if (!h || h.name !== 'codex' || !h.transcripts || typeof h.transcripts.sessionTranscriptPath !== 'function') return null;
+  const main = sessionBindings.mainTranscriptForSession(st, session);
+  return h.transcripts.sessionTranscriptPath(main, session);
+}
+
 // Resolve the transcript JSONL holding a task's token usage. Prefer the assignee agent's own
-// transcript (accurate). Else fall back to a same-session harness agent whose run window overlaps
-// the task's claim (the SubagentStart-registered record that actually holds transcript_path; the
-// assignee key never matches it directly). Else fall back to the task's session transcript —
-// gated by `anySession`: taskTokens only allows it when the session maps to a single task (so it
-// never paints the same conversation-wide total across many tasks); /costflow always allows it
-// because splitSessionTokens divides a shared total honestly. null = unknown.
+// transcript (accurate). Else, when session-level attribution is allowed, let Codex file-drop tasks
+// resolve their rollout by exact session id before broader by-window fallbacks. Else fall back to a
+// same-session harness agent whose run window overlaps the task's claim (the SubagentStart-registered
+// record that actually holds transcript_path; the assignee key never matches it directly). Else fall
+// back to the task's session transcript — gated by `anySession`: taskTokens only allows it when the
+// session maps to a single task (so it never paints the same conversation-wide total across many
+// tasks); /costflow always allows it because splitSessionTokens divides a shared total honestly.
+// null = unknown.
 function taskTranscript(key, session, anySession, st = state) {
   // P3: there is no daemon-global state.overlay — callers pass st={...state, overlay:<resolved ov>}.
   // Guard the lookup so a st without an overlay (or the bare `state` default) degrades to no-assignee
@@ -2073,7 +2063,9 @@ function taskTranscript(key, session, anySession, st = state) {
   if (!tp && agent && agent.session) {                                   // derive from per-session binding
     tp = sessionBindings.resolveSessionTranscriptPath(st, agent.session, agent.subagent_session || agent.session);
   }
+  if (!tp && anySession && session) tp = codexTranscriptForTaskSession(st, key, session);
   if (!tp) tp = harnessTranscriptForTask(st, key, session);             // time-window correlation fallback
+  if (!tp) tp = snapshotTranscriptForTaskByWindow(st, key);             // reconcile snapshot by-window fallback
   if (!tp && anySession && session) {                                    // task's shared session transcript
     tp = sessionBindings.resolveSessionTranscriptPath(st, session, session);
   }
@@ -2219,7 +2211,11 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
     const _status = (_adoptHold || (_js.judging && status === 'ready')) ? 'not_ready' : status;
     const _judging = _adoptHold || _js.judging;
     const taskVecNode = embeddingStore.taskNode(ovWs, t.key);
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
+    // Review-lifecycle (origin): expose same-node review state as extra DTO fields via spread.
+    // `provisional` stays false (P6 strict gate — see judgingState above; timedOut is pinned false,
+    // so origin's `_js.judging && _js.timedOut` is equivalent — we keep the explicit literal).
+    const reviewLifecycle = overlayStore.reviewLifecycleFor(ovWs, t.key, _status);
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, ...reviewLifecycle, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
   // KEPT context edges → context_deps for overlay-only graph nodes. The structBoost reranker
   // (/search) and BFS path tier read each node's context_deps as graph adjacency. Mirror the task-side
@@ -2239,6 +2235,8 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
   for (const [noteId, n] of Object.entries(ovWs.note_nodes || {})) {
     const bareNoteId = n.id || noteId;
     const noteKey = 'note:' + bareNoteId;
+    const pendingDup = !!(ovWs.pendingDup && ovWs.pendingDup[noteKey]);
+    const dupMatch = (ovWs.pendingDup && ovWs.pendingDup[noteKey] && ovWs.pendingDup[noteKey].match) || null;
     tasks.push({ id: noteKey, label: n.title, kind: 'note', status: 'note', session: null, deps: [], context_deps: keptCtxDeps[noteKey] || [], context_weights: keptCtxWeights[noteKey] || {}, note: '', agent_id: null, summary: n.summary, vec: Array.isArray(n.vec) ? n.vec : null, vecMeta: n.vecMeta || null, vecs: Array.isArray(n.vecs) ? n.vecs : null, vecsMeta: Array.isArray(n.vecsMeta) ? n.vecsMeta : null,
       // Temporal/state-change fields (null on pre-temporal notes — back-compat): validFrom/validTo
       // bound when the fact was true; supersedes/supersededBy chain it to the note it replaced / was
@@ -2247,11 +2245,12 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
       created_at: n.created_at || null,   // transaction time (when the KB learned this) — read by /search?knownAsOf
       supersedes: n.supersedes ? 'note:' + n.supersedes : null,
       supersededBy: n.supersededBy ? 'note:' + n.supersededBy : null,
+      belief_status: overlayStore.beliefStatusForNote(n, { pendingDup }),
       // pending_dup: this note was admitted PROVISIONAL on a write-time dup-guard fire and is awaiting
       // the dup-judge. While set it is RETRIEVAL-INVISIBLE (the /search recall path excludes it). Derived
       // from the local overlay.pendingDup map (round-trips via save's LOCAL_FIELDS) — NOT a note_node field.
-      pending_dup: !!(ovWs.pendingDup && ovWs.pendingDup[noteKey]),
-      dup_match: (ovWs.pendingDup && ovWs.pendingDup[noteKey] && ovWs.pendingDup[noteKey].match) || null,
+      pending_dup: pendingDup,
+      dup_match: dupMatch,
       category: n.category || null, tags: Array.isArray(n.tags) ? n.tags : [] });
   }
   // Append typed knowledge nodes for source/provenance structure. They are graph/search nodes only:
@@ -2282,6 +2281,34 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
       cluster_ref: n.cluster_ref || null,
       created_at: n.created_at || null,
       updated_at: n.updated_at || null,
+    });
+  }
+  // Append entity nodes for the conversational-memory layer. They are graph/search nodes only:
+  // visible in the projection and usable as context providers, but never runnable tasks.
+  for (const [entityId, n] of Object.entries(ovWs.entity_nodes || {})) {
+    if (!n) continue;
+    const bareId = String(n.id || entityId).replace(/^entity:/, '');
+    if (!bareId || n.validTo) continue;
+    const key = 'entity:' + bareId;
+    tasks.push({
+      id: key,
+      label: n.name || key,
+      kind: 'entity',
+      status: 'entity',
+      session: null,
+      deps: [],
+      context_deps: keptCtxDeps[key] || [],
+      context_weights: keptCtxWeights[key] || {},
+      note: '',
+      agent_id: null,
+      summary: Array.isArray(n.aliases) && n.aliases.length ? `Aliases: ${n.aliases.join(', ')}` : '',
+      vec: Array.isArray(n.vec) ? n.vec : null,
+      vecMeta: n.vecMeta || null,
+      type: n.type || 'concept',
+      aliases: Array.isArray(n.aliases) ? n.aliases : [],
+      validFrom: n.validFrom || null,
+      validTo: n.validTo || null,
+      supersededBy: n.supersededBy || null,
     });
   }
   const ghosts = Object.values(ghostMap);
@@ -2321,9 +2348,10 @@ function readGraphSnapshot(ws) {
 }
 
 function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
-  const real = tasks.filter((t) => !overlayStore.isNonTaskNode(t)); // note/knowledge nodes aren't tasks
+  const real = tasks.filter((t) => !overlayStore.isNonTaskNode(t)); // note/knowledge/entity nodes aren't tasks
   const notes = tasks.filter((t) => t.kind === 'note').length;
-  const knowledge_nodes = tasks.length - real.length - notes;
+  const knowledge_nodes = tasks.filter((t) => overlayStore.isKnowledgeNodeKind(t.kind)).length;
+  const entity_nodes = tasks.filter((t) => t.kind === 'entity').length;
   const c = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0]));
   for (const t of real) c[t.status] = (c[t.status] || 0) + 1;
   c.local_in_progress = localInProgressCount(real, ov);
@@ -2332,6 +2360,7 @@ function summaryFor(tasks, ghosts, ov = overlayStore.EMPTY()) {
     tasks_total: real.length,
     notes,
     knowledge_nodes,
+    entity_nodes,
     statuses: c,
     sessions: new Set(real.map((t) => t.session)).size,
     edges: ov.edges.length,

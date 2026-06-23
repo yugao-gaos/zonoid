@@ -19,9 +19,25 @@
   .notif-btn.show { display: flex; }
   .notif-btn:hover { background: #161b22; color: #e6edf3; }
   .notif-btn.has-pending { border-color: #bb8009; color: #f0d77a; }
+  .repo-menu { position: relative; display: none; }
+  .repo-menu.show { display: block; }
+  .repo-btn { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; height: 28px; max-width: 260px; padding: 0 9px; cursor: pointer; font: inherit; font-size: 11px; display: flex; align-items: center; gap: 6px; }
+  .repo-btn:hover, .repo-menu.open .repo-btn { background: #161b22; color: #e6edf3; }
+  .repo-btn-name { color: #e6edf3; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .repo-btn-caret { color: #6e7681; }
+  .repo-list { display: none; position: absolute; top: calc(100% + 6px); right: 0; width: min(360px, calc(100vw - 28px)); max-height: min(60vh, 420px); overflow: auto; background: #11151c; border: 1px solid #30363d; border-radius: 8px; box-shadow: 0 10px 34px #0009; z-index: 80; padding: 8px; }
+  .repo-menu.open .repo-list { display: block; }
+  .repo-group-label { color: #8b949e; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin: 8px 4px 4px; }
+  .repo-group-label:first-child { margin-top: 0; }
+  .repo-choice { width: 100%; display: block; text-align: left; background: #0d1117; color: #c9d1d9; border: 1px solid #21262d; border-radius: 6px; padding: 6px 8px; margin: 4px 0; cursor: pointer; font: inherit; }
+  .repo-choice:hover { border-color: #3d444d; background: #161b22; }
+  .repo-choice.active { border-color: #1f6feb88; background: #1f6feb14; color: #e6edf3; }
+  .repo-choice-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .repo-choice-path { display: block; margin-top: 1px; color: #6e7681; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* settings popup */
-  #settingsPopup { position: fixed; top: var(--hdr-h); right: 14px; width: 320px; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 10px 34px #0009; z-index: 60; display: none; padding: 14px 16px; }
-  #settingsPopup.show { display: block; }
+  #settingsPopup { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(1, 4, 9, .74); box-sizing: border-box; }
+  #settingsPopup.show { display: flex; }
+  #settingsPopup .settings-panel { position: relative; width: min(860px, 100%); max-height: min(860px, calc(100vh - 48px)); overflow-y: auto; background: #11151c; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 18px 64px #000c; padding: 18px 20px; box-sizing: border-box; }
   .sprow { margin-bottom: 14px; }
   .sprow:last-child { margin-bottom: 0; }
   .splabel { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: #6e7681; margin-bottom: 5px; }
@@ -43,7 +59,6 @@
   .sp-switch input:checked + .sp-slider { background: #238636; }
   .sp-switch input:checked + .sp-slider:before { transform: translateX(16px); }
   /* backend selector (pluggable-backend) — lives in the settings popup */
-  #settingsPopup { max-height: calc(100vh - var(--hdr-h) - 24px); overflow-y: auto; }
   .bk-list { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
   .bk-prov { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid #30363d; border-radius: 7px; cursor: pointer; background: #0d1117; }
   .bk-prov:hover { border-color: #3d444d; }
@@ -90,6 +105,12 @@
   #flowstats { flex-shrink: 0; }
   /* (legacy DAG-column view removed — Flow is the structure view) */
   .badge { display: inline-block; font-size: 10px; background: #1f6feb33; color: #79c0ff; border: 1px solid #1f6feb55; border-radius: 9px; padding: 0 6px; margin-left: 6px; }
+  .review-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; }
+  .rvb { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; padding: 1px 7px; border-radius: 9px; border: 1px solid #30363d; color: #8b949e; background: #161b22; }
+  .rvb b { color: #6e7681; font-weight: 600; }
+  .rvb.ok { color: #7ee787; border-color: #2ea04366; background: #2ea04318; }
+  .rvb.wait { color: #f0d77a; border-color: #bb800966; background: #bb800918; }
+  .rvb.bad { color: #ff7b72; border-color: #f8514966; background: #f8514918; }
   .s-not_ready  { border-left-color: #6e7681; opacity: .55; } .s-not_ready .st { color: #6e7681; }
   .s-needs_guidance,.s-needs_approval { border-left-color: #d29922; } .s-needs_guidance .st,.s-needs_approval .st { color: #e3b341; }
   .s-waiting_deps { border-left-color: #6e7681; opacity: .55; } .s-waiting_deps .st { color: #6e7681; }
@@ -124,6 +145,61 @@
   .toggle { display: inline-flex; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
   .toggle button { background: #161b22; color: #8b949e; border: none; padding: 3px 12px; cursor: pointer; font: inherit; }
   .toggle button.on { background: #1f6feb33; color: #79c0ff; }
+  @media (max-width: 1180px) {
+    :root { --hdr-h: 116px; }
+    header { align-content: flex-start; gap: 0 10px; padding: 0 14px; }
+    .hd-left { order: 1; height: 52px; min-width: 0; }
+    .hd-right { order: 2; height: 52px; margin-left: auto; }
+    .hd-mid {
+      order: 3;
+      flex: 0 0 calc(100% + 28px);
+      width: calc(100% + 28px);
+      margin: 0 -14px;
+      padding: 7px 14px 8px;
+      border-top: 1px solid #21262d;
+      background: #0d1117;
+      box-sizing: border-box;
+      align-items: center;
+      justify-content: flex-start;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .hd-mid::-webkit-scrollbar { display: none; }
+    .hd-mid .hero { flex: 0 0 auto; min-width: 96px; padding: 0 12px; }
+    .hd-mid .hero:first-child { padding-left: 0; }
+    .hd-mid .hero .hval { font-size: 15px; }
+  }
+  @media (max-width: 640px) {
+    :root { --hdr-h: 120px; }
+    header { gap: 0 8px; padding: 0 10px; }
+    h1 { font-size: 14px; gap: 6px; }
+    .hd-left { gap: 8px; height: 52px; }
+    .hd-right { gap: 6px; height: 52px; }
+    .toggle { min-width: 0; }
+    .toggle button { min-width: 0; padding: 3px 8px; font-size: 11px; white-space: nowrap; }
+    .repo-btn { max-width: 150px; padding: 0 7px; }
+    .repo-btn-label { display: none; }
+    .repo-btn-name { max-width: 104px; }
+    .hd-mid {
+      flex-basis: calc(100% + 20px);
+      width: calc(100% + 20px);
+      margin: 0 -10px;
+      padding: 7px 10px 8px;
+    }
+    .hd-mid .hero { min-width: 86px; padding: 0 9px; }
+    .hd-mid .hero .hlabel { font-size: 8px; }
+    .hd-mid .hero .hval { font-size: 14px; }
+    .hd-mid .hero .hval-sub { font-size: 9px; }
+  }
+  @media (max-width: 480px) {
+    :root { --hdr-h: 144px; }
+    .hd-left { flex: 0 0 100%; height: 50px; justify-content: space-between; }
+    .hd-right { flex: 0 0 100%; height: 34px; justify-content: flex-end; margin-left: 0; }
+    .hd-mid { padding-top: 6px; padding-bottom: 8px; }
+    .repo-list { right: 0; }
+  }
   /* cloud view */
   #cloud { display: none; width: 100%; height: 100%; position: relative; }
   #cloud.show { display: block; }
@@ -189,6 +265,7 @@
   #cloudSearchSummary.show { display: block; }
   .cloud-search-summary-title { color: #e6edf3; font-weight: 700; margin-bottom: 5px; display: flex; justify-content: space-between; gap: 10px; }
   .cloud-search-summary-meta { color: #8b949e; font-size: 10px; white-space: nowrap; }
+  .cloud-search-summary-brief { color: #d6dee8; margin-bottom: 7px; }
   .cloud-search-summary-line { color: #adbac7; margin-bottom: 7px; }
   .cloud-search-summary-items { display: flex; flex-direction: column; gap: 5px; }
   .cloud-search-summary-item { border-top: 1px solid rgba(48,54,61,.72); padding-top: 5px; }
@@ -579,50 +656,60 @@
   </div>
   <div class="hd-mid" id="sum"></div>
   <div class="hd-right">
+    <div class="repo-menu" id="repoMenu">
+      <button class="repo-btn" id="repoBtn" type="button" title="Open Repo" aria-haspopup="true" aria-expanded="false" onclick="toggleRepoMenu(event)">
+        <span class="repo-btn-label">Open Repo</span>
+        <span class="repo-btn-name" id="repoBtnName"></span>
+        <span class="repo-btn-caret">▾</span>
+      </button>
+      <div class="repo-list" id="repoList" role="menu"></div>
+    </div>
     <button class="notif-btn" id="notifBtn" title="Notifications" onclick="toggleGuidancePopup()">🗂 <span id="notifCount">0</span></button>
     <button class="settings-btn" title="Settings" onclick="toggleSettingsPopup()">⚙</button>
   </div>
 </header>
 <div id="settingsPopup">
-  <span class="appclose" onclick="document.getElementById('settingsPopup').classList.remove('show')">✕</span>
-  <h2 style="margin:0 0 14px">Settings</h2>
-  <div class="sprow">
-    <div class="splabel">Daemon URL</div>
-    <input class="spinput" id="sp-url" type="text" placeholder="http://localhost:8787" />
-    <div class="spdesc">Leave blank to use the default (same origin / localhost:8787)</div>
-    <div class="spstatus" id="sp-conn"><span class="dot"></span><span id="sp-conn-label">Connected</span></div>
-  </div>
-  <div class="sprow">
-    <div class="splabel">Refresh interval (seconds)</div>
-    <input class="spinput" id="sp-interval" type="number" min="1" max="60" placeholder="3" />
-  </div>
-  <div class="sprow" style="border-top:1px solid #21262d;padding-top:14px;margin-top:4px">
-    <div class="splabel">Workspace</div>
-    <div class="sp-toggle-row" style="margin-top:8px">
-      <div>
-        <div class="sp-toggle-label">Full Automode</div>
-        <div class="sp-toggle-sublabel">Escalations answered by Opus · Judges merge on approve</div>
+  <div class="settings-panel">
+    <span class="appclose" onclick="document.getElementById('settingsPopup').classList.remove('show')">✕</span>
+    <h2 style="margin:0 0 14px">Settings</h2>
+    <div class="sprow">
+      <div class="splabel">Daemon URL</div>
+      <input class="spinput" id="sp-url" type="text" placeholder="http://localhost:8787" />
+      <div class="spdesc">Leave blank to use the default (same origin / localhost:8787)</div>
+      <div class="spstatus" id="sp-conn"><span class="dot"></span><span id="sp-conn-label">Connected</span></div>
+    </div>
+    <div class="sprow">
+      <div class="splabel">Refresh interval (seconds)</div>
+      <input class="spinput" id="sp-interval" type="number" min="1" max="60" placeholder="3" />
+    </div>
+    <div class="sprow" style="border-top:1px solid #21262d;padding-top:14px;margin-top:4px">
+      <div class="splabel">Workspace</div>
+      <div class="sp-toggle-row" style="margin-top:8px">
+        <div>
+          <div class="sp-toggle-label">Full Automode</div>
+          <div class="sp-toggle-sublabel">Escalations answered by Opus · Judges merge on approve</div>
+        </div>
+        <label class="sp-switch">
+          <input type="checkbox" id="sp-automode" onchange="saveAutomode(this.checked)">
+          <span class="sp-slider"></span>
+        </label>
       </div>
-      <label class="sp-switch">
-        <input type="checkbox" id="sp-automode" onchange="saveAutomode(this.checked)">
-        <span class="sp-slider"></span>
-      </label>
     </div>
-  </div>
-  <button class="spsave" onclick="saveSettings()">Save</button>
-  <div class="sprow" style="margin-top:14px;border-top:1px solid #21262d;padding-top:14px">
-    <div class="splabel">LLM backend</div>
-    <div class="spdesc">Which engine drives background judging/learning. Claude is the default.</div>
-    <div class="bk-list" id="bk-list"><div class="empty" style="font-size:11px">loading…</div></div>
-    <div class="splabel" style="margin-top:12px">Model (optional)</div>
-    <input class="spinput" id="bk-model" type="text" placeholder="default for provider" />
-    <div class="spdesc">Leave blank to use the provider's default model.</div>
-    <div id="bk-avnotice">
-      <div class="bk-avtitle">⚠ Antivirus note</div>
-      <div id="bk-avnotice-body"></div>
+    <button class="spsave" onclick="saveSettings()">Save</button>
+    <div class="sprow" style="margin-top:14px;border-top:1px solid #21262d;padding-top:14px">
+      <div class="splabel">LLM backend</div>
+      <div class="spdesc">Which engine drives background judging/learning. Claude is the default.</div>
+      <div class="bk-list" id="bk-list"><div class="empty" style="font-size:11px">loading…</div></div>
+      <div class="splabel" style="margin-top:12px">Model (optional)</div>
+      <input class="spinput" id="bk-model" type="text" placeholder="default for provider" />
+      <div class="spdesc">Leave blank to use the provider's default model.</div>
+      <div id="bk-avnotice">
+        <div class="bk-avtitle">⚠ Antivirus note</div>
+        <div id="bk-avnotice-body"></div>
+      </div>
+      <button class="spsave" style="margin-top:10px" onclick="saveBackend()">Save backend</button>
+      <div id="bk-status"></div>
     </div>
-    <button class="spsave" style="margin-top:10px" onclick="saveBackend()">Save backend</button>
-    <div id="bk-status"></div>
   </div>
 </div>
 <div id="guidance"></div>
@@ -673,7 +760,6 @@
 <div class="wrap">
   <div class="left">
     <div id="ws" style="font-size:11px;color:#6e7681;padding:0 16px 8px;display:none"></div>
-    <div id="wsPickerWrap" style="padding:0 16px 8px;display:none"><select id="wsPicker" style="font-size:11px;background:#161b22;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 6px;cursor:pointer;max-width:220px"></select></div>
     <div id="cloud"><div id="cloudSearchWrap"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="#8b949e" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round"/></svg><input id="cloudSearchInput" type="text" placeholder="Search nodes…" /><span id="cloudMatchCount"></span></div><div id="cloudTraceLegend"></div><div id="cloudSearchSummary"></div><svg id="cloudsvg"></svg></div>
     <div id="flow"><div id="flowgraph"><svg id="flowsvg"></svg></div></div>
     <div id="flowstats"></div>
@@ -4574,9 +4660,9 @@ function dfetch(pathAndQuery, init) {
 }
 // flattenWorkspaceRepos: GET /workspaces returns U3's GROUPED shape
 //   [{ name, repos:[{path,name,current}], current }] (orphans under "(unregistered)").
-// The picker pins a single REPO PATH as WS, so flatten the groups to the underlying repo
+// The dashboard pins a single REPO PATH as WS, so flatten the groups to the underlying repo
 // list [{path,name,current,group}] (group = the workspace name the repo belongs to) for the
-// option/button layer, which still selects by repo path. Tolerant of the legacy flat shape
+// repo menu, which still selects by repo path. Tolerant of the legacy flat shape
 // [{path,name,current}] (e.g. ?flat=1) too — a flat entry has .path and no .repos.
 function flattenWorkspaceRepos(list) {
   const out = [];
@@ -4589,45 +4675,97 @@ function flattenWorkspaceRepos(list) {
   }
   return out;
 }
-// Load the workspace picker from GET /workspaces and wire on-change to switch repos. Renders an
-// <optgroup label=workspaceName> per workspace, one <option value=repoPath> per repo under it.
+let workspaceMenuData = [];
+let workspaceMenuRepos = [];
+function repoBasename(path) {
+  const clean = String(path || '').replace(/[\\/]+$/, '');
+  return clean.split(/[\\/]/).filter(Boolean).pop() || '';
+}
+function currentRepoName() {
+  const repo = workspaceMenuRepos.find((r) => r.path === WS);
+  return (repo && repo.name) || repoBasename(WS);
+}
+function updateRepoButton() {
+  const btn = document.getElementById('repoBtn');
+  const name = document.getElementById('repoBtnName');
+  if (!btn || !name) return;
+  const selectedName = WS ? currentRepoName() : '';
+  name.textContent = selectedName;
+  name.style.display = selectedName ? '' : 'none';
+  btn.title = selectedName ? WS : 'Open Repo';
+  btn.setAttribute('aria-label', selectedName ? 'Open Repo ' + selectedName : 'Open Repo');
+}
+function closeRepoMenu() {
+  const menu = document.getElementById('repoMenu');
+  const btn = document.getElementById('repoBtn');
+  if (menu) menu.classList.remove('open');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+function toggleRepoMenu(ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const menu = document.getElementById('repoMenu');
+  const btn = document.getElementById('repoBtn');
+  if (!menu || !menu.classList.contains('show')) return;
+  renderRepoMenu();
+  const willOpen = !menu.classList.contains('open');
+  menu.classList.toggle('open', willOpen);
+  if (btn) btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+}
+function renderRepoMenu() {
+  const menu = document.getElementById('repoMenu');
+  const list = document.getElementById('repoList');
+  if (!menu || !list) return;
+  list.innerHTML = '';
+  if (!workspaceMenuRepos.length) {
+    menu.classList.remove('show');
+    closeRepoMenu();
+    updateRepoButton();
+    return;
+  }
+  for (const w of workspaceMenuData) {
+    const isGrouped = Array.isArray(w.repos);
+    const reposIn = isGrouped ? w.repos : [w];
+    if (isGrouped) {
+      const label = document.createElement('div');
+      label.className = 'repo-group-label';
+      label.textContent = w.name;
+      list.appendChild(label);
+    }
+    for (const r of reposIn) {
+      if (!r || !r.path) continue;
+      const choice = document.createElement('button');
+      choice.type = 'button';
+      choice.className = 'repo-choice' + (WS && r.path === WS ? ' active' : '');
+      choice.setAttribute('role', 'menuitem');
+      choice.onclick = () => selectWorkspace(r.path);
+      const choiceName = document.createElement('span');
+      choiceName.className = 'repo-choice-name';
+      choiceName.textContent = r.name || repoBasename(r.path);
+      const choicePath = document.createElement('span');
+      choicePath.className = 'repo-choice-path';
+      choicePath.textContent = r.path;
+      choice.append(choiceName, choicePath);
+      list.appendChild(choice);
+    }
+  }
+  menu.classList.add('show');
+  updateRepoButton();
+}
+// Load the repo menu from GET /workspaces and wire choices to switch repos. Renders a
+// group label per workspace, with one button per repo under it.
 async function loadWorkspacePicker() {
-  const sel = document.getElementById('wsPicker');
-  const wrap = document.getElementById('wsPickerWrap');
-  if (!sel || !wrap) return;
+  const menu = document.getElementById('repoMenu');
+  if (!menu) return;
   let data;
   try { data = await (await dfetch('/workspaces')).json(); } catch { return; }
   if (!data || !data.workspaces) return;
-  const repos = flattenWorkspaceRepos(data.workspaces);
-  if (repos.length <= 1) return; // nothing to switch
-  sel.innerHTML = '';
-  for (const w of data.workspaces) {
-    const isGrouped = Array.isArray(w.repos);
-    const reposIn = isGrouped ? w.repos : [w];                 // legacy flat: the entry is itself a repo
-    let container = sel;
-    if (isGrouped) {
-      const og = document.createElement('optgroup');
-      og.label = w.name;
-      sel.appendChild(og);
-      container = og;
-    }
-    for (const r of reposIn) {
-      const opt = document.createElement('option');
-      opt.value = r.path;
-      opt.textContent = r.name;
-      if (r.current && !WS) opt.selected = true;
-      if (WS && r.path === WS) opt.selected = true;
-      container.appendChild(opt);
-    }
-  }
-  wrap.style.display = '';
-  sel.onchange = function() {
-    selectWorkspace(this.value);
-  };
+  workspaceMenuData = data.workspaces;
+  workspaceMenuRepos = flattenWorkspaceRepos(workspaceMenuData);
+  renderRepoMenu();
 }
 // Commit an EXPLICIT workspace choice: pin WS, mark resolved, reflect in the URL (so a reload /
 // shared link carries it), and repaint. The single chokepoint every workspace selection routes
-// through (picker onchange, single-ws auto-select, prompt buttons) so WS is never set silently.
+// through (repo menu choices, single-ws auto-select, prompt buttons) so WS is never set silently.
 function selectWorkspace(wsPath) {
   WS = wsPath || '';
   WS_RESOLVED = !!WS;
@@ -4635,8 +4773,8 @@ function selectWorkspace(wsPath) {
   if (WS) u.searchParams.set('workspace', WS);
   else u.searchParams.delete('workspace');
   history.replaceState(null, '', u.toString());
-  const sel = document.getElementById('wsPicker');
-  if (sel && WS) sel.value = WS;
+  renderRepoMenu();
+  closeRepoMenu();
   removeWorkspaceGate();
   // Repaint: clear caches and re-run tick + guidance + costflow
   lastRenderFp = ''; lastDetailFp = ''; costAt = 0; guidSig = '';
@@ -4702,13 +4840,14 @@ let cloudSig='';               // signature of node/link set; only reheat sim wh
 let cloudRaf=null;             // projected cloud animation frame
 const cloudThreeStates=new WeakMap(); // surface element -> Three.js point-cloud scene state
 let cloudSearchText='';        // current force-cloud search query
-let cloudSearchKeys=new Set(); // ids returned by /search for the current force-cloud query
+let cloudSearchKeys=new Set(); // ids selected by Subconscious for the current force-cloud query
 let cloudSearchResolvedText='';
 let cloudSearchPending=false;
 let cloudSearchError=false;
 let cloudSearchSeq=0;
 let cloudSearchTimer=null;
 let cloudSearchTrace=null;     // visual-only trace of the last /search result set
+let cloudSearchContext=null;   // raw Subconscious agentic-search envelope shown in the summary
 let cloudSearchStartedAt=0;
 let cloudSearchFrameTimers=[];
 let cloudSearchFitKey='';
@@ -5101,6 +5240,7 @@ async function openDetail(key){
     (t.status!==ds.key?`<span class="muted" style="font-size:10px"> (engine: ${esc(t.status)})</span>`:'')+
     (t.agent_id?`<span class="badge">${esc(t.agent_id)}</span>`:'')+
     `</div>`+
+    reviewBadgesHtml(t)+
     (u&&!u.error&&t.kind!=='note'?`<div class="kv"><div class="k">Token usage</div><div class="v usage"><div>total <b>${fmtK(u.total||0)}</b></div><div>out <b>${fmtK(u.output_tokens||0)}</b></div><div>in ${fmtK(u.input_tokens||0)}</div><div>cache ${fmtK(u.cache_read_input_tokens||0)}</div></div></div>`:'')+
     (t.note&&(ds.key==='needs_guidance'||ds.key==='needs_approval'||ds.key==='blocked')?`<div class="kv"><div class="k">Hold reason</div><div class="v" style="font-size:12px;color:#e3b341">${esc(t.note)}</div></div>`:'')+
     `<div style="margin-bottom:12px"><button id="focusToggleBtn" style="width:100%;background:none;border:1px solid #30363d;color:#8b949e;border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;text-align:center;letter-spacing:.02em" onclick="toggleFocus('${esc(key)}')">${currentView==='focus'&&focusedId===key?'✕ Exit Focus':'⌖ Focus view'}</button></div>`+
@@ -5135,11 +5275,66 @@ function refreshCronTok(){
 let lastRenderFp='';
 function stateFingerprint(d){
   const s=d.summary||{}, sc=s.statuses||{};
-  const taskFp=(d.tasks||[]).map(t=>t.id+':'+t.status+(t.agent_id?'/'+t.agent_id:'')).sort().join('|');
+  const taskFp=(d.tasks||[]).map(t=>[
+    t.id,
+    t.status,
+    t.agent_id||'',
+    t.review_state||'',
+    t.review_verdict||'',
+    t.merge_state||'',
+    t.review_requested_at||'',
+    t.reviewed_at||''
+  ].join(':')).sort().join('|');
   const guidFp=(d.guidance||[]).map(g=>g.id+':'+g.resolved).join('|');
   return JSON.stringify({sc, taskFp, guidFp, agents: s.agents, archived: s.archived});
 }
 function statusLabel(s){ const m={'not_ready':'Not ready','in_progress':'In progress','canceled':'Canceled','not ready':'Not ready','in progress':'In progress','needs_guidance':'Needs guidance','needs_approval':'Needs approval','waiting_deps':'Waiting on deps','waiting_ghost':'Waiting on ghost','blocked':'Blocked'}; return m[s]||(s.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())); }
+function reviewText(s){ return String(s||'').replace(/_/g,' ').replace(/\s+/g,' ').trim(); }
+function reviewTone(value){
+  const s=String(value||'').toLowerCase();
+  if(/kick|reject|block|fail|conflict/.test(s)) return 'bad';
+  if(/pending|request|review/.test(s)) return 'wait';
+  if(/approve|merge|merged|land|closed|done/.test(s)) return 'ok';
+  return '';
+}
+function reviewCue(t){
+  if(!t||t.kind==='note') return '';
+  const state=String(t.review_state||'').toLowerCase();
+  const verdict=String(t.review_verdict||'').toUpperCase();
+  const merge=String(t.merge_state||'').toLowerCase();
+  if(merge==='merged'||state==='landed') return 'merged';
+  if(merge==='conflict') return 'merge conflict';
+  if(merge==='failed') return 'merge failed';
+  if(verdict==='KICK_BACK'||state==='rejected') return 'kickback';
+  if(merge==='review_pending'||state==='pending'||state==='requested') return 'review';
+  if(merge==='pending') return 'merge pending';
+  if(verdict==='APPROVE'||state==='approved') return 'approved';
+  return reviewText(state||merge);
+}
+function reviewCueColor(t){
+  const cue=reviewCue(t);
+  const tone=reviewTone(cue||t?.review_state||t?.merge_state||t?.review_verdict);
+  if(tone==='bad') return '#ff7b72';
+  if(tone==='wait') return '#e3b341';
+  if(tone==='ok') return '#3fb950';
+  return '#8b949e';
+}
+function shortTime(v){
+  if(!v) return '';
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime())) return String(v);
+  return d.toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+function reviewBadgesHtml(t){
+  if(!t||t.kind==='note') return '';
+  const items=[];
+  if(t.review_state) items.push({ k:'review', v:reviewText(t.review_state), tone:reviewTone(t.review_state) });
+  if(t.review_verdict) items.push({ k:'verdict', v:t.review_verdict==='KICK_BACK'?'kickback':reviewText(t.review_verdict).toLowerCase(), tone:reviewTone(t.review_verdict) });
+  if(t.merge_state) items.push({ k:'merge', v:reviewText(t.merge_state), tone:reviewTone(t.merge_state) });
+  if(t.review_requested_at) items.push({ k:'requested', v:shortTime(t.review_requested_at), tone:'wait' });
+  if(!items.length) return '';
+  return `<div class="review-badges">${items.map(x=>`<span class="rvb ${esc(x.tone)}"><b>${esc(x.k)}</b>${esc(x.v)}</span>`).join('')}</div>`;
+}
 const DISPLAY_STATUS_COLOR={needs_guidance:'#e3b341',needs_approval:'#e3b341',waiting_deps:'#6e7681',waiting_ghost:'#a371f7',blocked:'#ff7b72'};
 const GUIDANCE_HOLD_RE=/disruptive follow-up|gated on guidance|held by user|user_hold|scheduled for|cost_gate|awaiting user|awaiting approval|review required|force-claim|explicit.*hold/i;
 function pendingFollowUpForTask(taskId){
@@ -5241,13 +5436,11 @@ async function tick(){
   // totalRaw: DELTA basis (prod+expl+trap) — denominator for productivity% and token-economy
   const totalRaw=cf?cf.totals.total:null;
   const totalTok=cf?fmtK(totalRaw):'—';
-  // Per-model pricing ($/M tokens): [input, output, cache_read]
-  const MODEL_RATES={'claude-opus-4-8':[15,75,1.5],'claude-opus-4-7':[15,75,1.5],'claude-sonnet-4-6':[3,15,0.3],'claude-sonnet-4-5':[3,15,0.3],'claude-haiku-4-5':[0.8,4,0.08],'claude-fable-5':[3,15,0.3]};
-  const rateFor=m=>{ for(const k of Object.keys(MODEL_RATES)) if(m&&m.startsWith(k.slice(0,-2))) return MODEL_RATES[k]; return [3,15,0.3]; };
-  const modelCost=(m,v)=>{ const [ri,ro,rc]=rateFor(m); return (v.input_tokens/1e6)*ri+(v.output_tokens/1e6)*ro+(v.cache_read/1e6)*rc; };
   const bm=cf&&cf.by_model||{};
-  // billCost: GROSS basis (Σ by_model) — includes inherited/baseline context (it is billed)
-  const billCost=cf?Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[m,v])=>s+modelCost(m,v),0):null;
+  const costByModel=cf&&cf.cost&&cf.cost.by_model||{};
+  const serverModelCost=m=>costByModel[m]&&costByModel[m].usd!=null?Number(costByModel[m].usd):null;
+  // billCost: server-priced GROSS session dollars from /costflow.cost (adapter-priced, daemon-summed)
+  const billCost=cf&&cf.cost?Number(cf.cost.usd||0):null;
   const fmtUSD=n=>n==null?'—':n>=1000?'$'+Math.round(n/1000)+'K':n>=1?'$'+n.toFixed(0):'$'+n.toFixed(2);
   // cronCostCached: from harnessOhCache (populated by refreshInfraHero); use 0 if not yet loaded
   const cronCostCached=harnessOhCache?harnessOhCache.cronCost:0;
@@ -5258,7 +5451,7 @@ async function tick(){
   // estimate weekly rate: costCache refreshes periodically; use total as proxy for "lifetime"
   // show plan fit based on absolute total (lifetime context)
   const planRec=outTokTotal>50e6?'API direct (Max plan capacity far exceeded)':outTokTotal>10e6?'API direct or Max 20× ($200/mo)':outTokTotal>3e6?'Max 20× ($200/mo) or API direct':outTokTotal>1e6?'Max 5× ($100/mo) or Max 20×':'Max 5× ($100/mo) likely sufficient';
-  // Header: 4 hero metrics
+  // Header metrics; CSS moves this strip into a second row on narrow screens.
   const autoRaw=cf&&cf.autonomy_score!=null?cf.autonomy_score:null;
   // Industry benchmarks: autonomy ~3–5× typical agentic; productive% ~40–60% of total
   const autoMedian=4, autoMax=10;
@@ -5273,18 +5466,22 @@ async function tick(){
   const prodMedianPct=50;
   const prodBarColor=prodPct==null?'#484f58':prodPct>=prodMedianPct?'#3fb950':'#e3b341';
   const prodVs=prodPct==null?'':(prodPct>=prodMedianPct?`<b style="color:#3fb950">+${prodPct-prodMedianPct}pp above median</b>`:`<b style="color:#e3b341">${prodMedianPct-prodPct}pp below median</b>`);
-  const topModelEntry=Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&((bm[m].input_tokens||0)+(bm[m].output_tokens||0))>0).sort(([ma,va],[mb,vb])=>modelCost(mb,vb)-modelCost(ma,va))[0];
+  const topModelEntry=Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&((bm[m].input_tokens||0)+(bm[m].output_tokens||0))>0).sort(([ma,va],[mb,vb])=>{
+    const ca=serverModelCost(ma), cb=serverModelCost(mb);
+    if(ca!=null||cb!=null) return (cb||0)-(ca||0);
+    return (vb.output_tokens||0)-(va.output_tokens||0);
+  })[0];
   const topModelShort=topModelEntry?topModelEntry[0].replace('claude-','').replace(/-\d{8}$/,''):'';
-  const topModelCost=topModelEntry?fmtUSD(modelCost(topModelEntry[0],topModelEntry[1])):'';
+  const topModelUsd=topModelEntry?serverModelCost(topModelEntry[0]):null;
+  const topModelCost=topModelUsd!=null?fmtUSD(topModelUsd):'';
   const autoSubColor=autoRaw==null?'#484f58':autoRaw>=autoMedian?'#3fb950':'#e3b341';
   const autoSubVs=autoRaw==null?'no data':autoRaw>=autoMedian?`+${(autoRaw-autoMedian).toFixed(1)}× median`:`${(autoMedian-autoRaw).toFixed(1)}× below median`;
   // Harness cost hero — uses cached overhead data populated by refreshInfraHero
   const oh_h=harnessOhCache;
   const cronCost_h=oh_h?oh_h.cronCost:0;
-  const inCacheCost_h=cf?Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[m,v])=>{const[ri,,rc]=rateFor(m);return s+(v.input_tokens||0)*ri/1e6+(v.cache_read||0)*rc/1e6;},0):null;
-  const inCacheTok_h=cf?Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[,v])=>s+(v.input_tokens||0)+(v.cache_read||0),0):0;
-  const blendedRate_h=inCacheTok_h>0&&inCacheCost_h!=null?inCacheCost_h/inCacheTok_h:3/1e6;
-  const overheadEst_h=oh_h!=null?oh_h.ohTok*blendedRate_h:null;
+  const grossTok_h=cf&&cf.gross_totals?(cf.gross_totals.input_tokens||0)+(cf.gross_totals.output_tokens||0)+(cf.gross_totals.cache_read||0):0;
+  const blendedRate_h=grossTok_h>0&&billCost!=null?billCost/grossTok_h:null;
+  const overheadEst_h=oh_h!=null&&blendedRate_h!=null?oh_h.ohTok*blendedRate_h:null;
   const totalHarnessCost=overheadEst_h!=null?cronCost_h+overheadEst_h:null;
   const harnessHval=totalHarnessCost!=null?fmtUSD(totalHarnessCost):(cronTokCache!=null?fmtK(cronTokCache):'—');
   const harnessHsub=totalHarnessCost!=null?'direct + injected':'cron only';
@@ -5319,7 +5516,7 @@ async function tick(){
     `<span><b style="color:#e3b341">~ Exploration</b> — canceled / superseded / attempt branches</span><b style="color:#e3b341">${cf?fmtK(cf.totals.exploration??0):'—'}</b>` +
     `<span><b style="color:#6e7681">✕ Trapped</b> — terminal dead-ends with no captured output</span><b style="color:#6e7681">${cf?fmtK(cf.totals.trapped):'—'}</b>` +
     `<span style="color:#484f58">Total (attributed work)</span><b style="color:#e6edf3">${totalTok}</b>` +
-    `<span style="color:#484f58;font-size:9px">○ unrouted session tokens (subset of trapped)</span><b style="color:#484f58;font-size:9px">${unroutedTok}</b>` +
+    `<span style="color:#484f58;font-size:9px">○ unrouted session remainder (pre-flow)</span><b style="color:#484f58;font-size:9px">${unroutedTok}</b>` +
     `</div>` +
     `<div class="tip-bench-label" style="margin-top:6px">productive % vs median (${prodMedianPct}%)</div>` +
     `<div class="tip-bar"><div class="tip-bar-fill" style="width:${prodPct??0}%;background:${prodBarColor}"></div></div>` +
@@ -5333,7 +5530,7 @@ async function tick(){
     `</span>` +
     `<span class="hero" onclick="toggleBillingPopup()">` +
     `<span class="hlabel">Billing <span style="font-size:8px;color:#484f58;font-weight:400;text-transform:none">gross</span></span><span class="hval" style="color:#d29922">${billStr}</span>` +
-    `<span class="hval-sub">${topModelShort?topModelShort+' '+topModelCost:'sessions + cron'}</span>` +
+    `<span class="hval-sub">${topModelShort?topModelShort+(topModelCost?' '+topModelCost:' gross tokens'):'sessions + cron'}</span>` +
     `<span class="htip" style="width:200px"><div class="tip-title">Estimated API Cost</div>Sessions (gross, all models) + cron/gate. Click for full breakdown: productive vs trapped, infra overhead, per-model split.</span>` +
     `</span>` +
     (()=>{
@@ -5392,7 +5589,7 @@ async function tick(){
   }
   if(selected){
   const dt=lastState&&lastState.tasks&&lastState.tasks.find(t=>t.id===selected);
-  const fp=dt?dt.status+(dt.agent_id||'')+(dt.summary||''):'';
+  const fp=dt?[dt.status,dt.agent_id||'',dt.summary||'',dt.review_state||'',dt.review_verdict||'',dt.merge_state||'',dt.review_requested_at||'',dt.reviewed_at||''].join(':'):'';
   if(fp!==lastDetailFp){ lastDetailFp=fp; openDetail(selected); }
 }
   const rt=document.getElementById('routes');
@@ -5696,6 +5893,7 @@ function setView(v){
     cloudSearchPending=false;
     cloudSearchError=false;
     cloudSearchTrace=null;
+    cloudSearchContext=null;
     if(cloudSearchTimer){ clearTimeout(cloudSearchTimer); cloudSearchTimer=null; }
     const si=document.getElementById('cloudSearchInput'); if(si) si.value='';
   } else if(cloudSearchText.trim()) {
@@ -5748,11 +5946,17 @@ function buildCloudSearchTrace(items, query, startedAt=Date.now()){
     }
     if(!itemMeta.has(key)){
       itemMeta.set(key, {
+        key,
+        rawKey:item&&item.rawKey||item&&item.task_key||item&&item.key||key,
         kind:item&&item.kind||'',
         title:item&&item.title||'',
         summary:item&&item.summary||'',
         tier:item&&item.tier||'',
-        score:Number(item&&item.score)||0
+        score:Number(item&&item.score)||0,
+        searchMode:item&&item.search_mode||item&&item.mode||'',
+        evidenceQuality:item&&item.evidence_quality,
+        relevanceVerdict:item&&item.relevance_verdict||'',
+        reason:item&&item.reason||''
       });
     }
     if(item&&(item.reranked||item.ceScore!=null)) rerankedKeys.add(key);
@@ -5785,6 +5989,52 @@ function buildCloudSearchTrace(items, query, startedAt=Date.now()){
   for(const key of rerankedKeys) finalKeys.add(key);
   return { query, startedAt, readyAt, hitRank, finalKeys, rerankedKeys, walkEdges, pathKeys, itemMeta };
 }
+function normalizeCloudSearchItem(item){
+  if(!item) return null;
+  const rawKey=item.key||item.task_key;
+  const key=cloudNodeKey(rawKey);
+  if(!key) return null;
+  const score=Number(item.rank_score??item.relevance_score??item.score??item.evidence_quality??0)||0;
+  return {
+    ...item,
+    key,
+    rawKey,
+    title:item.title||item.label||key,
+    summary:item.summary||'',
+    kind:item.kind||'task',
+    tier:item.tier||item.search_mode||item.via||'subconscious',
+    score,
+    reranked:item.relevance_verdict==='valuable_for_task'||item.evidence_quality!=null
+  };
+}
+function cloudItemsFromSubconscious(data){
+  const ctx=data&&data.subconscious_context||{};
+  const selected=Array.isArray(ctx.context)&&ctx.context.length?ctx.context:(Array.isArray(ctx.context_deps)?ctx.context_deps:[]);
+  return selected.map(normalizeCloudSearchItem).filter(Boolean);
+}
+async function fetchLegacyCloudSearch(query, signal){
+  const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50&node_first=1',{ signal });
+  const data=await res.json();
+  return { items:Array.isArray(data)?data:(data.results||[]), context:null };
+}
+async function fetchSubconsciousCloudSearch(query, signal){
+  const res=await dfetch('/subconscious/search-context',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      agent_id:'dashboard-graph-search',
+      query,
+      k:CLOUD_SEARCH_FINAL_TOP_K,
+      max_rounds:4,
+      include_internal:true
+    }),
+    signal
+  });
+  const data=await res.json();
+  if(!res.ok||!data||data.ok===false) throw new Error((data&&data.error)||('HTTP '+res.status));
+  const context=data.subconscious_context?{...data.subconscious_context, human_summary:data.subconscious_context.human_summary||data.human_summary||''}:null;
+  return { items:cloudItemsFromSubconscious(data), context };
+}
 function scheduleCloudSearch(){
   const query=cloudSearchText.trim();
   const q=query.toLowerCase();
@@ -5799,6 +6049,7 @@ function scheduleCloudSearch(){
     cloudSearchPending=false;
     cloudSearchError=false;
     cloudSearchTrace=null;
+    cloudSearchContext=null;
     cloudSearchStartedAt=0;
     if(lastState) renderCloud(lastState);
     return;
@@ -5808,6 +6059,7 @@ function scheduleCloudSearch(){
   cloudSearchPending=true;
   cloudSearchError=false;
   cloudSearchTrace=null;
+  cloudSearchContext=null;
   const seq=++cloudSearchSeq;
   cloudSearchStartedAt=Date.now();
   if(lastState) renderCloud(lastState);
@@ -5818,9 +6070,16 @@ function scheduleCloudSearch(){
     const ctl=new AbortController();
     const timeout=setTimeout(()=>ctl.abort(),30000);
     try{
-      const res=await dfetch('/search?q='+encodeURIComponent(query)+'&k=50&node_first=1',{ signal:ctl.signal });
-      const data=await res.json();
-      items=Array.isArray(data)?data:(data.results||[]);
+      let searchContext=null;
+      try{
+        const agentic=await fetchSubconsciousCloudSearch(query,ctl.signal);
+        items=agentic.items;
+        searchContext=agentic.context;
+      }catch(agenticError){
+        const legacy=await fetchLegacyCloudSearch(query,ctl.signal);
+        items=legacy.items;
+        searchContext=null;
+      }
       if(seq!==cloudSearchSeq) return;
       const keys=new Set();
       for(const item of items){
@@ -5834,6 +6093,7 @@ function scheduleCloudSearch(){
       cloudSearchResolvedText=q;
       cloudSearchPending=false;
       cloudSearchError=false;
+      cloudSearchContext=searchContext?{...searchContext, query:q, source:'subconscious_search_context'}:null;
       cloudSearchTrace=buildCloudSearchTrace(items,q,cloudSearchStartedAt||Date.now());
       scheduleCloudSearchFrames(seq);
     }catch(e){
@@ -5844,6 +6104,7 @@ function scheduleCloudSearch(){
       cloudSearchPending=false;
       cloudSearchError=true;
       cloudSearchTrace=null;
+      cloudSearchContext=null;
     }finally{
       clearTimeout(timeout);
     }
@@ -5899,6 +6160,7 @@ function renderCloud(d, opts={}){
   const q=isOnboard?'':cloudSearchText.trim().toLowerCase();
   const remoteFresh=q&&cloudSearchResolvedText===q&&!cloudSearchError;
   const trace=(cloudSearchTrace&&cloudSearchTrace.query===q)?cloudSearchTrace:null;
+  const searchContext=(cloudSearchContext&&cloudSearchContext.query===q)?cloudSearchContext:null;
   const searchStartedAt=trace?.startedAt||cloudSearchStartedAt||Date.now();
   const searchElapsedMs=q?Math.max(0,Date.now()-searchStartedAt):0;
   const traceReadyElapsedMs=trace?Math.max(0,(trace.readyAt||trace.startedAt||Date.now())-searchStartedAt):0;
@@ -6283,7 +6545,7 @@ function renderCloud(d, opts={}){
   if(countEl) countEl.textContent=q?(cloudSearchPending?'searching...':(matchCount+' match'+(matchCount===1?'':'es'))):'';
   const traceEl=document.getElementById('cloudTraceLegend');
   if(traceEl){
-    if(q&&cloudSearchPending){ traceEl.textContent='RAG pending'; traceEl.classList.add('show'); }
+    if(q&&cloudSearchPending){ traceEl.textContent='Subconscious pending'; traceEl.classList.add('show'); }
     else if(q&&cloudSearchError){
       const localOnly=simNodes.filter(n=>!n.archive&&localMatch(n)).length;
       traceEl.textContent=localOnly?('local '+localOnly+' · search failed'):'search failed';
@@ -6292,7 +6554,8 @@ function renderCloud(d, opts={}){
     else if(q&&trace){
       const reranked=trace.rerankedKeys.size;
       const shownEdges=searchPhase==='final'?(finalRelatedKeys.size||fallbackFinalEdgeKeys.size):((searchPhase==='activate'||searchPhase==='shrink')?stagedRelatedKeys.size:0);
-      const traceParts=['RAG '+trace.hitRank.size];
+      const selectedCount=searchContext&&Array.isArray(searchContext.context_task_keys)?searchContext.context_task_keys.length:trace.hitRank.size;
+      const traceParts=[searchContext?('Subconscious '+selectedCount):('RAG fallback '+trace.hitRank.size)];
       if(searchPhase==='hits') traceParts.push('nodes');
       else {
         const edgeLabel=searchPhase==='final'?'final edges ':(searchPhase==='shrink'?'shrinking edges ':'edges ');
@@ -6301,6 +6564,8 @@ function renderCloud(d, opts={}){
       if(searchFinalized&&trace.walkEdges.size) traceParts.push('path walk '+trace.walkEdges.size);
       if(searchFinalized) traceParts.push('top '+trace.finalKeys.size);
       if(searchFinalized&&reranked) traceParts.push('rerank '+reranked);
+      if(searchFinalized&&searchContext&&searchContext.confidence!=null) traceParts.push(Math.round(Number(searchContext.confidence)*100)+'% conf');
+      if(searchFinalized&&searchContext&&searchContext.decisions&&searchContext.decisions.rounds) traceParts.push(searchContext.decisions.rounds+' rounds');
       traceEl.textContent=traceParts.join(' · ');
       traceEl.classList.add('show');
     } else {
@@ -6311,8 +6576,10 @@ function renderCloud(d, opts={}){
   const summaryEl=document.getElementById('cloudSearchSummary');
   if(summaryEl){
     if(q&&searchFinalized){
-      const summaryKeys=trace?[...trace.finalKeys]:[...finalNodeKeys];
-      if(!summaryKeys.length) for(const id of fallbackFinalNodeKeys) summaryKeys.push(id);
+      let summaryKeys=trace?[...trace.finalKeys]:[...finalNodeKeys];
+      if(searchContext&&Array.isArray(searchContext.context_task_keys)) summaryKeys=searchContext.context_task_keys.map(cloudNodeKey).filter(Boolean);
+      if(!summaryKeys.length&&!searchContext) for(const id of fallbackFinalNodeKeys) summaryKeys.push(id);
+      summaryKeys=[...new Set(summaryKeys)];
       const summaryNodes=summaryKeys
         .map(id=>byNode[id])
         .filter(n=>n&&!n.archive&&n.t)
@@ -6320,32 +6587,101 @@ function renderCloud(d, opts={}){
           const ar=traceRankOf(a.id), br=traceRankOf(b.id);
           return ar-br || (localSeedMatch(a)===localSeedMatch(b)?0:(localSeedMatch(a)?-1:1)) || a.id.localeCompare(b.id);
         });
-      if(summaryNodes.length){
-        const countBy=(fn)=>{
+      const snippet=(s,max=118)=>{
+        s=String(s||'').replace(/\s+/g,' ').trim();
+        return s.length>max?s.slice(0,max-1)+'…':s;
+      };
+      const cleanLabel=s=>String(s||'').replace(/_/g,' ').replace(/\s+/g,' ').trim();
+      const percent=v=>{
+        const n=Number(v);
+        return Number.isFinite(n)?Math.round(n*100)+'%':'';
+      };
+      if(searchContext&&!summaryNodes.length){
+        const summaryTitle=searchContext&&searchContext.human_summary?'Subconscious brief':'Search context';
+        const verdict=cleanLabel(searchContext.verdict||'no selected context');
+        const confidence=percent(searchContext.confidence);
+        const stop=cleanLabel(searchContext.decisions&&searchContext.decisions.stop_reason);
+        const filtered=Number(searchContext.filtered_count||0);
+        const brief=[
+          `For "${snippet(q,54)}", Subconscious did not select foreground-agent context from this search.`,
+          verdict?`Verdict: ${verdict}${confidence?` (${confidence} confidence)`:''}.`:'',
+          stop?`Stopped because ${stop}.`:'',
+          filtered?`${filtered} low-value candidates were filtered out.`:''
+        ].filter(Boolean).join(' ');
+        const summaryBrief=(searchContext&&searchContext.human_summary)||brief;
+        summaryEl.innerHTML =
+          `<div class="cloud-search-summary-title"><span>${esc(summaryTitle)}</span><span class="cloud-search-summary-meta">0 selected</span></div>`+
+          `<div class="cloud-search-summary-brief">${esc(summaryBrief)}</div>`;
+        summaryEl.classList.add('show');
+      } else if(summaryNodes.length){
+        const summaryTitle=searchContext&&searchContext.human_summary?'Subconscious brief':'Search context';
+        if(searchContext&&searchContext.human_summary){
+          summaryEl.innerHTML =
+            `<div class="cloud-search-summary-title"><span>${esc(summaryTitle)}</span><span class="cloud-search-summary-meta">${summaryNodes.length} selected</span></div>`+
+            `<div class="cloud-search-summary-brief">${esc(searchContext.human_summary)}</div>`;
+          summaryEl.classList.add('show');
+          return;
+        }
+        const countPairs=(fn,limit=4)=>{
           const m=new Map();
           for(const n of summaryNodes){
             const key=fn(n);
             if(!key) continue;
             m.set(key,(m.get(key)||0)+1);
           }
-          return [...m.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,4).map(([k,v])=>`${v} ${k}`).join(' · ');
+          return [...m.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,limit);
         };
-        const statusLine=countBy(n=>taskDisplayStatus(n.t,byId).label.toLowerCase());
-        const kindLine=countBy(n=>n.t.kind==='note'?'notes':'tasks');
-        const snippet=(s,max=118)=>{
-          s=String(s||'').replace(/\s+/g,' ').trim();
-          return s.length>max?s.slice(0,max-1)+'…':s;
+        const labelCount=([k,v])=>`${v} ${k}`;
+        const statusPairs=countPairs(n=>taskDisplayStatus(n.t,byId).label.toLowerCase());
+        const kindPairs=countPairs(n=>n.t.kind==='note'?'notes':'tasks');
+        const statusLine=statusPairs.map(labelCount).join(' · ');
+        const kindLine=kindPairs.map(labelCount).join(' · ');
+        const naturalList=items=>{
+          items=items.filter(Boolean);
+          if(items.length<2) return items[0]||'';
+          if(items.length===2) return items.join(' and ');
+          return items.slice(0,-1).join(', ')+', and '+items[items.length-1];
         };
+        const plural=(n,s)=>`${n} ${s}${n===1?'':'s'}`;
+        const humanStatus=s=>String(s||'').replace(/_/g,' ').replace(/^done$/,'completed');
+        const statusItem=([k,v])=>`${v} ${humanStatus(k)} ${v===1?'item':'items'}`;
+        const topicTitles=summaryNodes.slice(0,3).map(n=>snippet((trace?.itemMeta?.get(n.id)||{}).title||n.t.label||n.id,52));
+        const dominant=statusPairs[0];
+        const statusText=dominant?`Most of the context is ${humanStatus(dominant[0])} work${dominant[1]>1?` (${dominant[1]} nodes)`:''}${statusPairs.length>1?', followed by '+naturalList(statusPairs.slice(1,3).map(statusItem)):''}`:'the results span mixed statuses';
+        const kindText=kindPairs.length?`The set includes ${naturalList(kindPairs.map(labelCount))}`:'';
+        const verdict=cleanLabel(searchContext&&searchContext.verdict);
+        const prediction=snippet(searchContext&&searchContext.prediction,150);
+        const confidence=percent(searchContext&&searchContext.confidence);
+        const stop=cleanLabel(searchContext&&searchContext.decisions&&searchContext.decisions.stop_reason);
+        const rounds=searchContext&&searchContext.decisions&&searchContext.decisions.rounds;
+        const filtered=searchContext&&Number(searchContext.filtered_count||0);
+        const sourceLead=searchContext
+          ? `Subconscious selected ${plural(summaryNodes.length,'context item')} for the foreground agent.`
+          : `Search fallback found ${plural(summaryNodes.length,'highlighted node')} that look relevant.`;
+        const verdictLine=searchContext&&verdict
+          ? `Verdict: ${verdict}${confidence?` (${confidence} confidence)`:''}${stop?`; stopped because ${stop}`:''}${rounds?` after ${rounds} search round${rounds===1?'':'s'}`:''}.`
+          : '';
+        const summaryBrief=[
+          `For "${snippet(q,54)}", ${sourceLead}`,
+          verdictLine,
+          prediction?`Overall signal: ${prediction}.`:'',
+          topicTitles.length?`The strongest signals point to ${naturalList(topicTitles)}.`:'',
+          `${statusText}. ${kindText}.`,
+          searchContext&&filtered?`${filtered} lower-value candidates were filtered out before this context was surfaced.`:''
+        ].filter(Boolean).join(' ');
         const itemRows=summaryNodes.slice(0,5).map(n=>{
           const meta=trace?.itemMeta?.get(n.id)||{};
           const ds=taskDisplayStatus(n.t,byId);
           const title=snippet(meta.title||n.t.label||n.id,64);
           const body=snippet(meta.summary||n.t.summary||n.t.description||n.t.note||'',126);
-          const source=meta.tier||meta.kind||ds.label;
-          return `<div class="cloud-search-summary-item"><b>${esc(title)}</b> <span>${esc(source)}</span>${body?`<div>${esc(body)}</div>`:''}</div>`;
+          const source=meta.searchMode||meta.tier||meta.kind||ds.label;
+          const reason=snippet(meta.reason,120);
+          const details=[body,reason?`Why selected: ${reason}`:''].filter(Boolean).map(line=>`<div>${esc(line)}</div>`).join('');
+          return `<div class="cloud-search-summary-item"><b>${esc(title)}</b> <span>${esc(source)}</span>${details}</div>`;
         }).join('');
         summaryEl.innerHTML =
-          `<div class="cloud-search-summary-title"><span>Search context</span><span class="cloud-search-summary-meta">${summaryNodes.length} highlighted</span></div>`+
+          `<div class="cloud-search-summary-title"><span>${esc(summaryTitle)}</span><span class="cloud-search-summary-meta">${summaryNodes.length} selected</span></div>`+
+          `<div class="cloud-search-summary-brief">${esc(summaryBrief)}</div>`+
           `<div class="cloud-search-summary-line">${esc([statusLine,kindLine].filter(Boolean).join(' · '))}</div>`+
           `<div class="cloud-search-summary-items">${itemRows}</div>`;
         summaryEl.classList.add('show');
@@ -6686,7 +7022,9 @@ function renderDagSubset(view, nodes, links, byId){
   const NW=250, NH_BASE=52, NH_EXTRA=16, CHARS_PER_LINE=32;
   const nodeLabel=t=>(t.kind==='note'?(t.validTo?'🕓 ':'📌 '):'')+t.label;
   const nodeLines=t=>wrapLabel(nodeLabel(t),CHARS_PER_LINE);
-  const nodeH=t=>NH_BASE+Math.max(0,nodeLines(t).length-1)*NH_EXTRA;
+  const nodeH=t=>NH_BASE+Math.max(0,nodeLines(t).length-1)*NH_EXTRA+(reviewCue(t)?14:0);
+  const titleY=t=>(nodeLines(t).length>1||reviewCue(t))?-nodeH(t)/2+18:6;
+  const statusY=t=>(nodeLines(t).length>1||reviewCue(t))?nodeH(t)/2-10:16;
   const g=new dagre.graphlib.Graph(); g.setGraph({rankdir:'LR', nodesep:24, ranksep:64, marginx:20, marginy:20}); g.setDefaultEdgeLabel(()=>({}));
   for(const t of nodes) g.setNode(t.id,{width:NW,height:nodeH(t)});
   for(const l of sub) g.setEdge(l.from,l.to,{kind:l.kind,w:l.w});
@@ -6754,6 +7092,7 @@ function renderDagSubset(view, nodes, links, byId){
   en.append('rect').attr('class','flbar').attr('width',4).attr('x',-NW/2);
   en.append('text').attr('class','ftxt').attr('fill','#e6edf3').attr('font-weight',600).attr('font-size',13);
   en.append('text').attr('class','fst').attr('x',-NW/2+12);
+  en.append('text').attr('class','frev').attr('text-anchor','end').attr('font-size',10).attr('font-weight',700);
   const na=en.merge(np);
   na.select('.fhalo').attr('x',-NW/2-4).attr('y',t=>-nodeH(t)/2-4).attr('width',NW+8).attr('height',t=>nodeH(t)+8);
   na.select('.fbg').attr('width',NW).attr('height',t=>nodeH(t)).attr('y',t=>-nodeH(t)/2);
@@ -6770,10 +7109,11 @@ function renderDagSubset(view, nodes, links, byId){
   na.attr('transform',t=>{ const n=g.node(t.id); return `translate(${n.x},${n.y})`+(isFocus(t)?' scale(1.12)':''); });
   na.select('.fbg').attr('fill','#161b22').attr('stroke',t=>isFocus(t)?'#e3b341':t.status==='in_progress'?'#58a6ff':t.id===selected?'#58a6ff':'#30363d').attr('stroke-width',t=>isFocus(t)?2.5:(t.status==='in_progress'||t.id===selected)?2:1);
   na.select('.flbar').attr('fill',t=>taskDisplayStatus(t,byId).color);
-  na.select('.ftxt').attr('y',t=>nodeLines(t).length>1?-nodeH(t)/2+18:6).each(function(t){ const ls=nodeLines(t); d3.select(this).selectAll('tspan').data(ls).join('tspan').attr('x',-NW/2+12).attr('dy',(d,i)=>i===0?0:NH_EXTRA+'px').text(d=>d); });
+  na.select('.ftxt').attr('y',titleY).each(function(t){ const ls=nodeLines(t); d3.select(this).selectAll('tspan').data(ls).join('tspan').attr('x',-NW/2+12).attr('dy',(d,i)=>i===0?0:NH_EXTRA+'px').text(d=>d); });
   // Superseded notes (validTo set) read as dimmed history; current/active notes stay full-opacity.
   na.attr('opacity', t=>(t.kind==='note'&&t.validTo)?0.5:1);
-  na.select('.fst').attr('fill',t=>taskDisplayStatus(t,byId).color).attr('y',t=>nodeLines(t).length>1?nodeH(t)/2-10:16).text(t=>taskStatusLine(t,byId));
+  na.select('.fst').attr('fill',t=>taskDisplayStatus(t,byId).color).attr('y',statusY).text(t=>taskStatusLine(t,byId));
+  na.select('.frev').attr('x',NW/2-12).attr('y',statusY).attr('fill',reviewCueColor).text(reviewCue);
   na.on('click',(ev,t)=>openDetail(t.id));
   na.classed('wip', t=>t.status==='in_progress'&&t.agent_id&&liveAgentIds.has(t.agent_id));   // left-to-right shine sweep
   na.classed('focused', isFocus);                   // steady amber halo on the focused node
@@ -6955,12 +7295,13 @@ function renderBackendPanel(){
     const r=bkProviderReadiness(prov);
     const isSel=prov.id===_bkSelected;
     const isActive=prov.id===activeId;
+    const detail=r.detail+(prov.defaultModel?(' - default '+prov.defaultModel):'');
     return `<label class="bk-prov${isSel?' active':''}">`
       +`<input type="radio" name="bk-prov" value="${esc(prov.id)}" ${isSel?'checked':''} onchange="selectBackendProvider('${esc(prov.id)}')" />`
       +`<span class="bk-main"><span class="bk-name">${esc(prov.displayName||prov.id)}`
       +`<span class="bk-kind">${esc(prov.kind||'?')}</span>`
       +(isActive?'<span class="bk-active-tag">active</span>':'')
-      +`</span><span class="bk-detail">${esc(r.detail)}</span></span>`
+      +`</span><span class="bk-detail">${esc(detail)}</span></span>`
       +`<span class="bk-badge ${r.ok?'ok':'bad'}">${esc(r.label)}</span>`
       +`</label>`;
   }).join('');
@@ -6972,6 +7313,8 @@ function updateAvNotice(){
   const box=document.getElementById('bk-avnotice');
   const prov=_bkData&&_bkData.providers.find(p=>p.id===_bkSelected);
   const kind=prov&&prov.kind;
+  const model=document.getElementById('bk-model');
+  if(model) model.placeholder=(prov&&prov.defaultModel)?('default: '+prov.defaultModel):'default for provider';
   if(bkShouldShowAvNotice(kind)){
     // Render `code` spans for the inline command/binary names; rest is escaped text.
     document.getElementById('bk-avnotice-body').innerHTML=
@@ -7086,6 +7429,8 @@ async function toggleBillingPopup(){
 
   const t=cf.totals||{};
   const bm=cf.by_model||{};
+  const serverCost=cf.cost||null;
+  const serverCostByModel=serverCost&&serverCost.by_model||{};
   const human=cf.human||{};
   const entries=(cd&&cd.entries)||[];
 
@@ -7096,13 +7441,23 @@ async function toggleBillingPopup(){
   const cronTotal=cronIn+cronOut+cronCache;
 
   // Cost helpers
-  const rateFor=m=>{ if(m.includes('opus')) return [15,75,1.5]; if(m.includes('haiku')) return [0.8,4,0.08]; if(m.includes('fable')) return [3,15,0.3]; return [3,15,0.3]; };
-  const modelCost=(m,v)=>{ const [ri,ro,rc]=rateFor(m); return ((v.input_tokens||0)*ri+(v.output_tokens||0)*ro+(v.cache_read||0)*rc)/1e6; };
-  const cronCost=entries.reduce((s,e)=>{ const [ri,ro,rc]=rateFor(e.model||''); return s+(e.input_tokens||0)*ri/1e6+(e.output_tokens||0)*ro/1e6+(e.cache_read_tokens||0)*rc/1e6; },0);
+  const cronRateFor=m=>{ if(m.includes('opus')) return [15,75,1.5]; if(m.includes('haiku')) return [0.8,4,0.08]; if(m.includes('fable')) return [3,15,0.3]; return [3,15,0.3]; };
+  const cronCost=entries.reduce((s,e)=>{ const [ri,ro,rc]=cronRateFor(e.model||''); return s+(e.input_tokens||0)*ri/1e6+(e.output_tokens||0)*ro/1e6+(e.cache_read_tokens||0)*rc/1e6; },0);
   const fmtUSD=v=>v<0.01?'<$0.01':v<1?'$'+v.toFixed(2):'$'+Math.round(v).toLocaleString();
   const fmtN=n=>n==null?'—':Number(n).toLocaleString();
 
-  const totalCost=Object.entries(bm).filter(([m])=>m!=='<synthetic>').reduce((s,[m,v])=>s+modelCost(m,v),0);
+  const sessionCost=serverCost?Number(serverCost.usd||0):0;
+  const sessionCostLabel=serverCost?`${fmtUSD(sessionCost)}${serverCost.source==='estimated'?' ≈':''}`:'—';
+  const costByCause=cf.cost_by_cause||cf.cause_ledger||{};
+  const causeColor={foreground:'#79c0ff',worker:'#3fb950',review:'#d29922',daemon:'#a371f7',auxiliary:'#8b949e',unknown:'#484f58'};
+  const causeRows=(costByCause.buckets||[]).filter(b=>b&&((b.tokens||0)>0||(b.usd||0)>0)).map(b=>{
+    const usd=Number(b.usd||0), tok=Number(b.tokens||0);
+    const sub=[tok>0?fmtK(tok)+' tok':null,b.records?b.records+' rec':null,b.session_count?b.session_count+' sessions':null].filter(Boolean).join(' · ');
+    return `<div class="bprow"><span class="bpdot" style="background:${causeColor[b.key]||'#8b949e'}"></span><span class="bplabel">${esc(b.label||b.key||'Unknown')}</span>`+
+      `<span class="bpnum" style="color:#6e7681;font-size:10px">${sub||'no token detail'}</span>`+
+      `<span class="bpcost">${usd>0?fmtUSD(usd):'—'}</span></div>`;
+  }).join('');
+  const causeTotal=costByCause.total?Number(costByCause.total.usd||0):0;
   const productive=t.productive||0, exploration=t.exploration||0, trapped=t.trapped||0;
   // econTok: DELTA basis (prod+expl+trap) — denominator for token-economy partition so buckets sum to ~100%
   const econTok=t.total||(productive+exploration+trapped)||0;
@@ -7115,12 +7470,12 @@ async function toggleBillingPopup(){
   const modelRows=Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&((bm[m].input_tokens||0)+(bm[m].output_tokens||0))>0)
     .sort(([,a],[,b])=>(b.output_tokens||0)-(a.output_tokens||0))
     .map(([m,v])=>{
-      const cost=modelCost(m,v);
+      const cost=serverCostByModel[m]&&serverCostByModel[m].usd!=null?Number(serverCostByModel[m].usd):null;
       const dot=m.includes('opus')?'#79c0ff':m.includes('fable')?'#d29922':m.includes('haiku')?'#3fb950':'#8b949e';
       const short=m.replace('claude-','').replace(/-\d{8}$/,'');
       return `<div class="bprow"><span class="bpdot" style="background:${dot}"></span><span class="bplabel">${short}</span>`+
         `<span class="bpnum" style="color:#6e7681;font-size:10px">in ${fmtK(v.input_tokens)} · out ${fmtK(v.output_tokens)} · cache ${fmtK(v.cache_read)}</span>`+
-        `<span class="bpcost">${fmtUSD(cost)}</span></div>`;
+        `<span class="bpcost">${cost!=null?fmtUSD(cost):'—'}</span></div>`;
     }).join('');
 
   el.innerHTML=
@@ -7132,21 +7487,22 @@ async function toggleBillingPopup(){
       `<div class="bpbar"><div class="bpbar-fill" style="width:${explPct}%;background:#e3b341"></div></div>`:'')+
     `<div class="bprow"><span class="bpdot" style="background:#484f58"></span><span class="bplabel">Trapped / wasted</span><span class="bpnum">${fmtK(trapped)}</span><span class="bpcost" style="color:#6e7681">${trapPct}%</span></div>`+
     `<div class="bpbar"><div class="bpbar-fill" style="width:${trapPct}%;background:#484f58"></div></div>`+
-    `<div style="font-size:10px;color:#6e7681;margin-top:4px">Total attributed: ${fmtK(econTok)} tok · <span style="color:#484f58">unrouted session tokens (subset of trapped): ${unroutedTokPopup}</span></div>`+
+    `<div style="font-size:10px;color:#6e7681;margin-top:4px">Total attributed: ${fmtK(econTok)} tok · <span style="color:#484f58">unrouted session remainder before graph flow: ${unroutedTokPopup}</span></div>`+
     `</div>`+
 
     `<div class="bpdiv"></div>`+
 
-    `<div class="bpsec"><h3>By Model <span style="font-size:9px;color:#484f58;font-weight:400">(gross billed)</span></h3>${modelRows}</div>`+
+    `<div class="bpsec"><h3>By Model <span style="font-size:9px;color:#484f58;font-weight:400">(gross billed, server-priced)</span></h3>${modelRows}</div>`+
 
     `<div class="bpdiv"></div>`+
 
-    `<div class="bptotal"><span>Task sessions est.</span><span style="color:#d29922">${fmtUSD(totalCost)}</span></div>`+
-    // Server-priced $ (CDX-3): cf.cost is the daemon-summed, adapter-priced (pricing.json) dollar
-    // overlay over per-slice cost.usd. "≈" marks an estimated rollup (some chars/4 fallback usage).
-    (cf.cost?`<div class="bprow" style="padding-top:2px"><span class="bpdot" style="background:#d29922"></span><span class="bplabel" title="Adapter-priced from pricing.json, daemon-summed per-slice cost.usd">server-priced ($/slice)</span><span class="bpcost">$${Number(cf.cost.usd||0).toFixed(2)}${cf.cost.source==='estimated'?' ≈':''}</span></div>`:'')+
+    `<div class="bptotal"><span title="Adapter-priced from pricing.json, daemon-summed per-slice cost.usd">Task sessions</span><span style="color:#d29922">${sessionCostLabel}</span></div>`+
     `<div class="bptotal" style="padding-top:4px"><span style="color:#6e7681;font-size:11px">+ cron/gate API cost (extra, not in sessions)</span><span style="color:#8b949e;font-size:11px">${fmtUSD(cronCost)}</span></div>`+
-    `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px;font-size:15px;font-weight:700"><span>Total est. <span style="font-size:10px;font-weight:400;color:#484f58">this project</span></span><span style="color:#d29922;font-size:18px">${fmtUSD(totalCost+cronCost)}</span></div>`+
+    `<div class="bptotal" style="border-top:1px solid #30363d;margin-top:6px;padding-top:8px;font-size:15px;font-weight:700"><span>Total est. <span style="font-size:10px;font-weight:400;color:#484f58">this project</span></span><span style="color:#d29922;font-size:18px">${fmtUSD(sessionCost+cronCost)}</span></div>`+
+    `<div class="bpdiv"></div>`+
+    `<div class="bpsec"><h3>By Cause <span style="font-size:9px;color:#484f58;font-weight:400">(task sessions)</span></h3>`+
+    (causeRows||`<div style="font-size:10px;color:#484f58">No task-session cause ledger available.</div>`)+
+    `<div style="font-size:10px;color:#6e7681;margin-top:5px">Cause total: ${fmtUSD(causeTotal)} · unknown is unclassified provenance, not productive work.</div></div>`+
     (()=>{
       const tasks=(delta&&delta.tasks_created)||[];
       const oldest=tasks.reduce((min,tk)=>{ const at=Date.parse(tk.firstSeen||''); return(at&&at<min)?at:min; },Infinity);
@@ -7191,7 +7547,7 @@ async function toggleBillingPopup(){
       let overflowLine='';
       if(plan.includes('overflow')&&wTotal&&wTotal>0&&allQ&&weeks&&weeks>0){
         const overflowFrac=Math.max(0,(wTotal-allQ)/wTotal);
-        const overflowMo=totalCost/weeks*4.33*overflowFrac;
+        const overflowMo=sessionCost/weeks*4.33*overflowFrac;
         overflowLine=`<div style="margin-top:4px;font-size:11px;color:#ff7b72">Est. API overflow: ~${fmtUSD(overflowMo)}/mo</div>`;
       }
       return `<div style="margin-top:12px;padding:10px 12px;background:#161b22;border-radius:6px;border-left:3px solid #d29922">`+
@@ -7218,10 +7574,17 @@ async function toggleBillingPopup(){
         `<div style="margin-top:5px;font-size:9px;color:#484f58">Anthropic does not publish real-time quota limits. Budget % is estimated from observed usage (Max 20× ≈ 80M/wk all-models).</div>`+
         `</div>`;
     })()+
-    `<div style="margin-top:8px;font-size:10px;color:#6e7681">Rates: Sonnet $3/$15/M · Opus $15/$75/M · Haiku $0.8/$4/M (input/output). Cache reads at 10% of input rate.</div>`+
+    `<div style="margin-top:8px;font-size:10px;color:#6e7681">Task-session dollars are server-priced from /costflow. Cron/gate API cost remains an auxiliary estimate from logged model hints.</div>`+
     `<div style="margin-top:6px;font-size:10px;color:#484f58">Data as of ${new Date().toLocaleTimeString()} · daemon re-reads transcripts every ~4s</div>`;
 }
-document.addEventListener('click', ev=>{ const p=document.getElementById('settingsPopup'); if(!p.classList.contains('show')) return; if(p.contains(ev.target)||(ev.target.closest&&ev.target.closest('.settings-btn'))) return; p.classList.remove('show'); });
+document.addEventListener('click', ev=>{
+  const p=document.getElementById('settingsPopup'); if(!p.classList.contains('show')) return;
+  if(ev.target===p){ p.classList.remove('show'); return; }
+  const panel=p.querySelector('.settings-panel');
+  if((panel&&panel.contains(ev.target))||(ev.target.closest&&ev.target.closest('.settings-btn'))) return;
+  p.classList.remove('show');
+});
+document.addEventListener('click', ev=>{ const p=document.getElementById('repoMenu'); if(!p||!p.classList.contains('open')) return; if(p.contains(ev.target)) return; closeRepoMenu(); });
 async function toggleCronPopup(){
   const p=document.getElementById('cronPopup'); p.classList.toggle('show');
   if(!p.classList.contains('show')) return;
@@ -7486,11 +7849,29 @@ let onboardAutoStartInFlight = false;
 let onboardPollTimer = null;
 const ONBOARD_POLL_MS = 1200;
 
+async function hasInjectedOnboardNotes() {
+  try {
+    const res = await dfetch('/search?q=ingest&k=5');
+    const data = await res.json();
+    // /search returns { results: [...] } or an array directly — handle both.
+    const items = Array.isArray(data) ? data : (data.results || []);
+    return items.some(n => n.kind === 'note' && typeof n.title === 'string' && n.title.startsWith('[ingest]'));
+  } catch (e) {
+    return null;
+  }
+}
+
 async function checkOnboardingState() {
   const workspace = currentOnboardWorkspace();
   const storedOutDir = localStorage.getItem(onboardStoreKey('outdir')) || '';
 
   if (workspace && !storedOutDir && localStorage.getItem(onboardCompletedKey()) === '1') {
+    completeOnboardLearning();
+    return;
+  }
+
+  const onboardNotesPresent = await hasInjectedOnboardNotes();
+  if (onboardNotesPresent === true) {
     completeOnboardLearning();
     return;
   }
@@ -7520,7 +7901,7 @@ async function checkOnboardingState() {
           return;
         }
       } catch (e) {
-        // No existing default/legacy queue; continue to note detection and auto-start.
+        // No existing default/legacy queue; continue to auto-start.
       }
     }
   }
@@ -7548,25 +7929,12 @@ async function checkOnboardingState() {
         return;
       }
     } catch (e) {
-      // Fall through to note detection and auto-start. The status endpoint may be
+      // Fall through to auto-start. The status endpoint may be
       // unavailable before the queue has been created.
     }
   }
 
-  let notes = [];
-  try {
-    const res = await dfetch('/search?q=ingest&k=5');
-    const data = await res.json();
-    // /search returns { results: [...] } or an array directly — handle both.
-    const items = Array.isArray(data) ? data : (data.results || []);
-    notes = items.filter(n => n.kind === 'note' && typeof n.title === 'string' && n.title.startsWith('[ingest]'));
-  } catch (e) {
-    // If the endpoint fails, skip the check silently.
-    return;
-  }
-
-  if (notes.length > 0) {
-    completeOnboardLearning();
+  if (onboardNotesPresent === null) {
     return;
   }
 
@@ -7871,7 +8239,7 @@ async function injectOnboardLearning() {
 // Run the onboarding check once after the first tick has a chance to populate state.
 // A short delay ensures the page has rendered before we potentially inject the banner.
 setTimeout(checkOnboardingState, 500);
-// Load the workspace picker once at boot (only shows when >1 workspace exists).
+// Load the header repo menu once at boot.
 loadWorkspacePicker();
 </script>
 </body>

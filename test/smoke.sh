@@ -129,7 +129,7 @@ chk "SSE pushed on change"      "$([ "$(grep -c 'data: changed' "$SSE_OUT")" -ge
 # edge add then remove (re-parallelize): add a context edge, then remove it
 jpost overlay/edge "$(printf '{"from":"%s","to":"%s","kind":"context"}' "$S/1" "$S/2")" >/dev/null
 chk "edge added"                "$(g state | jq '[.edges[]|select(.kind=="context")]|length')" "1"
-chk "edge removed"              "$(jpost overlay/edge/remove "$(printf '{"from":"%s","to":"%s"}' "$S/1" "$S/2")" | jq -r .removed)" "1"
+chk "edge removed"              "$(jpost overlay/edge/remove "$(printf '{"from":"%s","to":"%s","kind":"context"}' "$S/1" "$S/2")" | jq -r .removed)" "1"
 chk "edges empty after remove"  "$(g state | jq '[.edges[]|select(.kind=="context")]|length')" "0"
 
 # concurrency: cancel-wins-over-heartbeat + optimistic compare-and-set (409 on stale)
