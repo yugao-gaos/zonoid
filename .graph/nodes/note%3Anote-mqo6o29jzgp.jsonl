@@ -17,3 +17,4 @@
 {"evt":"edge_promoted","from":"note:note-mqo6o29jzgp","to":"codex/subconscious-skill-abtest-main-merge-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:23:32.931Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqo6o29jzgp","to":"codex/judge-subconscious-skill-abtest-main-merge-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-21T21:23:32.931Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqo6o29jzgp","to":"codex/subconscious-skill-promotion-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:13:50.141Z","weight":0.5,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqo6o29jzgp","to":"codex/subconscious-auto-skill-integration","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:48:42.385Z"}

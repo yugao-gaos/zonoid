@@ -18,3 +18,4 @@
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"note:note-mqd6hrlnbhp","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:58:59.803Z"}
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"note:note-mqeapqae6jf","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:58:59.803Z"}
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"codex/fix-stale-tested-verdict-requeue-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:58:59.803Z"}
+{"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"codex/fix-claim-permit-result-contract-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:43:43.886Z"}

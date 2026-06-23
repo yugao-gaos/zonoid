@@ -19,3 +19,4 @@
 {"evt":"edge_added","from":"note:note-mqiu7rp9366","to":"bench/bench-trial-23-0,1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:57:18.836Z","weight":0.566,"by":"judge","judged":true,"score":0.566,"origin":"autowire-semantic"}
 {"evt":"note_supersedes","id":"note-mqiu7rp9366","supersedes":"note-mqp5ek1qs96","ts":"2026-06-18T01:44:52.989Z","actor":"supersede"}
 {"evt":"edge_promoted","from":"note:note-mqiu7rp9366","to":"knowledge:source_chunk:chunk-contributing-md-5-2-sandboxed-daemon-convention-tests--d66a085242","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:03:08.095Z","weight":0.8,"by":"judge","judged":true,"score":0.8,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqiu7rp9366","to":"note:note-mqiu5v7wjfe","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:48:32.994Z","weight":0.746,"by":"judge","judged":true,"score":0.746,"origin":"autowire-semantic"}

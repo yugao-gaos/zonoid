@@ -25,3 +25,11 @@
 {"evt":"edge_added","from":"note:note-mqh250aamjb","to":"followup/judge-review-phase-1-distiller-impl-q0x0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.58,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqh250aamjb","to":"judge/bench-combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.554,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqh250aamjb","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.641,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqh250aamjb","to":"note:note-mqfla5ogbhw","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:47:46.832Z"}
+{"evt":"edge_removed","from":"note:note-mqh250aamjb","to":"note:note-mqh0t20gx45","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:47:46.832Z"}
+{"evt":"edge_removed","from":"note:note-mqh250aamjb","to":"note:note-mqflqx78zk2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:47:46.832Z"}
+{"evt":"edge_removed","from":"note:note-mqh250aamjb","to":"note:note-mqgtihmabbs","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:47:46.832Z"}
+{"evt":"edge_removed","from":"note:note-mqh250aamjb","to":"note:note-mqfmkwytf2n","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:47:46.832Z"}
+{"evt":"edge_removed","from":"note:note-mqh250aamjb","to":"followup/judge-review-phase-1-distiller-impl-q0x0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:47:46.832Z"}
+{"evt":"edge_removed","from":"note:note-mqh250aamjb","to":"judge/bench-combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:47:46.832Z"}
+{"evt":"edge_removed","from":"note:note-mqh250aamjb","to":"e90ac60e-72a4-49e3-b6c4-cdcdc2219c2f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:47:46.832Z"}

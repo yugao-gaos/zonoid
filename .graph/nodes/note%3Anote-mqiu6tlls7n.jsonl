@@ -19,3 +19,4 @@
 {"evt":"edge_removed","from":"note:note-mqiu6tlls7n","to":"knowledge:source_chunk:chunk-claude-md-6-1-standalone-tokens-in-title-note-titles-m-f0f2c933d5","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:35:02.274Z"}
 {"evt":"edge_removed","from":"note:note-mqiu6tlls7n","to":"note:note-mqiu6jpwect","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:35:02.274Z"}
 {"evt":"edge_removed","from":"note:note-mqiu6tlls7n","to":"bench/bench-trial-20-15","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:35:02.274Z"}
+{"evt":"edge_removed","from":"note:note-mqiu6tlls7n","to":"note:note-mqp5cpf20yd","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:48:32.994Z"}

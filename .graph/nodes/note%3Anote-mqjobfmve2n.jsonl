@@ -56,3 +56,4 @@
 {"evt":"edge_promoted","from":"note:note-mqjobfmve2n","to":"bench/combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:39:16.463Z","weight":0.605,"by":"judge","judged":true,"score":0.605,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqjobfmve2n","to":"note:note-mqgu5ovs60x","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:39:16.463Z"}
 {"evt":"edge_removed","from":"note:note-mqjobfmve2n","to":"note:note-mqgrel2bjak","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:39:16.463Z"}
+{"evt":"edge_removed","from":"note:note-mqjobfmve2n","to":"note:note-mqh250aamjb","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:50:19.015Z"}

@@ -12,3 +12,4 @@
 {"evt":"edge_added","from":"note:note-mqlapu0wi63","to":"codex/judge-fix-featurebench-dag-only-parity","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:32:17.291Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
 {"evt":"edge_removed","from":"note:note-mqlapu0wi63","to":"note:note-mqla8jyscw3","kind":"context","actor":"overlay-sync","ts":"2026-06-21T02:32:17.291Z"}
 {"evt":"edge_promoted","from":"note:note-mqlapu0wi63","to":"note:note-mql0nv0w8dp","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:46:02.649Z","weight":0.619,"by":"judge","judged":true,"score":0.619,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqlapu0wi63","to":"note:note-mqk931v48y3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:44:54.280Z"}
