@@ -5350,3 +5350,5 @@
 {"ts":1782223547441,"from":"note:note-mqqpqf49a5m","to":"note:note-mqqmixayq8m","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.32460554295021626,"cosine":0.789,"model_version":"v1"}
 {"ts":1782223659117,"from":"note:note-mqqmixayq8m","to":"codex/code-node-embed-enrich","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
 {"ts":1782223684447,"from":"note:note-mqqpqf49a5m","to":"codex/onboard-code-cli-sync","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5900866464627216,"cosine":1,"model_version":"v1"}
+{"ts":1782224447350,"from":"note:note-mqqlra053ej","to":"codex/code-node-embed-enrich","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782224447351,"from":"note:note-mqqpp70ivco","to":"codex/onboard-code-cli-sync","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5900866464627216,"cosine":1,"model_version":"v1"}
