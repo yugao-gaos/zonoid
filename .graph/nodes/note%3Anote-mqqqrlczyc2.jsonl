@@ -15,3 +15,5 @@
 {"evt":"edge_removed","from":"note:note-mqqqrlczyc2","to":"note:note-mqgtgbdm0mh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:33:20.891Z"}
 {"evt":"edge_removed","from":"note:note-mqqqrlczyc2","to":"knowledge:source_chunk:chunk-claude-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-ed1147fac7","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:33:20.891Z"}
 {"evt":"edge_removed","from":"note:note-mqqqrlczyc2","to":"note:note-mqgwhrs2aom","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:33:20.891Z"}
+{"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:35:21.058Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqqrlczyc2","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:35:21.058Z","weight":1}
