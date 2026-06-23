@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/token-accounting-attribution-audit",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-43245-226f0da4065461fca85c05b81aab1ed6",
+  "branch": "orch/attempt/codex-token-accounting-attribution-audit",
+  "status": "claimed",
+  "claimed_at": "2026-06-23T03:18:03.029Z",
+  "lease_until": "2026-06-23T04:18:03.029Z"
+}
