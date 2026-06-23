@@ -9,3 +9,4 @@
 {"evt":"edge_promoted","from":"note:note-mqh314qvxgo","to":"4b12fe1f-4bef-4c82-908d-0f07f56f3638/15","kind":"context","actor":"overlay-sync","ts":"2026-06-16T20:19:07.586Z","weight":1}
 {"evt":"edge_added","from":"note:note-mqh314qvxgo","to":"note:note-mqh2njkvhda","kind":"context","actor":"overlay-sync","ts":"2026-06-18T04:41:28.821Z","weight":0,"by":"autowire","judged":false,"score":0.789,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqh314qvxgo","to":"codex/fix-stale-tested-verdict-requeue-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:06:14.596Z","weight":0,"by":"autowire","judged":false,"score":0.577,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqh314qvxgo","to":"note:note-mqgudrqpuzc","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:53:14.371Z"}
