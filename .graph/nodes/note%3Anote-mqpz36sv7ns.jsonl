@@ -27,3 +27,9 @@
 {"evt":"edge_promoted","from":"note:note-mqpz36sv7ns","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:41:15.132Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqpz36sv7ns","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:44:47.214Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqpz36sv7ns","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:44:47.214Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpz36sv7ns","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:45:14.910Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpz36sv7ns","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:45:14.910Z","weight":1}
+{"evt":"edge_added","from":"note:note-mqpz36sv7ns","to":"codex/paper-code-retrieval-economy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:47:00.928Z","origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqpz36sv7ns","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:47:48.903Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpz36sv7ns","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:47:48.903Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqpz36sv7ns","to":"codex/paper-code-retrieval-economy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:48:49.074Z","weight":0,"by":"autowire","judged":false,"score":0.643,"origin":"autowire-semantic"}

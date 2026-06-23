@@ -14,3 +14,4 @@
 {"evt":"edge_added","from":"note:note-mqpna41fj59","to":"codex/search-economy-phase1b-cmm","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:55:55.002Z","origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqpna41fj59","to":"codex/search-economy-phase1b-cmm","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:30:21.554Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"note:note-mqpna41fj59","to":"codex/search-economy-phase1b-cmm","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:38:41.288Z"}
+{"evt":"edge_added","from":"note:note-mqpna41fj59","to":"codex/paper-code-retrieval-economy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:48:49.074Z","weight":0,"by":"autowire","judged":false,"score":0.698,"origin":"autowire-semantic"}
