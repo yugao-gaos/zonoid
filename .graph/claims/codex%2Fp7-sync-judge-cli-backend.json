@@ -3,7 +3,8 @@
   "git_user": "Yu Gao <yu.gao@gaos.ca>",
   "session_id": "c6dc7976-f69d-4ee2-a2c4-cbcff8471eab",
   "branch": "orch/attempt/codex-p7-sync-judge-cli-backend",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-23T04:20:25.710Z",
-  "lease_until": "2026-06-23T05:20:25.710Z"
+  "lease_until": "2026-06-23T05:20:25.710Z",
+  "completed_at": "2026-06-23T04:43:21.137Z"
 }
