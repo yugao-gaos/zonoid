@@ -6,3 +6,12 @@
 {"evt":"edge_added","from":"note:note-mqqtne9zs3u","to":"knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:51:14.958Z","weight":0,"by":"autowire","judged":false,"score":0.664,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqqtne9zs3u","to":"note:note-mq7fm2f2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:51:14.958Z","weight":0,"by":"autowire","judged":false,"score":0.633,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqqtne9zs3u","to":"note:note-mqe763h3dhy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:51:14.958Z","weight":0,"by":"autowire","judged":false,"score":0.631,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqqtne9zs3u","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:52:18.567Z","weight":1}
+{"evt":"edge_removed","from":"note:note-mqqtne9zs3u","to":"knowledge:source_chunk:note-mqqpqf49a5m#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:55:04.396Z"}
+{"evt":"edge_removed","from":"note:note-mqqtne9zs3u","to":"note:note-mqqt68limis","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:55:04.396Z"}
+{"evt":"edge_removed","from":"note:note-mqqtne9zs3u","to":"knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:55:04.396Z"}
+{"evt":"edge_removed","from":"note:note-mqqtne9zs3u","to":"note:note-mq7fm2f2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:55:04.396Z"}
+{"evt":"edge_removed","from":"note:note-mqqtne9zs3u","to":"note:note-mqe763h3dhy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:55:04.396Z"}
+{"evt":"edge_promoted","from":"note:note-mqqtne9zs3u","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:56:06.503Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqtne9zs3u","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:56:22.633Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqqtne9zs3u","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:56:46.435Z","weight":1}
