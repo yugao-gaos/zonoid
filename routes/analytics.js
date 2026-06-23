@@ -79,7 +79,14 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         const fromRec = usageAccounting.taskOutputFromRecords(T.ov, claim.id);
         if (fromRec > 0) return { total: fromRec, task_specific: true };
       }
-      if (tp) { const u2 = usageCached(tp); return { total: (u2 && u2.output_tokens) || 0 }; }
+      if (tp) {
+        if (activeHarness && activeHarness.name === 'codex' && activeHarness.usage && typeof activeHarness.usage.sample === 'function') {
+          const slice = activeHarness.usage.sample(tp, { transcript_path: tp });
+          return { total: (slice && slice.usage && slice.usage.output_tokens) || 0 };
+        }
+        const u2 = usageCached(tp);
+        return { total: (u2 && u2.output_tokens) || 0 };
+      }
       const aid = claim && claim.id && stWs.overlay.assignee[claim.id];
       const agent = aid && stWs.agents && stWs.agents[aid];
       const ru = agent && taskUsageFromAgent(agent);

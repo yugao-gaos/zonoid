@@ -2,8 +2,13 @@
 // Regression coverage for /costflow's route-level claim/session attribution glue.
 'use strict';
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const analyticsRoute = require('../routes/analytics');
 const { sessionCatchalls } = require('../lib/costflow');
+const codex = require('../lib/adapters/codex');
+const { taskTranscript } = require('../daemon.js');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -46,6 +51,89 @@ const { claimedOutputForSession } = analyticsRoute._internal;
   ok('claimedOutputForSession prefers transcript match over conflicting session id', byTranscript === 300 && bySession === 0);
 }
 
-console.log('-----');
-console.log(`${pass} passed, ${fail} failed`);
-process.exit(fail === 0 ? 0 : 1);
+async function runAsyncTests() {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'costflow-codex-'));
+  const routeWorkspace = path.join(__dirname, '..');
+  const fullId = '2026-06-22T09-58-03-019eef9f-bc70-7541-8f76-379400ff71e1';
+  const rolloutPath = path.join(tmp, 'rollout-' + fullId + '.jsonl');
+  try {
+    fs.writeFileSync(rolloutPath, [
+      JSON.stringify({ type: 'session_meta', payload: { model: 'gpt-5-codex' } }),
+      JSON.stringify({
+        type: 'event_msg',
+        payload: {
+          type: 'token_count',
+          info: { total_token_usage: { input_tokens: 1200, cached_input_tokens: 200, output_tokens: 1000 } },
+        },
+      }),
+    ].join('\n') + '\n');
+    fs.utimesSync(rolloutPath, new Date('2026-06-22T10:20:00.000Z'), new Date('2026-06-22T10:20:00.000Z'));
+
+    const taskA = 'codex/task-a';
+    const taskB = 'codex/task-b';
+    const ov = {
+      assignee: {},
+      timestamps: {
+        [taskA]: { firstSeen: '2026-06-22T10:00:00.000Z', lastChanged: '2026-06-22T10:15:00.000Z' },
+        [taskB]: { firstSeen: '2026-06-22T10:15:00.000Z', lastChanged: '2026-06-22T10:20:00.000Z' },
+      },
+      work_sessions: {
+        [taskA]: [{ start_ts: '2026-06-22T10:00:00.000Z', end_ts: '2026-06-22T10:15:00.000Z' }],
+        [taskB]: [{ start_ts: '2026-06-22T10:15:00.000Z', end_ts: '2026-06-22T10:20:00.000Z' }],
+      },
+      usage_records: {},
+      usage_reconcile_snapshot: {
+        harness: 'codex',
+        totals: { input_tokens: 1000, output_tokens: 1000, cache_read_input_tokens: 200, cache_creation_input_tokens: 0, by_model: {} },
+        cost: { usd: 0, source: 'real', by_model: {} },
+        human: { tokens: 0, chars: 0, messages: 0, dropped: 0 },
+        sessions: [{ id: fullId, path: rolloutPath, total: 1000, model: 'gpt-5-codex' }],
+      },
+      edges: [],
+      guidance: [],
+    };
+    const st = { sessions: {}, overlay: ov, agents: {} };
+    ok('taskTranscript resolves Codex rollout by claim window', taskTranscript(taskA, 'codex', true, st) === rolloutPath);
+
+    const tasks = [
+      { id: taskA, kind: 'task', session: 'codex', firstSeen: '2026-06-22T10:00:00.000Z', lastChanged: '2026-06-22T10:15:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex task A' },
+      { id: taskB, kind: 'task', session: 'codex', firstSeen: '2026-06-22T10:15:00.000Z', lastChanged: '2026-06-22T10:20:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex task B' },
+    ];
+    const res = {};
+    const route = analyticsRoute({
+      send(_res, code, body) { _res.statusCode = code; _res.body = body; },
+      buildGraph() { return { tasks, ghosts: [] }; },
+      state: { sessions: {} },
+      targetOverlay() { return { ws: routeWorkspace, ov, save() {} }; },
+      taskTranscript,
+      usageCached() { return { output_tokens: 0 }; },
+      respCacheGet() { return undefined; },
+      respCachePut(_ws, _key, body) { return body; },
+      isTruthy: Boolean,
+      now() { return '2026-06-22T10:21:00.000Z'; },
+      harness: codex,
+      harnessRegistry: { get(name) { if (name === 'codex') return codex; throw new Error(name); } },
+      notifyChange() {},
+      CATCHALL_ESCALATE_TOKENS: 1e9,
+    });
+    const handled = await route('/costflow', 'GET', {}, res, new URL(`http://127.0.0.1/costflow?workspace=${encodeURIComponent(routeWorkspace)}`), null);
+    ok('/costflow route handled Codex fixture', handled === true && res.statusCode === 200);
+    const ownByTask = Object.fromEntries((res.body.results || []).map((r) => [r.task, r.own]));
+    ok('/costflow splits Codex rollout own tokens by task windows', ownByTask[taskA] === 750 && ownByTask[taskB] === 250);
+    ok('/costflow subtracts claimed Codex rollout tokens from catch-all remainder', res.body.sessions.unattributed === 0);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+runAsyncTests().then(() => {
+  console.log('-----');
+  console.log(`${pass} passed, ${fail} failed`);
+  process.exit(fail === 0 ? 0 : 1);
+}).catch((err) => {
+  console.error(err && err.stack ? err.stack : err);
+  fail++;
+  console.log('-----');
+  console.log(`${pass} passed, ${fail} failed`);
+  process.exit(1);
+});
