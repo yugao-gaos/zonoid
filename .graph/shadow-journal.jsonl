@@ -5266,3 +5266,5 @@
 {"ts":1782189379947,"from":"note:note-mqq5a6voihw","to":"knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-2","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.4284246002171009,"cosine":0.677,"model_version":"v1"}
 {"ts":1782189489636,"from":"note:note-mqq5a6voihw","to":"note:note-mqpv6qx0gzv","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.2918862979751069,"cosine":0.713,"model_version":"v1"}
 {"ts":1782189543291,"from":"note:note-mqq5a6voihw","to":"note:note-mqq2xj787yq","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.2969227129483287,"cosine":0.725,"model_version":"v1"}
+{"ts":1782189972555,"from":"codex/p7-sync-judge-cli-backend","to":"codex/onboard-code-cli-sync-judge","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.6004703546407155,"cosine":0.595,"model_version":"v1"}
+{"ts":1782190034959,"from":"codex/p7-sync-judge-cli-backend-judge","to":"codex/p7-sync-judge-cli-backend","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6510399162679708,"cosine":0.702,"model_version":"v1"}
