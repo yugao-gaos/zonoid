@@ -8,3 +8,4 @@
 {"evt":"edge_added","from":"note:note-mqolegq2416","to":"codex/reconcile-post-subconscious-feature-with-main-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T08:30:36.188Z","weight":0,"by":"autowire","judged":false,"score":0.647,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqolegq2416","to":"note:note-mqn7x0d9lv8","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:16:54.053Z","weight":0.641,"by":"judge","judged":true,"score":0.641,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqolegq2416","to":"note:note-mqh2eifaveh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:14:34.054Z"}
+{"evt":"edge_removed","from":"note:note-mqolegq2416","to":"codex/reconcile-post-subconscious-feature-with-main-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:43.148Z"}

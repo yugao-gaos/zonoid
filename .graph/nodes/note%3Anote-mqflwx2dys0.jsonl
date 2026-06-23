@@ -23,3 +23,4 @@
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"note:note-mqf9al6pjvv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:09:27.795Z"}
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"note:note-mqf9plgeajc","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:09:27.795Z"}
 {"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"codex/fix-graph-dispatch-invariants-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:09:27.795Z"}
+{"evt":"edge_removed","from":"note:note-mqflwx2dys0","to":"note:note-mqfl8pb1gu0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:17:30.013Z"}
