@@ -1522,9 +1522,9 @@ const SUGGEST_STOP = new Set(['the', 'and', 'for', 'task', 'with', 'that', 'this
 const suggestToks = (s) => new Set((String(s || '').toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter((w) => !SUGGEST_STOP.has(w)));
 const SUGGEST_DUP_THRESHOLD = 0.6;   // high label/summary overlap with an OPEN task ⇒ likely a re-plan duplicate
 // Semantic-scale duplicate bar for scoreMatchesSemantic's cosine path. MiniLM cosine runs hotter than
-// token overlap: ~0.55 is merely "related" (SEMANTIC_AUTOWIRE_THRESHOLD), so a DUPLICATE must sit well
-// above that — ~0.85 ≈ near-paraphrase / same task re-planned. High-precision initial estimate (a false
-// dup-warning only nudges supersede; a miss just lets a dup through), calibrate as data accrues.
+// token overlap: ~0.55 is merely "related", so a DUPLICATE must sit well above that — ~0.85 ≈
+// near-paraphrase / same task re-planned. High-precision initial estimate (a false dup-warning only
+// nudges supersede; a miss just lets a dup through), calibrate as data accrues.
 const SEMANTIC_DUP_THRESHOLD = 0.85;
 // Score a single node's label+summary against a precomputed set of QUERY tokens (`qt`), using the
 // IDENTICAL cosine-style token-overlap as scoreMatchesSemantic's lexical fallback — but anchored on a free-text query instead
@@ -1670,9 +1670,11 @@ function scoreMatchesSemantic(g, target, targetVec, options = {}) {
 // than lexical token-overlap (related prose lands ~0.4–0.7 cosine, where it scored ~0 lexically), so
 // the lexical 0.25 bar is wrong here — it would wire nearly everything into a clique. Tuned on the
 // post-backfill cloude corpus (128 notes); see STEP 2. Used only by the semantic note-wiring path.
-// ENV OVERRIDE: ORCH_AUTOWIRE_THRESHOLD (bench daemons set this to ~0 so the eager-judge sees the
-// full top-K reranked pool instead of a cosine cutoff; production stays at 0.55 by default).
-const SEMANTIC_AUTOWIRE_THRESHOLD = process.env.ORCH_AUTOWIRE_THRESHOLD !== undefined ? parseFloat(process.env.ORCH_AUTOWIRE_THRESHOLD) : 0.55;
+// Production now seeds the top-per-kind autowire candidates unconditionally and the eager-judge
+// arbitrates; cosine is a ranking signal, not a floor. Every new node seeds up to TASK_CREATE_FANOUT
+// (=5) notes + 5 tasks and triggers an eager-judge pass; bounded by FANOUT.
+// ENV OVERRIDE: ORCH_AUTOWIRE_THRESHOLD (env-overridable for bench or tuning runs).
+const SEMANTIC_AUTOWIRE_THRESHOLD = process.env.ORCH_AUTOWIRE_THRESHOLD !== undefined ? parseFloat(process.env.ORCH_AUTOWIRE_THRESHOLD) : 0;
 // Auto-wire a NOTE as a context PROVIDER: write weighted context edges (note -> neighbor) so the
 // note's summary flows INTO each relevant open task instead of the note sitting as an orphan root.
 // The note FEEDS existing consumers (the inverse of a consumer pulling in providers). `g` is the rebuilt graph; the note need not be in `g` yet (we build
