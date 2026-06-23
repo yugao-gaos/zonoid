@@ -3,3 +3,4 @@
 {"evt":"edge_added","from":"note:note-mqp5akln5h3","to":"knowledge:source_chunk:chunk-claude-md-2-8-an-interactive-session-that-edits-code-d-34c8218bfc","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:41:38.475Z","weight":0,"by":"autowire","judged":false,"score":0.644,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqp5akln5h3","to":"knowledge:source_chunk:chunk-agents-md-2-8-an-interactive-session-that-edits-code-d-76be713dcc","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:33:33.596Z"}
 {"evt":"edge_removed","from":"note:note-mqp5akln5h3","to":"knowledge:source_chunk:chunk-claude-md-2-8-an-interactive-session-that-edits-code-d-34c8218bfc","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:33:33.596Z"}
+{"evt":"edge_added","from":"note:note-mqp5akln5h3","to":"note:note-mq82f35x3nh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:33:59.147Z","by":"judge","judged":true}

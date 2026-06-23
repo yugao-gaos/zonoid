@@ -19,3 +19,4 @@
 {"evt":"edge_removed","from":"note:note-mqp5a3fxoit","to":"note:note-mq7hefd9gvi","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:33:33.596Z"}
 {"evt":"edge_removed","from":"note:note-mqp5a3fxoit","to":"knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:33:33.596Z"}
 {"evt":"edge_removed","from":"note:note-mqp5a3fxoit","to":"note:note-mq75a80y","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:33:33.596Z"}
+{"evt":"edge_added","from":"note:note-mqp5a3fxoit","to":"note:note-mqp59ulbxqf","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:33:59.147Z","by":"judge","judged":true}
