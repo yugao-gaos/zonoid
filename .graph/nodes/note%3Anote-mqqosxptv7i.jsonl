@@ -6,3 +6,12 @@
 {"evt":"edge_added","from":"note:note-mqqosxptv7i","to":"note:note-mqenr7fsfkq","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:35:35.165Z","weight":0,"by":"autowire","judged":false,"score":0.642,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqqosxptv7i","to":"note:note-mq7gh2hy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:35:35.165Z","weight":0,"by":"autowire","judged":false,"score":0.63,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqqosxptv7i","to":"note:note-mqeo3v9kn6i","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:35:35.165Z","weight":0,"by":"autowire","judged":false,"score":0.625,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqqosxptv7i","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:40:50.303Z","weight":0.643,"by":"judge","judged":true,"score":0.643,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqqosxptv7i","to":"note:note-mqq1rh9jnxp","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:40:50.303Z","weight":0.787,"by":"judge","judged":true,"score":0.787,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"note:note-mqenr7fsfkq","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:40:50.303Z"}
+{"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"note:note-mq7gh2hy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:40:50.303Z"}
+{"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"note:note-mqeo3v9kn6i","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:40:50.303Z"}
+{"evt":"note_supersedes","id":"note-mqqosxptv7i","supersedes":"note-mqq1rh9jnxp","ts":"2026-06-23T13:35:32.273Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mqqosxptv7i","to":"codex/p1-sync-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:41:21.897Z","weight":1,"judged":true}
+{"evt":"edge_added","from":"note:note-mqqosxptv7i","to":"codex/p6-strict-judging-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:41:21.897Z","weight":1,"judged":true}
+{"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"note:note-mqq1rh9jnxp","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:41:21.897Z"}

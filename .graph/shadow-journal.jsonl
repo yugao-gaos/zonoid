@@ -5323,3 +5323,13 @@
 {"ts":1782221698550,"from":"note:note-mqeo9elelvo","to":"codex/fix-stale-reaper-readiness","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
 {"ts":1782221698551,"from":"note:note-mqgufbod1fe","to":"codex/fix-stale-reaper-readiness","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
 {"ts":1782221698551,"from":"note:note-mqq1rh9jnxp","to":"codex/fix-stale-reaper-readiness","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782222050268,"from":"note:note-mqqosxptv7i","to":"codex/fix-stale-reaper-readiness","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.4116915613679582,"cosine":0.643,"model_version":"v1"}
+{"ts":1782222050269,"from":"note:note-mqqosxptv7i","to":"note:note-mq7gh2hy","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.25846967931577647,"cosine":0.63,"model_version":"v1"}
+{"ts":1782222050270,"from":"note:note-mqqosxptv7i","to":"note:note-mqenr7fsfkq","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2631437695663727,"cosine":0.642,"model_version":"v1"}
+{"ts":1782222050271,"from":"note:note-mqqosxptv7i","to":"note:note-mqeo3v9kn6i","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2565381803681958,"cosine":0.625,"model_version":"v1"}
+{"ts":1782222050272,"from":"note:note-mqqosxptv7i","to":"note:note-mqq1rh9jnxp","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.32372025784624275,"cosine":0.787,"model_version":"v1"}
+{"ts":1782222084317,"from":"note:note-mqqosxptv7i","to":"codex/fix-stale-reaper-readiness","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.4116915613679582,"cosine":0.643,"model_version":"v1"}
+{"ts":1782222084318,"from":"note:note-mqqosxptv7i","to":"note:note-mqq1rh9jnxp","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782222084318,"from":"note:note-mqqosxptv7i","to":"note:note-mq7gh2hy","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782222084319,"from":"note:note-mqqosxptv7i","to":"note:note-mqenr7fsfkq","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782222084320,"from":"note:note-mqqosxptv7i","to":"note:note-mqeo3v9kn6i","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
