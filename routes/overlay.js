@@ -458,15 +458,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     if (b.status === 'in_progress' && T.ov.unwired && T.ov.unwired[b.key]) {
       send(res, 409, { ok: false, error: 'task is unwired — if you are a worker agent, call request_guidance to escalate to your dispatcher (do NOT mark_root just to unblock yourself); if you created this task, wire it with add_dependency (blocking/context), or mark_root only if it is genuinely a standalone root' }); return true;
     }
-    // JUDGING→READY gate (task D) — ADDITIVE: refuse a claim while the task is still in the 'judging'
-    // phase (outstanding unjudged autowire candidate edges within the timeout). Its inherited context
-    // is provisional until the judge keeps/prunes those edges (eager path C is the happy case). NOT a
-    // deadlock: once the edges sit unjudged past judgingTimeoutMs the task falls back to ready and this
-    // arm no longer fires (timedOut → not judging), so a judge hiccup can never permanently block it.
+    // JUDGING→READY gate (task D / P6 STRICT) — ADDITIVE: refuse a claim while the task still carries
+    // ANY unjudged autowire candidate edge. Its inherited context is provisional until the judge
+    // keeps/prunes those edges (eager path C is the happy case). P6: this gate is STRICT — there is NO
+    // time-based release (the former judging timeout was removed). The task stays held until the
+    // candidate set actually drains; if the eager judge stalls, drain it on demand with
+    // `node scripts/judge-drain-once.js --node <task_key> --workspace <ws>` (no state is permanently
+    // un-claimable — both the eager judge and that CLI can drain it).
     if (b.status === 'in_progress' && !b.force) {
-      const _js = judge.judgingState(T.ov, b.key, Date.now(), judge.judgingTimeoutMs(T.ov), judge.judgingHardCeilingMs(T.ov));
-      if (_js.judging && !_js.timedOut) {
-        send(res, 409, { ok: false, error: 'task wirings not yet judged — this task is in the judging phase (unjudged autowire context edges); its inherited context is provisional. Wait for the eager judge to keep/prune them (it dispatches automatically), or it falls back to claimable after the judging timeout.' }); return true;
+      const _js = judge.judgingState(T.ov, b.key);
+      if (_js.judging) {
+        send(res, 409, { ok: false, error: 'task wirings not yet judged — this task is in the judging phase (unjudged autowire context edges); its inherited context is provisional. Wait for the eager judge to keep/prune them (it dispatches automatically on node-add), or drain it on demand: node scripts/judge-drain-once.js --node ' + b.key + ' --workspace <ws>. There is no time-based auto-release.' }); return true;
       }
     }
     if (b.status === 'in_progress' && T.ov.metrics && T.ov.metrics[b.key]) {
