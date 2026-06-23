@@ -66,12 +66,54 @@
           "$ref": "#/definitions/agentic_search_context",
           "description": "Optional Subconscious-owned filtered context envelope. Dispatchers copy this from subconscious_assignment/search-context instead of exposing raw search_knowledge results to workers."
         },
+        "progressive_disclosure_context": {
+          "$ref": "#/definitions/progressive_disclosure_context",
+          "description": "Optional layered live-agent context. Layer 1 is concise/actionable, Layer 2 carries required summaries, and Layer 3 provides drill-down handles for deeper context."
+        },
         "return_contract": {
           "$ref": "#/definitions/task_result",
           "description": "The shape the worker must return. Reference to task_result so envelope and result stay coupled to one version."
         }
       },
       "required": ["version", "task_key", "agent_id", "branch", "target_repo", "plan_goal", "sibling_tasks", "return_contract"],
+      "additionalProperties": false
+    },
+    "progressive_disclosure_context": {
+      "type": "object",
+      "title": "progressive_disclosure_context",
+      "description": "Additive layered context for live agents. Consumers may ignore this object and continue using legacy context fields.",
+      "properties": {
+        "version": { "const": 1 },
+        "layer_1": {
+          "type": "object",
+          "properties": {
+            "task": { "type": "object", "additionalProperties": true },
+            "why": { "type": "string" },
+            "next_action": { "type": "string" },
+            "must_know_constraints": { "type": "array", "items": { "type": "string" } },
+            "blockers": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+          },
+          "required": ["task", "why", "next_action", "must_know_constraints", "blockers"],
+          "additionalProperties": false
+        },
+        "layer_2": {
+          "type": "object",
+          "properties": {
+            "required_context": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+          },
+          "required": ["required_context"],
+          "additionalProperties": false
+        },
+        "layer_3": {
+          "type": "object",
+          "properties": {
+            "drill_down_handles": { "type": "object", "additionalProperties": true }
+          },
+          "required": ["drill_down_handles"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["version", "layer_1", "layer_2", "layer_3"],
       "additionalProperties": false
     },
     "agentic_search_context": {

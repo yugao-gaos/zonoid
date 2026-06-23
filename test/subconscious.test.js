@@ -780,6 +780,25 @@ test('subconscious assignment prepare records same-node review request without v
   assert.equal(res.body.assignment.next_expected_worker_action, 'subconscious_assignment.accept');
   assert.deepEqual(res.body.assignment.context.parent_task_keys, ['codex/parent']);
   assert.deepEqual(res.body.assignment.context.context_task_keys, ['note:ctx']);
+  assert.equal(res.body.assignment.progressive_disclosure_context.version, 1);
+  assert.strictEqual(
+    res.body.assignment.context.progressive_disclosure_context,
+    res.body.assignment.progressive_disclosure_context
+  );
+  assert.equal(res.body.assignment.progressive_disclosure_context.layer_1.task.key, 'codex/impl');
+  assert.match(res.body.assignment.progressive_disclosure_context.layer_1.next_action, /subconscious_assignment\.accept/);
+  assert.deepEqual(
+    res.body.assignment.progressive_disclosure_context.layer_2.required_context.map((item) => [item.key, item.via, item.priority]),
+    [['codex/parent', 'blocking', 1], ['note:ctx', 'context', 2]]
+  );
+  assert.deepEqual(
+    res.body.assignment.progressive_disclosure_context.layer_3.drill_down_handles.tasks.map((item) => item.key),
+    ['codex/parent']
+  );
+  assert.deepEqual(
+    res.body.assignment.progressive_disclosure_context.layer_3.drill_down_handles.notes.map((item) => item.key),
+    ['note:ctx']
+  );
   assert.equal(ov.snapshots['codex/impl'].subject, 'Implement assignment facade');
   assert.equal(ov.snapshots['codex/impl-judge'], undefined);
   assert(ov.edges.some((e) => e.from === 'codex/parent' && e.to === 'codex/impl' && !e.kind));
@@ -1090,6 +1109,14 @@ test('subconscious assignment prepare carries and wires agentic search context e
   assert(res.body.assignment.context.agentic_search_context.decisions.stop_reason);
   assert(res.body.assignment.context.context_task_keys.includes('note:dag'));
   assert(res.body.assignment.context.dependency_summaries.some((summary) => summary.key === 'note:dag' && summary.via === 'subconscious_agentic_search'));
+  const progressiveContext = res.body.assignment.progressive_disclosure_context;
+  assert(progressiveContext.layer_2.required_context.some((summary) =>
+    summary.key === 'note:dag' &&
+    summary.via === 'subconscious_agentic_search' &&
+    summary.priority === 1
+  ));
+  assert(progressiveContext.layer_2.required_context.every((summary) => String(summary.summary || '').length <= 360));
+  assert.equal(progressiveContext.layer_3.drill_down_handles.full_trace.task_detail, '/task/detail?key=codex%2Fimpl&include_internal=1');
   assert(ov.edges.some((edge) =>
     edge.from === 'note:dag' &&
     edge.to === 'codex/impl' &&
@@ -1098,6 +1125,51 @@ test('subconscious assignment prepare carries and wires agentic search context e
     edge.judged === true &&
     edge.origin === 'subconscious-agentic-search'
   ));
+});
+
+test('subconscious assignment read includes progressive disclosure from graph dependencies', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore();
+  const ov = overlayStore.EMPTY();
+  overlayStore.setGit(ov, 'codex/read', {
+    branch: 'orch/attempt/codex-read',
+    worktree: path.join(ws, 'attempt'),
+  });
+  const ctx = makeCtx({
+    graph: {
+      tasks: [
+        node('codex/read', 'Read assignment context', {
+          status: 'in_progress',
+          deps: ['codex/blocker'],
+          context_deps: ['note:ctx'],
+          summary: 'Read route should reconstruct cheap live-agent context.',
+        }),
+        node('codex/blocker', 'Blocking prerequisite', { summary: 'blocking summary' }),
+        node('note:ctx', 'Context note', { kind: 'note', summary: 'context summary' }),
+      ],
+    },
+    workspace: ws,
+    store,
+    body: null,
+    overlay: ov,
+  });
+
+  const res = await callRoute(
+    ctx,
+    `/subconscious/assignment?workspace=${encodeURIComponent(ws)}&task_key=codex%2Fread`,
+    null,
+    'GET'
+  );
+
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.assignment.context.parent_task_keys, ['codex/blocker']);
+  assert.deepEqual(res.body.assignment.context.context_task_keys, ['note:ctx']);
+  assert.equal(res.body.assignment.progressive_disclosure_context.layer_1.blockers[0].key, 'codex/blocker');
+  assert.deepEqual(
+    res.body.assignment.progressive_disclosure_context.layer_2.required_context.map((item) => item.key),
+    ['codex/blocker', 'note:ctx']
+  );
+  assert.equal(res.body.assignment.progressive_disclosure_context.layer_3.drill_down_handles.prior_attempts[0].branch, 'orch/attempt/codex-read');
 });
 
 test('subconscious_loop MCP tool forwards to loop routes', async () => {

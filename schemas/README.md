@@ -17,6 +17,9 @@ reads `context_deps` as pre-resolved Tier-1 base context.
 - **Plugs into:** the Agent-tool `schema` option at dispatch (**T3**). The dispatcher builds the
   envelope (resolving `context_deps` from `get_dependency_summaries` + note summaries) and passes
   it as the structured input the worker receives.
+- `progressive_disclosure_context` is optional and additive. Layer 1 contains concise task/why/
+  next-action/constraint/blocker context, Layer 2 contains required dependency summaries, and
+  Layer 3 contains handles for deeper note/task/file/prior-attempt/full-trace lookup.
 - `return_contract` is a `$ref` to `task_result`, so the worker is told the exact return shape.
 
 ## `task_result` — inbound (worker → daemon)

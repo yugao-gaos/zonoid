@@ -118,6 +118,85 @@ function summaryForKey(graph, ov, key, via) {
   };
 }
 
+function truncateText(value, max = 360) {
+  const text = cleanString(value);
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 3)).trimEnd()}...`;
+}
+
+function taskForKey(graph, key) {
+  return graph && Array.isArray(graph.tasks) ? graph.tasks.find((x) => x.id === key) : null;
+}
+
+function compactDependencySummary(summary, index) {
+  return {
+    key: summary.key,
+    label: truncateText(summary.label, 120),
+    status: summary.status,
+    summary: truncateText(summary.summary, 360),
+    via: summary.via,
+    priority: index + 1,
+    relevance_score: summary.relevance_score == null ? null : summary.relevance_score,
+    reason: summary.reason ? truncateText(summary.reason, 220) : null,
+  };
+}
+
+function buildProgressiveDisclosureContext(graph, ov, taskKey, dependencySummaries) {
+  const task = taskForKey(graph, taskKey);
+  const snapshot = ov.snapshots && ov.snapshots[taskKey];
+  const status = (task && task.status) || ov.status[taskKey] || (snapshot && snapshot.status) || 'pending';
+  const title = (task && task.label) || (snapshot && snapshot.subject) || taskKey;
+  const description = (snapshot && snapshot.description) || (task && task.summary) || ov.summaries[taskKey] || '';
+  const blocking = dependencySummaries
+    .filter((summary) => summary.via === 'blocking')
+    .map(compactDependencySummary);
+  const requiredContext = dependencySummaries.map(compactDependencySummary);
+  const files = new Set();
+  const attempts = [];
+  const gitInfo = (ov.git && ov.git[taskKey]) || null;
+  if (gitInfo && gitInfo.worktree) attempts.push({ task_key: taskKey, branch: gitInfo.branch || null, worktree: gitInfo.worktree });
+  const metadataFiles = snapshot && snapshot.metadata && Array.isArray(snapshot.metadata.files_in_scope)
+    ? snapshot.metadata.files_in_scope
+    : [];
+  for (const file of metadataFiles) {
+    const cleaned = cleanString(file);
+    if (cleaned) files.add(cleaned);
+  }
+  return {
+    version: 1,
+    layer_1: {
+      task: {
+        key: taskKey,
+        title: truncateText(title, 140),
+        status,
+        summary: truncateText(description || title, 360),
+      },
+      why: truncateText(description || `Complete ${title}.`, 360),
+      next_action: 'Claim the assignment with subconscious_assignment.accept, work in the assigned worktree, commit changes, then complete with task_result.',
+      must_know_constraints: [
+        'Preserve existing assignment fields and consumers.',
+        'Keep default context concise; use drill-down handles for deeper payloads.',
+      ],
+      blockers: blocking,
+    },
+    layer_2: {
+      required_context: requiredContext,
+    },
+    layer_3: {
+      drill_down_handles: {
+        notes: requiredContext.filter((summary) => String(summary.key || '').startsWith('note:')).map((summary) => ({ key: summary.key, label: summary.label })),
+        tasks: requiredContext.filter((summary) => !String(summary.key || '').startsWith('note:')).map((summary) => ({ key: summary.key, label: summary.label, status: summary.status })),
+        files: Array.from(files).map((path) => ({ path })),
+        prior_attempts: attempts,
+        full_trace: {
+          task_detail: `/task/detail?key=${encodeURIComponent(taskKey)}&include_internal=1`,
+          task_context: `/task/context?key=${encodeURIComponent(taskKey)}`,
+        },
+      },
+    },
+  };
+}
+
 function contextQueryForAssignment(body) {
   return cleanString(body.context_query || body.query || body.situation);
 }
@@ -150,12 +229,16 @@ function buildAssignmentEnvelope(ctx, T, input) {
   const lifecycle = overlayStore.reviewLifecycleFor(T.ov, taskKey, T.ov.status && T.ov.status[taskKey]);
   const reviewRequested = input.review_requested === true || lifecycle.review_state === 'requested' || lifecycle.review_state === 'pending';
   const repoPath = input.repo_path || (T.ov.repos && T.ov.repos[taskKey]) || T.ws || null;
+  const graphTask = taskForKey(graph, taskKey);
   const parentKeys = normalizeStringArray(input.parent_task_keys);
   const contextKeys = normalizeStringArray(input.context_task_keys);
+  if (!parentKeys.length && graphTask) parentKeys.push(...normalizeStringArray(graphTask.deps));
+  if (!contextKeys.length && graphTask) contextKeys.push(...normalizeStringArray(graphTask.context_deps));
   const dependencySummaries = [
     ...parentKeys.map((key) => summaryForKey(graph, T.ov, key, 'blocking')),
     ...contextKeys.map((key) => summaryFromAgenticContext(input.agentic_search_context, key) || summaryForKey(graph, T.ov, key, 'context')),
   ];
+  const progressiveDisclosureContext = buildProgressiveDisclosureContext(graph, T.ov, taskKey, dependencySummaries);
   const envelope = {
     version: 1,
     task_key: taskKey,
@@ -172,7 +255,9 @@ function buildAssignmentEnvelope(ctx, T, input) {
       parent_task_keys: parentKeys,
       context_task_keys: contextKeys,
       dependency_summaries: dependencySummaries,
+      progressive_disclosure_context: progressiveDisclosureContext,
     },
+    progressive_disclosure_context: progressiveDisclosureContext,
     next_expected_worker_action: 'subconscious_assignment.accept',
   };
   if (input.agentic_search_context) {
