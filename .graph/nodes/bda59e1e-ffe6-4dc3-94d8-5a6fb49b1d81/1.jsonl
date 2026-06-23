@@ -18,3 +18,6 @@
 {"evt":"edge_promoted","from":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/1","to":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:18:56.529Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/1","to":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:39:39.643Z","weight":0.9,"origin":"asserted"}
 {"evt":"edge_promoted","from":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/1","to":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:39:42.848Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_removed","from":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/1","to":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:15:14.415Z"}
+{"evt":"edge_removed","from":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/1","to":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:15:14.415Z"}
+{"evt":"status_changed","id":"bda59e1e-ffe6-4dc3-94d8-5a6fb49b1d81/1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-23T03:15:14.415Z"}
