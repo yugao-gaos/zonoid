@@ -144,6 +144,10 @@ async function runAsyncTests() {
     ].join('\n') + '\n');
     fs.utimesSync(absentDurableRolloutPath, new Date('2026-06-22T12:05:00.000Z'), new Date('2026-06-22T12:05:00.000Z'));
 
+    const prunedDurableUuid = '449eef9f-bc70-7541-8f76-379400ff71e5';
+    const prunedDurableFullId = '2026-06-22T11-30-00-' + prunedDurableUuid;
+    const prunedDurableRolloutPath = path.join(uuidDir, 'rollout-' + prunedDurableFullId + '.jsonl');
+
     const taskA = 'codex/task-a';
     const taskB = 'codex/task-b';
     const uuidTaskA = 'codex/uuid-task-a';
@@ -152,10 +156,17 @@ async function runAsyncTests() {
     const durableTaskB = 'codex/durable-task-b';
     const absentDurableTaskA = 'codex/absent-durable-task-a';
     const absentDurableTaskB = 'codex/absent-durable-task-b';
+    const prunedDurableTaskA = 'codex/pruned-durable-task-a';
+    const prunedDurableTaskB = 'codex/pruned-durable-task-b';
     for (const taskKey of [durableTaskA, durableTaskB]) {
       const claimPath = path.join(routeWorkspace, claimRelPath(taskKey));
       fs.mkdirSync(path.dirname(claimPath), { recursive: true });
       fs.writeFileSync(claimPath, JSON.stringify({ task_key: taskKey, session_id: durableUuid, status: 'released' }, null, 2) + '\n');
+    }
+    for (const taskKey of [prunedDurableTaskA, prunedDurableTaskB]) {
+      const claimPath = path.join(routeWorkspace, claimRelPath(taskKey));
+      fs.mkdirSync(path.dirname(claimPath), { recursive: true });
+      fs.writeFileSync(claimPath, JSON.stringify({ task_key: taskKey, session_id: prunedDurableUuid, status: 'released' }, null, 2) + '\n');
     }
     for (const taskKey of [absentDurableTaskA, absentDurableTaskB]) {
       const claimPath = path.join(routeWorkspace, claimRelPath(taskKey));
@@ -173,6 +184,8 @@ async function runAsyncTests() {
         [durableTaskB]: { firstSeen: '2026-06-22T08:45:00.000Z', lastChanged: '2026-06-22T08:50:00.000Z' },
         [absentDurableTaskA]: { firstSeen: '2026-06-22T07:00:00.000Z', lastChanged: '2026-06-22T07:15:00.000Z' },
         [absentDurableTaskB]: { firstSeen: '2026-06-22T07:15:00.000Z', lastChanged: '2026-06-22T07:20:00.000Z' },
+        [prunedDurableTaskA]: { firstSeen: '2026-06-22T11:30:00.000Z', lastChanged: '2026-06-22T11:45:00.000Z' },
+        [prunedDurableTaskB]: { firstSeen: '2026-06-22T11:45:00.000Z', lastChanged: '2026-06-22T11:50:00.000Z' },
       },
       work_sessions: {
         [taskA]: [{ start_ts: '2026-06-22T10:00:00.000Z', end_ts: '2026-06-22T10:15:00.000Z' }],
@@ -183,11 +196,13 @@ async function runAsyncTests() {
         [durableTaskB]: [{ start_ts: '2026-06-22T08:45:00.000Z', end_ts: '2026-06-22T08:50:00.000Z' }],
         [absentDurableTaskA]: [{ start_ts: '2026-06-22T07:00:00.000Z', end_ts: '2026-06-22T07:15:00.000Z' }],
         [absentDurableTaskB]: [{ start_ts: '2026-06-22T07:15:00.000Z', end_ts: '2026-06-22T07:20:00.000Z' }],
+        [prunedDurableTaskA]: [{ start_ts: '2026-06-22T11:30:00.000Z', end_ts: '2026-06-22T11:45:00.000Z' }],
+        [prunedDurableTaskB]: [{ start_ts: '2026-06-22T11:45:00.000Z', end_ts: '2026-06-22T11:50:00.000Z' }],
       },
       usage_records: {},
       usage_reconcile_snapshot: {
         harness: 'codex',
-        totals: { input_tokens: 3000, output_tokens: 3000, cache_read_input_tokens: 600, cache_creation_input_tokens: 0, by_model: {} },
+        totals: { input_tokens: 4000, output_tokens: 4000, cache_read_input_tokens: 800, cache_creation_input_tokens: 0, by_model: {} },
         cost: { usd: 0, source: 'real', by_model: {} },
         human: { tokens: 0, chars: 0, messages: 0, dropped: 0 },
         sessions: [
@@ -208,6 +223,14 @@ async function runAsyncTests() {
             startedAt: '2026-06-22T11:00:00.000Z',
             endedAt: '2026-06-22T11:05:00.000Z',
           },
+          {
+            id: prunedDurableFullId,
+            path: prunedDurableRolloutPath,
+            total: 1000,
+            model: 'gpt-5-codex',
+            startedAt: '2026-06-22T11:30:00.000Z',
+            endedAt: '2026-06-22T11:50:00.000Z',
+          },
         ],
       },
       edges: [],
@@ -226,6 +249,8 @@ async function runAsyncTests() {
       { id: durableTaskB, kind: 'task', session: 'codex', firstSeen: '2026-06-22T08:45:00.000Z', lastChanged: '2026-06-22T08:50:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex durable claim task B' },
       { id: absentDurableTaskA, kind: 'task', session: 'codex', firstSeen: '2026-06-22T07:00:00.000Z', lastChanged: '2026-06-22T07:15:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex absent durable claim task A' },
       { id: absentDurableTaskB, kind: 'task', session: 'codex', firstSeen: '2026-06-22T07:15:00.000Z', lastChanged: '2026-06-22T07:20:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex absent durable claim task B' },
+      { id: prunedDurableTaskA, kind: 'task', session: 'codex', firstSeen: '2026-06-22T11:30:00.000Z', lastChanged: '2026-06-22T11:45:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex pruned durable claim task A' },
+      { id: prunedDurableTaskB, kind: 'task', session: 'codex', firstSeen: '2026-06-22T11:45:00.000Z', lastChanged: '2026-06-22T11:50:00.000Z', deps: [], context_deps: [], git: { merged: true }, status: 'done', label: 'Codex pruned durable claim task B' },
     ];
     const res = {};
     const route = makeCostflowRoute(tasks, ov, routeWorkspace);
@@ -236,7 +261,8 @@ async function runAsyncTests() {
     ok('/costflow splits UUID-resolved Codex rollout own tokens by task windows', ownByTask[uuidTaskA] === 750 && ownByTask[uuidTaskB] === 250);
     ok('/costflow uses durable git claim session_id for Codex rollout attribution', ownByTask[durableTaskA] === 750 && ownByTask[durableTaskB] === 250);
     ok('/costflow ignores durable git claim session_id absent from accounting snapshot', ownByTask[absentDurableTaskA] === 0 && ownByTask[absentDurableTaskB] === 0);
-    ok('/costflow flow total does not exceed accounting snapshot output', res.body.totals.total === 3000 && res.body.totals.total <= res.body.totals.output_tokens);
+    ok('/costflow splits represented durable claim snapshot total when rollout file is pruned', ownByTask[prunedDurableTaskA] === 750 && ownByTask[prunedDurableTaskB] === 250);
+    ok('/costflow flow total does not exceed accounting snapshot output', res.body.totals.total === 4000 && res.body.totals.total <= res.body.totals.output_tokens);
     ok('/costflow subtracts claimed Codex rollout tokens from catch-all remainder', res.body.sessions.unattributed === 0);
   } finally {
     if (prevHome === undefined) delete process.env.CODEX_HOME;

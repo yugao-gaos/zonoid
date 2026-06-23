@@ -82,6 +82,48 @@ function representedSessionIds(sessions) {
   return out;
 }
 
+function sessionGroupingKey(session) {
+  if (!session) return null;
+  return nonEmptyString(session.path)
+    || nonEmptyString(session.transcript_path)
+    || nonEmptyString(session.transcript)
+    || nonEmptyString(session.id)
+    || nonEmptyString(session.session_id);
+}
+
+function representedSessionIndex(sessions) {
+  const byRef = new Map();
+  for (const s of sessions || []) {
+    const key = sessionGroupingKey(s);
+    if (!key) continue;
+    const refs = new Set();
+    addSessionRepresentation(refs, s.id);
+    addSessionRepresentation(refs, s.session_id);
+    addSessionRepresentation(refs, s.path);
+    addSessionRepresentation(refs, s.transcript_path);
+    addSessionRepresentation(refs, s.transcript);
+    for (const ref of refs) if (!byRef.has(ref)) byRef.set(ref, s);
+  }
+  return { byRef };
+}
+
+function representedSessionRow(index, raw) {
+  if (!index) return null;
+  const value = nonEmptyString(raw);
+  if (!value) return null;
+  if (index.byRef.has(value)) return index.byRef.get(value);
+  const normalized = normalizeSessionRef(value);
+  if (normalized && index.byRef.has(normalized)) return index.byRef.get(normalized);
+  const suffix = sessionUuidSuffix(value);
+  return suffix ? (index.byRef.get(suffix) || null) : null;
+}
+
+function sessionSnapshotTotal(session) {
+  if (!session) return null;
+  const total = Number(session.total);
+  return Number.isFinite(total) ? Math.max(0, total) : null;
+}
+
 function sessionIsRepresented(represented, raw) {
   if (!represented) return true;
   const value = nonEmptyString(raw);
@@ -132,12 +174,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const stWs = { ...state, overlay: T.ov };
     const sessList = sessionsFromOverlay(T.ov);
     const representedSessions = representedSessionIds(sessList);
+    const representedIndex = representedSessionIndex(sessList);
     const claims = g.tasks.filter((t) => t.kind !== 'note').map((t) => {
       const session = attributionSessionForTask(T.ws, T.ov, t, representedSessions);
+      const snapshotSession = representedSessionRow(representedIndex, session);
+      const snapshotTranscript = sessionGroupingKey(snapshotSession);
       return {
         id: t.id,
         session,
-        transcript: taskTranscript(t.id, session, true, stWs),
+        transcript: taskTranscript(t.id, session, true, stWs) || snapshotTranscript,
+        snapshot_session: snapshotSession,
         window: { start: t.firstSeen, end: t.lastChanged },
         work_sessions: (T.ov.work_sessions && T.ov.work_sessions[t.id]) || null,
       };
@@ -149,6 +195,11 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         const fromRec = usageAccounting.taskOutputFromRecords(T.ov, claim.id);
         if (fromRec > 0) return { total: fromRec, task_specific: true };
       }
+      const snapshotSession = (claim && claim.snapshot_session)
+        || representedSessionRow(representedIndex, tp)
+        || representedSessionRow(representedIndex, claim && claim.session);
+      const snapshotTotal = sessionSnapshotTotal(snapshotSession);
+      if (snapshotTotal != null) return { total: snapshotTotal };
       if (tp) {
         if (activeHarness && activeHarness.name === 'codex' && activeHarness.usage && typeof activeHarness.usage.sample === 'function') {
           const slice = activeHarness.usage.sample(tp, { transcript_path: tp });
