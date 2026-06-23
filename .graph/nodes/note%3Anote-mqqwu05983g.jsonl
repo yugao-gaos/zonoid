@@ -27,3 +27,4 @@
 {"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"note:note-mqr2jk9hawd","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"note:note-mqqvw755vf0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"note:note-mqq2xj787yq","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_added","from":"note:note-mqqwu05983g","to":"codex/progressive-disclosure-context-implementation","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:32:10.919Z","weight":0.841,"by":"subconscious","judged":true,"score":0.841,"origin":"subconscious-agentic-search"}
