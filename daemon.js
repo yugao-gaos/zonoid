@@ -1928,6 +1928,62 @@ function harnessTranscriptForTask(st, key, session) {
   return best;
 }
 
+function rolloutStartMs(idOrPath) {
+  const base = path.basename(String(idOrPath || ''), '.jsonl').replace(/^rollout-/, '');
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-/.exec(base);
+  if (!m) return NaN;
+  return Date.parse(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}.000Z`);
+}
+
+function taskClaimIntervals(st, key) {
+  const ov = st.overlay || {};
+  const sessions = ov.work_sessions && ov.work_sessions[key];
+  const out = [];
+  if (Array.isArray(sessions)) {
+    for (const ws of sessions) {
+      const start = Date.parse(ws && ws.start_ts);
+      if (!Number.isFinite(start)) continue;
+      const end = Date.parse(ws && ws.end_ts);
+      out.push({ start, end: Number.isFinite(end) ? end : Date.now() });
+    }
+  }
+  if (out.length) return out;
+  const ts = ov.timestamps && ov.timestamps[key];
+  const start = Date.parse(ts && ts.firstSeen);
+  if (!Number.isFinite(start)) return [];
+  const end = Date.parse(ts && ts.lastChanged);
+  return [{ start, end: Number.isFinite(end) ? end : Date.now() }];
+}
+
+function snapshotTranscriptForTaskByWindow(st, key) {
+  const snap = st.overlay && st.overlay.usage_reconcile_snapshot;
+  const intervals = taskClaimIntervals(st, key);
+  if (!snap || !intervals.length) return null;
+  const sessions = [];
+  if (Array.isArray(snap.sessions)) sessions.push(...snap.sessions);
+  for (const v of Object.values(snap)) {
+    if (v && typeof v === 'object' && Array.isArray(v.sessions)) sessions.push(...v.sessions);
+  }
+  let best = null, bestOverlap = -1;
+  for (const s of sessions) {
+    const tp = s && (s.path || s.transcript_path || s.transcript);
+    if (!tp) continue;
+    let start = Date.parse(s.startedAt || s.start || s.start_ts || s.created_at);
+    if (!Number.isFinite(start)) start = rolloutStartMs(s.id || tp);
+    if (!Number.isFinite(start)) continue;
+    let end = Date.parse(s.endedAt || s.end || s.end_ts || s.updated_at);
+    if (!Number.isFinite(end)) {
+      try { end = fs.statSync(tp).mtimeMs; } catch { end = Date.now(); }
+    }
+    if (!Number.isFinite(end) || end < start) end = start;
+    for (const w of intervals) {
+      const overlap = Math.min(w.end, end) - Math.max(w.start, start);
+      if (overlap >= 0 && overlap > bestOverlap) { best = tp; bestOverlap = overlap; }
+    }
+  }
+  return best;
+}
+
 // Resolve the transcript JSONL holding a task's token usage. Prefer the assignee agent's own
 // transcript (accurate). Else fall back to a same-session harness agent whose run window overlaps
 // the task's claim (the SubagentStart-registered record that actually holds transcript_path; the
@@ -1947,6 +2003,7 @@ function taskTranscript(key, session, anySession, st = state) {
     tp = sessionBindings.resolveSessionTranscriptPath(st, agent.session, agent.subagent_session || agent.session);
   }
   if (!tp) tp = harnessTranscriptForTask(st, key, session);             // time-window correlation fallback
+  if (!tp) tp = snapshotTranscriptForTaskByWindow(st, key);             // reconcile snapshot by-window fallback
   if (!tp && anySession && session) {                                    // task's shared session transcript
     tp = sessionBindings.resolveSessionTranscriptPath(st, session, session);
   }
