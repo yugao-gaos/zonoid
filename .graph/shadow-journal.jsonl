@@ -5288,3 +5288,7 @@
 {"ts":1782216952514,"from":"note:note-mqqlra053ej","to":"note:note-mqpwne6dbsp","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.27105366817972754,"cosine":0.662,"model_version":"v1"}
 {"ts":1782216952515,"from":"note:note-mqqlra053ej","to":"note:note-mqpywsqkwff","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.27105366817972754,"cosine":0.662,"model_version":"v1"}
 {"ts":1782216952517,"from":"note:note-mqqlra053ej","to":"note:note-mqq5a6voihw","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.08892588982964807,"cosine":0,"model_version":"v1"}
+{"ts":1782217855311,"from":"codex/p4-migrate-benches-sdk-judge","to":"codex/p4-migrate-benches-sdk","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.5863343775897443,"cosine":0.566,"model_version":"v1"}
+{"ts":1782217855312,"from":"codex/p4-migrate-benches-sdk-judge","to":"codex/p5-terminal-bench-sdk","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5917144130976774,"cosine":0.577,"model_version":"v1"}
+{"ts":1782217953786,"from":"note:note-mqqmeewyhir","to":"note:note-mqjowvcv2wu","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.29988368595683534,"cosine":0.732,"model_version":"v1"}
+{"ts":1782217953788,"from":"note:note-mqqmeewyhir","to":"note:note-mqq2d9u1f7x","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3153735370365622,"cosine":0.768,"model_version":"v1"}
