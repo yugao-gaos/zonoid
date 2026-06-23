@@ -5,3 +5,4 @@
 {"evt":"edge_added","from":"note:note-mqp52g7jrsk","to":"note:note-mqp528pspcb","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.602,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqp52g7jrsk","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/5","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:14:31.038Z","weight":0,"by":"autowire","judged":false,"score":0.577,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqp52g7jrsk","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/5","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:04:38.952Z","weight":0.577,"by":"judge","judged":true,"score":0.577,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp52g7jrsk","to":"note:note-mqp528pspcb","kind":"context","actor":"overlay-sync","ts":"2026-06-23T07:14:02.817Z"}
