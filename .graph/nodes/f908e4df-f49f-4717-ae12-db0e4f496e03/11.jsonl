@@ -36,3 +36,4 @@
 {"evt":"timestamps_set","id":"f908e4df-f49f-4717-ae12-db0e4f496e03/11","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-18T05:21:24.589Z","lastChanged":"2026-06-18T15:41:32.581Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z"}
 {"evt":"edge_removed","from":"f908e4df-f49f-4717-ae12-db0e4f496e03/11","to":"f908e4df-f49f-4717-ae12-db0e4f496e03/13","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:09:58.192Z"}
 {"evt":"edge_added","from":"f908e4df-f49f-4717-ae12-db0e4f496e03/11","to":"f908e4df-f49f-4717-ae12-db0e4f496e03/13","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire-blockdep","judged":false,"origin":"blocking-dep-seed"}
+{"evt":"edge_removed","from":"f908e4df-f49f-4717-ae12-db0e4f496e03/11","to":"f908e4df-f49f-4717-ae12-db0e4f496e03/13","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:08:23.430Z"}
