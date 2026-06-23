@@ -21,3 +21,6 @@
 {"evt":"edge_added","from":"note:note-mqgwhrs2aom","to":"codex/review-onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:48:14.934Z","weight":0.958,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqgwhrs2aom","to":"codex/review-onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:48:36.640Z","weight":0.958,"by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqgwhrs2aom","to":"codex/review-onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:24:08.041Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
+{"evt":"edge_removed","from":"note:note-mqgwhrs2aom","to":"note:note-mqgsb1mcnid","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:10:26.169Z"}
+{"evt":"edge_removed","from":"note:note-mqgwhrs2aom","to":"note:note-mqgvjghmn2z","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:10:26.169Z"}
+{"evt":"edge_removed","from":"note:note-mqgwhrs2aom","to":"note:note-mqgtgbdm0mh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:10:26.169Z"}

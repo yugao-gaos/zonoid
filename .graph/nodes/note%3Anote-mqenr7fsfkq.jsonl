@@ -20,3 +20,7 @@
 {"evt":"edge_promoted","from":"note:note-mqenr7fsfkq","to":"note:note-mqend24x8gj","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:41:37.028Z","weight":0.62,"by":"judge","judged":true,"score":0.62,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqenr7fsfkq","to":"codex/fix-subconscious-claim-permit-result-contracts-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T17:02:25.596Z","weight":0.569,"by":"judge","judged":true,"score":0.569,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"codex/fix-shell-opencode-relative-git-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:53:45.243Z"}
+{"evt":"edge_promoted","from":"note:note-mqenr7fsfkq","to":"234cd322-22bc-4fed-adaa-ef4fb9a59b42/2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:53:52.850Z","weight":0.607,"by":"judge","judged":true,"score":0.607,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"note:note-mqe5s77kk7e","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:53:52.850Z"}
+{"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"note:note-mq7dzydv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:53:52.850Z"}
+{"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"codex/fix-shell-opencode-write-gates-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:53:52.850Z"}
