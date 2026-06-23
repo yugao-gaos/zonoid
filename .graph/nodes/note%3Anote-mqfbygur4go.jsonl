@@ -41,3 +41,4 @@
 {"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"note:note-mq7dzydv","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:12.799Z"}
 {"evt":"edge_removed","from":"note:note-mqfbygur4go","to":"note:note-mq7lck6j3l9","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:12.799Z"}
 {"evt":"edge_added","from":"note:note-mqfbygur4go","to":"note:note-mq561rur","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:39:14.843Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqfbygur4go","to":"codex/p3-deport-bench-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:18:31.746Z","weight":0.51,"by":"subconscious","judged":true,"score":0.51,"origin":"subconscious-agentic-search"}
