@@ -20,3 +20,4 @@
 {"evt":"edge_added","from":"note:note-mqeai9sgzr1","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:09:29.223Z","weight":0.95,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqeai9sgzr1","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-22T02:12:52.668Z","weight":0.95,"by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqeai9sgzr1","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:28:18.011Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mqeai9sgzr1","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z","weight":0.95,"by":"autowire","judged":false,"origin":"asserted"}

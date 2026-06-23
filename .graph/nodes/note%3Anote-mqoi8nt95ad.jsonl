@@ -10,3 +10,4 @@
 {"evt":"edge_promoted","from":"note:note-mqoi8nt95ad","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","kind":"context","actor":"overlay-sync","ts":"2026-06-22T01:33:01.726Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"note_superseded","id":"note-mqoi8nt95ad","supersededBy":"note-mqpauss185e","validTo":"2026-06-22T14:17:18.385Z","ts":"2026-06-22T14:17:18.385Z","actor":"supersede"}
 {"evt":"edge_removed","from":"note:note-mqoi8nt95ad","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:09:42.853Z"}
+{"evt":"edge_added","from":"note:note-mqoi8nt95ad","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}

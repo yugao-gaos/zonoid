@@ -19,3 +19,9 @@
 {"evt":"edge_promoted","from":"note:note-mqpb1ref05h","to":"codex/improve-three-point-cloud-color-palette","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:25:36.391Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqpb1ref05h","to":"codex/fix-dark-three-point-cloud-nodes-and-missing-search-edges","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:26:09.495Z","weight":1,"by":"autowire","judged":false}
 {"evt":"edge_promoted","from":"note:note-mqpb1ref05h","to":"codex/improve-three-point-cloud-color-palette","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:26:09.495Z","weight":1,"by":"autowire","judged":false}
+{"evt":"edge_removed","from":"note:note-mqpb1ref05h","to":"codex/fix-dark-three-point-cloud-nodes-and-missing-search-edges","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
+{"evt":"edge_removed","from":"note:note-mqpb1ref05h","to":"codex/improve-three-point-cloud-color-palette","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
+{"evt":"edge_removed","from":"note:note-mqpb1ref05h","to":"note:note-mq89y47bsrz","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
+{"evt":"edge_removed","from":"note:note-mqpb1ref05h","to":"note:note-mqenc9e44v4","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
+{"evt":"edge_removed","from":"note:note-mqpb1ref05h","to":"note:note-mqh2eifaveh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
+{"evt":"edge_removed","from":"note:note-mqpb1ref05h","to":"note:note-mq7dzydv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
