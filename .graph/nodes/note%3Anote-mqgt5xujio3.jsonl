@@ -23,3 +23,4 @@
 {"evt":"edge_removed","from":"note:note-mqgt5xujio3","to":"note:note-mqgsot6ywxr","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:10:45.985Z"}
 {"evt":"edge_removed","from":"note:note-mqgt5xujio3","to":"note:note-mqgsfzw9rnh","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:10:45.985Z"}
 {"evt":"edge_removed","from":"note:note-mqgt5xujio3","to":"followup/u7-update-workspaces-daemon-test-js-for--d0n3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:14:22.857Z"}
+{"evt":"edge_promoted","from":"note:note-mqgt5xujio3","to":"b1c48279-9822-4abe-81a5-1b7b2a329970/7","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:25:32.185Z","weight":0.651,"by":"judge","judged":true,"score":0.651,"origin":"autowire-semantic"}

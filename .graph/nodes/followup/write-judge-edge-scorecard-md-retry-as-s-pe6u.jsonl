@@ -1,3 +1,4 @@
 {"evt":"edge_removed","from":"followup/write-judge-edge-scorecard-md-retry-as-s-pe6u","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/19","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:20:31.209Z"}
 {"evt":"edge_removed","from":"followup/write-judge-edge-scorecard-md-retry-as-s-pe6u","to":"ddccf8ca-a541-49a7-8912-43ff5c7ccc63/19","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:20:31.209Z"}
 {"evt":"edge_removed","from":"followup/write-judge-edge-scorecard-md-retry-as-s-pe6u","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/22","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:20:31.209Z"}
+{"evt":"edge_promoted","from":"followup/write-judge-edge-scorecard-md-retry-as-s-pe6u","to":"followup/write-judge-edge-scorecard-md-tqui","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:28:30.513Z","weight":0.779,"by":"judge","judged":true,"score":0.779,"origin":"autowire-semantic"}
