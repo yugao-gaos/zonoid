@@ -25,3 +25,6 @@
 {"evt":"edge_removed","from":"note:note-mqfcbjui4zk","to":"note:note-mq75a81m","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:02:24.458Z"}
 {"evt":"edge_removed","from":"note:note-mqfcbjui4zk","to":"codex/ensure-managed-subconscious-loop-owner-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:02:24.458Z"}
 {"evt":"edge_promoted","from":"note:note-mqfcbjui4zk","to":"note:note-mq88d6gotlo","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:03:55.619Z","weight":0.576,"by":"judge","judged":true,"score":0.576,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqfcbjui4zk","to":"note:note-mqf9al6pjvv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:03:22.181Z"}
+{"evt":"edge_removed","from":"note:note-mqfcbjui4zk","to":"note:note-mq87ubxn2d4","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:03:22.181Z"}
+{"evt":"edge_removed","from":"note:note-mqfcbjui4zk","to":"note:note-mqf82fketm9","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:03:22.181Z"}
