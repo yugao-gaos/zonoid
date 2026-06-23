@@ -3,8 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-25015-0c9867064518cdb01243b27b2624639f",
   "branch": "orch/attempt/codex-fix-token-accounting-attribution",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-23T03:44:13.988Z",
   "lease_until": "2026-06-23T04:44:13.988Z",
-  "completed_at": "2026-06-23T03:50:13.229Z"
+  "completed_at": "2026-06-23T03:50:22.795Z"
 }
