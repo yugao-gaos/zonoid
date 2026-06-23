@@ -16,7 +16,7 @@ process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const PORT = 19170 + Math.floor(Math.random() * 200);
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-causal-result-ws-')));
 
-const SESSION = 'bbbbbbbb-causal-0000-4000-800000000042';
+const SESSION = 'bbbbbbbb-caaa-0000-4000-800000000042';
 const { encodeWorkspace } = require('../lib/native-tasks');
 const PROJ_DIR = path.join(os.homedir(), '.claude', 'projects', encodeWorkspace(WS));
 const TASKS_DIR = path.join(os.homedir(), '.claude', 'tasks', SESSION);
@@ -68,8 +68,10 @@ async function waitForPing(ms = 8000) {
   fs.mkdirSync(PROJ_DIR, { recursive: true });
   fs.writeFileSync(path.join(PROJ_DIR, `${SESSION}.jsonl`), '');
   fs.mkdirSync(TASKS_DIR, { recursive: true });
-  for (const id of [1, 2, 3, 4, 5, 6]) {
-    fs.writeFileSync(path.join(TASKS_DIR, `${id}.json`), JSON.stringify({ id: String(id), subject: `causal task ${id}`, status: 'pending' }));
+  for (const id of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+    const task = { id: String(id), subject: `causal task ${id}`, status: 'pending', blockedBy: [] };
+    if (id === 8) task.blockedBy = ['7'];
+    fs.writeFileSync(path.join(TASKS_DIR, `${id}.json`), JSON.stringify(task));
   }
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
@@ -80,7 +82,7 @@ async function waitForPing(ms = 8000) {
     ok('daemon came up', await waitForPing());
     ok('workspace pinned', (await req('POST', '/workspace', { path: WS })).status === 200);
     await req('GET', '/state');
-    for (const id of [1, 2, 3, 4, 5, 6]) await req('POST', '/mark-root', { workspace: WS, task_key: K(id) });
+    for (const id of [1, 2, 3, 4, 5, 6, 7, 8, 9]) await req('POST', '/mark-root', { workspace: WS, task_key: K(id) });
 
     const accepted = await req('POST', '/overlay/status', {
       key: K(3),
@@ -100,6 +102,30 @@ async function waitForPing(ms = 8000) {
     ok('causal edge written as context edge', edge && edge.kind === 'context');
     ok('causal edge keeps relation and origin', edge && edge.relation === 'fixed' && edge.origin === 'task-result-causal');
     ok('causal edge keeps confidence and evidence', edge && edge.confidence === 0.8 && edge.evidence === 'unit regression passed');
+
+    const beforeCollision = await req('GET', `/state?workspace=${encodeURIComponent(WS)}`);
+    const preBlocking = (beforeCollision.body.edges || []).find((e) => e.from === K(7) && e.to === K(8) && (!e.kind || e.kind === 'blocking'));
+    ok('native blockedBy edge present before causal collision', !!preBlocking);
+
+    const collision = await req('POST', '/overlay/status', {
+      key: K(9),
+      status: 'tested',
+      agent_id: 'causal-worker',
+      summary: 'completed with causal edge matching blocking edge',
+      task_result: taskResult('tested', 'completed with causal edge matching blocking edge', {
+        causal_edges: [
+          { from: K(7), to: K(8), relation: 'supports', confidence: 0.7, evidence: 'dependency informed the fix' },
+        ],
+      }),
+    });
+    ok('causal edge sharing blocking endpoints accepted', collision.status === 200 && collision.body.ok === true);
+
+    const afterCollision = await req('GET', `/state?workspace=${encodeURIComponent(WS)}`);
+    const collidingEdges = (afterCollision.body.edges || []).filter((e) => e.from === K(7) && e.to === K(8));
+    const blockingEdge = collidingEdges.find((e) => !e.kind || e.kind === 'blocking');
+    const causalEdge = collidingEdges.find((e) => e.kind === 'context' && e.origin === 'task-result-causal');
+    ok('blocking dependency remains blocking after same-endpoint causal edge', !!blockingEdge);
+    ok('same-endpoint causal evidence is preserved as context', causalEdge && causalEdge.relation === 'supports' && causalEdge.confidence === 0.7 && causalEdge.evidence === 'dependency informed the fix');
 
     const badRelation = await req('POST', '/overlay/status', {
       key: K(4),
