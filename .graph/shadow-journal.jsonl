@@ -5354,3 +5354,8 @@
 {"ts":1782224447351,"from":"note:note-mqqpp70ivco","to":"codex/onboard-code-cli-sync","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5900866464627216,"cosine":1,"model_version":"v1"}
 {"ts":1782224976485,"from":"codex/fix-stale-reaper-readiness-judge","to":"codex/fix-stale-reaper-readiness","verdict":"keep","shadow_verdict":"keep","shadow_conf":0.6385465407049321,"cosine":0.675,"model_version":"v1"}
 {"ts":1782224976488,"from":"note:note-mqqosxptv7i","to":"codex/fix-stale-reaper-readiness-judge","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.4623486421714161,"cosine":0.745,"model_version":"v1"}
+{"ts":1782225200852,"from":"note:note-mqqqrlczyc2","to":"knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.45883483471676245,"cosine":0.738,"model_version":"v1"}
+{"ts":1782225200854,"from":"note:note-mqqqrlczyc2","to":"knowledge:source_chunk:chunk-claude-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-ed1147fac7","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.4483193179717438,"cosine":0.717,"model_version":"v1"}
+{"ts":1782225200856,"from":"note:note-mqqqrlczyc2","to":"note:note-mqgtgbdm0mh","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.29607982920664155,"cosine":0.723,"model_version":"v1"}
+{"ts":1782225200857,"from":"note:note-mqqqrlczyc2","to":"note:note-mqgwhrs2aom","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.28196585697620824,"cosine":0.689,"model_version":"v1"}
+{"ts":1782225200859,"from":"note:note-mqqqrlczyc2","to":"note:note-mqqosxptv7i","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.300308057786781,"cosine":0.733,"model_version":"v1"}
