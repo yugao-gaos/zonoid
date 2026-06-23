@@ -4,6 +4,8 @@
 //   (a) gross_totals reconciles exactly with Σ by_model
 //   (b) token-economy buckets (prod+expl+trap) partition to ≤100% of t.total
 'use strict';
+const fs = require('fs');
+const path = require('path');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => {
@@ -71,6 +73,17 @@ const ok = (label, cond) => {
   const prod3Pct = Math.round(t3.productive / econ3 * 100);
   const trap3Pct = Math.round(t3.trapped / econ3 * 100);
   ok('case3: no exploration — prod+trap ≤ 100%', prod3Pct + trap3Pct <= 100);
+}
+
+// --- (c) browser billing contract: task-session dollars come from /costflow.cost ------------
+{
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'graph.html'), 'utf8');
+  ok('browser billing has no hard-coded session MODEL_RATES table', !html.includes('MODEL_RATES'));
+  ok('browser billing no longer computes task session total with modelCost()', !/const\s+totalCost\s*=.*modelCost/s.test(html));
+  ok('billing hero uses /costflow.cost.usd for task-session cost', /const\s+billCost\s*=\s*cf&&cf\.cost\?Number\(cf\.cost\.usd\|\|0\):null/.test(html));
+  ok('billing popup uses server session cost label', /const\s+sessionCost\s*=\s*serverCost\?Number\(serverCost\.usd\|\|0\):0/.test(html));
+  ok('model rows use server-provided cost.by_model dollars', html.includes('const serverCostByModel=serverCost&&serverCost.by_model||{}') && html.includes('serverCostByModel[m]'));
+  ok('unrouted wording is pre-flow, not a trapped subset claim', html.includes('unrouted session remainder before graph flow') && !html.includes('subset of trapped'));
 }
 
 console.log('-----');
