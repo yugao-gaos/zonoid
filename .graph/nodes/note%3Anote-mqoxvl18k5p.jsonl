@@ -40,3 +40,5 @@
 {"evt":"edge_removed","from":"note:note-mqoxvl18k5p","to":"codex/verify-post-subconscious-review-fixes-after-main-reconcile","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:49:32.305Z"}
 {"evt":"edge_removed","from":"note:note-mqoxvl18k5p","to":"codex/verify-post-subconscious-review-fixes-final-after-snapshot-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:49:32.305Z"}
 {"evt":"edge_removed","from":"note:note-mqoxvl18k5p","to":"note:note-mqolmwgser3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:50:08.195Z"}
+{"evt":"edge_added","from":"note:note-mqoxvl18k5p","to":"note:note-mqozwmjr1a3","kind":"context","actor":"overlay-sync","ts":"2026-06-24T03:35:18.871Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqoxvl18k5p","to":"note:note-mqolmwgser3","kind":"context","actor":"overlay-sync","ts":"2026-06-24T03:35:18.871Z","weight":0.6,"by":"judge","judged":true}
