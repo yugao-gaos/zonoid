@@ -3,8 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-p1-sync-judge-drain-judge-active-session",
   "branch": "orch/attempt/codex-p1-sync-judge-drain-judge",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-24T03:56:43.073Z",
   "lease_until": "2026-06-24T04:56:43.073Z",
-  "completed_at": "2026-06-24T04:03:04.254Z"
+  "completed_at": "2026-06-24T04:03:46.604Z"
 }
