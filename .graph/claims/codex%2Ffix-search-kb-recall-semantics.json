@@ -1,10 +1,10 @@
 {
   "task_key": "codex/fix-search-kb-recall-semantics",
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
-  "session_id": "worker-fix-search-kb",
+  "session_id": "codex-mcp-19700-2f2d847f704a77668e1ecc607b294ef5",
   "branch": "orch/attempt/codex-fix-search-kb-recall-semantics",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-22T02:42:32.035Z",
   "lease_until": "2026-06-22T03:42:32.035Z",
-  "completed_at": "2026-06-22T02:48:47.182Z"
+  "completed_at": "2026-06-24T02:39:07.049Z"
 }
