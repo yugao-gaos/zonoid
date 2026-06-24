@@ -2737,12 +2737,16 @@ if (require.main === module) {
   let server6 = null;     // IPv6 loopback listener — so `localhost` (→ ::1 on Windows) reaches us
 
   process.on('exit', () => { removeDaemonPort(); removeDaemonPidfile(); }); // 'exit' stays synchronous — port + pidfile cleanup only
-  // SIGINT/SIGTERM: release BOTH listening ports at SIGNAL time, not exit time. server.close()
+  // SIGINT/SIGTERM/SIGBREAK: release BOTH listening ports at SIGNAL time, not exit time. server.close()
   // alone waits for open connections — and SSE clients hold theirs indefinitely, so exit rode the
   // 5s force-timer while the (previously never-closed) HTTPS listener kept 8788 bound; a relaunch
   // in that window crashed EADDRINUSE (observed twice 2026-06-12). closeAllConnections() drops
   // SSE/keep-alive sockets so a successor can bind within ~1s of the signal.
-  ['SIGINT', 'SIGTERM'].forEach(sig => process.on(sig, () => {
+  // SIGBREAK is the Windows CTRL_BREAK_EVENT (Node maps it to SIGBREAK): a parent that started this
+  // daemon in its own process group can deliver it for a GRACEFUL stop (exit 0) instead of falling
+  // back to TerminateProcess, which hard-kills the daemon with exit 1 (misread as a mid-run crash).
+  // process.on('SIGBREAK') is a harmless no-op on POSIX (the event never fires there).
+  ['SIGINT', 'SIGTERM', 'SIGBREAK'].forEach(sig => process.on(sig, () => {
     removeDaemonPort();
     removeDaemonPidfile();
     try {
