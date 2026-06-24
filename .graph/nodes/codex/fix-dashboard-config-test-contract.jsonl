@@ -118,3 +118,4 @@
 {"evt":"status_changed","id":"codex/fix-dashboard-config-test-contract","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-22T03:58:15.267Z"}
 {"evt":"timestamps_set","id":"codex/fix-dashboard-config-test-contract","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-22T02:37:11.191Z","lastChanged":"2026-06-22T03:58:13.917Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-22T03:58:15.267Z"}
 {"evt":"edge_removed","from":"codex/fix-dashboard-config-test-contract","to":"codex/fix-dashboard-config-test-contract-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:17:01.295Z"}
+{"evt":"edge_added","from":"codex/fix-dashboard-config-test-contract","to":"codex/fix-dashboard-config-smoke-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T19:37:34.383Z","weight":0.905,"by":"subconscious","judged":true,"score":0.905,"origin":"subconscious-agentic-search"}
