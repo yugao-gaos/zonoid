@@ -6,3 +6,4 @@
 {"evt":"edge_removed","from":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/12","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"status_changed","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","workspace":"/Users/imyu/Desktop/zonoid","status":"tested","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"timestamps_set","id":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-16T20:58:56.649Z","lastChanged":"2026-06-22T18:39:53.338Z","lastStatus":"tested"},"actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_added","from":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","to":"codex/reconcile-bench-sdk-s7-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-24T03:14:22.081Z","origin":"subconscious-assignment"}
