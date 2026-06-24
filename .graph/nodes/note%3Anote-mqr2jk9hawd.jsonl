@@ -39,3 +39,4 @@
 {"evt":"edge_removed","from":"note:note-mqr2jk9hawd","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_added","from":"note:note-mqr2jk9hawd","to":"codex/paper-code-retrieval-economy-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T03:57:56.616Z","weight":0,"by":"autowire","judged":false,"score":0.632,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqr2jk9hawd","to":"codex/paper-code-retrieval-economy-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T04:19:20.487Z"}
+{"evt":"edge_added","from":"note:note-mqr2jk9hawd","to":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/7","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:49:38.572Z","weight":0,"by":"autowire","judged":false,"score":0.629,"origin":"autowire-semantic"}
