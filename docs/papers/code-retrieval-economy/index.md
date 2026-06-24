@@ -37,7 +37,8 @@ a code-navigation intent (e.g. *locate `createWorktree`*, *locate `mergeBranch`*
 token-splitting flow*); ground truth is the set of relevant code symbols, and scoring is
 identifier-token **recall** of the delivered snippet bundle against that ground-truth symbol set.
 Token cost is accounted as characters/4, and we report **tokens-per-correct** (tokens ÷ correctly
-recalled symbols) as the efficiency unit. Raw benchmark lives under `bench/search-economy/`.
+recalled symbols) as the efficiency unit. Raw benchmark findings are preserved as the graph notes
+listed in the Appendix.
 
 ### Arms and their substrates
 
@@ -210,8 +211,8 @@ the dispatcher/user-gated deploy.)
 
 ## Appendix
 
-- **Source corpus / harness**: `bench/search-economy/` (13-query code-nav corpus over Zonoid
-  `lib/` + `routes/`)
+- **Source corpus / harness**: 13-query code-nav corpus over Zonoid `lib/` + `routes/`; benchmark
+  results preserved in the graph notes below
 - **Fetch primitive**: codebase-memory-mcp `get_code_snippet` (requires `qualified_name`, resolved
   via `search_graph`); bundle cap ~12,000 chars
 - **Bulk-ingest refactor**: `lib/embed-server.js` (`/embed-batch`), `lib/embed.js` (`embedBatch`),
