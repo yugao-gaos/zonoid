@@ -12,3 +12,4 @@
 {"evt":"assignee_set","id":"codex/reconcile-bench-sdk-s7-conflict","workspace":"/Users/imyu/Desktop/zonoid","assignee":"codex-dispatcher","actor":"overlay-sync","ts":"2026-06-24T03:53:31.546Z"}
 {"evt":"status_changed","id":"codex/reconcile-bench-sdk-s7-conflict","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-24T03:54:06.633Z"}
 {"evt":"timestamps_set","id":"codex/reconcile-bench-sdk-s7-conflict","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-24T03:14:21.254Z","lastChanged":"2026-06-24T03:54:02.702Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-24T03:54:06.633Z"}
+{"evt":"edge_removed","from":"codex/reconcile-bench-sdk-s7-conflict","to":"codex/fix-bench-smoke-autowire-no-candidates","kind":"context","actor":"overlay-sync","ts":"2026-06-24T03:54:42.398Z"}
