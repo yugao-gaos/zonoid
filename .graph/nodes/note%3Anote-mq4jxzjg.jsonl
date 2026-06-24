@@ -17,3 +17,4 @@
 {"evt":"edge_promoted","from":"note:note-mq4jxzjg","to":"codex/long-note-cluster-ingest-hardening","kind":"context","actor":"overlay-sync","ts":"2026-06-21T20:45:32.872Z","weight":0.572,"by":"judge","judged":true,"score":0.572,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mq4jxzjg","to":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/15","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:04:28.808Z","weight":0.5,"by":"judge","judged":true}
 {"evt":"edge_promoted","from":"note:note-mq4jxzjg","to":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/15","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z","by":"autowire","judged":false}
+{"evt":"edge_promoted","from":"note:note-mq4jxzjg","to":"66a514fd-59a6-4d96-b3c4-a40c1e3652c0/15","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:03:33.028Z","by":"autowire","judged":false}

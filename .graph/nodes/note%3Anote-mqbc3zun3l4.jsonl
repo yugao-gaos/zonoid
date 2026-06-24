@@ -11,3 +11,4 @@
 {"evt":"edge_promoted","from":"note:note-mqbc3zun3l4","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/11","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:03:55.619Z","weight":0.5,"by":"judge","judged":true}
 {"evt":"edge_promoted","from":"note:note-mqbc3zun3l4","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/11","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z","by":"autowire","judged":false}
 {"evt":"edge_added","from":"note:note-mqbc3zun3l4","to":"codex/ensure-managed-subconscious-loop-owner","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z","weight":0,"by":"autowire","judged":false,"score":0.566,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqbc3zun3l4","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/11","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:03:33.028Z","by":"autowire","judged":false}
