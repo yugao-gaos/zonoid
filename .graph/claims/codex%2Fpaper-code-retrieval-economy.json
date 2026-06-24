@@ -1,10 +1,9 @@
 {
   "task_key": "codex/paper-code-retrieval-economy",
-  "git_user": "Yu Gao <yu.gao@gaos.ca>",
-  "session_id": "7324f0fd-3872-4c3a-a82b-e7b554aea59d",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-13918-53996444b6976b9e8d497d31973844b4",
   "branch": "orch/attempt/codex-paper-code-retrieval-economy",
-  "status": "done",
-  "claimed_at": "2026-06-23T01:48:39.931Z",
-  "lease_until": "2026-06-23T02:48:39.931Z",
-  "completed_at": "2026-06-23T01:56:41.688Z"
+  "status": "claimed",
+  "claimed_at": "2026-06-24T14:44:19.550Z",
+  "lease_until": "2026-06-24T15:44:19.550Z"
 }
