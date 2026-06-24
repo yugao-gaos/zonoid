@@ -17,3 +17,4 @@
 {"evt":"edge_removed","from":"note:note-mqn7x0d9lv8","to":"note:note-mqh2eifaveh","kind":"context","actor":"overlay-sync","ts":"2026-06-21T05:14:31.909Z"}
 {"evt":"edge_added","from":"note:note-mqn7x0d9lv8","to":"codex/consolidate-universal-skills","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:30:52.730Z","weight":0,"by":"autowire","judged":false,"score":0.571,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqn7x0d9lv8","to":"codex/consolidate-universal-skills","kind":"context","actor":"overlay-sync","ts":"2026-06-22T15:40:13.619Z"}
+{"evt":"edge_added","from":"note:note-mqn7x0d9lv8","to":"codex/consolidate-universal-skills-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:52:32.135Z","weight":0,"by":"autowire","judged":false,"score":0.612,"origin":"autowire-semantic"}
