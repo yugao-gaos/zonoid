@@ -3,8 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-merge-origin-sync-isolated",
   "branch": "orch/attempt/codex-merge-origin-sync",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-24T15:49:05.898Z",
   "lease_until": "2026-06-24T16:49:05.898Z",
-  "completed_at": "2026-06-24T15:53:31.462Z"
+  "completed_at": "2026-06-24T15:54:02.812Z"
 }
