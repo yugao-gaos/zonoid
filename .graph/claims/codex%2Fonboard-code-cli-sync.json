@@ -3,8 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-10359-dae867e59cd4a6ce45f6f515f83042b0",
   "branch": "orch/attempt/codex-onboard-code-cli-sync",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-24T14:43:32.866Z",
   "lease_until": "2026-06-24T15:43:32.866Z",
-  "completed_at": "2026-06-24T14:47:55.541Z"
+  "completed_at": "2026-06-24T14:49:09.010Z"
 }
