@@ -1,1 +1,2 @@
 {"evt":"edge_added","from":"4e63de07-4fe7-4457-b8b1-c0d3440d30ea/8","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-24T12:50:21.834Z","weight":0.7,"origin":"asserted"}
+{"evt":"edge_promoted","from":"4e63de07-4fe7-4457-b8b1-c0d3440d30ea/8","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-24T12:53:45.613Z","weight":0.7,"origin":"subconscious-assignment"}
