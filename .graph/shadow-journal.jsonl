@@ -5554,3 +5554,4 @@
 {"ts":1782325881401,"from":"note:note-mqsem2307jf","to":"note:note-mqppi1wigd1","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2635357204191576,"cosine":0.643,"model_version":"v1"}
 {"ts":1782325881402,"from":"note:note-mqsem2307jf","to":"note:note-mqpywsqkwff","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.26550108985084603,"cosine":0.648,"model_version":"v1"}
 {"ts":1782325881403,"from":"note:note-mqsem2307jf","to":"note:note-mqqt68limis","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2658952848917043,"cosine":0.649,"model_version":"v1"}
+{"ts":1782326268657,"from":"note:note-mqsewl0q7bl","to":"note:note-mqsewdfu7cj","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.4034211940497207,"cosine":0.958,"model_version":"v1"}

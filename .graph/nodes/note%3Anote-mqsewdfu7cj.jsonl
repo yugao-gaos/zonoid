@@ -7,3 +7,5 @@
 {"evt":"edge_added","from":"note:note-mqsewdfu7cj","to":"note:note-mqqt68limis","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:33:57.035Z","weight":0,"by":"autowire","judged":false,"score":0.655,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqsewdfu7cj","to":"note:note-mqppi1wigd1","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:33:57.035Z","weight":0,"by":"autowire","judged":false,"score":0.651,"origin":"autowire-semantic"}
 {"evt":"note_superseded","id":"note-mqsewdfu7cj","supersededBy":"note-mqsewl0q7bl","validTo":"2026-06-24T18:34:07.092Z","actor":"subsumption","ts":"2026-06-24T18:34:07.092Z"}
+{"evt":"edge_promoted","from":"note:note-mqsewdfu7cj","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:37:48.691Z","weight":1}
+{"evt":"edge_promoted","from":"note:note-mqsewdfu7cj","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:38:18.090Z","weight":1}
