@@ -1,3 +1,0 @@
-{"evt":"edge_removed","from":"followup/write-judge-edge-scorecard-md-tqui","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/16","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
-{"evt":"edge_removed","from":"followup/write-judge-edge-scorecard-md-tqui","to":"091a4bf1-b671-4ff9-854d-993775faa5ee/15","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
-{"evt":"timestamps_set","id":"followup/write-judge-edge-scorecard-md-tqui","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-14T19:21:58.825Z","lastChanged":"2026-06-23T06:03:33.290Z","lastStatus":"canceled"},"actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
