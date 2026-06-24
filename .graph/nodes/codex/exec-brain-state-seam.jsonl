@@ -66,3 +66,4 @@
 {"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:17:07.758Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-21T22:17:19.809Z","weight":0.8,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:44:02.135Z","weight":0.995,"by":"subconscious","judged":true,"score":0.995,"origin":"subconscious-agentic-search"}
+{"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:08.168Z","weight":0.9,"judged":true,"origin":"asserted"}
