@@ -1370,6 +1370,9 @@ function decideOne(L, ctx) {
     // Pool exhausted by earlier loops this tick — idle briefly and retry next heartbeat.
     return withWire({ ...base, action: 'idle', reason: 'spawn batch exhausted this tick', next_poll_seconds: L.config.minPoll });
   }
+  if (ready.length > 0 && spawnable.length === 0) {
+    return withWire({ ...base, action: 'idle', reason: 'ready work has live spawn leases', next_poll_seconds: L.config.minPoll });
+  }
   // Review/edge-judge queues may still have due work here. They are intentionally absent from the
   // loop action surface: the daemon's headless drain runner owns discovery, leasing, and execution.
   if (running > 0) return withWire({ ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(L.config.maxPoll, L.config.minPoll * 2) });
