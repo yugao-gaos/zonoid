@@ -1,10 +1,9 @@
 {
   "task_key": "codex/onboard-code-cli-sync",
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
-  "session_id": "worker-onboard-code-cli-sync-active2-session",
+  "session_id": "codex-mcp-10359-dae867e59cd4a6ce45f6f515f83042b0",
   "branch": "orch/attempt/codex-onboard-code-cli-sync",
-  "status": "failed",
-  "claimed_at": "2026-06-24T03:59:33.568Z",
-  "lease_until": "2026-06-24T04:59:33.568Z",
-  "completed_at": "2026-06-24T04:05:33.219Z"
+  "status": "claimed",
+  "claimed_at": "2026-06-24T14:43:32.866Z",
+  "lease_until": "2026-06-24T15:43:32.866Z"
 }
