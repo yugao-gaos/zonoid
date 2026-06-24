@@ -1,0 +1,9 @@
+{
+  "task_key": "claude/fresh-memory-bench-locomo-longmemeval-oracle-on-enrich-grader-defaults-report-sc",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-worker-fresh-memory-bench-scorecard",
+  "branch": "orch/attempt/claude-fresh-memory-bench-locomo-longmemeval-oracle-on-enrich-grader-defaults-report-sc",
+  "status": "claimed",
+  "claimed_at": "2026-06-24T19:40:00.482Z",
+  "lease_until": "2026-06-24T20:40:00.482Z"
+}
