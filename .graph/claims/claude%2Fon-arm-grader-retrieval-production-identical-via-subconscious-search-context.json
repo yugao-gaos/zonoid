@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-on-arm-grader-retrieval-production-identical",
   "branch": "orch/attempt/claude-on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-24T19:43:41.972Z",
-  "lease_until": "2026-06-24T20:43:41.972Z"
+  "lease_until": "2026-06-24T20:43:41.972Z",
+  "completed_at": "2026-06-24T19:50:12.866Z"
 }
