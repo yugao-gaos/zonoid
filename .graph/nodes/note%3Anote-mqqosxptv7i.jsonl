@@ -24,3 +24,4 @@
 {"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"codex/p1-sync-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"codex/p6-strict-judging-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_added","from":"note:note-mqqosxptv7i","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-24T04:11:32.523Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqqosxptv7i","to":"note:note-mqqqrlczyc2","kind":"context","actor":"overlay-sync","ts":"2026-06-24T12:53:53.725Z","weight":0.7,"by":"judge","judged":true}
