@@ -234942,7 +234942,7 @@
       "kind": null,
       "workspace": "D:\\zonoid",
       "status": "tested",
-      "summary": "Added production agentic+grader retrieval to the agent-memory bench alongside the frozen-DAG our-way arm (kept). commit a18f635e (+331/-34, 4 bench files). client.search_context() POSTs /subconscious/search-context (use_grader:true) -> subconscious_context envelope; arms.read_agentic_search_context + retrieval='agentic' on run_retrieve_and_answer (default path byte-identical, both keep canonical wiring + sync-judge drain); probe_runner.run_our_way_prod + new our-way-prod arm; run.py valid_arms. Grader-fires evidence: envelope grader={enabled:true,rounds:1,last_verdict:{parsed:true,kept_count:1,abstain:false}} with LLM aggregate. Smoke 2/3 fail is a PRE-EXISTING flake (clean main flaked identically PASS/FAIL/PASS; identical app code); my changes are additive and don't touch the wiring/default path. No daemon/lib code touched.",
+      "summary": "Added production agentic+grader retrieval to the agent-memory bench alongside the frozen-DAG our-way arm (kept). commit a18f635e (+331/-34, 4 bench files): client.search_context() POSTs /subconscious/search-context (use_grader:true) -> subconscious_context envelope; arms.read_agentic_search_context + retrieval=\"agentic\" on run_retrieve_and_answer (default path byte-identical; both keep canonical wiring + sync-judge drain); ArmResult.grader field; probe_runner.run_our_way_prod + new our-way-prod arm wired into run_probe (reuses embedded daemon, gated on request); run.py valid_arms + threading. Grader-fires evidence (isolated daemon): envelope grader={enabled:true, rounds:1, kept_keys:[note:...], last_verdict:{parsed:true, kept_count:1, abstain:false}} + LLM aggregate = agentic loop ran the grader, not heuristic fallback. Smoke 2/3 fail = PRE-EXISTING flake (clean main flaked identically PASS/FAIL/PASS; base vs main differ only by .graph snapshots = identical app code); changes are additive, don't touch wiring/default path. No daemon/lib code touched.",
       "category": null,
       "tags": [],
       "knowledge": [],
@@ -266687,6 +266687,151 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqe1cey1lux",
+      "to": "note:note-mqq0q02xylw",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqhha58fz9k",
+      "to": "note:note-mqq0q02xylw",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqq0frbreww",
+      "to": "codex/p4-migrate-benches-sdk",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqqosxptv7i",
+      "to": "note:note-mqqqrlczyc2",
+      "kind": "context",
+      "weight": 0.7,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqqtne9zs3u",
+      "to": "note:note-mqr2jk9hawd",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqqv4ix36dd",
+      "to": "note:note-mqqyd0ugp2b",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqqvw755vf0",
+      "to": "note:note-mqqwu05983g",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqqyd0ugp2b",
+      "to": "note:note-mqqv4ix36dd",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqs2cryemhg",
+      "to": "codex/p4-migrate-benches-sdk",
+      "kind": "context",
+      "weight": 1,
+      "judged": true
+    },
+    {
+      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/21",
+      "to": "claude/fresh-memory-bench-locomo-longmemeval-oracle-on-enrich-grader-defaults-report-sc",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/21",
+      "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
+      "to": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 0.443,
+      "by": "judge",
+      "judged": true,
+      "score": 0.443,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
+      "to": "knowledge:source_chunk:chunk-readme-md-3-2-retrieval-scorecard-recall-5-0-91-mrr-0--1cc896dc03",
+      "kind": "context",
+      "weight": 0.442,
+      "by": "judge",
+      "judged": true,
+      "score": 0.442,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
+      "to": "knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.44,
+      "by": "judge",
+      "judged": true,
+      "score": 0.44,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
+      "to": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.439,
+      "by": "judge",
+      "judged": true,
+      "score": 0.439,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
+      "to": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.431,
+      "by": "judge",
+      "judged": true,
+      "score": 0.431,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/p4-migrate-benches-sdk",
+      "to": "claude/fresh-memory-bench-locomo-longmemeval-oracle-on-enrich-grader-defaults-report-sc",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/p4-migrate-benches-sdk",
+      "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
       "from": "note:note-mq4jswuc",
       "to": "66a514fd-59a6-4d96-b3c4-a40c1e3652c0/7",
       "kind": "context",
@@ -267152,14 +267297,6 @@
       "judged": true,
       "score": 0.687,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqe1cey1lux",
-      "to": "note:note-mqq0q02xylw",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
     },
     {
       "from": "note:note-mqe5sbyj4uq",
@@ -268209,14 +268346,6 @@
       "judged": true,
       "score": 0.733,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqhha58fz9k",
-      "to": "note:note-mqq0q02xylw",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
     },
     {
       "from": "note:note-mqi6jense8t",
@@ -270158,14 +270287,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqq0frbreww",
-      "to": "codex/p4-migrate-benches-sdk",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
       "from": "note:note-mqq0vwgsq1k",
       "to": "codex/p6-strict-judging-gate",
       "kind": "context",
@@ -270218,22 +270339,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqqosxptv7i",
-      "to": "note:note-mqqqrlczyc2",
-      "kind": "context",
-      "weight": 0.7,
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "note:note-mqqtne9zs3u",
-      "to": "note:note-mqr2jk9hawd",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
       "from": "note:note-mqquqci425x",
       "to": "7324f0fd-3872-4c3a-a82b-e7b554aea59d/4",
       "kind": "context",
@@ -270250,37 +270355,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqqv4ix36dd",
-      "to": "note:note-mqqyd0ugp2b",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "note:note-mqqvw755vf0",
-      "to": "note:note-mqqwu05983g",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "note:note-mqqyd0ugp2b",
-      "to": "note:note-mqqv4ix36dd",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "note:note-mqs2cryemhg",
-      "to": "codex/p4-migrate-benches-sdk",
-      "kind": "context",
-      "weight": 1,
-      "judged": true
-    },
-    {
       "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/20",
       "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/16",
       "kind": "context",
@@ -270289,18 +270363,6 @@
       "judged": true,
       "score": 0.57,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/21",
-      "to": "claude/fresh-memory-bench-locomo-longmemeval-oracle-on-enrich-grader-defaults-report-sc",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/21",
-      "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-      "kind": "context",
-      "origin": "subconscious-assignment"
     },
     {
       "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/22",
@@ -270376,56 +270438,6 @@
       "judged": true
     },
     {
-      "from": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-      "to": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-3",
-      "kind": "context",
-      "weight": 0.443,
-      "by": "judge",
-      "judged": true,
-      "score": 0.443,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-      "to": "knowledge:source_chunk:chunk-readme-md-3-2-retrieval-scorecard-recall-5-0-91-mrr-0--1cc896dc03",
-      "kind": "context",
-      "weight": 0.442,
-      "by": "judge",
-      "judged": true,
-      "score": 0.442,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-      "to": "knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.44,
-      "by": "judge",
-      "judged": true,
-      "score": 0.44,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-      "to": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-2",
-      "kind": "context",
-      "weight": 0.439,
-      "by": "judge",
-      "judged": true,
-      "score": 0.439,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-      "to": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-1",
-      "kind": "context",
-      "weight": 0.431,
-      "by": "judge",
-      "judged": true,
-      "score": 0.431,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "codex/fix-dashboard-config-smoke-recovery",
       "to": "codex/fix-dashboard-config-smoke-kickback-judge",
       "kind": "context",
@@ -270477,18 +270489,6 @@
       "by": "judge",
       "judged": true,
       "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/p4-migrate-benches-sdk",
-      "to": "claude/fresh-memory-bench-locomo-longmemeval-oracle-on-enrich-grader-defaults-report-sc",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/p4-migrate-benches-sdk",
-      "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-      "kind": "context",
-      "origin": "subconscious-assignment"
     },
     {
       "from": "dc3ec43f-f1a8-4a77-9403-14c5a43e2e17/5",
@@ -270545,5 +270545,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-24T16:03:04.865Z"
+  "compacted_at": "2026-06-24T16:20:25.835Z"
 }
