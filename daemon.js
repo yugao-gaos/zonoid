@@ -1684,14 +1684,40 @@ function autowireNoteProvider(overlay, g, noteKey, title, summary, targetVec = n
 // Per-kind fan-out cap for the creation-time whole-graph recall: at most this many note candidates
 // AND this many task candidates seeded for a new anchor, so a generic task can't spam the graph.
 const TASK_CREATE_FANOUT = 5;
+// SOURCE-CHUNK seeding lane (RECALL fix). source_chunk knowledge nodes (knowledge:source_chunk:…)
+// carry the RAW evidence text behind a long note — they are the nodes that literally contain the
+// answer span. Before this lane they were lumped into the generic `!isNote` task bucket and had to
+// out-rank real tasks for the TASK_CREATE_FANOUT (=5) cut; a semantically-distant evidence chunk
+// (e.g. a "GPS system" chunk at cosine ~0.44 to a question that never says "GPS") loses that cut
+// stochastically, so the answer-bearing chunk was only sometimes a DAG Tier-1 candidate the
+// eager-judge/grader could keep. This lane seeds source_chunks on their OWN bounded budget so the
+// evidence chunk is a RELIABLE candidate, without letting chunks crowd real-task candidates (and
+// vice-versa). COST-AWARE: this runs for EVERY new task, so it is tightly bounded —
+//   • SOURCE_CHUNK_FANOUT (=3)            : worst-case extra seeded candidate edges per new task.
+//   • SOURCE_CHUNK_SEED_THRESHOLD (=0.30) : a DEDICATED cosine floor applied INDEPENDENTLY of the
+//     global SEMANTIC_AUTOWIRE_THRESHOLD (which is 0 in prod+bench), so an off-topic task whose
+//     nearest chunk is below the floor seeds ZERO chunks. 0.30 sits below the GPS chunk's ~0.44 but
+//     well above random-prose cosine, so it admits the genuine evidence chunk and gates noise.
+// Both env-overridable for tuning/bench. Edges are chunk -> anchor (chunk is the PROVIDER, mirroring
+// the note lane + the chunk -> note cluster edges), weight 0, judged:false, origin:'autowire-semantic'
+// — identical envelope to the note/task lanes, so the SAME eager-judge arbitrates the keep.
+const SOURCE_CHUNK_FANOUT = parseInt(process.env.ORCH_SOURCE_CHUNK_FANOUT || '3', 10) || 3;
+const SOURCE_CHUNK_SEED_THRESHOLD = process.env.ORCH_SOURCE_CHUNK_SEED_THRESHOLD !== undefined
+  ? parseFloat(process.env.ORCH_SOURCE_CHUNK_SEED_THRESHOLD)
+  : 0.30;
+const isSourceChunkKey = (k) => typeof k === 'string' && k.startsWith('knowledge:source_chunk:');
 // CREATION-TIME whole-graph recall for a NEW anchor task. Symmetric to autowireNoteProvider, but run
-// when a TASK is born (its vec just set) so it gets weight-0, judged:false candidate edges to BOTH:
+// when a TASK is born (its vec just set) so it gets weight-0, judged:false candidate edges to:
 //   - relevant NOTES  → mirror the note->task direction (note is PROVIDER ⇒ edge note -> anchor), so
 //                       the note's knowledge flows INTO the new task once the judge promotes it.
 //   - relevant TASKS  → the anchor is the PROVIDER ⇒ edge anchor -> task, so the judge's edge item
 //                       (it.from=anchor, it.to=task) classifies taskTask=true and runs the kind/dup
 //                       path. DONE tasks are eligible providers — a new task's best context is the
 //                       completed work it builds on (scoreMatchesSemantic does not filter done here).
+//   - relevant SOURCE_CHUNKS → the answer-bearing evidence node is the PROVIDER ⇒ edge chunk -> anchor.
+//                       Its OWN bounded+floored lane (SOURCE_CHUNK_FANOUT / SOURCE_CHUNK_SEED_THRESHOLD,
+//                       above) so the evidence chunk is a RELIABLE candidate instead of stochastically
+//                       losing the shared task cut. RECALL fix — see the constants' block comment.
 // Closes the gap left by removing lexical task->task autowire (task /5) and by note->task wiring only
 // firing on NOTE creation (autowireNoteProvider), never on task creation. SEMANTIC only (Step 1 proved
 // lexical fusion regresses): scoreMatchesSemantic over the whole graph, gated at SEMANTIC_AUTOWIRE_THRESHOLD.
@@ -1740,7 +1766,16 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
   }
   const isNote = (k) => typeof k === 'string' && k.startsWith('note:');
   const notes = scored.filter((m) => isNote(m.key)).slice(0, TASK_CREATE_FANOUT);
-  const taskCands = scored.filter((m) => !isNote(m.key)).slice(0, TASK_CREATE_FANOUT);
+  // source_chunks get their OWN lane (below) — exclude them from the generic task bucket so they
+  // neither consume the task budget nor get crowded out of it by real tasks (the root-cause crowding).
+  const taskCands = scored.filter((m) => !isNote(m.key) && !isSourceChunkKey(m.key)).slice(0, TASK_CREATE_FANOUT);
+  // SOURCE-CHUNK lane: bounded + gated by a DEDICATED cosine floor (independent of the global
+  // threshold, which is 0). When the global threshold is HIGHER than the chunk floor (legacy/manual
+  // tuning), keep the stricter of the two so we never seed BELOW the global bar.
+  const chunkFloor = Math.max(SOURCE_CHUNK_SEED_THRESHOLD, threshold);
+  const chunkCands = scored
+    .filter((m) => isSourceChunkKey(m.key) && m.score >= chunkFloor)
+    .slice(0, SOURCE_CHUNK_FANOUT);
   let added = 0;
   const seed = (from, to, score, ceScore) => {
     const before = overlay.edges.length;
@@ -1753,6 +1788,9 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
   for (const m of notes) seed(m.key, anchorKey, m.score, m.ceScore);
   // TASK candidates: anchor is provider ⇒ anchor -> task (taskTask path fires in the judge).
   for (const m of taskCands) seed(anchorKey, m.key, m.score, m.ceScore);
+  // SOURCE-CHUNK candidates: chunk is provider ⇒ chunk -> anchor (mirrors the note direction; the
+  // evidence flows INTO the new task once the judge promotes it). Same weight-0/judged:false envelope.
+  for (const m of chunkCands) seed(m.key, anchorKey, m.score, m.ceScore);
   return added;
 }
 
