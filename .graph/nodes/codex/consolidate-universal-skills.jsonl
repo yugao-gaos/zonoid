@@ -7,3 +7,4 @@
 {"evt":"edge_removed","from":"codex/consolidate-universal-skills","to":"codex/consolidate-universal-skills-judge","kind":"blocking","actor":"overlay-sync","ts":"2026-06-24T15:56:18.747Z"}
 {"evt":"edge_removed","from":"codex/consolidate-universal-skills","to":"codex/consolidate-universal-skills-judge","kind":"blocking","actor":"overlay-sync","ts":"2026-06-24T15:56:19.044Z"}
 {"evt":"edge_added","from":"codex/consolidate-universal-skills","to":"codex/consolidate-universal-skills-judge","kind":"blocking","actor":"overlay-sync","ts":"2026-06-24T15:56:24.341Z","origin":"subconscious-assignment"}
+{"evt":"edge_removed","from":"codex/consolidate-universal-skills","to":"codex/consolidate-universal-skills-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:24.341Z"}
