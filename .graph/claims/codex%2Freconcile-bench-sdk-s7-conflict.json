@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-reconcile-bench-sdk-s7-conflict-session",
   "branch": "orch/attempt/codex-reconcile-bench-sdk-s7-conflict",
-  "status": "claimed",
+  "status": "failed",
   "claimed_at": "2026-06-24T03:16:09.596Z",
-  "lease_until": "2026-06-24T04:16:09.596Z"
+  "lease_until": "2026-06-24T04:16:09.596Z",
+  "completed_at": "2026-06-24T03:19:36.043Z"
 }
