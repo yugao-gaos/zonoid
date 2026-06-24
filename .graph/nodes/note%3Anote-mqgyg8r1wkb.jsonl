@@ -16,3 +16,4 @@
 {"evt":"edge_added","from":"note:note-mqgyg8r1wkb","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:55:39.771Z","weight":0,"by":"autowire","judged":false,"score":0.421,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqgyg8r1wkb","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:55:48.077Z","weight":0,"by":"autowire","judged":false,"score":0.421,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqgyg8r1wkb","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:55:48.612Z","weight":0,"by":"autowire","judged":false,"score":0.421,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqgyg8r1wkb","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-24T16:00:36.385Z"}

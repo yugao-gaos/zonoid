@@ -8,3 +8,5 @@
 {"evt":"edge_removed","from":"codex/consolidate-universal-skills","to":"codex/consolidate-universal-skills-judge","kind":"blocking","actor":"overlay-sync","ts":"2026-06-24T15:56:19.044Z"}
 {"evt":"edge_added","from":"codex/consolidate-universal-skills","to":"codex/consolidate-universal-skills-judge","kind":"blocking","actor":"overlay-sync","ts":"2026-06-24T15:56:24.341Z","origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"codex/consolidate-universal-skills","to":"codex/consolidate-universal-skills-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:24.341Z"}
+{"evt":"edge_added","from":"codex/consolidate-universal-skills","to":"codex/consolidate-universal-skills-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T16:00:36.385Z","weight":0.871,"by":"subconscious","judged":true,"score":0.871,"origin":"subconscious-agentic-search"}
+{"evt":"edge_removed","from":"codex/consolidate-universal-skills","to":"codex/consolidate-universal-skills-judge","kind":"blocking","actor":"overlay-sync","ts":"2026-06-24T16:00:36.385Z"}
