@@ -1,10 +1,9 @@
 {
   "task_key": "codex/merge-origin-sync",
-  "git_user": "Yu Gao <yu.gao@gaos.ca>",
-  "session_id": "c6dc7976-f69d-4ee2-a2c4-cbcff8471eab",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-merge-origin-sync-isolated",
   "branch": "orch/attempt/codex-merge-origin-sync",
-  "status": "tested",
-  "claimed_at": "2026-06-23T18:23:52.460Z",
-  "lease_until": "2026-06-23T19:23:52.460Z",
-  "completed_at": "2026-06-23T20:08:23.776Z"
+  "status": "claimed",
+  "claimed_at": "2026-06-24T15:49:05.898Z",
+  "lease_until": "2026-06-24T16:49:05.898Z"
 }
