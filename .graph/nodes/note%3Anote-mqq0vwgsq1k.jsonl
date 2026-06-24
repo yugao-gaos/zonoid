@@ -42,3 +42,4 @@
 {"evt":"edge_promoted","from":"note:note-mqq0vwgsq1k","to":"codex/p6-strict-judging-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:49:36.026Z","weight":0.866,"by":"judge","judged":true,"score":0.866,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqq0vwgsq1k","to":"codex/p1-sync-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"note:note-mqq0vwgsq1k","to":"codex/p6-strict-judging-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_added","from":"note:note-mqq0vwgsq1k","to":"codex/p6-strict-judging-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-24T04:06:15.330Z","weight":0.6,"by":"judge","judged":true}
