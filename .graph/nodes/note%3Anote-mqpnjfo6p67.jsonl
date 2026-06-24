@@ -52,3 +52,4 @@
 {"evt":"edge_promoted","from":"note:note-mqpnjfo6p67","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:49:32.390Z","weight":1}
 {"evt":"edge_removed","from":"note:note-mqpnjfo6p67","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"note:note-mqpnjfo6p67","to":"note:note-mqfgcwu5yqi","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_added","from":"note:note-mqpnjfo6p67","to":"codex/search-economy-retrieval-phase1-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:51:08.505Z","weight":0,"by":"autowire","judged":false,"score":0.629,"origin":"autowire-semantic"}
