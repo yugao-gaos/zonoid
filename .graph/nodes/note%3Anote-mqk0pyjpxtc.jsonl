@@ -39,3 +39,4 @@
 {"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"note:note-mqftffo7f2b","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:29.107Z"}
 {"evt":"edge_added","from":"note:note-mqk0pyjpxtc","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.567,"by":"judge","judged":true,"score":0.567,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"codex/judge-exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_promoted","from":"note:note-mqk0pyjpxtc","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-24T19:37:06.640Z","weight":1,"by":"subconscious","judged":true,"score":1,"origin":"subconscious-agentic-search"}
