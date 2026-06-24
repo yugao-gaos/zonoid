@@ -18,3 +18,4 @@
 {"evt":"edge_removed","from":"note:note-mqpna41fj59","to":"codex/paper-code-retrieval-economy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:52:20.787Z"}
 {"evt":"edge_added","from":"note:note-mqpna41fj59","to":"note:note-mqpz36sv7ns","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:09:11.947Z","weight":0.6,"by":"judge","judged":true}
 {"evt":"edge_removed","from":"note:note-mqpna41fj59","to":"note:note-mqpz36sv7ns","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_added","from":"note:note-mqpna41fj59","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-24T19:18:42.128Z","weight":0,"by":"autowire","judged":false,"score":0.55,"origin":"autowire-semantic"}
