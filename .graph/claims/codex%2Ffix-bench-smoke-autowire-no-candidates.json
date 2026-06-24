@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-fix-bench-smoke-autowire-no-candidates-session",
   "branch": "orch/attempt/codex-fix-bench-smoke-autowire-no-candidates",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-24T03:20:58.254Z",
-  "lease_until": "2026-06-24T04:20:58.254Z"
+  "lease_until": "2026-06-24T04:20:58.254Z",
+  "completed_at": "2026-06-24T03:43:00.150Z"
 }
