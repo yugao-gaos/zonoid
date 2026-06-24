@@ -4,6 +4,6 @@
   "session_id": "worker-merge-origin-sync-isolated",
   "branch": "orch/attempt/codex-merge-origin-sync",
   "status": "claimed",
-  "claimed_at": "2026-06-24T15:45:44.488Z",
-  "lease_until": "2026-06-24T16:45:44.488Z"
+  "claimed_at": "2026-06-24T15:49:05.898Z",
+  "lease_until": "2026-06-24T16:49:05.898Z"
 }
