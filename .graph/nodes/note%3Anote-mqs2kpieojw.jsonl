@@ -9,3 +9,5 @@
 {"evt":"edge_removed","from":"note:note-mqs2kpieojw","to":"codex/fix-bench-smoke-autowire-no-candidates","kind":"context","actor":"overlay-sync","ts":"2026-06-24T13:16:08.979Z"}
 {"evt":"edge_promoted","from":"note:note-mqs2kpieojw","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-24T13:26:03.316Z","weight":0.707,"by":"judge","judged":true,"score":0.707,"origin":"asserted"}
 {"evt":"edge_added","from":"note:note-mqs2kpieojw","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:42:28.110Z","origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqs2kpieojw","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:43:15.149Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
+{"evt":"edge_removed","from":"note:note-mqs2kpieojw","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:44:11.777Z"}
