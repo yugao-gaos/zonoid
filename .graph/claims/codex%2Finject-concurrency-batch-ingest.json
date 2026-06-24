@@ -3,8 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-inject-concurrency-batch-ingest-active-session",
   "branch": "orch/attempt/codex-inject-concurrency-batch-ingest",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-24T02:51:05.560Z",
   "lease_until": "2026-06-24T03:51:05.560Z",
-  "completed_at": "2026-06-24T02:52:24.291Z"
+  "completed_at": "2026-06-24T13:17:55.362Z"
 }
