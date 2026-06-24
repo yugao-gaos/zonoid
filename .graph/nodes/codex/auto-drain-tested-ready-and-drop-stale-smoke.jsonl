@@ -12,3 +12,4 @@
 {"evt":"assignee_set","id":"codex/auto-drain-tested-ready-and-drop-stale-smoke","workspace":"/Users/imyu/Desktop/zonoid","assignee":"dispatcher-codex-main-review","actor":"overlay-sync","ts":"2026-06-24T13:12:39.444Z"}
 {"evt":"status_changed","id":"codex/auto-drain-tested-ready-and-drop-stale-smoke","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-24T13:12:54.052Z"}
 {"evt":"timestamps_set","id":"codex/auto-drain-tested-ready-and-drop-stale-smoke","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-24T12:48:52.232Z","lastChanged":"2026-06-24T13:12:53.988Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-24T13:13:31.140Z"}
+{"evt":"edge_added","from":"codex/auto-drain-tested-ready-and-drop-stale-smoke","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:42:28.110Z","origin":"subconscious-assignment"}
