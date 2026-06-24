@@ -10,3 +10,8 @@
 {"evt":"status_changed","id":"codex/p1-sync-judge-drain-judge","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-24T03:56:55.210Z"}
 {"evt":"assignee_set","id":"codex/p1-sync-judge-drain-judge","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-p1-sync-judge-drain-judge-active","actor":"overlay-sync","ts":"2026-06-24T03:56:55.210Z"}
 {"evt":"timestamps_set","id":"codex/p1-sync-judge-drain-judge","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-23T02:15:07.295Z","lastChanged":"2026-06-24T03:56:53.126Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-24T03:56:55.210Z"}
+{"evt":"edge_removed","from":"codex/p1-sync-judge-drain-judge","to":"codex/judge-prevent-judge-reverse-blocking-edges","kind":"context","actor":"overlay-sync","ts":"2026-06-24T04:00:32.070Z"}
+{"evt":"edge_removed","from":"codex/p1-sync-judge-drain-judge","to":"codex/review-state-docs-instructions","kind":"context","actor":"overlay-sync","ts":"2026-06-24T04:00:32.070Z"}
+{"evt":"edge_removed","from":"codex/p1-sync-judge-drain-judge","to":"codex/judge-enforce-test-pass-before-push-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T04:00:32.070Z"}
+{"evt":"edge_removed","from":"codex/p1-sync-judge-drain-judge","to":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2","kind":"context","actor":"overlay-sync","ts":"2026-06-24T04:00:32.070Z"}
+{"evt":"edge_removed","from":"codex/p1-sync-judge-drain-judge","to":"codex/review-state-daemon-queues","kind":"context","actor":"overlay-sync","ts":"2026-06-24T04:01:10.256Z"}
