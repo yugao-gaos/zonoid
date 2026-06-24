@@ -56,3 +56,6 @@
 {"evt":"edge_added","from":"note:note-mqqwu05983g","to":"codex/merge-origin-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:11.926Z","weight":0.858,"by":"subconscious","judged":true,"score":0.858,"origin":"subconscious-agentic-search"}
 {"evt":"edge_added","from":"note:note-mqqwu05983g","to":"codex/consolidate-universal-skills-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:11.926Z","weight":0.862,"by":"subconscious","judged":true,"score":0.862,"origin":"subconscious-agentic-search"}
 {"evt":"edge_added","from":"note:note-mqqwu05983g","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:11.926Z","weight":0.872,"by":"subconscious","judged":true,"score":0.872,"origin":"subconscious-agentic-search"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/merge-origin-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:15.026Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/consolidate-universal-skills-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:15.026Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:15.026Z"}
