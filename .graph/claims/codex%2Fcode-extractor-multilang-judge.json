@@ -3,8 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-desktop-session",
   "branch": "orch/attempt/codex-code-extractor-multilang-judge",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-23T21:34:29.463Z",
   "lease_until": "2026-06-23T22:34:29.463Z",
-  "completed_at": "2026-06-23T21:36:55.368Z"
+  "completed_at": "2026-06-24T13:14:17.716Z"
 }
