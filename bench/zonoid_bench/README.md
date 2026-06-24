@@ -233,4 +233,9 @@ planted fact + distractor, runs all three arms, scores them, and asserts:
   note surfaces in `/task/context` and the kept edge came from a keepEdge promotion (not idle).
 - **A3** Cold answer does NOT contain the planted fact (rigging guard).
 
+If A2 reports `KEPT (keepEdge): []` while `context_keys` is non-empty, the RAG answer succeeded but
+the eager-judge path did not post a verified `keepEdge`. Inspect the smoke's candidate verdicts and
+`claude -p` health, then rerun the smoke after fixing the cause. Do not rescue the miss with
+`overlay_edge`; that bypasses the production eager-judge path the smoke is validating.
+
 All assertions must PASS for the feature branch to be merge-eligible.
