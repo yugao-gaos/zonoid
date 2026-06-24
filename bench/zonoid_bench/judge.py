@@ -6,6 +6,12 @@ the tool-less ``claude -p`` completion surface the ANSWER step (and cold/rag arm
 probe from retrieved context — the edge-judge twin (the hand-copied keep/prune rubric + EdgeJudge
 class) has been DELETED so there is one judge implementation, in production.
 
+Important production-rubric constraint for bench reconciliation: the deleted EdgeJudge twin must not
+be reintroduced here, but the production judge it drives treats the anchor as a note or task anchor.
+For task/question probes, candidates that contain evidence needed to answer or complete the probe
+must be kept: exact identifiers, run-specific tokens, facts, constraints, and prior decisions are
+valid context even when the candidate is not a conventional same-note neighbour.
+
 Reuses and canonicalises the existing completion helper:
   - bench/agent-memory/probe_runner.py  (_run_claude, _extract_json_objects)
 
