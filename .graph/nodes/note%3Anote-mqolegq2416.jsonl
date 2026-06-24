@@ -29,3 +29,5 @@
 {"evt":"edge_added","from":"note:note-mqolegq2416","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:02.934Z","weight":0,"by":"autowire","judged":false,"score":0.55,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqolegq2416","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:08.168Z"}
 {"evt":"edge_added","from":"note:note-mqolegq2416","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:11.926Z","weight":0,"by":"autowire","judged":false,"score":0.515,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqolegq2416","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:18.747Z"}
+{"evt":"edge_removed","from":"note:note-mqolegq2416","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:56:19.044Z"}
