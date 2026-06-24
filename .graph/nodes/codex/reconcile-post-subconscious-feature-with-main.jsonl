@@ -25,3 +25,5 @@
 {"evt":"edge_removed","from":"codex/reconcile-post-subconscious-feature-with-main","to":"codex/subconscious-internalized-orchestration","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:16:12.860Z"}
 {"evt":"edge_removed","from":"codex/reconcile-post-subconscious-feature-with-main","to":"codex/subconscious-pressure-protocol","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:16:12.860Z"}
 {"evt":"edge_removed","from":"codex/reconcile-post-subconscious-feature-with-main","to":"codex/reconcile-post-subconscious-feature-with-main-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:17:30.013Z"}
+{"evt":"status_changed","id":"codex/reconcile-post-subconscious-feature-with-main","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-24T02:42:10.231Z"}
+{"evt":"summary_set","id":"codex/reconcile-post-subconscious-feature-with-main","workspace":"/Users/imyu/Desktop/zonoid","summary":"Bookkeeping cleanup: task already has merge_state=merged; promoted to done without additional code changes.","actor":"overlay-sync","ts":"2026-06-24T02:42:10.231Z"}
