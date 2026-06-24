@@ -492,6 +492,75 @@ def run_our_way(
     return diag
 
 
+def run_our_way_prod(
+    base_url: str,
+    workspace: str,
+    probe: dict[str, Any],
+    candidates: list["_SessionCandidate"],
+    *,
+    _embedded_client: "ZonoidClient | None" = None,
+    _embedded_data_dir: "str | None" = None,
+) -> dict[str, Any]:
+    """ARM our-way-prod: ON-arm retrieval via production /subconscious/search-context.
+
+    This keeps the same probe minting + production sync-judge setup as ``our-way``,
+    then asks the daemon's Subconscious context surface to choose answer context with
+    its production DAG/RAG loop and grader instead of reading /search?task_key= directly.
+    """
+    question = probe["question"]
+    unit_id = f"{probe['qid']}-prod-{int(time.time() * 1000) % 1_000_000}"
+
+    diag: dict[str, Any] = {
+        "candidate_sids": [c.sid for c in candidates],
+        "kept_sids": [],
+        "context_keys": [],
+        "judge_idle": False,
+        "timeout_kills": 0,
+        "provisional_kept": 0,
+        "grader": None,
+    }
+
+    own_daemon = _embedded_client is None
+    handle = None
+    try:
+        if own_daemon:
+            handle = _start_our_way_daemon(workspace)
+            client = ZonoidClient(handle.base_url, workspace=workspace, timeout=120)
+            data_dir = handle.data_dir
+            _ingest_candidates_into_daemon(client, candidates, workspace)
+        else:
+            client = _embedded_client
+            data_dir = _embedded_data_dir or ""
+
+        result = _arms.run_retrieve_and_answer(
+            client,
+            unit_id=unit_id,
+            question=question,
+            task_summary=question,
+            data_dir=data_dir,
+            retrieval="agentic",
+        )
+        w = result.wiring
+        diag["context_keys"] = list(result.context_keys)
+        diag["grader"] = result.grader
+        if w is not None:
+            diag["kept_sids"] = list(w.wired_edges)
+            diag["judge_idle"] = w.judge_idle
+            diag["timeout_kills"] = w.timeout_kills
+            diag["provisional_kept"] = w.provisional_kept
+            if w.task_key:
+                diag["probe_key"] = w.task_key
+        diag["predicted"] = result.predicted or ""
+
+    finally:
+        if own_daemon and handle is not None:
+            try:
+                _daemon_mod.stop(handle)
+            except Exception:  # noqa: BLE001
+                pass
+    return diag
+
+
 def _is_session_note_hit(hit: dict[str, Any]) -> bool:
     """Return True iff *hit* is an ingested session NOTE, not a harness task stub.
 
@@ -743,8 +812,9 @@ def run_probe(
     conv_id: str,
     probe: dict[str, Any],
     candidates: list[_SessionCandidate],
+    arms: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Run all THREE arms for one probe and return one result record per arm.
+    """Run requested standard arms for one probe and return one result record per arm.
 
     Each record: {arm, conv_id, qid, category, question, gold, predicted, ...diagnostics}.
     ``gold`` is recorded FOR THE SCORER ONLY; it never enters any prediction path above.
@@ -762,6 +832,7 @@ def run_probe(
         "gold": probe.get("answer"),  # for the scorer; NOT used by any arm
     }
     records: list[dict[str, Any]] = []
+    requested = set(arms or ["our-way", "search", "cold"])
 
     # Start ONE embedded daemon for both our-way and search arms.
     # The embedded daemon loads a fresh overlay from graph-store (no pendingDup),
@@ -774,29 +845,48 @@ def run_probe(
         emb_client = ZonoidClient(emb_url, workspace=workspace, timeout=120)
         _ingest_candidates_into_daemon(emb_client, candidates, workspace)
 
-        # ARM our-way (headline) — reuses embedded daemon
-        ow = run_our_way(
-            base_url, workspace, probe, candidates,
-            _embedded_client=emb_client,
-            _embedded_data_dir=emb_data_dir,
-        )
-        records.append({
-            "arm": "our-way",
-            **common,
-            "predicted": ow.get("predicted", ""),
-            "kept_sids": ow.get("kept_sids"),
-            "context_keys": ow.get("context_keys"),
-            "candidate_sids": ow.get("candidate_sids"),
-        })
+        if "our-way" in requested:
+            # ARM our-way (headline) — reuses embedded daemon
+            ow = run_our_way(
+                base_url, workspace, probe, candidates,
+                _embedded_client=emb_client,
+                _embedded_data_dir=emb_data_dir,
+            )
+            records.append({
+                "arm": "our-way",
+                **common,
+                "predicted": ow.get("predicted", ""),
+                "kept_sids": ow.get("kept_sids"),
+                "context_keys": ow.get("context_keys"),
+                "candidate_sids": ow.get("candidate_sids"),
+            })
 
-        # ARM search — uses embedded daemon for full note visibility (no pendingDup)
-        sr = run_search(emb_url, workspace, probe)
-        records.append({
-            "arm": "search",
-            **common,
-            "predicted": sr.get("predicted", ""),
-            "hit_keys": sr.get("hit_keys"),
-        })
+        if "our-way-prod" in requested:
+            # ARM our-way-prod — same ON setup, production /subconscious/search-context retrieval.
+            op = run_our_way_prod(
+                base_url, workspace, probe, candidates,
+                _embedded_client=emb_client,
+                _embedded_data_dir=emb_data_dir,
+            )
+            records.append({
+                "arm": "our-way-prod",
+                **common,
+                "predicted": op.get("predicted", ""),
+                "kept_sids": op.get("kept_sids"),
+                "context_keys": op.get("context_keys"),
+                "candidate_sids": op.get("candidate_sids"),
+                "grader": op.get("grader"),
+            })
+
+        if "search" in requested:
+            # ARM search — uses embedded daemon for full note visibility (no pendingDup)
+            sr = run_search(emb_url, workspace, probe)
+            records.append({
+                "arm": "search",
+                **common,
+                "predicted": sr.get("predicted", ""),
+                "hit_keys": sr.get("hit_keys"),
+            })
     finally:
         if handle is not None:
             try:
@@ -805,12 +895,13 @@ def run_probe(
                 pass
 
     # ARM cold (floor) — no memory needed, runs after daemon stop
-    cd = run_cold(probe)
-    records.append({
-        "arm": "cold",
-        **common,
-        "predicted": cd.get("predicted", ""),
-    })
+    if "cold" in requested:
+        cd = run_cold(probe)
+        records.append({
+            "arm": "cold",
+            **common,
+            "predicted": cd.get("predicted", ""),
+        })
 
     return records
 

@@ -193,6 +193,45 @@ def search(
         return []
 
 
+def search_context(
+    base_url: str,
+    workspace: str,
+    *,
+    agent_id: str,
+    query: str,
+    task_key: str | None = None,
+    intent: str | None = None,
+    situation: str | None = None,
+    k: int = 5,
+    max_rounds: int = 3,
+    use_grader: bool = True,
+    timeout: int = 120,
+) -> dict[str, Any]:
+    """POST /subconscious/search-context and return the production envelope.
+
+    This is the production Subconscious retrieval surface: the daemon owns DAG/RAG
+    planning, follow-up rounds, filtering, and the optional LLM grader. The bench
+    only supplies the task/query and consumes the returned envelope.
+    """
+    if not (workspace.startswith("/") or (len(workspace) >= 2 and workspace[1] == ":")):
+        raise ValueError(
+            f"workspace must be an absolute filesystem path (finding #1), got: {workspace!r}"
+        )
+    body: dict[str, Any] = {
+        "workspace": workspace,
+        "agent_id": agent_id,
+        "query": query or "",
+        "intent": intent or query or "",
+        "situation": situation or query or "",
+        "k": k,
+        "max_rounds": max_rounds,
+        "use_grader": bool(use_grader),
+    }
+    if task_key is not None:
+        body["task_key"] = task_key
+    return _http_post(f"{_base(base_url)}/subconscious/search-context", body, timeout)
+
+
 def post_verdict(
     base_url: str,
     workspace: str,
@@ -540,6 +579,35 @@ class ZonoidClient:
             k=k,
             gated=gated,
             task_key=task_key,
+            timeout=timeout or self.timeout,
+        )
+
+    def search_context(
+        self,
+        query: str,
+        *,
+        agent_id: str = "zonoid-bench",
+        task_key: str | None = None,
+        intent: str | None = None,
+        situation: str | None = None,
+        k: int = 5,
+        max_rounds: int = 3,
+        use_grader: bool = True,
+        workspace: str | None = None,
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
+        """POST /subconscious/search-context — production Subconscious retrieval."""
+        return search_context(
+            self.base_url,
+            self._ws(workspace),
+            agent_id=agent_id,
+            query=query,
+            task_key=task_key,
+            intent=intent,
+            situation=situation,
+            k=k,
+            max_rounds=max_rounds,
+            use_grader=use_grader,
             timeout=timeout or self.timeout,
         )
 

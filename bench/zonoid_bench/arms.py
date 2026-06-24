@@ -271,6 +271,7 @@ class ArmResult:
     ctx_chars: int = 0
     answer_input_tokens: int = 0
     answer_output_tokens: int = 0
+    grader: Optional[dict[str, Any]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -491,6 +492,34 @@ def read_task_search_context(
     return client.search(query, k=k, gated=False, task_key=node_key)
 
 
+def read_agentic_search_context(
+    client: ZonoidClient,
+    node_key: str,
+    query: str,
+    *,
+    k: int = 5,
+    max_rounds: int = 3,
+    use_grader: bool = True,
+) -> dict[str, Any]:
+    """Read production Subconscious context for a probe task.
+
+    This delegates retrieval to /subconscious/search-context, the same daemon surface
+    foreground agents use for judged agentic context. The bench does not reimplement
+    DAG/RAG planning, follow-up search, filtering, or grader behavior.
+    """
+    resp = client.search_context(
+        query,
+        agent_id="zonoid-bench-agent-memory",
+        task_key=node_key,
+        intent=f"Answer benchmark probe using retrieved memory: {query}",
+        situation=query,
+        k=k,
+        max_rounds=max_rounds,
+        use_grader=use_grader,
+    )
+    return resp.get("subconscious_context") or {}
+
+
 def task_search_context_label(hit: dict[str, Any]) -> str:
     """Map production search tiers to answer-context labels without relabeling them as RAG."""
     tier = str(hit.get("tier") or "dag")
@@ -665,6 +694,7 @@ def run_retrieve_and_answer(
     data_dir: Optional[str] = None,
     model: Optional[str] = None,
     context_k: int = 5,
+    retrieval: str = "task_search",
 ) -> ArmResult:
     """ON arm, executor (b): wire the DAG, read production /search?task_key context, answer via claude_p.
 
@@ -690,14 +720,25 @@ def run_retrieve_and_answer(
     dd = data_dir or os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.join(
         os.path.expanduser("~"), ".claude", "orchestrator"
     )
+    if retrieval not in {"task_search", "agentic"}:
+        raise ValueError(f"unknown retrieval mode: {retrieval!r}")
+
     wiring = run_canonical_wiring(client, unit_id, summary, data_dir=dd)
     context_blocks: list[str] = []
     all_context_keys: list[str] = []
     seen_keys: set[str] = set()
+    grader: Optional[dict[str, Any]] = None
     try:
-        raw_hits = read_task_search_context(
-            client, wiring.task_key, question, k=context_k
-        )
+        if retrieval == "agentic":
+            envelope = read_agentic_search_context(
+                client, wiring.task_key, question, k=context_k, use_grader=True
+            )
+            raw_hits = envelope.get("context") or envelope.get("context_deps") or []
+            grader = envelope.get("grader")
+        else:
+            raw_hits = read_task_search_context(
+                client, wiring.task_key, question, k=context_k
+            )
         for h in raw_hits:
             key = h.get("key") or ""
             if not key or key in seen_keys:
@@ -705,11 +746,16 @@ def run_retrieve_and_answer(
             text = str(h.get("summary") or "")
             if not text.strip():
                 continue
-            context_blocks.append(f"[{task_search_context_label(h)}] {text}")
+            label = (
+                task_search_context_label(h)
+                if retrieval == "task_search"
+                else str(h.get("tier") or h.get("kind") or "context").upper()
+            )
+            context_blocks.append(f"[{label}] {text}")
             seen_keys.add(key)
             all_context_keys.append(key)
     except Exception as exc:  # noqa: BLE001 — task-scoped search retrieval is best-effort
-        print(f"[arms] task-scoped context search failed (non-fatal): {exc}", file=sys.stderr)
+        print(f"[arms] {retrieval} context search failed (non-fatal): {exc}", file=sys.stderr)
 
     ctx_chars = sum(len(b) for b in context_blocks if b and b.strip())
     predicted, usage = _answer_from_context(question, context_blocks, model)
@@ -722,6 +768,7 @@ def run_retrieve_and_answer(
         ctx_chars=ctx_chars,
         answer_input_tokens=usage.get("input_tokens", 0),
         answer_output_tokens=usage.get("output_tokens", 0),
+        grader=grader,
     )
 
 

@@ -170,6 +170,7 @@ def _run_conv(
                 conv_id=conv_id,
                 probe=probe,
                 candidates=candidates,
+                arms=standard_arms,
             )
             for rec in all_records:
                 if rec["arm"] in arms:
@@ -252,7 +253,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default="our-way,search,cold",
         help=(
             "Comma-separated arms to run (default: our-way,search,cold). "
-            "Also: distill, combined. "
+            "Also: our-way-prod, distill, combined. "
             "combined merges raw-chunk + distill retrieval pools (auto-enables distill ingest)."
         ),
     )
@@ -345,7 +346,7 @@ def main(argv: list[str] | None = None) -> int:
     results_path = os.path.join(output_dir, "results.jsonl")
 
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
-    valid_arms = {"our-way", "search", "cold", "distill", "combined", "dag-combined"}
+    valid_arms = {"our-way", "our-way-prod", "search", "cold", "distill", "combined", "dag-combined"}
     bad = [a for a in arms if a not in valid_arms]
     if bad:
         print(f"ERROR: unknown arm(s): {bad}. Valid: {sorted(valid_arms)}", file=sys.stderr)
