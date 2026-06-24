@@ -5567,3 +5567,12 @@
 {"ts":1782326662785,"from":"note:note-mqsewdfu7cj","to":"note:note-mqh0t20gx45","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.27627446274268463,"cosine":0.675,"model_version":"v1"}
 {"ts":1782326662786,"from":"note:note-mqsewl0q7bl","to":"note:note-mqh0t20gx45","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.27627446274268463,"cosine":0.675,"model_version":"v1"}
 {"ts":1782326662787,"from":"note:note-mqsf07wpwcj","to":"note:note-mqh0t20gx45","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2815569747611932,"cosine":0.688,"model_version":"v1"}
+{"ts":1782327781623,"from":"note:note-mqsew5bkyiy","to":"note:note-mqjotmlck7u","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2898026759404774,"cosine":0.708,"model_version":"v1"}
+{"ts":1782327781625,"from":"note:note-mqsew5bkyiy","to":"note:note-mqsem2307jf","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.38604531338462955,"cosine":0.922,"model_version":"v1"}
+{"ts":1782327781625,"from":"note:note-mqsewdfu7cj","to":"note:note-mqjotmlck7u","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2898026759404774,"cosine":0.708,"model_version":"v1"}
+{"ts":1782327781626,"from":"note:note-mqsewdfu7cj","to":"note:note-mqsew5bkyiy","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.4034211940497207,"cosine":0.958,"model_version":"v1"}
+{"ts":1782327781627,"from":"note:note-mqsewl0q7bl","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5900866464627216,"cosine":1,"model_version":"v1"}
+{"ts":1782327781629,"from":"note:note-mqsewl0q7bl","to":"note:note-mqjotmlck7u","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2898026759404774,"cosine":0.708,"model_version":"v1"}
+{"ts":1782327781630,"from":"note:note-mqsexg8x2ff","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","verdict":"keep","shadow_verdict":"prune","shadow_conf":0.5900866464627216,"cosine":1,"model_version":"v1"}
+{"ts":1782327781631,"from":"note:note-mqsf07wpwcj","to":"note:note-mqjotmlck7u","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.29565890760650126,"cosine":0.722,"model_version":"v1"}
+{"ts":1782327781633,"from":"note:note-mqsf07wpwcj","to":"note:note-mqsewl0q7bl","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3980839359124547,"cosine":0.947,"model_version":"v1"}
