@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-14678-a84eb883a87ce03153a3ced76b102d02",
   "branch": "orch/attempt/codex-search-economy-retrieval-phase1-judge",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-24T14:44:39.815Z",
-  "lease_until": "2026-06-24T15:44:39.815Z"
+  "lease_until": "2026-06-24T15:44:39.815Z",
+  "completed_at": "2026-06-24T14:51:03.137Z"
 }
