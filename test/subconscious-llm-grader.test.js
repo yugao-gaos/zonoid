@@ -341,21 +341,84 @@ test('createDefaultGraderBackend drives an api-kind provider via callApi', async
   assert.equal(out.abstain, true);
 });
 
-test('createDefaultGraderBackend rejects an agentic-cli active provider', async () => {
-  const fakeBackendLib = {
-    getActiveBackend() {
-      return { providerId: 'claude', model: 'opus', config: {}, provider: { kind: 'agentic-cli' } };
+// ---- PROVIDER-AGNOSTIC: createDefaultGraderBackend drives EITHER kind ---------------
+// The default backend is NOT Claude-bound: it branches on provider.kind. The api kind calls
+// provider.callApi (above); the agentic-cli kind builds an invocation and SPAWNS it via the
+// injected runDrain helper, then parses stdout with provider.parseResult. A MOCK provider of each
+// kind proves the routing without any real network or child process.
+
+/** A mock agentic-cli provider: records the buildInvocation opts, returns a fixed argv + parseResult. */
+function mockAgenticProvider(replyText, rec = {}) {
+  return {
+    kind: 'agentic-cli',
+    isAvailable: () => true,
+    isAuthed: () => true,
+    buildInvocation(opts) {
+      rec.buildOpts = opts;
+      return { bin: '/fake/cli', args: ['-p', opts.prompt, '--model', opts.model || 'default'], env: { FAKE_ENV: '1' } };
+    },
+    parseResult(stdout) {
+      rec.parsedStdout = stdout;
+      // Mirror claude/codex/cursor parseResult shape: { result, usage, raw }.
+      return { result: replyText, usage: null, raw: stdout };
     },
   };
-  const backend = createDefaultGraderBackend({ overlay: {}, backendLib: fakeBackendLib });
-  // The grader swallows the backend error into a fallback (never throws), recording the reason.
+}
+
+test('createDefaultGraderBackend routes an AGENTIC-CLI provider through buildInvocation + spawn + parseResult', async () => {
+  const rec = {};
+  const verdict = { continue: false, nextQuery: null, kept: ['note:auth-1'], abstain: false, aggregate: 'cli-graded' };
+  const provider = mockAgenticProvider(JSON.stringify(verdict), rec);
+  const fakeBackendLib = {
+    getActiveBackend() { return { providerId: 'claude', model: 'opus', config: {}, provider }; },
+  };
+  // Inject a fake runDrain so NO child process is spawned: it asserts it received the provider's argv
+  // (proving buildInvocation's output flows to the spawn) and returns the provider's reply as stdout.
+  let spawnedWith = null;
+  const fakeRunDrain = async ({ bin, args, env, cwd, timeoutMs }) => {
+    spawnedWith = { bin, args, env, cwd, timeoutMs };
+    return { exitCode: 0, stdout: JSON.stringify(verdict), stderr: '', timedOut: false, spawnError: null };
+  };
+  const backend = createDefaultGraderBackend({ overlay: {}, backendLib: fakeBackendLib, runDrain: fakeRunDrain, cliCwd: '/work' });
+  assert.ok(backend, 'an available+authed agentic-cli provider yields a backend (not null)');
+
   const out = await gradeSearchRound(
     { intent: 'auth', originalQuery: 'auth', candidates: candidates(), round: 1, maxRounds: 2 },
     { backend }
   );
-  assert.equal(out.parsed, false);
-  assert.ok(/backend_error/.test(out.fallback_reason));
-  assert.ok(/api-kind/.test(out.fallback_reason), 'error explains an api-kind backend is required');
+  // Routing proof: buildInvocation got the folded prompt (system + user), runDrain got that argv,
+  // parseResult saw the stdout, and the parsed verdict text drove the grade.
+  assert.ok(rec.buildOpts && typeof rec.buildOpts.prompt === 'string', 'buildInvocation was called with a prompt');
+  assert.ok(/STRICT JSON/i.test(rec.buildOpts.prompt), 'the grader system instruction is folded into the single CLI prompt');
+  assert.ok(rec.buildOpts.prompt.includes('note:auth-1'), 'the candidate payload is in the folded prompt');
+  assert.ok(spawnedWith && spawnedWith.bin === '/fake/cli', 'runDrain spawned the provider-built bin');
+  assert.ok(spawnedWith.args.includes('--model'), 'runDrain received the provider-built argv');
+  assert.ok(spawnedWith.env && spawnedWith.env.FAKE_ENV === '1', "runDrain env merges the provider's env");
+  assert.equal(spawnedWith.cwd, '/work', 'runDrain ran in the configured cwd');
+  assert.ok(Number.isFinite(spawnedWith.timeoutMs) && spawnedWith.timeoutMs > 0, 'a wall-clock timeout bound is passed');
+  assert.equal(rec.parsedStdout, JSON.stringify(verdict), 'parseResult saw the child stdout');
+  assert.deepEqual(out.kept, ['note:auth-1'], 'the CLI-parsed verdict drove the grade');
+  assert.equal(out.parsed, true);
+});
+
+test('createDefaultGraderBackend returns NULL for an agentic-cli provider that is not available (degrade to floor)', () => {
+  const provider = { kind: 'agentic-cli', isAvailable: () => false, isAuthed: () => true, buildInvocation() {}, parseResult() {} };
+  const fakeBackendLib = { getActiveBackend() { return { providerId: 'codex', model: 'gpt', config: {}, provider }; } };
+  const backend = createDefaultGraderBackend({ overlay: {}, backendLib: fakeBackendLib });
+  assert.equal(backend, null, 'an unavailable CLI binary degrades to the heuristic floor (no doomed spawn)');
+});
+
+test('createDefaultGraderBackend returns NULL for an agentic-cli provider that is not authed (degrade to floor)', () => {
+  const provider = { kind: 'agentic-cli', isAvailable: () => true, isAuthed: () => false, buildInvocation() {}, parseResult() {} };
+  const fakeBackendLib = { getActiveBackend() { return { providerId: 'cursor', model: 'm', config: {}, provider }; } };
+  const backend = createDefaultGraderBackend({ overlay: {}, backendLib: fakeBackendLib });
+  assert.equal(backend, null, 'a CLI with no creds degrades to the heuristic floor');
+});
+
+test('createDefaultGraderBackend returns NULL when there is no active provider at all', () => {
+  const fakeBackendLib = { getActiveBackend() { return { providerId: undefined, provider: null }; } };
+  const backend = createDefaultGraderBackend({ overlay: {}, backendLib: fakeBackendLib });
+  assert.equal(backend, null);
 });
 
 // ---- small unit helpers -------------------------------------------------------------
