@@ -15,3 +15,4 @@
 {"evt":"edge_removed","from":"note:note-mqq0frbreww","to":"note:note-mqq2d9u1f7x","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"note:note-mqq0frbreww","to":"note:note-mqhha58fz9k","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_added","from":"note:note-mqq0frbreww","to":"codex/p4-migrate-benches-sdk","kind":"context","actor":"overlay-sync","ts":"2026-06-24T04:06:15.330Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqq0frbreww","to":"codex/p4-migrate-benches-sdk","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:54:14.262Z"}
