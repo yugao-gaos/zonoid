@@ -9,3 +9,6 @@
 {"evt":"note_superseded","id":"note-mqsew5bkyiy","supersededBy":"note-mqsewdfu7cj","validTo":"2026-06-24T18:33:57.008Z","actor":"subsumption","ts":"2026-06-24T18:33:57.008Z"}
 {"evt":"edge_promoted","from":"note:note-mqsew5bkyiy","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:37:48.691Z","weight":1}
 {"evt":"edge_promoted","from":"note:note-mqsew5bkyiy","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:38:18.090Z","weight":1}
+{"evt":"edge_removed","from":"note:note-mqsew5bkyiy","to":"note:note-mqppi1wigd1","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:43:00.741Z"}
+{"evt":"edge_removed","from":"note:note-mqsew5bkyiy","to":"note:note-mqqt68limis","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:43:46.210Z"}
+{"evt":"edge_removed","from":"note:note-mqsew5bkyiy","to":"note:note-mqh0t20gx45","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:44:22.815Z"}
