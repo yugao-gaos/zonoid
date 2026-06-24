@@ -38,3 +38,4 @@
 {"evt":"status_changed","id":"codex/onboard-code-cli-sync","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-24T14:49:38.003Z"}
 {"evt":"summary_set","id":"codex/onboard-code-cli-sync","workspace":"/Users/imyu/Desktop/zonoid","summary":"Auto-promoted approved tested attempt after merge.","actor":"overlay-sync","ts":"2026-06-24T14:49:38.003Z"}
 {"evt":"assignee_set","id":"codex/onboard-code-cli-sync","workspace":"/Users/imyu/Desktop/zonoid","assignee":"headless-review-merge-drain","actor":"overlay-sync","ts":"2026-06-24T14:49:38.003Z"}
+{"evt":"timestamps_set","id":"codex/onboard-code-cli-sync","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-23T03:35:43.414Z","lastChanged":"2026-06-24T14:49:20.380Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-24T14:50:28.510Z"}
