@@ -5590,3 +5590,8 @@
 {"ts":1782333247717,"from":"note:note-mqsiyvoyset","to":"note:note-mqflqx78zk2","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.279925057080861,"cosine":0.684,"model_version":"v1"}
 {"ts":1782333247718,"from":"note:note-mqsiyvoyset","to":"note:note-mqi7rypye1d","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2902186955306982,"cosine":0.709,"model_version":"v1"}
 {"ts":1782333247719,"from":"note:note-mqsiyvoyset","to":"note:note-mqpd82jw9j3","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.28814213365777436,"cosine":0.704,"model_version":"v1"}
+{"ts":1782336291014,"from":"note:note-mqsktjtz8ch","to":"note:note-mqgufbod1fe","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2877278840792665,"cosine":0.703,"model_version":"v1"}
+{"ts":1782336291017,"from":"note:note-mqsktjtz8ch","to":"note:note-mqgvuijz6kk","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.29481810709535666,"cosine":0.72,"model_version":"v1"}
+{"ts":1782336291018,"from":"note:note-mqsktjtz8ch","to":"note:note-mqh0gwz1mxc","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.2918862979751069,"cosine":0.713,"model_version":"v1"}
+{"ts":1782336291019,"from":"note:note-mqsktjtz8ch","to":"note:note-mqhha58fz9k","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.2943982290370668,"cosine":0.719,"model_version":"v1"}
+{"ts":1782336291020,"from":"note:note-mqsktjtz8ch","to":"note:note-mqq0q02xylw","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.3140662795360304,"cosine":0.765,"model_version":"v1"}
