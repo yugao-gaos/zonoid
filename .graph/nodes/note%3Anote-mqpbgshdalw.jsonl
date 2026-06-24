@@ -12,3 +12,4 @@
 {"evt":"edge_removed","from":"note:note-mqpbgshdalw","to":"note:note-mqla6xpun8e","kind":"context","actor":"overlay-sync","ts":"2026-06-22T21:00:24.205Z"}
 {"evt":"edge_removed","from":"note:note-mqpbgshdalw","to":"note:note-mql0g5bob88","kind":"context","actor":"overlay-sync","ts":"2026-06-22T21:00:24.205Z"}
 {"evt":"edge_added","from":"note:note-mqpbgshdalw","to":"codex/headroom-eval","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","by":"judge","judged":true,"score":0.78,"origin":"autowire-semantic"}
+{"evt":"note_supersedes","id":"note-mqpbgshdalw","supersedes":"note-mqpbgntins4","ts":"2026-06-22T14:34:24.433Z","actor":"supersede"}
