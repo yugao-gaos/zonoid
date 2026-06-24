@@ -55,3 +55,5 @@
 {"evt":"edge_added","from":"note:note-mqpnhesryti","to":"codex/search-economy-phase1b-cmm","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:55:55.002Z","origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqpnhesryti","to":"codex/search-economy-phase1b-cmm","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:30:21.554Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"note:note-mqpnhesryti","to":"codex/search-economy-phase1b-cmm","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:09:49.229Z"}
+{"evt":"edge_removed","from":"note:note-mqpnhesryti","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_removed","from":"note:note-mqpnhesryti","to":"note:note-mqpna41fj59","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

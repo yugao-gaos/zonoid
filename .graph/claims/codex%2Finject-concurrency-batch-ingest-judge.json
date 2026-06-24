@@ -1,7 +1,10 @@
 {
   "task_key": "codex/inject-concurrency-batch-ingest-judge",
-  "git_user": "Yu Gao <yu.gao@gaos.ca>",
-  "session_id": null,
-  "status": "canceled",
-  "completed_at": "2026-06-23T01:35:30.078Z"
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-inject-concurrency-batch-ingest-judge-active-session",
+  "branch": "orch/attempt/codex-inject-concurrency-batch-ingest-judge",
+  "status": "done",
+  "claimed_at": "2026-06-24T02:50:52.130Z",
+  "lease_until": "2026-06-24T03:50:52.130Z",
+  "completed_at": "2026-06-24T02:53:12.007Z"
 }

@@ -11,3 +11,5 @@
 {"evt":"edge_removed","from":"note:note-mqiu7w6hus0","to":"note:note-mqd6hrlnbhp","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:39:52.049Z"}
 {"evt":"edge_removed","from":"note:note-mqiu7w6hus0","to":"note:note-mqiu2s4i792","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:39:52.049Z"}
 {"evt":"edge_removed","from":"note:note-mqiu7w6hus0","to":"codex/product-pipeline-verification-review","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:39:52.049Z"}
+{"evt":"edge_added","from":"note:note-mqiu7w6hus0","to":"knowledge:source_chunk:chunk-readme-md-3-4-what-we-invalidated-our-first-seven-on-v-431111d1ee","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.559,"by":"judge","judged":true,"score":0.559,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqiu7w6hus0","to":"codex/product-pipeline-verification-review","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}

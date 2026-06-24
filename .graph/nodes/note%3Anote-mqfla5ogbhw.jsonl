@@ -28,3 +28,4 @@
 {"evt":"edge_removed","from":"note:note-mqfla5ogbhw","to":"note:note-mqd8r0dulaw","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:17:30.461Z"}
 {"evt":"edge_removed","from":"note:note-mqfla5ogbhw","to":"note:note-mqetzhodzyt","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:17:30.461Z"}
 {"evt":"edge_removed","from":"note:note-mqfla5ogbhw","to":"followup/judge-review-phase-1-distiller-impl-q0x0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:17:30.461Z"}
+{"evt":"edge_added","from":"note:note-mqfla5ogbhw","to":"followup/judge-review-phase-1-distiller-impl-q0x0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.554,"by":"judge","judged":true,"score":0.554,"origin":"autowire-semantic"}

@@ -1,7 +1,10 @@
 {
   "task_key": "codex/code-extractor-multilang-judge",
-  "git_user": "Yu Gao <yu.gao@gaos.ca>",
-  "session_id": null,
-  "status": "canceled",
-  "completed_at": "2026-06-23T02:32:59.117Z"
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-desktop-session",
+  "branch": "orch/attempt/codex-code-extractor-multilang-judge",
+  "status": "tested",
+  "claimed_at": "2026-06-23T21:34:29.463Z",
+  "lease_until": "2026-06-23T22:34:29.463Z",
+  "completed_at": "2026-06-23T21:36:55.368Z"
 }

@@ -20,3 +20,5 @@
 {"evt":"edge_removed","from":"note:note-mqp4x7snq38","to":"codex/p2-drop-cosine-floor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T02:49:55.984Z"}
 {"evt":"edge_added","from":"note:note-mqp4x7snq38","to":"note:note-mqh0gwz1mxc","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:00:28.518Z","weight":0.6,"by":"judge","judged":true}
 {"evt":"edge_added","from":"note:note-mqp4x7snq38","to":"codex/p2-drop-cosine-floor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:02:23.118Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqp4x7snq38","to":"note:note-mqh0gwz1mxc","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_removed","from":"note:note-mqp4x7snq38","to":"codex/p2-drop-cosine-floor","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

@@ -1,7 +1,10 @@
 {
   "task_key": "codex/onboard-code-cli-sync-judge",
-  "git_user": "Yu Gao <yu.gao@gaos.ca>",
-  "session_id": null,
-  "status": "canceled",
-  "completed_at": "2026-06-23T04:28:37.349Z"
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-onboard-code-cli-sync-judge-active-session",
+  "branch": "orch/attempt/codex-onboard-code-cli-sync-judge",
+  "status": "tested",
+  "claimed_at": "2026-06-24T02:50:55.456Z",
+  "lease_until": "2026-06-24T03:50:55.456Z",
+  "completed_at": "2026-06-24T02:53:50.960Z"
 }

@@ -20,3 +20,4 @@
 {"evt":"edge_removed","from":"note:note-mqp59nrfuo0","to":"knowledge:source_chunk:chunk-claude-md-2-6-why-two-tiers-forking-attempts-off-a-sta-b2ad03147d","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:33:31.203Z"}
 {"evt":"edge_removed","from":"note:note-mqp59nrfuo0","to":"knowledge:source_chunk:chunk-agents-md-2-5-create-feature-key-opens-orch-feature-sl-e7fc0e595c","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:33:31.203Z"}
 {"evt":"edge_added","from":"note:note-mqp59nrfuo0","to":"note:note-mqp59ulbxqf","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:33:59.147Z","by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqp59nrfuo0","to":"note:note-mqp59ulbxqf","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

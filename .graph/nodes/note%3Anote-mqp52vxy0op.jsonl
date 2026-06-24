@@ -10,3 +10,4 @@
 {"evt":"edge_removed","from":"note:note-mqp52vxy0op","to":"codex/diffusion-predictive-shadow-benchmark","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
 {"evt":"edge_removed","from":"note:note-mqp52vxy0op","to":"codex/diffusion-predictive-shadow-benchmark-judge-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
 {"evt":"edge_added","from":"note:note-mqp52vxy0op","to":"codex/diffusion-predictive-shadow-benchmark","kind":"context","actor":"overlay-sync","ts":"2026-06-22T23:50:29.341Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp52vxy0op","to":"codex/diffusion-predictive-shadow-benchmark","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.63,"by":"judge","judged":true,"score":0.63,"origin":"autowire-semantic"}

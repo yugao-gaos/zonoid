@@ -5,3 +5,5 @@
 {"evt":"edge_added","from":"note:note-mqp52g7jrsk","to":"note:note-mqp528pspcb","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.602,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqp52g7jrsk","to":"note:note-mqp528pspcb","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:07:09.837Z"}
 {"evt":"edge_added","from":"note:note-mqp52g7jrsk","to":"note:note-mqp528pspcb","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:21:24.076Z","by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqp52g7jrsk","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/5","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.577,"by":"judge","judged":true,"score":0.577,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp52g7jrsk","to":"note:note-mqp528pspcb","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

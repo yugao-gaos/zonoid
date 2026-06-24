@@ -1,10 +1,10 @@
 {
   "task_key": "codex/fix-costflow-pruned-snapshot-session-splits",
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
-  "session_id": "codex-mcp-25015-0c9867064518cdb01243b27b2624639f",
+  "session_id": "codex-mcp-19700-2f2d847f704a77668e1ecc607b294ef5",
   "branch": "orch/attempt/codex-fix-costflow-pruned-snapshot-session-splits",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-23T04:56:53.887Z",
   "lease_until": "2026-06-23T05:56:53.887Z",
-  "completed_at": "2026-06-23T05:03:03.406Z"
+  "completed_at": "2026-06-24T03:12:31.884Z"
 }

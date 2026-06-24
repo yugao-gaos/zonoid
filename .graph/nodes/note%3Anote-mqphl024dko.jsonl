@@ -6,3 +6,6 @@
 {"evt":"edge_removed","from":"note:note-mqphl024dko","to":"codex/make-search-animation-brain-activation-style","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:55:04.615Z"}
 {"evt":"edge_removed","from":"note:note-mqphl024dko","to":"note:note-mql03ljetqg","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:55:04.615Z"}
 {"evt":"edge_added","from":"note:note-mqphl024dko","to":"note:note-mqpicpae3vl","kind":"context","actor":"overlay-sync","ts":"2026-06-23T14:43:33.276Z","weight":0.55,"by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqphl024dko","to":"codex/make-search-animation-brain-activation-style","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.817,"by":"judge","judged":true,"score":0.817,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqphl024dko","to":"codex/dashboard-use-subconscious-agentic-search","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.575,"by":"judge","judged":true,"score":0.575,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqphl024dko","to":"note:note-mqpicpae3vl","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

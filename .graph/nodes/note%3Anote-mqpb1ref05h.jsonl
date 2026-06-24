@@ -25,3 +25,5 @@
 {"evt":"edge_removed","from":"note:note-mqpb1ref05h","to":"note:note-mqenc9e44v4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:24:11.151Z"}
 {"evt":"edge_removed","from":"note:note-mqpb1ref05h","to":"note:note-mqh2eifaveh","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:24:11.151Z"}
 {"evt":"edge_removed","from":"note:note-mqpb1ref05h","to":"note:note-mq7dzydv","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:24:11.151Z"}
+{"evt":"edge_added","from":"note:note-mqpb1ref05h","to":"codex/fix-dark-three-point-cloud-nodes-and-missing-search-edges","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.5,"by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqpb1ref05h","to":"note:note-mq7dzydv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.55,"by":"judge","judged":true,"score":0.55,"origin":"autowire-semantic"}

@@ -1,10 +1,10 @@
 {
   "task_key": "codex/inject-concurrency-batch-ingest",
-  "git_user": "Yu Gao <yu.gao@gaos.ca>",
-  "session_id": "7324f0fd-3872-4c3a-a82b-e7b554aea59d",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-inject-concurrency-batch-ingest-active-session",
   "branch": "orch/attempt/codex-inject-concurrency-batch-ingest",
-  "status": "done",
-  "claimed_at": "2026-06-23T00:31:54.157Z",
-  "lease_until": "2026-06-23T01:31:54.157Z",
-  "completed_at": "2026-06-23T01:35:13.759Z"
+  "status": "tested",
+  "claimed_at": "2026-06-24T02:51:05.560Z",
+  "lease_until": "2026-06-24T03:51:05.560Z",
+  "completed_at": "2026-06-24T02:52:24.291Z"
 }

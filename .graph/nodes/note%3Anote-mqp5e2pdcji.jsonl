@@ -9,3 +9,5 @@
 {"evt":"edge_removed","from":"note:note-mqp5e2pdcji","to":"knowledge:source_chunk:chunk-claude-md-7-3-judge-workers-in-automode-must-include-t-fc20b76631","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:23:33.653Z"}
 {"evt":"edge_removed","from":"note:note-mqp5e2pdcji","to":"knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:23:33.653Z"}
 {"evt":"edge_removed","from":"note:note-mqp5e2pdcji","to":"note:note-mqoalfsrx01","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:23:33.653Z"}
+{"evt":"edge_removed","from":"note:note-mqp5e2pdcji","to":"note:note-mqp5a3fxoit","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_removed","from":"note:note-mqp5e2pdcji","to":"note:note-mqhg3r9l5iv","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

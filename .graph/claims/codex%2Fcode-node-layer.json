@@ -1,10 +1,10 @@
 {
   "task_key": "codex/code-node-layer",
-  "git_user": "Yu Gao <yu.gao@gaos.ca>",
-  "session_id": "worker-code-node-layer",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-code-node-layer-active-session",
   "branch": "orch/attempt/codex-code-node-layer",
-  "status": "done",
-  "claimed_at": "2026-06-23T03:03:35.875Z",
-  "lease_until": "2026-06-23T04:03:35.875Z",
-  "completed_at": "2026-06-23T03:35:12.257Z"
+  "status": "tested",
+  "claimed_at": "2026-06-24T02:49:57.161Z",
+  "lease_until": "2026-06-24T03:49:57.161Z",
+  "completed_at": "2026-06-24T02:52:16.333Z"
 }

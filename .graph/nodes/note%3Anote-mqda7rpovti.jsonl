@@ -21,3 +21,4 @@
 {"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"followup/write-judge-edge-scorecard-md-retry-as-s-pe6u","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:29:31.326Z"}
 {"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"followup/add-self-register-on-claim-fallback-so-h-fbtd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:29:31.326Z"}
 {"evt":"edge_removed","from":"note:note-mqda7rpovti","to":"bench/bench-trial-14-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:29:31.326Z"}
+{"evt":"edge_added","from":"note:note-mqda7rpovti","to":"1e01ab32-97eb-4eec-9b28-6632a1dc44f6/1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.611,"by":"judge","judged":true,"score":0.611,"origin":"autowire-semantic"}

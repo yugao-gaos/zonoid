@@ -8,3 +8,4 @@
 {"evt":"edge_removed","from":"note:note-mqp5f3ka0e4","to":"note:note-mq75a81z","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:25:40.257Z"}
 {"evt":"edge_removed","from":"note:note-mqp5f3ka0e4","to":"knowledge:source_chunk:chunk-readme-md-3-4-what-we-invalidated-our-first-seven-on-v-431111d1ee","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:25:40.257Z"}
 {"evt":"edge_added","from":"note:note-mqp5f3ka0e4","to":"note:note-mqiu7w6hus0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T03:31:21.280Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqp5f3ka0e4","to":"note:note-mqiu7w6hus0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
