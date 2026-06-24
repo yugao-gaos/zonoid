@@ -17,3 +17,4 @@
 {"evt":"knowledge_added","id":"note-mqivig2y4tw","workspace":"D:/zonoid","item":"repo:sphinx-doc/sphinx","actor":"overlay-sync","ts":"2026-06-18T02:30:34.635Z"}
 {"evt":"knowledge_added","id":"note-mqivig2y4tw","workspace":"D:/zonoid","item":"base_commit:e347e59ccc27a646c974526252e39a63870f6ea3","actor":"overlay-sync","ts":"2026-06-18T02:30:34.635Z"}
 {"evt":"knowledge_added","id":"note-mqivig2y4tw","workspace":"D:/zonoid","item":"arm:self-learning","actor":"overlay-sync","ts":"2026-06-18T02:30:34.635Z"}
+{"evt":"edge_added","from":"note:note-mqivig2y4tw","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:44:22.946Z","weight":0,"by":"autowire","judged":false,"score":0.487,"origin":"autowire-semantic"}
