@@ -4,3 +4,4 @@
 {"evt":"status_changed","id":"codex/fix-bench-smoke-autowire-no-candidates","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-24T03:21:11.309Z"}
 {"evt":"assignee_set","id":"codex/fix-bench-smoke-autowire-no-candidates","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-fix-bench-smoke-autowire-no-candidates","actor":"overlay-sync","ts":"2026-06-24T03:21:11.309Z"}
 {"evt":"timestamps_set","id":"codex/fix-bench-smoke-autowire-no-candidates","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-24T03:20:20.172Z","lastChanged":"2026-06-24T03:21:08.311Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-24T03:21:11.309Z"}
+{"evt":"edge_removed","from":"codex/fix-bench-smoke-autowire-no-candidates","to":"codex/fix-bench-sdk-a2-edgejudge-timeout","kind":"context","actor":"overlay-sync","ts":"2026-06-24T03:28:32.693Z"}
