@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/consolidate-universal-skills-judge",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-worker-consolidate-universal-skills-judge",
+  "branch": "orch/attempt/codex-consolidate-universal-skills-judge",
+  "status": "claimed",
+  "claimed_at": "2026-06-24T15:45:16.561Z",
+  "lease_until": "2026-06-24T16:45:16.561Z"
+}
