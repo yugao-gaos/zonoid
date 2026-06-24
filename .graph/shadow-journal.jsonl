@@ -5549,3 +5549,8 @@
 {"ts":1782312520942,"from":"note:note-mqivig2y4tw","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
 {"ts":1782312520942,"from":"note:note-mqn7r5td3ut","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
 {"ts":1782312520943,"from":"note:note-mqp53c8ktx9","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
+{"ts":1782325881396,"from":"note:note-mqsem2307jf","to":"note:note-mqh0t20gx45","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2718528217551921,"cosine":0.664,"model_version":"v1"}
+{"ts":1782325881400,"from":"note:note-mqsem2307jf","to":"note:note-mqjotmlck7u","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2815569747611932,"cosine":0.688,"model_version":"v1"}
+{"ts":1782325881401,"from":"note:note-mqsem2307jf","to":"note:note-mqppi1wigd1","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2635357204191576,"cosine":0.643,"model_version":"v1"}
+{"ts":1782325881402,"from":"note:note-mqsem2307jf","to":"note:note-mqpywsqkwff","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.26550108985084603,"cosine":0.648,"model_version":"v1"}
+{"ts":1782325881403,"from":"note:note-mqsem2307jf","to":"note:note-mqqt68limis","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.2658952848917043,"cosine":0.649,"model_version":"v1"}
