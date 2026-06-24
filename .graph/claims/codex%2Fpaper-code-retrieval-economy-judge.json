@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-paper-code-retrieval-economy-judge-active-session",
   "branch": "orch/attempt/codex-paper-code-retrieval-economy-judge",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-24T03:57:40.898Z",
-  "lease_until": "2026-06-24T04:57:40.898Z"
+  "lease_until": "2026-06-24T04:57:40.898Z",
+  "completed_at": "2026-06-24T04:01:26.157Z"
 }
