@@ -21,3 +21,4 @@
 {"evt":"edge_promoted","from":"knowledge:source_doc:note-mqqmixayq8m","to":"knowledge:source_section:note-mqqmixayq8m#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:01:55.179Z","weight":1,"judged":true,"origin":"note-source-cluster"}
 {"evt":"summary_set","id":"knowledge:source_doc:note-mqqmixayq8m","workspace":"D:\\zonoid","summary":"Raw evidence captured from long note note:note-mqqmixayq8m.","actor":"overlay-sync","ts":"2026-06-23T13:01:55.179Z"}
 {"evt":"edge_removed","from":"knowledge:source_doc:note-mqqmixayq8m","to":"knowledge:source_section:note-mqqmixayq8m#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"timestamps_set","id":"knowledge:source_doc:note-mqqmixayq8m","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-24T12:48:52.862Z","lastChanged":"2026-06-24T12:48:52.862Z","lastStatus":"knowledge"},"actor":"overlay-sync","ts":"2026-06-24T12:48:52.880Z"}

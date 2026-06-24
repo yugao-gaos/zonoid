@@ -35,3 +35,4 @@
 {"evt":"edge_promoted","from":"knowledge:source_doc:note-mqqyd0ugp2b","to":"knowledge:source_section:note-mqqyd0ugp2b#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T20:07:58.292Z","weight":1,"judged":true,"origin":"note-source-cluster"}
 {"evt":"summary_set","id":"knowledge:source_doc:note-mqqyd0ugp2b","workspace":"D:\\zonoid","summary":"Raw evidence captured from long note note:note-mqqyd0ugp2b.","actor":"overlay-sync","ts":"2026-06-23T20:07:58.292Z"}
 {"evt":"edge_removed","from":"knowledge:source_doc:note-mqqyd0ugp2b","to":"knowledge:source_section:note-mqqyd0ugp2b#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"timestamps_set","id":"knowledge:source_doc:note-mqqyd0ugp2b","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-24T12:48:52.862Z","lastChanged":"2026-06-24T12:48:52.862Z","lastStatus":"knowledge"},"actor":"overlay-sync","ts":"2026-06-24T12:48:52.880Z"}

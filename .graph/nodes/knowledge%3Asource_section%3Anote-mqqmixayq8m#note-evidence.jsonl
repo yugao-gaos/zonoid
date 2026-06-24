@@ -105,3 +105,4 @@
 {"evt":"edge_removed","from":"knowledge:source_section:note-mqqmixayq8m#note-evidence","to":"knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"knowledge:source_section:note-mqqmixayq8m#note-evidence","to":"knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-4","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"knowledge:source_section:note-mqqmixayq8m#note-evidence","to":"note:note-mqqmixayq8m","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"timestamps_set","id":"knowledge:source_section:note-mqqmixayq8m#note-evidence","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-24T12:48:52.862Z","lastChanged":"2026-06-24T12:48:52.862Z","lastStatus":"knowledge"},"actor":"overlay-sync","ts":"2026-06-24T12:48:52.880Z"}
