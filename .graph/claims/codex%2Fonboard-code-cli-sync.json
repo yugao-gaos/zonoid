@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-onboard-code-cli-sync-active2-session",
   "branch": "orch/attempt/codex-onboard-code-cli-sync",
-  "status": "claimed",
+  "status": "failed",
   "claimed_at": "2026-06-24T03:59:33.568Z",
-  "lease_until": "2026-06-24T04:59:33.568Z"
+  "lease_until": "2026-06-24T04:59:33.568Z",
+  "completed_at": "2026-06-24T04:05:33.219Z"
 }
