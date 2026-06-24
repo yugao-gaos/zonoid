@@ -1,10 +1,10 @@
 {
   "task_key": "codex/fix-dashboard-smoke-pinned-drift-recovery",
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
-  "session_id": "worker-fix-dashboard-pinned-drift-session",
+  "session_id": "codex-mcp-19700-2f2d847f704a77668e1ecc607b294ef5",
   "branch": "orch/attempt/codex-fix-dashboard-smoke-pinned-drift-recovery",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-22T04:46:46.785Z",
   "lease_until": "2026-06-22T05:46:46.785Z",
-  "completed_at": "2026-06-22T05:16:11.042Z"
+  "completed_at": "2026-06-24T02:38:59.314Z"
 }
