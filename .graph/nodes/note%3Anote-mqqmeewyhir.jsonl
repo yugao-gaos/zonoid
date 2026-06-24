@@ -16,3 +16,4 @@
 {"evt":"edge_removed","from":"note:note-mqqmeewyhir","to":"codex/p5-terminal-bench-sdk-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:45:04.221Z"}
 {"evt":"edge_added","from":"note:note-mqqmeewyhir","to":"codex/p4-migrate-benches-sdk","kind":"context","actor":"overlay-sync","ts":"2026-06-23T16:08:59.329Z","weight":0.6,"by":"judge","judged":true}
 {"evt":"edge_removed","from":"note:note-mqqmeewyhir","to":"codex/p4-migrate-benches-sdk","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_added","from":"note:note-mqqmeewyhir","to":"codex/p4-migrate-benches-sdk","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:00:20.192Z","weight":0.6,"by":"judge","judged":true}
