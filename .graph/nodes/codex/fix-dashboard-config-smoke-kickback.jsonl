@@ -1,0 +1,2 @@
+{"evt":"edge_added","from":"codex/fix-dashboard-config-smoke-kickback","to":"codex/fix-dashboard-config-smoke-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T19:37:34.383Z","weight":0.892,"by":"subconscious","judged":true,"score":0.892,"origin":"subconscious-agentic-search"}
+{"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-kickback","to":"codex/fix-dashboard-config-smoke-kickback-judge","kind":"blocking","actor":"overlay-sync","ts":"2026-06-24T19:37:34.383Z"}
