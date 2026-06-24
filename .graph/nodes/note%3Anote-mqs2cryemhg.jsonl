@@ -13,3 +13,4 @@
 {"evt":"edge_removed","from":"note:note-mqs2cryemhg","to":"note:note-mqjowvcv2wu","kind":"context","actor":"overlay-sync","ts":"2026-06-24T12:46:40.657Z"}
 {"evt":"edge_removed","from":"note:note-mqs2cryemhg","to":"codex/p4-migrate-benches-sdk","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:54:14.262Z"}
 {"evt":"edge_added","from":"note:note-mqs2cryemhg","to":"claude/fresh-memory-bench-locomo-longmemeval-oracle-on-enrich-grader-defaults-report-sc","kind":"context","actor":"overlay-sync","ts":"2026-06-24T19:40:16.951Z","weight":0,"by":"autowire","judged":false,"score":0.88,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqs2cryemhg","to":"claude/fresh-memory-bench-locomo-longmemeval-oracle-on-enrich-grader-defaults-report-sc","kind":"context","actor":"overlay-sync","ts":"2026-06-24T20:18:36.231Z"}
