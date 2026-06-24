@@ -1,6 +1,0 @@
-{"evt":"edge_removed","from":"bench/combined-bench-2-2","to":"bench/bench-trial-1-2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
-{"evt":"edge_removed","from":"bench/combined-bench-2-2","to":"bench/bench-trial-2-2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
-{"evt":"edge_removed","from":"bench/combined-bench-2-2","to":"bench/combined-bench-0-0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
-{"evt":"edge_removed","from":"bench/combined-bench-2-2","to":"bench/combined-bench-1-1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
-{"evt":"edge_removed","from":"bench/combined-bench-2-2","to":"bench/combined-arm","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
-{"evt":"edge_removed","from":"bench/combined-bench-2-2","to":"bench/bench-trial-24-3,4","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
