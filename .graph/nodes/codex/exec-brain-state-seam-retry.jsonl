@@ -46,3 +46,6 @@
 {"evt":"edge_promoted","from":"codex/exec-brain-state-seam-retry","to":"codex/fix-stale-tested-verdict-requeue","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:42:40.189Z","weight":0.8,"origin":"asserted"}
 {"evt":"status_changed","id":"codex/exec-brain-state-seam-retry","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-22T14:42:40.189Z"}
 {"evt":"timestamps_set","id":"codex/exec-brain-state-seam-retry","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-18T20:24:10.184Z","lastChanged":"2026-06-22T14:42:42.340Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-22T14:43:33.980Z"}
+{"evt":"status_changed","id":"codex/exec-brain-state-seam-retry","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-24T15:45:39.877Z"}
+{"evt":"assignee_set","id":"codex/exec-brain-state-seam-retry","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-exec-brain-state-seam-retry","actor":"overlay-sync","ts":"2026-06-24T15:45:39.877Z"}
+{"evt":"timestamps_set","id":"codex/exec-brain-state-seam-retry","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-18T20:24:10.184Z","lastChanged":"2026-06-24T15:45:39.848Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-24T15:45:39.877Z"}
