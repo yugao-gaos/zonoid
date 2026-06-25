@@ -25,7 +25,7 @@ const overlayStore = require('../lib/overlay');
 const llmBackend = require('../lib/llm-backend');
 const embed = require('../lib/embed');
 
-const NO_WORKSPACE_ERROR = 'no workspace resolved - pass workspace (body or ?workspace=)';
+const NO_WORKSPACE_ERROR = 'no workspace resolved — pass workspace (body or ?workspace=)';
 
 function requireWorkspace(T, send, res) {
   if (T.ws) return true;
