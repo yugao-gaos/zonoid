@@ -18,3 +18,6 @@
 {"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-kickback-judge","to":"codex/fix-dashboard-config-smoke-recovery-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T20:36:30.156Z"}
 {"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-kickback-judge","to":"codex/fix-dashboard-config-smoke-kickback","kind":"context","actor":"overlay-sync","ts":"2026-06-24T20:36:30.156Z"}
 {"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-kickback-judge","to":"codex/fix-dashboard-smoke-pinned-drift-recovery-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T20:36:30.156Z"}
+{"evt":"status_changed","id":"codex/fix-dashboard-config-smoke-kickback-judge","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-25T01:38:36.317Z"}
+{"evt":"summary_set","id":"codex/fix-dashboard-config-smoke-kickback-judge","workspace":"/Users/imyu/Desktop/zonoid","summary":"Auto-promoted approved tested attempt after merge.","actor":"overlay-sync","ts":"2026-06-25T01:38:36.317Z"}
+{"evt":"assignee_set","id":"codex/fix-dashboard-config-smoke-kickback-judge","workspace":"/Users/imyu/Desktop/zonoid","assignee":"headless-review-merge-drain","actor":"overlay-sync","ts":"2026-06-25T01:38:36.317Z"}
