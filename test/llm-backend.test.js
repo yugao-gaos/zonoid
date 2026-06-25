@@ -622,6 +622,16 @@ test('codex provider: isAvailable true for an existing override bin, false (no t
   } finally { restore(); }
 });
 
+test('codex provider: buildInvocation supplies a launchd-safe PATH with node', () => {
+  const restore = withEnv({ CODEX_BIN: INSTALLED_BIN, PATH: '' });
+  try {
+    const inv = backend.codexProvider.buildInvocation({ prompt: 'judge one item' });
+    const parts = String(inv.env.PATH || '').split(pathMod.delimiter);
+    assert.ok(parts.includes(pathMod.dirname(process.execPath)), 'PATH includes current node directory');
+    assert.ok(parts.includes('/usr/bin'), 'PATH keeps system env lookup available');
+  } finally { restore(); }
+});
+
 // --- Codex provider: isAuthed ------------------------------------------------------------------
 test('codex provider: isAuthed reflects CODEX_API_KEY / OPENAI_API_KEY / auth.json presence', () => {
   // Point CODEX_HOME at an empty temp dir so the no-creds case is deterministic (no auth.json there).
@@ -725,6 +735,16 @@ test('cursor provider: isAvailable true for an existing override bin, false (no 
     let val;
     assert.doesNotThrow(() => { val = backend.cursorProvider.isAvailable(); });
     assert.equal(val, false, 'no override + no PATH hit ⇒ isAvailable false');
+  } finally { restore(); }
+});
+
+test('cursor provider: buildInvocation supplies a launchd-safe PATH with node', () => {
+  const restore = withEnv({ CURSOR_BIN: INSTALLED_BIN, PATH: '' });
+  try {
+    const inv = backend.cursorProvider.buildInvocation({ prompt: 'judge one item' });
+    const parts = String(inv.env.PATH || '').split(pathMod.delimiter);
+    assert.ok(parts.includes(pathMod.dirname(process.execPath)), 'PATH includes current node directory');
+    assert.ok(parts.includes('/usr/bin'), 'PATH keeps system env lookup available');
   } finally { restore(); }
 });
 
