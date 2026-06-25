@@ -260,6 +260,8 @@ class ArmResult:
     agents_md  : the AGENTS.md text (agent_in_container only), else "".
     context_keys: the node keys whose summaries fed the answer (provenance).
     wiring     : the WiringResult for the ON arm (None for contrast arms).
+    grader     : the agentic+grader provenance ({enabled, rounds, kept_keys, last_verdict, ...})
+                 when retrieval="agentic" exercised the production grader path; {} otherwise.
     """
 
     arm: str
@@ -271,6 +273,7 @@ class ArmResult:
     ctx_chars: int = 0
     answer_input_tokens: int = 0
     answer_output_tokens: int = 0
+    grader: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -501,6 +504,43 @@ def task_search_context_label(hit: dict[str, Any]) -> str:
     return tier.upper()
 
 
+def read_agentic_search_context(
+    client: ZonoidClient,
+    node_key: str,
+    query: str,
+    *,
+    k: int = 5,
+    max_rounds: Optional[int] = None,
+    use_grader: Optional[bool] = True,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Read context through the PRODUCTION AGENTIC + LLM-GRADER path (POST /subconscious/search-context).
+
+    This is the byte-identical production retrieval surface the live agentic loop uses:
+    ``store.searchContext`` on ``defaultSubconsciousStore`` (graderEnabled:true) runs the adaptive
+    multi-round search and invokes the LLM grader per round (gradeSearchRound). The one-shot
+    ``/search?task_key=`` surface used by ``read_task_search_context`` does NOT exercise the grader —
+    this does, so the ON arm built on it is identical to production retrieval.
+
+    Returns ``(items, grader)`` where:
+      - ``items``  : the envelope's ``context_deps`` — selected context entries
+                     [{key, title, summary, relevance_score, ...}] to feed the answerer.
+      - ``grader`` : the envelope's ``grader`` provenance object (``{}`` if the grader did not run /
+                     degraded to the heuristic floor) — the evidence the agentic+grader loop fired
+                     (``grader["rounds"] >= 1`` and ``grader["enabled"] is True``).
+    """
+    envelope = client.search_context(
+        node_key, query=query, k=k, max_rounds=max_rounds, use_grader=use_grader
+    )
+    if not isinstance(envelope, dict):
+        return [], {}
+    items = envelope.get("context_deps")
+    if not isinstance(items, list):
+        # Fall back to the raw selected results if context_deps is absent for any reason.
+        items = envelope.get("context") if isinstance(envelope.get("context"), list) else []
+    grader = envelope.get("grader") if isinstance(envelope.get("grader"), dict) else {}
+    return items, grader
+
+
 # ---------------------------------------------------------------------------
 # Executor (a): agent_in_container — build AGENTS.md for a real agent
 # ---------------------------------------------------------------------------
@@ -665,18 +705,27 @@ def run_retrieve_and_answer(
     data_dir: Optional[str] = None,
     model: Optional[str] = None,
     context_k: int = 5,
+    retrieval: str = "task_search",
+    max_rounds: Optional[int] = None,
 ) -> ArmResult:
-    """ON arm, executor (b): wire the DAG, read production /search?task_key context, answer via claude_p.
+    """ON arm, executor (b): wire the DAG, read production context, answer via claude_p.
 
     For QA benches that can't spawn a real agent per probe (500+ units). The unit is minted as a
-    TASK PROBE so the settled read uses the production ``/search?task_key=`` task-scoped search
-    surface; the question itself is the task summary (so autowire ranks NOTE providers against the
-    question's embedding and the eager judge keeps/prunes them).
+    TASK PROBE so the settled read uses a production retrieval surface; the question itself is the
+    task summary (so autowire ranks NOTE providers against the question's embedding and the eager
+    judge keeps/prunes them).
 
-    After eager judgment, the answerer makes the same task-scoped ``/search`` call as production.
-    A settled probe receives system context plus frozen DAG context; it does not get a hand-added
-    semantic RAG fill. If a probe remains provisional, any RAG tier is preserved only because the
-    daemon returned it.
+    Retrieval surface (``retrieval`` selector — both run AFTER the canonical wiring + judge drain,
+    which settles the DAG Tier-1 edges; that wiring is preserved unchanged for both):
+      - ``"task_search"`` (DEFAULT, the frozen-DAG ``our-way`` arm): read the task-scoped
+        ``/search?task_key=`` surface (``read_task_search_context``). A settled probe receives system
+        context plus frozen DAG context; it does NOT get a hand-added semantic RAG fill, and this
+        ONE-SHOT path does NOT exercise the LLM grader.
+      - ``"agentic"`` (the ``our-way-prod`` arm): read through the PRODUCTION agentic + LLM-grader
+        loop (``POST /subconscious/search-context`` → ``store.searchContext`` →
+        ``runAgenticContextSearches`` + ``gradeSearchRound`` per round). This is byte-identical to
+        production retrieval and EXERCISES the grader. The returned ``ArmResult.grader`` carries the
+        grader provenance (rounds / kept_keys / last_verdict) as evidence the loop fired.
 
     The returned production context blocks are injected into the answer prompt. The answerer
     remains tool-less/MCP-off: WE retrieve and inject; the answer agent calls no tools.
@@ -684,32 +733,57 @@ def run_retrieve_and_answer(
     *task_summary* defaults to *question* (the FB convention — embed against the unit's text).
     *data_dir* is required (the file-drop stub destination); defaults to CLAUDE_PLUGIN_DATA or the
     standard orchestrator data dir.
-    *context_k* is forwarded to the production task-scoped search (default 5).
+    *context_k* is forwarded to the production retrieval (default 5).
+    *max_rounds* (agentic only) caps the adaptive search rounds; None lets the daemon decide.
     """
     summary = task_summary or question
     dd = data_dir or os.environ.get("CLAUDE_PLUGIN_DATA") or os.path.join(
         os.path.expanduser("~"), ".claude", "orchestrator"
     )
+    # KEEP the canonical wiring + judge drain for BOTH retrieval modes: it mints the probe, seeds
+    # autowire candidates, and drives the production sync judge so the DAG Tier-1 edges settle.
     wiring = run_canonical_wiring(client, unit_id, summary, data_dir=dd)
     context_blocks: list[str] = []
     all_context_keys: list[str] = []
     seen_keys: set[str] = set()
-    try:
-        raw_hits = read_task_search_context(
-            client, wiring.task_key, question, k=context_k
-        )
-        for h in raw_hits:
-            key = h.get("key") or ""
-            if not key or key in seen_keys:
-                continue
-            text = str(h.get("summary") or "")
-            if not text.strip():
-                continue
-            context_blocks.append(f"[{task_search_context_label(h)}] {text}")
-            seen_keys.add(key)
-            all_context_keys.append(key)
-    except Exception as exc:  # noqa: BLE001 — task-scoped search retrieval is best-effort
-        print(f"[arms] task-scoped context search failed (non-fatal): {exc}", file=sys.stderr)
+    grader_provenance: dict[str, Any] = {}
+
+    if retrieval == "agentic":
+        # PRODUCTION agentic + LLM-grader retrieval (the our-way-prod arm). Byte-identical to the
+        # production agentic path; exercises the grader (vs. the one-shot /search?task_key above).
+        try:
+            items, grader_provenance = read_agentic_search_context(
+                client, wiring.task_key, question, k=context_k, max_rounds=max_rounds
+            )
+            for d in items:
+                key = d.get("key") or d.get("task_key") or ""
+                if not key or key in seen_keys:
+                    continue
+                text = str(d.get("summary") or "")
+                if not text.strip():
+                    continue
+                context_blocks.append(f"[AGENTIC] {text}")
+                seen_keys.add(key)
+                all_context_keys.append(key)
+        except Exception as exc:  # noqa: BLE001 — agentic context retrieval is best-effort
+            print(f"[arms] agentic search-context retrieval failed (non-fatal): {exc}", file=sys.stderr)
+    else:
+        try:
+            raw_hits = read_task_search_context(
+                client, wiring.task_key, question, k=context_k
+            )
+            for h in raw_hits:
+                key = h.get("key") or ""
+                if not key or key in seen_keys:
+                    continue
+                text = str(h.get("summary") or "")
+                if not text.strip():
+                    continue
+                context_blocks.append(f"[{task_search_context_label(h)}] {text}")
+                seen_keys.add(key)
+                all_context_keys.append(key)
+        except Exception as exc:  # noqa: BLE001 — task-scoped search retrieval is best-effort
+            print(f"[arms] task-scoped context search failed (non-fatal): {exc}", file=sys.stderr)
 
     ctx_chars = sum(len(b) for b in context_blocks if b and b.strip())
     predicted, usage = _answer_from_context(question, context_blocks, model)
@@ -722,6 +796,7 @@ def run_retrieve_and_answer(
         ctx_chars=ctx_chars,
         answer_input_tokens=usage.get("input_tokens", 0),
         answer_output_tokens=usage.get("output_tokens", 0),
+        grader=grader_provenance,
     )
 
 

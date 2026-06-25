@@ -2,3 +2,4 @@
 {"evt":"summary_set","id":"note:note-mqp51zczq8p","workspace":"/Users/imyu/Desktop/zonoid","summary":"The promotion gate defaults to a threshold of 0.85, with the value also overridable from `PROMOTION_THRESHOLD`. That is the project's shipped cutoff for deciding when a candidate crosses from discussion into promotion.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_added","from":"note:note-mqp51zczq8p","to":"note:note-mqp55tbezpn","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:21:24.076Z","by":"judge","judged":true}
 {"evt":"edge_removed","from":"note:note-mqp51zczq8p","to":"note:note-mqp55tbezpn","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_added","from":"note:note-mqp51zczq8p","to":"note:note-mqp55tbezpn","kind":"context","actor":"overlay-sync","ts":"2026-06-24T20:35:40.061Z","weight":0.6,"by":"judge","judged":true}

@@ -2,3 +2,4 @@
 {"evt":"edge_added","from":"note:note-mqp55ktn723","to":"note:note-mqp52vxy0op","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:37:45.306Z","weight":0,"by":"autowire","judged":false,"score":0.581,"origin":"autowire-semantic"}
 {"evt":"summary_set","id":"note:note-mqp55ktn723","workspace":"/Users/imyu/Desktop/zonoid","summary":"Shadow verdicts only enter the OOD-rate calculation when confidence is at least 0.7. Lower-confidence judgments are excluded from that metric by design.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp55ktn723","to":"note:note-mqp52vxy0op","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:34.410Z"}
+{"evt":"edge_added","from":"note:note-mqp55ktn723","to":"note:note-mqp52vxy0op","kind":"context","actor":"overlay-sync","ts":"2026-06-25T00:19:44.978Z","weight":0.5,"by":"judge","judged":true}

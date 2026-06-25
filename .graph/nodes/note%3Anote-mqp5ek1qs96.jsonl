@@ -5,3 +5,4 @@
 {"evt":"edge_removed","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu7rp9366","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:23:33.653Z"}
 {"evt":"edge_removed","from":"note:note-mqp5ek1qs96","to":"knowledge:source_chunk:chunk-contributing-md-5-2-sandboxed-daemon-convention-tests--d66a085242","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:23:33.653Z"}
 {"evt":"edge_removed","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu5v7wjfe","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:23:33.653Z"}
+{"evt":"edge_added","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu7rp9366","kind":"context","actor":"overlay-sync","ts":"2026-06-24T23:58:02.788Z","weight":0.6,"by":"judge","judged":true}

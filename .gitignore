@@ -70,6 +70,27 @@ wake/
 scratch/*
 !scratch/cursor-hook-capture.sh
 
+# Self-learn edge-judge / judge-drain agent scratch that historically littered the repo root.
+# The skill (skills/self-learn/references/edge-judge.md) now mandates scratch/edge-judge/ + cleanup;
+# these root-anchored patterns are a belt-and-suspenders net so stray dumps never pollute git status.
+/edge_*
+/edgejudge_*
+/ej_*
+/.ej_*
+/.ej-*
+/judge_*
+/jnext_*
+/jq_*
+/verdict_*
+/orphan*
+/*_thisrun*.json
+/*_thisrun*.txt
+/*_run[0-9]*.json
+/*_run[0-9]*.txt
+/*_dump.json
+/*_dump.txt
+/.tmp-*
+
 # Internal business/strategy docs — co-located but NEVER shipped publicly
 business/
 
