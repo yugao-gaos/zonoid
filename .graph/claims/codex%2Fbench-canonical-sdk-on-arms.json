@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/bench-canonical-sdk-on-arms",
-  "agent_id": "worker-bench-canonical-sdk-on-arms",
-  "branch": "orch/attempt/codex-bench-canonical-sdk-on-arms",
-  "status": "failed",
-  "claimed_at": "2026-06-19T01:12:02.413Z",
-  "lease_until": "2026-06-19T02:12:02.413Z",
-  "completed_at": "2026-06-19T01:28:43.815Z"
-}

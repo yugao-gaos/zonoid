@@ -1,9 +1,0 @@
-{
-  "task_key": "opencode/opencode-wake-reinject",
-  "agent_id": "worker-opencode-wake-reinject",
-  "branch": "orch/attempt/opencode-opencode-wake-reinject",
-  "status": "done",
-  "claimed_at": "2026-06-20T02:33:32.276Z",
-  "lease_until": "2026-06-20T03:33:32.276Z",
-  "completed_at": "2026-06-20T02:46:33.985Z"
-}

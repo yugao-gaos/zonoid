@@ -1,6 +1,0 @@
-{
-  "name": "economy-bench-off-env",
-  "version": "1.0.0",
-  "description": "Minimal source environment for the OFF arm of the economy bench (task-transcript scenario). No KB, no git history, no daemon config.",
-  "private": true
-}

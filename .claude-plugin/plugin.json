@@ -1,7 +1,0 @@
-{
-  "name": "orchestrator",
-  "description": "Auto-routing + a cross-session/cross-workspace task-dependency graph with a two-tier context router, built on top of native Claude Code tasks. Includes a live web DAG, an MCP graph server, and per-conversation enable/disable.",
-  "version": "0.1.0",
-  "author": { "name": "orchestrator" },
-  "keywords": ["orchestration", "tasks", "dependency-graph", "observability", "mcp"]
-}

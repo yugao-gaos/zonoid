@@ -1,9 +1,0 @@
-{
-  "task_key": "cursor/reap-swept",
-  "git_user": "seed <seed@example.test>",
-  "session_id": "reap-swept-sess",
-  "branch": "orch/attempt/cursor-reap-swept",
-  "status": "claimed",
-  "claimed_at": "2026-06-21T03:04:33.645Z",
-  "lease_until": "2026-06-21T04:04:33.645Z"
-}

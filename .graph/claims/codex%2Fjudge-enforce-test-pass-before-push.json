@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/judge-enforce-test-pass-before-push",
-  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
-  "session_id": "codex-mcp-82722-6326fe04bf333e11b726930510105283",
-  "branch": "orch/attempt/codex-judge-enforce-test-pass-before-push",
-  "status": "claimed",
-  "claimed_at": "2026-06-22T18:11:05.428Z",
-  "lease_until": "2026-06-22T19:11:05.428Z"
-}

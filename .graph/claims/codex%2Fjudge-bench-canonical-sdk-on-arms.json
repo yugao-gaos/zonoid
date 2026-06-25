@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/judge-bench-canonical-sdk-on-arms",
-  "agent_id": "judge-bench-canonical-sdk-on-arms",
-  "branch": "orch/attempt/codex-judge-bench-canonical-sdk-on-arms",
-  "status": "done",
-  "claimed_at": "2026-06-19T01:25:40.766Z",
-  "lease_until": "2026-06-19T02:25:40.766Z",
-  "completed_at": "2026-06-19T01:29:06.919Z"
-}

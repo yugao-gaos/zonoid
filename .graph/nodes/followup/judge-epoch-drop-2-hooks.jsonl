@@ -1,3 +1,0 @@
-{"evt":"status_changed","id":"followup/judge-epoch-drop-2-hooks","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-14T04:09:51.289Z"}
-{"evt":"timestamps_set","id":"followup/judge-epoch-drop-2-hooks","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-14T04:09:51.259Z","lastChanged":"2026-06-14T04:09:51.259Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-14T04:09:51.289Z"}
-{"evt":"edge_added","from":"followup/judge-epoch-drop-2-hooks","to":"followup/judge-epoch-drop-4-migration","kind":"context","actor":"overlay-sync","ts":"2026-06-14T04:10:22.626Z"}

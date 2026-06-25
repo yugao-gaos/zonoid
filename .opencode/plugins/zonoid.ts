@@ -1,1 +1,0 @@
-/Users/imyu/Desktop/zonoid/packages/opencode-plugin/zonoid.ts

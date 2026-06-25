@@ -1,9 +1,0 @@
-{
-  "task_key": "codex/code-node-embed-enrich",
-  "git_user": "Yu Gao <yu.gao@gaos.ca>",
-  "session_id": "worker-code-node-embed-enrich",
-  "branch": "orch/attempt/codex-code-node-embed-enrich",
-  "status": "claimed",
-  "claimed_at": "2026-06-23T12:42:06.533Z",
-  "lease_until": "2026-06-23T13:42:06.533Z"
-}

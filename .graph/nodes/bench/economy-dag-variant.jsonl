@@ -1,2 +1,0 @@
-{"evt":"status_changed","id":"bench/economy-dag-variant","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T15:25:51.156Z"}
-{"evt":"timestamps_set","id":"bench/economy-dag-variant","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-15T15:25:51.026Z","lastChanged":"2026-06-15T15:25:51.026Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-15T15:25:51.156Z"}

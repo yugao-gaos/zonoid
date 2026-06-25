@@ -1,9 +1,0 @@
-# FeatureBench config.toml
-# The eval harness only reads [env] HF_TOKEN / HF_ENDPOINT to load the
-# LiberCoders/FeatureBench dataset from HuggingFace. The dataset is public,
-# so an empty token works for the Docker eval smoke test. Inference (fb infer)
-# would additionally need an [llm] block with an API key — out of scope here.
-
-[env]
-HF_TOKEN = ""
-# HF_ENDPOINT = "https://hf-mirror.com"  # optional mirror

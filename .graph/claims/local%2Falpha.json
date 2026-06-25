@@ -1,9 +1,0 @@
-{
-  "task_key": "local/alpha",
-  "git_user": "seed <seed@example.test>",
-  "session_id": "p2-local-sid",
-  "branch": "orch/attempt/local-alpha",
-  "status": "claimed",
-  "claimed_at": "2026-06-21T03:04:06.726Z",
-  "lease_until": "2026-06-21T04:04:06.726Z"
-}

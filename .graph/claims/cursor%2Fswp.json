@@ -1,9 +1,0 @@
-{
-  "task_key": "cursor/swp",
-  "git_user": "seed <seed@example.test>",
-  "session_id": "dead-session",
-  "branch": "orch/attempt/cursor-swp",
-  "status": "claimed",
-  "claimed_at": "2026-06-21T03:04:31.590Z",
-  "lease_until": "2026-06-21T04:04:31.590Z"
-}
