@@ -3,8 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-46806-5da06a3c643f9216615ee79de3b55d1a",
   "branch": "orch/attempt/codex-add-arc-agi-3-zonoid-benchmark-adapter",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-25T15:16:08.086Z",
   "lease_until": "2026-06-25T16:16:08.086Z",
-  "completed_at": "2026-06-25T15:32:16.577Z"
+  "completed_at": "2026-06-25T16:47:00.885Z"
 }
