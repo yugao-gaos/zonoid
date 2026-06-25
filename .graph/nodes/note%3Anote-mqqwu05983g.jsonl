@@ -70,3 +70,4 @@
 {"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/add-arc-agi-3-zonoid-benchmark-adapter","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:55.222Z"}
 {"evt":"edge_added","from":"note:note-mqqwu05983g","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:03:51.210Z","weight":0.844,"by":"subconscious","judged":true,"score":0.844,"origin":"subconscious-agentic-search"}
 {"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:08:48.136Z"}
+{"evt":"edge_added","from":"note:note-mqqwu05983g","to":"codex/make-arc-harness-actively-inject-and-write-zonoid-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:57:55.662Z","weight":0.855,"by":"subconscious","judged":true,"score":0.855,"origin":"subconscious-agentic-search"}
