@@ -14,3 +14,4 @@
 {"evt":"edge_removed","from":"note:note-mqsiyvoyset","to":"note:note-mqpd82jw9j3","kind":"context","actor":"overlay-sync","ts":"2026-06-24T20:34:07.747Z"}
 {"evt":"edge_removed","from":"note:note-mqsiyvoyset","to":"note:note-mqflqx78zk2","kind":"context","actor":"overlay-sync","ts":"2026-06-24T20:34:07.747Z"}
 {"evt":"edge_removed","from":"note:note-mqsiyvoyset","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:17.044Z"}
+{"evt":"edge_added","from":"note:note-mqsiyvoyset","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:29.898Z","weight":1,"judged":true}

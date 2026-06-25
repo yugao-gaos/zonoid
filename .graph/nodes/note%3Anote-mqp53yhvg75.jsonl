@@ -2,3 +2,4 @@
 {"evt":"summary_set","id":"note:note-mqp53yhvg75","workspace":"/Users/imyu/Desktop/zonoid","summary":"The promotion policy allows at most 3 active proposals per capability, requires 2 evidence records, and considers proposals stale after 14 days. That combination makes promotions intentionally conservative and prevents a capability from churning on weak or old signals.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_added","from":"note:note-mqp53yhvg75","to":"note:note-mqp51zczq8p","kind":"context","actor":"overlay-sync","ts":"2026-06-25T00:19:44.978Z","weight":0.55,"by":"judge","judged":true}
 {"evt":"edge_removed","from":"note:note-mqp53yhvg75","to":"note:note-mqp51zczq8p","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:17.044Z"}
+{"evt":"edge_added","from":"note:note-mqp53yhvg75","to":"note:note-mqp51zczq8p","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:29.898Z","weight":0.55,"by":"judge","judged":true}

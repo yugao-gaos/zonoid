@@ -12,3 +12,4 @@
 {"evt":"edge_removed","from":"note:note-mqspw4mcceb","to":"note:note-mqherq0dwip","kind":"context","actor":"overlay-sync","ts":"2026-06-24T23:46:29.934Z"}
 {"evt":"edge_removed","from":"note:note-mqspw4mcceb","to":"note:note-mqpywsqkwff","kind":"context","actor":"overlay-sync","ts":"2026-06-24T23:46:29.934Z"}
 {"evt":"edge_removed","from":"note:note-mqspw4mcceb","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:17.044Z"}
+{"evt":"edge_added","from":"note:note-mqspw4mcceb","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:29.898Z","weight":1,"judged":true}

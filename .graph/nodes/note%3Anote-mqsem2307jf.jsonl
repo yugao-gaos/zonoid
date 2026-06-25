@@ -13,3 +13,4 @@
 {"evt":"edge_removed","from":"note:note-mqsem2307jf","to":"note:note-mqppi1wigd1","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:31:21.432Z"}
 {"evt":"note_superseded","id":"note-mqsem2307jf","supersededBy":"note-mqsew5bkyiy","validTo":"2026-06-24T18:33:47.168Z","actor":"subsumption","ts":"2026-06-24T18:33:47.168Z"}
 {"evt":"edge_removed","from":"note:note-mqsem2307jf","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:17.044Z"}
+{"evt":"edge_added","from":"note:note-mqsem2307jf","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:29.898Z","weight":1,"judged":true}

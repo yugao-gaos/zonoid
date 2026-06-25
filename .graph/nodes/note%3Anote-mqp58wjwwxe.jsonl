@@ -23,3 +23,4 @@
 {"evt":"edge_removed","from":"note:note-mqp58wjwwxe","to":"note:note-mqar2syv6m2","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_added","from":"note:note-mqp58wjwwxe","to":"note:note-mqar2syv6m2","kind":"context","actor":"overlay-sync","ts":"2026-06-24T23:58:02.788Z","weight":0.6,"by":"judge","judged":true}
 {"evt":"edge_removed","from":"note:note-mqp58wjwwxe","to":"note:note-mqar2syv6m2","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:17.044Z"}
+{"evt":"edge_added","from":"note:note-mqp58wjwwxe","to":"note:note-mqar2syv6m2","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:29.898Z","weight":0.6,"by":"judge","judged":true}
