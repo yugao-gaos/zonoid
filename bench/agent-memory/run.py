@@ -173,7 +173,7 @@ def _run_conv(
                 conv_id=conv_id,
                 probe=probe,
                 candidates=candidates,
-                arms=arms,
+                arms=standard_arms,
             )
             for rec in all_records:
                 if rec["arm"] in arms:
