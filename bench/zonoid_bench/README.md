@@ -222,7 +222,11 @@ See `smoke.py` for a full runnable example.
 ## Integration smoke test
 
 ```bash
+# Windows embeddable Python
 C:\Users\Imyu\AppData\Local\py312embed\python.exe bench/zonoid_bench/smoke.py
+
+# Mac / Linux system Python
+python3 bench/zonoid_bench/smoke.py
 ```
 
 Spawns its own isolated local daemon (never touches `:8787`), ingests a toy unit with a

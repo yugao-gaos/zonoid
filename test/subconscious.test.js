@@ -116,6 +116,33 @@ test('subconscious event keeps bounded per-agent recent state', async () => {
   assert.equal(res.body.recent_agent_events[1].text, 'third');
 });
 
+test('subconscious execution brain memory and state counters are store-local', async () => {
+  const ws = makeWorkspace();
+  const storeA = createSubconsciousStore();
+  const storeB = createSubconsciousStore();
+
+  const eventA = storeA.recordEvent({ workspace: ws, agent_id: 'agent-a', type: 'step', text: 'a' });
+  const eventB = storeB.recordEvent({ workspace: ws, agent_id: 'agent-b', type: 'step', text: 'b' });
+
+  assert.equal(eventA.event.id, 'subevt-1');
+  assert.equal(eventB.event.id, 'subevt-1');
+
+  const permitInput = {
+    workspace: ws,
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
+    worktree: `${ws}/wt`,
+    branch: 'orch/attempt/task-anchor',
+    now: '2026-06-21T13:00:00.000Z',
+  };
+  const permitA = storeA.issueExecutionPermit(permitInput);
+  const permitB = storeB.issueExecutionPermit(permitInput);
+
+  assert.equal(permitA.execution_permit.id, 'subpermit-1');
+  assert.equal(permitB.execution_permit.id, 'subpermit-1');
+});
+
 test('subconscious loop store keeps bounded observations isolated by identity', async () => {
   const ws = makeWorkspace();
   const otherWs = makeWorkspace();

@@ -894,12 +894,12 @@ test('effectiveConfig defaults timeoutMs to 5 minutes', () => {
   }
 });
 
-test('effectiveConfig defaults drain concurrency to 12', () => {
+test('effectiveConfig defaults drain concurrency to 4', () => {
   const saved = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   try {
     const hd = freshModule();
-    assert.equal(hd.effectiveConfig().maxConcurrency, 12);
+    assert.equal(hd.effectiveConfig().maxConcurrency, 4);
   } finally {
     if (saved === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = saved;
