@@ -73,3 +73,4 @@
 {"evt":"edge_promoted","from":"codex/code-node-layer","to":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/7","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:09:21.206Z","weight":0.573,"by":"judge","judged":true,"score":0.573,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"codex/code-node-layer","to":"codex/code-ast-extractor-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:09:21.206Z","weight":0.553,"by":"judge","judged":true,"score":0.553,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"codex/code-node-layer","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:09:21.206Z","weight":0.53,"by":"judge","judged":true,"score":0.53,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"codex/code-node-layer","to":"codex/paper-code-retrieval-economy","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:15:52.412Z"}
