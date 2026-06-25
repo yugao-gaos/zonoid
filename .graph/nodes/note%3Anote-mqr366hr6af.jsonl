@@ -64,3 +64,4 @@
 {"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:20:51.669Z"}
 {"evt":"edge_added","from":"note:note-mqr366hr6af","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:36:02.719Z","weight":0,"by":"autowire","judged":false,"score":0.538,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqr366hr6af","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:46:34.806Z","weight":0.538,"by":"judge","judged":true,"score":0.538,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqr366hr6af","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:03:51.210Z","weight":0.83,"by":"subconscious","judged":true,"score":0.83,"origin":"subconscious-agentic-search"}
