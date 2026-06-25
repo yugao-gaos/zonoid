@@ -105,9 +105,11 @@ cd /path/to/arc-agi-3-benchmarking
 git apply /Users/imyu/Desktop/zonoid/patches/arc-agi3-local-cli.patch
 ```
 
-That patch adds a `zonoid-local-cli` config and a `local-cli` runtime that reads
-`ARC_AGENT_COMMAND`, so the official harness can call an already-authenticated CLI such as
-`codex exec` or `claude -p`.
+That patch adds a `zonoid-local-cli` config, a `local-cli` runtime that reads
+`ARC_AGENT_COMMAND`, and active Zonoid integration inside `BenchmarkingAgent`. The patched harness
+fetches compact task context and search evidence before model calls, appends it to the user turn, and
+writes best-effort `arc-agi-3` observation notes after parsed steps. The CLI command only receives the
+final prompt; it does not need direct localhost HTTP access.
 
 Zonoid context is exported through environment variables only when the checkout appears to contain a
 Zonoid integration point (`ZONOID`/`zonoid` tokens in Python files). The variables are:
@@ -119,17 +121,20 @@ Zonoid integration point (`ZONOID`/`zonoid` tokens in Python files). The variabl
 - `ZONOID_KB_SNAPSHOT`
 - `ZONOID_TASK_INSTRUCTIONS`
 - `ZONOID_CONTEXT_JSON`
+- `ARC_MAX_ACTIONS` to cap official harness action count for smoke runs
 - `ARC_AGENT_COMMAND` / `ZONOID_ARC_AGENT_COMMAND` when `--agent-command` is supplied
 
-If the checkout has no visible Zonoid hook, the runner may run the official no-zonoid baseline and
-then exits with a blocker for the zonoid-on arm. That is deliberate: environment variables that the
-harness never reads are not a real Zonoid integration.
+If the checkout has no visible Zonoid hook, apply the compatibility patch before running the Zonoid
+arm. The runner may run the official no-zonoid baseline and then exit with a blocker when the checkout
+still has no hook; that is deliberate because exported variables that the harness never reads are not a
+real Zonoid integration.
 
 `ZONOID_CONTEXT_JSON` points at a small JSON payload with `enabled`, `daemon_url`, `workspace`,
-`task_key`, `task_instructions`, and `kb_snapshot`. A patched official harness can consume that file
-instead of parsing long environment values. The official CLI invocation remains the documented
-`uv run main.py --game=<task_id>` shape; the adapter exports the agent command through environment
-variables instead of inventing official checkout flags.
+`task_key`, `task_instructions`, and `kb_snapshot`. The active patch primarily uses the scalar env vars
+above so it can call `/task/context`, `/search`, and `/overlay/note` directly. These calls are
+best-effort with short timeouts; Zonoid outages warn but do not crash gameplay. The official CLI
+invocation remains the documented `uv run main.py --game=<task_id>` shape; the adapter exports the
+agent command through environment variables instead of inventing official checkout flags.
 
 ## Zonoid integration
 
@@ -169,6 +174,7 @@ Official benchmarking repo path with a local CLI agent exported for a patched ha
 
 ```bash
 ARC_AGENT_COMMAND="claude -p" \
+ARC_MAX_ACTIONS=2 \
 python3 bench/arc_agi3_zonoid/runner.py \
   --benchmarking-repo /path/to/arc-agi-3-benchmarking \
   --agent-command "claude -p" \
