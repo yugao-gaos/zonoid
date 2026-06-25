@@ -192,13 +192,32 @@ async function main() {
       continue;
     }
 
-    // Fetch task detail — fail-soft
+    // Fetch task detail — fail-soft. CRUCIAL: distinguish a DEFINITIVE not-found (the task's node was
+    // archived/removed — it can NEVER become terminal, so deferring it re-counts it as pending forever
+    // and spins the label drain back-to-back) from a TRANSIENT daemon error (timeout / connection —
+    // must retry, or a real label is lost). Orphaned rows are RESOLVED here (recorded skipped so they
+    // stop being pending); only transient errors stay pending.
     let detail;
     try {
       detail = await fetchTaskDetail(row.task_key);
-    } catch {
-      // daemon error or key not found — treat as pending (skip)
-      stillPending++;
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e);
+      if (/HTTP\s*4\d\d|unknown task|not found/i.test(msg)) {
+        appendJsonl(LABELED_PATH, { _key: key, task_key: row.task_key, label: null, quadrant: 'SKIP', resolved: 'orphaned-unknown-task' });
+        labeledKeys.add(key);
+        unlabelable++;
+      } else {
+        stillPending++; // transient daemon error — retry next tick
+      }
+      continue;
+    }
+
+    // Daemon answered but the task does not exist (200 + ok:false / no task object) → orphaned. Same
+    // resolve-skipped path so it stops re-counting as pending instead of deferring forever.
+    if (detail.ok === false || !detail.task || (!detail.task.id && !detail.task.status)) {
+      appendJsonl(LABELED_PATH, { _key: key, task_key: row.task_key, label: null, quadrant: 'SKIP', resolved: 'orphaned-unknown-task' });
+      labeledKeys.add(key);
+      unlabelable++;
       continue;
     }
 
