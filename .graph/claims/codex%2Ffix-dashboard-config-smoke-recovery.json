@@ -1,7 +1,9 @@
 {
   "task_key": "codex/fix-dashboard-config-smoke-recovery",
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
-  "session_id": "worker-fix-dashboard-smoke-recovery",
-  "status": "failed",
-  "completed_at": "2026-06-22T04:43:15.240Z"
+  "session_id": "codex-session-dashboard-config-smoke-recovery-20260625",
+  "branch": "orch/attempt/codex-fix-dashboard-config-smoke-recovery",
+  "status": "claimed",
+  "claimed_at": "2026-06-25T15:08:31.917Z",
+  "lease_until": "2026-06-25T16:08:31.917Z"
 }
