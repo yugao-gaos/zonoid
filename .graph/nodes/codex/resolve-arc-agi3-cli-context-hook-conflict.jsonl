@@ -6,3 +6,4 @@
 {"evt":"status_changed","id":"codex/resolve-arc-agi3-cli-context-hook-conflict","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-25T19:08:26.521Z"}
 {"evt":"assignee_set","id":"codex/resolve-arc-agi3-cli-context-hook-conflict","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-resolve-arc-agi3-cli-context-hook-conflict-20260625","actor":"overlay-sync","ts":"2026-06-25T19:08:26.521Z"}
 {"evt":"timestamps_set","id":"codex/resolve-arc-agi3-cli-context-hook-conflict","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-25T19:06:33.108Z","lastChanged":"2026-06-25T19:08:36.686Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-25T19:10:13.246Z"}
+{"evt":"edge_removed","from":"codex/resolve-arc-agi3-cli-context-hook-conflict","to":"codex/triage-dirty-main-and-merge-pending-approved-attempts","kind":"context","actor":"overlay-sync","ts":"2026-06-25T19:35:53.701Z"}
