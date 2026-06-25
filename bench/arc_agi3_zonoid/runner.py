@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -40,7 +41,12 @@ from bench.arc_agi3_zonoid import adapter as adapter_mod  # noqa: E402
 DRY_RUN_TASK_IDS = ["arc-agi-3-smoke-1", "arc-agi-3-smoke-2"]
 
 
-def preflight(*, require_node: bool = True, benchmarking_repo: str | None = None) -> dict[str, Any]:
+def preflight(
+    *,
+    require_node: bool = True,
+    benchmarking_repo: str | None = None,
+    agent_command: str | None = None,
+) -> dict[str, Any]:
     """Return machine-readable readiness for a real ARC-AGI-3 A/B run."""
 
     state = adapter_mod.detect_sdk()
@@ -61,6 +67,8 @@ def preflight(*, require_node: bool = True, benchmarking_repo: str | None = None
             "arc_toolkit_pip_package": "arc-agi",
             "arc_toolkit_likely_import": "arc_agi",
             "benchmarking_repo": repo_state,
+            "agent_command": agent_command,
+            "agent_command_program": _agent_command_program(agent_command),
         },
     }
 
@@ -69,6 +77,11 @@ def preflight(*, require_node: bool = True, benchmarking_repo: str | None = None
         report["blockers"].append("node not on PATH (needed only for zonoid-on isolated daemon)")
 
     if benchmarking_repo:
+        if agent_command and not report["checks"]["agent_command_program"]:
+            report["ok"] = False
+            report["blockers"].append(
+                f"--agent-command program not on PATH: {_agent_command_name(agent_command)!r}"
+            )
         if not uv_path:
             report["ok"] = False
             report["blockers"].append("uv not on PATH (official benchmarking quickstart uses `uv run main.py`)")
@@ -77,6 +90,14 @@ def preflight(*, require_node: bool = True, benchmarking_repo: str | None = None
             report["blockers"].append(
                 "benchmarking repo must be a checkout containing main.py "
                 "(for example arc-agi-3-benchmarking)"
+            )
+        return report
+
+    if agent_command:
+        if not report["checks"]["agent_command_program"]:
+            report["ok"] = False
+            report["blockers"].append(
+                f"--agent-command program not on PATH: {_agent_command_name(agent_command)!r}"
             )
         return report
 
@@ -153,6 +174,7 @@ def run_real(
     out_dir: str,
     no_isolated_daemon: bool,
     benchmarking_repo: str | None,
+    agent_command: str | None,
 ) -> int:
     """Run zonoid-on and no-zonoid arms through a supported ARC SDK."""
 
@@ -164,9 +186,10 @@ def run_real(
             daemon_js=daemon_js,
             out_dir=out_dir,
             no_isolated_daemon=no_isolated_daemon,
+            agent_command=agent_command,
         )
 
-    pf = preflight(require_node=not no_isolated_daemon)
+    pf = preflight(require_node=not no_isolated_daemon, agent_command=agent_command)
     if not pf["ok"]:
         print("[arc_agi3_zonoid] PREFLIGHT FAILED - cannot run a real benchmark:")
         for blocker in pf["blockers"]:
@@ -209,7 +232,14 @@ def run_real(
             kb_snapshot=kb_snapshot,
         )
         on_cfg["zonoid"]["data_dir"] = data_dir
-        records.extend(adapter_mod.run_real_arm(on_cfg))
+        if on_cfg["zonoid"]["enabled"]:
+            on_cfg["zonoid"]["context_json"] = adapter_mod.write_zonoid_context_file(
+                on_cfg["zonoid"], str(out_root), arm="zonoid_on"
+            )
+        if agent_command:
+            records.extend(adapter_mod.run_agent_arm(on_cfg, agent_command=agent_command))
+        else:
+            records.extend(adapter_mod.run_real_arm(on_cfg))
 
         cold_cfg = adapter_mod.build_config(
             arm="no_zonoid",
@@ -218,7 +248,13 @@ def run_real(
             out_dir=str(out_root),
             zonoid_enabled=False,
         )
-        records.extend(adapter_mod.run_real_arm(cold_cfg))
+        cold_cfg["zonoid"]["context_json"] = adapter_mod.write_zonoid_context_file(
+            cold_cfg["zonoid"], str(out_root), arm="no_zonoid"
+        )
+        if agent_command:
+            records.extend(adapter_mod.run_agent_arm(cold_cfg, agent_command=agent_command))
+        else:
+            records.extend(adapter_mod.run_real_arm(cold_cfg))
 
         _write_report(records, out_root, title="ARC-AGI-3 Zonoid A/B")
         print(json.dumps({"ok": True, "mode": "real", "out_dir": str(out_root)}, indent=2))
@@ -239,6 +275,7 @@ def run_benchmarking_repo(
     daemon_js: str | None,
     out_dir: str,
     no_isolated_daemon: bool,
+    agent_command: str | None,
 ) -> int:
     """Run the official arc-agi-3-benchmarking CLI path when supplied.
 
@@ -276,16 +313,17 @@ def run_benchmarking_repo(
                 warm_mod.load_snapshot(kb_snapshot, workspace, daemon=handle.base_url)
             task_key = "bench/arc-agi-3-zonoid"
             client.post_status(task_key, "in_progress", "ARC-AGI-3 official harness Zonoid probe")
-            zonoid_env = {
-                "ZONOID_ENABLED": "1",
-                "ZONOID_DAEMON_URL": handle.base_url,
-                "ZONOID_WORKSPACE": workspace,
-                "ZONOID_TASK_KEY": task_key,
-                "ZONOID_KB_SNAPSHOT": kb_snapshot or "",
-                "ZONOID_TASK_INSTRUCTIONS": adapter_mod.zonoid_task_instructions(
-                    daemon_url=handle.base_url, workspace=workspace, task_key=task_key
-                ),
-            }
+            payload = adapter_mod.zonoid_context_payload(
+                enabled=True,
+                daemon_url=handle.base_url,
+                workspace=workspace,
+                task_key=task_key,
+                kb_snapshot=kb_snapshot,
+            )
+            context_json = adapter_mod.write_zonoid_context_file(
+                payload, str(out_root), arm="zonoid_on"
+            )
+            zonoid_env = adapter_mod.zonoid_context_env(payload, context_json=context_json)
         elif supports_zonoid and no_isolated_daemon:
             blocker = "benchmarking repo hints at Zonoid support, but --no-isolated-daemon was set; no daemon URL was provided."
         else:
@@ -295,13 +333,23 @@ def run_benchmarking_repo(
             )
 
         baseline_results = _run_official_cli_arm(
-            repo=repo, task_ids=task_ids, arm="no_zonoid", out_root=out_root, extra_env={}
+            repo=repo,
+            task_ids=task_ids,
+            arm="no_zonoid",
+            out_root=out_root,
+            extra_env={},
+            agent_command=agent_command,
         )
         records.extend(baseline_results)
 
         if supports_zonoid and zonoid_env:
             records.extend(_run_official_cli_arm(
-                repo=repo, task_ids=task_ids, arm="zonoid_on", out_root=out_root, extra_env=zonoid_env
+                repo=repo,
+                task_ids=task_ids,
+                arm="zonoid_on",
+                out_root=out_root,
+                extra_env=zonoid_env,
+                agent_command=agent_command,
             ))
             _write_report(records, out_root, title="ARC-AGI-3 official harness Zonoid A/B")
             print(json.dumps({"ok": True, "mode": "benchmarking-repo", "out_dir": str(out_root)}, indent=2))
@@ -330,10 +378,14 @@ def _run_official_cli_arm(
     arm: str,
     out_root: Path,
     extra_env: dict[str, str],
+    agent_command: str | None,
 ) -> list[dict[str, Any]]:
     env = os.environ.copy()
     env.update(extra_env)
     env["ZONOID_ARC_ARM"] = arm
+    if agent_command:
+        env["ARC_AGENT_COMMAND"] = agent_command
+        env["ZONOID_ARC_AGENT_COMMAND"] = agent_command
     commands = _official_commands(task_ids)
     records: list[dict[str, Any]] = []
     arm_dir = out_root / arm
@@ -363,6 +415,25 @@ def _official_commands(task_ids: list[str]) -> list[list[str]]:
     if not task_ids:
         return [["uv", "run", "main.py"]]
     return [["uv", "run", "main.py", f"--game={task_id}"] for task_id in task_ids]
+
+
+def _agent_command_program(agent_command: str | None) -> str | None:
+    name = _agent_command_name(agent_command)
+    if not name:
+        return None
+    return shutil.which(name)
+
+
+def _agent_command_name(agent_command: str | None) -> str | None:
+    if not agent_command:
+        return None
+    try:
+        parts = shlex.split(agent_command)
+    except ValueError:
+        return None
+    if not parts:
+        return None
+    return parts[0]
 
 
 def _inspect_benchmarking_repo(path: str | None) -> dict[str, Any] | None:
@@ -424,6 +495,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Path to an official arc-agi-3-benchmarking checkout; invokes `uv run main.py`.",
     )
+    parser.add_argument(
+        "--agent-command",
+        default=None,
+        help="Generic local authenticated CLI agent command, for example `codex exec` or `claude -p`.",
+    )
     parser.add_argument("--kb-snapshot", default=None, help="Optional Zonoid KB snapshot to inject.")
     parser.add_argument("--daemon-js", default=None, help="Explicit daemon.js path.")
     parser.add_argument("--out-dir", default=None, help="Output directory; defaults to a temp dir.")
@@ -441,7 +517,7 @@ def main(argv: list[str] | None = None) -> int:
         print(adapter_mod.contract_summary())
         return 0
     if args.preflight:
-        pf = preflight(benchmarking_repo=args.benchmarking_repo)
+        pf = preflight(benchmarking_repo=args.benchmarking_repo, agent_command=args.agent_command)
         print(json.dumps(pf, indent=2))
         return 0
     if args.dry_run:
@@ -455,6 +531,7 @@ def main(argv: list[str] | None = None) -> int:
         out_dir=out_dir,
         no_isolated_daemon=args.no_isolated_daemon,
         benchmarking_repo=args.benchmarking_repo,
+        agent_command=args.agent_command,
     )
 
 

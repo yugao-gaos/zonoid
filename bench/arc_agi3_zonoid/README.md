@@ -65,6 +65,24 @@ dict should include a task id, a pass/fail boolean (`correct`, `solved`, `pass`,
 If the installed SDK does not match that contract, the runner exits with a blocker instead of
 guessing private API calls.
 
+## Mode 0: local CLI agent
+
+Use `--agent-command` when the solving agent is already authenticated in a local CLI and the runner
+should not require provider API keys:
+
+```bash
+python3 bench/arc_agi3_zonoid/runner.py \
+  --agent-command "codex exec" \
+  --task-ids task-a,task-b \
+  --max-steps 30
+```
+
+The command is generic; examples include `codex exec` and `claude -p`. The adapter sends one prompt on
+stdin per task and records stdout as the prediction. If stdout is JSON, the adapter honors
+`task_id`, `predicted`/`output`/`answer`, and `correct`/`solved`/`pass`/`passed`/`success` fields.
+Otherwise stdout is treated as the prediction and correctness remains false unless the CLI returned a
+recognized JSON field.
+
 ## Mode B: official benchmarking checkout
 
 Pass a checkout path:
@@ -89,10 +107,18 @@ Zonoid integration point (`ZONOID`/`zonoid` tokens in Python files). The variabl
 - `ZONOID_TASK_KEY`
 - `ZONOID_KB_SNAPSHOT`
 - `ZONOID_TASK_INSTRUCTIONS`
+- `ZONOID_CONTEXT_JSON`
+- `ARC_AGENT_COMMAND` / `ZONOID_ARC_AGENT_COMMAND` when `--agent-command` is supplied
 
 If the checkout has no visible Zonoid hook, the runner may run the official no-zonoid baseline and
 then exits with a blocker for the zonoid-on arm. That is deliberate: environment variables that the
 harness never reads are not a real Zonoid integration.
+
+`ZONOID_CONTEXT_JSON` points at a small JSON payload with `enabled`, `daemon_url`, `workspace`,
+`task_key`, `task_instructions`, and `kb_snapshot`. A patched official harness can consume that file
+instead of parsing long environment values. The official CLI invocation remains the documented
+`uv run main.py --game=<task_id>` shape; the adapter exports the agent command through environment
+variables instead of inventing official checkout flags.
 
 ## Zonoid integration
 
@@ -125,6 +151,16 @@ python3 bench/arc_agi3_zonoid/runner.py \
   --benchmarking-repo /path/to/arc-agi-3-benchmarking \
   --task-ids ls20 \
   --kb-snapshot bench/onboard/zonoid \
+  --out-dir /tmp/arc-agi3-zonoid
+```
+
+Official benchmarking repo path with a local CLI agent exported for a patched harness:
+
+```bash
+python3 bench/arc_agi3_zonoid/runner.py \
+  --benchmarking-repo /path/to/arc-agi-3-benchmarking \
+  --agent-command "claude -p" \
+  --task-ids ls20 \
   --out-dir /tmp/arc-agi3-zonoid
 ```
 
