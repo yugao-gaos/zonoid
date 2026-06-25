@@ -1,0 +1,328 @@
+diff --git a/benchmarking/agent.py b/benchmarking/agent.py
+index e39fc53..6e374ec 100644
+--- a/benchmarking/agent.py
++++ b/benchmarking/agent.py
+@@ -5,6 +5,9 @@ import os
+ import re
+ import textwrap
+ import time
++import urllib.error
++import urllib.parse
++import urllib.request
+ import uuid
+ from datetime import datetime, timezone
+ from typing import Any, Optional
+@@ -108,6 +111,21 @@ class BenchmarkingAgent(Agent):
+                 f"{self.game_id} - No baseline_actions available, "
+                 f"using MAX_ACTIONS={self.MAX_ACTIONS}"
+             )
++        max_actions_override = os.environ.get("ARC_MAX_ACTIONS", "").strip()
++        if max_actions_override:
++            self.MAX_ACTIONS = max(1, int(max_actions_override))
++            self._level_action_budgets = []
++            logger.info(
++                f"{self.game_id} - ARC_MAX_ACTIONS override: {self.MAX_ACTIONS}"
++            )
++        self._zonoid_enabled = os.environ.get("ZONOID_ENABLED", "").strip().lower() in (
++            "1",
++            "true",
++            "yes",
++        )
++        self._zonoid_daemon_url = os.environ.get("ZONOID_DAEMON_URL", "").rstrip("/")
++        self._zonoid_workspace = os.environ.get("ZONOID_WORKSPACE", "").strip()
++        self._zonoid_task_key = os.environ.get("ZONOID_TASK_KEY", "").strip()
+         self._level_action_counter: int = 0
+         self._last_levels_completed: int = 0
+         self._level_just_advanced: bool = False
+@@ -193,6 +211,140 @@ class BenchmarkingAgent(Agent):
+             You are playing a game. Your goal is to win. Include any context you want to carry forward in your reply, along with the action you want to take. The final action mentioned in your reply will be executed next turn.
+         """)
+
++    def _zonoid_active(self) -> bool:
++        return bool(
++            self._zonoid_enabled
++            and self._zonoid_daemon_url
++            and self._zonoid_workspace
++            and self._zonoid_task_key
++        )
++
++    def _zonoid_get_json(self, path: str, params: dict[str, Any]) -> Any | None:
++        if not self._zonoid_active():
++            return None
++        query = urllib.parse.urlencode(params)
++        url = f"{self._zonoid_daemon_url}{path}?{query}"
++        try:
++            with urllib.request.urlopen(url, timeout=2.0) as response:
++                return json.loads(response.read().decode("utf-8"))
++        except (
++            OSError,
++            ValueError,
++            urllib.error.URLError,
++            urllib.error.HTTPError,
++        ) as exc:
++            logger.warning("Zonoid context read failed for %s: %s", path, exc)
++            return None
++
++    def _zonoid_post_json(self, path: str, payload: dict[str, Any]) -> Any | None:
++        if not self._zonoid_active():
++            return None
++        data = json.dumps(payload).encode("utf-8")
++        request = urllib.request.Request(
++            f"{self._zonoid_daemon_url}{path}",
++            data=data,
++            headers={"Content-Type": "application/json"},
++            method="POST",
++        )
++        try:
++            with urllib.request.urlopen(request, timeout=2.0) as response:
++                return json.loads(response.read().decode("utf-8"))
++        except (
++            OSError,
++            ValueError,
++            urllib.error.URLError,
++            urllib.error.HTTPError,
++        ) as exc:
++            logger.warning("Zonoid write failed for %s: %s", path, exc)
++            return None
++
++    @staticmethod
++    def _zonoid_compact_text(value: Any, limit: int = 900) -> str:
++        if value is None:
++            return ""
++        if isinstance(value, str):
++            text = value
++        else:
++            text = json.dumps(value, ensure_ascii=True, default=str)
++        text = re.sub(r"\s+", " ", text).strip()
++        if len(text) > limit:
++            return text[: limit - 3] + "..."
++        return text
++
++    def _zonoid_context_block(self, latest_frame: FrameData) -> str:
++        if not self._zonoid_active():
++            return ""
++        context = self._zonoid_get_json(
++            "/task/context",
++            {
++                "key": self._zonoid_task_key,
++                "workspace": self._zonoid_workspace,
++            },
++        )
++        search_query = (
++            f"ARC-AGI-3 {self.game_id} level {latest_frame.levels_completed} "
++            f"state {latest_frame.state.name}"
++        )
++        search = self._zonoid_get_json(
++            "/search",
++            {
++                "q": search_query,
++                "k": 5,
++                "workspace": self._zonoid_workspace,
++                "task_key": self._zonoid_task_key,
++                "gated": "false",
++            },
++        )
++        lines = ["<zonoid_context>"]
++        if context:
++            deps = context.get("dependencySummaries") if isinstance(context, dict) else None
++            if deps:
++                lines.append("Task context:")
++                for dep in deps[:4]:
++                    label = dep.get("label") or dep.get("key") or "context"
++                    summary = self._zonoid_compact_text(dep.get("summary"), limit=350)
++                    if summary:
++                        lines.append(f"- {label}: {summary}")
++        if search:
++            results = search.get("results") if isinstance(search, dict) else search
++            if isinstance(results, list) and results:
++                lines.append("Search evidence:")
++                for result in results[:4]:
++                    title = result.get("title") or result.get("label") or result.get("key") or "result"
++                    summary = self._zonoid_compact_text(
++                        result.get("summary") or result.get("text") or result,
++                        limit=350,
++                    )
++                    if summary:
++                        lines.append(f"- {title}: {summary}")
++        if len(lines) == 1:
++            return ""
++        lines.append("</zonoid_context>")
++        return "\n".join(lines)
++
++    def _zonoid_record_observation(self, step: StepRecord) -> None:
++        if not self._zonoid_active():
++            return
++        parsed = self._zonoid_compact_text(step.parsed_action, limit=240)
++        summary = (
++            f"ARC-AGI-3 {self.game_id} step {step.step}: "
++            f"action={parsed}; model={step.model}; retries={step.retries}."
++        )
++        if step.assistant_response:
++            summary += " response=" + self._zonoid_compact_text(
++                step.assistant_response, limit=500
++            )
++        self._zonoid_post_json(
++            "/overlay/note",
++            {
++                "workspace": self._zonoid_workspace,
++                "title": f"ARC-AGI-3 {self.game_id} step {step.step}",
++                "summary": summary,
++                "category": "arc-agi-3",
++                "wires_to": [self._zonoid_task_key],
++            },
++        )
++
+     def _build_assistant_turn_content(
+         self,
+         output_text: str,
+@@ -276,6 +428,9 @@ class BenchmarkingAgent(Agent):
+         )
+         parts.append(f"Available actions:\n{actions_text}")
+
++        zonoid_context = self._zonoid_context_block(latest_frame)
++        if zonoid_context:
++            parts.append(zonoid_context)
+         return "\n\n".join(parts)
+
+     # ── Action parsing ───────────────────────────────────────────────────
+@@ -359,6 +514,7 @@ class BenchmarkingAgent(Agent):
+         filename = os.path.join(self.run_dir, f"step_{self.step_counter:03d}.json")
+         with open(filename, "w") as f:
+             f.write(step.model_dump_json(indent=2))
++        self._zonoid_record_observation(step)
+         self._write_run_meta()
+         logger.info(f"Saved step {self.step_counter} to {filename}")
+
+diff --git a/benchmarking/model_config.py b/benchmarking/model_config.py
+index c10ce5f..558a605 100644
+--- a/benchmarking/model_config.py
++++ b/benchmarking/model_config.py
+@@ -9,6 +9,7 @@ SUPPORTED_RUNTIME_PAIRS = frozenset(
+     {
+         ("anthropic-python", "messages"),
+         ("google-genai", "generate_content"),
++        ("local-cli", "stdio"),
+         ("openai-python", "chat_completions"),
+         ("openai-python", "responses"),
+     }
+diff --git a/benchmarking/model_configs.yaml b/benchmarking/model_configs.yaml
+index 8638ad4..ff0f5ae 100644
+--- a/benchmarking/model_configs.yaml
++++ b/benchmarking/model_configs.yaml
+@@ -1,3 +1,18 @@
++- id: "zonoid-local-cli"
++  agent:
++    MAX_ACTIONS_BASELINE_MULTIPLIER: 1.0
++    MAX_CONTEXT_LENGTH: 175_000
++  runtime:
++    sdk: "local-cli"
++    api: "stdio"
++    state: "manual_rolling"
++  client:
++    api_key_env: "ARC_AGENT_COMMAND"
++    command_env: "ARC_AGENT_COMMAND"
++  request:
++    model: "local-cli"
++  pricing: {}
++
+ - id: "openai-gpt-5.4-openrouter"
+   agent:
+     MAX_ACTIONS_BASELINE_MULTIPLIER: 5.0
+diff --git a/benchmarking/runtime_adapters.py b/benchmarking/runtime_adapters.py
+index 9f9484e..98e7d3b 100644
+--- a/benchmarking/runtime_adapters.py
++++ b/benchmarking/runtime_adapters.py
+@@ -1,5 +1,8 @@
+ from __future__ import annotations
+ 
++import os
++import shlex
++import subprocess
+ from typing import Any, Protocol
+ 
+ from google.genai import types as google_genai_types
+@@ -7,6 +10,7 @@ from google.genai import types as google_genai_types
+ from .runtime_models import (
+     ModelRequest,
+     ModelResponse,
++    NormalizedUsage,
+     normalize_anthropic_messages_response,
+     normalize_chat_completion_response,
+     normalize_google_genai_response,
+@@ -28,6 +32,46 @@ class ModelRuntimeAdapter(Protocol):
+     def invoke(self, request: ModelRequest) -> ModelResponse: ...
+ 
+ 
++
++class LocalCliStdioAdapter:
++    def __init__(self, client: Any) -> None:
++        self._command = str(client["command"])
++
++    @staticmethod
++    def _prompt_from_request(request: ModelRequest) -> str:
++        parts: list[str] = []
++        for message in request.messages:
++            parts.append(f"<{message.role}>\n{message.content}\n</{message.role}>")
++        return "\n\n".join(parts) + "\n"
++
++    def invoke(self, request: ModelRequest) -> ModelResponse:
++        command = shlex.split(self._command)
++        if not command:
++            raise ValueError("Local CLI command is empty.")
++        env = os.environ.copy()
++        env.setdefault("ZONOID_ARC_RUNTIME", "local-cli")
++        result = subprocess.run(
++            command,
++            input=self._prompt_from_request(request),
++            text=True,
++            capture_output=True,
++            env=env,
++        )
++        output = (result.stdout or "").strip()
++        if result.returncode != 0:
++            stderr = (result.stderr or "").strip()
++            raise RuntimeError(
++                f"Local CLI command failed with exit {result.returncode}: {stderr[:1000]}"
++            )
++        return ModelResponse(
++            output_text=output,
++            usage=NormalizedUsage(),
++            raw_response={
++                "command": command,
++                "stderr": (result.stderr or "").strip(),
++            },
++        )
++
+ class OpenAIChatCompletionsAdapter:
+     def __init__(self, client: Any) -> None:
+         self._client = client
+@@ -315,6 +359,8 @@ def build_model_runtime_adapter(
+         return AnthropicMessagesAdapter(client)
+     if runtime_key == ("google-genai", "generate_content"):
+         return GoogleGenAIGenerateContentAdapter(client)
++    if runtime_key == ("local-cli", "stdio"):
++        return LocalCliStdioAdapter(client)
+ 
+     raise ValueError(
+         f"Model config '{config_id}' uses unsupported runtime "
+diff --git a/benchmarking/runtime_clients.py b/benchmarking/runtime_clients.py
+index d9b3b20..cb03600 100644
+--- a/benchmarking/runtime_clients.py
++++ b/benchmarking/runtime_clients.py
+@@ -44,6 +44,16 @@ def build_model_runtime_client(
+     config_id: str,
+ ) -> Any:
+     sdk = runtime_config.get("sdk")
++    if sdk == "local-cli":
++        command_env = str(client_config.get("command_env", "ARC_AGENT_COMMAND")).strip()
++        command = os.environ.get(command_env, "").strip()
++        if not command:
++            raise ValueError(
++                f"Model config '{config_id}' requires {command_env} to be set "
++                "to a local CLI command, for example: codex exec"
++            )
++        return {"command": command, "command_env": command_env}
++
+     if sdk == "openai-python":
+         api_key = _read_required_api_key(
+             client_config=client_config,

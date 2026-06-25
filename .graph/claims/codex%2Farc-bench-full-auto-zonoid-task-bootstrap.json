@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/arc-bench-full-auto-zonoid-task-bootstrap",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-14046-5b05b2c6cace9c9812e24dd2ac948425",
+  "branch": "orch/attempt/codex-arc-bench-full-auto-zonoid-task-bootstrap",
+  "status": "tested",
+  "claimed_at": "2026-06-25T20:12:16.934Z",
+  "lease_until": "2026-06-25T21:12:16.934Z",
+  "completed_at": "2026-06-25T20:17:51.221Z"
+}
