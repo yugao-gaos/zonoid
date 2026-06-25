@@ -59,3 +59,4 @@
 {"evt":"edge_added","from":"note:note-mqr366hr6af","to":"codex/add-arc-agi-3-zonoid-benchmark-adapter","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:54.390Z","weight":0.83,"by":"subconscious","judged":true,"score":0.83,"origin":"subconscious-agentic-search"}
 {"evt":"edge_promoted","from":"note:note-mqr366hr6af","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:55.222Z","weight":0,"by":"autowire","judged":false,"score":0.538,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/add-arc-agi-3-zonoid-benchmark-adapter","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:55.222Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:15:15.570Z"}
