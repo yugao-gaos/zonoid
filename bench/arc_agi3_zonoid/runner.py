@@ -15,11 +15,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
 from pathlib import Path
 from typing import Any
 
@@ -34,11 +37,14 @@ if _REPO_ROOT not in sys.path:
 
 from zonoid_bench import daemon as daemon_mod  # noqa: E402
 from zonoid_bench import report as report_mod  # noqa: E402
+from zonoid_bench import workspace as workspace_mod  # noqa: E402
 from zonoid_bench.client import ZonoidClient  # noqa: E402
 from bench.arc_agi3_zonoid import adapter as adapter_mod  # noqa: E402
 
 
 DRY_RUN_TASK_IDS = ["arc-agi-3-smoke-1", "arc-agi-3-smoke-2"]
+_TASK_ADOPT_TIMEOUT_S = 10.0
+_TASK_ADOPT_POLL_S = 0.25
 
 
 def preflight(
@@ -118,6 +124,53 @@ def preflight(
     return report
 
 
+def _bootstrap_zonoid_requirements_task(
+    *,
+    client: ZonoidClient,
+    data_dir: str,
+    task_ids: list[str],
+    max_steps: int,
+    source: str,
+) -> str:
+    """Create the bench-owned requirements task and return its graph key."""
+
+    label = "suite" if not task_ids else "-".join(task_ids[:3])
+    if len(task_ids) > 3:
+        label += f"-plus-{len(task_ids) - 3}"
+    label = re.sub(r"[^A-Za-z0-9._-]+", "-", label).strip("-") or "suite"
+    task_id = f"arc-agi-3-{label}-requirements"
+    games = ", ".join(task_ids) if task_ids else "all available ARC-AGI-3 games"
+    subject = f"ARC-AGI-3 requirements for {games}"
+    summary = (
+        f"Run ARC-AGI-3 via {source} for {games}. The playing agent should solve the game within "
+        f"the configured action budget ({max_steps}), use task-scoped Zonoid context before each "
+        "decision, and record concise observations after each parsed action."
+    )
+    task_key = workspace_mod.drop_task_stub(
+        data_dir,
+        client.workspace or "",
+        task_id,
+        subject,
+        description=summary,
+        harness="bench",
+        agent_id="arc_agi3_zonoid",
+    )
+    client.sync()
+    deadline = time.time() + _TASK_ADOPT_TIMEOUT_S
+    while time.time() < deadline:
+        try:
+            client.get_task_context(task_key, timeout=30)
+            break
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                raise
+        time.sleep(_TASK_ADOPT_POLL_S)
+    else:
+        raise RuntimeError(f"Zonoid bench daemon did not adopt requirements task {task_key!r}")
+    client.post_status(task_key, "not_ready", summary=summary, agent_id="arc_agi3_zonoid")
+    return task_key
+
+
 def dry_run(max_steps: int, task_ids: list[str], out_dir: str) -> int:
     """Exercise the report path without ARC SDK, credentials, daemon, or model calls."""
 
@@ -182,6 +235,7 @@ def run_real(
         return run_benchmarking_repo(
             benchmarking_repo=benchmarking_repo,
             task_ids=task_ids,
+            max_steps=max_steps,
             kb_snapshot=kb_snapshot,
             daemon_js=daemon_js,
             out_dir=out_dir,
@@ -206,7 +260,7 @@ def run_real(
         daemon_url = None
         workspace = None
         data_dir = None
-        task_key = "bench/arc-agi-3-zonoid"
+        task_key = "bench/arc-agi-3-suite-requirements"
 
         if not no_isolated_daemon:
             workspace = os.path.abspath(tempfile.mkdtemp(prefix="zonoid-arc-agi3-ws-"))
@@ -218,7 +272,13 @@ def run_real(
             if kb_snapshot:
                 from zonoid_bench import warm as warm_mod
                 warm_mod.load_snapshot(kb_snapshot, workspace, daemon=daemon_url)
-            client.post_status(task_key, "in_progress", "ARC-AGI-3 Zonoid benchmark probe")
+            task_key = _bootstrap_zonoid_requirements_task(
+                client=client,
+                data_dir=data_dir,
+                task_ids=task_ids,
+                max_steps=max_steps,
+                source="direct SDK/local agent",
+            )
 
         on_cfg = adapter_mod.build_config(
             arm="zonoid_on",
@@ -271,6 +331,7 @@ def run_benchmarking_repo(
     *,
     benchmarking_repo: str,
     task_ids: list[str],
+    max_steps: int,
     kb_snapshot: str | None,
     daemon_js: str | None,
     out_dir: str,
@@ -315,11 +376,13 @@ def run_benchmarking_repo(
             if kb_snapshot:
                 from zonoid_bench import warm as warm_mod
                 warm_mod.load_snapshot(kb_snapshot, workspace, daemon=handle.base_url)
-            task_key = "bench/arc-agi-3-zonoid"
-            try:
-                client.post_status(task_key, "in_progress", "ARC-AGI-3 official harness Zonoid probe")
-            except Exception as exc:  # noqa: BLE001
-                print(f"[arc_agi3_zonoid] warning: could not register Zonoid probe: {exc}")
+            task_key = _bootstrap_zonoid_requirements_task(
+                client=client,
+                data_dir=handle.data_dir,
+                task_ids=task_ids,
+                max_steps=max_steps,
+                source="official arc-agi-3-benchmarking harness",
+            )
             payload = adapter_mod.zonoid_context_payload(
                 enabled=True,
                 daemon_url=handle.base_url,
@@ -344,6 +407,7 @@ def run_benchmarking_repo(
             task_ids=task_ids,
             arm="no_zonoid",
             out_root=out_root,
+            max_steps=max_steps,
             extra_env={},
             agent_command=agent_command,
         )
@@ -355,6 +419,7 @@ def run_benchmarking_repo(
                 task_ids=task_ids,
                 arm="zonoid_on",
                 out_root=out_root,
+                max_steps=max_steps,
                 extra_env=zonoid_env,
                 agent_command=agent_command,
             ))
@@ -384,12 +449,14 @@ def _run_official_cli_arm(
     task_ids: list[str],
     arm: str,
     out_root: Path,
+    max_steps: int,
     extra_env: dict[str, str],
     agent_command: str | None,
 ) -> list[dict[str, Any]]:
     env = os.environ.copy()
     env.update(extra_env)
     env["ZONOID_ARC_ARM"] = arm
+    env["ARC_MAX_ACTIONS"] = str(max_steps)
     if agent_command:
         env["ARC_AGENT_COMMAND"] = agent_command
         env["ZONOID_ARC_AGENT_COMMAND"] = agent_command
