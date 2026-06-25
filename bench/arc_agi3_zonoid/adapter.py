@@ -15,6 +15,7 @@ from typing import Any
 
 
 SDK_CANDIDATES: tuple[str, ...] = (
+    "arc_agi",
     "arc_agi_3",
     "arc_agi3",
     "arcagi3",
@@ -86,12 +87,23 @@ def contract_summary() -> str:
         "  --preflight, --contract, and --dry-run do not import or require ARC credentials.",
         "",
         "Supported real-run SDK contract:",
+        "  Mode A - direct Python hook:",
         "  1. One likely package is importable: " + ", ".join(SDK_CANDIDATES),
+        "     Official ARC Toolkit package is documented as `pip install arc-agi`, likely import `arc_agi`.",
         "  2. The package exposes one callable: run_benchmark(config), run(config), or evaluate(config).",
         "  3. The callable returns either:",
         "     - a list of per-task dicts, or",
         "     - a dict with a 'results' list.",
         "  4. Each result should include task_id/id, correct/solved/pass, predicted/output, and optional metrics.",
+        "",
+        "  Mode B - official arc-agi-3-benchmarking checkout:",
+        "  1. Pass --benchmarking-repo /path/to/arc-agi-3-benchmarking.",
+        "  2. The runner invokes `uv run main.py --game=<task_id>` for each task id, or `uv run main.py`",
+        "     when no task ids are supplied. The official quickstart also advertises --list-games and",
+        "     --list-configs; this adapter does not invent extra flags.",
+        "  3. Zonoid context is exported via environment variables only if the checkout appears to contain",
+        "     a Zonoid integration point. Otherwise the runner may run the baseline and returns a blocker",
+        "     for the zonoid-on arm instead of pretending an A/B ran.",
         "",
         "Config passed to the SDK callable:",
         "  arm: 'zonoid_on' or 'no_zonoid'",
@@ -247,4 +259,3 @@ def _signature(fn: Any) -> str:
         return str(inspect.signature(fn))
     except Exception:  # noqa: BLE001
         return "(signature unavailable)"
-
