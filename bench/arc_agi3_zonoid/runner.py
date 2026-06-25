@@ -316,7 +316,10 @@ def run_benchmarking_repo(
                 from zonoid_bench import warm as warm_mod
                 warm_mod.load_snapshot(kb_snapshot, workspace, daemon=handle.base_url)
             task_key = "bench/arc-agi-3-zonoid"
-            client.post_status(task_key, "in_progress", "ARC-AGI-3 official harness Zonoid probe")
+            try:
+                client.post_status(task_key, "in_progress", "ARC-AGI-3 official harness Zonoid probe")
+            except Exception as exc:  # noqa: BLE001
+                print(f"[arc_agi3_zonoid] warning: could not register Zonoid probe: {exc}")
             payload = adapter_mod.zonoid_context_payload(
                 enabled=True,
                 daemon_url=handle.base_url,
@@ -390,7 +393,7 @@ def _run_official_cli_arm(
     if agent_command:
         env["ARC_AGENT_COMMAND"] = agent_command
         env["ZONOID_ARC_AGENT_COMMAND"] = agent_command
-    commands = _official_commands(task_ids)
+    commands = _official_commands(task_ids, local_cli=bool(agent_command))
     records: list[dict[str, Any]] = []
     arm_dir = out_root / arm
     arm_dir.mkdir(parents=True, exist_ok=True)
@@ -401,13 +404,21 @@ def _run_official_cli_arm(
         res = subprocess.run(cmd, cwd=repo, env=env, text=True, capture_output=True)
         (arm_dir / f"{label}.stdout.txt").write_text(res.stdout or "", encoding="utf-8")
         (arm_dir / f"{label}.stderr.txt").write_text(res.stderr or "", encoding="utf-8")
+        combined_output = f"{res.stdout or ''}\n{res.stderr or ''}"
+        harness_blocked = (
+            "No games available to play" in combined_output
+            or "API request failed with status 401" in combined_output
+        )
+        predicted = "BLOCKED" if harness_blocked else (
+            "EXIT_0" if res.returncode == 0 else f"EXIT_{res.returncode}"
+        )
         records.append({
             "arm": "on" if arm == "zonoid_on" else "cold",
             "category": f"arc-agi-3:{label}",
             "question": label,
             "gold": "EXIT_0",
-            "predicted": "EXIT_0" if res.returncode == 0 else f"EXIT_{res.returncode}",
-            "correct": res.returncode == 0,
+            "predicted": predicted,
+            "correct": res.returncode == 0 and not harness_blocked,
             "command": cmd,
             "stdout_path": str(arm_dir / f"{label}.stdout.txt"),
             "stderr_path": str(arm_dir / f"{label}.stderr.txt"),
@@ -415,10 +426,11 @@ def _run_official_cli_arm(
     return records
 
 
-def _official_commands(task_ids: list[str]) -> list[list[str]]:
+def _official_commands(task_ids: list[str], *, local_cli: bool = False) -> list[list[str]]:
+    config_args = ["--config=zonoid-local-cli"] if local_cli else []
     if not task_ids:
-        return [["uv", "run", "main.py"]]
-    return [["uv", "run", "main.py", f"--game={task_id}"] for task_id in task_ids]
+        return [["uv", "run", "main.py", *config_args]]
+    return [["uv", "run", "main.py", f"--game={task_id}", *config_args] for task_id in task_ids]
 
 
 def _agent_command_program(agent_command: str | None) -> str | None:

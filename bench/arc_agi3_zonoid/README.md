@@ -98,6 +98,17 @@ The runner invokes the official CLI:
 - with task ids: `uv run main.py --game=<task_id>`
 - with no task ids: `uv run main.py` (all/default games according to the checkout)
 
+For a local CLI-backed run, first apply the compatibility patch to the official checkout:
+
+```bash
+cd /path/to/arc-agi-3-benchmarking
+git apply /Users/imyu/Desktop/zonoid/patches/arc-agi3-local-cli.patch
+```
+
+That patch adds a `zonoid-local-cli` config and a `local-cli` runtime that reads
+`ARC_AGENT_COMMAND`, so the official harness can call an already-authenticated CLI such as
+`codex exec` or `claude -p`.
+
 Zonoid context is exported through environment variables only when the checkout appears to contain a
 Zonoid integration point (`ZONOID`/`zonoid` tokens in Python files). The variables are:
 
@@ -157,6 +168,7 @@ python3 bench/arc_agi3_zonoid/runner.py \
 Official benchmarking repo path with a local CLI agent exported for a patched harness:
 
 ```bash
+ARC_AGENT_COMMAND="claude -p" \
 python3 bench/arc_agi3_zonoid/runner.py \
   --benchmarking-repo /path/to/arc-agi-3-benchmarking \
   --agent-command "claude -p" \
