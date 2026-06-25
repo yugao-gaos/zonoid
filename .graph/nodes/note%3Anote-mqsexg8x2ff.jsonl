@@ -5,3 +5,4 @@
 {"evt":"edge_promoted","from":"note:note-mqsexg8x2ff","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:37:48.691Z","weight":1}
 {"evt":"note_superseded","id":"note-mqsexg8x2ff","supersededBy":"note-mqsf07wpwcj","validTo":"2026-06-24T18:36:48.265Z","ts":"2026-06-24T18:36:48.265Z","actor":"supersede"}
 {"evt":"edge_promoted","from":"note:note-mqsexg8x2ff","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-24T18:38:18.090Z","weight":1}
+{"evt":"edge_removed","from":"note:note-mqsexg8x2ff","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:17.044Z"}

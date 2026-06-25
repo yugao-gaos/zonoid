@@ -14,3 +14,4 @@
 {"evt":"note_superseded","id":"note-mqsktjtz8ch","supersededBy":"note-mqsl484nr91","validTo":"2026-06-24T21:27:52.871Z","ts":"2026-06-24T21:27:52.871Z","actor":"supersede"}
 {"evt":"note_superseded","id":"note-mqsktjtz8ch","supersededBy":"note-mqsl4gh5vxe","validTo":"2026-06-24T21:28:03.689Z","ts":"2026-06-24T21:28:03.689Z","actor":"supersede"}
 {"evt":"note_superseded","id":"note-mqsktjtz8ch","supersededBy":"note-mqsl4oupaag","validTo":"2026-06-24T21:28:14.545Z","ts":"2026-06-24T21:28:14.545Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mqsktjtz8ch","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:17.044Z"}

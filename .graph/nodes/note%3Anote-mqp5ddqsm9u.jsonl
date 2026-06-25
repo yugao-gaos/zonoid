@@ -24,3 +24,4 @@
 {"evt":"edge_removed","from":"note:note-mqp5ddqsm9u","to":"knowledge:source_chunk:chunk-claude-md-6-2-provenance-wiring-agents-creating-notes--8b207882f0","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"note:note-mqp5ddqsm9u","to":"note:note-mqiu734gzsl","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_added","from":"note:note-mqp5ddqsm9u","to":"note:note-mqiu734gzsl","kind":"context","actor":"overlay-sync","ts":"2026-06-24T23:58:02.788Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqp5ddqsm9u","to":"note:note-mqiu734gzsl","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:17.044Z"}

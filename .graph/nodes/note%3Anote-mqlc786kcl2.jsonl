@@ -44,3 +44,4 @@
 {"evt":"edge_removed","from":"note:note-mqlc786kcl2","to":"codex/fix-featurebench-canonical-arm-docs","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"note:note-mqlc786kcl2","to":"codex/fix-featurebench-canonical-arm-docs-followup","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_added","from":"note:note-mqlc786kcl2","to":"note:note-mqlapu0wi63","kind":"context","actor":"overlay-sync","ts":"2026-06-25T00:19:44.978Z","weight":0.65,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqlc786kcl2","to":"note:note-mqlapu0wi63","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:17.044Z"}
