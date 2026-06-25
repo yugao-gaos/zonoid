@@ -225,7 +225,7 @@ def run_real(
             max_steps=max_steps,
             task_ids=task_ids,
             out_dir=str(out_root),
-            zonoid_enabled=True,
+            zonoid_enabled=bool(daemon_url and workspace),
             daemon_url=daemon_url,
             workspace=workspace,
             task_key=task_key,
@@ -284,7 +284,11 @@ def run_benchmarking_repo(
     out to that CLI. Zonoid env injection is used only if the checkout appears to have a Zonoid hook.
     """
 
-    pf = preflight(require_node=not no_isolated_daemon, benchmarking_repo=benchmarking_repo)
+    pf = preflight(
+        require_node=not no_isolated_daemon,
+        benchmarking_repo=benchmarking_repo,
+        agent_command=agent_command,
+    )
     if not pf["ok"]:
         print("[arc_agi3_zonoid] PREFLIGHT FAILED - cannot run official benchmarking repo:")
         for blocker in pf["blockers"]:
