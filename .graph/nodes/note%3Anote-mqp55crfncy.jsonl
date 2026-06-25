@@ -2,3 +2,4 @@
 {"evt":"edge_added","from":"note:note-mqp55crfncy","to":"note:note-mqfd8f7jofo","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:37:34.773Z","weight":0,"by":"autowire","judged":false,"score":0.57,"origin":"autowire-semantic"}
 {"evt":"summary_set","id":"note:note-mqp55crfncy","workspace":"/Users/imyu/Desktop/zonoid","summary":"The economy DAG only injects context results at or above a score of 0.5. Small score changes can therefore flip whether a result is surfaced to the agent at all.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp55crfncy","to":"note:note-mqfd8f7jofo","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:34.410Z"}
+{"evt":"edge_added","from":"note:note-mqp55crfncy","to":"note:note-mqfd8f7jofo","kind":"context","actor":"overlay-sync","ts":"2026-06-25T00:19:44.978Z","weight":0.55,"by":"judge","judged":true}

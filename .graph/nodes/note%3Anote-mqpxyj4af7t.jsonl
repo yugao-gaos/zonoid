@@ -31,3 +31,4 @@
 {"evt":"edge_promoted","from":"note:note-mqpxyj4af7t","to":"codex/paper-code-retrieval-economy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T12:12:47.048Z","weight":0.5,"by":"judge","judged":true,"origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"note:note-mqpxyj4af7t","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_removed","from":"note:note-mqpxyj4af7t","to":"codex/paper-code-retrieval-economy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_added","from":"note:note-mqpxyj4af7t","to":"note:note-mqpz36sv7ns","kind":"context","actor":"overlay-sync","ts":"2026-06-25T00:19:44.978Z","weight":0.65,"by":"judge","judged":true}
