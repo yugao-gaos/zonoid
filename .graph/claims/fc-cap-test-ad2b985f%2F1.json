@@ -3,7 +3,8 @@
   "git_user": "Test User <test@example.com>",
   "session_id": "10b213c7-eb74-47ee-b605-d17c1224203a",
   "branch": "orch/attempt/fc-cap-test-ad2b985f-1",
-  "status": "claimed",
+  "status": "done",
   "claimed_at": "2026-06-25T20:40:17.626Z",
-  "lease_until": "2026-06-25T21:40:17.626Z"
+  "lease_until": "2026-06-25T21:40:17.626Z",
+  "completed_at": "2026-06-25T20:40:22.202Z"
 }
