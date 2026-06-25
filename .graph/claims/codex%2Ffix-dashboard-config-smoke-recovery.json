@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-session-dashboard-config-smoke-recovery-20260625",
   "branch": "orch/attempt/codex-fix-dashboard-config-smoke-recovery",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-25T15:08:31.917Z",
-  "lease_until": "2026-06-25T16:08:31.917Z"
+  "lease_until": "2026-06-25T16:08:31.917Z",
+  "completed_at": "2026-06-25T15:18:53.172Z"
 }
