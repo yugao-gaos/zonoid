@@ -28,7 +28,12 @@ DIR="$(orch_data_dir)/sessions"
 AGENT=$(printf '%s' "$INPUT" | jq -r '.agent_id // empty')
 URL="localhost:$PORT/should-stop?session=$SID"
 [ -n "$AGENT" ] && URL="$URL&agent=$AGENT"
-RESP=$(curl -s --max-time 0.6 "$URL" 2>/dev/null)
+WS=$(printf '%s' "$INPUT" | jq -r '.workspace // env.ORCH_WORKSPACE // empty')
+if [ -n "$WS" ]; then
+  WS_ENC=$(jq -rn --arg v "$WS" '$v|@uri')
+  URL="$URL&workspace=$WS_ENC"
+fi
+RESP=$(curl -s --max-time "${ORCH_STOP_TIMEOUT:-0.6}" "$URL" 2>/dev/null)
 [ -z "$RESP" ] && exit 0               # daemon unreachable -> fail open
 
 if printf '%s' "$RESP" | jq -e '.stop == true' >/dev/null 2>&1; then

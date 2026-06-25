@@ -101,6 +101,7 @@ function makeCtx(ws) {
     readBody: async (req) => (req && req.__body) || {},
     notifyChange: () => { captured.notified = (captured.notified || 0) + 1; },
     targetOverlay: () => {
+      if (!ws) return { ws: null, ov: overlayStore.EMPTY(), save: () => { captured.saved = true; } };
       const ov = overlayStore.load(ws);
       return { ws, ov, save: () => overlayStore.save(ws, ov) };
     },
@@ -111,6 +112,25 @@ function makeCtx(ws) {
 // Minimal URL stand-in (the route only reads u.searchParams via targetOverlay, which ignores it here).
 const U = new URL('http://localhost:8787/config/backend');
 const UE = new URL('http://localhost:8787/config/embedding');
+
+test('config routes require an explicit workspace and do not read/write EMPTY overlay', async () => {
+  const cases = [
+    ['/config/backend', 'GET', {}, U],
+    ['/config/backend', 'POST', { __body: { provider: 'openrouter' } }, U],
+    ['/config/embedding', 'GET', {}, UE],
+    ['/config/embedding', 'POST', { __body: { provider: 'voyage', model: 'voyage-4-lite' } }, UE],
+  ];
+  for (const [pathName, method, req, url] of cases) {
+    const { route, captured } = makeCtx(null);
+    const handled = await route(pathName, method, req, {}, url, null);
+    assert.equal(handled, true, `${method} ${pathName} handled`);
+    assert.equal(captured.code, 400, `${method} ${pathName} without workspace => 400`);
+    assert.equal(captured.body.ok, false);
+    assert.match(captured.body.error, /no workspace resolved/i);
+    assert.equal(captured.notified, undefined, 'missing-workspace request does not notify');
+    assert.equal(captured.saved, undefined, 'missing-workspace request does not save EMPTY overlay');
+  }
+});
 
 // ---------------------------------------------------------------------------
 // (b) GET /config/backend → active backend + per-provider readiness

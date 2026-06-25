@@ -4479,7 +4479,14 @@ function stubFalse(){return false}module.exports=stubFalse},{}],279:[function(re
 <script>
 // When served by the daemon use relative URLs; when opened as a file (e.g. the desktop
 // preview panel), hit the daemon absolutely.
-const BASE = (location.protocol === 'http:' || location.protocol === 'https:') ? '' : 'http://localhost:8787';
+const DEFAULT_BASE = (location.protocol === 'http:' || location.protocol === 'https:') ? '' : 'http://localhost:8787';
+function normalizeDaemonUrl(url){ return String(url||'').trim().replace(/\/+$/,''); }
+function loadSavedDaemonUrl(){
+  try{ return normalizeDaemonUrl((JSON.parse(localStorage.getItem('zonoid-settings')||'{}')||{}).daemonUrl); }
+  catch{ return ''; }
+}
+let BASE = loadSavedDaemonUrl() || DEFAULT_BASE;
+function setDaemonBase(url){ BASE = normalizeDaemonUrl(url) || DEFAULT_BASE; }
 // Workspace switcher: ?workspace= drives the view. P2b: the dashboard MUST always carry an EXPLICIT
 // workspace — it no longer silently defaults to the daemon-global pinned workspace. When ?workspace=
 // is absent, resolveExplicitWorkspace() (run before the first data fetch) picks one explicitly from
@@ -4525,7 +4532,7 @@ async function loadWorkspacePicker() {
   const wrap = document.getElementById('wsPickerWrap');
   if (!sel || !wrap) return;
   let data;
-  try { data = await (await fetch(BASE + '/workspaces')).json(); } catch { return; }
+  try { data = await (await dfetch('/workspaces')).json(); } catch { return; }
   if (!data || !data.workspaces) return;
   const repos = flattenWorkspaceRepos(data.workspaces);
   if (repos.length <= 1) return; // nothing to switch
@@ -4580,7 +4587,7 @@ function selectWorkspace(wsPath) {
 async function resolveExplicitWorkspace() {
   if (WS_RESOLVED) return true;
   let data;
-  try { data = await (await fetch(BASE + '/workspaces')).json(); } catch { return false; }
+  try { data = await (await dfetch('/workspaces')).json(); } catch { return false; }
   // The selectable unit is a REPO PATH, so resolve over the flattened repo list (a single-repo
   // workspace is still ONE selectable repo, and N repos across M groups is still N choices).
   const repos = flattenWorkspaceRepos((data && data.workspaces) || []);
@@ -6176,8 +6183,11 @@ function saveSettings(){
   if(url) s.daemonUrl=url;
   if(interval>0) s.refreshInterval=interval;
   localStorage.setItem('zonoid-settings',JSON.stringify(s));
+  setDaemonBase(url);
   document.getElementById('settingsPopup').classList.remove('show');
-  if(interval>0) clearInterval(window._pollInterval), window._pollInterval=setInterval(loadData, interval*1000);
+  if(window._pollInterval) clearInterval(window._pollInterval);
+  if(interval>0) window._pollInterval=setInterval(tick, interval*1000);
+  tick();
 }
 // ===== Backend selector (pluggable-backend) ==========================================
 // GET /config/backend → render the provider list with per-provider readiness; POST on save.
@@ -6525,7 +6535,6 @@ setView(currentView);              // apply persisted view + toggle state on loa
 // polling /health; SSE is torn down and rebuilt cleanly on every reconnect.
 (function daemonResilience(){
   // ── State ──────────────────────────────────────────────────────────────────
-  const HEALTH_URL = BASE + '/health';
   let _phase      = 'unknown';   // 'unknown' | 'loading' | 'ready' | 'offline'
   let _bootedAt   = null;        // string — detect restarts
   let _healthTimer = null;
@@ -6640,7 +6649,7 @@ setView(currentView);              // apply persisted view + toggle state on loa
   async function runHealthCheck(){
     let data = null;
     try {
-      const res = await fetch(HEALTH_URL, { cache: 'no-store' });
+      const res = await fetch(BASE + '/health', { cache: 'no-store' });
       // Feature-detect: older daemons return 200 but without phase field
       const text = await res.text();
       try { data = JSON.parse(text); } catch(e){}
