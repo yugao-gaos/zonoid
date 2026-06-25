@@ -32,3 +32,4 @@
 {"evt":"edge_removed","from":"note:note-mqp5e2pdcji","to":"codex/fix-dashboard-config-smoke-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:15:15.570Z"}
 {"evt":"edge_added","from":"note:note-mqp5e2pdcji","to":"codex/fix-dashboard-config-smoke-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:18:57.110Z","weight":0,"by":"autowire","judged":false,"score":0.61,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqp5e2pdcji","to":"codex/fix-dashboard-config-smoke-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:20:51.669Z"}
+{"evt":"edge_added","from":"note:note-mqp5e2pdcji","to":"codex/fix-dashboard-config-smoke-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:36:02.719Z","weight":0,"by":"autowire","judged":false,"score":0.61,"origin":"autowire-semantic"}
