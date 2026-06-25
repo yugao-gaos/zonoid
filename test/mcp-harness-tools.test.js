@@ -278,9 +278,10 @@ async function waitForPing(ms = 8000) {
 
   assignmentCalls.length = 0;
   const approveOut = await assignmentTool.run({ action: 'submit_verdict', verdict: 'APPROVE', workspace: WS, task_key: 'local/task', judge_task_key: 'local/task-judge', reason: 'passes' }, assignmentCall);
-  ok('subconscious_assignment submit_verdict APPROVE calls merge internally',
-    assignmentCalls.some((call) => call.path === '/git/merge' && call.body.key === 'local/task') &&
-    approveOut.ok === true);
+  ok('subconscious_assignment submit_verdict APPROVE records approval without merging',
+    !assignmentCalls.some((call) => call.path === '/git/merge') &&
+    approveOut.ok === true &&
+    approveOut.next_action === 'merge_attempt');
   ok('subconscious_assignment submit_verdict APPROVE keeps review on implementation node',
     approveOut.judge_task_key === null &&
     approveOut.review_task_key === 'local/task' &&
@@ -290,15 +291,14 @@ async function waitForPing(ms = 8000) {
   assignmentCalls.length = 0;
   const failedApproveOut = await assignmentTool.run({ action: 'submit_verdict', verdict: 'APPROVE', workspace: WS, task_key: 'local/missing', judge_task_key: 'local/missing-judge', reason: 'passes' }, (method, path, body) => {
     assignmentCalls.push({ method, path, body });
-    if (path === '/git/merge') return { merged: false, reason: 'branch not found for local/missing' };
-    return { ok: true, status: body && body.status };
+    return path === '/overlay/status'
+      ? { error: 'status write failed' }
+      : { ok: true, status: body && body.status };
   });
-  ok('subconscious_assignment submit_verdict APPROVE fails when merge reports not merged',
+  ok('subconscious_assignment submit_verdict APPROVE fails when approval status write fails',
     failedApproveOut.ok === false &&
-    failedApproveOut.error === 'branch not found for local/missing' &&
-    failedApproveOut.merge &&
-    failedApproveOut.merge.merged === false);
-  ok('subconscious_assignment submit_verdict APPROVE does not write a visible judge after failed merge',
+    failedApproveOut.error === 'status write failed');
+  ok('subconscious_assignment submit_verdict APPROVE does not write a visible judge after failed approval',
     !assignmentCalls.some((call) => call.path === '/overlay/status' && call.body.key === 'local/missing-judge'));
 
   assignmentCalls.length = 0;

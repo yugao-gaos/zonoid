@@ -290,7 +290,7 @@ test('no pending queue repos → runDueDrains skips with no_due_drains (flag ON,
   }
 });
 
-test('review merge drain merges approved tested task then promotes it to done', async () => {
+test('runDueDrains does not merge approved tested tasks', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const hd = freshModule();
@@ -321,10 +321,10 @@ test('review merge drain merges approved tested task then promotes it to done', 
         },
       },
     });
-    assert.equal(result.ran, 1);
-    assert.deepEqual(calls, [['merge', key], ['promote', key, 'abc123']]);
-    assert.equal(o.status[key], 'done');
-    assert.equal(overlayStore.reviewLifecycleFor(o, key, 'done').merge_state, 'merged');
+    assert.equal(result.ran, 0);
+    assert.deepEqual(calls, []);
+    assert.equal(o.status[key], 'tested');
+    assert.equal(overlayStore.reviewLifecycleFor(o, key, 'tested').merge_state, 'pending');
   } finally {
     if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
     else process.env.ORCH_HEADLESS_DRAINS = saved;

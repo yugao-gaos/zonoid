@@ -1252,6 +1252,53 @@ function applyOptimize(prob, base, L, ws, ov) {
   return null; // fall through to drained→plan/stop
 }
 
+function pendingReviewOrIntegrationAction(g, ov) {
+  if (!g || !Array.isArray(g.tasks) || !ov) return null;
+  for (const t of g.tasks) {
+    if (!t || t.status !== 'tested') continue;
+    const lifecycle = overlayStore.reviewLifecycleFor(ov, t.id, t.status);
+    if (!lifecycle) continue;
+    const item = {
+      key: t.id,
+      label: t.label,
+      review_state: lifecycle.review_state,
+      review_verdict: lifecycle.review_verdict,
+      merge_state: lifecycle.merge_state,
+      attempt_branch: lifecycle.attempt_branch,
+      attempt_worktree: lifecycle.attempt_worktree,
+    };
+    if (lifecycle.merge_state === 'conflict') {
+      return {
+        action: 'resolve_merge_conflict',
+        reason: 'approved tested task hit a merge conflict; resolve the conflict before retrying merge',
+        task: item,
+      };
+    }
+    if (lifecycle.merge_state === 'review_pending') {
+      return {
+        action: 'review',
+        reason: 'tested task is waiting for same-node review',
+        task: item,
+      };
+    }
+    if (lifecycle.review_state === 'approved' && lifecycle.review_verdict === 'APPROVE' && lifecycle.merge_state === 'pending') {
+      return {
+        action: 'merge',
+        reason: 'approved tested task is waiting for explicit integration',
+        task: item,
+      };
+    }
+    if (lifecycle.review_state === 'requested' || lifecycle.review_state === 'pending' || lifecycle.merge_state === 'review_pending') {
+      return {
+        action: 'review',
+        reason: 'tested task is waiting for same-node review',
+        task: item,
+      };
+    }
+  }
+  return null;
+}
+
 // Decide ONE loop L's action this tick. Honors L's own budget/iterations/config/session. Mutates L
 // (iterations++, spent, active=false on terminal). `ctx` carries the shared per-tick graph + a
 // mutable spawn pool {batch} multiplexed ACROSS loops, so the daemon never spawns more than the
@@ -1373,8 +1420,13 @@ function decideOne(L, ctx) {
   if (ready.length > 0 && spawnable.length === 0) {
     return withWire({ ...base, action: 'idle', reason: 'ready work has live spawn leases', next_poll_seconds: L.config.minPoll });
   }
-  // Review/edge-judge queues may still have due work here. They are intentionally absent from the
-  // loop action surface: the daemon's headless drain runner owns discovery, leasing, and execution.
+  const reviewOrIntegration = pendingReviewOrIntegrationAction(g, ov);
+  if (reviewOrIntegration) {
+    L.lastProgress = now();
+    return withWire({ ...base, ...reviewOrIntegration, next_poll_seconds: L.config.minPoll });
+  }
+  // Edge-judge queues may still have due work here. They are intentionally absent from the loop
+  // action surface: the daemon's headless drain runner owns discovery, leasing, and execution.
   if (running > 0) return withWire({ ...base, action: 'idle', reason: 'work in flight', next_poll_seconds: Math.min(L.config.maxPoll, L.config.minPoll * 2) });
   if (ghostWait > 0) return withWire({ ...base, action: 'idle', reason: 'waiting on cross-workspace dependencies', next_poll_seconds: L.config.maxPoll });
   // ONLY unwired ready tasks remain: the DAG is NOT drained — they become spawnable once wired.

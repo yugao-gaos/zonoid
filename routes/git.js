@@ -73,7 +73,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       overlayStore.setReviewLifecycle(T.ov, b.key, { merge_state: 'merged', merge_sha: result.head || null, merged_at: mergedAt });
       T.save();
     } else if (result.conflict) {
-      overlayStore.setReviewLifecycle(T.ov, b.key, { merge_state: 'conflict' });
+      const files = Array.isArray(result.files) && result.files.length ? result.files.join(', ') : 'unknown files';
+      overlayStore.setReviewLifecycle(T.ov, b.key, {
+        merge_state: 'conflict',
+        review_reason: `Merge conflict in ${files}`,
+        review_note: `Merge conflict in ${files}`,
+      });
       T.save();
     } else if (result.error || result.reason) {
       overlayStore.setReviewLifecycle(T.ov, b.key, { merge_state: 'failed' });
