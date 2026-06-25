@@ -4,6 +4,6 @@
   "session_id": "worker-task-lifecycle-control-audit-retry",
   "branch": "orch/attempt/codex-audit-task-lifecycle-control",
   "status": "claimed",
-  "claimed_at": "2026-06-25T16:32:31.759Z",
-  "lease_until": "2026-06-25T17:32:31.759Z"
+  "claimed_at": "2026-06-25T16:34:27.426Z",
+  "lease_until": "2026-06-25T17:34:27.426Z"
 }
