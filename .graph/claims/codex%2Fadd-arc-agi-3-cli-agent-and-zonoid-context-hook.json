@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-arc-agi3-cli-worker-1",
   "branch": "orch/attempt/codex-add-arc-agi-3-cli-agent-and-zonoid-context-hook",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-25T16:04:36.528Z",
-  "lease_until": "2026-06-25T17:04:36.528Z"
+  "lease_until": "2026-06-25T17:04:36.528Z",
+  "completed_at": "2026-06-25T16:08:34.003Z"
 }
