@@ -42,3 +42,4 @@
 {"evt":"edge_added","from":"note:note-mqh2eifaveh","to":"codex/triage-dirty-main-and-merge-pending-approved-attempts","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:36:00.933Z","weight":0,"by":"autowire","judged":false,"score":0.58,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqh2eifaveh","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:36:02.719Z","weight":0,"by":"autowire","judged":false,"score":0.518,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqh2eifaveh","to":"codex/triage-dirty-main-and-merge-pending-approved-attempts","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:36:02.719Z"}
+{"evt":"edge_promoted","from":"note:note-mqh2eifaveh","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:46:34.806Z","weight":0.518,"by":"judge","judged":true,"score":0.518,"origin":"autowire-semantic"}

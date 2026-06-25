@@ -12,3 +12,4 @@
 {"evt":"edge_removed","from":"codex/triage-dirty-main-and-merge-pending-approved-attempts","to":"codex/merge-origin-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:36:02.719Z"}
 {"evt":"edge_removed","from":"codex/triage-dirty-main-and-merge-pending-approved-attempts","to":"codex/reconcile-post-subconscious-feature-with-main-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:36:02.719Z"}
 {"evt":"status_changed","id":"codex/triage-dirty-main-and-merge-pending-approved-attempts","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-25T15:36:02.719Z"}
+{"evt":"timestamps_set","id":"codex/triage-dirty-main-and-merge-pending-approved-attempts","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-25T15:29:12.952Z","lastChanged":"2026-06-25T15:36:15.764Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-25T15:43:45.360Z"}

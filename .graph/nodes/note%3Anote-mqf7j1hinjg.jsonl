@@ -68,3 +68,4 @@
 {"evt":"edge_added","from":"note:note-mqf7j1hinjg","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:55.222Z","weight":0,"by":"autowire","judged":false,"score":0.547,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqf7j1hinjg","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:20:51.669Z"}
 {"evt":"edge_added","from":"note:note-mqf7j1hinjg","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:36:02.719Z","weight":0,"by":"autowire","judged":false,"score":0.547,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqf7j1hinjg","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:46:34.806Z","weight":0.547,"by":"judge","judged":true,"score":0.547,"origin":"autowire-semantic"}
