@@ -14,3 +14,5 @@
 {"evt":"timestamps_set","id":"codex/add-arc-agi-3-zonoid-benchmark-adapter","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-25T14:57:27.667Z","lastChanged":"2026-06-25T15:13:45.634Z","lastStatus":"tested"},"actor":"overlay-sync","ts":"2026-06-25T15:13:47.988Z"}
 {"evt":"status_changed","id":"codex/add-arc-agi-3-zonoid-benchmark-adapter","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-25T15:14:01.120Z"}
 {"evt":"status_changed","id":"codex/add-arc-agi-3-zonoid-benchmark-adapter","workspace":"/Users/imyu/Desktop/zonoid","status":"tested","actor":"overlay-sync","ts":"2026-06-25T15:14:45.936Z"}
+{"evt":"status_changed","id":"codex/add-arc-agi-3-zonoid-benchmark-adapter","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-25T15:16:18.200Z"}
+{"evt":"timestamps_set","id":"codex/add-arc-agi-3-zonoid-benchmark-adapter","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-25T14:57:27.667Z","lastChanged":"2026-06-25T15:16:18.148Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-25T15:16:18.200Z"}

@@ -1,0 +1,2 @@
+{"evt":"edge_promoted","from":"codex/fix-dashboard-smoke-pinned-drift-recovery","to":"codex/fix-dashboard-config-smoke-recovery","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:14:01.120Z","weight":0.685,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"codex/fix-dashboard-smoke-pinned-drift-recovery","to":"codex/fix-dashboard-config-smoke-recovery","kind":"context","actor":"overlay-sync","ts":"2026-06-25T15:14:45.936Z","weight":0.965,"by":"subconscious","judged":true,"score":0.965,"origin":"subconscious-agentic-search"}
