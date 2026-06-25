@@ -76,3 +76,4 @@
 {"evt":"edge_added","from":"note:note-mqr366hr6af","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:00:00.055Z","weight":0,"by":"autowire","judged":false,"score":0.538,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/make-arc-harness-actively-inject-and-write-zonoid-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:00:00.055Z"}
 {"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:23:01.072Z"}
+{"evt":"edge_added","from":"note:note-mqr366hr6af","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-06-25T18:59:03.358Z","weight":0.844,"by":"subconscious","judged":true,"score":0.844,"origin":"subconscious-agentic-search"}
