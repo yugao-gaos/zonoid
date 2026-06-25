@@ -1,0 +1,22 @@
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T17:21:14.049Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"win-filename-codec-w1","actor":"overlay-sync","ts":"2026-06-15T17:21:14.049Z"}
+{"evt":"timestamps_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T18:16:25.553Z","lastChanged":"2026-06-15T17:23:05.836Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T17:23:32.724Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-orchgate-1","actor":"overlay-sync","ts":"2026-06-15T17:24:41.077Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-15T17:27:52.300Z"}
+{"evt":"summary_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","summary":"Added idToFile/fileToId codec to lib/graph-store.js (encode ':' as '%3A' in on-disk filenames for Windows safety; in-memory node IDs keep ':'; '/' subdirs preserved; reads both legacy ':' and new '%3A' names). Wired into appendEvent/loadGraph/compact. Added round-trip unit test + updated 2 existing colon-filename assertions. Added idempotent scripts/migrate-graph-filenames.js (git mv tracked / fs.renameSync else; NOT executed). Tests: graph-store 115/115, integration 21/21, compact 21/21, edge-meta 18/18 all pass.","actor":"overlay-sync","ts":"2026-06-15T17:27:52.300Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"win-filename-codec-w1","actor":"overlay-sync","ts":"2026-06-15T17:27:52.300Z"}
+{"evt":"timestamps_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T18:16:25.553Z","lastChanged":"2026-06-15T17:27:52.230Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-15T17:29:27.418Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T17:30:47.400Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-orchgate-1","actor":"overlay-sync","ts":"2026-06-15T17:30:47.400Z"}
+{"evt":"timestamps_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T18:16:25.553Z","lastChanged":"2026-06-15T17:30:47.348Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T17:33:43.294Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T17:40:53.502Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T18:03:10.836Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"kb-writer","actor":"overlay-sync","ts":"2026-06-15T18:03:10.836Z"}
+{"evt":"timestamps_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T18:16:25.553Z","lastChanged":"2026-06-15T18:03:10.783Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T18:03:51.022Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T18:03:51.170Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T18:08:17.721Z"}
+{"evt":"timestamps_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T18:16:25.553Z","lastChanged":"2026-06-15T18:03:51.126Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-15T18:08:17.721Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T22:00:33.874Z"}
+{"evt":"assignee_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","assignee":"ce1-worker-7a3f","actor":"overlay-sync","ts":"2026-06-15T22:00:33.874Z"}
+{"evt":"timestamps_set","id":"1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T18:16:25.553Z","lastChanged":"2026-06-15T22:00:33.812Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T22:01:27.705Z"}
+{"evt":"status_changed","id":"1","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-16T03:50:19.128Z"}

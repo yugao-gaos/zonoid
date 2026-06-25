@@ -1,0 +1,9 @@
+{
+  "name": "@zonoid/cli",
+  "version": "0.1.0",
+  "description": "Installer for Zonoid, the agent's subconscious for coding work",
+  "bin": { "zonoid": "./bin/zonoid.js" },
+  "main": "./bin/zonoid.js",
+  "engines": { "node": ">=18" },
+  "license": "Apache-2.0"
+}

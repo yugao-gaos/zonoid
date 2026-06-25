@@ -1,0 +1,518 @@
+{
+  "meta": {
+    "source": "bench/results-v5.jsonl",
+    "resultCount": 10,
+    "generatedAt": "2026-06-09T21:38:15.255Z"
+  },
+  "rows": [
+    {
+      "problem": "v5-grounded",
+      "arm": "off",
+      "n": 5,
+      "gross": {
+        "mean": 191964.6,
+        "stdev": 15077.297281011608,
+        "n": 5
+      },
+      "net": {
+        "mean": 191964.6,
+        "stdev": 15077.297281011608,
+        "n": 5
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 5
+      },
+      "costGross": {
+        "mean": 70424.41,
+        "stdev": 7080.11446123931,
+        "n": 5
+      },
+      "costNet": {
+        "mean": 70424.41,
+        "stdev": 7080.11446123931,
+        "n": 5
+      },
+      "wallMs": {
+        "mean": 24394.4,
+        "stdev": 2693.402365039431,
+        "n": 5
+      },
+      "W": {
+        "mean": 231.8,
+        "stdev": 18.26745740380965,
+        "n": 5
+      },
+      "totalOutput": {
+        "mean": 2255,
+        "stdev": 518.1105094475502,
+        "n": 5
+      },
+      "H": {
+        "mean": 2023.2,
+        "stdev": 512.286736115625,
+        "n": 5
+      },
+      "explorers": {
+        "mean": 3,
+        "stdev": 0,
+        "n": 5
+      },
+      "cacheCost": {
+        "mean": 51682.61,
+        "stdev": 4697.111604938719,
+        "n": 5
+      }
+    },
+    {
+      "problem": "v5-grounded",
+      "arm": "on",
+      "n": 5,
+      "gross": {
+        "mean": 282940.4,
+        "stdev": 24150.114084616664,
+        "n": 5
+      },
+      "net": {
+        "mean": 90028.4,
+        "stdev": 22509.63723163925,
+        "n": 5
+      },
+      "plumbing": {
+        "mean": 192912,
+        "stdev": 28569.708171418202,
+        "n": 5
+      },
+      "costGross": {
+        "mean": 92185.67,
+        "stdev": 12422.198376324131,
+        "n": 5
+      },
+      "costNet": {
+        "mean": 49473.62,
+        "stdev": 11759.669218913006,
+        "n": 5
+      },
+      "wallMs": {
+        "mean": 34609.8,
+        "stdev": 9236.098835547398,
+        "n": 5
+      },
+      "W": {
+        "mean": 230,
+        "stdev": 15.47578754054216,
+        "n": 5
+      },
+      "totalOutput": {
+        "mean": 2903.8,
+        "stdev": 588.164262770189,
+        "n": 5
+      },
+      "H": {
+        "mean": 2673.8,
+        "stdev": 582.2900480001355,
+        "n": 5
+      },
+      "explorers": {
+        "mean": 3,
+        "stdev": 0,
+        "n": 5
+      },
+      "cacheCost": {
+        "mean": 70011.47,
+        "stdev": 9504.312792661547,
+        "n": 5
+      }
+    }
+  ],
+  "ratios": [
+    {
+      "problem": "v5-grounded",
+      "netOnOverOff": 0.4689843856627732,
+      "grossOnOverOff": 1.4739196706059348,
+      "costGrossOnOverOff": 1.3090016657576542,
+      "costNetOnOverOff": 0.7025067018665829,
+      "haveBoth": true
+    }
+  ],
+  "v4": [
+    {
+      "problem": "v5-grounded",
+      "haveBoth": true,
+      "W_on": 230,
+      "W_off": 231.8,
+      "H_on": 2673.8,
+      "H_off": 2023.2,
+      "C": 18328.86,
+      "metric": -21581.86,
+      "pooledStdev": 3102.059575686952,
+      "nPooled": 10,
+      "solveOn": 1,
+      "solveOff": 1,
+      "corrobRatio": 0.992234685073339,
+      "guards": {
+        "precondition": true,
+        "fairness": true,
+        "margin": false,
+        "corroboration": true
+      },
+      "win": false
+    }
+  ],
+  "contaminated": [],
+  "dropped": [],
+  "unreadable": [],
+  "runs": [
+    {
+      "problem": "v5-grounded",
+      "arm": "off",
+      "trial": 0,
+      "sessionId": "9d0b41e5-5ec1-4465-92b1-c398c8cb558d",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v5-grounded-off-0/9d0b41e5-5ec1-4465-92b1-c398c8cb558d.jsonl",
+      "solved": true,
+      "wallMs": 22080,
+      "gross": {
+        "input": 7466,
+        "output": 2030,
+        "cacheRead": 144580,
+        "cacheCreate": 27087,
+        "total": 181163,
+        "messages": 7
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7466,
+        "output": 2030,
+        "cacheRead": 144580,
+        "cacheCreate": 27087,
+        "total": 181163,
+        "messages": 7
+      },
+      "explorers": 3,
+      "diffTokens": 226
+    },
+    {
+      "problem": "v5-grounded",
+      "arm": "off",
+      "trial": 1,
+      "sessionId": "6ff28f2e-3aba-453c-9b11-8ce1839d1a4c",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v5-grounded-off-1/6ff28f2e-3aba-453c-9b11-8ce1839d1a4c.jsonl",
+      "solved": true,
+      "wallMs": 25608,
+      "gross": {
+        "input": 7468,
+        "output": 2393,
+        "cacheRead": 165930,
+        "cacheCreate": 31963,
+        "total": 207754,
+        "messages": 8
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7468,
+        "output": 2393,
+        "cacheRead": 165930,
+        "cacheCreate": 31963,
+        "total": 207754,
+        "messages": 8
+      },
+      "explorers": 3,
+      "diffTokens": 219
+    },
+    {
+      "problem": "v5-grounded",
+      "arm": "off",
+      "trial": 2,
+      "sessionId": "411fc8e3-0159-42ee-8be5-2e4f3bb5a58a",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v5-grounded-off-2/411fc8e3-0159-42ee-8be5-2e4f3bb5a58a.jsonl",
+      "solved": true,
+      "wallMs": 28359,
+      "gross": {
+        "input": 7466,
+        "output": 1760,
+        "cacheRead": 144453,
+        "cacheCreate": 27004,
+        "total": 180683,
+        "messages": 7
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7466,
+        "output": 1760,
+        "cacheRead": 144453,
+        "cacheCreate": 27004,
+        "total": 180683,
+        "messages": 7
+      },
+      "explorers": 3,
+      "diffTokens": 213
+    },
+    {
+      "problem": "v5-grounded",
+      "arm": "off",
+      "trial": 3,
+      "sessionId": "977d302d-3d0f-4f50-8c5d-d274be56e067",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v5-grounded-off-3/977d302d-3d0f-4f50-8c5d-d274be56e067.jsonl",
+      "solved": true,
+      "wallMs": 24051,
+      "gross": {
+        "input": 7468,
+        "output": 3089,
+        "cacheRead": 166250,
+        "cacheCreate": 32380,
+        "total": 209187,
+        "messages": 8
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7468,
+        "output": 3089,
+        "cacheRead": 166250,
+        "cacheCreate": 32380,
+        "total": 209187,
+        "messages": 8
+      },
+      "explorers": 3,
+      "diffTokens": 244
+    },
+    {
+      "problem": "v5-grounded",
+      "arm": "off",
+      "trial": 4,
+      "sessionId": "74701e6d-70cc-48b7-b683-913ee6038cdd",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v5-grounded-off-4/74701e6d-70cc-48b7-b683-913ee6038cdd.jsonl",
+      "solved": true,
+      "wallMs": 21874,
+      "gross": {
+        "input": 7466,
+        "output": 2003,
+        "cacheRead": 144530,
+        "cacheCreate": 27037,
+        "total": 181036,
+        "messages": 7
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 7466,
+        "output": 2003,
+        "cacheRead": 144530,
+        "cacheCreate": 27037,
+        "total": 181036,
+        "messages": 7
+      },
+      "explorers": 3,
+      "diffTokens": 257
+    },
+    {
+      "problem": "v5-grounded",
+      "arm": "on",
+      "trial": 0,
+      "sessionId": "df8274b8-8ece-4c1f-b2ca-ad47a62d5b86",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v5-grounded-on-0/df8274b8-8ece-4c1f-b2ca-ad47a62d5b86.jsonl",
+      "solved": true,
+      "wallMs": 33469,
+      "gross": {
+        "input": 6382,
+        "output": 2474,
+        "cacheRead": 217786,
+        "cacheCreate": 45136,
+        "total": 271778,
+        "messages": 10
+      },
+      "plumbing": {
+        "input": 14,
+        "output": 2138,
+        "cacheRead": 185670,
+        "cacheCreate": 8994,
+        "total": 196816,
+        "messages": 7
+      },
+      "net": {
+        "input": 6368,
+        "output": 336,
+        "cacheRead": 32116,
+        "cacheCreate": 36142,
+        "total": 74962,
+        "messages": 3
+      },
+      "explorers": 3,
+      "diffTokens": 228
+    },
+    {
+      "problem": "v5-grounded",
+      "arm": "on",
+      "trial": 1,
+      "sessionId": "fa356528-3740-4078-bd18-c9667b2c6094",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v5-grounded-on-1/fa356528-3740-4078-bd18-c9667b2c6094.jsonl",
+      "solved": true,
+      "wallMs": 50527,
+      "gross": {
+        "input": 6382,
+        "output": 2474,
+        "cacheRead": 234321,
+        "cacheCreate": 29271,
+        "total": 272448,
+        "messages": 10
+      },
+      "plumbing": {
+        "input": 14,
+        "output": 2127,
+        "cacheRead": 186054,
+        "cacheCreate": 9280,
+        "total": 197475,
+        "messages": 7
+      },
+      "net": {
+        "input": 6368,
+        "output": 347,
+        "cacheRead": 48267,
+        "cacheCreate": 19991,
+        "total": 74973,
+        "messages": 3
+      },
+      "explorers": 3,
+      "diffTokens": 207
+    },
+    {
+      "problem": "v5-grounded",
+      "arm": "on",
+      "trial": 2,
+      "sessionId": "ba208263-8208-44ed-947e-0b334c4a123e",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v5-grounded-on-2/ba208263-8208-44ed-947e-0b334c4a123e.jsonl",
+      "solved": true,
+      "wallMs": 31048,
+      "gross": {
+        "input": 6382,
+        "output": 2588,
+        "cacheRead": 233913,
+        "cacheCreate": 29018,
+        "total": 271901,
+        "messages": 10
+      },
+      "plumbing": {
+        "input": 14,
+        "output": 2258,
+        "cacheRead": 185646,
+        "cacheCreate": 9029,
+        "total": 196947,
+        "messages": 7
+      },
+      "net": {
+        "input": 6368,
+        "output": 330,
+        "cacheRead": 48267,
+        "cacheCreate": 19989,
+        "total": 74954,
+        "messages": 3
+      },
+      "explorers": 3,
+      "diffTokens": 235
+    },
+    {
+      "problem": "v5-grounded",
+      "arm": "on",
+      "trial": 3,
+      "sessionId": "de3d50f5-010b-4edf-b406-21bf89bc3143",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v5-grounded-on-3/de3d50f5-010b-4edf-b406-21bf89bc3143.jsonl",
+      "solved": true,
+      "wallMs": 26658,
+      "gross": {
+        "input": 9563,
+        "output": 3157,
+        "cacheRead": 213872,
+        "cacheCreate": 45845,
+        "total": 272437,
+        "messages": 10
+      },
+      "plumbing": {
+        "input": 10,
+        "output": 2350,
+        "cacheRead": 133396,
+        "cacheCreate": 11317,
+        "total": 147073,
+        "messages": 5
+      },
+      "net": {
+        "input": 9553,
+        "output": 807,
+        "cacheRead": 80476,
+        "cacheCreate": 34528,
+        "total": 125364,
+        "messages": 5
+      },
+      "explorers": 3,
+      "diffTokens": 250
+    },
+    {
+      "problem": "v5-grounded",
+      "arm": "on",
+      "trial": 4,
+      "sessionId": "58e71c5a-3fe3-4543-9960-172ff3b71c36",
+      "transcriptPath": "<home>/.claude/projects/-Users-imyu--claude-orchestrator-worktrees-bench-v5-grounded-on-4/58e71c5a-3fe3-4543-9960-172ff3b71c36.jsonl",
+      "solved": true,
+      "wallMs": 31347,
+      "gross": {
+        "input": 9567,
+        "output": 3826,
+        "cacheRead": 276044,
+        "cacheCreate": 36701,
+        "total": 326138,
+        "messages": 12
+      },
+      "plumbing": {
+        "input": 16,
+        "output": 3323,
+        "cacheRead": 211719,
+        "cacheCreate": 11191,
+        "total": 226249,
+        "messages": 8
+      },
+      "net": {
+        "input": 9551,
+        "output": 503,
+        "cacheRead": 64325,
+        "cacheCreate": 25510,
+        "total": 99889,
+        "messages": 4
+      },
+      "explorers": 3,
+      "diffTokens": 230
+    }
+  ]
+}

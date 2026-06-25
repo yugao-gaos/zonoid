@@ -1,0 +1,377 @@
+{
+  "runAt": "2026-06-15T14:02:21.402Z",
+  "scenarios": [
+    "add-jsdoc",
+    "balanced-brackets",
+    "cache-eviction-policy",
+    "cron-next-fire",
+    "fix-bug",
+    "lru-cache",
+    "pure-algorithm",
+    "pure-refactor",
+    "rate-limiter-strategy",
+    "write-tests"
+  ],
+  "results": [
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "add-jsdoc",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 21663
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "add-jsdoc",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 19939
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "add-jsdoc",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 71057
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "add-jsdoc",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 17105
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "balanced-brackets",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 14195
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "balanced-brackets",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 11198
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "balanced-brackets",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 13083
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "balanced-brackets",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 11990
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "cache-eviction-policy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 112543
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "cache-eviction-policy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": false,
+      "wallMs": 101976
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "cache-eviction-policy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 123220
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "cache-eviction-policy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 72840
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "cron-next-fire",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 156085
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "cron-next-fire",
+      "exitCode": null,
+      "timedOut": true,
+      "solved": null,
+      "wallMs": null
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "cron-next-fire",
+      "exitCode": null,
+      "timedOut": true,
+      "solved": null,
+      "wallMs": null
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "cron-next-fire",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 113344
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "fix-bug",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 17055
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "fix-bug",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 49209
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "fix-bug",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 19467
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "fix-bug",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 49097
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "lru-cache",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 17056
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "lru-cache",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 32809
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "lru-cache",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 15879
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "lru-cache",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 19290
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "pure-algorithm",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 121231
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "pure-algorithm",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 45933
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "pure-algorithm",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 20631
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "pure-algorithm",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 28083
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "pure-refactor",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 39772
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "pure-refactor",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 23069
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "pure-refactor",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 31389
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "pure-refactor",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 35967
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "rate-limiter-strategy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": false,
+      "wallMs": 137081
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "rate-limiter-strategy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 149823
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "rate-limiter-strategy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 100365
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "rate-limiter-strategy",
+      "exitCode": null,
+      "timedOut": true,
+      "solved": null,
+      "wallMs": null
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "write-tests",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 30805
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "write-tests",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 28663
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "write-tests",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 29142
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "write-tests",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 24240
+    }
+  ]
+}

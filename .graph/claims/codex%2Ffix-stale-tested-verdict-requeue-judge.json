@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/fix-stale-tested-verdict-requeue-judge",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "judge-fix-stale-tested-verdict-requeue-auto",
+  "branch": "orch/attempt/codex-fix-stale-tested-verdict-requeue-judge",
+  "status": "tested",
+  "claimed_at": "2026-06-22T15:06:10.314Z",
+  "lease_until": "2026-06-22T16:06:10.314Z",
+  "completed_at": "2026-06-22T15:11:57.370Z"
+}

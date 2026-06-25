@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/exec-brain-state-seam-session-claim-impl",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-worker-exec-brain-state-seam-session-claim",
+  "branch": "orch/attempt/codex-exec-brain-state-seam-session-claim-impl",
+  "status": "tested",
+  "claimed_at": "2026-06-24T19:46:37.286Z",
+  "lease_until": "2026-06-24T20:46:37.286Z",
+  "completed_at": "2026-06-24T19:47:18.345Z"
+}

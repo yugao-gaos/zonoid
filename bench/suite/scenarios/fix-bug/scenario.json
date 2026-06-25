@@ -1,0 +1,10 @@
+{
+  "name": "fix-bug",
+  "description": "Agent is given a buggy groupBy function and a failing test file. Agent must identify and fix the bug. Grader runs the test suite against the agent's solution. KB context provides no advantage.",
+  "spec": "bench/suite/scenarios/fix-bug/spec.md",
+  "artifact": "bench/sandbox/solution.js",
+  "grader": "bench/suite/scenarios/fix-bug/grader.js",
+  "minimalSource": "bench/suite/scenarios/fix-bug/minimal-source",
+  "kb_required": false,
+  "kb_partial": false
+}

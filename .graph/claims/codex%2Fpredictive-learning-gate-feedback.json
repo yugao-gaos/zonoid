@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/predictive-learning-gate-feedback",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-predictive-learning-gate-feedback-session",
+  "branch": "orch/attempt/codex-predictive-learning-gate-feedback",
+  "status": "done",
+  "claimed_at": "2026-06-22T00:52:10.212Z",
+  "lease_until": "2026-06-22T01:52:10.212Z",
+  "completed_at": "2026-06-22T01:00:03.473Z"
+}

@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/search-summary-human-readable",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-19700-2f2d847f704a77668e1ecc607b294ef5",
+  "branch": "orch/attempt/codex-search-summary-human-readable",
+  "status": "done",
+  "claimed_at": "2026-06-22T18:23:47.776Z",
+  "lease_until": "2026-06-22T19:23:47.776Z",
+  "completed_at": "2026-06-24T02:43:51.456Z"
+}

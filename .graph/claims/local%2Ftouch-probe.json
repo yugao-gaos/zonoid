@@ -1,7 +1,10 @@
 {
   "task_key": "local/touch-probe",
-  "git_user": "test <test@example.com>",
+  "git_user": "seed <seed@example.test>",
   "session_id": "sub-sf",
+  "branch": "orch/attempt/local-touch-probe",
   "status": "done",
-  "completed_at": "2026-06-25T20:47:05.542Z"
+  "claimed_at": "2026-06-21T03:04:37.995Z",
+  "lease_until": "2026-06-21T04:04:37.995Z",
+  "completed_at": "2026-06-21T03:04:40.873Z"
 }

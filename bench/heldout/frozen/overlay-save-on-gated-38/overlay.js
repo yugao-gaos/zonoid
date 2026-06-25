@@ -1,0 +1,649 @@
+// Per-workspace overlay store: the things native tasks can't hold —
+// cross-session dependency edges, richer statuses, and notes. Persisted to disk so it
+// survives daemon restarts and is shared by every session in the workspace.
+'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
+const { encodeWorkspace } = require('./native-tasks');
+const graphStore = require('./graph-store');
+
+const BASE = process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'orchestrator');
+const DIR = path.join(BASE, 'overlay');
+// edges: cross-session/workspace deps · status: richer-status overrides · notes: freeform
+// summaries: on-complete "interface" summary per task (Tier-1 context) · knowledge: Tier-2
+// context items per task · assignee: which agent is working a task (for live animation)
+// timestamps: per-task { firstSeen, lastChanged, lastStatus } — daemon-observed task lifecycle
+// git: per-task { branch, worktree, head, createdAt } — the isolated attempt worktree for a task
+// repos: per-task absolute path of the TARGET git repo the loop should branch/measure/merge on,
+//   when it differs from the daemon workspace. Absent ⇒ fall back to the workspace (back-compat).
+// metrics: per-task INLINE metric spec for the metric-driven loop — { metric, direction (min|max),
+//   measure_command, parse?, target?, guardrails? }. The objective an attempt's measure node runs &
+//   the judge weighs. Absent ⇒ no metric (rationale-only judging, back-compat).
+// measurements: per-task measured value(s) the measure node produced — { value, guardrails:{...},
+//   measured_at, command, baseline?:{ value, guardrails, measured_at } }. `baseline` is the target
+//   repo's current-main reference (no attempt applied) the judge weighs attempts against.
+// benchmarks: per-task researched competitor/industry-average reference for the metric — { metric,
+//   value, unit?, source, note?, confidence? (low|med|high), researched_at? }. The EXTERNAL axis the
+//   judge compares the winning attempt's measured value against (beyond our own baseline). Absent ⇒
+//   baseline-only judging (back-compat). Set by the self-learn-benchmark research agent.
+// cancel_requested: per-task ISO timestamp — advisory cooperative-cancel flag set when a task is
+//   canceled, so an in-flight worker can poll and self-terminate (cancel-wins concurrency).
+// stop_requested: per-agent_id ISO timestamp — advisory cooperative-stop flag (cross-session agent
+//   control). The worker polls it and self-terminates; no cross-process kill.
+// guidance: escalation queue — items { id, question, context, trigger, ts, resolved, answer? }.
+//   A pending (unresolved) item halts the autonomous loop until the user answers.
+// optimize: per-problem converged-vs-iterate bookkeeping for the metric-driven loop (⑥) —
+//   { closed?:bool, decision?, verdicts?:int (verdict count at last decision), at? }. `closed` ⇒
+//   the loop has stopped iterating this problem (converged/budget/stuck); `verdicts` lets the loop
+//   re-decide ONLY after a NEW judge round lands (count increased), so an 'iterate' can't tight-loop.
+// epoch: monotonic counter bumped whenever a note/task node is ADDED — the "the graph changed"
+//   watermark the incremental edge-judge keys off of. judgedAtEpoch: per-note-key map (key ->
+//   epoch at which it was last adjudicated; absent/0 = never). A note is re-pullable by the judge
+//   only when judgedAtEpoch[key] < epoch, so a 'no edge' verdict (stamps =epoch) keeps it out of the
+//   queue until the graph actually changes. judgeCursor: persisted position the judge walks the work
+//   queue from (advances + wraps across ticks; survives daemon restart so it never re-walks the whole
+//   graph). All three are part of the RAG-candidate → agent-adjudicator edge pipeline (see lib/judge.js).
+// judgedClusters: per dup-cluster-signature map (signature -> epoch at which the cluster was last
+//   adjudicated by the node-judge). A cluster is re-judgeable only when its stored epoch < epoch OR
+//   its membership (hence signature) changed — the NODE-dedup analogue of judgedAtEpoch for edges.
+// snapshots: per-task frozen copy of native fields ({ subject, description, status, blockedBy,
+//   owner, metadata, snapshotted_at }) captured when the task reaches a terminal status. Claude
+//   Code's cleanupPeriodDays retention sweep also garbage-collects ~/.claude/tasks/, so native
+//   files are NOT indefinitely durable — aggregateWorkspace falls back to this snapshot when the
+//   native file is gone, keeping completed nodes in the graph. Also the substrate for DAEMON-
+//   ORIGINATED follow-up tasks (keys 'followup/<id>', non-terminal status, no native file ever
+//   exists — see lib/followups.js): same fallback serves them as live graph nodes.
+// distinctClusters: per dup-cluster-signature map (signature -> ISO timestamp) marking a cluster the
+//   user definitively judged DISTINCT ("don't ask again"). dupClusters/the judge queue SKIP any
+//   signature present here forever — a deliberate, user-made call (only the user can say two
+//   same-recall notes are genuinely different facts). Unlike judgedClusters (epoch-gated, re-judgeable
+//   when membership/epoch changes) this is permanent for that exact member set.
+const EMPTY = () => ({ edges: [], status: {}, notes: {}, summaries: {}, knowledge: {}, assignee: {}, timestamps: {}, config: {}, git: {}, repos: {}, metrics: {}, measurements: {}, benchmarks: {}, note_nodes: {}, snapshots: {}, cancel_requested: {}, stop_requested: {}, guidance: [], optimize: {}, epoch: 0, judgedAtEpoch: {}, judgeCursor: 0, judgedClusters: {}, distinctClusters: {} });
+
+// Default relevance weight for context edges (0..1). Pre-existing context edges with no stored
+// `weight` read as this, so the field is backward-compatible (substrate for relevance traversal).
+const DEFAULT_CONTEXT_WEIGHT = 0.5;
+// Read an edge's relevance weight: only context edges carry one; absent ⇒ default. Returns null for
+// non-context edges (blocking/supersede carry no weight). Clamps to [0,1] defensively.
+function edgeWeight(e) {
+  if (!e || e.kind !== 'context') return null;
+  const w = typeof e.weight === 'number' ? e.weight : DEFAULT_CONTEXT_WEIGHT;
+  return Math.max(0, Math.min(1, w));
+}
+
+// Collision-free overlay filename: encodeWorkspace is lossy (both `/` and `.` → `-`), so distinct
+// workspaces could map to ONE file and clobber each other (review H2). Use a content hash, keeping a
+// readable basename prefix for debuggability.
+function fileFor(workspace) {
+  const h = crypto.createHash('sha1').update(String(workspace || '')).digest('hex').slice(0, 16);
+  const base = (path.basename(String(workspace || '')) || 'ws').replace(/[^A-Za-z0-9._-]/g, '_');
+  return path.join(DIR, `${base}-${h}.json`);
+}
+// Pre-hash filename — read for one-time migration of overlays written before the H2 fix.
+function legacyFileFor(workspace) {
+  return path.join(DIR, `${encodeWorkspace(workspace)}.json`);
+}
+
+function load(workspace) {
+  let base;
+  let o = null;
+  try { o = JSON.parse(fs.readFileSync(fileFor(workspace), 'utf8')); }
+  catch { try { o = JSON.parse(fs.readFileSync(legacyFileFor(workspace), 'utf8')); } catch { o = null; } }
+  base = o ? { ...EMPTY(), ...o } : EMPTY();
+
+  // Rehydrate shared fields from graph-store (edges, status, summaries, knowledge, note_nodes, snapshots).
+  // Wrapped in try/catch — must never break load() for workspaces with no graph yet.
+  try {
+    const store = graphStore.forWorkspace(workspace);
+    const g = graphStore.loadGraph(store);
+
+    // edges
+    if (g.edges.length) base.edges = g.edges;
+
+    // Process both live nodes and checkpointed nodes the same way.
+    const allNodes = { ...g.checkpointed, ...g.nodes };
+    for (const [id, node] of Object.entries(allNodes)) {
+      // status
+      if (node.status != null) base.status[id] = node.status;
+
+      // summaries
+      if (node.summary != null) base.summaries[id] = node.summary;
+
+      // knowledge
+      if (Array.isArray(node.knowledge) && node.knowledge.length > 0) base.knowledge[id] = node.knowledge;
+
+      // note_nodes — reconstruct from graph node shape
+      if (node.kind === 'note' && node.note) {
+        base.note_nodes[id] = {
+          id,
+          title:      node.note.title      || null,
+          summary:    node.note.summary    || null,
+          created_by: node.note.created_by || null,
+          created_at: node.note.valid_from || null,
+          validFrom:  node.note.valid_from || null,
+          knowledge:  Array.isArray(node.knowledge) ? node.knowledge : [],
+          vec:        Array.isArray(node.vec) ? node.vec : null,
+          validTo:     node.validTo     || null,
+          supersededBy: node.supersededBy || null,
+          supersedes:  node.supersedes  || null,
+        };
+      }
+
+      // snapshots
+      if (node.snapshot != null) base.snapshots[id] = node.snapshot;
+
+      // assignee
+      if (node.assignee != null) base.assignee[id] = node.assignee;
+
+      // timestamps
+      if (node.timestamps != null) base.timestamps[id] = node.timestamps;
+
+      // metrics
+      if (node.metrics != null) base.metrics[id] = node.metrics;
+
+      // measurements
+      if (node.measurements != null) base.measurements[id] = node.measurements;
+    }
+
+    // benchmarks (stored on system:benchmarks node)
+    const benchNode = allNodes['system:benchmarks'];
+    if (benchNode && benchNode.benchmarks) base.benchmarks = benchNode.benchmarks;
+
+    // repos (stored on system:repos node)
+    const reposNode = allNodes['system:repos'];
+    if (reposNode && reposNode.repos) base.repos = reposNode.repos;
+
+    // diagnostics (stored on the system:diagnostics node) — rehydrated from the durable graph-store
+    // event log, NOT the overlay config, so it survives config wipe/regeneration. A null value means
+    // "cleared", so only surface a non-null object; absent ⇒ base.diagnostics stays unset.
+    const diagNode = allNodes['system:diagnostics'];
+    if (diagNode && diagNode.diagnostics != null) base.diagnostics = diagNode.diagnostics;
+  } catch { /* graph-store not yet initialised — fall back to empty shared fields */ }
+
+  // Set prev-state baseline so the next emitDiff diff starts from the correct state
+  // (otherwise it would re-emit everything as "new").
+  try { graphStore.setPrevState(workspace, base); } catch { /* best-effort */ }
+
+  return base;
+}
+
+function save(workspace, overlay, opts = {}) {
+  fs.mkdirSync(DIR, { recursive: true });
+  const dest = fileFor(workspace);
+  const tmp = `${dest}.${process.pid}.tmp`;            // atomic write: temp + rename (review H1)
+  const LOCAL_FIELDS = [
+    'git', 'cancel_requested', 'stop_requested', 'config',
+    'judgedAtEpoch', 'judgeCursor', 'judgedClusters', 'distinctClusters',
+  ];
+  const localOnly = Object.fromEntries(LOCAL_FIELDS.map(k => [k, overlay[k] ?? EMPTY()[k]]));
+  fs.writeFileSync(tmp, JSON.stringify(localOnly, null, 2));
+  fs.renameSync(tmp, dest);
+  if (opts.deferred) {
+    setImmediate(() => { try { emitDiff(workspace, overlay); } catch {} });
+  } else {
+    try { emitDiff(workspace, overlay); } catch { /* best-effort — never break the overlay save */ }
+  }
+}
+
+// Emit graph-store events for any shared fields that changed since the last save.
+// Wrapped in try/catch by the caller — failures must not surface to callers of save().
+function emitDiff(workspace, overlay) {
+  const store = graphStore.forWorkspace(workspace);
+  const prev  = graphStore.getPrevState(workspace);
+  const ts    = new Date().toISOString();
+
+  // edges — emit edge_added for each edge not in prev (matched by from+to+kind+fromWorkspace)
+  const prevEdgeSigs = new Set(
+    (prev.edges || []).map((e) => `${e.from}\0${e.to}\0${e.kind || 'blocking'}\0${e.fromWorkspace || ''}`)
+  );
+  for (const e of (overlay.edges || [])) {
+    const sig = `${e.from}\0${e.to}\0${e.kind || 'blocking'}\0${e.fromWorkspace || ''}`;
+    if (prevEdgeSigs.has(sig)) continue;
+    const ev = { evt: 'edge_added', from: e.from, to: e.to, kind: e.kind || 'blocking', actor: 'overlay-sync', ts };
+    if (e.fromWorkspace) ev.fromWorkspace = e.fromWorkspace;
+    if (typeof e.weight === 'number') ev.weight = e.weight;
+    graphStore.appendEvent(store, e.from, ev);
+  }
+
+  // status — emit status_changed for each key whose value changed
+  for (const [nodeId, status] of Object.entries(overlay.status || {})) {
+    if ((prev.status || {})[nodeId] === status) continue;
+    graphStore.appendEvent(store, nodeId, { evt: 'status_changed', id: nodeId, workspace, status, actor: 'overlay-sync', ts });
+  }
+  // status cleared — a key present in prev but now ABSENT had its override deleted (releaseClaim:
+  // a swept/stale claim re-derives to available). The event log is append-only, so without an
+  // explicit event the persisted store would keep replaying the stale 'in_progress' on the next
+  // load(). Emit 'ready' so the released state survives a daemon restart (restart resilience).
+  for (const nodeId of Object.keys(prev.status || {})) {
+    if (Object.prototype.hasOwnProperty.call(overlay.status || {}, nodeId)) continue;
+    graphStore.appendEvent(store, nodeId, { evt: 'status_changed', id: nodeId, workspace, status: 'ready', actor: 'overlay-sync', ts });
+  }
+
+  // summaries — emit summary_set for each key whose value changed
+  for (const [nodeId, summary] of Object.entries(overlay.summaries || {})) {
+    if ((prev.summaries || {})[nodeId] === summary) continue;
+    graphStore.appendEvent(store, nodeId, { evt: 'summary_set', id: nodeId, workspace, summary, actor: 'overlay-sync', ts });
+  }
+
+  // knowledge — emit knowledge_added for each new item beyond the previously seen count
+  for (const [nodeId, items] of Object.entries(overlay.knowledge || {})) {
+    if (!Array.isArray(items)) continue;
+    const prevLen = (prev.knowledge || {})[nodeId] || 0;
+    for (let i = prevLen; i < items.length; i++) {
+      graphStore.appendEvent(store, nodeId, { evt: 'knowledge_added', id: nodeId, workspace, item: items[i], actor: 'overlay-sync', ts });
+    }
+  }
+
+  // note_nodes — emit note_created for each key not in prev
+  for (const [noteId, n] of Object.entries(overlay.note_nodes || {})) {
+    if ((prev.note_nodes || {})[noteId]) continue;
+    graphStore.appendEvent(store, noteId, { evt: 'note_created', id: noteId, workspace, title: n.title, summary: n.summary, created_by: n.created_by, valid_from: n.validFrom || n.valid_from, vec: Array.isArray(n.vec) ? n.vec : null, actor: 'overlay-sync', ts });
+  }
+
+  // snapshots — emit snapshot_stored for each new key or changed snapshotted_at
+  for (const [nodeId, snap] of Object.entries(overlay.snapshots || {})) {
+    const prevSnap = (prev.snapshots || {})[nodeId];
+    if (prevSnap && prevSnap.snapshotted_at === snap.snapshotted_at) continue;
+    graphStore.appendEvent(store, nodeId, { evt: 'snapshot_stored', id: nodeId, workspace, subject: snap.subject, description: snap.description, status: snap.status, blockedBy: snap.blockedBy, owner: snap.owner, metadata: snap.metadata, snapshotted_at: snap.snapshotted_at, actor: 'overlay-sync', ts });
+  }
+
+  // assignee — emit assignee_set for each key whose value changed
+  for (const [nodeId, assignee] of Object.entries(overlay.assignee || {})) {
+    if (JSON.stringify((prev.assignee || {})[nodeId]) === JSON.stringify(assignee)) continue;
+    graphStore.appendEvent(store, nodeId, { evt: 'assignee_set', id: nodeId, workspace, assignee, actor: 'overlay-sync', ts });
+  }
+
+  // timestamps — emit timestamps_set for each key whose value changed
+  for (const [nodeId, timestamps] of Object.entries(overlay.timestamps || {})) {
+    if (JSON.stringify((prev.timestamps || {})[nodeId]) === JSON.stringify(timestamps)) continue;
+    graphStore.appendEvent(store, nodeId, { evt: 'timestamps_set', id: nodeId, workspace, timestamps, actor: 'overlay-sync', ts });
+  }
+
+  // metrics — emit metrics_set for each key whose value changed
+  for (const [nodeId, metrics] of Object.entries(overlay.metrics || {})) {
+    if (JSON.stringify((prev.metrics || {})[nodeId]) === JSON.stringify(metrics)) continue;
+    graphStore.appendEvent(store, nodeId, { evt: 'metrics_set', id: nodeId, workspace, metrics, actor: 'overlay-sync', ts });
+  }
+
+  // measurements — emit measurements_set for each key whose value changed
+  for (const [nodeId, measurements] of Object.entries(overlay.measurements || {})) {
+    if (JSON.stringify((prev.measurements || {})[nodeId]) === JSON.stringify(measurements)) continue;
+    graphStore.appendEvent(store, nodeId, { evt: 'measurements_set', id: nodeId, workspace, measurements, actor: 'overlay-sync', ts });
+  }
+
+  // benchmarks — emit benchmarks_set on system:benchmarks node for any change
+  if (overlay.benchmarks && JSON.stringify(prev.benchmarks || {}) !== JSON.stringify(overlay.benchmarks)) {
+    graphStore.appendEvent(store, 'system:benchmarks', { evt: 'benchmarks_set', workspace, benchmarks: overlay.benchmarks, actor: 'overlay-sync', ts });
+  }
+
+  // repos — emit repo_config_set on system:repos node for any change
+  if (overlay.repos && JSON.stringify(prev.repos || {}) !== JSON.stringify(overlay.repos)) {
+    graphStore.appendEvent(store, 'system:repos', { evt: 'repo_config_set', workspace, repos: overlay.repos, actor: 'overlay-sync', ts });
+  }
+
+  graphStore.setPrevState(workspace, overlay);
+}
+
+// Add a dependency edge from -> to. Idempotent.
+//   kind 'blocking' (default): `to` is blocked by `from` (scheduling — gates readiness).
+//   kind 'context': non-blocking provenance — `from`'s summary flows into `to` as Tier-1
+//     context even when `from` is already done. Lets new tasks pull existing nodes' summaries
+//     without making the graph a flat list of roots.
+//   kind 'supersede': non-blocking replacement link from=OLD -> to=NEW. Does NOT gate readiness
+//     and does NOT flow summaries; it only records that `from` was retired in favor of `to`, so a
+//     replan reads as old→new instead of leaving orphaned canceled duplicates beside fresh ones.
+// fromWorkspace set ⇒ ghost edge: the provider `from` lives in another workspace.
+// Stored in the CONSUMER's overlay (the workspace owning `to`).
+// weight (0..1, context edges only): optional relevance scalar for spreading-activation traversal.
+// Absent ⇒ DEFAULT_CONTEXT_WEIGHT when read back. Ignored for blocking/supersede edges.
+function addEdge(overlay, from, to, fromWorkspace, kind, weight) {
+  const fw = fromWorkspace || null;
+  const w = (kind === 'context' && typeof weight === 'number') ? Math.max(0, Math.min(1, weight)) : undefined;
+  const existing = overlay.edges.find((e) => e.from === from && e.to === to && (e.fromWorkspace || null) === fw);
+  if (existing) {
+    if (kind === 'context') { existing.kind = 'context'; if (w !== undefined) existing.weight = w; }   // upgrade blocking → context on re-add (never silently downgrade)
+    else if (kind === 'supersede') existing.kind = 'supersede';
+    return overlay;
+  }
+  const edge = { from, to };
+  if (fromWorkspace) edge.fromWorkspace = fromWorkspace;
+  if (kind === 'context' || kind === 'supersede') edge.kind = kind; // omit for blocking (absent = blocking, back-compat)
+  if (w !== undefined) edge.weight = w; // omit when unspecified (absent = DEFAULT_CONTEXT_WEIGHT, back-compat)
+  overlay.edges.push(edge);
+  return overlay;
+}
+
+// Remove dependency edge(s) from -> to. Idempotent (no-op if none match). Mirrors addEdge's
+// match on (from, to, fromWorkspace). If kind is given, only edges of that kind are removed
+// ('blocking' = absent/!=context; 'context' = kind==='context'); otherwise all matches go.
+// Lets a graph be re-parallelized by dropping stale prerequisite edges. Returns overlay.
+function removeEdge(overlay, from, to, fromWorkspace, kind) {
+  const fw = fromWorkspace || null;
+  overlay.edges = overlay.edges.filter((e) => {
+    if (!(e.from === from && e.to === to && (e.fromWorkspace || null) === fw)) return true;
+    if (kind === 'context') return e.kind !== 'context';
+    if (kind === 'blocking') return e.kind === 'context';
+    return false; // no kind filter: drop every match
+  });
+  return overlay;
+}
+
+function setStatus(overlay, key, status, note) {
+  overlay.status[key] = status;
+  if (note != null) overlay.notes[key] = String(note).slice(0, 280);
+  return overlay;
+}
+
+// Record/merge the git attempt worktree info for a task. Stamps createdAt on first write.
+function setGit(overlay, key, info) {
+  overlay.git[key] = { ...(overlay.git[key] || { createdAt: new Date().toISOString() }), ...info };
+  return overlay;
+}
+
+// Set (or clear, with a falsy repoPath) the target repo path a task's git ops should run against.
+function setRepo(overlay, key, repoPath) {
+  if (!overlay.repos) overlay.repos = {};
+  if (repoPath) overlay.repos[key] = String(repoPath);
+  else delete overlay.repos[key];
+  return overlay;
+}
+
+// Per-repo TEST COMMAND registry, keyed by ABSOLUTE repo path, nested under config (so it
+// persists alongside the rest of the workspace config). Set (or clear, with a falsy cmd) how a
+// repo's test suite is run. STORE/RETRIEVE ONLY — the daemon never executes these; agents
+// (e.g. the nightly QA loop) look the command up and run it themselves.
+function setTestCmd(overlay, repoPath, cmd) {
+  if (!overlay.config) overlay.config = {};
+  if (!overlay.config.test_cmds) overlay.config.test_cmds = {};
+  if (cmd) overlay.config.test_cmds[String(repoPath)] = String(cmd);
+  else delete overlay.config.test_cmds[repoPath];
+  return overlay;
+}
+
+// Read a repo's stored test command (null when unset / no repo).
+function testCmdFor(overlay, repoPath) {
+  return (repoPath && overlay.config && overlay.config.test_cmds && overlay.config.test_cmds[repoPath]) || null;
+}
+
+// Set (or clear, with a falsy spec) the INLINE metric spec a task is optimizing. The spec shape
+// is { metric, direction (min|max), measure_command, parse?, target?, guardrails? }; validation
+// lives in the daemon endpoint — this just stores/clears what it's handed.
+function setMetricSpec(overlay, key, spec) {
+  if (!overlay.metrics) overlay.metrics = {};
+  if (spec) overlay.metrics[key] = spec;
+  else delete overlay.metrics[key];
+  return overlay;
+}
+
+// Merge measured value(s) onto a task node (the measure node's output). `data` is a partial —
+// e.g. { value, guardrails, measured_at, command } for an attempt, or { baseline: {...} } for the
+// repo's current-main reference — so an attempt measurement and its baseline can be set separately
+// without clobbering each other. Pass a falsy data to clear the whole record.
+function setMeasurement(overlay, key, data) {
+  if (!overlay.measurements) overlay.measurements = {};
+  if (data) overlay.measurements[key] = { ...(overlay.measurements[key] || {}), ...data };
+  else delete overlay.measurements[key];
+  return overlay;
+}
+
+// Freeze a task's native fields into the overlay (see the `snapshots` field doc above). `data` is
+// the snapshot record ({ subject, description, status, blockedBy, owner, metadata }); stamps
+// snapshotted_at. Re-snapshotting a key overwrites — last terminal transition wins.
+function setSnapshot(overlay, key, data) {
+  if (!overlay.snapshots) overlay.snapshots = {};
+  overlay.snapshots[key] = { ...data, snapshotted_at: new Date().toISOString() };
+  return overlay;
+}
+
+// Set (or clear, with falsy data) the researched competitor/industry-average benchmark for a task's
+// metric. A record is { metric, value, unit?, source, note?, confidence?, researched_at? }; validation
+// lives in the daemon endpoint — this just stores/clears what it's handed.
+function setBenchmark(overlay, key, data) {
+  if (!overlay.benchmarks) overlay.benchmarks = {};
+  if (data) overlay.benchmarks[key] = data;
+  else delete overlay.benchmarks[key];
+  return overlay;
+}
+
+// Add a "note node": an overlay-only graph node capturing durable conversation knowledge
+// (a decision/finding) as a Tier-1 context provider. It is NOT a native todo — it lives only
+// in the overlay and surfaces in the graph via buildGraph + context edges. Returns the id.
+// `vec` (optional): a precomputed semantic embedding (384 floats) of the note's title+summary,
+// stored beside the note for brute-force cosine retrieval in /search. The daemon computes it (embed
+// is async; this store stays sync) — absent ⇒ the note falls back to lexical scoring (back-compat).
+function addNoteNode(overlay, { title, summary, knowledge, created_by, valid_from, vec }) {
+  // Collision-safe id: Date.now() alone collides for notes created in the same millisecond (back-to-
+  // back record_decision / supersede calls would clobber each other). Append a short random suffix.
+  let id;
+  do { id = `note-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`; } while (overlay.note_nodes[id]);
+  const created = new Date().toISOString();
+  overlay.note_nodes[id] = {
+    id,
+    title: String(title || '').slice(0, 200),
+    summary: String(summary || '').slice(0, 2000),
+    knowledge: Array.isArray(knowledge) ? knowledge : [],
+    created_by: created_by || null,
+    created_at: created,
+    // Truly bitemporal: two independent time axes, both queryable, for state-change reasoning (the Zep gap):
+    //   VALID time — when the fact was true in the world. validFrom/validTo below; query via /search?asOf=T
+    //     (the note CURRENT at T). validFrom defaults to creation but a caller may BACKDATE it.
+    //   TRANSACTION time — when the KB LEARNED the fact. That's created_at (above), always = real
+    //     insertion instant, never backdated; query via /search?knownAsOf=T (notes RECORDED by T). This
+    //     is what stops a backdated valid_from from silently rewriting an earlier-knowledge query.
+    //   The two compose: asOf=true-as-of-T1 & knownAsOf=recorded-by-T2 = the canonical bitemporal query.
+    //
+    //   validFrom — when this fact BECAME true (defaults to creation time; a caller may backdate it).
+    //   validTo   — when it STOPPED being true (null ⇒ still current). Set when superseded, never
+    //               deleting the row, so as-of retrieval can recover the fact CURRENT at any time.
+    //   supersedes / supersededBy — the chain links (note id ↔ note id), history preserved.
+    validFrom: valid_from ? String(valid_from) : created,
+    validTo: null,
+    supersedes: null,
+    supersededBy: null,
+    // Semantic embedding (384 floats) of title+summary for cosine retrieval; null ⇒ lexical fallback.
+    vec: Array.isArray(vec) ? vec : null,
+  };
+  return id;
+}
+
+// Supersede note `oldId` with `newId` WITHOUT deleting history: stamp validTo on the old note (when
+// it stopped being true = the new note's validFrom), link old↔new both directions, and chain the new
+// note's `supersedes` back. Idempotent-ish: re-linking the same pair just refreshes the stamps.
+// Returns { ok, error? }. `at` (ISO) lets the caller set the changeover instant explicitly; absent ⇒
+// the new note's validFrom (or now).
+function supersedeNote(overlay, oldId, newId, at, workspace) {
+  const nn = overlay.note_nodes || {};
+  const oldN = nn[oldId];
+  const newN = nn[newId];
+  if (!oldN) return { ok: false, error: `unknown note ${oldId}` };
+  if (!newN) return { ok: false, error: `unknown note ${newId}` };
+  if (oldId === newId) return { ok: false, error: 'cannot supersede a note with itself' };
+  const changeover = at ? String(at) : (newN.validFrom || new Date().toISOString());
+  oldN.validTo = changeover;
+  oldN.supersededBy = newId;
+  newN.validFrom = changeover;          // the new fact becomes true exactly when the old one ends
+  newN.supersedes = oldId;
+  // Persist supersede relationship to graph-store so it survives daemon reload.
+  if (workspace) {
+    try {
+      const store = graphStore.forWorkspace(workspace);
+      graphStore.appendEvent(store, oldId, { evt: 'note_superseded', id: oldId, supersededBy: newId, validTo: changeover, ts: changeover, actor: 'supersede' });
+      graphStore.appendEvent(store, newId, { evt: 'note_supersedes', id: newId, supersedes: oldId, ts: changeover, actor: 'supersede' });
+    } catch { /* graph-store not yet initialised — in-memory only (back-compat) */ }
+  }
+  return { ok: true, at: changeover };
+}
+
+// Walk the full supersede chain a note belongs to, oldest → newest, as an ordered list of ids.
+// Pure read over note_nodes; follows supersedes backward to the root then supersededBy forward.
+function noteChain(overlay, id) {
+  const nn = overlay.note_nodes || {};
+  if (!nn[id]) return [];
+  let root = id;
+  const seen = new Set();
+  while (nn[root] && nn[root].supersedes && !seen.has(root)) { seen.add(root); root = nn[root].supersedes; }
+  const chain = [];
+  const fwd = new Set();
+  let cur = root;
+  while (nn[cur] && !fwd.has(cur)) { fwd.add(cur); chain.push(cur); cur = nn[cur].supersededBy; }
+  return chain;
+}
+
+// Push an escalation/guidance item onto the queue. Severity tiers: 'blocking' halts the autonomous
+// loop (the caller sets loop.active=false); 'review' queues for the user WITHOUT pausing (judge
+// housekeeping — supersede/dup-cluster confirmations). Anything else defaults to 'blocking' (safe:
+// explicit escalations keep pausing). Returns the new item's id.
+// `action` (optional): a structured, machine-actionable payload the dashboard renders into buttons and
+// the resolver acts on without re-deriving anything. Shape is action-kind specific, e.g.
+//   { kind:'dup-cluster', keys:[...], signature, notes:[{key,title,created_at}] }.
+// Absent ⇒ a plain text-answer guidance item (unchanged, back-compat).
+function addGuidance(overlay, { question, context, trigger, severity, action }) {
+  if (!Array.isArray(overlay.guidance)) overlay.guidance = [];
+  const id = `g-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const item = {
+    id,
+    question: String(question || '').slice(0, 1000),
+    context: String(context || '').slice(0, 2000),
+    trigger: trigger ? String(trigger).slice(0, 80) : null,
+    severity: severity === 'review' ? 'review' : 'blocking',
+    ts: new Date().toISOString(),
+    resolved: false,
+  };
+  if (action && typeof action === 'object') item.action = action;   // structured, action-aware guidance
+  overlay.guidance.push(item);
+  return id;
+}
+
+// Mark a guidance item resolved, recording the user's answer. Returns true if found.
+function resolveGuidance(overlay, id, answer) {
+  if (!Array.isArray(overlay.guidance)) return false;
+  const it = overlay.guidance.find((g) => g.id === id);
+  if (!it) return false;
+  it.resolved = true;
+  it.resolvedAt = new Date().toISOString();
+  if (answer != null) it.answer = String(answer).slice(0, 2000);
+  return true;
+}
+
+// Stable signature of a dup-cluster = its sorted note keys joined by '|'. MUST match
+// judge.clusterSignature so a signature marked distinct here is recognized by dupClusters/the queue.
+// Kept local to avoid a circular require (judge.js → embed; overlay must stay dependency-light).
+function clusterSig(keys) {
+  return (Array.isArray(keys) ? keys.slice() : []).sort().join('|');
+}
+
+// Permanently mark a dup-cluster signature as user-judged DISTINCT ("don't ask again"). dupClusters
+// and the judge queue skip it forever. Idempotent; stamps the time of the decision. Returns the sig.
+function markClusterDistinct(overlay, keys) {
+  if (!overlay.distinctClusters) overlay.distinctClusters = {};
+  const sig = clusterSig(keys);
+  overlay.distinctClusters[sig] = new Date().toISOString();
+  return sig;
+}
+
+// Was this cluster signature definitively marked distinct by the user? Pure read.
+function isClusterDistinct(overlay, keys) {
+  const d = overlay.distinctClusters || {};
+  return Object.prototype.hasOwnProperty.call(d, clusterSig(keys));
+}
+
+// Lazy one-time severity migration: legacy items predate the field. Judge-housekeeping questions
+// (supersede / dup-cluster confirmations) become 'review'; everything else stays 'blocking' (safe
+// default). Stamps the item in place so the next overlay save persists it.
+const REVIEW_PREFIXES = ['Possible supersede:', 'Ambiguous duplicate cluster'];
+function guidanceSeverity(g) {
+  if (g.severity !== 'blocking' && g.severity !== 'review') {
+    g.severity = REVIEW_PREFIXES.some((p) => String(g.question || '').startsWith(p)) ? 'review' : 'blocking';
+  }
+  return g.severity;
+}
+
+const pendingGuidance = (overlay) => (Array.isArray(overlay.guidance) ? overlay.guidance.filter((g) => !g.resolved).map((g) => (guidanceSeverity(g), g)) : []);
+
+// Record the optimize-loop's decision for a problem (⑥): merge a partial onto overlay.optimize[key]
+// — e.g. { closed:true, decision } to stop iterating, or { verdicts } to remember the verdict count
+// at the last 'iterate' so the loop only re-decides after a NEW round. Stamps `at`. Returns overlay.
+function setOptimize(overlay, key, data) {
+  if (!overlay.optimize) overlay.optimize = {};
+  overlay.optimize[key] = { ...(overlay.optimize[key] || {}), ...data, at: new Date().toISOString() };
+  return overlay;
+}
+
+// Bump the graph-change epoch (a note/task node was added). Monotonic; initializes a legacy overlay
+// that predates the field. Returns the new epoch. The edge-judge re-pulls notes whose judgedAtEpoch
+// is below this, so a NEW node makes previously-judged neighbors eligible to re-adjudicate.
+function bumpEpoch(overlay) {
+  overlay.epoch = (overlay.epoch || 0) + 1;
+  return overlay.epoch;
+}
+
+// Set an on-complete interface summary for a task. Stored in overlay.summaries. Truncates to 2000
+// chars (same cap as the daemon endpoint). Returns overlay.
+function setSummary(overlay, key, summary) {
+  overlay.summaries[key] = String(summary).slice(0, 2000);
+  return overlay;
+}
+
+// Merge extra runtime fields onto a guidance item by id. Used to stamp LOCAL annotations
+// (e.g. verdictKey, sessionKey) onto items right after addGuidance returns the id, without
+// touching the shared schema fields. No-ops silently when the id is not found. Returns overlay.
+function annotateGuidance(overlay, id, fields) {
+  if (!Array.isArray(overlay.guidance)) return overlay;
+  const item = overlay.guidance.find((g) => g.id === id);
+  if (item && fields && typeof fields === 'object') Object.assign(item, fields);
+  return overlay;
+}
+
+// Re-point context edges that touch any key in `supersededKeys` to `keepKey`, then drop
+// self-loops and deduplicate by (from, to, fromWorkspace, kind). Used after a node-dedup
+// consolidation so the keeper inherits the cluster's edges and nothing dangles to a now-hidden
+// note. `supersededKeys` should be 'note:'-prefixed. Returns overlay.
+function repointEdges(overlay, supersededKeys, keepKey) {
+  const sup = new Set(supersededKeys);
+  for (const e of overlay.edges) {
+    if (e.kind !== 'context') continue;
+    if (sup.has(e.from)) e.from = keepKey;
+    if (sup.has(e.to)) e.to = keepKey;
+  }
+  const seen = new Set();
+  overlay.edges = overlay.edges.filter((e) => {
+    if (e.from === e.to) return false;                                   // self-loop
+    const sig = `${e.from}>>${e.to}>>${e.fromWorkspace || ''}>>${e.kind || 'blocking'}`;
+    if (seen.has(sig)) return false;
+    seen.add(sig);
+    return true;
+  });
+  return overlay;
+}
+
+// Store diagnostics for a workspace. Persistence routes through the graph-store JSONL event log
+// (NOT the overlay config, which is ephemeral and wiped on regeneration), so it survives process
+// restarts and config regeneration. Shape: { lastError: string|null, errorCount: number,
+// lastChecked: string }. An event is ALWAYS emitted — including for a null value, which means
+// "cleared": the append-only log replays last-event-wins, so skipping the null event would let a
+// stale value survive a wipe. Returns the stored value (normalized: undefined → null).
+function setDiagnostics(workspace, value) {
+  const v = value === undefined ? null : value;
+  const store = graphStore.forWorkspace(workspace);
+  graphStore.appendEvent(store, 'system:diagnostics', { evt: 'diagnostics_set', workspace, value: v, actor: 'overlay', ts: new Date().toISOString() });
+  return v;
+}
+
+// Retrieve diagnostics for a workspace by replaying the graph-store event log. Returns the stored
+// object, or null if none has been set (or it was cleared with a null value).
+// Shape: { lastError: string|null, errorCount: number, lastChecked: string }
+function getDiagnostics(workspace) {
+  try {
+    const store = graphStore.forWorkspace(workspace);
+    const g = graphStore.loadGraph(store);
+    const node = (g.nodes && g.nodes['system:diagnostics']) || (g.checkpointed && g.checkpointed['system:diagnostics']);
+    const v = node ? node.diagnostics : undefined;
+    return v == null ? null : v;
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { load, save, addEdge, removeEdge, setStatus, setGit, setRepo, setTestCmd, testCmdFor, setMetricSpec, setMeasurement, setBenchmark, setSnapshot, addNoteNode, supersedeNote, noteChain, addGuidance, resolveGuidance, pendingGuidance, markClusterDistinct, isClusterDistinct, clusterSig, setOptimize, bumpEpoch, edgeWeight, DEFAULT_CONTEXT_WEIGHT, EMPTY, setSummary, annotateGuidance, repointEdges, getDiagnostics, setDiagnostics };

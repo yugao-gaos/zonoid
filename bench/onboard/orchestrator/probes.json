@@ -1,0 +1,100 @@
+[
+  {
+    "id": "proj-workspace-hijack",
+    "kind": "project",
+    "scenario": "Concrete bug report from this project's own history: a headless agent was spawned inside a git worktree and it loaded the orchestrator MCP server. Immediately the LIVE shared task graph got repointed — other agents and the dashboard suddenly saw a DIFFERENT workspace's tasks/learnings, as if the global workspace pointer had moved out from under them. Nobody called any 'set workspace' tool. What specific thing did the MCP server do on startup that caused this, and what was the fix that lets a worktree-bound agent load the MCP WITHOUT hijacking the shared workspace pointer?",
+    "rubric": "PASS only if the answer identifies the specific cause: the MCP server (mcp-graph.js) posted its own process.cwd() as the daemon's workspace on startup, so any process that loaded the MCP from a different directory (e.g. a headless agent in a worktree) silently repointed the global/shared workspace to that cwd. AND it must name the fix: honor an ORCH_WORKSPACE environment variable to set the workspace independently of cwd (falling back to cwd only when unset), so a worktree-bound agent can load the MCP without moving the shared pointer. FAIL if it blames a generic config/race/permissions issue, proposes a different mechanism, or does not tie the cause to cwd-as-workspace-on-startup and the fix to an explicit workspace override (env var / explicit arg).",
+    "retrieval_query": "ORCH_WORKSPACE cwd workspace pointer hijack mcp-graph startup dogfood worktree"
+  },
+  {
+    "id": "proj-hold-merge",
+    "kind": "project",
+    "scenario": "I'm relying on the autonomous heartbeat loop to keep improving a code task overnight. My mental model: when the loop's judge picks a winning attempt for a code-producing task, it merges that winner back into the main branch / live checkout automatically so the improvement is live by morning. Is that what actually happens in THIS project by default, or does it behave differently? I need to know before I wake up expecting merged code.",
+    "rubric": "PASS only if the answer states that by DEFAULT the autonomous loop does NOT auto-merge winners: it runs every code-producing task in an isolated worktree/branch (e.g. orch/attempt/<slug>), never edits the live checkout and never merges to main on its own — it completes the task as MERGE-PENDING and leaves the merge as a deliberate HUMAN decision/review step ('hold-merge' mode). The morning expectation of auto-merged live code is therefore wrong. FAIL if it says the loop auto-merges the winner to main/live by default, or claims merging is automatic once the judge picks a winner, or hedges that it 'probably' merges without identifying the hold-merge / human-review-gated default.",
+    "retrieval_query": "hold-merge autonomous loop never merges main human decision isolated worktree orch attempt review pending"
+  },
+  {
+    "id": "proj-cost-parity-null",
+    "kind": "project",
+    "scenario": "Before I invest in expanding this orchestrator's context/knowledge-graph layer, I want the honest empirical result it already produced: in this project's own ON-vs-OFF A/B benchmark (orchestrator graph loaded vs not), did loading the graph context make the agent do measurably LESS or BETTER work on the tasks tested? And where does the cost difference between the two arms actually come from? Give me the project's actual measured conclusion, not a plausible expectation.",
+    "rubric": "PASS only if the answer reports the project's actual NULL-ish finding: on the self-solvable tasks tested, ACTUAL WORK was essentially PARITY between ON (graph loaded) and OFF — no measured work/quality benefit from loading the context. AND it must locate the cost difference in cache_read: the entire ON-vs-OFF cost delta is cache_read from re-attending the loaded payload + tool schemas each turn, so shrinking the payload (lean context) brings cost to parity. FAIL if it claims the benchmark showed the graph made the agent do clearly less/better work, asserts a proven productivity benefit, or attributes the cost delta to something other than cache_read / payload size.",
+    "retrieval_query": "ON OFF benchmark work parity cost cache_read payload size lean parity no benefit measured"
+  },
+  {
+    "id": "proj-net-metric-artifact",
+    "kind": "project",
+    "scenario": "I found an earlier writeup in this project claiming orchestrator-ON did about 65% LESS work, computed as each arm's 'net work' = gross tokens minus 'plumbing' tokens. I'm about to reuse that exact net-work formula for a new comparison. Is that 65% figure trustworthy and is 'gross minus plumbing' the right way to measure work in THIS setup — or was that approach already found to be flawed and replaced with something else here?",
+    "rubric": "PASS only if the answer says the 'gross minus plumbing' net-work approach was already found to be UNTRUSTWORTHY in this project and the ~65%-less figure is a spurious artifact — and identifies the specific reason: token attribution buckets cache_read into 'plumbing', so subtracting plumbing strips cached-context tokens and inflates the apparent savings. It must say the project replaced it: measure actual work by output_tokens (and cost by cost-weighted gross / discounted cache_read). FAIL if it endorses gross-minus-plumbing/net as valid, treats the 65% as a real result, or fails to name the cache_read mis-bucketing as the flaw.",
+    "retrieval_query": "net work gross minus plumbing 65 percent spurious artifact cache_read bucketed output_tokens replaced"
+  },
+  {
+    "id": "proj-stop-signal-inprocess",
+    "kind": "project",
+    "scenario": "This project enforces a cooperative stop via a PreToolUse hook that checks a should-stop signal before each tool call. But the autonomous heartbeat loop runs IN-PROCESS inside the daemon, not as a hooked CLI agent — so the PreToolUse hook can't fire between its steps. Given that, how does a stop request (cancel a task / stop an agent) actually halt the in-process heartbeat loop mid-run? I want to make sure I don't add a second, divergent stop mechanism for the in-process case.",
+    "rubric": "PASS only if the answer explains that the in-process heartbeat does NOT rely on the PreToolUse hook; instead the daemon checks the same shared stop signal itself inside its tick/decision path (each next_action / decideAction first resolves the same cancel_requested/stop_requested signal that the hook reads), so a flagged stop halts the in-process loop the same way it halts a hooked CLI agent — from ONE shared source of truth. It must conclude you should NOT add a separate divergent stop check. FAIL if it claims the PreToolUse hook does stop the in-process loop, invents a separate signal/mechanism for the in-process case, or says a second stop check is needed.",
+    "retrieval_query": "cooperative stop in-process heartbeat next_action stop signal single source cancel_requested hook cannot interrupt"
+  },
+  {
+    "id": "proj-sync-authority",
+    "kind": "project",
+    "scenario": "I'm debugging a case where the orchestrator graph briefly showed a task's deps and in_progress state as empty right after a CLI hook fired, then they reappeared after the next full state read. A teammate wants to 'fix' this by making the hook payload carry the deps and in_progress so the graph is always complete from the hook alone. In THIS project, are hook events even supposed to carry deps / in_progress, or is that the wrong layer to source them from — and which source is authoritative for native fields?",
+    "rubric": "PASS only if the answer explains that the project reconciles MULTIPLE sync sources by source AUTHORITY, and that hooks are intentionally a LOW-LATENCY SIGNAL ONLY — they do NOT carry deps / in_progress and are not meant to. The authoritative source for native fields (status, deps) is the file/state read of the native task data, not the hook. So the teammate's fix is wrong-layer: deps/in_progress should come from the authoritative file read, with hooks only nudging freshness. FAIL if it says hooks should/do carry deps+in_progress as a fix, or treats the hook as the authoritative source for native fields, or doesn't identify the source-authority reconciliation.",
+    "retrieval_query": "three sync sources reconciled source authority hooks low-latency signal no deps in_progress file read truth native fields"
+  },
+  {
+    "id": "proj-escalation-set",
+    "kind": "project",
+    "scenario": "I'm writing config docs for this project's escalation gate (the 'stop and ask the human instead of guessing' mechanism in the autonomous loop). I need the COMPLETE, exact set of escalation trigger conditions the loop ships with by default, because each is an individually tunable config flag. List the full set of default trigger conditions — not a general philosophy, the actual enumerated triggers this codebase defines.",
+    "rubric": "PASS only if the answer enumerates the project's actual default escalation trigger set, which is the FIVE conditions: ambiguous intent, irreversible action, low-confidence/high-impact decision, repeated failure, and scope expansion (plus, acceptably, the stuck-optimization/no-winner-after-K-rounds case which routes through the same gate). It must give the specific enumerated set, not just a vague 'when it's unsure' philosophy. FAIL if it lists a clearly different/invented set, gives only a generic principle without the named triggers, or misses most of the five.",
+    "retrieval_query": "escalation triggers default set ambiguous intent irreversible action low confidence high impact repeated failure scope expansion five tunable config"
+  },
+  {
+    "id": "proj-merge-conflict-abort",
+    "kind": "project",
+    "scenario": "In this project's autonomous self-improvement loop, multiple candidate attempts on separate branches compete and the daemon picks a winner to merge back. A reviewer worries: when the daemon merges the winning attempt branch and it CONFLICTS with the base, what does the system do — does it force the merge, leave the working tree in a half-merged conflicted state, or something else? Describe the exact conflict behavior and what the merge call returns on conflict.",
+    "rubric": "PASS only if the answer states that on conflict the merge is NOT forced and the tree is NOT left half-merged: the system runs `git merge --abort` to restore a clean tree and returns a structured result indicating conflict plus the list of conflicted files (e.g. {merged:false, conflict:true, files:[...]}). FAIL if it says the merge is forced, left in a conflicted state for manual resolution, or invents a different mechanism.",
+    "retrieval_query": "merge_attempt winner branch conflict git merge --no-ff --abort clean tree returns conflict files never force"
+  },
+  {
+    "id": "proj-gate-fail-open",
+    "kind": "project",
+    "scenario": "This project ships a PreToolUse edit-gate hook that blocks file edits unless the current conversation has claimed a task in the orchestrator. A user reports: 'I stopped the orchestrator daemon to debug something, and I expected all my edits to be blocked by the gate — but edits went through fine.' Is this a bug in the gate, or intended behavior? Explain precisely what the gate does when it cannot reach the daemon, and why.",
+    "rubric": "PASS only if the answer says this is INTENTIONAL fail-OPEN behavior: when the daemon is unreachable the gate allows the edit (exit 0) rather than bricking all editing, and only DENIES on a definitive 'no claim for this session' from a reachable daemon. FAIL if it says the gate fails closed / should block when the daemon is down, or calls the observed behavior a bug.",
+    "retrieval_query": "orch-gate PreToolUse hook daemon unreachable fail open allow edit exit 0 deny only definitive no claim"
+  },
+  {
+    "id": "proj-ingest-reversible",
+    "kind": "project",
+    "scenario": "An engineer ran an automated 'onboarding' pass that injected a batch of learned knowledge notes into the live orchestrator graph. They now want to cleanly identify and REMOVE exactly those injected notes without touching hand-authored nodes. By what specific, deliberate convention can these auto-injected notes be distinguished and reversibly removed, and through what graph mechanism were they added so that removal is clean?",
+    "rubric": "PASS only if the answer identifies that auto-injected notes follow a reversible-overlay convention: their titles carry a distinguishing prefix (the '[ingest]' prefix) and they are added as OVERLAY note nodes (e.g. via POST /overlay/note), so they can be filtered by that prefix and removed without disturbing base/hand-authored nodes. FAIL if it proposes a generic git revert, manual hunting, a tag/label it invents, or doesn't mention the prefix + overlay reversibility convention.",
+    "retrieval_query": "injected notes reversible overlay note prefix ingest filter remove POST overlay note without touching base nodes"
+  },
+  {
+    "id": "ctl-git-revert-pushed",
+    "kind": "control",
+    "scenario": "I pushed a commit to a shared remote branch that other teammates have already pulled, and the commit is bad. What's the safe way to undo its changes without rewriting the shared history (i.e. without a force-push that breaks everyone else's clones)?",
+    "rubric": "PASS if the answer recommends creating a NEW commit that undoes the change — i.e. `git revert <sha>` (or otherwise adding a forward commit) and pushing that — instead of history-rewriting operations (reset --hard + force push, rebase) on the shared branch. It should convey the principle of not rewriting already-shared history. FAIL if it recommends git reset/rebase + force-push to the shared branch as the primary fix, or fails to give a non-history-rewriting undo.",
+    "retrieval_query": "git revert undo pushed commit shared branch without force push history"
+  },
+  {
+    "id": "ctl-sql-injection",
+    "scenario": "In a Node service I build a SQL query like `db.query(\"SELECT * FROM users WHERE email = '\" + userInput + \"'\")` where userInput comes straight from an HTTP request. What's the vulnerability here and the correct fix?",
+    "kind": "control",
+    "rubric": "PASS if the answer identifies this as a SQL injection vulnerability (untrusted input concatenated into the query) and prescribes using parameterized / prepared statements (placeholders + bound parameters) instead of string concatenation. FAIL if it misses that it's SQL injection, or only suggests insufficient mitigations like manual escaping/blacklisting without parameterized queries.",
+    "retrieval_query": "sql injection node string concatenation parameterized prepared statement user input"
+  },
+  {
+    "id": "ctl-async-await-loop",
+    "kind": "control",
+    "scenario": "In JavaScript I have `const ids = [1,2,3]; ids.forEach(async (id) => { await save(id); }); console.log('done');`. I expected 'done' to print only after all saves finished, but it prints first and unhandled rejections slip through. Why, and how do I correctly await all the async saves?",
+    "rubric": "PASS if the answer explains that Array.forEach does not await the async callbacks (it ignores the returned promises), so the loop returns immediately and 'done' logs before the saves resolve. The fix must be to collect the promises and await them — e.g. `await Promise.all(ids.map(id => save(id)))` (or a for...of loop with await). FAIL if it misdiagnoses the cause or offers a fix that still doesn't actually await the promises.",
+    "retrieval_query": "javascript foreach async await promise all not awaited loop"
+  },
+  {
+    "id": "ctl-http-status-post",
+    "kind": "control",
+    "scenario": "I'm designing a REST endpoint that creates a new resource (POST /orders) and returns the created order. Which HTTP status code should a successful creation return, and is there a header I should set to point at the new resource?",
+    "rubric": "PASS if the answer says a successful resource creation should return HTTP 201 Created (not just 200), and ideally mentions setting the Location header to the URL of the newly created resource. FAIL if it recommends 200 as the correct/primary code for a creation with no mention of 201, or recommends an inappropriate code (e.g. 204) for a response that returns the created body.",
+    "retrieval_query": "rest post create resource http status 201 created location header"
+  }
+]

@@ -1,0 +1,114 @@
+{
+  "kept": [
+    {
+      "title": "configure_task metric spec: metric+direction+measure_command required, direction ∈ {min,max}",
+      "summary": "Server-side validateMetricSpec rejects (400) any inline metric spec missing a string `metric`, a string `measure_command`, or a `direction` that isn't exactly \"min\" or \"max\". `guardrails` is optional but if present must be an array where EACH item independently carries its own metric, direction (min|max), and measure_command. The overlay store just stores what it's handed — validation is the daemon's job.",
+      "evidence": "daemon.js:414 (validateMetricSpec); lib/overlay.js:432",
+      "kind": "invariant",
+      "source": "4,5"
+    },
+    {
+      "title": "Benchmark record requires metric+numeric value+non-empty source; confidence ∈ {low,med,high}",
+      "summary": "validateBenchmark rejects (400, leaving any prior benchmark untouched) unless the record has a string `metric`, a non-NaN numeric `value`, and a string `source`. `confidence` is optional but must be one of low/med/high. Absent any benchmark ⇒ baseline-only judging (back-compat). The figure is researched by the self-learn-benchmark agent, not the daemon.",
+      "evidence": "daemon.js:436 (validateBenchmark); lib/overlay.js:462",
+      "kind": "invariant",
+      "source": "6"
+    },
+    {
+      "title": "Auth is opt-in; when ORCH_TOKEN set, a default-deny allowlist gates writes + any ?workspace= read",
+      "summary": "No token (env ORCH_TOKEN or <BASE>/token file) ⇒ every endpoint open (localhost back-compat). When set, the protected set is broader than just core writes — it covers /mcp, /reset, /overlay/*, /loop/start, /loop/stop, /workspace, /usage/reconcile, /usage/dispatcher-edit, /peek, /config, /route, /agent/*, /git/*, /guidance*, /supersede, /judge/verdict, /analytics/tool-call, /sync — PLUS any request carrying ?workspace= (cross-workspace reads are gated too). Token accepted via Bearer header, x-orch-token header, or ?token= query param.",
+      "evidence": "daemon.js:1811-1814 (protectedPath); daemon.js:47 (authed)",
+      "kind": "invariant",
+      "source": "9"
+    },
+    {
+      "title": "Ghost-blocked tasks idle at maxPoll (default 1200s), they don't stop the loop",
+      "summary": "When the only remaining work is waiting on cross-workspace (ghost) dependencies, the heartbeat returns action:'idle' with next_poll_seconds = maxPoll (the longest backoff) rather than stopping — so the loop survives long enough for a foreign workspace to complete. In-flight work backs off only to min(maxPoll, minPoll*2).",
+      "evidence": "daemon.js:1015 (ghostWait branch), daemon.js:1014",
+      "kind": "decision",
+      "source": "2"
+    },
+    {
+      "title": "Default heartbeat loop config (newLoop): budget 100k, 200 iters, poll 30–1200s, batch 8, maxConcurrency 10",
+      "summary": "A freshly minted loop ships these exact defaults: tokenBudget 100000, maxIterations 200, minPoll 30, maxPoll 1200, estPerTick 800, batch 8, maxConcurrency 10, judgeParallelCap 6. A loop with no progress for 30 min (STALE_PROGRESS_MIN_DEFAULT) is swept to inactive. These differ from the smaller values the orch-loop scaffold suggests (e.g. budget 80k, maxPoll 300).",
+      "evidence": "daemon.js:272 (newLoop config), daemon.js:268",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "HTTP responses send Connection: close to avoid keep-alive request-splitting",
+      "summary": "Every daemon response writes the `Connection: close` header (alongside CORS `*`). This is a deliberate framing choice to avoid request-splitting bugs on keep-alive connections — not a default; the send() helper hard-codes it.",
+      "evidence": "daemon.js:1650 (send writeHead)",
+      "kind": "decision",
+      "source": "16"
+    },
+    {
+      "title": "orch-gate exempts memory/settings/CLAUDE.md/scratch/logs/.mcp.json; /tmp + orchestrator source are NOT exempt",
+      "summary": "The PreToolUse Write/Edit gate skips (exit 0) for paths under .claude/projects/*/memory/*, settings.json/local, keybindings/launch.json, .mcp.json, CLAUDE.md, .claude/tasks/* and orchestrator/tasks/*, */scratch/*, and *.log|*/logs/*. Critically /tmp/* and the orchestrator's OWN source (.claude/orchestrator/**, except its tasks dir) fall through to the claim check — workers can't bypass via /tmp. ORCH_GATE_OFF=1 in the process env skips entirely, and an unreachable daemon fails OPEN (exit 0) so an outage never bricks editing.",
+      "evidence": "hooks/orch-gate.sh:21-49",
+      "kind": "convention",
+      "source": "14,13"
+    },
+    {
+      "title": "Gate enforces worktree branch isolation: claimed task with a registered worktree must edit on orch/attempt/*",
+      "summary": "If the session's claimed task has a registered git branch (branch_task was called), the gate resolves the branch of the EDIT TARGET's directory (not the session's cwd, which is main) and denies (exit 2) unless it's an orch/attempt/* branch. This is why a worker that claimed but skipped branch_task gets blocked, and why writes must go through the returned worktree path.",
+      "evidence": "hooks/orch-gate.sh:55-71",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Three-source reconciliation: native files win for native fields; hooks only signal a re-read",
+      "summary": "Task state is ingested from native files (~/.claude/tasks/*.json — truth for status + intra-session deps), TaskCreated/Completed hooks (low-latency signal only; they DON'T carry deps or in_progress, so they trigger a file re-read), and agent MCP reports (truth for non-native fields only: cross-session edges, richer status, notes). Conflict rule: on a native field the file wins; non-native fields live only in the overlay so there's nothing to reconcile.",
+      "evidence": "_README.bak:68-80; daemon.js:86-122 (aggregateCached/adoptNativeTask)",
+      "kind": "invariant",
+      "source": "0,1"
+    },
+    {
+      "title": "merge_attempt on conflict ABORTS to a clean tree and returns {merged:false,conflict,files} — never leaves markers",
+      "summary": "tryMerge collects conflicted paths (git diff --diff-filter=U) then aborts the merge, returning {merged:false, conflict:true, files:[...], branch}. The judge records the conflict instead of forcing a merge or leaving conflict markers in the tree — losing branches stay clean for later inspection.",
+      "evidence": "lib/git.js:164-178",
+      "kind": "decision",
+      "source": "3"
+    },
+    {
+      "title": "Optimize precedence: target-converged → stuck(escalate) → diminishing → budget → iterate",
+      "summary": "decideOptimize resolves first-match-wins. 'stuck' (last K rounds all no-winner or guardrail-regressed) is deliberately ranked ABOVE the silent stop reasons so a genuinely-broken metric problem escalates to a human via request_guidance and halts the loop — it NEVER auto-cancels or replans. Target-met beats everything; diminishing-returns and budget are the two silent stops.",
+      "evidence": "lib/optimize.js:52-57",
+      "kind": "decision",
+      "source": "8"
+    },
+    {
+      "title": "SSE /events pushes 'data: changed' on every mutation; a slow-poll fallback still runs",
+      "summary": "notifyChange() is the single mutation choke point: it clears the response cache AND writes `data: changed` to all SSE clients (evicting dead ones), so the web/inline UI refreshes instantly instead of on a timer. A slow-poll fallback remains so the UI stays correct if the SSE stream drops. SSE needs no TLS — it runs over plain http://localhost.",
+      "evidence": "daemon.js:258 (notifyChange)",
+      "kind": "decision",
+      "source": "15,10"
+    },
+    {
+      "title": "Multi-workspace is read-only: ?workspace= serves any graph, but writes target the current workspace only",
+      "summary": "GET reads (/state, /task/context, /task/detail, /task/tree, /task/adjacent) accept ?workspace=<abs path> to serve any workspace without a restart. By design, writes (/overlay/*, /reset, loop control) still target only the current workspace — set via POST /workspace.",
+      "evidence": "_README.bak:396-401; daemon.js:1814 (?workspace gated as a write-tier read)",
+      "kind": "invariant",
+      "source": "11"
+    },
+    {
+      "title": "Benchmark methodology: measure work with output_tokens, not gross−plumbing 'net'",
+      "summary": "When comparing orchestrator-ON vs OFF cost, the project measures with output_tokens — NOT a 'gross minus MCP plumbing' net figure, which is misleading. Cost overhead is dominated by cache_read of the loaded context; lean payloads bring ON cost to near parity with OFF.",
+      "evidence": "_README.bak:545 (Metric caveat)",
+      "kind": "convention",
+      "source": "18"
+    },
+    {
+      "title": "Graph value on the bench suite is 'unproven, not disproven' — specs were self-solvable",
+      "summary": "The benchmark specs turned out self-solvable, so the graph was never strictly REQUIRED to pass them — meaning a measured win can't be claimed. Don't over-read benchmark parity as evidence the graph doesn't help; the proper test (a task where context is actually required) hasn't been run. Frame benchmark claims accordingly.",
+      "evidence": "_README.bak:539-544",
+      "kind": "decision",
+      "source": "17"
+    }
+  ],
+  "rejected": [
+    { "candidate": "7: rather than fabricating a number", "reason": "restatement" },
+    { "candidate": "12: always one click away", "reason": "generic" },
+    { "candidate": "19: binary cannot execute, spike steps 2-4", "reason": "unverifiable" }
+  ]
+}

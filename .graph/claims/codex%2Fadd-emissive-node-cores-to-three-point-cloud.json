@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/add-emissive-node-cores-to-three-point-cloud",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "019eef9f-bc70-7541-8f76-379400ff71e1",
+  "branch": "orch/attempt/codex-add-emissive-node-cores-to-three-point-cloud",
+  "status": "tested",
+  "claimed_at": "2026-06-22T14:51:54.381Z",
+  "lease_until": "2026-06-22T15:51:54.381Z",
+  "completed_at": "2026-06-22T18:20:28.390Z"
+}

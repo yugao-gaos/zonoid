@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/inject-concurrency-batch-ingest",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-inject-concurrency-batch-ingest-active-session",
+  "branch": "orch/attempt/codex-inject-concurrency-batch-ingest",
+  "status": "done",
+  "claimed_at": "2026-06-24T02:51:05.560Z",
+  "lease_until": "2026-06-24T03:51:05.560Z",
+  "completed_at": "2026-06-25T01:47:15.062Z"
+}

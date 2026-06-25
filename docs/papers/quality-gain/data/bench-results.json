@@ -1,0 +1,795 @@
+{
+  "candidate": "overlay-save",
+  "commit": "2bc110f",
+  "note": "post-fix clean run, n=20 per arm",
+  "trials": [
+    {
+      "arm": "off",
+      "trial": 20,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3,
+      "cases": [
+        {
+          "name": "getDiagnostics returns null when unset",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "setDiagnostics / getDiagnostics in-memory round-trip",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics are per-workspace independent",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics survives overlay JSON wipe (graph-store durability)",
+          "edge": true,
+          "pass": false
+        },
+        {
+          "name": "overwrite survives overlay JSON wipe",
+          "edge": true,
+          "pass": false
+        },
+        {
+          "name": "null diagnostics survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        }
+      ],
+      "tokens": {
+        "input": 13906,
+        "output": 44141,
+        "cache_read": 1643974,
+        "cache_creation": 159009,
+        "gross": 1861030,
+        "net": 58047,
+        "cost_eq": 597769.65
+      }
+    },
+    {
+      "arm": "off",
+      "trial": 21,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3,
+      "cases": [
+        {
+          "name": "getDiagnostics returns null when unset",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "setDiagnostics / getDiagnostics in-memory round-trip",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics are per-workspace independent",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics survives overlay JSON wipe (graph-store durability)",
+          "edge": true,
+          "pass": false
+        },
+        {
+          "name": "overwrite survives overlay JSON wipe",
+          "edge": true,
+          "pass": false
+        },
+        {
+          "name": "null diagnostics survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        }
+      ],
+      "tokens": {
+        "input": 17624,
+        "output": 16831,
+        "cache_read": 433773,
+        "cache_creation": 100284,
+        "gross": 568512,
+        "net": 34455,
+        "cost_eq": 270511.3
+      }
+    },
+    {
+      "arm": "off",
+      "trial": 22,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3,
+      "cases": [
+        {
+          "name": "getDiagnostics returns null when unset",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "setDiagnostics / getDiagnostics in-memory round-trip",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics are per-workspace independent",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics survives overlay JSON wipe (graph-store durability)",
+          "edge": true,
+          "pass": false
+        },
+        {
+          "name": "overwrite survives overlay JSON wipe",
+          "edge": true,
+          "pass": false
+        },
+        {
+          "name": "null diagnostics survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        }
+      ],
+      "tokens": {
+        "input": 13636,
+        "output": 28233,
+        "cache_read": 1032090,
+        "cache_creation": 171813,
+        "gross": 1245772,
+        "net": 41869,
+        "cost_eq": 472776.25
+      }
+    },
+    {
+      "arm": "off",
+      "trial": 23,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3,
+      "cases": [
+        {
+          "name": "getDiagnostics returns null when unset",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "setDiagnostics / getDiagnostics in-memory round-trip",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics are per-workspace independent",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics survives overlay JSON wipe (graph-store durability)",
+          "edge": true,
+          "pass": false
+        },
+        {
+          "name": "overwrite survives overlay JSON wipe",
+          "edge": true,
+          "pass": false
+        },
+        {
+          "name": "null diagnostics survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        }
+      ],
+      "tokens": {
+        "input": 8824,
+        "output": 12848,
+        "cache_read": 456517,
+        "cache_creation": 76506,
+        "gross": 554695,
+        "net": 21672,
+        "cost_eq": 214348.2
+      }
+    },
+    {
+      "arm": "off",
+      "trial": 24,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3,
+      "cases": [
+        {
+          "name": "getDiagnostics returns null when unset",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "setDiagnostics / getDiagnostics in-memory round-trip",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics are per-workspace independent",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics survives overlay JSON wipe (graph-store durability)",
+          "edge": true,
+          "pass": true
+        },
+        {
+          "name": "overwrite survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        },
+        {
+          "name": "null diagnostics survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        }
+      ],
+      "tokens": {
+        "input": 14353,
+        "output": 49908,
+        "cache_read": 3548814,
+        "cache_creation": 260574,
+        "gross": 3873649,
+        "net": 64261,
+        "cost_eq": 944491.9
+      }
+    },
+    {
+      "arm": "on-gated",
+      "trial": 20,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3,
+      "cases": [
+        {
+          "name": "getDiagnostics returns null when unset",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "setDiagnostics / getDiagnostics in-memory round-trip",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics are per-workspace independent",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics survives overlay JSON wipe (graph-store durability)",
+          "edge": true,
+          "pass": true
+        },
+        {
+          "name": "overwrite survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        },
+        {
+          "name": "null diagnostics survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        }
+      ],
+      "tokens": {
+        "input": 16188,
+        "output": 62938,
+        "cache_read": 2768706,
+        "cache_creation": 204305,
+        "gross": 3052137,
+        "net": 79126,
+        "cost_eq": 863129.8500000001
+      }
+    },
+    {
+      "arm": "on-gated",
+      "trial": 21,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3,
+      "cases": [
+        {
+          "name": "getDiagnostics returns null when unset",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "setDiagnostics / getDiagnostics in-memory round-trip",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics are per-workspace independent",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics survives overlay JSON wipe (graph-store durability)",
+          "edge": true,
+          "pass": false
+        },
+        {
+          "name": "overwrite survives overlay JSON wipe",
+          "edge": true,
+          "pass": false
+        },
+        {
+          "name": "null diagnostics survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        }
+      ],
+      "tokens": {
+        "input": 20525,
+        "output": 68557,
+        "cache_read": 1337349,
+        "cache_creation": 208489,
+        "gross": 1634920,
+        "net": 89082,
+        "cost_eq": 757656.15
+      }
+    },
+    {
+      "arm": "on-gated",
+      "trial": 22,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3,
+      "cases": [
+        {
+          "name": "getDiagnostics returns null when unset",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "setDiagnostics / getDiagnostics in-memory round-trip",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics are per-workspace independent",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics survives overlay JSON wipe (graph-store durability)",
+          "edge": true,
+          "pass": true
+        },
+        {
+          "name": "overwrite survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        },
+        {
+          "name": "null diagnostics survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        }
+      ],
+      "tokens": {
+        "input": 11452,
+        "output": 104980,
+        "cache_read": 4156950,
+        "cache_creation": 230526,
+        "gross": 4503908,
+        "net": 116432,
+        "cost_eq": 1240204.5
+      }
+    },
+    {
+      "arm": "on-gated",
+      "trial": 23,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3,
+      "cases": [
+        {
+          "name": "getDiagnostics returns null when unset",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "setDiagnostics / getDiagnostics in-memory round-trip",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics are per-workspace independent",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics survives overlay JSON wipe (graph-store durability)",
+          "edge": true,
+          "pass": true
+        },
+        {
+          "name": "overwrite survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        },
+        {
+          "name": "null diagnostics survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        }
+      ],
+      "tokens": {
+        "input": 16065,
+        "output": 81987,
+        "cache_read": 3164780,
+        "cache_creation": 205551,
+        "gross": 3468383,
+        "net": 98052,
+        "cost_eq": 999416.75
+      }
+    },
+    {
+      "arm": "on-gated",
+      "trial": 24,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3,
+      "cases": [
+        {
+          "name": "getDiagnostics returns null when unset",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "setDiagnostics / getDiagnostics in-memory round-trip",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics are per-workspace independent",
+          "edge": false,
+          "pass": true
+        },
+        {
+          "name": "diagnostics survives overlay JSON wipe (graph-store durability)",
+          "edge": true,
+          "pass": true
+        },
+        {
+          "name": "overwrite survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        },
+        {
+          "name": "null diagnostics survives overlay JSON wipe",
+          "edge": true,
+          "pass": true
+        }
+      ],
+      "tokens": {
+        "input": 11033,
+        "output": 67498,
+        "cache_read": 2621093,
+        "cache_creation": 187160,
+        "gross": 2886784,
+        "net": 78531,
+        "cost_eq": 844582.3
+      }
+    },
+    {
+      "arm": "off",
+      "trial": 25,
+      "solved": null,
+      "data_note": "graded at run time only; 2/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 26,
+      "solved": null,
+      "data_note": "graded at run time only; 2/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 27,
+      "solved": null,
+      "data_note": "graded at run time only; 2/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 28,
+      "solved": null,
+      "data_note": "graded at run time only; 2/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 25,
+      "solved": null,
+      "data_note": "graded at run time only; 3/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 26,
+      "solved": null,
+      "data_note": "graded at run time only; 3/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 27,
+      "solved": null,
+      "data_note": "graded at run time only; 3/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 28,
+      "solved": null,
+      "data_note": "graded at run time only; 3/4 solved in this group",
+      "pass": null,
+      "total": 6,
+      "edgePass": null,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 29,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 30,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 31,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 32,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 33,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 34,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 35,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 36,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 37,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 38,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "off",
+      "trial": 39,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 29,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 30,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 31,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 32,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 33,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 34,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 35,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 36,
+      "solved": false,
+      "pass": 4,
+      "total": 6,
+      "edgePass": 1,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 37,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 38,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    },
+    {
+      "arm": "on-gated",
+      "trial": 39,
+      "solved": true,
+      "pass": 6,
+      "total": 6,
+      "edgePass": 3,
+      "edgeTotal": 3
+    }
+  ],
+  "summary": {
+    "off_n": 20,
+    "off_solved": 10,
+    "off_rate": 0.5,
+    "on_n": 20,
+    "on_solved": 16,
+    "on_rate": 0.8,
+    "lift_pp": 30,
+    "token_data_note": "Token data available only for trials 20-24 (n=5 per arm)"
+  }
+}

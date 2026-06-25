@@ -1,0 +1,11 @@
+{
+  "task_key": "codex/exec-brain-state-seam-post-gate-fix",
+  "agent_id": "worker-exec-brain-state-seam-post-gate-fix",
+  "session_id": "019edd13-ad33-7303-931f-14dd4fa7128e",
+  "workspace": "/Users/imyu/Desktop/zonoid",
+  "branch": "orch/attempt/codex-exec-brain-state-seam-post-gate-fix",
+  "status": "done",
+  "claimed_at": "2026-06-18T23:32:32.372Z",
+  "lease_until": "2026-06-19T00:32:32.372Z",
+  "completed_at": "2026-06-18T23:41:21.507Z"
+}

@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "command": "adapters/cursor/post-todo-adopt.sh",
+        "matcher": "TodoWrite|todo_write",
+        "timeout": 10
+      },
+      {
+        "command": "/Users/imyu/.claude/orchestrator/adapters/cursor/post-todo-adopt.sh",
+        "matcher": "TodoWrite|todo_write",
+        "timeout": 10
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": "/Users/imyu/.claude/orchestrator/adapters/cursor/session-start.sh",
+        "timeout": 8
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "/Users/imyu/.claude/orchestrator/adapters/cursor/classify.sh",
+        "timeout": 10
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "/Users/imyu/.claude/orchestrator/adapters/cursor/orch-stop.sh",
+        "matcher": "*"
+      },
+      {
+        "command": "/Users/imyu/.claude/orchestrator/adapters/cursor/orch-gate.sh",
+        "matcher": "Write"
+      },
+      {
+        "command": "/Users/imyu/.claude/orchestrator/adapters/cursor/shell-gate.sh",
+        "matcher": "Shell"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "/Users/imyu/.claude/orchestrator/adapters/cursor/before-shell-gate.sh"
+      }
+    ],
+    "subagentStart": [
+      {
+        "command": "/Users/imyu/.claude/orchestrator/adapters/cursor/subagent-start.sh"
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "/Users/imyu/.claude/orchestrator/adapters/cursor/subagent-stop.sh"
+      }
+    ]
+  }
+}

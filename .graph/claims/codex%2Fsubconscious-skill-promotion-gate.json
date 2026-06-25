@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/subconscious-skill-promotion-gate",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "019eea11-b1d8-71e3-b810-edd9fb047b9c",
+  "branch": "orch/attempt/codex-subconscious-skill-promotion-gate",
+  "status": "done",
+  "claimed_at": "2026-06-21T20:19:50.236Z",
+  "lease_until": "2026-06-21T21:19:50.236Z",
+  "completed_at": "2026-06-21T20:30:26.163Z"
+}

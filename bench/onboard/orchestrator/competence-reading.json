@@ -1,0 +1,129 @@
+{
+  "summary": {
+    "n": 11,
+    "n_project": 7,
+    "n_control": 4,
+    "cold_rate_overall": 0.5454545454545454,
+    "cold_rate_control": 1,
+    "cold_rate_project": 0.2857142857142857,
+    "kb_rate_overall": 0.9090909090909091,
+    "kb_rate_project": 0.8571428571428571,
+    "kb_earned_rate_project": 0.5714285714285714
+  },
+  "guard": {
+    "trustworthy": true,
+    "verdicts": []
+  },
+  "rows": [
+    {
+      "id": "proj-workspace-hijack",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 3,
+      "cold_reason": "The candidate correctly identifies the cause pattern — server auto-detects its working directory (process.cwd()) on startup and writes that back to the shared workspace pointer — which matches the rubric's required cause. However, the fix proposed is wrong: the candidate says to make initialization 'read-only from the shared store,' whereas the rubric requires the fix to be honoring an explicit ORCH_WORKSPACE environment variable (falling back to cwd only when unset) so a worktree-bound agent can load the MCP without moving the shared pointer. The candidate's fix is a different mechanism (passive read vs. env-var override), and the rubric explicitly requires tying the fix to an explicit workspace override via env var or explicit arg.",
+      "kb_reason": "The answer correctly identifies that mcp-graph.js posted process.cwd() as the daemon workspace on startup (causing the worktree-bound agent to silently repoint the global workspace pointer), and names the fix as introducing ORCH_WORKSPACE so the server uses an explicit override instead of cwd, allowing a worktree agent to load the MCP without hijacking the shared workspace pointer."
+    },
+    {
+      "id": "proj-hold-merge",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 3,
+      "cold_reason": "The candidate explicitly says it cannot tell how this specific project's loop behaves and defers to the user to grep the code. It hedges rather than identifying the project's actual default: isolated orch/attempt/<slug> worktrees, no edits to the live checkout, MERGE-PENDING completion state, and a hold-merge / human-review gate. The rubric requires these specifics to be stated; instead the candidate gives generic advice about 'most frameworks' without naming the hold-merge default or the worktree isolation pattern. This is the hedge case the rubric explicitly fails.",
+      "kb_reason": "The answer correctly states that by default the loop operates in hold-merge mode, runs tasks in isolated worktrees on orch/attempt/<slug> branches, never auto-merges to main or the live checkout, and requires a human review/merge decision. The morning expectation of auto-merged live code is explicitly called out as wrong."
+    },
+    {
+      "id": "proj-cost-parity-null",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 2,
+      "cold_reason": "The candidate refused to answer, citing lack of access. While honesty about uncertainty is valid, the rubric requires reporting the project's actual null finding (parity on work quality, cost delta from cache_read). A refusal does not report the correct conclusion and therefore cannot PASS.",
+      "kb_reason": "The answer correctly reports the null/parity finding: loading the graph context produced no measurable work improvement on self-solvable tasks. It correctly locates the cost delta in cache_read tokens from re-attending the loaded payload and tool schemas each turn. The additional note about the accounting artifact is accurate bonus detail that doesn't contradict the rubric's criteria."
+    },
+    {
+      "id": "proj-net-metric-artifact",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": true,
+      "kb_earned": true,
+      "retrieved_n": 1,
+      "cold_reason": "The candidate answer says it doesn't know and provides no assessment of whether the gross-minus-plumbing approach is valid or flawed. It neither identifies the cache_read mis-bucketing flaw nor states that the 65% figure is spurious. The rubric requires a definitive statement that the approach was found untrustworthy for that specific reason.",
+      "kb_reason": "The answer correctly identifies the 65% figure as spurious and names the specific flaw: cache_read tokens being bucketed into plumbing, causing gross-minus-plumbing to strip cached-context tokens and inflate apparent savings. It also correctly states the replacement metric is output_tokens."
+    },
+    {
+      "id": "proj-stop-signal-inprocess",
+      "kind": "project",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 2,
+      "cold_reason": "The answer correctly explains that the in-process heartbeat does not rely on the PreToolUse hook, that both the hook and the in-process loop read the same shared stop signal (just at different check points), and explicitly concludes that no second/divergent stop mechanism should be added — only a single check of the existing shared signal at the loop boundary if not already present.",
+      "kb_reason": "The answer correctly explains that the in-process heartbeat loop does not rely on the PreToolUse hook; instead next_action itself polls the same shared cancel/stop signal at the start of each tick. It accurately describes the stop path as a single shared signal source, correctly characterizes the at-most-one-tick latency, and explicitly concludes that no second stop mechanism should be added — matching all PASS criteria."
+    },
+    {
+      "id": "proj-sync-authority",
+      "kind": "project",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 5,
+      "cold_reason": "The candidate correctly identifies that the authoritative source for native fields (deps, in_progress) is the primary state store — not the hook payload. It explicitly frames hooks as notifications/signals rather than snapshots, explains the blank-then-restore as a read-your-writes gap (implicit multi-source reconciliation), and rejects the teammate's fix as wrong-layer on the grounds that it shifts staleness rather than resolving it. The recommended fix — read from the authoritative source after the hook fires — is exactly the source-authority reconciliation the rubric requires. The candidate does not say hooks should carry deps/in_progress, does not treat the hook as authoritative, and does not miss the source-authority distinction.",
+      "kb_reason": "The answer correctly identifies hooks as low-latency signals only that do not carry deps/in_progress, names the file-read of native task JSON as the authoritative source for native fields, explains the multi-source reconciliation by authority, and explicitly calls out the teammate's fix as wrong-layer. All rubric criteria are met."
+    },
+    {
+      "id": "proj-escalation-set",
+      "kind": "project",
+      "cold_correct": false,
+      "kb_correct": false,
+      "kb_earned": false,
+      "retrieved_n": 3,
+      "cold_reason": "The candidate answer refuses to enumerate the triggers and provides no enumerated set at all, only generic advice on where to look. The rubric requires the five specific named conditions; the answer gives none of them.",
+      "kb_reason": "The candidate lists only three conditions (no passing attempt, conflicting winner, genuinely ambiguous choice) and explicitly concedes incompleteness. It misses at least three of the five required triggers: ambiguous intent (as a distinct named trigger), irreversible action, scope expansion, and repeated failure as a standalone condition. The rubric requires all five enumerated triggers; listing two or three and admitting the rest are unknown does not meet the threshold."
+    },
+    {
+      "id": "ctl-git-revert-pushed",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly recommends `git revert <sha>` which creates a new forward commit undoing the changes without rewriting history, followed by a normal `git push`. This is exactly the safe approach for shared branches. It explicitly avoids force-push/reset, and correctly conveys the principle that history remains intact so teammates can simply `git pull`.",
+      "kb_reason": "The answer correctly recommends git revert to create a new inverse commit, explicitly contrasts it with reset+force-push, and provides the correct push workflow — fully satisfying the rubric's requirement for a non-history-rewriting undo."
+    },
+    {
+      "id": "ctl-sql-injection",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly identifies SQL injection as the vulnerability and prescribes parameterized queries as the fix, explaining why they work (query and parameters sent separately so user input is never interpreted as SQL). Meets all rubric requirements.",
+      "kb_reason": "The answer correctly identifies SQL injection as the vulnerability, explains how untrusted input is concatenated into the query, and prescribes parameterized queries with bound parameters as the fix, with concrete examples using both pg and mysql2 syntax."
+    },
+    {
+      "id": "ctl-async-await-loop",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly diagnoses that forEach ignores the returned promises from async callbacks, causing immediate return and 'done' logging before saves complete, plus explains the unhandled rejection issue. The fix correctly uses Promise.all with .map to collect and await all promises, and also offers the for...of alternative for sequential execution.",
+      "kb_reason": "The answer correctly identifies that forEach ignores the returned promises from async callbacks, explains why 'done' logs immediately, and why rejections are unhandled. The fix correctly uses Promise.all with .map to collect and await all promises, and also offers the for...of alternative for sequential execution."
+    },
+    {
+      "id": "ctl-http-status-post",
+      "kind": "control",
+      "cold_correct": true,
+      "kb_correct": true,
+      "kb_earned": false,
+      "retrieved_n": 0,
+      "cold_reason": "The answer correctly identifies 201 Created as the status code for successful resource creation and mentions setting the Location header to the new resource's URL, satisfying both criteria in the rubric.",
+      "kb_reason": "Answer correctly identifies 201 Created as the appropriate status code and explicitly mentions setting the Location header to the new resource URL, satisfying both rubric criteria."
+    }
+  ]
+}

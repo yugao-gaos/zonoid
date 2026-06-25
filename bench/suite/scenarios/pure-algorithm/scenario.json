@@ -1,0 +1,10 @@
+{
+  "name": "pure-algorithm",
+  "description": "Implement a MedianFinder data structure supporting addNum/findMedian in O(log n) / O(1). KB context provides no advantage — tests pure algorithmic ability.",
+  "spec": "bench/suite/scenarios/pure-algorithm/spec.md",
+  "artifact": "bench/sandbox/solution.js",
+  "grader": "bench/suite/scenarios/pure-algorithm/grader.js",
+  "minimalSource": "bench/suite/scenarios/pure-algorithm/minimal-source",
+  "kb_required": false,
+  "kb_partial": false
+}

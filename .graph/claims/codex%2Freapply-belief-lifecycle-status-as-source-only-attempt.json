@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/reapply-belief-lifecycle-status-as-source-only-attempt",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-4143-458db022ea5576e3bf220d7e0bfc10ab",
+  "branch": "orch/attempt/codex-reapply-belief-lifecycle-status-as-source-only-attempt",
+  "status": "done",
+  "claimed_at": "2026-06-23T14:37:07.995Z",
+  "lease_until": "2026-06-23T15:37:07.995Z",
+  "completed_at": "2026-06-23T14:44:06.514Z"
+}

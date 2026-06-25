@@ -1,0 +1,103 @@
+{
+  "kept": [
+    {
+      "title": "Planner builds attempt NODES but never calls branch_task (it targets the daemon workspace)",
+      "summary": "When building a problem→attempts→judge subtree, the planner creates attempt task nodes with TaskCreate and wires the judge blocked_by each attempt, but must NOT call branch_task — branch_task targets the daemon workspace (~/.claude/orchestrator), not the code repo. The attempt WORKERS create their own worktree at spawn time.",
+      "evidence": "skills/self-learn-planner/SKILL.md:7-11",
+      "kind": "gotcha",
+      "source": "3"
+    },
+    {
+      "title": "request_guidance HALTS the autonomous loop — avoid it in hold-merge mode",
+      "summary": "request_guidance halts the heartbeat loop, so in autonomous hold-merge mode you must NOT call it for ordinary priority/scope/ambiguity calls. Prefer BUILDING: pick a sharp initiative, wire it, let it build; the human reviews merges in the morning. Same reason the judge skill forbids request_guidance under the loop.",
+      "evidence": "skills/self-learn-planner/SKILL.md:11-13; skills/self-learn-judge/SKILL.md:15",
+      "kind": "gotcha",
+      "source": "5"
+    },
+    {
+      "title": "Planner no-fly zone = {in_progress, ready, not_ready} — only ADD nodes, never touch open work",
+      "summary": "The planner's 'open' set is exactly in_progress / ready / not_ready; this is the no-fly zone it must never cancel or supersede (re-planning live work is the user's call). It may only ADD nodes. This guardrail exists because the skill caused a runaway once.",
+      "evidence": "skills/self-learn-planner/SKILL.md:25-27,59",
+      "kind": "invariant",
+      "source": "16"
+    },
+    {
+      "title": "get_learnings().rejected[] schema: source:'verdict' (reason+beatenBy) vs source:'failure' (reason/note)",
+      "summary": "The rejected-approaches ledger entries each carry a source: 'verdict' = an approach tried-and-lost (with the reason it lost and the beatenBy winner), or 'failure' = a genuine dead end (with reason/note). The daemon pre-filters superseded/duplicate/consolidated work, so every entry is something NOT to re-propose.",
+      "evidence": "skills/self-learn-planner/SKILL.md:54-57",
+      "kind": "invariant",
+      "source": "14"
+    },
+    {
+      "title": "Initiatives adjacent to a rejected verdict MUST cite that prior verdict in the description",
+      "summary": "When a new initiative touches an approach that appears in get_learnings().rejected[] as a source:'verdict' loser, its task description MUST name the earlier approach, its reason for losing, and the beatenBy winner, and state how it differs. This propagates the lesson so the next planner run inherits it via the rejected ledger instead of relitigating the loss.",
+      "evidence": "skills/self-learn-planner/SKILL.md:89-94",
+      "kind": "convention",
+      "source": "19"
+    },
+    {
+      "title": "Never leave a new task as a disconnected root — wire ≥1 context edge by hand if needed",
+      "summary": "Every new task must be wired in; if suggest_links returns nothing relevant, attach at least one context edge to the most related done/note node manually. Disconnected root nodes are a failure mode.",
+      "evidence": "skills/self-learn-planner/SKILL.md:87-88",
+      "kind": "convention",
+      "source": "18"
+    },
+    {
+      "title": "Metric mode is purely additive: no metric spec/measurements ⇒ unchanged test-pass+rationale path",
+      "summary": "The judge's metric-aware path never blocks an older problem. With no metric spec or no measurements, judging falls back to the original test-pass + rationale path unchanged; metric mode only adds an axis on top. Absent node.benchmark ⇒ baseline-only comparison.",
+      "evidence": "skills/self-learn-judge/SKILL.md:159-161",
+      "kind": "invariant",
+      "source": "1"
+    },
+    {
+      "title": "HOLD-MERGE is the default judge mode: never merge, never halt — merging main is a human call",
+      "summary": "Under the autonomous heartbeat loop the judge picks a winner but does NOT merge_attempt/git merge, does NOT remove_worktree/cancel (preserve every attempt branch+worktree for human diff), and does NOT request_guidance. Everything is queued for morning human review. Legacy merge steps run ONLY if overlay.config.auto_merge === true.",
+      "evidence": "skills/self-learn-judge/SKILL.md:7-16",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Judge encodes review queue via summary prefixes ⏸ MERGE PENDING / ⚠ NEEDS ATTENTION on P",
+      "summary": "After judging, problem P is set done with a summary STARTING with the literal sentinel '⏸ MERGE PENDING — <winner_branch>: <why>' (winner found, awaiting human merge) or '⚠ NEEDS ATTENTION — all attempts failed: <reasons>' (no winner). These prefixes are how the morning human review and downstream tooling find queued work.",
+      "evidence": "skills/self-learn-judge/SKILL.md:14-15",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Attempt workers must measure_task baseline BEFORE any file edit, else abort",
+      "summary": "An attempt worker captures the baseline metric via measure_task on problem P before any edits and stores it as 'baseline' via enqueue_kb. If measure_task fails or returns null, it must abort and report — never edit files before a baseline exists.",
+      "evidence": "skills/self-learn-planner/SKILL.md:110-113",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Daemon-touching attempts must run an isolated daemon on a separate port, never the live :8787",
+      "summary": "If a candidate approach modifies daemon.js, the attempt worktree must spin up its own daemon instance (e.g. ORCH_PORT=8799 CLAUDE_PLUGIN_DATA=/tmp/orch-test-$$ node daemon.js &) and measure against that port — never restart or modify the live :8787 daemon during an attempt.",
+      "evidence": "skills/self-learn-planner/SKILL.md:115-122",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Benchmark records require a real source — daemon rejects a record with no source",
+      "summary": "Every recorded benchmark must carry a real source/citation (provenance, not a guess); the daemon rejects a record with no source. Confidence is an enum {low, med, high}. configure_task(benchmark) overwrites idempotently, and clearing with an empty benchmark is safe.",
+      "evidence": "skills/self-learn-benchmark/SKILL.md:40-42,63-64,67-68",
+      "kind": "invariant",
+      "source": "discovered"
+    }
+  ],
+  "rejected": [
+    { "candidate": "0: Never fabricate a benchmark", "reason": "generic" },
+    { "candidate": "2: request_guidance to halt the loop", "reason": "restatement" },
+    { "candidate": "4: Prefer BUILDING over escalating", "reason": "restatement" },
+    { "candidate": "6: NEVER cancel/supersede in-flight task", "reason": "restatement" },
+    { "candidate": "7: NEVER create a duplicate open task", "reason": "generic" },
+    { "candidate": "8: Always suggest_links BEFORE TaskCreate", "reason": "stale" },
+    { "candidate": "9: Do not fabricate work to look busy", "reason": "generic" },
+    { "candidate": "10: ambiguous/strategic call request_guidance", "reason": "generic" },
+    { "candidate": "11: Escalate, don't improvise", "reason": "generic" },
+    { "candidate": "12: do NOT re-propose a settled question", "reason": "restatement" },
+    { "candidate": "13: superseded-by-X vs genuine dead ends", "reason": "restatement" },
+    { "candidate": "15: dead end source:'failure'", "reason": "restatement" },
+    { "candidate": "17: canceled/failed avoid repeating", "reason": "restatement" }
+  ]
+}

@@ -1,0 +1,5 @@
+theme: jekyll-theme-minimal
+title: Zonoid
+description: Self-learning task knowledge graph for coding agents
+baseurl: ""
+url: "https://yugao-gaos.github.io/zonoid"

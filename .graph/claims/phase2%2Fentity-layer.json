@@ -1,0 +1,11 @@
+{
+  "task_key": "phase2/entity-layer",
+  "agent_id": "phase2-entity-a1",
+  "session_id": "1fddb664-b25f-4ee6-8607-ab0613297573",
+  "workspace": "D:/zonoid",
+  "branch": "orch/attempt/phase2-entity-layer",
+  "status": "done",
+  "claimed_at": "2026-06-18T06:43:35.237Z",
+  "lease_until": "2026-06-18T07:43:35.237Z",
+  "completed_at": "2026-06-18T16:20:46.372Z"
+}

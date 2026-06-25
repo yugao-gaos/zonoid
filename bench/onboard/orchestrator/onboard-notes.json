@@ -1,0 +1,1509 @@
+{
+  "kept": [
+    {
+      "title": "Five escalation triggers ship ON: ambiguous_intent, irreversible_action, low_confidence_high_impact, repeated_failure, scope_expansion",
+      "summary": "ESCALATION_DEFAULTS enumerates exactly these five situations where the autonomous loop stops and asks the user instead of guessing; all default true and are tunable per-workspace via POST /config { escalation }. An off-repo engineer cannot guess this exact set.",
+      "evidence": "daemon.js:191-193",
+      "kind": "decision",
+      "source": "0"
+    },
+    {
+      "title": "Optimize-loop convergence defaults: epsilon=0.01, diminishing_rounds=3",
+      "summary": "lib/optimize.js DEFAULTS sets epsilon (per-cycle improvement below which a round counts as 'diminishing') to 0.01 and K (consecutive sub-epsilon rounds that trigger converge/stuck) to 3. Budget reuses the loop's existing tokenBudget — there is no separate knob. Tunable via POST /config { optimize }.",
+      "evidence": "lib/optimize.js:12; daemon.js:201",
+      "kind": "decision",
+      "source": "1"
+    },
+    {
+      "title": "suggest_links flags a re-plan duplicate at label/summary overlap >= 0.6 (open, non-note tasks only)",
+      "summary": "SUGGEST_DUP_THRESHOLD=0.6; a match counts as a duplicate only when score>=0.6 AND the target is in an OPEN status AND its kind !== 'note'. Notes are deliberately excluded from dup detection.",
+      "evidence": "daemon.js:1085,1141,1182",
+      "kind": "invariant",
+      "source": "2"
+    },
+    {
+      "title": "MCP default protocol version is hardcoded '2025-06-18'",
+      "summary": "DEFAULT_PROTOCOL='2025-06-18' is echoed back on initialize unless the client supplies its own protocolVersion. serverInfo reports name 'orchestrator-graph' version '0.1.0'.",
+      "evidence": "lib/mcp-core.js:21,199",
+      "kind": "convention",
+      "source": "4"
+    },
+    {
+      "title": "measure commands time out at 120000ms (2 min) so a runaway can't hang the daemon",
+      "summary": "DEFAULT_TIMEOUT_MS=120000 bounds every runMeasure/execSync call; a per-call timeout overrides it. This is the guardrail that keeps a hanging measure command from blocking the daemon.",
+      "evidence": "lib/measure.js:12,40,53",
+      "kind": "invariant",
+      "source": "5"
+    },
+    {
+      "title": "Context-edge weight defaults to 0.5 when absent; absence is intentional back-compat",
+      "summary": "DEFAULT_CONTEXT_WEIGHT=0.5 is the value read whenever an edge has no numeric weight field, so omitting weight stays backward-compatible. Weight is ignored entirely for blocking/supersede edges.",
+      "evidence": "lib/overlay.js:68,73,344,366",
+      "kind": "convention",
+      "source": "6"
+    },
+    {
+      "title": "Decision-extraction dedup drops candidates at cosine >= 0.45, overridable via EXTRACT_DEDUP_THRESHOLD",
+      "summary": "scripts/extract-decisions.js DEDUP_THRESHOLD = Number(process.env.EXTRACT_DEDUP_THRESHOLD || 0.45): a candidate whose top existing-note hit scores >= threshold is treated as already-known and dropped. Disable with --no-dedup.",
+      "evidence": "scripts/extract-decisions.js:39,216,249",
+      "kind": "convention",
+      "source": "7"
+    },
+    {
+      "title": "Native task IDs are session-local; cross-session/cross-harness refs MUST be namespaced <session-uuid>/<id>",
+      "summary": "Graph task keys are <harness>/<id> (e.g. cursor/3, local/7) and Claude's are <session-uuid>/<id>; the scheme exists so keys from different sessions/harnesses never collide. Bare numeric IDs like '1','2' are unique only within one session — any cross-session reference must carry the namespace.",
+      "evidence": "docs/adapter-contract.md:128; docs/multi-harness-plan.md:54",
+      "kind": "invariant",
+      "source": "18,19"
+    },
+    {
+      "title": "Note RAG recall bar is 0.40, deliberately below the old 0.55 precision bar",
+      "summary": "RAG_RECALL_THRESHOLD=0.40 governs which semantic note neighbors are RECALLED for an agent to adjudicate; it was set below the former 0.55 precision bar on purpose — the daemon recalls broadly and the judge agent decides keep/prune, rather than the daemon filtering precisely.",
+      "evidence": "daemon.js:1287-1297",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Lexical task->task autowire was REMOVED; autowiring is now whole-graph semantic at 0.55",
+      "summary": "The old lexical task->task autowire path and its DEFAULT_AUTOWIRE_THRESHOLD (~0.25) were removed because lexical fusion regressed; autowireNewTaskWholeGraph now scores semantically over the whole graph gated at SEMANTIC_AUTOWIRE_THRESHOLD=0.55. Any reference to DEFAULT_AUTOWIRE_THRESHOLD in current code lives in tests/comments, not a live constant.",
+      "evidence": "daemon.js:1193,1237,1241; test/autowire-weight0-promotion.test.js:14",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Catch-all session burning >= 1,000,000 tokens with zero graph output auto-raises a 'review' escalation",
+      "summary": "CATCHALL_ESCALATE_TOKENS=1e6: a catch-all/cost-flow session node that spends this many tokens while producing ZERO graph-visible outputs trips a 'review' escalation item — the daemon's guard against burning without producing.",
+      "evidence": "daemon.js:194-196",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "configure_task metric spec: metric+direction+measure_command required, direction ∈ {min,max}",
+      "summary": "Server-side validateMetricSpec rejects (400) any inline metric spec missing a string `metric`, a string `measure_command`, or a `direction` that isn't exactly \"min\" or \"max\". `guardrails` is optional but if present must be an array where EACH item independently carries its own metric, direction (min|max), and measure_command. The overlay store just stores what it's handed — validation is the daemon's job.",
+      "evidence": "daemon.js:414 (validateMetricSpec); lib/overlay.js:432",
+      "kind": "invariant",
+      "source": "4,5"
+    },
+    {
+      "title": "Benchmark record requires metric+numeric value+non-empty source; confidence ∈ {low,med,high}",
+      "summary": "validateBenchmark rejects (400, leaving any prior benchmark untouched) unless the record has a string `metric`, a non-NaN numeric `value`, and a string `source`. `confidence` is optional but must be one of low/med/high. Absent any benchmark ⇒ baseline-only judging (back-compat). The figure is researched by the self-learn-benchmark agent, not the daemon.",
+      "evidence": "daemon.js:436 (validateBenchmark); lib/overlay.js:462",
+      "kind": "invariant",
+      "source": "6"
+    },
+    {
+      "title": "Auth is opt-in; when ORCH_TOKEN set, a default-deny allowlist gates writes + any ?workspace= read",
+      "summary": "No token (env ORCH_TOKEN or <BASE>/token file) ⇒ every endpoint open (localhost back-compat). When set, the protected set is broader than just core writes — it covers /mcp, /reset, /overlay/*, /loop/start, /loop/stop, /workspace, /usage/reconcile, /usage/dispatcher-edit, /peek, /config, /route, /agent/*, /git/*, /guidance*, /supersede, /judge/verdict, /analytics/tool-call, /sync — PLUS any request carrying ?workspace= (cross-workspace reads are gated too). Token accepted via Bearer header, x-orch-token header, or ?token= query param.",
+      "evidence": "daemon.js:1811-1814 (protectedPath); daemon.js:47 (authed)",
+      "kind": "invariant",
+      "source": "9"
+    },
+    {
+      "title": "Ghost-blocked tasks idle at maxPoll (default 1200s), they don't stop the loop",
+      "summary": "When the only remaining work is waiting on cross-workspace (ghost) dependencies, the heartbeat returns action:'idle' with next_poll_seconds = maxPoll (the longest backoff) rather than stopping — so the loop survives long enough for a foreign workspace to complete. In-flight work backs off only to min(maxPoll, minPoll*2).",
+      "evidence": "daemon.js:1015 (ghostWait branch), daemon.js:1014",
+      "kind": "decision",
+      "source": "2"
+    },
+    {
+      "title": "Default heartbeat loop config (newLoop): budget 100k, 200 iters, poll 30–1200s, batch 8, maxConcurrency 10",
+      "summary": "A freshly minted loop ships these exact defaults: tokenBudget 100000, maxIterations 200, minPoll 30, maxPoll 1200, estPerTick 800, batch 8, maxConcurrency 10, judgeParallelCap 6. A loop with no progress for 30 min (STALE_PROGRESS_MIN_DEFAULT) is swept to inactive. These differ from the smaller values the orch-loop scaffold suggests (e.g. budget 80k, maxPoll 300).",
+      "evidence": "daemon.js:272 (newLoop config), daemon.js:268",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "HTTP responses send Connection: close to avoid keep-alive request-splitting",
+      "summary": "Every daemon response writes the `Connection: close` header (alongside CORS `*`). This is a deliberate framing choice to avoid request-splitting bugs on keep-alive connections — not a default; the send() helper hard-codes it.",
+      "evidence": "daemon.js:1650 (send writeHead)",
+      "kind": "decision",
+      "source": "16"
+    },
+    {
+      "title": "orch-gate exempts memory/settings/CLAUDE.md/scratch/logs/.mcp.json; /tmp + orchestrator source are NOT exempt",
+      "summary": "The PreToolUse Write/Edit gate skips (exit 0) for paths under .claude/projects/*/memory/*, settings.json/local, keybindings/launch.json, .mcp.json, CLAUDE.md, .claude/tasks/* and orchestrator/tasks/*, */scratch/*, and *.log|*/logs/*. Critically /tmp/* and the orchestrator's OWN source (.claude/orchestrator/**, except its tasks dir) fall through to the claim check — workers can't bypass via /tmp. ORCH_GATE_OFF=1 in the process env skips entirely, and an unreachable daemon fails OPEN (exit 0) so an outage never bricks editing.",
+      "evidence": "hooks/orch-gate.sh:21-49",
+      "kind": "convention",
+      "source": "14,13"
+    },
+    {
+      "title": "Gate enforces worktree branch isolation: claimed task with a registered worktree must edit on orch/attempt/*",
+      "summary": "If the session's claimed task has a registered git branch (branch_task was called), the gate resolves the branch of the EDIT TARGET's directory (not the session's cwd, which is main) and denies (exit 2) unless it's an orch/attempt/* branch. This is why a worker that claimed but skipped branch_task gets blocked, and why writes must go through the returned worktree path.",
+      "evidence": "hooks/orch-gate.sh:55-71",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Three-source reconciliation: native files win for native fields; hooks only signal a re-read",
+      "summary": "Task state is ingested from native files (~/.claude/tasks/*.json — truth for status + intra-session deps), TaskCreated/Completed hooks (low-latency signal only; they DON'T carry deps or in_progress, so they trigger a file re-read), and agent MCP reports (truth for non-native fields only: cross-session edges, richer status, notes). Conflict rule: on a native field the file wins; non-native fields live only in the overlay so there's nothing to reconcile.",
+      "evidence": "_README.bak:68-80; daemon.js:86-122 (aggregateCached/adoptNativeTask)",
+      "kind": "invariant",
+      "source": "0,1"
+    },
+    {
+      "title": "merge_attempt on conflict ABORTS to a clean tree and returns {merged:false,conflict,files} — never leaves markers",
+      "summary": "tryMerge collects conflicted paths (git diff --diff-filter=U) then aborts the merge, returning {merged:false, conflict:true, files:[...], branch}. The judge records the conflict instead of forcing a merge or leaving conflict markers in the tree — losing branches stay clean for later inspection.",
+      "evidence": "lib/git.js:164-178",
+      "kind": "decision",
+      "source": "3"
+    },
+    {
+      "title": "Optimize precedence: target-converged → stuck(escalate) → diminishing → budget → iterate",
+      "summary": "decideOptimize resolves first-match-wins. 'stuck' (last K rounds all no-winner or guardrail-regressed) is deliberately ranked ABOVE the silent stop reasons so a genuinely-broken metric problem escalates to a human via request_guidance and halts the loop — it NEVER auto-cancels or replans. Target-met beats everything; diminishing-returns and budget are the two silent stops.",
+      "evidence": "lib/optimize.js:52-57",
+      "kind": "decision",
+      "source": "8"
+    },
+    {
+      "title": "SSE /events pushes 'data: changed' on every mutation; a slow-poll fallback still runs",
+      "summary": "notifyChange() is the single mutation choke point: it clears the response cache AND writes `data: changed` to all SSE clients (evicting dead ones), so the web/inline UI refreshes instantly instead of on a timer. A slow-poll fallback remains so the UI stays correct if the SSE stream drops. SSE needs no TLS — it runs over plain http://localhost.",
+      "evidence": "daemon.js:258 (notifyChange)",
+      "kind": "decision",
+      "source": "15,10"
+    },
+    {
+      "title": "Multi-workspace is read-only: ?workspace= serves any graph, but writes target the current workspace only",
+      "summary": "GET reads (/state, /task/context, /task/detail, /task/tree, /task/adjacent) accept ?workspace=<abs path> to serve any workspace without a restart. By design, writes (/overlay/*, /reset, loop control) still target only the current workspace — set via POST /workspace.",
+      "evidence": "_README.bak:396-401; daemon.js:1814 (?workspace gated as a write-tier read)",
+      "kind": "invariant",
+      "source": "11"
+    },
+    {
+      "title": "Benchmark methodology: measure work with output_tokens, not gross−plumbing 'net'",
+      "summary": "When comparing orchestrator-ON vs OFF cost, the project measures with output_tokens — NOT a 'gross minus MCP plumbing' net figure, which is misleading. Cost overhead is dominated by cache_read of the loaded context; lean payloads bring ON cost to near parity with OFF.",
+      "evidence": "_README.bak:545 (Metric caveat)",
+      "kind": "convention",
+      "source": "18"
+    },
+    {
+      "title": "Graph value on the bench suite is 'unproven, not disproven' — specs were self-solvable",
+      "summary": "The benchmark specs turned out self-solvable, so the graph was never strictly REQUIRED to pass them — meaning a measured win can't be claimed. Don't over-read benchmark parity as evidence the graph doesn't help; the proper test (a task where context is actually required) hasn't been run. Frame benchmark claims accordingly.",
+      "evidence": "_README.bak:539-544",
+      "kind": "decision",
+      "source": "17"
+    },
+    {
+      "title": "Cross-workspace (ghost) edges are stored in the CONSUMER's overlay",
+      "summary": "An edge whose provider lives in another workspace (fromWorkspace set) is written to the overlay of the workspace that owns `to` — the consumer, never the provider. Foreign refs are namespaced `ghost:<workspace>|<key>` and skipped by the frontier; their status is resolved lazily (one read per workspace per request, cached). Edge kinds are blocking|context|supersede.",
+      "evidence": "lib/overlay.js:341-352, routes/task.js:69, daemon.js:1325",
+      "kind": "invariant",
+      "source": "0"
+    },
+    {
+      "title": "Cross-session task references must be namespaced {session-uuid}/{id}",
+      "summary": "Native Claude task ids are session-local; any reference that crosses sessions must be `{session-uuid}/{id}`. The harness dispatch layer routes by namespace: a `<session-uuid>/…` key goes to the claude adapter, a `<registered-harness>/…` key (file-drop stubs) to that adapter; bare ids are namespaced to the stub's own harness.",
+      "evidence": "lib/harness.js:15-67, lib/filedrop-tasks.js:26-34, routes/classify.js:122",
+      "kind": "convention",
+      "source": "4,5"
+    },
+    {
+      "title": "self-learn-planner may only ADD nodes — it caused a runaway once",
+      "summary": "The planner must NEVER cancel/supersede/touch any in-flight task — in_progress/ready/not_ready is the 'no-fly zone' (re-planning live work is the user's call). It only adds nodes, hard-capped at 1-3 new initiatives. The guardrail header literally records that this skill caused a runaway once.",
+      "evidence": "skills/self-learn-planner/SKILL.md:25-31,59",
+      "kind": "gotcha",
+      "source": "6,7"
+    },
+    {
+      "title": "Optimize loop: 'stuck' escalates to a human, ordered BEFORE the silent stops",
+      "summary": "decideOptimize precedence (first match wins): target-converged → stuck → diminishing-converged → budget → iterate. 'stuck' (no winning attempt, or every attempt regressed a guardrail, for K rounds) deliberately precedes the silent stop reasons so a genuinely broken problem reaches a human via request_guidance instead of being quietly dropped. Defaults: epsilon=0.01, diminishing_rounds K=3.",
+      "evidence": "lib/optimize.js:12,53-79, daemon.js:197-200",
+      "kind": "decision",
+      "source": "8,9"
+    },
+    {
+      "title": "Five escalation triggers ship default-ON, tunable via POST /config {escalation}",
+      "summary": "ESCALATION_DEFAULTS = ambiguous_intent, irreversible_action, low_confidence_high_impact, repeated_failure, scope_expansion — all true. Separately, a catch-all session node burning CATCHALL_ESCALATE_TOKENS (1e6) with ZERO graph-visible output raises a 'review' escalation (burning without producing).",
+      "evidence": "daemon.js:191-196",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Bench WIN requires all four guards to PASS",
+      "summary": "An ON arm only counts as a WIN if it clears: precondition H_off >= 2×W_off (hardness must dominate raw work); fairness both-arm solve-rate >= 0.8; margin METRIC>0 AND gap>1 pooled stdev; corroboration W_on/W_off <= 1.1 (ON isn't winning just by writing less code). METRIC = (H_off−H_on)×5 − C, cost C = cache_read×0.1 + cache_creation×1.25.",
+      "evidence": "bench/report.md:52,59-64",
+      "kind": "convention",
+      "source": "11,12"
+    },
+    {
+      "title": "PLUMBING token accounting under-counts the always-resident MCP schema tax",
+      "summary": "MCP tool-schema tokens are cached (cache_creation/cache_read) and amortized across the session, so they are not attributable to individual messages. PLUMBING captures only the tool_use/tool_result round-trips; treat NET as an upper bound on work-only cost and PLUMBING as a lower bound on true orchestration overhead.",
+      "evidence": "bench/report-v2.md:31-36",
+      "kind": "gotcha",
+      "source": "10"
+    },
+    {
+      "title": "orch-gate fails OPEN — a daemon outage never bricks editing",
+      "summary": "The PreToolUse Write/Edit gate denies only on a definitive 'no claim for this session'. Missing session id, an `orch off` marker, an unreachable daemon (curl --max-time 0.6 empty), or ORCH_GATE_OFF=1 all exit 0 (allow).",
+      "evidence": "hooks/orch-gate.sh:11-12,21,44,49",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "orch-gate path allowlist: what bypasses the claim check (and what never does)",
+      "summary": "Exempt (always exit 0): */memory/* (incl. MEMORY.md), settings.json/settings.local.json, keybindings/launch.json, .mcp.json, CLAUDE.md, */scratch/*, *.log + */logs/*, .claude/tasks/*, .claude/orchestrator/tasks/*. Deliberately NOT exempt: /tmp and /private/tmp (workers must use claimed worktrees) and the orchestrator source under .claude/orchestrator/** — that's the substantive work the gate exists to route.",
+      "evidence": "hooks/orch-gate.sh:29-41",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Gate enforces the worktree branch, resolved from the edit target not the cwd",
+      "summary": "If the claimed task has a registered worktree (git.branch set via branch_task), writes must land on an orch/attempt/* branch. The branch is checked at the EDIT TARGET's directory, not the hook's ambient cwd (which is the session root = main), so a worker editing inside its attempt worktree is allowed even though HEAD at the root is main.",
+      "evidence": "hooks/orch-gate.sh:51-72, commit a77e380",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Main/dispatcher trivial-patch escape hatch: <=20 lines AND <=800 chars",
+      "summary": "A main/driving session with no claim is allowed ONE trivial inline patch per turn — TRIVIAL_MAX_LINES=20 and TRIVIAL_MAX_CHARS=800 (both must hold) — and only while /dispatcher/children reports at least one running worker. Subagents get zero tolerance: no claim → deny.",
+      "evidence": "hooks/orch-gate-trivial.sh:4-5, hooks/orch-gate.sh:79-92",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Autowired edges are weight-0 and retrieval-invisible until the judge promotes them",
+      "summary": "Cosine autowire creates context edges with weight 0 and meta {by:'autowire', judged:false, score:<cosine>}, so the weight-0 multiplier hides them from retrieval until a keep-verdict promotes the weight (seeded from the saved cosine). `origin` ('autowire-lexical'|'autowire-semantic'|'asserted') lets keep-rate analysis isolate the threshold-gated population from hand-asserted edges.",
+      "evidence": "lib/overlay.js:345-350",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Task assignee is a logical name; transcript records key on random harness agent_ids",
+      "summary": "A task's recorded assignee is the LOGICAL worker name passed to start_task, but the agent record carrying transcript_path is registered by the SubagentStart hook under an opaque random harness agent_id. The two never match by key, so you cannot look up a task's transcript by its assignee id.",
+      "evidence": "daemon.js:1387-1389",
+      "kind": "invariant",
+      "source": "13"
+    },
+    {
+      "title": "Task transcripts are recovered by same-session time-window correlation, not by id",
+      "summary": "Because assignee ids never equal the transcript-bearing run ids, harnessTranscriptForTask correlates instead: among agents in the SAME session, it picks the one whose [startedAt,endedAt] interval overlaps the task's claim window (overlay firstSeen..lastChanged) the most. Returns that run's transcript_path or null.",
+      "evidence": "daemon.js:1386-1412",
+      "kind": "convention",
+      "source": "2"
+    },
+    {
+      "title": "Session-shared transcript fallback is gated so it never double-counts across tasks",
+      "summary": "taskTranscript's final fallback (the task's whole-session transcript) is gated by anySession: taskTokens only permits it when the session maps to a single task, so a conversation-wide total is never painted across many tasks. /costflow always permits it because splitSessionTokens divides the shared total honestly.",
+      "evidence": "daemon.js:1414-1434",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Real daemon widens the claim window asymmetrically: missing end -> now, missing start -> null",
+      "summary": "harnessTranscriptForTask defensively parses the claim window: an unparseable lastChanged widens to Date.now(), but a NaN winStart returns null (it bails, not widen). NOTE the bench/specs/v4-hard.md synthetic task deliberately specifies the opposite (missing start -> -Infinity) to make the reimplementation harder; do not assume the spec rule reflects the daemon.",
+      "evidence": "daemon.js:1399-1401 vs bench/specs/v4-hard.md:48-49",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "taskTokens prefers recorded per-task usage and only reads the transcript file as fallback",
+      "summary": "taskTokens first calls usageAccounting.taskOutputFromRecords(overlay, key); a positive value short-circuits and is returned directly. Only when no per-task usage record exists does it resolve and parse the transcript JSONL. Recorded output always wins over transcript-derived totals.",
+      "evidence": "daemon.js:1437-1444",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Autonomous loop HOLDS all code work — never merges to main",
+      "summary": "By default every code-producing task the loop spawns commits to an isolated branch and reaches `done` with a 'MERGE PENDING' summary; the loop never merges and never halts on guidance — it queues everything for human review in the morning. Merging to main is strictly a human decision.",
+      "evidence": "skills/orch-loop/SKILL.md:6-9",
+      "kind": "decision",
+      "source": "1"
+    },
+    {
+      "title": "Attempt work isolates in worktree on branch orch/attempt/<slug>",
+      "summary": "Spawned code tasks must work in a git worktree off the code repo on a branch named `orch/attempt/<slug>` (slug derived from task key). This naming is load-bearing: routes/overlay.js refuses a start_task claim unless the worktree branch starts with `orch/attempt/`, and analytics classifies these as exploration tasks.",
+      "evidence": "lib/git.js:30, routes/overlay.js:153, skills/orch-loop/SKILL.md:7-8",
+      "kind": "convention",
+      "source": "3"
+    },
+    {
+      "title": "loop_control defaults (the exact shipped caps)",
+      "summary": "A new loop ships with tokenBudget=100000, maxIterations=200, minPoll=30s, maxPoll=1200s, estPerTick=800, batch=8, maxConcurrency=10, judgeParallelCap=6. These are HARD caps the daemon enforces (the loop auto-stops on iteration or token cap). An off-repo engineer cannot guess these.",
+      "evidence": "daemon.js:272 (config default), daemon.js:680-681,863-864",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "loop_control(start) INSERTS a loop; pass session for cooperative stop",
+      "summary": "loop_control(action:'start') never clobbers an existing loop — it inserts a new keyed loop and returns its loopId, so many loops run concurrently in one registry. Pass session=conversation id so a cancel on that session's claimed task makes the daemon return action:'stop' within one tick (the in-process tick can't be interrupted by the PreToolUse hook, so the daemon enforces the stop instead).",
+      "evidence": "skills/orch-loop/SKILL.md:23,42-48; daemon.js:742",
+      "kind": "invariant",
+      "source": "5"
+    },
+    {
+      "title": "One heartbeat drives the WHOLE loop registry — batched, single reschedule",
+      "summary": "next_action returns {loops:[...]} with one entry per ACTIVE loop, and you reschedule exactly ONE ScheduleWakeup with delay = MIN next_poll_seconds across still-active entries — never a wakeup chain per loop. Empty array (or every entry stop/await_user) ⇒ do NOT reschedule. Call ScheduleWakeup directly, not via any /loop wrapper.",
+      "evidence": "skills/orch-loop/SKILL.md:17-20,27,40",
+      "kind": "convention",
+      "source": "6"
+    },
+    {
+      "title": "start_task 409 means already-claimed — SKIP, never force-takeover",
+      "summary": "If start_task returns 409 (task already in_progress by another agent/loop this tick), skip it and let the next heartbeat re-poll. Force-takeover causes a respawn-forever loop: an unwired/un-startable task that 409s burns a worker slot each tick, so the daemon explicitly never spawns it.",
+      "evidence": "skills/orch-loop/SKILL.md:31; daemon.js:869-870",
+      "kind": "gotcha",
+      "source": "7"
+    },
+    {
+      "title": "Optimize iteration must propose a DIFFERENT change, never the prior winner",
+      "summary": "On action:'optimize', the planner is scoped to problem P and fed prior_verdict; it must wire a NEW attempts→judge round proposing a DIFFERENT change — never a repeat of prior_verdict.winner — and must only ADD the attempt subtree, never cancel/replan P.",
+      "evidence": "skills/orch-loop/SKILL.md:38",
+      "kind": "invariant",
+      "source": "9"
+    },
+    {
+      "title": "Planner is additive-only — never cancel/supersede in-flight work",
+      "summary": "The self-learn-planner only ADDs nodes; it must never cancel, supersede, or replan any in_progress/ready/not_ready task, and must suggest_links + dedup BEFORE TaskCreate (incl. the rejected-approaches ledger). The guardrail exists because this skill caused a runaway once.",
+      "evidence": "skills/self-learn-planner/SKILL.md:25-33",
+      "kind": "invariant",
+      "source": "10"
+    },
+    {
+      "title": "Dashboard + daemon live on port 8787; always surface the link",
+      "summary": "The daemon serves on port 8787 (override via ORCH_PORT) and the convention is to include 📊 http://localhost:8787/graph in replies during task-graph work. The port is a project-chosen default, not guessable.",
+      "evidence": "daemon.js:37; skills/orch-loop/SKILL.md; CLAUDE.md",
+      "kind": "convention",
+      "source": "16"
+    },
+    {
+      "title": "Operate the daemon only via MCP tools — never shell it directly",
+      "summary": "All interaction goes through the MCP tool surface; agents must not shell the daemon directly. The daemon is dumb-on-purpose (recall/store/serve), and the agent is the intelligence — bypassing MCP skips the gates/wiring the protocol depends on.",
+      "evidence": "skills/self-learn-planner/SKILL.md:42",
+      "kind": "convention",
+      "source": "17"
+    },
+    {
+      "title": "Edge-judge MUST run on model sonnet, never haiku",
+      "summary": "All self-learn-edge-judge fan-outs (judge_edges, judge_eager, eager node-judges) are pinned to model sonnet — never haiku, because haiku's verdict discrimination degrades to rubber-stamp keeps, defeating the conservative default-NO-edge criterion.",
+      "evidence": "skills/orch-loop/SKILL.md:32-33",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Planner must NOT call branch_task — it targets the workspace, not the code repo",
+      "summary": "branch_task creates a worktree against the task's configured repo, else the daemon WORKSPACE — so the planner builds problem→attempts→judge as plain TaskCreate nodes and lets the attempt WORKERS make their own worktrees off the code repo at spawn time. Calling branch_task from the planner would isolate work in the wrong (workspace) substrate.",
+      "evidence": "skills/self-learn-planner/SKILL.md:7-10; lib/mcp-core.js:134",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Heartbeat judge runs HOLD-MERGE: never merges to main, never halts the loop",
+      "summary": "Under the autonomous loop the self-learn-judge picks a winner but does NOT call merge_attempt/git merge and does NOT request_guidance — merging into main is a human decision. It preserves every attempt branch + worktree and sets the problem P to done with a summary prefixed '⏸ MERGE PENDING — <winner_branch>: <why>' (or '⚠ NEEDS ATTENTION — all attempts failed' for no-winner). Everything is queued for morning human review; nothing is escalated mid-run. Legacy merge steps 4–5 apply ONLY if overlay.config.auto_merge === true.",
+      "evidence": "skills/self-learn-judge/SKILL.md:7-16",
+      "kind": "invariant",
+      "source": "6"
+    },
+    {
+      "title": "Judge has two modes gated on presence of metric spec + measurements",
+      "summary": "self-learn-judge judges METRIC-FIRST (improvement vs baseline, guardrail regressions, gap to competitor benchmark) only when get_task_detail(P).metric is present AND attempts carry node.measurement data; otherwise it falls back to test-outcome-then-rationale (eliminate failed, pick simplest/cleanest passing diff). Metric mode is purely additive and never blocks older problems.",
+      "evidence": "skills/self-learn-judge/SKILL.md:50-56",
+      "kind": "decision",
+      "source": "5"
+    },
+    {
+      "title": "Metric judge weighs tradeoffs by judgment — deliberately NOT a weighted-score formula",
+      "summary": "The metric-aware judge reads three signals (improvement, guardrail regressions, benchmark gap) and weighs them with judgment; it is explicitly NOT a fixed weighted-score arithmetic. Benchmark influence is scaled by confidence: high sways close calls, med is a soft tiebreaker, low barely matters.",
+      "evidence": "skills/self-learn-judge/SKILL.md:107,139",
+      "kind": "convention",
+      "source": "18"
+    },
+    {
+      "title": "Judge only EVALUATES — it never generates or edits a solution",
+      "summary": "Rival generation happens upstream; the judge subagent reads measurements + benchmark and weighs tradeoffs but must never write code or invent/edit an attempt. This separation keeps the daemon dumb and the loop's branch/test/judge stages cleanly divided.",
+      "evidence": "skills/self-learn-judge/SKILL.md:108-109,157",
+      "kind": "convention",
+      "source": "14"
+    },
+    {
+      "title": "A guardrail regression is a near-veto in metric judging",
+      "summary": "An attempt that improves the headline metric but regresses any guardrail should almost never beat a clean attempt with a smaller gain — a regression is a near-veto, not a footnote. Each regression must be recorded as 'metric: base→meas' in the verdict; if every attempt regresses a guardrail or none improves, there is NO viable winner.",
+      "evidence": "skills/self-learn-judge/SKILL.md:124-130,143",
+      "kind": "convention",
+      "source": "15"
+    },
+    {
+      "title": "Absent benchmark ⇒ judge baseline-only; never fabricate a benchmark",
+      "summary": "When node.benchmark is present the judge weighs the gap to the competitor figure (confidence-weighted); when absent it degrades to baseline-only and must NOT invent or assume a benchmark. This back-compat degradation is automatic — a node with no benchmark simply gets baseline-only judging.",
+      "evidence": "skills/self-learn-judge/SKILL.md:136-137,159",
+      "kind": "convention",
+      "source": "17"
+    },
+    {
+      "title": "Judge/benchmark subagents operate ONLY via MCP tools — never shell git/daemon directly",
+      "summary": "All git ops (branch_task/merge_attempt/remove_worktree) and daemon state changes go through MCP tools; subagents never run git or hit the daemon directly. This is the 'daemon stays dumb, intelligence lives in the skill' architecture — wanting a new endpoint signals overreach.",
+      "evidence": "skills/self-learn-judge/SKILL.md:41,153; skills/self-learn-benchmark/SKILL.md:22",
+      "kind": "convention",
+      "source": "10"
+    },
+    {
+      "title": "Five escalation triggers, all default ON; judge uses specific trigger strings",
+      "summary": "The daemon ships exactly five escalation triggers (ESCALATION_DEFAULTS, all default true, tunable per-workspace via POST /config {escalation}): ambiguous_intent, irreversible_action, low_confidence_high_impact, repeated_failure, scope_expansion. The judge calls request_guidance with trigger:'repeated_failure' when all attempts fail and trigger:'irreversible_action' when the winner conflicts on merge — and honors the config toggles (a disabled trigger means proceed).",
+      "evidence": "daemon.js:191-193; skills/self-learn-judge/SKILL.md:62,68",
+      "kind": "decision",
+      "source": "12"
+    },
+    {
+      "title": "configure_task replaces four old setters; repo resolution order is arg > task field > workspace",
+      "summary": "configure_task(task_key, {repo_path,test_cmd,metric,benchmark}) consolidated set_task_repo / set_repo_test_cmd / set_task_metric / set_task_benchmark into one call (fields applied in order repo_path→test_cmd→metric→benchmark). resolveRepo() resolves a task's target git repo as: explicit repo_path arg > task's persisted repo_path field > daemon workspace.",
+      "evidence": "lib/mcp-core.js:123; daemon.js:392",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Stored test_cmd is store/retrieve ONLY — the daemon never executes it",
+      "summary": "test_cmd configured on a task is never run by the daemon; agents (e.g. the nightly QA loop) read it back via get_task_detail and run it themselves. Setting test_cmd REQUIRES repo_path in the same configure_task call because test commands are keyed by ABSOLUTE repo path.",
+      "evidence": "lib/mcp-core.js:123",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Benchmark records require a real source; daemon rejects one without it",
+      "summary": "validateBenchmark requires metric + value + source (string) and confidence ∈ {low,med,high}; 'benchmark.source (string) required' is returned otherwise. Provenance is mandatory by design — a wrong/unsourced benchmark would mislead the judge, so the benchmark skill must record nothing rather than fabricate.",
+      "evidence": "daemon.js:431,440",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Measure commands have a 120s default timeout so a runaway can't hang the daemon",
+      "summary": "lib/measure.js DEFAULT_TIMEOUT_MS = 120000 bounds every measure command (runMeasure/runOne) unless a per-call timeout overrides it. The bound exists specifically so a runaway measure command can't hang the daemon.",
+      "evidence": "lib/measure.js:12,40,53",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Optimize-loop convergence defaults: epsilon 0.01, diminishing_rounds 3, fixed precedence",
+      "summary": "lib/optimize.js DEFAULTS = { epsilon: 0.01, diminishing_rounds: 3 } (tunable via POST /config {optimize}). decideOptimize precedence is first-match-wins: target-converged → stuck → diminishing-converged → budget → iterate; a round counts as diminishing when its per-cycle improvement is < epsilon, and K consecutive such rounds trigger converge.",
+      "evidence": "lib/optimize.js:12,53-83",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Planner builds attempt NODES but never calls branch_task (it targets the daemon workspace)",
+      "summary": "When building a problem→attempts→judge subtree, the planner creates attempt task nodes with TaskCreate and wires the judge blocked_by each attempt, but must NOT call branch_task — branch_task targets the daemon workspace (~/.claude/orchestrator), not the code repo. The attempt WORKERS create their own worktree at spawn time.",
+      "evidence": "skills/self-learn-planner/SKILL.md:7-11",
+      "kind": "gotcha",
+      "source": "3"
+    },
+    {
+      "title": "request_guidance HALTS the autonomous loop — avoid it in hold-merge mode",
+      "summary": "request_guidance halts the heartbeat loop, so in autonomous hold-merge mode you must NOT call it for ordinary priority/scope/ambiguity calls. Prefer BUILDING: pick a sharp initiative, wire it, let it build; the human reviews merges in the morning. Same reason the judge skill forbids request_guidance under the loop.",
+      "evidence": "skills/self-learn-planner/SKILL.md:11-13; skills/self-learn-judge/SKILL.md:15",
+      "kind": "gotcha",
+      "source": "5"
+    },
+    {
+      "title": "Planner no-fly zone = {in_progress, ready, not_ready} — only ADD nodes, never touch open work",
+      "summary": "The planner's 'open' set is exactly in_progress / ready / not_ready; this is the no-fly zone it must never cancel or supersede (re-planning live work is the user's call). It may only ADD nodes. This guardrail exists because the skill caused a runaway once.",
+      "evidence": "skills/self-learn-planner/SKILL.md:25-27,59",
+      "kind": "invariant",
+      "source": "16"
+    },
+    {
+      "title": "get_learnings().rejected[] schema: source:'verdict' (reason+beatenBy) vs source:'failure' (reason/note)",
+      "summary": "The rejected-approaches ledger entries each carry a source: 'verdict' = an approach tried-and-lost (with the reason it lost and the beatenBy winner), or 'failure' = a genuine dead end (with reason/note). The daemon pre-filters superseded/duplicate/consolidated work, so every entry is something NOT to re-propose.",
+      "evidence": "skills/self-learn-planner/SKILL.md:54-57",
+      "kind": "invariant",
+      "source": "14"
+    },
+    {
+      "title": "Initiatives adjacent to a rejected verdict MUST cite that prior verdict in the description",
+      "summary": "When a new initiative touches an approach that appears in get_learnings().rejected[] as a source:'verdict' loser, its task description MUST name the earlier approach, its reason for losing, and the beatenBy winner, and state how it differs. This propagates the lesson so the next planner run inherits it via the rejected ledger instead of relitigating the loss.",
+      "evidence": "skills/self-learn-planner/SKILL.md:89-94",
+      "kind": "convention",
+      "source": "19"
+    },
+    {
+      "title": "Never leave a new task as a disconnected root — wire ≥1 context edge by hand if needed",
+      "summary": "Every new task must be wired in; if suggest_links returns nothing relevant, attach at least one context edge to the most related done/note node manually. Disconnected root nodes are a failure mode.",
+      "evidence": "skills/self-learn-planner/SKILL.md:87-88",
+      "kind": "convention",
+      "source": "18"
+    },
+    {
+      "title": "Metric mode is purely additive: no metric spec/measurements ⇒ unchanged test-pass+rationale path",
+      "summary": "The judge's metric-aware path never blocks an older problem. With no metric spec or no measurements, judging falls back to the original test-pass + rationale path unchanged; metric mode only adds an axis on top. Absent node.benchmark ⇒ baseline-only comparison.",
+      "evidence": "skills/self-learn-judge/SKILL.md:159-161",
+      "kind": "invariant",
+      "source": "1"
+    },
+    {
+      "title": "HOLD-MERGE is the default judge mode: never merge, never halt — merging main is a human call",
+      "summary": "Under the autonomous heartbeat loop the judge picks a winner but does NOT merge_attempt/git merge, does NOT remove_worktree/cancel (preserve every attempt branch+worktree for human diff), and does NOT request_guidance. Everything is queued for morning human review. Legacy merge steps run ONLY if overlay.config.auto_merge === true.",
+      "evidence": "skills/self-learn-judge/SKILL.md:7-16",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Judge encodes review queue via summary prefixes ⏸ MERGE PENDING / ⚠ NEEDS ATTENTION on P",
+      "summary": "After judging, problem P is set done with a summary STARTING with the literal sentinel '⏸ MERGE PENDING — <winner_branch>: <why>' (winner found, awaiting human merge) or '⚠ NEEDS ATTENTION — all attempts failed: <reasons>' (no winner). These prefixes are how the morning human review and downstream tooling find queued work.",
+      "evidence": "skills/self-learn-judge/SKILL.md:14-15",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Attempt workers must measure_task baseline BEFORE any file edit, else abort",
+      "summary": "An attempt worker captures the baseline metric via measure_task on problem P before any edits and stores it as 'baseline' via enqueue_kb. If measure_task fails or returns null, it must abort and report — never edit files before a baseline exists.",
+      "evidence": "skills/self-learn-planner/SKILL.md:110-113",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Daemon-touching attempts must run an isolated daemon on a separate port, never the live :8787",
+      "summary": "If a candidate approach modifies daemon.js, the attempt worktree must spin up its own daemon instance (e.g. ORCH_PORT=8799 CLAUDE_PLUGIN_DATA=/tmp/orch-test-$$ node daemon.js &) and measure against that port — never restart or modify the live :8787 daemon during an attempt.",
+      "evidence": "skills/self-learn-planner/SKILL.md:115-122",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Benchmark records require a real source — daemon rejects a record with no source",
+      "summary": "Every recorded benchmark must carry a real source/citation (provenance, not a guess); the daemon rejects a record with no source. Confidence is an enum {low, med, high}. configure_task(benchmark) overwrites idempotently, and clearing with an empty benchmark is safe.",
+      "evidence": "skills/self-learn-benchmark/SKILL.md:40-42,63-64,67-68",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Worktree per-path lease: <wt>.lease via O_EXCL, stale only if dead-pid AND aged >1h",
+      "summary": "createWorktree acquires an atomic sidecar lease file `<wt>.lease` with the 'wx' (O_EXCL) flag before `git worktree add`, so a second agent racing the SAME path gets {ok:false,held} instead of a colliding git call. A lease is reclaimable ONLY when both conditions hold: the owning pid is dead AND it has aged past ORCH_LEASE_STALE_MS (default 3600000ms = 1h). Same-pid acquisition is re-entrant (treated as held-by-us).",
+      "evidence": "lib/git.js:39,53-77",
+      "kind": "invariant",
+      "source": "10"
+    },
+    {
+      "title": "Note write-gate dup threshold is title-vec cosine >= 0.70, calibrated above same-subsystem p99 (0.66)",
+      "summary": "POST /overlay/note rejects a new note when an existing CURRENT note has title-vec cosine >= DUP_THRESHOLD = 0.70. The value is deliberately calibrated: random-pair p99 is 0.53 and same-subsystem-neighbour p99 is 0.66, so 0.70 sits just above to catch clones without neutering legitimately-near sibling notes. The 0.55–0.70 band is left to the dup-judge (defense-in-depth), not the write gate.",
+      "evidence": "routes/overlay.js:350-361",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Judge dup-CLUSTER threshold (0.80, cap 8) is separate from the note write-gate (0.70)",
+      "summary": "The judge's consolidation pass clusters near-duplicate notes at DUP_RECALL_THRESHOLD = 0.80 with a per-cluster cap of 8, distinct from the write-time guard at 0.70 in routes/overlay.js. Two different cosine thresholds govern duplicates depending on stage: prevention-at-write (0.70) vs after-the-fact consolidation (0.80).",
+      "evidence": "lib/judge.js:494-495",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Frontier pruning formula: keep node if edge weight >= depth*0.30; live nodes get +0.2 leniency",
+      "summary": "frontierKeep prunes by hop depth: a node at depth D is kept if its edge weight >= D*0.30 (done/note), or max(0, D*0.30 - 0.2) for live nodes (the 0.2 bonus keeps active work in scope longer). Blocking edges carry weight 1.0; context edges default to 0.5 when weight is absent. Net effect: blocking reaches live depth 4 / done depth 3, while context (0.5) reaches ~2 hops.",
+      "evidence": "lib/frontier.js:22-27",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Inline MCP-Apps dashboard renders ONLY via the custom-connector (HTTPS) path, not local stdio",
+      "summary": "The inline panel (show_dashboard) is gated to the connector path — a locally-spawned stdio MCP server will NOT render it. This is why setup provisions mkcert HTTPS and asks the user to manually add a custom connector at https://localhost:8788/mcp (No Auth). Fallback when the connector can't be reached: the step-1 preview panel remains the working in-app dashboard.",
+      "evidence": "skills/setup/SKILL.md:50-53",
+      "kind": "gotcha",
+      "source": "6"
+    },
+    {
+      "title": "Two daemon ports: HTTP dashboard on 8787, HTTPS MCP endpoint on 8788",
+      "summary": "The dashboard/daemon HTTP API runs on localhost:8787 (/graph), while the HTTPS MCP transport used by the custom connector runs on localhost:8788/mcp. The same 34 tools are served identically over both stdio and the daemon's /mcp endpoint.",
+      "evidence": "skills/setup/SKILL.md:46-47; README.md:147",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Onboarding KB injection is never automatic: gated behind reversible [ingest]/[auto] overlay notes",
+      "summary": "onboard.js (drop-in entry) has NO inject path of its own — the --confirm gate cannot be reached from the setup trigger; it only emits ONBOARD-REVIEW.md and stops. Injection is a separate explicit human-approved step (onboard-learn.js --inject --confirm). Every injected node is titled `[ingest] …` (auto-extracted ones `[auto] …`) so it stays filterable and removable.",
+      "evidence": "skills/setup/SKILL.md:142-150",
+      "kind": "invariant",
+      "source": "7"
+    },
+    {
+      "title": "Note nodes are bitemporal: supersede stamps validTo and KEEPS history; search_knowledge supports as-of",
+      "summary": "record_decision(supersedes) marks the old note invalid (validTo) rather than deleting it, so as-of retrieval can return the fact CURRENT at a given timestamp instead of just the latest. valid_from optionally backdates when a fact became true. Dashboard surfaces superseded chains dimmed (🕓) with purple-dashed supersede links. record_decision instructs a search_knowledge contradiction-check before recording.",
+      "evidence": "lib/mcp-core.js:105 (record_decision); commit 9 temporal feature",
+      "kind": "decision",
+      "source": "9"
+    },
+    {
+      "title": "Retrieval CI gate: recall@5 >= 0.85 and MRR@5 >= 0.80 (live scorecard ~0.91)",
+      "summary": "test/retrieval-quality.test.js is a deterministic regression guard that rebuilds the injected corpus and asserts aggregate recall@5 >= 0.85 and MRR@5 >= 0.80 over a labeled 28-query eval set keyed on stable note titles. These exact thresholds gate search_knowledge quality in CI; the live scorecard currently sits around recall@5=0.91.",
+      "evidence": "test/retrieval-quality.test.js:19,100-101",
+      "kind": "invariant",
+      "source": "14"
+    },
+    {
+      "title": "Competence harness uses an LLM applied-correctness judge and flags trustworthy:false unless cold-rate is in (0,1)",
+      "summary": "onboard-harness.js grades probes by LLM-judged applied correctness against a rubric — NOT keyword match against the notes' own tokens (the earlier keyword-graded harness gave a circular 0%→100% reading and was discarded). The guard requires the cold (no-KB) pass-rate to be strictly between 0 and 1: if probes are too easy (e.g. cold 11/11, kb 11/11, zero delta) it reports trustworthy:false / DEGENERATE rather than a fake win.",
+      "evidence": "scripts/onboard-harness.js; commits 15,16",
+      "kind": "gotcha",
+      "source": "15"
+    },
+    {
+      "title": "gc-worktrees is dry-run by default; removes ONLY empty or fully-merged-to-main unclaimed worktrees outside 24h retention",
+      "summary": "scripts/gc-worktrees.js reports without acting unless --confirm is passed. Even with --confirm it only GCs EMPTY dirs and GC-ELIGIBLE ones (clean AND fully merged into main AND unclaimed AND aged past --retention-hours, default 24). Anything with uncommitted changes or unmerged commits is NEEDS-ATTENTION and never touched. Policy: worktrees are ephemeral; durable value is merged code + recorded verdict.",
+      "evidence": "scripts/gc-worktrees.js:14-21,31",
+      "kind": "convention",
+      "source": "17"
+    },
+    {
+      "title": "Benchmark verdict: forced context is net-negative across models — opt-in gating is the only viable design",
+      "summary": "Repeated ON/OFF token benchmarks (v5 grounded and v5-haiku) are NO-WINs: even when retrieval works and the right anchor note is engaged, the ON arm does MORE output work (H_on 2,674 > H_off 2,023 on v5; haiku raised hardness 3.7× but ON still exceeded OFF). Conclusion driving the product: forcing context onto every task is net-negative even for weaker models, so the gate must be opt-in/conditional, not always-inject.",
+      "evidence": "bench/report-v5.md, bench/report-v5-haiku.md; commits 18,19",
+      "kind": "decision",
+      "source": "18"
+    },
+    {
+      "title": "Spawn rival branch_task attempts when the best approach is unknown — don't flatten into one task",
+      "summary": "The self-learning design principle: for a 'we don't know the best approach' problem, the planner creates a problem node and lets multiple branch_task attempts compete (judged later), rather than committing to one flat task. The planner also consults get_learnings().rejected[] to avoid relitigating an approach already tried-and-lost.",
+      "evidence": "skills/self-learn-planner/SKILL.md:94-97",
+      "kind": "convention",
+      "source": "1"
+    },
+    {
+      "title": "Five escalation triggers ship default-ON, tunable via POST /config {escalation}",
+      "summary": "ESCALATION_DEFAULTS enumerates exactly five situations where the loop stops and asks the user instead of guessing: ambiguous_intent, irreversible_action, low_confidence_high_impact, repeated_failure, scope_expansion — all default true. Separately, a catch-all session burning CATCHALL_ESCALATE_TOKENS (1e6) tokens with ZERO graph-visible outputs raises a 'review' escalation.",
+      "evidence": "daemon.js:191-197 (ESCALATION_DEFAULTS, CATCHALL_ESCALATE_TOKENS)",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Do NOT demote running→unknown agents on daemon boot — staleness sweep is the sole release",
+      "summary": "Workers are independent OS processes that often survive a daemon restart; an earlier version blind-demoted restored 'running' records to unknown on boot, which let the staleness sweep release live claims and the heartbeat re-spawn duplicate/colliding work. Now restored 'running' is trusted per vouchedLive() and the wall-clock-based staleClaimKeys sweep (downtime counts) is the ONLY release mechanism. This makes candidate-16's 'loaded agents demoted running->unknown on restart' stale.",
+      "evidence": "daemon.js:~232 (BOOT_MS comment block); contradicts commit #11 liveness fix",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Hook-less background workers self-register on claim; the worktree is the security boundary",
+      "summary": "The SubagentStart hook never fires for run_in_background Agent-tool spawns, so those workers never carry agent_tool_spawn:true and start_task refused them all ('dispatcher sessions cannot claim'), deadlocking dispatch. Fix: a claim bearing an agent_id AND a registered worktree (branch_task, which a dispatcher never calls) now self-registers the worker. Claims with NO worktree still 409 — the worktree stays the boundary keeping the dispatcher from claiming.",
+      "evidence": "commit 33781a4 fix(claim): self-register-on-claim; test/self-register-on-claim.test.js",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Retrieval/autowire/dedup thresholds are separately tuned constants",
+      "summary": "RAG_RECALL_THRESHOLD=0.40 is deliberately BELOW the old 0.55 precision bar (it is a recall bar, not precision). SEMANTIC_AUTOWIRE_THRESHOLD=0.55 gates cosine note-provider autowiring. SUGGEST_DUP_THRESHOLD=0.6 flags a re-plan duplicate against OPEN non-note tasks. Judge node-dedup clustering uses DUP_RECALL_THRESHOLD=0.80 (judge neighbor expansion stops below NB_THRESHOLD=0.15).",
+      "evidence": "daemon.js:1085,1193,1307; lib/judge.js:361,494",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "/search is bitemporal: asOf (valid-time) + knownAsOf (transaction-time) + history",
+      "summary": "GET /search ranks notes semantically (embeddings/cosine, gated), and supports two independent time axes: asOf returns the note current at that valid-time instant; knownAsOf is transaction-time ('as the KB was KNOWN at T'), dropping hits whose created_at is after T so a backdated valid_from can't rewrite earlier-knowledge queries. Both compose into the canonical bitemporal query. Default (neither set) returns only still-current notes plus all non-temporal/task nodes.",
+      "evidence": "routes/graph.js:100-130",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "sweepStaleLoops demotes a loop for one of four reasons (with a first-tick grace)",
+      "summary": "The central liveness sweep (60s timer + run inline in the heartbeat) demotes an active loop when: iterations > maxIterations; spent > tokenBudget; its driving session is dead (sessionIsLive false) — but only after a bootstrap grace window since a fresh loop has no RUNNING agent until its first spawn; or no progress for > loop_stale_minutes (default STALE_PROGRESS_MIN_DEFAULT).",
+      "evidence": "daemon.js:673-700 (sweepStaleLoops); setInterval 60000 at :2001",
+      "kind": "invariant",
+      "source": "3"
+    },
+    {
+      "title": "ORCH_WORKSPACE overrides cwd as the daemon workspace pointer (dogfood fix)",
+      "summary": "mcp-graph.js used to POST process.cwd() as the daemon workspace on startup, so ANY process loading the orchestrator MCP (e.g. a headless agent in a git worktree) hijacked the GLOBAL workspace pointer — repointing the live graph and blinding the agent to the real workspace's learnings. It now honors ORCH_WORKSPACE when set (else cwd, unchanged). Bench ON arms pin to the real graph via this var.",
+      "evidence": "mcp-graph.js:15-19; commit 'ORCH_WORKSPACE env' (Dogfood-finding #1)",
+      "kind": "gotcha",
+      "source": "12"
+    },
+    {
+      "title": "Autonomous loop is hold-merge: build in isolation, complete as 'MERGE PENDING', never merge",
+      "summary": "Under the heartbeat loop every code task works in an isolated orch/attempt/<slug> worktree, commits there, and completes with a summary starting '⏸ MERGE PENDING — <branch>: …' — it never edits the live checkout and never merges to main. Merging is a HUMAN decision on review; the loop also does not request_guidance for ordinary priority/scope calls (that would halt it) — it queues everything for the morning.",
+      "evidence": "skills/orch-loop/SKILL.md:9; skills/self-learn-judge/SKILL.md:14; skills/self-learn-planner/SKILL.md:12",
+      "kind": "invariant",
+      "source": "14"
+    },
+    {
+      "title": "self_plan is opt-in (default off); on a drained DAG it returns action:'plan'",
+      "summary": "When the DAG is drained and ov.config.self_plan is set (with budget remaining), decideAction returns action:'plan' so the loop self-plans a next initiative. The flag is opt-in and defaults off — without it a drained loop simply idles rather than inventing work.",
+      "evidence": "daemon.js:1022",
+      "kind": "decision",
+      "source": "18"
+    },
+    {
+      "title": "Loop git ops can target any repo; resolveRepo precedence is explicit > task repos[key] > workspace",
+      "summary": "The self-improvement loop is decoupled from the daemon's own workspace: resolveRepo(key, explicit, ov, ws) resolves a task's target git repo by precedence explicit repo_path > the task's configured repos[key] (configure_task repo_path / POST /git/repo) > the daemon workspace. This lets git worktree ops target an arbitrary client repo distinct from where the daemon runs.",
+      "evidence": "daemon.js:392 resolveRepo; routes/git.js, routes/task.js call sites",
+      "kind": "convention",
+      "source": "10"
+    },
+    {
+      "title": "ON/OFF benchmark: a 'may consult' preamble yields zero consults — consult must be MANDATED",
+      "summary": "The v1 A/B harness got a null result: with the permissive 'may consult' preamble and self-contained specs, opus called NO graph tools, so the only ON-arm delta was the passive MCP schema tax. This drove bench-arm.js's five consult modes — permissive (default), mandatory, lean (mandatory + get_learnings compact:true), search (must call search_knowledge), dagrag (DAG + RAG both) — so the ON arm actually exercises the graph.",
+      "evidence": "scripts/bench-arm.js:49-97,133; commit 'orch-ON vs orch-OFF harness + v1 baseline'",
+      "kind": "gotcha",
+      "source": "11"
+    },
+    {
+      "title": "Benchmark win metric: METRIC = (H_off − H_on)×5 − C with four PASS/FAIL guards",
+      "summary": "bench-report.js decomposes per-arm tokens into W (real-work = diff tokens), H (hardness = output − W), and per-problem C (consult overhead = ON − OFF cache cost). The win metric is (H_off − H_on) × OUTPUT_W(5) − C, gated by four guards: precondition H_off ≥ 2×W_off, fairness both-solve ≥ 0.8, margin METRIC > 0 and > 1 pooled stdev, corroboration W_on/W_off ≤ 1.1.",
+      "evidence": "scripts/bench-report.js:219-246,325-354",
+      "kind": "convention",
+      "source": "5"
+    },
+    {
+      "title": "Benchmark headline: actual work is parity ON vs OFF; the cost delta is all cache_read",
+      "summary": "The ON-vs-OFF token study found ACTUAL WORK (output tokens) is at parity with/without the graph; the entire cost delta is cache_read of loaded context. A compact payload brings cost to parity too (cost-weighted gross v2 fat 1.63× → v3 lean 1.03×). Use output_tokens, not the net metric (the net measure is an artifact). No benefit was measured on self-solvable tasks.",
+      "evidence": "README.md (benchmark findings); commits 'v3 lean-consult run', 'docs(README) benchmark findings'",
+      "kind": "decision",
+      "source": "7"
+    },
+    {
+      "title": "Ingest pipeline mines commit history for the delta over reading current code",
+      "summary": "scripts/ingest-{git,docs,structure}.js bootstrap the KB from an existing codebase to dissolve cold-start: git mines commit history for gotchas/decisions — especially reverts/fixes, which are the value-add OVER simply reading current code (the 'why', not the 'what'); docs distil ADRs/SKILLs into decision/constraint notes; structure extracts the static module-dependency graph.",
+      "evidence": "scripts/ingest-git.js, ingest-docs.js, ingest-structure.js",
+      "kind": "decision",
+      "source": "2"
+    },
+    {
+      "title": "Daemon serves a graph layered ON native Claude Code tasks (live source of truth)",
+      "summary": "daemon.js does not own task state — native Claude Code tasks are read live and are authoritative; the overlay only holds what native can't (cross-session dep edges, richer statuses, notes). A status override in the overlay always wins in the scheduler over re-derived native status. Listens on port 8787 (override with ORCH_PORT).",
+      "evidence": "daemon.js:37 (PORT), lib/overlay.js:116-119 (override-wins sentinel)",
+      "kind": "invariant",
+      "source": "4"
+    },
+    {
+      "title": "Embeddings are local MiniLM (384-dim) over a unix socket, stored in overlay JSON — no vector DB",
+      "summary": "lib/embed.js uses Xenova/all-MiniLM-L6-v2 producing 384-float vectors via a local sidecar over a unix domain socket (BASE/embed.sock, 5000ms request timeout); embed() returns null while loading/on error and callers fall back to lexical. Vectors persist inline in the overlay JSON / graph-store events, NOT in any external vector DB.",
+      "evidence": "lib/embed.js:19,22,59,146; lib/overlay.js taskVecs",
+      "kind": "decision",
+      "source": "5"
+    },
+    {
+      "title": "Attempt worktrees live OUTSIDE the workspace, keyed by workspace hash, on branch orch/attempt/<slug>",
+      "summary": "lib/git.js branchName() = `orch/attempt/${slugify(taskKey)}`, and the worktree path is `<BASE>/worktrees/<wsHash>/<slug>` — outside the repo and namespaced by workspace hash so distinct repos never collide. Merge default message is `orch: merge attempt <slug>`.",
+      "evidence": "lib/git.js:23-30,162-170",
+      "kind": "convention",
+      "source": "6"
+    },
+    {
+      "title": "MCP client retries only transient connection errors, 3×500ms; protocol pinned 2025-06-18",
+      "summary": "lib/mcp-core.js retries a daemon call ONLY on ECONNREFUSED/ECONNRESET/EPIPE (a brief daemon restart must be invisible), bounded to RETRY_ATTEMPTS=3 with RETRY_BACKOFF_MS×attempt backoff; HTTP-level 4xx/5xx are never retried. Per-call timeout 30000ms. MCP initialize reports protocol version 2025-06-18.",
+      "evidence": "lib/mcp-core.js:21,51-54,77,80",
+      "kind": "invariant",
+      "source": "7"
+    },
+    {
+      "title": "measure.js default metric parse is the LAST numeric token; custom parse needs exactly one capture group",
+      "summary": "lib/measure.js parses a metric from stdout: default/'last_number' takes the last signed/decimal/exponent token; otherwise `parse` is a regex string whose group 1 must capture the number (throws on no match — no silent NaN). Subprocess bounded by DEFAULT_TIMEOUT_MS=120000 so a runaway command can't hang the daemon.",
+      "evidence": "lib/measure.js:12,19-31,40",
+      "kind": "convention",
+      "source": "8"
+    },
+    {
+      "title": "Self-improvement convergence precedence: target → stuck → diminishing → budget → iterate",
+      "summary": "lib/optimize.js decides converged-vs-iterate in fixed precedence (first match wins): explicit target met → 'converged'; last K rounds with no winning verdict → 'stuck'; last K improvement deltas all < epsilon → 'converged'; budget exhausted → 'budget'; else 'iterate'. Defaults epsilon=0.01, diminishing_rounds(K)=3. A round only counts as a 'win' if verdict.winner!=null AND guardrails_ok!==false.",
+      "evidence": "lib/optimize.js:12,32,53-95",
+      "kind": "decision",
+      "source": "10"
+    },
+    {
+      "title": "Overlay edge kinds: blocking (absent default), context, supersede — blocking upgrades to context, never downgrades",
+      "summary": "lib/overlay.js stores three edge kinds: blocking (the JSON-absent default, gates readiness), context (non-blocking provenance whose summary flows as Tier-1 context even when source is done), supersede (non-blocking retirement link). Re-adding an edge upgrades blocking→context but never silently downgrades. Statuses go beyond native: not_ready/ready/in_progress/tested/failed/done/canceled, where 'ready' written to the log is a SENTINEL meaning 'override deleted', not a real status. Overlay file: BASE/overlay/<base>-<sha1[0:16]>.json (collision-safe).",
+      "evidence": "lib/overlay.js:116-120,334-359,80-83",
+      "kind": "invariant",
+      "source": "11"
+    },
+    {
+      "title": "bench/sandbox/*.test.js are FROZEN golden acceptance tests — DO NOT EDIT",
+      "summary": "The sandbox benchmark's acceptance tests (e.g. bench/sandbox/resolve-deps.test.js, task-tokens.test.js) carry a 'Fixed acceptance test … DO NOT EDIT' header. They are the immutable scoring oracle; editing them games the benchmark rather than passing it. New engineers must change the implementation, never the test.",
+      "evidence": "bench/sandbox/resolve-deps.test.js:2",
+      "kind": "convention",
+      "source": "1,2"
+    },
+    {
+      "title": "Context-injection gate uses project-LOCALITY, not raw cosine — cosine+margin both collapse on the live KB",
+      "summary": "lib/context-gate.js injects a note only if top-1 cosine >= 0.50 AND externalGap >= 0.25 (fraction of the note's content tokens recurring in the task text) AND projectLocality >= 2 of 4 categories (measured quantities, literal error values, local identifiers, observed-on-real-data language). Alt path: a SHARP standalone hit (cosine>=0.50 AND empirical AND margin>=0.08) can inject without the gap test. Rationale: on the topically-tight orchestrator KB, true positives sit at ~0.548 cosine / 0.017 margin — cosine and margin both fail to separate them, so locality is the real discriminator (~14% of the KB scores >=2).",
+      "evidence": "lib/context-gate.js:30-59,118,274",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Haiku is the LLM fallback context-gate, guarded by a 4-per-60s circuit breaker",
+      "summary": "When semantic embedding is unavailable, lib/embed-haiku.js asks claude-haiku-4-5-20251001 to judge injection over the top MAX_NOTES=5 lexical candidates (8000ms timeout), emitting a SYNTHETIC cosine of 0.6 on inject / 0 on abstain (Haiku produces no real score). lib/haiku-breaker.js opens after >4 attempts in 60s and stays open for a 300000ms (5 min) cooldown before a single half-open probe — cost control on the paid fallback.",
+      "evidence": "lib/embed-haiku.js:14-16,133; lib/haiku-breaker.js:18-20,47-50",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "branch_task MUST precede start_task — daemon 409s a claim with no registered worktree; force-claim cap is 3",
+      "summary": "routes/overlay.js rejects start_task with 409 ('call branch_task(task_key) before start_task — subagents must work in an isolated worktree') unless T.ov.git[key].worktree exists, and bounces dispatcher sessions from claiming. Force-claim is capped at FORCE_CAP=3, after which a guidance gate blocks further retries. This ordering is enforced in the route, NOT in the MCP tool schema.",
+      "evidence": "routes/overlay.js:85,97,100-108",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "orch-gate hook: exit 2 blocks, fails OPEN if daemon unreachable, /tmp is NOT exempt",
+      "summary": "hooks/orch-gate.sh blocks Edit/Write with exit 2 unless the target is allowlisted (memory dirs, .claude settings/keybindings/launch/mcp.json, */CLAUDE.md, .claude/orchestrator|.claude/tasks, */scratch/*, *.log) — but /tmp and /private/tmp are explicitly NOT exempt (workers must use claimed worktrees) and orchestrator source stays gated. ORCH_GATE_OFF=1 fully ungates (for harnesses that spawn claude). If a worktree is registered, writes are allowed only on the orch/attempt/* branch. Curl to the daemon has a ~0.6s timeout and fails open (allow) when unreachable.",
+      "evidence": "hooks/orch-gate.sh:21,34-39,61-67,82",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Note-graph judge: dup cluster at cosine 0.80, 10-min judging gate, autowire edges seeded at 0.25",
+      "summary": "lib/judge.js clusters duplicate notes at DUP_RECALL_THRESHOLD=0.80 (loose high-recall; agent supplies precision), and a node with unjudged autowire edges stays unclaimable until adjudicated OR JUDGING_TIMEOUT_MS=600000 (10 min) elapses, after which edges fall back to provisional. Autowire seeds edges at a deliberately loose 0.25 cosine with weight 0 (retrieval-invisible) + judged:false; a kept edge is promoted to weight 0.5. Neighborhood expansion: NB_DECAY=0.6/hop, NB_MAX_NODES=12, NB_MAX_CHARS=4000.",
+      "evidence": "lib/judge.js:103,250,360-363,467,494",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Worktree GC never reaps a dirty worktree, even if pre-classified GC-eligible",
+      "summary": "gc-worktrees re-checks `git status --porcelain` at reap time and refuses (done=false, note mentions 'uncommitted') any worktree holding uncommitted work, even one classified GC-ELIGIBLE earlier in the same sweep. Dry-run (confirm=false) never reaps regardless. This protects in-flight attempt work in orch/attempt/<key> worktrees from being silently destroyed.",
+      "evidence": "test/gc-worktrees.test.js:33-54; scripts/gc-worktrees.js gcWorktree",
+      "kind": "invariant",
+      "source": "16"
+    },
+    {
+      "title": "Onboarding learning loop plateau defaults: max-rounds 4, epsilon 0.05, patience 1",
+      "summary": "onboard-loop deepens the KB round-by-round and STOPS when competence plateaus. Competence metric = summary.kb_rate_project (KB-arm correctness on project probes). Stop on: metric>=1.0, no weak project probes left, or delta<epsilon (0.05) for `patience` (1) consecutive rounds, or max-rounds (4). Queue-drain batch default is 50. The plateau is the point — stop spending agent budget once deepening stops moving the needle.",
+      "evidence": "scripts/onboard-loop.js:212-263 (DEFAULTS + plateau checks)",
+      "kind": "decision",
+      "source": "3"
+    },
+    {
+      "title": "Embeddings: Xenova/all-MiniLM-L6-v2, 384-dim, detached sidecar, fail-open to lexical",
+      "summary": "lib/embed delegates to a MiniLM sidecar (lib/embed-server.js) spawned DETACHED so it survives daemon restarts — cold start (10-90s model load) happens at most once per machine session, not per daemon restart. Vectors are exactly 384 floats; embed() returns null on any error/cold-start and the caller falls back to LEXICAL scoring (never blocks). Sidecar talks over a Unix socket at $CLAUDE_PLUGIN_DATA/embed.sock; daemon pings every 60s.",
+      "evidence": "lib/embed.js:1-22,84-96,146; test/embed.test.js:48 (DIMS===384)",
+      "kind": "convention",
+      "source": "14"
+    },
+    {
+      "title": "Hybrid /search: semantic when both have vecs else lexical; vectorless nodes never dropped; multi-vec uses MAX cosine",
+      "summary": "The /search scorer uses semantic cosine only when BOTH query and node carry a vector, otherwise scoreNodeAgainstTokens (lexical) — a node lacking an embedding is still ranked and surfaced, never filtered out. A node may carry a single legacy `.vec` OR a `.vecs` array (tasks/multi-vector); `.vecs` wins when present and the node score is MAX cosine over its vector set, so single-vec note scores are unchanged.",
+      "evidence": "test/embed.test.js:26-30,91-106; lib/embed.js:124-141 (nodeVecs/maxCosine)",
+      "kind": "invariant",
+      "source": "14"
+    },
+    {
+      "title": "Context-gate ABSTAINS by default; injects only on empirical, project-local, gap-confirmed match",
+      "summary": "To avoid the over-deliberation tax, the orchestrator decides per-task whether to inject KB context and DEFAULTS TO ABSTAIN. Shipped DEFAULTS: cosThreshold 0.50 (lowered from 0.55), gapThreshold 0.25, marginThreshold 0.08, requireEmpirical true, localityThreshold 2 (of 4 categories). The load-bearing discriminator is EXTERNAL-GAP (fraction of the note's content tokens recurring in the task text: positive=0.34 vs topical negatives <=0.17), NOT raw cosine/margin which collapse into a 0.50-0.55 cluster. Only EMPIRICAL scar-tissue (gotcha/root-cause/decision-with-reason) qualifies — general principles are pretraining-prior and injecting them is pure overhead.",
+      "evidence": "lib/context-gate.js:1-62 (DEFAULTS + rationale)",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Frontier hop-weight + archive defaults: depth*0.30 threshold, blocking=1.0 / context=0.5, archive after 14 days",
+      "summary": "GET /state returns a lean frontier: live seeds + BFS neighbors kept iff edge weight >= depth*0.30 (done/note) or depth*0.30-0.2 (live nodes get a 0.2 leniency bonus). Blocking edges weight 1.0; context edges default 0.5 — so blocking reaches ~3-4 hops but a default context edge only 1-2. Stale terminal tasks/superseded notes older than DEFAULT_ARCHIVE_DAYS (14, configurable via POST /config archive_after_days) are excluded from /state but stay on disk and queryable via /search + suggest_links. RECENT_FALLBACK=15 when nothing is live; summaries clipped to 280 chars.",
+      "evidence": "lib/frontier.js:18-38",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "/overlay/note enforces a write-time near-duplicate guard, bypassable by supersedes or force",
+      "summary": "Creating a note (record_decision -> POST /overlay/note) runs a semantic near-dup scan: a near-identical note is REJECTED with {ok:false, duplicate:true, match:{key,title,summary,score}, hint}. Caller must choose: skip, re-call with supersedes:match.key (updates the fact, old note kept as history), or force:true (genuinely distinct). The guard is FAIL-OPEN: when the embedding is null (model cold/unavailable) the scan is skipped and the note is created as-is.",
+      "evidence": "test/note-dup-guard.test.js:60-187; lib/mcp-core.js:105 (record_decision DUPLICATE GUARD)",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "decideOptimize precedence is fixed: target → stuck → diminishing → budget → iterate",
+      "summary": "The converged-vs-iterate control resolves first-match-wins in this exact order, and the order is load-bearing: target-converged beats everything (explicit success), but STUCK (no real win for K rounds) is checked BEFORE the silent stops so a repeatedly-failing problem escalates to a human instead of being quietly dropped. Defaults: epsilon=0.01, diminishing_rounds K=3 (negative/NaN knobs fall back to defaults so a mis-set knob can't disable the control). 'stuck' is the only path that routes to human escalate — never auto-cancel/replan.",
+      "evidence": "lib/optimize.js:12,53-95",
+      "kind": "decision",
+      "source": "3"
+    },
+    {
+      "title": "Measure node: parse sentinel 'last_number', regex needs exactly one capture group, 120s timeout",
+      "summary": "runMeasure shells out via execSync with DEFAULT_TIMEOUT_MS=120000 (bounded so a runaway measure command can't hang the daemon). `parse` is either the sentinel 'last_number' (last numeric token anywhere on stdout) or a regex string whose group 1 is the number — a missing/non-numeric capture THROWS rather than returning silent NaN. Guardrail regression direction: 'max' regresses when measured<baseline, 'min' regresses when measured>baseline; a guardrail with no baseline is skipped, not failed.",
+      "evidence": "lib/measure.js:12,17-33,65-83",
+      "kind": "convention",
+      "source": "0"
+    },
+    {
+      "title": "Context-edge relevance weight defaults to 0.5; autowired edges seed at weight 0 (retrieval-invisible)",
+      "summary": "Only context edges carry a relevance weight (0..1); blocking/supersede edges have none. A context edge with no stored weight reads back as DEFAULT_CONTEXT_WEIGHT=0.5 (back-compat). Autowire inserts edges at weight 0 with {by:'autowire',judged:false,score:<cosine>} so they are retrieval-invisible (weight-0 multiplier) until the judge promotes them on a keep-verdict — the preserved cosine `score` seeds the promoted weight. Re-adding a blocking edge as context upgrades it; never silently downgrades.",
+      "evidence": "lib/overlay.js:66-75,346-366",
+      "kind": "invariant",
+      "source": "12"
+    },
+    {
+      "title": "Stale-claim release: wall-clock based, default 10 min, sole release mechanism after crash/restart",
+      "summary": "An in_progress claim is reclaimed to ready once the worker isn't vouched live AND status is unchanged for overlay.config.stale_minutes (default 10, read with ?? so an explicit 0 is honored). It is WALL-CLOCK based so daemon downtime counts, and the staleness sweep is the SOLE release mechanism — restored-from-disk 'running' claims get one post-boot stale-window grace to re-assert before release. Separately, STALE_PROGRESS_MIN_DEFAULT=30 sweeps a no-progress loop to inactive. Releases write a continuity note, not a silent reset.",
+      "evidence": "daemon.js:234-239,268,536",
+      "kind": "gotcha",
+      "source": "9"
+    },
+    {
+      "title": "Target-repo decoupling: git ops resolve repo as explicit arg > task.repo_path > workspace",
+      "summary": "A task's git ops (branch_task/merge_attempt/remove_worktree/measure_task) can target a repo that is NOT the daemon workspace. Resolution order is explicit repo_path arg > the task node's repo_path field > workspace. Stored test commands (configure_task test_cmd) are keyed by ABSOLUTE repo path and require repo_path in the same call; the daemon NEVER executes them — agents (e.g. nightly QA) read them back and run them.",
+      "evidence": "lib/mcp-core.js:123, lib/overlay.js:405-427",
+      "kind": "convention",
+      "source": "6"
+    },
+    {
+      "title": "Note write-gate rejects title-vec cosine >= 0.70 (calibrated above same-subsystem p99 0.66)",
+      "summary": "POST /overlay/note rejects a new note as a near-duplicate when a current note's TITLE-vector cosine >= DUP_THRESHOLD=0.70 (unless caller passes supersedes or force:true). 0.70 is deliberately calibrated above the same-subsystem-neighbour p99 of 0.66 so routine notes in an active subsystem don't bounce (avoiding alarm-fatigue → reflexive force:true that would neuter the guard) while still catching the dense clone mass (0.68–0.88). The 0.55–0.70 straggler band is left to the dup-judge, not the write gate.",
+      "evidence": "routes/overlay.js:350-361",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Retrieval thresholds: RAG recall 0.40, autowire 0.55, suggest-dup 0.60 — three distinct bars",
+      "summary": "The graph uses separate cosine bars for different jobs: RAG_RECALL_THRESHOLD=0.40 for search_knowledge/judge candidate recall (deliberately below the old 0.55 PRECISION bar — recall over precision, the agent adjudicates), SEMANTIC_AUTOWIRE_THRESHOLD=0.55 to auto-create weight-0 edges, and SUGGEST_DUP_THRESHOLD=0.60 to flag an OPEN task as a likely re-plan duplicate in suggest_links. Notes are never flagged task-duplicates (x.kind!=='note' guard).",
+      "evidence": "daemon.js:1085,1193,1307",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "Frontier keep = edge-weight >= depth*0.30; live nodes get a 0.2 leniency bonus",
+      "summary": "frontierKeep BFS keeps a node at hop depth D iff its edge weight >= D*0.30 (done/note) or >= max(0, D*0.30-0.2) for live nodes (still-active work, less aggressive pruning). Blocking edges count as weight 1.0, context edges as their stored weight (default 0.5). Natural caps: blocking reaches depth 3 for done/note (depth 4 needs 1.20, unreachable) and depth 4 for live; context at the 0.5 default reaches ~1–2 hops. DEFAULT_ARCHIVE_DAYS=14; with nothing live, falls back to the 15 most-recently-changed nodes.",
+      "evidence": "lib/frontier.js:20-37",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Overlay filenames are sha1 content-hashed because encodeWorkspace is lossy (clobber fix H2)",
+      "summary": "overlay.fileFor hashes the workspace path (sha1, 16 hex chars) with a readable basename prefix, because the legacy encodeWorkspace mapped both '/' and '.' to '-' — so two distinct workspaces could collide onto ONE overlay file and clobber each other (review finding H2). legacyFileFor is retained only for a one-time migration of pre-fix overlays. Diagnostics use a parallel hashed filename so they survive overlay regeneration.",
+      "evidence": "lib/overlay.js:77-95",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "search_knowledge: DAG context_deps inject at score 1.0 bypassing the gate; plateau stops at round 3",
+      "summary": "Two-tier retrieval: when task_key is given, the task's DAG context_deps ALWAYS inject first (tier:'dag', score:1.0) and are never gated; RAG fills remaining slots. The iterative `continue` flag is true only iff round<3 AND a NEW rag-tier note scored >= 0.5; rounds >= 3 always return continue:false (hard plateau cap). The first gated call may take ~90s while the local embedding model lazy-loads.",
+      "evidence": "routes/graph.js:123-126, lib/mcp-core.js:118",
+      "kind": "convention",
+      "source": "discovered"
+    }
+  ],
+  "rejected": [
+    {
+      "candidate": "3: DEFAULT_AUTOWIRE_THRESHOLD 0.25",
+      "reason": "stale"
+    },
+    {
+      "candidate": "8: DEFAULT_DAEMON onboard-harness localhost:8787",
+      "reason": "generic"
+    },
+    {
+      "candidate": "9: DEFAULT_DAEMON onboard-loop localhost:8787",
+      "reason": "generic"
+    },
+    {
+      "candidate": "10: Always surface dashboard link",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "11: link is cheap to include",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "12: wire into existing work not orphan",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "13: keep main thread free",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "14: a real decision with a reason",
+      "reason": "generic"
+    },
+    {
+      "candidate": "15: capture when user says remember",
+      "reason": "generic"
+    },
+    {
+      "candidate": "16: do not record chatter",
+      "reason": "generic"
+    },
+    {
+      "candidate": "17: sessions in same workspace do not see each other (only Agent Teams share)",
+      "reason": "unverifiable"
+    },
+    {
+      "candidate": "7: rather than fabricating a number",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "12: always one click away",
+      "reason": "generic"
+    },
+    {
+      "candidate": "19: binary cannot execute, spike steps 2-4",
+      "reason": "unverifiable"
+    },
+    {
+      "candidate": "1 mkcert validates issuer not locality",
+      "reason": "generic"
+    },
+    {
+      "candidate": "2 9 kept git-notes",
+      "reason": "unverifiable"
+    },
+    {
+      "candidate": "3 snapshots are coarse",
+      "reason": "unverifiable"
+    },
+    {
+      "candidate": "13 MCP available schema tax",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "14 the agent may consult it",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "15 Do not change anything outside files named",
+      "reason": "generic"
+    },
+    {
+      "candidate": "16 Otherwise: <total> rejected digest",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "17 Do not wire into /learnings handler",
+      "reason": "stale"
+    },
+    {
+      "candidate": "18 Do not reformat surrounding code",
+      "reason": "generic"
+    },
+    {
+      "candidate": "19 test/rejected-digest plain Node",
+      "reason": "stale"
+    },
+    {
+      "candidate": "0: transcript recovered by correlating claim window",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "1: match and give up, or fall back to fuzzy time-window",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "3: bound widens window (missing start -> -Infinity)",
+      "reason": "stale"
+    },
+    {
+      "candidate": "4: resolve-owner must export module.exports (CommonJS)",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "5: rejected-digest test requires resolve-owner, PASS/FAIL",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "6: the test must construct the registry",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "7: must print N passed, 0 failed and exit 0",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "8: Note ms must be matched before m",
+      "reason": "generic"
+    },
+    {
+      "candidate": "9: valid input always returns finite non-negative number",
+      "reason": "generic"
+    },
+    {
+      "candidate": "10: parse-duration must export the function",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "11: rejected-digest test requires parse-duration, PASS/FAIL",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "12: it must assert at minimum",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "14: unparseable claim-window bound widens (missing start ->)",
+      "reason": "stale"
+    },
+    {
+      "candidate": "15: task-tokens must export module.exports (CommonJS)",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "16: repo file do NOT modify/move/delete",
+      "reason": "generic"
+    },
+    {
+      "candidate": "17: blockedBy is a list of local ids in the same session",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "18: omit missing dep, do not throw or invent a node",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "19: resolve-deps must export module.exports (CommonJS)",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "0: auto-progress a DAG across turns",
+      "reason": "restatement — verbatim skill description, generic"
+    },
+    {
+      "candidate": "2: spawns MUST do work in isolated branch+worktree",
+      "reason": "restatement — covered concretely by kept note on orch/attempt/<slug> convention"
+    },
+    {
+      "candidate": "4: merging to main is a human decision",
+      "reason": "restatement — same fact as kept hold-merge note (1)"
+    },
+    {
+      "candidate": "8: planner reads learnings, proposes 1-3 initiatives",
+      "reason": "restatement of self-learn-planner skill description"
+    },
+    {
+      "candidate": "11: if every entry stop/await_user do not reschedule",
+      "reason": "restatement — folded into kept batched-heartbeat note (6)"
+    },
+    {
+      "candidate": "12: call ScheduleWakeup directly not /loop wrapper",
+      "reason": "restatement — folded into kept batched-heartbeat note (6)"
+    },
+    {
+      "candidate": "13: on idle tick do not reason or call tools",
+      "reason": "generic token-discipline advice, low value"
+    },
+    {
+      "candidate": "14: parallelizing check tasks don't share files",
+      "reason": "generic SWE advice"
+    },
+    {
+      "candidate": "15: dependents can fetch it instead of re-deriving",
+      "reason": "generic fragment, not actionable"
+    },
+    {
+      "candidate": "18: prefer deep-research skill with tight question",
+      "reason": "generic advice"
+    },
+    {
+      "candidate": "19: handful of WebSearch/WebFetch, cap ~4-5",
+      "reason": "generic advice / soft cap"
+    },
+    {
+      "candidate": "0: stop digging at one credible figure",
+      "reason": "generic"
+    },
+    {
+      "candidate": "1: benchmark metric must name same objective",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "2: degrade gracefully never fabricate",
+      "reason": "generic"
+    },
+    {
+      "candidate": "3: caveat note only if real sourced figure",
+      "reason": "generic"
+    },
+    {
+      "candidate": "4: never fabricate a number",
+      "reason": "generic"
+    },
+    {
+      "candidate": "7: do not call merge_attempt or git merge",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "8: do not request_guidance it would halt loop",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "9: everything queued for morning human review",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "11: do not force a merge on regression",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "13: do not cancel/remove the winner",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "16: record each regression base→meas in verdict",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "19: metric mode evaluate never generate",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "0: Never fabricate a benchmark",
+      "reason": "generic"
+    },
+    {
+      "candidate": "2: request_guidance to halt the loop",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "4: Prefer BUILDING over escalating",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "6: NEVER cancel/supersede in-flight task",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "7: NEVER create a duplicate open task",
+      "reason": "generic"
+    },
+    {
+      "candidate": "8: Always suggest_links BEFORE TaskCreate",
+      "reason": "stale"
+    },
+    {
+      "candidate": "9: Do not fabricate work to look busy",
+      "reason": "generic"
+    },
+    {
+      "candidate": "10: ambiguous/strategic call request_guidance",
+      "reason": "generic"
+    },
+    {
+      "candidate": "11: Escalate, don't improvise",
+      "reason": "generic"
+    },
+    {
+      "candidate": "12: do NOT re-propose a settled question",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "13: superseded-by-X vs genuine dead ends",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "15: dead end source:'failure'",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "17: canceled/failed avoid repeating",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "0: get_learnings().rejected[]",
+      "reason": "generic — folded into kept rival-attempts note; standalone fragment is restatement of skill advice"
+    },
+    {
+      "candidate": "2: Do not resolve it yourself",
+      "reason": "unverifiable — fragmentary skill-prompt line, no codebase invariant out of context"
+    },
+    {
+      "candidate": "3: Never run a step that needs a password",
+      "reason": "generic — standard setup-agent caution (mkcert Keychain), recoverable"
+    },
+    {
+      "candidate": "4: MCP server / node daemon.js &",
+      "reason": "generic — doc fragment on starting the daemon, no non-obvious fact"
+    },
+    {
+      "candidate": "5: Add the connector (manual UI step)",
+      "reason": "generic — procedural setup step; the load-bearing gotcha is kept as the stdio-doesnt-render note"
+    },
+    {
+      "candidate": "8: Merge #3 retrieval-quality bench + CI gate",
+      "reason": "restatement — superseded by kept note 14 with the actual thresholds"
+    },
+    {
+      "candidate": "11: onboard-loop iterate-until-plateau",
+      "reason": "restatement — describes what the script does; metric is recoverable from kept harness note"
+    },
+    {
+      "candidate": "12: extract-decisions auto-propose [auto] notes",
+      "reason": "restatement — covered by the kept [ingest]/[auto] gate invariant"
+    },
+    {
+      "candidate": "13: onboard.js drop-in entry, no auto-inject",
+      "reason": "restatement — folded into the kept injection-gate invariant (note 7)"
+    },
+    {
+      "candidate": "16: wave-1 harness SUSPECT",
+      "reason": "stale — the circular keyword-graded harness was replaced; its lesson lives in kept honest-harness note 15"
+    },
+    {
+      "candidate": "19: v5 grounded NO-WIN",
+      "reason": "restatement — consolidated into the kept benchmark-verdict note (source 18)"
+    },
+    {
+      "candidate": "0: gitignore loops.json",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "1: search_knowledge ranks by lexical relevance",
+      "reason": "stale"
+    },
+    {
+      "candidate": "4: v4 NO-WIN checkpoint",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "6: v4-hard task design (case 3 vs 4)",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "8: v3 lean-consult mode",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "9: lazy-context tooling commit contents",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "13: docs CLAUDE.md / dashboard URL / ignore .claude",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "15: learnings-aware planning digestRejected",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "16: liveness fix + escalation wiring (#11)",
+      "reason": "stale"
+    },
+    {
+      "candidate": "17: combined multi-session checkpoint PRE-cleanup",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "19: initial commit gitignored runtime state",
+      "reason": "generic"
+    },
+    {
+      "candidate": "0 bench/ingest/inject.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "3 bench/temporal/run.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "9 lib/native-tasks.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "12 mcp-graph.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "13 scripts/bench-arm.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "14 scripts/bench-report.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "15 scripts/bench-report.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "16 scripts/extract-decisions.js",
+      "reason": "generic"
+    },
+    {
+      "candidate": "17 scripts/gc-worktrees.js",
+      "reason": "unverifiable"
+    },
+    {
+      "candidate": "18 scripts/ingest-docs.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "19 scripts/ingest-git.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "0 ingest-structure.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "1 onboard-harness.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "2 onboard-learn.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "4 onboard-mine-docs.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "5 onboard-mine-git.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "6 onboard-mine-structure.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "7 onboard-probes.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "8 onboard.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "9 retrieval-bench.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "10 rewire-notes.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "11 autowire-note.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "12 autowire.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "13 benchmark.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "15 extract-decisions.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "17 git-merge.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "18 git.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "19 lean-learnings.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "1: metric-spec.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "2: native-write.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "4: orphan-sweep.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "5: rejected-digest.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "7: retrieval-quality.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "8: search-knowledge.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "10: temporal-knowledge.test.js",
+      "reason": "restatement"
+    },
+    {
+      "candidate": "11: token-attr.test.js",
+      "reason": "restatement"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{"evt":"status_changed","id":"29","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-12T08:37:56.356Z"}
+{"evt":"assignee_set","id":"29","workspace":"/Users/imyu/Desktop/zonoid","assignee":"bench-3arm-agent","actor":"overlay-sync","ts":"2026-06-12T08:37:56.356Z"}
+{"evt":"timestamps_set","id":"29","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-12T08:37:56.355Z","lastChanged":"2026-06-12T08:37:56.355Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-12T08:37:56.356Z"}
+{"evt":"status_changed","id":"29","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-12T09:17:15.275Z"}

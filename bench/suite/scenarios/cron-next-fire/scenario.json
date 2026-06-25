@@ -1,0 +1,10 @@
+{
+  "name": "cron-next-fire",
+  "description": "Implement nextFire(cronExpr, fromTime) returning the next Date a cron expression fires after fromTime. Tests complex date arithmetic and field parsing — KB context provides no advantage.",
+  "spec": "bench/suite/scenarios/cron-next-fire/spec.md",
+  "artifact": "bench/sandbox/solution.js",
+  "grader": "bench/suite/scenarios/cron-next-fire/grader.js",
+  "minimalSource": "bench/suite/scenarios/cron-next-fire/minimal-source",
+  "kb_required": false,
+  "kb_partial": false
+}

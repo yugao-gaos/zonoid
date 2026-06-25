@@ -1,0 +1,3 @@
+{"evt":"status_changed","id":"followup/judge-epoch-drop-3-query","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-14T04:09:53.066Z"}
+{"evt":"timestamps_set","id":"followup/judge-epoch-drop-3-query","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-14T04:09:53.036Z","lastChanged":"2026-06-14T04:09:53.036Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-14T04:09:53.066Z"}
+{"evt":"edge_added","from":"followup/judge-epoch-drop-3-query","to":"followup/judge-epoch-drop-4-migration","kind":"blocking","actor":"overlay-sync","ts":"2026-06-14T04:10:02.249Z"}

@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/breathing-learning-cloud-live-inject-recovery-fix",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "codex-desktop-current-session",
+  "branch": "orch/attempt/codex-breathing-learning-cloud-live-inject-recovery-fix",
+  "status": "done",
+  "claimed_at": "2026-06-21T22:10:33.351Z",
+  "lease_until": "2026-06-21T23:10:33.351Z",
+  "completed_at": "2026-06-21T22:20:50.810Z"
+}

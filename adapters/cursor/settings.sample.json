@@ -1,0 +1,67 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__orchestrator-graph__start_task",
+      "mcp__orchestrator-graph__complete_task",
+      "mcp__orchestrator-graph__suggest_links",
+      "mcp__orchestrator-graph__add_dependency",
+      "mcp__orchestrator-graph__record_decision",
+      "mcp__orchestrator-graph__get_graph",
+      "mcp__orchestrator-graph__set_status",
+      "mcp__orchestrator-graph__subconscious_assignment",
+      "mcp__orchestrator-graph__subconscious_execution_permit"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/cursor/session-start.sh",
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/cursor/orch-stop.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/cursor/orch-gate.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/cursor/shell-gate.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/cursor/subagent-stop.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

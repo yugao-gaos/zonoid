@@ -1,0 +1,130 @@
+{
+  "kept": [
+    {
+      "title": "Worktree claims guarded by atomic per-path lease (<wt>.lease, O_EXCL); stale only if pid dead AND aged >1h",
+      "summary": "createWorktree acquires a sidecar `<wt>.lease` file written with the 'wx' (O_EXCL) flag so the first writer wins and a racing second agent gets {contended:true, held} instead of a colliding `git worktree add`. A lease is reclaimable only when BOTH its owning pid is dead AND it has aged past ORCH_LEASE_STALE_MS (default 3600000 = 1h); same-pid is re-entrant. This is the concurrency primitive that prevents two agents corrupting one worktree path.",
+      "evidence": "lib/git.js:35-72 (LEASE_STALE_MS default 3600000, acquireLease)",
+      "kind": "invariant",
+      "source": "10"
+    },
+    {
+      "title": "gc-worktrees only removes clean + fully-merged-into-main + unregistered worktrees outside 24h retention; dry-run by default",
+      "summary": "The worktree GC sweep is conservative: it removes a worktree ONLY if it is clean (no uncommitted changes), fully merged into main, NOT registered/claimed, AND older than --retention-hours (default 24). Anything dirty, unmerged, or active is SKIP/NEEDS-ATTENTION. Runs dry-run unless --confirm is passed. Worktrees are ephemeral — durable value is merged code + recorded verdict.",
+      "evidence": "scripts/gc-worktrees.js:12-21,31 (retentionHours default 24)",
+      "kind": "convention",
+      "source": "17"
+    },
+    {
+      "title": "search_knowledge retrieval has a CI regression gate: recall@5 >= 0.85, MRR@5 >= 0.80",
+      "summary": "Retrieval quality is locked by test/retrieval-quality.test.js and scripts/retrieval-bench.js, which both fail if aggregate recall@5 drops below 0.85 or MRR@5 below 0.80 over the labeled query set. These exact thresholds are the contract for any change touching embedding/ranking.",
+      "evidence": "test/retrieval-quality.test.js:19 THRESH={recallAtK:0.85,mrr:0.80}; scripts/retrieval-bench.js:51-52",
+      "kind": "invariant",
+      "source": "14"
+    },
+    {
+      "title": "Notes are bitemporal: supersede stamps validTo and chains old<->new — history is NEVER deleted",
+      "summary": "record_decision(supersedes)/supersede_note stamp the old note invalid (validTo) and chain it to the new one rather than deleting. search_knowledge defaults to facts CURRENT now (superseded hidden), but as_of:<ISO> returns the fact current at that time and history:true returns the full timeline. Stale knowledge is retired, not removed — as-of reasoning depends on it.",
+      "evidence": "lib/mcp-core.js:105-106; lib/graph-store.js:193-198 (note_superseded/note_supersedes)",
+      "kind": "decision",
+      "source": "9"
+    },
+    {
+      "title": "Write-time note dup guard rejects at title-vec cosine >= 0.70 — calibrated above same-subsystem p99 (0.66)",
+      "summary": "POST /overlay/note rejects a new note (ok:false, duplicate:true) if a current note has title-vec cosine >= DUP_THRESHOLD = 0.70. Calibrated: routine same-subsystem neighbours sit at p99~0.66 (0.55 would neuter the guard), dense clones cluster 0.68-0.88. The 0.55-0.70 band is left to the async dup-judge, not the write gate. Override with force:true or supersedes:.",
+      "evidence": "routes/overlay.js:350-378 (DUP_THRESHOLD=0.70 + calibration comment)",
+      "kind": "decision",
+      "source": "discovered"
+    },
+    {
+      "title": "suggest_links flags a likely re-plan duplicate when an OPEN task overlaps at cosine >= 0.6",
+      "summary": "SUGGEST_DUP_THRESHOLD = 0.6 (distinct from the 0.70 note-write guard): high label/summary overlap with an already-OPEN task is surfaced as a probable replan duplicate so the planner supersedes instead of forking a near-identical task. Different number, different purpose — do not conflate the two dup thresholds.",
+      "evidence": "daemon.js:1085 SUGGEST_DUP_THRESHOLD=0.6",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "Forced ON-context was repeatedly net-negative in benchmarks (opus AND haiku) — opt-in is the deliberate design",
+      "summary": "v5-grounded and v5-haiku bench runs both landed NO-WIN: even with precise notes ON arms retrieved, ON did MORE output work than OFF (H_on 2,674 > H_off 2,023 on opus; gap persisted on haiku where weak-model hardness rose 3.7x). Value metric METRIC=(H_off-H_on)*5 - C, C=cache_read*0.1+cache_creation*1.25. Architectural lesson: context is opt-in, never force-injected.",
+      "evidence": "bench/report-v5.md; commits eea3439, d13d75a",
+      "kind": "decision",
+      "source": "18,19"
+    },
+    {
+      "title": "orch-gate enforces writes inside the claimed orch/attempt/* worktree; /tmp is NOT exempt; branch resolved from edit TARGET",
+      "summary": "The PreToolUse bash/edit gate blocks file writes unless they land on the task worktree branch (orch/attempt/*). /tmp and /private/tmp are explicitly NOT exempt (closes the cp-via-tmp bypass), and the branch is resolved from the edit TARGET worktree not the hook ambient cwd (fix a77e380) — so a subagent at session root on main still writes correctly into its worktree. Subagents must branch_task -> start_task before any write.",
+      "evidence": "hooks/orch-gate.sh:35,52-67; commit a77e380",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Autowired context edges are born weight 0 + judged:false and only promote to weight>0 on a keep-verdict",
+      "summary": "Cosine autowire creates edges {by:autowire, judged:false, score:cosine} at weight 0; a promoted edge (weight>0) means the judge kept it. On restart, persisted promoted edges default to judged:true so tagBlindEdges does not re-stamp old kept edges as unjudged. Default explicit context-edge weight is 0.5 (DEFAULT_CONTEXT_WEIGHT). Edge weight encodes judge confidence, not mere existence.",
+      "evidence": "lib/graph-store.js:72-77,346-350; lib/overlay.js:68 DEFAULT_CONTEXT_WEIGHT=0.5",
+      "kind": "invariant",
+      "source": "discovered"
+    },
+    {
+      "title": "Competence harness self-invalidates (trustworthy:false) unless cold-rate is STRICTLY between 0 and 1",
+      "summary": "onboard-harness.js grades a cold agent vs a KB agent with control probes. A reading is trustworthy only when overall cold-rate is strictly in (0,1) — cold passing general controls but failing project probes. Cold-rate exactly 0 or 1 is reported DEGENERATE/NOT-TRUSTWORTHY (probes not independent of note wording — the earlier circular 0->100% keyword-graded bug). Also flags SUSPECT if cold passes <0.5 of controls.",
+      "evidence": "scripts/onboard-harness.js:26-27,225-239",
+      "kind": "gotcha",
+      "source": "15,16"
+    },
+    {
+      "title": "Try a few and pick is modeled as a problem -> attempts -> judge subtree, never a flat task",
+      "summary": "When the right approach is unknown, the planner must NOT create one flat task. It builds a problem node with multiple branch_task attempts resolved by a judge node, so the verdict is recorded as durable learning and losing approaches land in get_learnings().rejected[] — which future planner runs check to avoid relitigating a settled loss.",
+      "evidence": "skills/self-learn-planner/SKILL.md:90-97,53,77",
+      "kind": "convention",
+      "source": "1"
+    },
+    {
+      "title": "Inline dashboard UI needs the daemon served over local HTTPS as a custom connector (ports 8787 / 8788)",
+      "summary": "Local stdio MCP servers do NOT render the inline MCP Apps UI — only a custom HTTPS connector does. Setup serves /mcp over locally-trusted HTTPS (mkcert) so the daemon can be added via Settings -> Connectors. Daemon runs HTTP on PORT 8787 (dashboard /graph) and HTTPS on 8788; the mkcert -install step needs a Keychain password and must be handed to the user.",
+      "evidence": "skills/setup/SKILL.md:12,28-29,38-41,51",
+      "kind": "gotcha",
+      "source": "6"
+    }
+  ],
+  "rejected": [
+    {
+      "candidate": "0: get_learnings().rejected relitigation",
+      "reason": "restatement — folded into problem->attempts->judge note"
+    },
+    {
+      "candidate": "2: Do not resolve it yourself",
+      "reason": "generic"
+    },
+    {
+      "candidate": "3: Never run a step that needs a password",
+      "reason": "generic safety advice; specifics captured in HTTPS-connector note"
+    },
+    {
+      "candidate": "4: MCP server / node daemon.js fallback",
+      "reason": "restatement of a startup command"
+    },
+    {
+      "candidate": "5: Add the connector manual UI step",
+      "reason": "restatement — folded into HTTPS-connector note"
+    },
+    {
+      "candidate": "7: gate — never run it automatically",
+      "reason": "unverifiable fragment, generic"
+    },
+    {
+      "candidate": "8: Merge #3 retrieval bench + CI gate",
+      "reason": "restatement of commit; thresholds kept separately"
+    },
+    {
+      "candidate": "11: onboard-loop iterate-until-plateau",
+      "reason": "restatement of what the script does"
+    },
+    {
+      "candidate": "12: extract-decisions behind review gate",
+      "reason": "restatement of file purpose"
+    },
+    {
+      "candidate": "13: onboard.js drop-in entry",
+      "reason": "restatement of file purpose"
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "kept": [
+    {
+      "title": "Autonomous loop HOLDS all code work — never merges to main",
+      "summary": "By default every code-producing task the loop spawns commits to an isolated branch and reaches `done` with a 'MERGE PENDING' summary; the loop never merges and never halts on guidance — it queues everything for human review in the morning. Merging to main is strictly a human decision.",
+      "evidence": "skills/orch-loop/SKILL.md:6-9",
+      "kind": "decision",
+      "source": "1"
+    },
+    {
+      "title": "Attempt work isolates in worktree on branch orch/attempt/<slug>",
+      "summary": "Spawned code tasks must work in a git worktree off the code repo on a branch named `orch/attempt/<slug>` (slug derived from task key). This naming is load-bearing: routes/overlay.js refuses a start_task claim unless the worktree branch starts with `orch/attempt/`, and analytics classifies these as exploration tasks.",
+      "evidence": "lib/git.js:30, routes/overlay.js:153, skills/orch-loop/SKILL.md:7-8",
+      "kind": "convention",
+      "source": "3"
+    },
+    {
+      "title": "loop_control defaults (the exact shipped caps)",
+      "summary": "A new loop ships with tokenBudget=100000, maxIterations=200, minPoll=30s, maxPoll=1200s, estPerTick=800, batch=8, maxConcurrency=10, judgeParallelCap=6. These are HARD caps the daemon enforces (the loop auto-stops on iteration or token cap). An off-repo engineer cannot guess these.",
+      "evidence": "daemon.js:272 (config default), daemon.js:680-681,863-864",
+      "kind": "convention",
+      "source": "discovered"
+    },
+    {
+      "title": "loop_control(start) INSERTS a loop; pass session for cooperative stop",
+      "summary": "loop_control(action:'start') never clobbers an existing loop — it inserts a new keyed loop and returns its loopId, so many loops run concurrently in one registry. Pass session=conversation id so a cancel on that session's claimed task makes the daemon return action:'stop' within one tick (the in-process tick can't be interrupted by the PreToolUse hook, so the daemon enforces the stop instead).",
+      "evidence": "skills/orch-loop/SKILL.md:23,42-48; daemon.js:742",
+      "kind": "invariant",
+      "source": "5"
+    },
+    {
+      "title": "One heartbeat drives the WHOLE loop registry — batched, single reschedule",
+      "summary": "next_action returns {loops:[...]} with one entry per ACTIVE loop, and you reschedule exactly ONE ScheduleWakeup with delay = MIN next_poll_seconds across still-active entries — never a wakeup chain per loop. Empty array (or every entry stop/await_user) ⇒ do NOT reschedule. Call ScheduleWakeup directly, not via any /loop wrapper.",
+      "evidence": "skills/orch-loop/SKILL.md:17-20,27,40",
+      "kind": "convention",
+      "source": "6"
+    },
+    {
+      "title": "start_task 409 means already-claimed — SKIP, never force-takeover",
+      "summary": "If start_task returns 409 (task already in_progress by another agent/loop this tick), skip it and let the next heartbeat re-poll. Force-takeover causes a respawn-forever loop: an unwired/un-startable task that 409s burns a worker slot each tick, so the daemon explicitly never spawns it.",
+      "evidence": "skills/orch-loop/SKILL.md:31; daemon.js:869-870",
+      "kind": "gotcha",
+      "source": "7"
+    },
+    {
+      "title": "Optimize iteration must propose a DIFFERENT change, never the prior winner",
+      "summary": "On action:'optimize', the planner is scoped to problem P and fed prior_verdict; it must wire a NEW attempts→judge round proposing a DIFFERENT change — never a repeat of prior_verdict.winner — and must only ADD the attempt subtree, never cancel/replan P.",
+      "evidence": "skills/orch-loop/SKILL.md:38",
+      "kind": "invariant",
+      "source": "9"
+    },
+    {
+      "title": "Planner is additive-only — never cancel/supersede in-flight work",
+      "summary": "The self-learn-planner only ADDs nodes; it must never cancel, supersede, or replan any in_progress/ready/not_ready task, and must suggest_links + dedup BEFORE TaskCreate (incl. the rejected-approaches ledger). The guardrail exists because this skill caused a runaway once.",
+      "evidence": "skills/self-learn-planner/SKILL.md:25-33",
+      "kind": "invariant",
+      "source": "10"
+    },
+    {
+      "title": "Dashboard + daemon live on port 8787; always surface the link",
+      "summary": "The daemon serves on port 8787 (override via ORCH_PORT) and the convention is to include 📊 http://localhost:8787/graph in replies during task-graph work. The port is a project-chosen default, not guessable.",
+      "evidence": "daemon.js:37; skills/orch-loop/SKILL.md; CLAUDE.md",
+      "kind": "convention",
+      "source": "16"
+    },
+    {
+      "title": "Operate the daemon only via MCP tools — never shell it directly",
+      "summary": "All interaction goes through the MCP tool surface; agents must not shell the daemon directly. The daemon is dumb-on-purpose (recall/store/serve), and the agent is the intelligence — bypassing MCP skips the gates/wiring the protocol depends on.",
+      "evidence": "skills/self-learn-planner/SKILL.md:42",
+      "kind": "convention",
+      "source": "17"
+    },
+    {
+      "title": "Edge-judge MUST run on model sonnet, never haiku",
+      "summary": "All self-learn-edge-judge fan-outs (judge_edges, judge_eager, eager node-judges) are pinned to model sonnet — never haiku, because haiku's verdict discrimination degrades to rubber-stamp keeps, defeating the conservative default-NO-edge criterion.",
+      "evidence": "skills/orch-loop/SKILL.md:32-33",
+      "kind": "gotcha",
+      "source": "discovered"
+    },
+    {
+      "title": "Planner must NOT call branch_task — it targets the workspace, not the code repo",
+      "summary": "branch_task creates a worktree against the task's configured repo, else the daemon WORKSPACE — so the planner builds problem→attempts→judge as plain TaskCreate nodes and lets the attempt WORKERS make their own worktrees off the code repo at spawn time. Calling branch_task from the planner would isolate work in the wrong (workspace) substrate.",
+      "evidence": "skills/self-learn-planner/SKILL.md:7-10; lib/mcp-core.js:134",
+      "kind": "gotcha",
+      "source": "discovered"
+    }
+  ],
+  "rejected": [
+    { "candidate": "0: auto-progress a DAG across turns", "reason": "restatement — verbatim skill description, generic" },
+    { "candidate": "2: spawns MUST do work in isolated branch+worktree", "reason": "restatement — covered concretely by kept note on orch/attempt/<slug> convention" },
+    { "candidate": "4: merging to main is a human decision", "reason": "restatement — same fact as kept hold-merge note (1)" },
+    { "candidate": "8: planner reads learnings, proposes 1-3 initiatives", "reason": "restatement of self-learn-planner skill description" },
+    { "candidate": "11: if every entry stop/await_user do not reschedule", "reason": "restatement — folded into kept batched-heartbeat note (6)" },
+    { "candidate": "12: call ScheduleWakeup directly not /loop wrapper", "reason": "restatement — folded into kept batched-heartbeat note (6)" },
+    { "candidate": "13: on idle tick do not reason or call tools", "reason": "generic token-discipline advice, low value" },
+    { "candidate": "14: parallelizing check tasks don't share files", "reason": "generic SWE advice" },
+    { "candidate": "15: dependents can fetch it instead of re-deriving", "reason": "generic fragment, not actionable" },
+    { "candidate": "18: prefer deep-research skill with tight question", "reason": "generic advice" },
+    { "candidate": "19: handful of WebSearch/WebFetch, cap ~4-5", "reason": "generic advice / soft cap" }
+  ]
+}

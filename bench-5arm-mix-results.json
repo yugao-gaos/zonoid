@@ -1,0 +1,467 @@
+{
+  "runAt": "2026-06-15T16:10:24.077Z",
+  "scenarios": [
+    "add-jsdoc",
+    "balanced-brackets",
+    "cache-eviction-policy",
+    "cron-next-fire",
+    "fix-bug",
+    "lru-cache",
+    "pure-algorithm",
+    "pure-refactor",
+    "rate-limiter-strategy",
+    "write-tests"
+  ],
+  "results": [
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "add-jsdoc",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 22778
+    },
+    {
+      "armId": 4,
+      "label": "mcp-only",
+      "scenario": "add-jsdoc",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 20419
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "add-jsdoc",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 24672
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "add-jsdoc",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 17721
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "add-jsdoc",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 21769
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "balanced-brackets",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 11254
+    },
+    {
+      "armId": 4,
+      "label": "mcp-only",
+      "scenario": "balanced-brackets",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 14109
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "balanced-brackets",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 13463
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "balanced-brackets",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 12109
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "balanced-brackets",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 12174
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "cache-eviction-policy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 161160
+    },
+    {
+      "armId": 4,
+      "label": "mcp-only",
+      "scenario": "cache-eviction-policy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 89095
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "cache-eviction-policy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 40143
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "cache-eviction-policy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 43920
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "cache-eviction-policy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 97908
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "cron-next-fire",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 115890
+    },
+    {
+      "armId": 4,
+      "label": "mcp-only",
+      "scenario": "cron-next-fire",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 162187
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "cron-next-fire",
+      "exitCode": null,
+      "timedOut": true,
+      "solved": null,
+      "wallMs": null
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "cron-next-fire",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 56382
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "cron-next-fire",
+      "exitCode": null,
+      "timedOut": true,
+      "solved": null,
+      "wallMs": null
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "fix-bug",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 25652
+    },
+    {
+      "armId": 4,
+      "label": "mcp-only",
+      "scenario": "fix-bug",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 26084
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "fix-bug",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 36887
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "fix-bug",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 21108
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "fix-bug",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 59406
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "lru-cache",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 25729
+    },
+    {
+      "armId": 4,
+      "label": "mcp-only",
+      "scenario": "lru-cache",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 22114
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "lru-cache",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 16896
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "lru-cache",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 35697
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "lru-cache",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 18789
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "pure-algorithm",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 28756
+    },
+    {
+      "armId": 4,
+      "label": "mcp-only",
+      "scenario": "pure-algorithm",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 29780
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "pure-algorithm",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 31173
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "pure-algorithm",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 32503
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "pure-algorithm",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 22030
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "pure-refactor",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 59557
+    },
+    {
+      "armId": 4,
+      "label": "mcp-only",
+      "scenario": "pure-refactor",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 21236
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "pure-refactor",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 23767
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "pure-refactor",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 24214
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "pure-refactor",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 28158
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "rate-limiter-strategy",
+      "exitCode": null,
+      "timedOut": true,
+      "solved": null,
+      "wallMs": null
+    },
+    {
+      "armId": 4,
+      "label": "mcp-only",
+      "scenario": "rate-limiter-strategy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 115758
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "rate-limiter-strategy",
+      "exitCode": null,
+      "timedOut": true,
+      "solved": null,
+      "wallMs": null
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "rate-limiter-strategy",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 123050
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "rate-limiter-strategy",
+      "exitCode": null,
+      "timedOut": true,
+      "solved": null,
+      "wallMs": null
+    },
+    {
+      "armId": 0,
+      "label": "baseline",
+      "scenario": "write-tests",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 24707
+    },
+    {
+      "armId": 4,
+      "label": "mcp-only",
+      "scenario": "write-tests",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 30759
+    },
+    {
+      "armId": 1,
+      "label": "global-summary",
+      "scenario": "write-tests",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 51021
+    },
+    {
+      "armId": 2,
+      "label": "sliding-window",
+      "scenario": "write-tests",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 28856
+    },
+    {
+      "armId": 3,
+      "label": "combined",
+      "scenario": "write-tests",
+      "exitCode": 0,
+      "timedOut": false,
+      "solved": true,
+      "wallMs": 23294
+    }
+  ]
+}

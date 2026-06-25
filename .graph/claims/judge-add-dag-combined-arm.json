@@ -1,0 +1,11 @@
+{
+  "task_key": "judge-add-dag-combined-arm",
+  "agent_id": "judge-dag-combined",
+  "session_id": "judge-dag-combined-session",
+  "workspace": "D:/zonoid",
+  "branch": "orch/attempt/judge-add-dag-combined-arm",
+  "status": "done",
+  "claimed_at": "2026-06-18T15:47:06.617Z",
+  "lease_until": "2026-06-18T16:47:06.617Z",
+  "completed_at": "2026-06-18T15:48:31.819Z"
+}

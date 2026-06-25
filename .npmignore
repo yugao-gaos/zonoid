@@ -1,0 +1,26 @@
+# Exclude runtime state, benchmarks, private data, and worktrees from npm publish
+bench/
+worktrees/
+workspace/
+sessions/
+overlay/
+private/
+certs/
+scratch/
+tmp/
+logs/
+models/
+agents.json
+loop.json
+loops.json
+op-cache.json
+tool-analytics.json
+*.log
+daemon.log
+embed.pid
+embed.sock
+.graph/
+node_modules/
+README.bak
+_config.yml
+Users/

@@ -1,0 +1,14 @@
+{
+  "name": "task-transcript",
+  "description": "Resolve the transcript file for a task given an attribution registry. The held-out edge cases require time-window overlap correlation — not covered by the prose spec, but seeded in the ON-arm KB via search_knowledge.",
+  "spec": "bench/economy/scenarios/task-transcript/spec.md",
+  "artifact": "bench/sandbox/resolve-owner-ht.js",
+  "grader": "bench/economy/scenarios/task-transcript/grader.js",
+  "minimalSource": "bench/economy/scenarios/task-transcript/minimal-source",
+  "deps": [],
+  "knowledgeQuery": "task transcript resolve owner attribution window overlap byWindow",
+  "provenHeldOutWin": true,
+  "kb_required": true,
+  "kb_partial": false,
+  "notes": "ON arm (search consult) solves 74/110 trials including edge cases; OFF arm solves 0/45. The decisive KB note seeds the window-overlap fallback algorithm."
+}

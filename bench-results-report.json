@@ -1,0 +1,155 @@
+{
+  "title": "Zonoid Retrieval Bench",
+  "arms": {
+    "cold": {
+      "total": 73,
+      "judge_correct": 43,
+      "judge_failed": 0,
+      "accuracy": 0.589041095890411,
+      "f1_mean": 0.16325805232490112,
+      "pass_rate": null,
+      "by_category": {
+        "config": {
+          "total": 6,
+          "judge_correct": 6,
+          "judge_failed": 0,
+          "accuracy": 1.0,
+          "f1_mean": 0.19792167512407954,
+          "pass_rate": null
+        },
+        "convention": {
+          "total": 15,
+          "judge_correct": 10,
+          "judge_failed": 0,
+          "accuracy": 0.6666666666666666,
+          "f1_mean": 0.23112356130856543,
+          "pass_rate": null
+        },
+        "decision": {
+          "total": 22,
+          "judge_correct": 8,
+          "judge_failed": 0,
+          "accuracy": 0.36363636363636365,
+          "f1_mean": 0.07961224665487016,
+          "pass_rate": null
+        },
+        "gotcha": {
+          "total": 18,
+          "judge_correct": 8,
+          "judge_failed": 0,
+          "accuracy": 0.4444444444444444,
+          "f1_mean": 0.1525394493969533,
+          "pass_rate": null
+        },
+        "invariant": {
+          "total": 12,
+          "judge_correct": 11,
+          "judge_failed": 0,
+          "accuracy": 0.9166666666666666,
+          "f1_mean": 0.2305229028160434,
+          "pass_rate": null
+        }
+      }
+    },
+    "on": {
+      "total": 73,
+      "judge_correct": 56,
+      "judge_failed": 0,
+      "accuracy": 0.7671232876712328,
+      "f1_mean": 0.23469120377317795,
+      "pass_rate": null,
+      "by_category": {
+        "config": {
+          "total": 6,
+          "judge_correct": 6,
+          "judge_failed": 0,
+          "accuracy": 1.0,
+          "f1_mean": 0.15238269026716136,
+          "pass_rate": null
+        },
+        "convention": {
+          "total": 15,
+          "judge_correct": 12,
+          "judge_failed": 0,
+          "accuracy": 0.8,
+          "f1_mean": 0.3471197566300424,
+          "pass_rate": null
+        },
+        "decision": {
+          "total": 22,
+          "judge_correct": 15,
+          "judge_failed": 0,
+          "accuracy": 0.6818181818181818,
+          "f1_mean": 0.20012394295835387,
+          "pass_rate": null
+        },
+        "gotcha": {
+          "total": 18,
+          "judge_correct": 14,
+          "judge_failed": 0,
+          "accuracy": 0.7777777777777778,
+          "f1_mean": 0.24681600009263638,
+          "pass_rate": null
+        },
+        "invariant": {
+          "total": 12,
+          "judge_correct": 9,
+          "judge_failed": 0,
+          "accuracy": 0.75,
+          "f1_mean": 0.1804958864697621,
+          "pass_rate": null
+        }
+      }
+    },
+    "rag_control": {
+      "total": 73,
+      "judge_correct": 36,
+      "judge_failed": 0,
+      "accuracy": 0.4931506849315068,
+      "f1_mean": 0.1680718003131853,
+      "pass_rate": null,
+      "by_category": {
+        "config": {
+          "total": 6,
+          "judge_correct": 2,
+          "judge_failed": 0,
+          "accuracy": 0.3333333333333333,
+          "f1_mean": 0.06306306306306306,
+          "pass_rate": null
+        },
+        "convention": {
+          "total": 15,
+          "judge_correct": 12,
+          "judge_failed": 0,
+          "accuracy": 0.8,
+          "f1_mean": 0.2912891959114357,
+          "pass_rate": null
+        },
+        "decision": {
+          "total": 22,
+          "judge_correct": 8,
+          "judge_failed": 0,
+          "accuracy": 0.36363636363636365,
+          "f1_mean": 0.09785412994264768,
+          "pass_rate": null
+        },
+        "gotcha": {
+          "total": 18,
+          "judge_correct": 9,
+          "judge_failed": 0,
+          "accuracy": 0.5,
+          "f1_mean": 0.17744811952903425,
+          "pass_rate": null
+        },
+        "invariant": {
+          "total": 12,
+          "judge_correct": 5,
+          "judge_failed": 0,
+          "accuracy": 0.4166666666666667,
+          "f1_mean": 0.18122234129597906,
+          "pass_rate": null
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/use-constant-emissive-core-material-for-point-cloud",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "019eef9f-bc70-7541-8f76-379400ff71e1",
+  "branch": "orch/attempt/codex-use-constant-emissive-core-material-for-point-cloud",
+  "status": "tested",
+  "claimed_at": "2026-06-22T15:07:32.254Z",
+  "lease_until": "2026-06-22T16:07:32.254Z",
+  "completed_at": "2026-06-22T18:00:11.769Z"
+}

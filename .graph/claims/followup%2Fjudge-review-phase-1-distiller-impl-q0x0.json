@@ -1,0 +1,11 @@
+{
+  "task_key": "followup/judge-review-phase-1-distiller-impl-q0x0",
+  "agent_id": "phase1-distiller-judge",
+  "session_id": "phase1-distiller-judge-session",
+  "workspace": "D:\\zonoid",
+  "branch": "orch/attempt/followup-judge-review-phase-1-distiller-impl-q0x0",
+  "status": "done",
+  "claimed_at": "2026-06-18T15:57:39.354Z",
+  "lease_until": "2026-06-18T16:57:39.354Z",
+  "completed_at": "2026-06-18T16:01:49.117Z"
+}

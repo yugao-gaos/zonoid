@@ -1,0 +1,64 @@
+{
+  "dataset": "LiberCoders/FeatureBench",
+  "split": "fast",
+  "selection_rule": "Deterministic. From the 100-row fast split, group instances by repo. Keep repos with >=2 instances sharing a single base_commit (so each per-repo KB block is exercised by >1 task). Exclude repos whose repo_settings.base_url points at a non-canonical clone mirror (e.g. bgithub.xyz) so every selected repo is cleanly cloneable from canonical GitHub at the pinned commit. Sort eligible repos by fast-split instance count desc; take the first 5; from each take the 3 lowest instance_ids (asc) at that base_commit. Yields exactly 15 instances across 5 repos.",
+  "n_repos": 5,
+  "n_instances": 15,
+  "repos": [
+    {
+      "repo": "pandas-dev/pandas",
+      "base_commit": "82fa27153e5b646ecdb78cfc6ecf3e1750443892",
+      "clone_method": "https",
+      "github_url": "https://github.com/pandas-dev/pandas.git",
+      "instance_ids": [
+        "pandas-dev__pandas.82fa2715.test_all_methods.c74b49a1.lv1",
+        "pandas-dev__pandas.82fa2715.test_col.a592871d.lv1",
+        "pandas-dev__pandas.82fa2715.test_concat.ebe5de39.lv1"
+      ]
+    },
+    {
+      "repo": "astropy/astropy",
+      "base_commit": "b0db0daac6b851596851cb43e5456fb6c916c071",
+      "clone_method": "https",
+      "github_url": "https://github.com/astropy/astropy.git",
+      "instance_ids": [
+        "astropy__astropy.b0db0daa.test_basic_rgb.067e927c.lv1",
+        "astropy__astropy.b0db0daa.test_comparison.445d81a3.lv1",
+        "astropy__astropy.b0db0daa.test_compressed.8daeb7d6.lv1"
+      ]
+    },
+    {
+      "repo": "sphinx-doc/sphinx",
+      "base_commit": "e347e59ccc27a646c974526252e39a63870f6ea3",
+      "clone_method": "https",
+      "github_url": "https://github.com/sphinx-doc/sphinx.git",
+      "instance_ids": [
+        "sphinx-doc__sphinx.e347e59c.test_build_gettext.2721e644.lv1",
+        "sphinx-doc__sphinx.e347e59c.test_build_html.d253ea54.lv1",
+        "sphinx-doc__sphinx.e347e59c.test_build_linkcheck.20428c8f.lv1"
+      ]
+    },
+    {
+      "repo": "mwaskom/seaborn",
+      "base_commit": "7001ebe72423238e99c0434a2ef0a0ebc9cb55c1",
+      "clone_method": "https",
+      "github_url": "https://github.com/mwaskom/seaborn.git",
+      "instance_ids": [
+        "mwaskom__seaborn.7001ebe7.test_algorithms.1f0181c2.lv1",
+        "mwaskom__seaborn.7001ebe7.test_bar.123ed709.lv1",
+        "mwaskom__seaborn.7001ebe7.test_distributions.f700676d.lv1"
+      ]
+    },
+    {
+      "repo": "sympy/sympy",
+      "base_commit": "c1097516c793b0364c4f3fe2eeb66b15a94eedfd",
+      "clone_method": "https",
+      "github_url": "https://github.com/sympy/sympy.git",
+      "instance_ids": [
+        "sympy__sympy.c1097516.test_inverse.c240ffe7.lv1",
+        "sympy__sympy.c1097516.test_nullspace.f14fc970.lv1",
+        "sympy__sympy.c1097516.test_puiseux.cd575f09.lv1"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{"evt":"status_changed","id":"16","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-15T02:24:46.376Z"}
+{"evt":"assignee_set","id":"16","workspace":"/Users/imyu/Desktop/zonoid","assignee":"kb-scenario-builder-16","actor":"overlay-sync","ts":"2026-06-15T02:24:46.376Z"}
+{"evt":"timestamps_set","id":"16","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-11T13:45:45.134Z","lastChanged":"2026-06-15T02:24:46.265Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-15T02:28:16.913Z"}
+{"evt":"status_changed","id":"16","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-15T02:35:06.289Z"}

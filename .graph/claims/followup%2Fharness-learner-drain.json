@@ -1,0 +1,9 @@
+{
+  "task_key": "followup/harness-learner-drain",
+  "agent_id": "dispatcher-frontier-closeout",
+  "branch": "orch/attempt/followup-harness-learner-drain",
+  "status": "done",
+  "claimed_at": "2026-06-18T12:21:36.256Z",
+  "lease_until": "2026-06-18T13:21:36.256Z",
+  "completed_at": "2026-06-19T13:49:39.983Z"
+}

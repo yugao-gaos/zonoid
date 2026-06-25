@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/judge-prevent-judge-reverse-blocking-edges",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "codex-mcp-56345-ca9cfed53710c23b8ef066f4cb1e9591",
+  "branch": "orch/attempt/codex-judge-prevent-judge-reverse-blocking-edges",
+  "status": "done",
+  "claimed_at": "2026-06-21T11:11:02.529Z",
+  "lease_until": "2026-06-21T12:11:02.529Z",
+  "completed_at": "2026-06-21T11:28:31.237Z"
+}

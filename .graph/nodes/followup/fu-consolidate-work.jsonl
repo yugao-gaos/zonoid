@@ -1,0 +1,5 @@
+{"evt":"status_changed","id":"followup/fu-consolidate-work","workspace":"/Users/imyu/Desktop/zonoid","status":"in_progress","actor":"overlay-sync","ts":"2026-06-13T13:26:20.751Z"}
+{"evt":"summary_set","id":"followup/fu-consolidate-work","workspace":"/Users/imyu/Desktop/zonoid","summary":"claim for follow-up consolidation","actor":"overlay-sync","ts":"2026-06-13T13:26:20.751Z"}
+{"evt":"assignee_set","id":"followup/fu-consolidate-work","workspace":"/Users/imyu/Desktop/zonoid","assignee":"worker-fu-consolidate","actor":"overlay-sync","ts":"2026-06-13T13:26:20.751Z"}
+{"evt":"timestamps_set","id":"followup/fu-consolidate-work","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-13T13:26:20.738Z","lastChanged":"2026-06-13T13:26:20.738Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-06-13T13:26:20.751Z"}
+{"evt":"status_changed","id":"followup/fu-consolidate-work","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-13T13:42:25.181Z"}

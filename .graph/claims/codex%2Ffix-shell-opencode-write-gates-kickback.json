@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/fix-shell-opencode-write-gates-kickback",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "worker-fix-shell-kickback",
+  "branch": "orch/attempt/codex-fix-shell-opencode-write-gates-kickback",
+  "status": "failed",
+  "claimed_at": "2026-06-22T03:20:00.876Z",
+  "lease_until": "2026-06-22T04:20:00.876Z",
+  "completed_at": "2026-06-22T03:28:27.149Z"
+}

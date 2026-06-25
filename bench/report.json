@@ -1,0 +1,1857 @@
+{
+  "meta": {
+    "source": "/Users/imyu/Desktop/zonoid/bench/heldout/results-heldout.jsonl",
+    "resultCount": 107,
+    "generatedAt": "2026-06-12T00:27:13.621Z"
+  },
+  "rows": [
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "n": 7,
+      "gross": {
+        "mean": 4344189.857142857,
+        "stdev": 988895.908034718,
+        "n": 7
+      },
+      "net": {
+        "mean": 4344189.857142857,
+        "stdev": 988895.908034718,
+        "n": 7
+      },
+      "plumbing": {
+        "mean": 0,
+        "stdev": 0,
+        "n": 7
+      },
+      "costGross": {
+        "mean": 1160585.7785714287,
+        "stdev": 213902.05090133712,
+        "n": 7
+      },
+      "costNet": {
+        "mean": 1160585.7785714287,
+        "stdev": 213902.05090133712,
+        "n": 7
+      },
+      "wallMs": {
+        "mean": 366428.14285714284,
+        "stdev": 97096.82682495959,
+        "n": 7
+      },
+      "W": {
+        "mean": 9318.857142857143,
+        "stdev": 75.6360332368741,
+        "n": 7
+      },
+      "totalOutput": {
+        "mean": 71095,
+        "stdev": 17326.509785104827,
+        "n": 7
+      },
+      "H": {
+        "mean": 61776.142857142855,
+        "stdev": 17340.52918674025,
+        "n": 7
+      },
+      "explorers": {
+        "mean": 19.714285714285715,
+        "stdev": 3.7733400639347674,
+        "n": 7
+      },
+      "cacheCost": {
+        "mean": 790721.3499999999,
+        "stdev": 138936.70561822684,
+        "n": 7
+      }
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "n": 9,
+      "gross": {
+        "mean": 3700733.4444444445,
+        "stdev": 1013302.9377517257,
+        "n": 9
+      },
+      "net": {
+        "mean": 105158.88888888889,
+        "stdev": 29543.753047152135,
+        "n": 9
+      },
+      "plumbing": {
+        "mean": 3595574.5555555555,
+        "stdev": 1032026.1395655285,
+        "n": 9
+      },
+      "costGross": {
+        "mean": 987496.6000000001,
+        "stdev": 216290.28584073222,
+        "n": 9
+      },
+      "costNet": {
+        "mean": 63943.42222222223,
+        "stdev": 20120.79507729676,
+        "n": 9
+      },
+      "wallMs": {
+        "mean": 385432.55555555556,
+        "stdev": 98479.42469002231,
+        "n": 9
+      },
+      "W": {
+        "mean": 9289.333333333334,
+        "stdev": 73.38426261808455,
+        "n": 9
+      },
+      "totalOutput": {
+        "mean": 77201.88888888889,
+        "stdev": 21782.502097121698,
+        "n": 9
+      },
+      "H": {
+        "mean": 67912.55555555556,
+        "stdev": 21729.138346418105,
+        "n": 9
+      },
+      "explorers": {
+        "mean": 18.666666666666668,
+        "stdev": 4.769696007084728,
+        "n": 9
+      },
+      "cacheCost": {
+        "mean": 588090.1555555556,
+        "stdev": 119021.04195222544,
+        "n": 9
+      }
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "n": 2,
+      "gross": {
+        "mean": 584399.5,
+        "stdev": 4052.4289629801037,
+        "n": 2
+      },
+      "net": {
+        "mean": 101574,
+        "stdev": 20814.395211007213,
+        "n": 2
+      },
+      "plumbing": {
+        "mean": 482825.5,
+        "stdev": 16761.96624802711,
+        "n": 2
+      },
+      "costGross": {
+        "mean": 230628.35,
+        "stdev": 40238.75991155792,
+        "n": 2
+      },
+      "costNet": {
+        "mean": 70727.4,
+        "stdev": 14.142135623730951,
+        "n": 2
+      },
+      "wallMs": {
+        "mean": 96140.5,
+        "stdev": 37388.2710552387,
+        "n": 2
+      },
+      "W": {
+        "mean": 670.5,
+        "stdev": 127.9863273947651,
+        "n": 2
+      },
+      "totalOutput": {
+        "mean": 16209,
+        "stdev": 6304.564061059258,
+        "n": 2
+      },
+      "H": {
+        "mean": 15538.5,
+        "stdev": 6176.577733664492,
+        "n": 2
+      },
+      "explorers": {
+        "mean": 3,
+        "stdev": 0,
+        "n": 2
+      },
+      "cacheCost": {
+        "mean": 139325.85,
+        "stdev": 8817.055875971306,
+        "n": 2
+      }
+    }
+  ],
+  "ratios": [
+    {
+      "problem": "overlay-save",
+      "netOnOverOff": 0.024206789377767008,
+      "grossOnOverOff": 0.851881148417024,
+      "costGrossOnOverOff": 0.850860503577353,
+      "costNetOnOverOff": 0.055095817476697444,
+      "haveBoth": true
+    },
+    {
+      "problem": "task-transcript",
+      "netOnOverOff": null,
+      "grossOnOverOff": null,
+      "costGrossOnOverOff": null,
+      "costNetOnOverOff": null,
+      "haveBoth": false
+    }
+  ],
+  "v4": [
+    {
+      "problem": "overlay-save",
+      "haveBoth": true,
+      "W_on": 9289.333333333334,
+      "W_off": 9318.857142857143,
+      "H_on": 67912.55555555556,
+      "H_off": 61776.142857142855,
+      "C": -202631.19444444426,
+      "metric": 171949.1309523807,
+      "pooledStdev": 97721.3394620131,
+      "nPooled": 16,
+      "solveOn": 0.8181818181818182,
+      "solveOff": 0.6363636363636364,
+      "corrobRatio": 0.9968318207832557,
+      "guards": {
+        "precondition": true,
+        "fairness": false,
+        "margin": true,
+        "corroboration": true
+      },
+      "win": false
+    },
+    {
+      "problem": "task-transcript",
+      "haveBoth": false,
+      "win": false
+    }
+  ],
+  "solveTally": {
+    "overlay-save": {
+      "OFF": {
+        "solved": 7,
+        "total": 11
+      },
+      "ON": {
+        "solved": 9,
+        "total": 11
+      }
+    },
+    "task-transcript": {
+      "ON": {
+        "solved": 9,
+        "total": 33
+      },
+      "OFF": {
+        "solved": 0,
+        "total": 20
+      }
+    },
+    "bench-metric": {
+      "OFF": {
+        "solved": 2,
+        "total": 2
+      },
+      "ON": {
+        "solved": 2,
+        "total": 2
+      }
+    },
+    "locale-sum": {
+      "OFF": {
+        "solved": 5,
+        "total": 10
+      },
+      "ON": {
+        "solved": 13,
+        "total": 18
+      }
+    }
+  },
+  "contaminated": [],
+  "dropped": [
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 34,
+      "reason": "solved===false"
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 35,
+      "reason": "solved===false"
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 36,
+      "reason": "solved===false"
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 36,
+      "reason": "solved===false"
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 37,
+      "reason": "solved===false"
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 38,
+      "reason": "solved===false"
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 41,
+      "reason": "solved===false"
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 42,
+      "reason": "solved===false"
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 43,
+      "reason": "solved===false"
+    }
+  ],
+  "unreadable": [
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 0,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 1,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 2,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 3,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 4,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 0,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": true
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 1,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": true
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 2,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": true
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 3,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 4,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": true
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 5,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": true
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 6,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": true
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 7,
+      "transcriptPath": "<redacted>",
+      "error": "ENOENT",
+      "solved": true
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 5,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 6,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 7,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 8,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 9,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 10,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 11,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 12,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 13,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 14,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 15,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 16,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 17,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 18,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "off",
+      "trial": 19,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 3,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 4,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 5,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 6,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 7,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 8,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 9,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 10,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 11,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 12,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 13,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 14,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 15,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 16,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 17,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 18,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 19,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 0,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 1,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 2,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "bench-metric",
+      "arm": "off",
+      "trial": 0,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "bench-metric",
+      "arm": "off",
+      "trial": 1,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "bench-metric",
+      "arm": "on",
+      "trial": 0,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "bench-metric",
+      "arm": "on",
+      "trial": 1,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "off",
+      "trial": 0,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "off",
+      "trial": 1,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "off",
+      "trial": 2,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "off",
+      "trial": 20,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "off",
+      "trial": 21,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "off",
+      "trial": 22,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "off",
+      "trial": 23,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "off",
+      "trial": 24,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "off",
+      "trial": 3,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "off",
+      "trial": 4,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 0,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 1,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 10,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 11,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 12,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 3,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 4,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 5,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 6,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 7,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": false
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 8,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 9,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 0,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 1,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 2,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 3,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 4,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    },
+    {
+      "problem": "locale-sum",
+      "arm": "on",
+      "trial": 99,
+      "error": "ERR_INVALID_ARG_TYPE",
+      "solved": true
+    }
+  ],
+  "runs": [
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 29,
+      "sessionId": "9cf5b427-4600-4a6f-908f-f19407b5502c",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-off-29/9cf5b427-4600-4a6f-908f-f19407b5502c.jsonl",
+      "solved": true,
+      "wallMs": 405544,
+      "gross": {
+        "input": 14310,
+        "output": 80733,
+        "cacheRead": 4845893,
+        "cacheCreate": 342582,
+        "total": 5283518,
+        "messages": 69
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 14310,
+        "output": 80733,
+        "cacheRead": 4845893,
+        "cacheCreate": 342582,
+        "total": 5283518,
+        "messages": 69
+      },
+      "explorers": 23,
+      "diffTokens": 9373
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 29,
+      "sessionId": "16ba879a-0c4a-400f-b3ca-ba87fbf4de42",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-on-gated-29/16ba879a-0c4a-400f-b3ca-ba87fbf4de42.jsonl",
+      "solved": true,
+      "wallMs": 538989,
+      "gross": {
+        "input": 11615,
+        "output": 104932,
+        "cacheRead": 5634242,
+        "cacheCreate": 227927,
+        "total": 5978716,
+        "messages": 78
+      },
+      "plumbing": {
+        "input": 1569,
+        "output": 104315,
+        "cacheRead": 5585975,
+        "cacheCreate": 201127,
+        "total": 5892986,
+        "messages": 75
+      },
+      "net": {
+        "input": 10046,
+        "output": 617,
+        "cacheRead": 48267,
+        "cacheCreate": 26800,
+        "total": 85730,
+        "messages": 3
+      },
+      "explorers": 29,
+      "diffTokens": 9288
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 30,
+      "sessionId": "758b14a5-80b1-4403-a497-804238f8f98c",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-off-30/758b14a5-80b1-4403-a497-804238f8f98c.jsonl",
+      "solved": true,
+      "wallMs": 306384,
+      "gross": {
+        "input": 9557,
+        "output": 59560,
+        "cacheRead": 3498205,
+        "cacheCreate": 342386,
+        "total": 3909708,
+        "messages": 57
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 9557,
+        "output": 59560,
+        "cacheRead": 3498205,
+        "cacheCreate": 342386,
+        "total": 3909708,
+        "messages": 57
+      },
+      "explorers": 15,
+      "diffTokens": 9340
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 30,
+      "sessionId": "24e8dc61-3fea-41a7-a785-01bb8917ac06",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-on-gated-30/24e8dc61-3fea-41a7-a785-01bb8917ac06.jsonl",
+      "solved": true,
+      "wallMs": 357487,
+      "gross": {
+        "input": 11174,
+        "output": 70615,
+        "cacheRead": 3215987,
+        "cacheCreate": 194060,
+        "total": 3491836,
+        "messages": 51
+      },
+      "plumbing": {
+        "input": 1128,
+        "output": 70029,
+        "cacheRead": 3167720,
+        "cacheCreate": 167280,
+        "total": 3406157,
+        "messages": 48
+      },
+      "net": {
+        "input": 10046,
+        "output": 586,
+        "cacheRead": 48267,
+        "cacheCreate": 26780,
+        "total": 85679,
+        "messages": 3
+      },
+      "explorers": 19,
+      "diffTokens": 9230
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 31,
+      "sessionId": "cf12b9c4-a3be-4d68-a511-4d77595191fc",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-off-31/cf12b9c4-a3be-4d68-a511-4d77595191fc.jsonl",
+      "solved": true,
+      "wallMs": 396678,
+      "gross": {
+        "input": 14474,
+        "output": 84971,
+        "cacheRead": 3629845,
+        "cacheCreate": 321432,
+        "total": 4050722,
+        "messages": 58
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 14474,
+        "output": 84971,
+        "cacheRead": 3629845,
+        "cacheCreate": 321432,
+        "total": 4050722,
+        "messages": 58
+      },
+      "explorers": 19,
+      "diffTokens": 9374
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 31,
+      "sessionId": "b07a1fec-b79a-465b-af79-97c7d69111de",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-on-gated-31/b07a1fec-b79a-465b-af79-97c7d69111de.jsonl",
+      "solved": true,
+      "wallMs": 344975,
+      "gross": {
+        "input": 10519,
+        "output": 72993,
+        "cacheRead": 2788881,
+        "cacheCreate": 184575,
+        "total": 3056968,
+        "messages": 46
+      },
+      "plumbing": {
+        "input": 471,
+        "output": 72245,
+        "cacheRead": 2724463,
+        "cacheCreate": 144961,
+        "total": 2942140,
+        "messages": 42
+      },
+      "net": {
+        "input": 10048,
+        "output": 748,
+        "cacheRead": 64418,
+        "cacheCreate": 39614,
+        "total": 114828,
+        "messages": 4
+      },
+      "explorers": 15,
+      "diffTokens": 9228
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 32,
+      "sessionId": "1f8d01ba-8f6e-4ee9-b880-e8d897095705",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-off-32/1f8d01ba-8f6e-4ee9-b880-e8d897095705.jsonl",
+      "solved": true,
+      "wallMs": 320512,
+      "gross": {
+        "input": 14456,
+        "output": 65120,
+        "cacheRead": 2765329,
+        "cacheCreate": 279104,
+        "total": 3124009,
+        "messages": 49
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 14456,
+        "output": 65120,
+        "cacheRead": 2765329,
+        "cacheCreate": 279104,
+        "total": 3124009,
+        "messages": 49
+      },
+      "explorers": 15,
+      "diffTokens": 9341
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 32,
+      "sessionId": "0532f205-a239-4395-8643-eba40e408a20",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-on-gated-32/0532f205-a239-4395-8643-eba40e408a20.jsonl",
+      "solved": true,
+      "wallMs": 357490,
+      "gross": {
+        "input": 22141,
+        "output": 72770,
+        "cacheRead": 3705169,
+        "cacheCreate": 178039,
+        "total": 3978119,
+        "messages": 58
+      },
+      "plumbing": {
+        "input": 12095,
+        "output": 72173,
+        "cacheRead": 3656902,
+        "cacheCreate": 151249,
+        "total": 3892419,
+        "messages": 55
+      },
+      "net": {
+        "input": 10046,
+        "output": 597,
+        "cacheRead": 48267,
+        "cacheCreate": 26790,
+        "total": 85700,
+        "messages": 3
+      },
+      "explorers": 22,
+      "diffTokens": 9250
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 33,
+      "sessionId": "651eaa94-3517-4198-aa3d-4afdbc61b958",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-off-33/651eaa94-3517-4198-aa3d-4afdbc61b958.jsonl",
+      "solved": true,
+      "wallMs": 264274,
+      "gross": {
+        "input": 18881,
+        "output": 51368,
+        "cacheRead": 3742414,
+        "cacheCreate": 307147,
+        "total": 4119810,
+        "messages": 62
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 18881,
+        "output": 51368,
+        "cacheRead": 3742414,
+        "cacheCreate": 307147,
+        "total": 4119810,
+        "messages": 62
+      },
+      "explorers": 24,
+      "diffTokens": 9382
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 33,
+      "sessionId": "961a99ed-2be5-441f-b016-d5a2d49966d6",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-on-gated-33/961a99ed-2be5-441f-b016-d5a2d49966d6.jsonl",
+      "solved": true,
+      "wallMs": 283215,
+      "gross": {
+        "input": 15910,
+        "output": 61496,
+        "cacheRead": 2074835,
+        "cacheCreate": 192648,
+        "total": 2344889,
+        "messages": 38
+      },
+      "plumbing": {
+        "input": 838,
+        "output": 59081,
+        "cacheRead": 1978208,
+        "cacheCreate": 132189,
+        "total": 2170316,
+        "messages": 32
+      },
+      "net": {
+        "input": 15072,
+        "output": 2415,
+        "cacheRead": 96627,
+        "cacheCreate": 60459,
+        "total": 174573,
+        "messages": 6
+      },
+      "explorers": 12,
+      "diffTokens": 9259
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 34,
+      "sessionId": "51f752f4-289d-4e41-ad39-1e11f3756efc",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-off-34/51f752f4-289d-4e41-ad39-1e11f3756efc.jsonl",
+      "solved": false,
+      "wallMs": 78284,
+      "gross": {
+        "input": 17624,
+        "output": 16136,
+        "cacheRead": 419872,
+        "cacheCreate": 113444,
+        "total": 567076,
+        "messages": 14
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 17624,
+        "output": 16136,
+        "cacheRead": 419872,
+        "cacheCreate": 113444,
+        "total": 567076,
+        "messages": 14
+      },
+      "explorers": 4,
+      "diffTokens": 9174
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 34,
+      "sessionId": "6e279aa7-2923-4e39-9450-241a815bac88",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-on-gated-34/6e279aa7-2923-4e39-9450-241a815bac88.jsonl",
+      "solved": true,
+      "wallMs": 332876,
+      "gross": {
+        "input": 10787,
+        "output": 64721,
+        "cacheRead": 3112799,
+        "cacheCreate": 193293,
+        "total": 3381600,
+        "messages": 51
+      },
+      "plumbing": {
+        "input": 739,
+        "output": 64021,
+        "cacheRead": 3048381,
+        "cacheCreate": 153731,
+        "total": 3266872,
+        "messages": 47
+      },
+      "net": {
+        "input": 10048,
+        "output": 700,
+        "cacheRead": 64418,
+        "cacheCreate": 39562,
+        "total": 114728,
+        "messages": 4
+      },
+      "explorers": 17,
+      "diffTokens": 9273
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 35,
+      "sessionId": "2799bbac-067d-4d6e-90f7-61993e3aad59",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-off-35/2799bbac-067d-4d6e-90f7-61993e3aad59.jsonl",
+      "solved": true,
+      "wallMs": 554855,
+      "gross": {
+        "input": 19151,
+        "output": 98738,
+        "cacheRead": 5563040,
+        "cacheCreate": 377736,
+        "total": 6058665,
+        "messages": 74
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 19151,
+        "output": 98738,
+        "cacheRead": 5563040,
+        "cacheCreate": 377736,
+        "total": 6058665,
+        "messages": 74
+      },
+      "explorers": 23,
+      "diffTokens": 9220
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 35,
+      "sessionId": "63435fe4-5d47-4ec7-b280-8713a96634b7",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-on-gated-35/63435fe4-5d47-4ec7-b280-8713a96634b7.jsonl",
+      "solved": false,
+      "wallMs": 310624,
+      "gross": {
+        "input": 20521,
+        "output": 69017,
+        "cacheRead": 1396747,
+        "cacheCreate": 242450,
+        "total": 1728735,
+        "messages": 27
+      },
+      "plumbing": {
+        "input": 429,
+        "output": 65315,
+        "cacheRead": 1300213,
+        "cacheCreate": 187412,
+        "total": 1553369,
+        "messages": 21
+      },
+      "net": {
+        "input": 20092,
+        "output": 3702,
+        "cacheRead": 96534,
+        "cacheCreate": 55038,
+        "total": 175366,
+        "messages": 6
+      },
+      "explorers": 7,
+      "diffTokens": 9174
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 36,
+      "sessionId": "97a8a673-a85b-4ea4-92b0-f63b3932edaa",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-off-36/97a8a673-a85b-4ea4-92b0-f63b3932edaa.jsonl",
+      "solved": false,
+      "wallMs": 81613,
+      "gross": {
+        "input": 13225,
+        "output": 15235,
+        "cacheRead": 452046,
+        "cacheCreate": 87717,
+        "total": 568223,
+        "messages": 14
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 13225,
+        "output": 15235,
+        "cacheRead": 452046,
+        "cacheCreate": 87717,
+        "total": 568223,
+        "messages": 14
+      },
+      "explorers": 6,
+      "diffTokens": 9174
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 36,
+      "sessionId": "8de7ea21-3356-4e70-bfe1-faa1908fb3e7",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-on-gated-36/8de7ea21-3356-4e70-bfe1-faa1908fb3e7.jsonl",
+      "solved": false,
+      "wallMs": 105947,
+      "gross": {
+        "input": 15354,
+        "output": 21270,
+        "cacheRead": 625905,
+        "cacheCreate": 126563,
+        "total": 789092,
+        "messages": 18
+      },
+      "plumbing": {
+        "input": 282,
+        "output": 18126,
+        "cacheRead": 529278,
+        "cacheCreate": 65036,
+        "total": 612722,
+        "messages": 12
+      },
+      "net": {
+        "input": 15072,
+        "output": 3144,
+        "cacheRead": 96627,
+        "cacheCreate": 61527,
+        "total": 176370,
+        "messages": 6
+      },
+      "explorers": 6,
+      "diffTokens": 9174
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 37,
+      "sessionId": "03f6b07a-8c6a-4f46-947a-e175c4c904fa",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-off-37/03f6b07a-8c6a-4f46-947a-e175c4c904fa.jsonl",
+      "solved": false,
+      "wallMs": 115416,
+      "gross": {
+        "input": 9092,
+        "output": 19661,
+        "cacheRead": 671249,
+        "cacheCreate": 87992,
+        "total": 787994,
+        "messages": 18
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 9092,
+        "output": 19661,
+        "cacheRead": 671249,
+        "cacheCreate": 87992,
+        "total": 787994,
+        "messages": 18
+      },
+      "explorers": 7,
+      "diffTokens": 9174
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 37,
+      "sessionId": "875d3c3d-c42e-4370-bb2e-117a8664d3a0",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-on-gated-37/875d3c3d-c42e-4370-bb2e-117a8664d3a0.jsonl",
+      "solved": true,
+      "wallMs": 569430,
+      "gross": {
+        "input": 11053,
+        "output": 122615,
+        "cacheRead": 3850936,
+        "cacheCreate": 247551,
+        "total": 4232155,
+        "messages": 55
+      },
+      "plumbing": {
+        "input": 1007,
+        "output": 122092,
+        "cacheRead": 3802669,
+        "cacheCreate": 220798,
+        "total": 4146566,
+        "messages": 52
+      },
+      "net": {
+        "input": 10046,
+        "output": 523,
+        "cacheRead": 48267,
+        "cacheCreate": 26753,
+        "total": 85589,
+        "messages": 3
+      },
+      "explorers": 17,
+      "diffTokens": 9470
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 38,
+      "sessionId": "c16c74c6-d42b-48bb-85ab-a989cdf0a4d3",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-off-38/c16c74c6-d42b-48bb-85ab-a989cdf0a4d3.jsonl",
+      "solved": false,
+      "wallMs": 77283,
+      "gross": {
+        "input": 17624,
+        "output": 15113,
+        "cacheRead": 420746,
+        "cacheCreate": 95054,
+        "total": 548537,
+        "messages": 14
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 17624,
+        "output": 15113,
+        "cacheRead": 420746,
+        "cacheCreate": 95054,
+        "total": 548537,
+        "messages": 14
+      },
+      "explorers": 5,
+      "diffTokens": 9174
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 38,
+      "sessionId": "d9439f39-f97b-4c2f-8da5-65db78a10edc",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-on-gated-38/d9439f39-f97b-4c2f-8da5-65db78a10edc.jsonl",
+      "solved": true,
+      "wallMs": 340436,
+      "gross": {
+        "input": 16204,
+        "output": 66777,
+        "cacheRead": 3384876,
+        "cacheCreate": 189046,
+        "total": 3656903,
+        "messages": 56
+      },
+      "plumbing": {
+        "input": 1136,
+        "output": 65932,
+        "cacheRead": 3320551,
+        "cacheCreate": 155282,
+        "total": 3542901,
+        "messages": 52
+      },
+      "net": {
+        "input": 15068,
+        "output": 845,
+        "cacheRead": 64325,
+        "cacheCreate": 33764,
+        "total": 114002,
+        "messages": 4
+      },
+      "explorers": 18,
+      "diffTokens": 9308
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "off",
+      "trial": 39,
+      "sessionId": "d10e12f7-5f86-49a1-905f-dab84ca46292",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-off-39/d10e12f7-5f86-49a1-905f-dab84ca46292.jsonl",
+      "solved": true,
+      "wallMs": 316750,
+      "gross": {
+        "input": 9897,
+        "output": 57175,
+        "cacheRead": 3545381,
+        "cacheCreate": 250444,
+        "total": 3862897,
+        "messages": 58
+      },
+      "plumbing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheCreate": 0,
+        "total": 0,
+        "messages": 0
+      },
+      "net": {
+        "input": 9897,
+        "output": 57175,
+        "cacheRead": 3545381,
+        "cacheCreate": 250444,
+        "total": 3862897,
+        "messages": 58
+      },
+      "explorers": 19,
+      "diffTokens": 9202
+    },
+    {
+      "problem": "overlay-save",
+      "arm": "on",
+      "trial": 39,
+      "sessionId": "4dae5ad2-1e5e-4c6d-ac12-ec70f7844a74",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-overlay-save-on-gated-39/4dae5ad2-1e5e-4c6d-ac12-ec70f7844a74.jsonl",
+      "solved": true,
+      "wallMs": 343995,
+      "gross": {
+        "input": 11170,
+        "output": 57898,
+        "cacheRead": 2946364,
+        "cacheCreate": 169983,
+        "total": 3185415,
+        "messages": 49
+      },
+      "plumbing": {
+        "input": 1124,
+        "output": 57366,
+        "cacheRead": 2898097,
+        "cacheCreate": 143227,
+        "total": 3099814,
+        "messages": 46
+      },
+      "net": {
+        "input": 10046,
+        "output": 532,
+        "cacheRead": 48267,
+        "cacheCreate": 26756,
+        "total": 85601,
+        "messages": 3
+      },
+      "explorers": 19,
+      "diffTokens": 9298
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 40,
+      "sessionId": "90bf2aef-5844-4019-b682-5395d9827545",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-task-transcript-on-gated-40/90bf2aef-5844-4019-b682-5395d9827545.jsonl",
+      "solved": true,
+      "wallMs": 122578,
+      "gross": {
+        "input": 10186,
+        "output": 20667,
+        "cacheRead": 471992,
+        "cacheCreate": 78689,
+        "total": 581534,
+        "messages": 16
+      },
+      "plumbing": {
+        "input": 26,
+        "output": 20227,
+        "cacheRead": 439868,
+        "cacheCreate": 34557,
+        "total": 494678,
+        "messages": 13
+      },
+      "net": {
+        "input": 10160,
+        "output": 440,
+        "cacheRead": 32124,
+        "cacheCreate": 44132,
+        "total": 86856,
+        "messages": 3
+      },
+      "explorers": 3,
+      "diffTokens": 761
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 41,
+      "sessionId": "1f27ebb2-9ed9-41cb-92c5-5416d2fddd97",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-task-transcript-on-gated-41/1f27ebb2-9ed9-41cb-92c5-5416d2fddd97.jsonl",
+      "solved": false,
+      "wallMs": 73731,
+      "gross": {
+        "input": 15276,
+        "output": 13381,
+        "cacheRead": 310013,
+        "cacheCreate": 56820,
+        "total": 395490,
+        "messages": 12
+      },
+      "plumbing": {
+        "input": 16,
+        "output": 12663,
+        "cacheRead": 245672,
+        "cacheCreate": 21423,
+        "total": 279774,
+        "messages": 8
+      },
+      "net": {
+        "input": 15260,
+        "output": 718,
+        "cacheRead": 64341,
+        "cacheCreate": 35397,
+        "total": 115716,
+        "messages": 4
+      },
+      "explorers": 1,
+      "diffTokens": 292
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 42,
+      "sessionId": "12f2927c-cd90-4181-aa86-a7b2890b9a05",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-task-transcript-on-gated-42/12f2927c-cd90-4181-aa86-a7b2890b9a05.jsonl",
+      "solved": false,
+      "wallMs": 41407,
+      "gross": {
+        "input": 10176,
+        "output": 6195,
+        "cacheRead": 166275,
+        "cacheCreate": 31218,
+        "total": 213864,
+        "messages": 7
+      },
+      "plumbing": {
+        "input": 8,
+        "output": 5752,
+        "cacheRead": 117996,
+        "cacheCreate": 3239,
+        "total": 126995,
+        "messages": 4
+      },
+      "net": {
+        "input": 10168,
+        "output": 443,
+        "cacheRead": 48279,
+        "cacheCreate": 27979,
+        "total": 86869,
+        "messages": 3
+      },
+      "explorers": 1,
+      "diffTokens": 250
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 43,
+      "sessionId": "6996f53a-8875-4db7-a64b-b371327c6c44",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-task-transcript-on-gated-43/6996f53a-8875-4db7-a64b-b371327c6c44.jsonl",
+      "solved": false,
+      "wallMs": 52195,
+      "gross": {
+        "input": 10178,
+        "output": 6400,
+        "cacheRead": 263452,
+        "cacheCreate": 46858,
+        "total": 326888,
+        "messages": 10
+      },
+      "plumbing": {
+        "input": 14,
+        "output": 5859,
+        "cacheRead": 215173,
+        "cacheCreate": 18832,
+        "total": 239878,
+        "messages": 7
+      },
+      "net": {
+        "input": 10164,
+        "output": 541,
+        "cacheRead": 48279,
+        "cacheCreate": 28026,
+        "total": 87010,
+        "messages": 3
+      },
+      "explorers": 1,
+      "diffTokens": 265
+    },
+    {
+      "problem": "task-transcript",
+      "arm": "on",
+      "trial": 44,
+      "sessionId": "a96323fa-9f9e-4ab4-849a-ccbce9cfe110",
+      "transcriptPath": "/Users/imyu/.claude/projects/-Users-imyu-Desktop-zonoid-worktrees-bench-ht-task-transcript-on-gated-44/a96323fa-9f9e-4ab4-849a-ccbce9cfe110.jsonl",
+      "solved": true,
+      "wallMs": 69703,
+      "gross": {
+        "input": 10329,
+        "output": 11751,
+        "cacheRead": 498600,
+        "cacheCreate": 66585,
+        "total": 587265,
+        "messages": 17
+      },
+      "plumbing": {
+        "input": 155,
+        "output": 11219,
+        "cacheRead": 434166,
+        "cacheCreate": 25433,
+        "total": 470973,
+        "messages": 13
+      },
+      "net": {
+        "input": 10174,
+        "output": 532,
+        "cacheRead": 64434,
+        "cacheCreate": 41152,
+        "total": 116292,
+        "messages": 4
+      },
+      "explorers": 3,
+      "diffTokens": 580
+    }
+  ]
+}

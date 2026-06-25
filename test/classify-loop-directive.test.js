@@ -1,0 +1,120 @@
+'use strict';
+
+// Unit coverage for the [Loop] request-scoped directive added by assembleClassifyResponse.
+// Asserts: present for substantive prompts, absent for trivial ones, and that the existing
+// HEARTBEAT is not regressed and standing drain nudges are suppressed by default.
+
+const { test } = require('node:test');
+const assert = require('node:assert');
+
+const { classifyHeuristic } = require('../lib/prompt-heuristic');
+const {
+  assembleClassifyResponse, HEARTBEAT, GATE_REMINDER, LOOP_DIRECTIVE,
+} = require('../lib/classify-assemble');
+
+function assemble(prompt, cc, extra = {}) {
+  return assembleClassifyResponse({
+    prompt,
+    sessionId: null,
+    heuristic: classifyHeuristic(prompt),
+    contextClassify: { complexity: 0.5, gate_decision: 'abstain', rag_score: 0, dag_score: 0, ...cc },
+    hasMetricSpec: false,
+    readyEntry: null,
+    judgePressure: null,
+    labelPressure: null,
+    learnerPressure: null,
+    orchGateOff: false,
+    ...extra,
+  });
+}
+
+test('[Loop] directive present for a substantive prompt', () => {
+  // High complexity solo build → substantive.
+  const ctx = assemble('refactor the auth subsystem to support OIDC', { complexity: 0.8 }).additional_context;
+  assert.ok(ctx.includes('[Loop]'), 'expected [Loop] directive for substantive prompt');
+  assert.ok(ctx.includes('until the USER'), 'loop directive should scope to the request, not forever');
+});
+
+test('[Loop] directive present for non-solo heuristic decisions', () => {
+  // "compare" → team decision → substantive regardless of complexity.
+  const ctx = assemble('compare three approaches and pick the best', { complexity: 0.2 }).additional_context;
+  assert.ok(ctx.includes('[Loop]'), 'expected [Loop] directive for team-routed prompt');
+});
+
+test('scaffold guidance points foreground agents at Subconscious first', () => {
+  const ctx = assemble('continue the current task', {
+    complexity: 0.3,
+    gate_decision: 'scaffold',
+    scaffold_keys: [{ key: 'task/anchor', label: 'Anchored task' }],
+  }).additional_context;
+  assert.ok(ctx.includes('[Subconscious scaffold]'), 'expected Subconscious scaffold block');
+  assert.ok(ctx.includes('ask_subconscious for the verdict, context, anchor, pressure, and approval posture'));
+  assert.ok(ctx.includes('task/anchor'));
+  assert.ok(!ctx.includes('consult search_knowledge'), 'raw search should not be the foreground scaffold primitive');
+});
+
+test('[Loop] directive ABSENT for a trivial prompt', () => {
+  // solo + low complexity + abstain → trivial.
+  const ctx = assemble('fix typo', { complexity: 0.2 }).additional_context;
+  assert.ok(!ctx.includes('[Loop]'), 'trivial prompt must NOT get the loop directive');
+});
+
+test('HEARTBEAT remains present and standing drain nudges are suppressed by default', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  delete process.env.ORCH_HEADLESS_DRAINS;
+  const judgePressure = { nudge: true, depth: 5, dupClusters: 1, harness_task_key: 'followup/harness-judge-drain' };
+  const labelPressure = { nudge: true, depth: 3, harness_task_key: 'followup/harness-label-drain' };
+  const learnerPressure = {
+    nudge: true, depth: 2, repoName: 'zonoid', repoPath: '/repo', outDir: '/out', harness_task_key: 'followup/harness-learner-drain',
+  };
+  try {
+    const ctx = assemble('refactor the auth subsystem to support OIDC', { complexity: 0.8 }, {
+      judgePressure, labelPressure, learnerPressure,
+    }).additional_context;
+
+    assert.ok(ctx.includes(HEARTBEAT), 'HEARTBEAT must still be present');
+    assert.ok(ctx.includes(GATE_REMINDER), 'GATE_REMINDER must still be present');
+    assert.ok(!ctx.includes('[Judge]'), 'judge nudge must be suppressed when headless drains are enabled');
+    assert.ok(!ctx.includes('[Grader]'), 'label nudge must be suppressed when headless drains are enabled');
+    assert.ok(!ctx.includes('[Learner]'), 'learner nudge must be suppressed when headless drains are enabled');
+    assert.ok(ctx.includes('[Loop]'), 'loop directive should remain present');
+    assert.ok(ctx.includes('standing judge/label/learner drains are owned by the daemon headless drain runner'));
+  } finally {
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+test('standing drain pressure remains Subconscious-facing when headless drains are explicitly disabled', () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '0';
+  const judgePressure = { nudge: true, depth: 5, dupClusters: 1, harness_task_key: 'followup/harness-judge-drain' };
+  const labelPressure = { nudge: true, depth: 3, harness_task_key: 'followup/harness-label-drain' };
+  const learnerPressure = {
+    nudge: true, depth: 2, repoName: 'zonoid', repoPath: '/repo', outDir: '/out', harness_task_key: 'followup/harness-learner-drain',
+  };
+  try {
+    const ctx = assemble('refactor the auth subsystem to support OIDC', { complexity: 0.8 }, {
+      judgePressure, labelPressure, learnerPressure,
+    }).additional_context;
+
+    assert.ok(ctx.includes('[Subconscious pressure]'), 'maintenance backlog should surface as pressure');
+    assert.ok(ctx.includes('judge backlog'), 'judge pressure should remain visible');
+    assert.ok(ctx.includes('grader backlog'), 'label pressure should remain visible');
+    assert.ok(ctx.includes('learner backlog'), 'learner pressure should remain visible');
+    assert.ok(ctx.includes('ask_subconscious'), 'pressure should point foreground agents through Subconscious');
+    assert.ok(!ctx.includes('[Judge]'), 'manual judge nudge should not be injected');
+    assert.ok(!ctx.includes('[Grader]'), 'manual label nudge should not be injected');
+    assert.ok(!ctx.includes('[Learner]'), 'manual learner nudge should not be injected');
+    assert.ok(!ctx.includes('mcp__orchestrator-graph__start_task'), 'manual start_task recipe should not be injected');
+    assert.ok(!ctx.includes('mcp__orchestrator-graph__complete_task'), 'manual complete_task recipe should not be injected');
+  } finally {
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+test('LOOP_DIRECTIVE export is the string pushed into parts', () => {
+  const ctx = assemble('refactor the auth subsystem to support OIDC', { complexity: 0.8 }).additional_context;
+  assert.ok(ctx.includes(LOOP_DIRECTIVE), 'exported LOOP_DIRECTIVE should match injected text');
+});

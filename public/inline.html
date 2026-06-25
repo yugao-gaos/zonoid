@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root { color-scheme: dark light; }
+  body { margin: 0; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: #0d1117; color: #e6edf3; }
+  header { padding: 8px 12px; border-bottom: 1px solid #21262d; display: flex; gap: 6px 12px; align-items: baseline; flex-wrap: wrap; }
+  h1 { font-size: 13px; margin: 0; font-weight: 600; }
+  .sum span { color: #8b949e; } .sum b { color: #e6edf3; }
+  .chip { font-size: 10px; padding: 1px 7px; border-radius: 9px; border: 1px solid #30363d; }
+  #dag { display: flex; gap: 28px; padding: 10px 12px; align-items: flex-start; overflow-x: auto; }
+  .level { display: flex; flex-direction: column; gap: 8px; min-width: 150px; }
+  .node { border: 1px solid #30363d; border-left-width: 3px; border-radius: 7px; padding: 6px 8px; background: #161b22; }
+  .node .lbl { font-weight: 600; } .node .st { font-size: 10px; text-transform: uppercase; margin-top: 1px; }
+  .node .deps { color: #6e7681; font-size: 10px; margin-top: 2px; }
+  .badge { font-size: 9px; background: #1f6feb33; color: #79c0ff; border-radius: 8px; padding: 0 5px; margin-left: 5px; }
+  .s-not_ready{border-left-color:#6e7681;opacity:.55}.s-not_ready .st{color:#6e7681}
+  .s-needs_guidance,.s-needs_approval{border-left-color:#d29922}.s-needs_guidance .st,.s-needs_approval .st{color:#e3b341}
+  .s-waiting_deps{border-left-color:#6e7681;opacity:.55}.s-waiting_deps .st{color:#6e7681}
+  .s-waiting_ghost{border-left-color:#8957e5;opacity:.75}.s-waiting_ghost .st{color:#d2a8ff}
+  .s-blocked{border-left-color:#f85149}.s-blocked .st{color:#ff7b72}
+  .s-ready{border-left-color:#d29922}.s-ready .st{color:#e3b341}
+  .s-in_progress{border-left-color:#1f6feb;position:relative;overflow:hidden}.s-in_progress .st{color:#58a6ff}
+  .s-in_progress::after{content:'';position:absolute;inset:0;border-radius:7px;pointer-events:none;
+    background:linear-gradient(105deg,transparent 38%,rgba(121,192,255,.45) 50%,transparent 62%);
+    animation:dockshine 2.2s linear infinite}
+  .s-tested{border-left-color:#2dd4bf}.s-tested .st{color:#2dd4bf}
+  .s-done{border-left-color:#2ea043}.s-done .st{color:#3fb950}
+  .s-failed{border-left-color:#f85149}.s-failed .st{color:#ff7b72}
+  .s-canceled{border-left-color:#484f58;opacity:.5}.s-canceled .lbl{text-decoration:line-through}
+  .s-ghost{border-left-color:#8957e5;border-style:dashed;opacity:.7}.s-ghost .st{color:#d2a8ff}
+  @keyframes dockshine{from{transform:translateX(-120%)}to{transform:translateX(120%)}}
+  .empty{color:#6e7681;padding:10px 12px} .src{color:#6e7681;font-size:10px}
+</style>
+</head>
+<body>
+<header><h1>Zonoid</h1><div class="sum" id="sum"></div><div class="src" id="src"></div></header>
+<div id="dag"><div class="empty">connecting…</div></div>
+<script>
+  // ---- MCP Apps bridge + direct-fetch (belt and suspenders) ----
+  const DAEMON = 'http://localhost:8787';
+  const WS = new URLSearchParams(location.search).get('workspace') || '';
+  const scoped = (path) => WS ? path + (path.includes('?') ? '&' : '?') + 'workspace=' + encodeURIComponent(WS) : path;
+  let started = false, rpc = 1000, useBridge = false; const pending = {};
+function postParent(msg){ try { parent.postMessage(msg, '*'); } catch(e){} }
+function bridgeCall(name, args){
+  return new Promise((resolve) => { const id = ++rpc; pending[id] = resolve;
+    postParent({ jsonrpc:'2.0', id, method:'tools/call', params:{ name, arguments: args||{} } });
+    setTimeout(() => { if(pending[id]){ delete pending[id]; resolve(null); } }, 2500); });
+}
+window.addEventListener('message', (e) => {
+  const m = e.data; if(!m || typeof m !== 'object') return;
+  if (m.id != null && pending[m.id]) { pending[m.id](m.result); delete pending[m.id]; return; }  // responses to ui/initialize + tools/call
+  if (m.method === 'ui/notifications/tool-result') { refresh(); return; }                         // host pushed a tool result -> refresh
+  if (m.method === 'ui/initialize') { postParent({ jsonrpc:'2.0', id:m.id, result:{} }); }        // defensive: some hosts may probe
+});
+// MCP Apps handshake — the VIEW (iframe) initiates it. The host keeps us hidden until we send
+// ui/initialize and then ui/notifications/initialized.
+function handshake(){
+  const id = ++rpc;
+  pending[id] = () => { postParent({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }); start(); };
+  postParent({ jsonrpc:'2.0', id, method:'ui/initialize', params:{
+    protocolVersion:'2025-06-18',
+    appCapabilities:{ tools:{ listChanged:true }, availableDisplayModes:['inline','fullscreen'] },
+    clientInfo:{ name:'orchestrator', version:'0.1.0' }
+  } });
+}
+async function getState(){
+  // 1) direct fetch (works if connectDomains allows localhost — proven in the preview panel)
+  try { const r = await fetch(DAEMON + scoped('/state'), { cache:'no-store' }); if (r.ok) { useBridge=false; return await r.json(); } } catch(e){}
+  // 2) fallback: ask the host to call our get_graph tool
+  try { const out = await bridgeCall('get_graph'); const t = out && out.content && out.content[0] && out.content[0].text; if (t) { useBridge=true; return JSON.parse(t); } } catch(e){}
+  return null;
+}
+function levelize(tasks){
+  const byId=Object.fromEntries(tasks.map(t=>[t.id,t])), memo={};
+  function lvl(id,seen){ const t=byId[id]; if(!t)return 0; const loc=t.deps.filter(d=>!d.startsWith('ghost:'));
+    if(!loc.length)return memo[id]=0; if(memo[id]!=null)return memo[id]; if(seen.has(id))return 0; seen.add(id);
+    const l=1+Math.max(...loc.map(d=>lvl(d,seen))); seen.delete(id); return memo[id]=l; }
+  const L={}; for(const t of tasks){ const l=lvl(t.id,new Set()); (L[l]=L[l]||[]).push(t); }
+  return Object.keys(L).sort((a,b)=>a-b).map(k=>L[k]);
+}
+const DISPLAY_STATUS_COLOR={needs_guidance:'#e3b341',needs_approval:'#e3b341',waiting_deps:'#6e7681',waiting_ghost:'#a371f7',blocked:'#ff7b72'};
+const GUIDANCE_HOLD_RE=/disruptive follow-up|gated on guidance|held by user|user_hold|scheduled for|cost_gate|awaiting user|awaiting approval|review required|force-claim/i;
+function taskDisplayStatus(t,byId){
+  if(!t||t.kind==='note') return {key:t&&t.status||'note',label:(t&&t.status||'note').replace('_',' '),color:'#d29922'};
+  if(t.status!=='not_ready') return {key:t.status,label:t.status.replace('_',' '),color:{'ready':'#e3b341','in_progress':'#58a6ff','done':'#3fb950','failed':'#ff7b72'}[t.status]||'#6e7681'};
+  if(t.blocked) return {key:'blocked',label:'blocked',color:DISPLAY_STATUS_COLOR.blocked};
+  if(GUIDANCE_HOLD_RE.test(String(t.note||''))||String(t.blocked||'').includes('cost_gate')){
+    const approval=/held by user|disruptive/i.test(String(t.note||''));
+    return {key:approval?'needs_approval':'needs_guidance',label:approval?'needs approval':'needs guidance',color:'#e3b341'};
+  }
+  const open=(t.deps||[]).filter(d=>!String(d).startsWith('ghost:')&&byId[d]&&byId[d].status!=='done'&&byId[d].status!=='canceled');
+  if(open.length) return {key:'waiting_deps',label:'waiting on deps',color:DISPLAY_STATUS_COLOR.waiting_deps};
+  if((t.deps||[]).some(d=>String(d).startsWith('ghost:'))) return {key:'waiting_ghost',label:'waiting on ghost',color:DISPLAY_STATUS_COLOR.waiting_ghost};
+  return {key:'not_ready',label:'not ready',color:'#6e7681'};
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function render(d){
+  if(!d){ document.getElementById('dag').innerHTML='<div class="empty">daemon unreachable (start a session or run the daemon)</div>'; return; }
+  const s=d.summary, sc=s.statuses||{}, order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
+  document.getElementById('sum').innerHTML = `<span>tasks <b>${s.tasks_total}</b></span>`+
+    order.filter(k=>sc[k]).map(k=>`<span class="chip s-${k}"><b>${sc[k]}</b> ${k.replace('_',' ')}</span>`).join('')+
+    (s.ghosts?`<span class="chip s-ghost"><b>${s.ghosts}</b> ghost</span>`:'')+
+    `<span>· agents <b>${s.agents.running}</b>▶ <b>${s.agents.done}</b>✓</span>`;
+  document.getElementById('src').textContent = (useBridge?'via bridge':'via daemon') + (d.workspace?(' · '+d.workspace.split('/').pop()):'');
+  const dag=document.getElementById('dag');
+  if(!d.tasks.length){ dag.innerHTML='<div class="empty">No tasks in this workspace yet.</div>'; return; }
+  dag.innerHTML='';
+  const byId=Object.fromEntries(d.tasks.map(t=>[t.id,t]));
+  for(const col of levelize(d.tasks)){ const c=document.createElement('div'); c.className='level';
+    for(const t of col){ const ds=taskDisplayStatus(t,byId); const n=document.createElement('div'); n.className='node s-'+ds.key;
+      n.innerHTML=`<div class="lbl">${esc(t.label)}${t.agent_id?'<span class="badge">▶ '+esc(t.agent_id)+'</span>':''}</div>`+
+        `<div class="st">${esc(ds.label)}</div>`+
+        (t.summary?`<div class="deps">📝 ${esc(t.summary.slice(0,36))}</div>`:'')+
+        (t.deps.length?`<div class="deps">⇠ ${t.deps.length} dep(s)</div>`:'');
+      c.appendChild(n);} dag.appendChild(c); }
+  if(d.ghosts&&d.ghosts.length){ const c=document.createElement('div'); c.className='level';
+    for(const g of d.ghosts){ const n=document.createElement('div'); n.className='node s-ghost';
+      n.innerHTML=`<div class="lbl">👻 ${esc(g.label)}</div><div class="st">${esc(g.status)} · other ws</div>`; c.appendChild(n);} dag.appendChild(c); }
+}
+async function refresh(){ render(await getState()); }
+function start(){ if(started)return; started=true; refresh(); setInterval(refresh, 3000);
+  try { const es = new EventSource(DAEMON + scoped('/events')); es.onmessage = () => refresh(); } catch(e){} }
+handshake();                 // drive the MCP Apps handshake immediately
+setTimeout(start, 1000);     // fallback: standalone / preview-panel (no host responds)
+</script>
+</body>
+</html>

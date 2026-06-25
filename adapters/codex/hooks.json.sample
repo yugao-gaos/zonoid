@@ -1,0 +1,119 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/codex/hooks/session-start.sh",
+            "statusMessage": "Starting orchestrator",
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/codex/hooks/classify-relay.sh",
+            "statusMessage": "Orchestrator classify",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/codex/hooks/subagent-start.sh",
+            "statusMessage": "Registering subagent"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/codex/hooks/subagent-stop.sh",
+            "statusMessage": "Subagent done"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/codex/hooks/orch-stop.sh",
+            "statusMessage": "Cooperative stop check"
+          }
+        ]
+      },
+      {
+        "matcher": "apply_patch|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/codex/hooks/orch-gate.sh",
+            "statusMessage": "Task claim gate"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/codex/hooks/orch-gate-bash.sh",
+            "statusMessage": "Shell write gate"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__orchestrator-graph__start_task|mcp__orchestrator_graph__start_task|start_task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/codex/hooks/post-start-task.sh",
+            "statusMessage": "Register claim session"
+          }
+        ]
+      },
+      {
+        "matcher": "spawn_agents.*|mcp__orchestrator-graph__complete_task|mcp__orchestrator_graph__complete_task|complete_task|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/codex/hooks/post-lifecycle.sh",
+            "statusMessage": "Ready-task nudge"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__INSTALL_DIR__/adapters/codex/hooks/agent-done.sh",
+            "statusMessage": "Agent lifecycle",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

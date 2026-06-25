@@ -1,0 +1,3734 @@
+[
+  {
+    "title": "import, and otherwise transfer your Contributions, where such license applies...",
+    "summary": "import, and otherwise transfer your Contributions, where such license applies only to those",
+    "source": "CLA.md",
+    "kind": "doc"
+  },
+  {
+    "title": "You are not under any obligation (contractual or otherwise) that",
+    "summary": "You are not under any obligation (contractual or otherwise) that",
+    "source": "CLA.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Individual contributors must sign this Agreement personally",
+    "summary": "Individual contributors must sign this Agreement personally.",
+    "source": "CLA.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Entity contributors (corporations, partnerships, or other legal entities) mus...",
+    "summary": "Entity contributors (corporations, partnerships, or other legal entities) must have an",
+    "source": "CLA.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Always surface the dashboard link in your replies when doing orchestrator/mul...",
+    "summary": "Always surface the dashboard link in your replies when doing orchestrator/multi-task work,",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The link is cheap to include and harmless if the dashboard is already open",
+    "summary": "The link is cheap to include and harmless if the dashboard is already open — prefer including it",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "into existing/completed work instead of becoming an orphan root node",
+    "summary": "into existing/completed work instead of becoming an orphan root node.",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Keep the main thread free to orchestrate and talk to the user",
+    "summary": "Keep the main thread free to orchestrate and talk to the user — never block it on a build.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(suggest_links + add_dependency) before dispatching",
+    "summary": "(suggest_links + add_dependency) before dispatching — do not delegate wiring to worker",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The judge task must be **skill-tagged",
+    "summary": "The judge task must be **skill-tagged",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The judge NEVER force-merges",
+    "summary": "The judge NEVER force-merges: merge is",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "git merge --no-ff and auto-aborts on conflict, escalating rather than forcing",
+    "summary": "git merge --no-ff and auto-aborts on conflict, escalating rather than forcing. **Complexity",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "under a feature branch instead of letting each attempt fork off main",
+    "summary": "under a feature branch instead of letting each attempt fork off main:",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "attempt→feature rather than holding (the merge is cheap and reversible",
+    "summary": "attempt→feature rather than holding (the merge is cheap and reversible; a flat task still holds",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "This step is never automatic",
+    "summary": "This step is never automatic —",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "it is the dispatcher-only gated decision, the way feature→main is never the j...",
+    "summary": "it is the dispatcher-only gated decision, the way feature→main is never the judge's call.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "base + repo_path, never the dispatcher's working directory",
+    "summary": "base + repo_path, never the dispatcher's working directory.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "calls rather than parsing them back out of a paragraph, and reads context_dep...",
+    "summary": "calls rather than parsing them back out of a paragraph, and reads context_deps[] (pre-resolved",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "fire for run_in_background Agent-tool spawns, so a background worker never ca...",
+    "summary": "fire for run_in_background Agent-tool spawns, so a background worker never carries",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "dispatcher never calls it) as a legitimate hook-less worker, registers it, an...",
+    "summary": "dispatcher never calls it) as a legitimate hook-less worker, registers it, and allows the claim.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Edit/Write tools and Bash file-write commands",
+    "summary": "Edit/Write tools and Bash file-write commands — agents must claim a task before editing.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "must happen inside the worktree",
+    "summary": "must happen inside the worktree; the gate hard-blocks subagent writes on any other branch.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never bypass via workarounds (rsync, fabricated claims, etc",
+    "summary": "Never bypass via workarounds (rsync, fabricated claims, etc.); claim properly.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "You do not have to police this by hand",
+    "summary": "You do not have to police this by hand — the seam enforces",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "scope-expansion / repeated-failure decisions ALWAYS escalate (the gate hard-o...",
+    "summary": "scope-expansion / repeated-failure decisions ALWAYS escalate (the gate hard-overrides prediction) —",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "A real decision with a reason (\"chose X over Y because …\")",
+    "summary": "A real decision with a reason (\"chose X over Y because …\").",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Anytime the user says \"remember this\" / \"record this\" (explicit",
+    "summary": "Anytime the user says \"remember this\" / \"record this\" (explicit — always capture).",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT record chatter, restatements, or transient status",
+    "summary": "Do NOT record chatter, restatements, or transient status.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "decisions (\"always squash orch/attempt branches\", \"prefer X library over Y\",...",
+    "summary": "decisions (\"always squash orch/attempt branches\", \"prefer X library over Y\", \"never auto-deploy on",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "the orchestrator PREDICT the answer to a pending question instead of escalati...",
+    "summary": "the orchestrator PREDICT the answer to a pending question instead of escalating to the user.",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "the summary empirically and project-locally (the reason + the observation it...",
+    "summary": "the summary empirically and project-locally (the reason + the observation it rests on), the same way",
+    "source": "CLAUDE.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Override signal",
+    "summary": "Override signal: When a note contradicts the spec or existing code — e.g. \"spec says return null here, but you must also check byWindow\" — the note title MUST start with OVERRIDE: or the summary must start with SPEC IS INCOMPLETE:.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "This prefix signals to consuming agents that the note takes priority over wha...",
+    "summary": "This prefix signals to consuming agents that the note takes priority over what the spec or code says, and they must not dismiss the discrepancy as a note error.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Standalone tokens in title",
+    "summary": "Standalone tokens in title: Note titles must use isolated vocabulary that matches how agents query — NOT camelCase compounds or hyphenated phrases.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Word boundaries matter for the embedding tokenizer",
+    "summary": "Word boundaries matter for the embedding tokenizer; fused tokens produce poor retrieval recall and the note may never surface for the queries it was written to answer.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Provenance wiring",
+    "summary": "Provenance wiring: Agents creating notes MUST pass wires_to=[current_task_key] in record_decision so the DAG edge is created at note-creation time.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not rely on cosine autowire",
+    "summary": "Do not rely on cosine autowire — semantic similarity is best-effort and misses structurally important edges.",
+    "source": "CLAUDE.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Contributions require signing the Contributor License Agreement",
+    "summary": "Contributions require signing the Contributor License Agreement — the CLA bot prompts you automatically on your first PR.",
+    "source": "CONTRIBUTING.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "with a tmp-dir CLAUDE_PLUGIN_DATA (see test/app-restart",
+    "summary": "with a tmp-dir CLAUDE_PLUGIN_DATA (see test/app-restart.test.js for the pattern) — NEVER the",
+    "source": "CONTRIBUTING.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Tests must not read or mutate real graph state",
+    "summary": "Tests must not read or mutate real graph state.",
+    "source": "CONTRIBUTING.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "All contributors must sign the Contributor License Agreement before their fir...",
+    "summary": "All contributors must sign the Contributor License Agreement before their first contribution can be accepted.",
+    "source": "CONTRIBUTING.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "agent solves from a prose spec and an external suite it never sees grades the...",
+    "summary": "agent solves from a prose spec and an external suite it never sees grades the frozen artifact,",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "with a cold-arm-must-fail guard before any win is claimed",
+    "summary": "with a cold-arm-must-fail guard before any win is claimed — is the benchmark that ships with",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "the accumulated findings of every prior session rather than a blank slate",
+    "summary": "the accumulated findings of every prior session rather than a blank slate.",
+    "source": "README.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Contributions require a signed CLA",
+    "summary": "Contributions require a signed CLA — see CONTRIBUTING.md.",
+    "source": "README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Trust hooks",
+    "summary": "Trust hooks — Codex requires manual review when hook definitions change:",
+    "source": "adapters/codex/README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Ensure hook scripts are executable",
+    "summary": "Ensure hook scripts are executable: chmod +x adapters/cursor/*.sh under the install dir.",
+    "source": "adapters/cursor/README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not also wire the same events in",
+    "summary": "Do not also wire the same events in .cursor/hooks.json — double execution is possible.",
+    "source": "adapters/cursor/README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "When session hooks do not fire, MCP-side refusal on start_task / merge remain...",
+    "summary": "When session hooks do not fire, MCP-side refusal on start_task / merge remains the backstop.",
+    "source": "adapters/cursor/README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "**Retrieved memory provably makes an agent solve cases it otherwise cannot",
+    "summary": "**Retrieved memory provably makes an agent solve cases it otherwise cannot — if and only if",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "doc"
+  },
+  {
+    "title": "The proof is causal and blind-graded at n=2 task families",
+    "summary": "The proof is causal and blind-graded at n=2 task families: on held-out edge cases the agent never",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "is ≈23% (12/52)",
+    "summary": "is ≈23% (12/52) — project-local measured facts — with an explicit self-similar-corpus caveat.",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "injected payload",
+    "summary": "injected payload; output tokens (real work) never moved.",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The blocker was never recall",
+    "summary": "The blocker was never recall.",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The rigging guard (cold arm must fail before warm is run) did not hold",
+    "summary": "The rigging guard (cold arm must fail before warm is run) did not hold:",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "smart because they were grading themselves against a visible answer key",
+    "summary": "smart because they were grading themselves against a visible answer key.",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "doc"
+  },
+  {
+    "title": "The artifact is frozen out and graded by an **external held-out suite the age...",
+    "summary": "The artifact is frozen out and graded by an **external held-out suite the agent never",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Rigging guard",
+    "summary": "Rigging guard: cold must genuinely fail.",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Counterexample",
+    "summary": "Counterexample: Phase 1 (§ below) — mkcert issuer-trust, don't-clobber-native-files, GC",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "the over-deliberation tax the always-inject arms paid",
+    "summary": "the over-deliberation tax the always-inject arms paid.",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Mostly a bench artifact, since real tasks don't",
+    "summary": "Mostly a bench artifact, since real tasks don't",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Phase 0a's own caveat split the 18 winnable into 12 \"benchmark-meta\" (their e...",
+    "summary": "Phase 0a's own caveat split the 18 winnable into 12 \"benchmark-meta\" (their external fact is a",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Standing caveat",
+    "summary": "Standing caveat: this corpus is maximally self-similar (the orchestrator instrumenting its own",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "discount",
+    "summary": "discount — it is solving cases the agent otherwise cannot (0/10 → 8.8/10; 0/8 → 8/8).",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "doc"
+  },
+  {
+    "title": "The dishonest pitch (measured)",
+    "summary": "The dishonest pitch (measured): blind always-inject plus a token-ratio vs full-history",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Don't bother",
+    "summary": "Don't bother: injecting general engineering knowledge (pretraining covers it — Phase 1);",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Rigging guards are the honesty mechanism",
+    "summary": "Rigging guards are the honesty mechanism. \"Cold must fail before warm runs\" killed",
+    "source": "bench/MEMORY-RAG-FINDINGS.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Edge cases require time-window overlap correlation",
+    "summary": "Edge cases require time-window overlap correlation; the ON arm's KB contains the critical note seeding the algorithm.",
+    "source": "bench/SCORECARD.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "OFF arm must derive the strategy from scratch",
+    "summary": "OFF arm must derive the strategy from scratch.",
+    "source": "bench/SCORECARD.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Scenario",
+    "summary": "Scenario: dag-chain — two-task chain where Task B requires a secret value that only Task A's output (stored in the DAG) can provide.",
+    "source": "bench/SCORECARD.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The judge drain runs in a separate harness session",
+    "summary": "The judge drain runs in a separate harness session; its tokens never appear in ON_cost.",
+    "source": "bench/SCORECARD.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Key insight",
+    "summary": "Key insight: judge edge value fans out transitively through the DAG (a note that improves Task A's summary also benefits every downstream task that inherits A as context).",
+    "source": "bench/SCORECARD.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Because the binary cannot execute, spike steps 2–4 (run claude -p",
+    "summary": "Because the binary cannot execute, spike steps 2–4 (run claude -p ..., test --mcp-config,",
+    "source": "bench/SPIKE.md",
+    "kind": "doc"
+  },
+  {
+    "title": "empirical the top note is scar-tissue (gotcha / decision-with-reason / root-c...",
+    "summary": "empirical the top note is scar-tissue (gotcha / decision-with-reason / root-cause / a",
+    "source": "bench/context-gate-eval.md",
+    "kind": "doc"
+  },
+  {
+    "title": "we do not lose where memory doesn't help, and we avoid ~690,510 tok-eq of ove...",
+    "summary": "we do not lose where memory doesn't help, and we avoid ~690,510 tok-eq of over-deliberation tax that the always-inject arms paid.",
+    "source": "bench/context-gate-eval.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Ground truth derived from bench/heldout/p1/results",
+    "summary": "Ground truth derived from bench/heldout/p1/results.jsonl: needs_context = cold(off) never solved AND warm(on) solved.",
+    "source": "bench/context-gate-eval.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "_Note",
+    "summary": "_Note: the v1-v7 benchmark headline above uses a different label derivation (ON underperforms OFF on cost-weighted metric); Phase 1 held-out uses the stronger criterion (cold arm never solved).",
+    "source": "bench/context-gate-eval.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "They are NOT counted in scoped regret because the note post-dates them",
+    "summary": "They are NOT counted in scoped regret because the note post-dates them",
+    "source": "bench/context-gate-eval.md",
+    "kind": "doc"
+  },
+  {
+    "title": "v1 skeleton",
+    "summary": "v1 skeleton: the runner pre-seeds Task A as done with the summary below instead of",
+    "source": "bench/e2e/scenarios/dag-chain/task-a.prompt.md",
+    "kind": "decision"
+  },
+  {
+    "title": "When completing Task A, the summary MUST be exactly",
+    "summary": "When completing Task A, the summary MUST be exactly:",
+    "source": "bench/e2e/scenarios/dag-chain/task-a.prompt.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not write the code to any file",
+    "summary": "Do not write the code to any file — it must exist only in the completion summary.",
+    "source": "bench/e2e/scenarios/dag-chain/task-a.prompt.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The code MUST come from prior-task context (orchestrator dependency summaries...",
+    "summary": "The code MUST come from prior-task context (orchestrator dependency summaries), not guessing.",
+    "source": "bench/e2e/scenarios/dag-chain/task-b.prompt.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not invent a placeholder",
+    "summary": "Do not invent a placeholder — if you cannot retrieve the code from context, leave the file empty",
+    "source": "bench/e2e/scenarios/dag-chain/task-b.prompt.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Otherwise, if the agent record carries a session, and that session maps to a...",
+    "summary": "Otherwise, if the agent record carries a session, and that session maps to a transcript via",
+    "source": "bench/economy/scenarios/task-transcript/spec.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Do not write any test files",
+    "summary": "Do not write any test files.",
+    "source": "bench/economy/scenarios/task-transcript/spec.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The subagent never completed within the 10-minute wall clock limit",
+    "summary": "The subagent never completed within the 10-minute wall clock limit.",
+    "source": "bench/heldout/cron-next-attribution.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The failure is a scaffolding defect",
+    "summary": "The failure is a scaffolding defect: the OFF-arm bench harness runs the agent in the main session context where the orch-gate fires, causing it to spend its entire budget on subagent scaffolding instead of code.",
+    "source": "bench/heldout/cron-next-attribution.md",
+    "kind": "decision"
+  },
+  {
+    "title": "The ON-search arm succeeded because the agent found the orch-gate /tmp workar...",
+    "summary": "The ON-search arm succeeded because the agent found the orch-gate /tmp workaround in the gate hook source (cat /Users/imyu/.claude/orchestrator/hooks/orch-gate.sh).",
+    "source": "bench/heldout/cron-next-attribution.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Do NOT seed a winner note first",
+    "summary": "Do NOT seed a winner note first.",
+    "source": "bench/heldout/cron-next-attribution.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Fix the OFF-arm scaffold first (prerequisite)",
+    "summary": "Fix the OFF-arm scaffold first (prerequisite): the orch-gate must be bypassed or disabled for bench sandbox worktrees, otherwise the OFF arm remains broken and all comparisons are invalid.",
+    "source": "bench/heldout/cron-next-attribution.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "G2 requireEmpirical = true (top note must classify 'empirical')",
+    "summary": "G2 requireEmpirical = true (top note must classify 'empirical')",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "It fails only because 0",
+    "summary": "It fails only because 0.489 < 0.500 — a 0.011 gap below the",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "doc"
+  },
+  {
+    "title": "to the task query, likely because the new note is phrased more abstractly (th...",
+    "summary": "to the task query, likely because the new note is phrased more abstractly (three-leg algorithm",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "doc"
+  },
+  {
+    "title": "the same en-US/de-DE sumAmounts gotcha (note-mq9ii1gekjf, note-mq9hih4uayt, n...",
+    "summary": "the same en-US/de-DE sumAmounts gotcha (note-mq9ii1gekjf, note-mq9hih4uayt, note-mq9ilz2gn15,",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "doc"
+  },
+  {
+    "title": "duplicate as the effective winner), the gate still ABSTAINS at cosThreshold=0",
+    "summary": "duplicate as the effective winner), the gate still ABSTAINS at cosThreshold=0.50 because the",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "doc"
+  },
+  {
+    "title": "should be deduplicated via the judge so that the semantic cluster re-concentr...",
+    "summary": "should be deduplicated via the judge so that the semantic cluster re-concentrates, which would",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Top-ranked note",
+    "summary": "Top-ranked note: note-mq7hef8gcd6 \"[ingest] Native task IDs are session-local; cross-session refs MUST be namespaced session-uuid/id\" (score=0.506, locality=0, type=empirical)",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "First guard that fails",
+    "summary": "First guard that fails: G4 on the top-ranked note (locality=0 < 2); G3 on the winner note (winner rank 3 — not the top note, so it never enters the guard chain)",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Reaching G4 for legacy-id requires both fixing the retrieval miss AND fixing...",
+    "summary": "Reaching G4 for legacy-id requires both fixing the retrieval miss AND fixing the note text.",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "cron-next because there is no applicable note",
+    "summary": "cron-next because there is no applicable note: the gate's abstain is correct here.",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "doc"
+  },
+  {
+    "title": "The fix requires either (1) updating the note text to",
+    "summary": "The fix requires either (1) updating the note text to",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "adjustments",
+    "summary": "adjustments; requires a new note to be authored from empirical observation.",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "mq9iqp1c9ul) all describe the same en-US/de-DE sumAmounts gotcha",
+    "summary": "mq9iqp1c9ul) all describe the same en-US/de-DE sumAmounts gotcha.",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "doc"
+  },
+  {
+    "title": "The retrieval miss (winner ranks 3rd) must also be addressed",
+    "summary": "The retrieval miss (winner ranks 3rd) must also be addressed; likely fixable by re-embedding after",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "However, this must be checked against the regression suite",
+    "summary": "However, this must be checked against the regression suite",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "the winner note doesn't rank #1, so the gate never evaluates it",
+    "summary": "the winner note doesn't rank #1, so the gate never evaluates it.",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "These require fixes to the KB itself (dedup for locale-sum",
+    "summary": "These require fixes to the KB itself (dedup for locale-sum; note text update/re-embedding for",
+    "source": "bench/heldout/gate-autopsy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "An event object must have",
+    "summary": "An event object must have:",
+    "source": "bench/heldout/specs/api-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The protocol must be reproducible and publishable",
+    "summary": "The protocol must be reproducible and publishable: another team should be able to re-run it",
+    "source": "bench/heldout/specs/bench-design.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "It must produce a valid signal",
+    "summary": "It must produce a valid signal — not just",
+    "source": "bench/heldout/specs/bench-design.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "accounts for this so that overhead does not confound the quality measurement",
+    "summary": "accounts for this so that overhead does not confound the quality measurement.",
+    "source": "bench/heldout/specs/bench-design.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Do not write implementation code",
+    "summary": "Do not write implementation code.",
+    "source": "bench/heldout/specs/bench-design.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "If either denominator (off value) is 0, return null for that ratio instead of...",
+    "summary": "If either denominator (off value) is 0, return null for that ratio instead of dividing by zero.",
+    "source": "bench/heldout/specs/bench-metric.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Large cache_read_input_tokens values inflate gross and net significantly",
+    "summary": "Large cache_read_input_tokens values inflate gross and net significantly — your arithmetic must",
+    "source": "bench/heldout/specs/bench-metric.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Mutate store",
+    "summary": "Mutate store.tasks[taskId] in place on a successful claim; never mutate it on a refusal.",
+    "source": "bench/heldout/specs/claim-task.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "If only one is restricted, that one must match",
+    "summary": "If only one is restricted, that one must match.",
+    "source": "bench/heldout/specs/cron-next.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Feb 30, Apr 31) never match",
+    "summary": "Feb 30, Apr 31) never match; the search must continue into later months/years.",
+    "source": "bench/heldout/specs/cron-next.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Rows whose tokens is not a finite number are skipped entirely (they do not co...",
+    "summary": "Rows whose tokens is not a finite number are skipped entirely (they do not count toward n).",
+    "source": "bench/heldout/specs/ctl-agg-report.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "no lastHeartbeatMs field (or null) counts as stale (it never heartbeated)",
+    "summary": "no lastHeartbeatMs field (or null) counts as stale (it never heartbeated).",
+    "source": "bench/heldout/specs/ctl-stale-claims.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Pure function",
+    "summary": "Pure function: no I/O, no globals, deterministic; never throws on missing fields.",
+    "source": "bench/heldout/specs/ctl-stale-claims.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Touching intervals (e",
+    "summary": "Touching intervals (e.g. [1, 3] and [3, 5]) are considered overlapping and must be merged into a single interval.",
+    "source": "bench/heldout/specs/interval-merge.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT use any libraries",
+    "summary": "Do NOT use any libraries.",
+    "source": "bench/heldout/specs/legacy-id.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The function must be pure (no I/O)",
+    "summary": "The function must be pure (no I/O).",
+    "source": "bench/heldout/specs/legacy-id.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Each item carries an amount rendered as a string (the export serializes money...",
+    "summary": "Each item carries an amount rendered as a string (the export serializes money as text, never as a",
+    "source": "bench/heldout/specs/locale-sum.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(skip it",
+    "summary": "(skip it — never let one bad row throw or poison the total with NaN).",
+    "source": "bench/heldout/specs/locale-sum.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Always return a Number (never a string, never NaN)",
+    "summary": "Always return a Number (never a string, never NaN); the empty feed returns 0.",
+    "source": "bench/heldout/specs/locale-sum.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "richer/corrected statuses, and the rest of the system must read the layered view",
+    "summary": "richer/corrected statuses, and the rest of the system must read the layered view.",
+    "source": "bench/heldout/specs/native-store.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "getTask(id) → { id, title, status }",
+    "summary": "getTask(id) → { id, title, status }. title always reflects the native file.",
+    "source": "bench/heldout/specs/native-store.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "They have never run the daemon before in this repo",
+    "summary": "They have never run the daemon before in this repo.",
+    "source": "bench/heldout/specs/onboarding-design.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Your implementation must not rely",
+    "summary": "Your implementation must not rely",
+    "source": "bench/heldout/specs/overlay-save.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Wire into the overlay lifecycle",
+    "summary": "Wire into the overlay lifecycle — diagnostics must be available after a fresh",
+    "source": "bench/heldout/specs/overlay-save.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "setDiagnostics and getDiagnostics must be exported from the overlay module",
+    "summary": "setDiagnostics and getDiagnostics must be exported from the overlay module.",
+    "source": "bench/heldout/specs/overlay-save.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Paragraph 2",
+    "summary": "Paragraph 2: the problem it solves and why existing alternatives don't fully solve it.",
+    "source": "bench/heldout/specs/readme-positioning.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "const batch = require('",
+    "summary": "const batch = require('./batch.js');.",
+    "source": "bench/heldout/specs/silent-cap.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Your processAll must ensure every item in the input actually gets processed,...",
+    "summary": "Your processAll must ensure every item in the input actually gets processed, and return the",
+    "source": "bench/heldout/specs/silent-cap.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Use batch",
+    "summary": "Use batch.submit to do the processing — do not invent your own processing path.",
+    "source": "bench/heldout/specs/silent-cap.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Discard any sub-second portion (truncate, do not round)",
+    "summary": "Discard any sub-second portion (truncate, do not round).",
+    "source": "bench/heldout/specs/sum-basic.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Input is always a non-negative integer (you do not need to validate)",
+    "summary": "Input is always a non-negative integer (you do not need to validate).",
+    "source": "bench/heldout/specs/sum-basic.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Your implementation must handle all of the following correctly",
+    "summary": "Your implementation must handle all of the following correctly:",
+    "source": "bench/heldout/specs/sum-basic.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Always return a non-empty string",
+    "summary": "Always return a non-empty string.",
+    "source": "bench/heldout/specs/sum-basic.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "custom connector, which requires the daemon to be reachable over HTTPS",
+    "summary": "custom connector, which requires the daemon to be reachable over HTTPS; the chat client performs",
+    "source": "bench/heldout/specs/tls-local.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not actually delete anything",
+    "summary": "Do not actually delete anything.",
+    "source": "bench/heldout/specs/wt-gc.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "edges store on the consumer",
+    "summary": "edges store on the consumer; native task IDs must be namespaced session/id; mkcert is",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "required because TLS validates the issuer not locality",
+    "summary": "required because TLS validates the issuer not locality; the PreToolUse gate checks task",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "doc"
+  },
+  {
+    "title": "9 kept git-notes",
+    "summary": "9 kept git-notes — genuine architecture decisions/findings not otherwise captured:",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "doc"
+  },
+  {
+    "title": "snapshots are coarse)",
+    "summary": "snapshots are coarse) — they're retained as durable provenance anchors but you may prefer to",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Cross-session task IDs must be namespaced session/id",
+    "summary": "Cross-session task IDs must be namespaced session/id — native IDs are local-only;",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "any cross-session reference must be {session-uuid}/{id}",
+    "summary": "any cross-session reference must be {session-uuid}/{id}.",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Planner only ADDs nodes",
+    "summary": "Planner only ADDs nodes; never touches in-flight work — caused a runaway once; never",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "cancel/supersede in-flight, never duplicate an open task, cap at 1–3 initiati...",
+    "summary": "cancel/supersede in-flight, never duplicate an open task, cap at 1–3 initiatives, else STOP.",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "A stuck optimization escalates to a human, never self-drops",
+    "summary": "A stuck optimization escalates to a human, never self-drops — K no-winner rounds raise",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "request_guidance and halt rather than quietly dropping or replanning",
+    "summary": "request_guidance and halt rather than quietly dropping or replanning.",
+    "source": "bench/ingest/CANDIDATE-KB.md",
+    "kind": "decision"
+  },
+  {
+    "title": "rigging criterion (cold must fail), so no warm-vs-cold differential exists an...",
+    "summary": "rigging criterion (cold must fail), so no warm-vs-cold differential exists anywhere.",
+    "source": "bench/report-phase1.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "names mkcert-install-ca), don't-clobber-native-files, worktree GC retention,...",
+    "summary": "names mkcert-install-ca), don't-clobber-native-files, worktree GC retention, stale-claim",
+    "source": "bench/report-phase1.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "corpus",
+    "summary": "corpus — with the same self-similarity caveat as before.",
+    "source": "bench/report-phase1.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "orchestrator tool_use / tool_result round-trips but **under-counts the always...",
+    "summary": "orchestrator tool_use / tool_result round-trips but **under-counts the always-resident schema",
+    "source": "bench/report-v2.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Win evaluation (all four guards must PASS for a WIN)",
+    "summary": "Win evaluation (all four guards must PASS for a WIN):",
+    "source": "bench/report-v4.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "precondition",
+    "summary": "precondition: H_off >= 2×W_off (hardness must dominate raw work)",
+    "source": "bench/report-v4.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Test genuinely requires correlation",
+    "summary": "Test genuinely requires correlation.",
+    "source": "bench/report-wincase-c.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not change anything outside the files named here",
+    "summary": "Do not change anything outside the files named here.",
+    "source": "bench/specs/context-rich.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Otherwise",
+    "summary": "Otherwise: \"<total> rejected: <verdicts> verdict-loser, <failures> dead-end\".",
+    "source": "bench/specs/context-rich.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Do not wire it into the /learnings HTTP handler or change any existing behavior",
+    "summary": "Do not wire it into the /learnings HTTP handler or change any existing behavior — exports +",
+    "source": "bench/specs/context-rich.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not reformat or \"improve\" surrounding code",
+    "summary": "Do not reformat or \"improve\" surrounding code.",
+    "source": "bench/specs/context-rich.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "test/rejected-digest",
+    "summary": "test/rejected-digest.test.js (plain Node, no framework, require('../daemon.js'), prints",
+    "source": "bench/specs/context-rich.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "which case the transcript must be recovered by correlating the task's claim w...",
+    "summary": "which case the transcript must be recovered by correlating the task's claim window against the run",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "match and give up otherwise, or (b) fall back to a fuzzy time-window correlat...",
+    "summary": "match and give up otherwise, or (b) fall back to a fuzzy time-window correlation heuristic.",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Time-window correlation",
+    "summary": "Time-window correlation — otherwise, among the harness agents that have a transcript and a run",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "doc"
+  },
+  {
+    "title": "bound widens the window (missing start → -Infinity, missing end → Date",
+    "summary": "bound widens the window (missing start → -Infinity, missing end → Date.now()) rather than",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "decision"
+  },
+  {
+    "title": "bench/sandbox/resolve-owner",
+    "summary": "bench/sandbox/resolve-owner.js must export via module.exports = { resolveOwner }; (CommonJS).",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "test/rejected-digest",
+    "summary": "test/rejected-digest.test.js: require('./resolve-owner.js'), print PASS/FAIL lines, end with",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The test must construct the",
+    "summary": "The test must construct the",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "It must print N passed, 0 failed and exit 0",
+    "summary": "It must print N passed, 0 failed and exit 0.",
+    "source": "bench/specs/graph-dependent.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Note ms must be matched before m",
+    "summary": "Note ms must be matched before m.",
+    "source": "bench/specs/greenfield.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Valid input always returns a finite non-negative number",
+    "summary": "Valid input always returns a finite non-negative number.",
+    "source": "bench/specs/greenfield.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "bench/sandbox/parse-duration",
+    "summary": "bench/sandbox/parse-duration.js must export the function via",
+    "source": "bench/specs/greenfield.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "test/rejected-digest",
+    "summary": "test/rejected-digest.test.js: require('./parse-duration.js'), print PASS/FAIL lines, end with",
+    "source": "bench/specs/greenfield.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "It must assert at minimum",
+    "summary": "It must assert at minimum:",
+    "source": "bench/specs/greenfield.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "opaque, randomly-generated run ids that never equal the logical name",
+    "summary": "opaque, randomly-generated run ids that never equal the logical name.",
+    "source": "bench/specs/v4-hard.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "unparseable claim-window bound widens the window rather than failing the lookup",
+    "summary": "unparseable claim-window bound widens the window rather than failing the lookup: missing start →",
+    "source": "bench/specs/v4-hard.md",
+    "kind": "decision"
+  },
+  {
+    "title": "bench/sandbox/task-tokens",
+    "summary": "bench/sandbox/task-tokens.js must export via module.exports = { taskTokensFor }; (CommonJS).",
+    "source": "bench/specs/v4-hard.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "repo",
+    "summary": "repo — do NOT modify, move, or delete it).",
+    "source": "bench/specs/v4-hard.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "blockedBy",
+    "summary": "blockedBy — a list of local ids, naming other tasks in the same session that must finish",
+    "source": "bench/specs/v5-grounded.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "actually exists in the input, omit it from deps (do not throw, do not invent...",
+    "summary": "actually exists in the input, omit it from deps (do not throw, do not invent a node for it).",
+    "source": "bench/specs/v5-grounded.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "bench/sandbox/resolve-deps",
+    "summary": "bench/sandbox/resolve-deps.js must export via module.exports = { resolveDeps }; (CommonJS).",
+    "source": "bench/specs/v5-grounded.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "resolveOwner must return the correct transcript path for every task the harne...",
+    "summary": "resolveOwner must return the correct transcript path for every task the harness can attribute, and",
+    "source": "bench/specs/wincase-c.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The data needed to attribute a task is always present",
+    "summary": "The data needed to attribute a task is always present",
+    "source": "bench/specs/wincase-c.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "somewhere in the registry for the attributable tasks",
+    "summary": "somewhere in the registry for the attributable tasks; it is just not always reachable through the",
+    "source": "bench/specs/wincase-c.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "bench/sandbox/wincase-resolve",
+    "summary": "bench/sandbox/wincase-resolve.js must export via module.exports = { resolveOwner }; (CommonJS).",
+    "source": "bench/specs/wincase-c.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "the repo",
+    "summary": "the repo — do NOT modify, move, or delete it).",
+    "source": "bench/specs/wincase-c.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Each function must have a JSDoc block (/",
+    "summary": "Each function must have a JSDoc block (/ ... /) immediately above it",
+    "source": "bench/suite/scenarios/add-jsdoc/spec.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Each @param must be documented with type and description",
+    "summary": "Each @param must be documented with type and description",
+    "source": "bench/suite/scenarios/add-jsdoc/spec.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Each function must have a @returns tag with type and description",
+    "summary": "Each function must have a @returns tag with type and description",
+    "source": "bench/suite/scenarios/add-jsdoc/spec.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Returns true if every opener has a matching closer in the correct order (prop...",
+    "summary": "Returns true if every opener has a matching closer in the correct order (properly nested), false otherwise.",
+    "source": "bench/suite/scenarios/balanced-brackets/spec.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Do not modify bench/sandbox/tests",
+    "summary": "Do not modify bench/sandbox/tests.js.",
+    "source": "bench/suite/scenarios/fix-bug/spec.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Both get and put must run in O(1) time",
+    "summary": "Both get and put must run in O(1) time.",
+    "source": "bench/suite/scenarios/lru-cache/spec.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not write any test harness in that file",
+    "summary": "Do not write any test harness in that file — only the class and its export.",
+    "source": "bench/suite/scenarios/pure-algorithm/spec.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The refactored code must produce identical output to messyFunction for all va...",
+    "summary": "The refactored code must produce identical output to messyFunction for all valid and invalid inputs.",
+    "source": "bench/suite/scenarios/pure-refactor/spec.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Input format (handled by messyFunction, which you must preserve exactly)",
+    "summary": "Input format (handled by messyFunction, which you must preserve exactly):",
+    "source": "bench/suite/scenarios/pure-refactor/spec.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not modify bench/sandbox/input",
+    "summary": "Do not modify bench/sandbox/input.js.",
+    "source": "bench/suite/scenarios/pure-refactor/spec.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "require the function as",
+    "summary": "require the function as: const { parseConfig } = require('./input');",
+    "source": "bench/suite/scenarios/write-tests/spec.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Honesty note",
+    "summary": "Honesty note: daemon.js does NOT require lib/context-gate.js — the gate is a pure module evaluated offline (bench/context-gate-eval.{js,md}), not wired into the live retrieval path.",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Transaction time",
+    "summary": "Transaction time: created_at = real insertion instant, never backdated — overlay.js:221, 900.",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Supersede chains",
+    "summary": "Supersede chains: supersedeNote (overlay.js:249-262) stamps validTo on the old note, chains supersedes/supersededBy both directions, never deletes; noteChain (overlay.js:266-277) walks the full chain; exposed at /note/chain (daemon.js:1801-1809) and as supersede_note MCP tool (mcp-core.js:63). record_decision accepts one-shot supersedes (daemon.js:1550-1555).",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Contradiction hint",
+    "summary": "Contradiction hint: creating a note without supersedes scans current notes for a strong near-match and returns a hint to supersede (daemon.js:1561-1570) — never auto-supersedes.",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Semantic search",
+    "summary": "Semantic search — local, no API, no vector DB. lib/embed.js: transformers.js + Xenova/all-MiniLM-L6-v2 (ONNX, 384-dim), lazy-loaded in-process, weights cached under the daemon data dir (embed.js:21-26; models/Xenova/ exists in-repo). embed() returns null on any failure → per-item lexical fallback; retrieval never hard-fails (embed.js:8-13).",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Defensible claim",
+    "summary": "Defensible claim: a genuinely bi-temporal (valid-time + transaction-time, composable, supersede-chained, never-delete) knowledge graph with fully local 384-dim semantic search — and a measured as-of-retrieval win over a flat KB (1.0 vs 0.6 recall@5).",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Default is hold-merge",
+    "summary": "Default is hold-merge: the judge picks a winner (metric-first when P carries a spec), records a verdict {winner, winner_branch, why, losers[], metric_value, guardrails_ok, vs_benchmark, awaiting_merge:true} as Tier-2 knowledge, and never merges — merge is a human morning-review decision.",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Optimize (converged-vs-iterate control)",
+    "summary": "Optimize (converged-vs-iterate control). lib/optimize.js decideOptimize (59-95): deterministic precedence target-converged → stuck (K=3 winless rounds → escalate to human, never auto-cancel) → diminishing-returns converged (epsilon=0.01) → budget → iterate.",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Planner",
+    "summary": "Planner. skills/self-learn-planner/SKILL.md — on heartbeat action:'plan' (opt-in self_plan config, daemon.js:542,1254) proposes 1-3 initiatives from /learnings, with hard anti-thrash guardrails (never cancel in-flight work, dedup via suggest_links, \"no action\" is a valid output).",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Git substrate",
+    "summary": "Git substrate. lib/git.js: per-attempt isolated worktree + branch orch/attempt/<slug> outside the repo (createWorktree 119-138, branchName 29-31), keyed by repo-path hash so distinct repos never collide (19-28).",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Atomic per-path leases",
+    "summary": "Atomic per-path leases: O_EXCL sidecar files with pid-liveness probe and 1h stale reclaim, so two agents can never race git worktree add on the same path (acquireLease 60-79, pidAlive 45-48). mergeBranch (161-175): --no-ff merge; on conflict collects conflicted files and aborts to a clean tree.",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "All ops execFileSync arg-arrays, never shell strings (header, line 3)",
+    "summary": "All ops execFileSync arg-arrays, never shell strings (header, line 3).",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Defensible claim",
+    "summary": "Defensible claim: lease-guarded per-attempt git worktrees with conflict-safe no-ff merge-back, layered ON TOP of Claude Code's native task files (read-live + write-through, drift-detected) rather than a parallel task store — with CAS claim semantics that make multi-agent collisions a 409, not a data race.",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Keyed registry of independent loops, each with own tokenBudget/maxIterations/...",
+    "summary": "Keyed registry of independent loops, each with own tokenBudget/maxIterations/poll bounds/batch/concurrency (newLoop daemon.js:110-115); loop_start inserts (never clobbers), one next_action heartbeat decides all loops (decideAll); hard caps enforced per tick (daemon.js:473-474); real token spend read from the driving transcript vs estimate fallback (465-470).",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Methodology integrity (a selling point itself)",
+    "summary": "Methodology integrity (a selling point itself): the oracle-leak discovery (in-worktree tests/deps are an answer key — every v1-v8 cold baseline overstated self-solvability; bench/report-wincase-c.md), the retracted net-tokens metric (sticky attribution artifact), and rigging guards (\"cold must fail first\") documented in MEMORY-RAG-FINDINGS.md §4, §10.",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Defensible claim",
+    "summary": "Defensible claim: we are the only project in this space we know of whose negative results are first-class artifacts — eight documented nulls plus two causal wins delimit exactly when memory pays, and the daemon's economics claims (parity at lean payload; injection tax otherwise) are reproducible from checked-in reports.",
+    "source": "business/competitive/A-our-capabilities.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Mem0 remembers facts about users extracted from chat",
+    "summary": "Mem0 remembers facts about users extracted from chat; it has zero model of work — no tasks, no dependencies, no temporal validity — so it can never answer \"what did the task that produced this fact learn, and has it been superseded?\"",
+    "source": "business/competitive/B1-memory-competitors.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Nothing answers \"what should THIS task inherit\"",
+    "summary": "Nothing answers \"what should THIS task inherit\" — that requires typed context edges on a work DAG, which they don't have.",
+    "source": "business/competitive/B1-memory-competitors.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Different domains",
+    "summary": "Different domains — don't claim they faked it.",
+    "source": "business/competitive/B1-memory-competitors.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "No typed context edges, no token-economic two-tier handoff (memory blocks are...",
+    "summary": "No typed context edges, no token-economic two-tier handoff (memory blocks are always-in-context by design — the opposite economics).",
+    "source": "business/competitive/B1-memory-competitors.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "No worktree isolation anywhere (only a cleanup",
+    "summary": "No worktree isolation anywhere (only a cleanup.ts mention) — parallel \"swarms\" share one working tree or don't touch code at all.",
+    "source": "business/competitive/B2-orchestrator-competitors.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "We win because steering N independent sessions from a watch doesn't compose work",
+    "summary": "We win because steering N independent sessions from a watch doesn't compose work; a graph does.",
+    "source": "business/competitive/B2-orchestrator-competitors.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Biggest threat",
+    "summary": "Biggest threat: GitHub Agent HQ + Cursor commoditizing the runner layer from above — our daemon must stay the intelligence layer, not compete as a runner UI.",
+    "source": "business/competitive/B2-orchestrator-competitors.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Our dup-cluster judge should stay scoped to GRAPH note_nodes only",
+    "summary": "Our dup-cluster judge should stay scoped to GRAPH note_nodes only; never extend it to auto-memory files.",
+    "source": "business/competitive/B3-substrate-risk.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Within-team task sharing",
+    "summary": "Within-team task sharing — never build team-internal coordination; teams' shared list + mailbox + file-lock claiming is strictly better inside a team.",
+    "source": "business/competitive/B3-substrate-risk.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "If Anthropic later defaults task lists per-workspace, pillar #2 becomes a thi...",
+    "summary": "If Anthropic later defaults task lists per-workspace, pillar #2 becomes a thin shim — plan for that gracefully rather than defending it.",
+    "source": "business/competitive/B3-substrate-risk.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Our README's verified assumption \"Persistence",
+    "summary": "Our README's verified assumption \"Persistence: durable and indefinite … we do not need to copy tasks for durability\" is now WRONG.",
+    "source": "business/competitive/B3-substrate-risk.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Ephemeral team task dirs",
+    "summary": "Ephemeral team task dirs: ~/.claude/tasks/{team-name}/ is deleted at team cleanup — if we aggregate team sessions, their tasks vanish from under us by design.",
+    "source": "business/competitive/B3-substrate-risk.md",
+    "kind": "decision"
+  },
+  {
+    "title": "What they consistently do NOT build",
+    "summary": "What they consistently do NOT build: (a) graph semantics — edges, temporal supersede, knowledge wired to execution; (b) measurement — no native feature anywhere measures whether an agent's output got better; (c) machine-global, cross-workspace, vendor-neutral state.",
+    "source": "business/competitive/B3-substrate-risk.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "prior analysis skipped because they aren't orchestrators or memory layers",
+    "summary": "prior analysis skipped because they aren't orchestrators or memory layers.",
+    "source": "business/competitive/B4-selflearning-competitors.md",
+    "kind": "doc"
+  },
+  {
+    "title": "The optimizer was never our moat",
+    "summary": "The optimizer was never our moat; the metric/judge/graph coupling is.",
+    "source": "business/competitive/B4-selflearning-competitors.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim conceptual novelty over DGM, AlphaEvolve, SICA, ADAS, or GEPA",
+    "summary": "Do NOT claim conceptual novelty over DGM, AlphaEvolve, SICA, ADAS, or GEPA.",
+    "source": "business/competitive/B4-selflearning-competitors.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "loop control plane research systems don't need and products don't have",
+    "summary": "loop control plane research systems don't need and products don't have.",
+    "source": "business/competitive/B4-selflearning-competitors.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "DGM\" comparison we must avoid)",
+    "summary": "DGM\" comparison we must avoid).",
+    "source": "business/competitive/B4-selflearning-competitors.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Local-first",
+    "summary": "Local-first: yes, explicitly (\"servers may relay… but never own your state\") → overlaps moat 5.",
+    "source": "business/competitive/B5-new-entrants.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "That is a real self-learning design with judging-adjacent feedback",
+    "summary": "That is a real self-learning design with judging-adjacent feedback — conceptually overlapping our moat 3/4, though it ingests transcripts rather than coupling to task completion, and has no graph/DAG/metrics. 16 stars, 2 versions, dead since 2026-02-12, 3 downloads/wk.",
+    "source": "business/competitive/B5-new-entrants.md",
+    "kind": "decision"
+  },
+  {
+    "title": "@tangle-network/agent-knowledge (npm, May 2026, 0 stars, 13 versions)",
+    "summary": "@tangle-network/agent-knowledge (npm, May 2026, 0 stars, 13 versions): \"source-grounded, eval-gated knowledge growth primitives — versionable graph agents search, lint, evaluate, improve\" + runKnowledgeResearchLoop — the only other project found with an explicit eval-gate on knowledge growth (our moat 3, applied to ingested sources rather than work artifacts).",
+    "source": "business/competitive/B5-new-entrants.md",
+    "kind": "decision"
+  },
+  {
+    "title": "avoid a lossy supersede of that note's still-valid bench-v4/substrate facts",
+    "summary": "avoid a lossy supersede of that note's still-valid bench-v4/substrate facts.",
+    "source": "business/competitive/B6-landscape-update-2026-06-14.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Zonoid is the engine below this layer → integrate as a surface, do not compete",
+    "summary": "Zonoid is the engine below this layer → integrate as a surface, do not compete.",
+    "source": "business/competitive/B6-landscape-update-2026-06-14.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "- Supermemory capture is outcome-agnostic",
+    "summary": "- Supermemory capture is outcome-agnostic: transcript-formatter.js formats the is_error flag into stored text but never uses it to filter/downweight storage — failed edits and crashed builds are stored at equal weight to successes.",
+    "source": "business/competitive/B6-landscape-update-2026-06-14.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The context-hook",
+    "summary": "The context-hook.cjs always calls client.getProfile(personalTag) and client.getProfile(repoTag), then injects both into context regardless of whether they are relevant to the current task.",
+    "source": "business/competitive/B7-supermemory-deepdive.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The system always injects the profile + top-N memories at session start",
+    "summary": "The system always injects the profile + top-N memories at session start.",
+    "source": "business/competitive/B7-supermemory-deepdive.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Verdict",
+    "summary": "Verdict: Always-inject on session start, no conditional policy.",
+    "source": "business/competitive/B7-supermemory-deepdive.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Non-trivial",
+    "summary": "Non-trivial — requires integrating with CI or user feedback loops.",
+    "source": "business/competitive/B7-supermemory-deepdive.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Requires the outcome data from (1) as training signal",
+    "summary": "Requires the outcome data from (1) as training signal.",
+    "source": "business/competitive/B7-supermemory-deepdive.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Work-coupled memory, judging/benchmark grounding, and conditional inject poli...",
+    "summary": "Work-coupled memory, judging/benchmark grounding, and conditional inject policy are absent by design — Supermemory is outcome-agnostic and inject-unconditional.",
+    "source": "business/competitive/B7-supermemory-deepdive.md",
+    "kind": "decision"
+  },
+  {
+    "title": "The code shows is_error is formatted as text in the stored blob but never use...",
+    "summary": "The code shows is_error is formatted as text in the stored blob but never used to suppress, weight, or gate memory storage.",
+    "source": "business/competitive/B7-supermemory-deepdive.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Must evoke at least one of",
+    "summary": "Must evoke at least one of:",
+    "source": "business/competitive/C1-naming.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Domain caveat",
+    "summary": "Domain caveat: every bare dictionary-word .com/.dev is",
+    "source": "business/competitive/C1-naming.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "\"cloth-\" onset reads textile-soft rather than geometric",
+    "summary": "\"cloth-\" onset reads textile-soft rather than geometric.",
+    "source": "business/competitive/C1b-naming-round2.md",
+    "kind": "decision"
+  },
+  {
+    "title": "The metaphor",
+    "summary": "The metaphor: the oloid's literal cousin — a developable roller that wobbles forward so that",
+    "source": "business/competitive/C1b-naming-round2.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Listed because the metaphor is the single best in two rounds",
+    "summary": "Listed because the metaphor is the single best in two rounds;",
+    "source": "business/competitive/C1b-naming-round2.md",
+    "kind": "doc"
+  },
+  {
+    "title": "No variant rescues it, because the kill",
+    "summary": "No variant rescues it, because the kill",
+    "source": "business/competitive/C1c-naming-verdict.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Recommendation",
+    "summary": "Recommendation: do not use Verdict — keep Zonoid as the front-runner.",
+    "source": "business/competitive/C1c-naming-verdict.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "That is Darwin/Gyrus/Graphon again, at higher stakes because the collider is...",
+    "summary": "That is Darwin/Gyrus/Graphon again, at higher stakes because the collider is funded and cited.",
+    "source": "business/competitive/C1c-naming-verdict.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Verdict",
+    "summary": "Verdict: do not replace the per-epoch judge.",
+    "source": "business/competitive/C2-elo-rsi.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "GEPA",
+    "summary": "GEPA: strategies/acceptance.py StrictImprovementAcceptance (L39) — candidate must",
+    "source": "business/competitive/C3-adoptable-techniques.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Their problem",
+    "summary": "Their problem: eval is the dominant cost; most mutants are garbage; don't pay full",
+    "source": "business/competitive/C3-adoptable-techniques.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "DIFFERENT change next round\" comment in optimize",
+    "summary": "DIFFERENT change next round\" comment in optimize.js (L93) enforced instead of hoped.",
+    "source": "business/competitive/C3-adoptable-techniques.md",
+    "kind": "decision"
+  },
+  {
+    "title": "invariant, adds one cheap escape hatch",
+    "summary": "invariant, adds one cheap escape hatch.",
+    "source": "business/competitive/C3-adoptable-techniques.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "populations and many rounds we don't have",
+    "summary": "populations and many rounds we don't have.",
+    "source": "business/competitive/C3-adoptable-techniques.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Priority",
+    "summary": "Priority: later — and prefer the Elo ladder instead.",
+    "source": "business/competitive/C3-adoptable-techniques.md",
+    "kind": "decision"
+  },
+  {
+    "title": "(treat guardrails as objectives",
+    "summary": "(treat guardrails as objectives; prefer non-dominated; only then metric-first) makes",
+    "source": "business/competitive/C3-adoptable-techniques.md",
+    "kind": "decision"
+  },
+  {
+    "title": "What/evidence",
+    "summary": "What/evidence: DGM_outer.py choose_selfimproves() (L126–145): instead of always",
+    "source": "business/competitive/C3-adoptable-techniques.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Strategy-selection slot (post top-5)",
+    "summary": "Strategy-selection slot (post top-5): per sibling C2, prefer the **cross-epoch Elo",
+    "source": "business/competitive/C3-adoptable-techniques.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Add engines",
+    "summary": "Add engines: { node: \">=18\" } (dynamic import() of ESM transformers.js requires it),",
+    "source": "business/competitive/D1-product-shape.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "macOS-only edges, undocumented",
+    "summary": "macOS-only edges, undocumented: scripts/setup-https.sh hard-requires Homebrew +",
+    "source": "business/competitive/D1-product-shape.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "mkcert",
+    "summary": "mkcert; onboard-mine-assets.js uses sips; bench scripts use a perl-alarm because",
+    "source": "business/competitive/D1-product-shape.md",
+    "kind": "doc"
+  },
+  {
+    "title": "\"macOS has no timeout\"",
+    "summary": "\"macOS has no timeout\"; hooks require bash, jq, curl, python3 (classify.sh",
+    "source": "business/competitive/D1-product-shape.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "It is port- and state-isolated otherwise",
+    "summary": "It is port- and state-isolated otherwise.",
+    "source": "business/competitive/D1-product-shape.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Don't ship what we're deleting",
+    "summary": "Don't ship what we're deleting. v1 plugin surface trims to match the",
+    "source": "business/competitive/D1-product-shape.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Tool-count side benefit",
+    "summary": "Tool-count side benefit: trimming loop/routing tools shrinks the always-loaded MCP",
+    "source": "business/competitive/D1-product-shape.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Must work flawlessly cold (each is a release-gate test)",
+    "summary": "Must work flawlessly cold (each is a release-gate test):",
+    "source": "business/competitive/D1-product-shape.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "lexical fallback must be silent and correct (designed",
+    "summary": "lexical fallback must be silent and correct (designed: embed() returns null →",
+    "source": "business/competitive/D1-product-shape.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "lexical), and the model warm-up must never block the demo path (P1 item 10)",
+    "summary": "lexical), and the model warm-up must never block the demo path (P1 item 10).",
+    "source": "business/competitive/D1-product-shape.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Model warm-up so the demo never eats the ~90s lazy-load",
+    "summary": "Model warm-up so the demo never eats the ~90s lazy-load — P1 10.",
+    "source": "business/competitive/D1-product-shape.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The window argument (§9",
+    "summary": "The window argument (§9: months, not quarters, beat the 500-star threshold) outweighs the evidence argument, because the honest-nulls framing converts the missing proof into brand material.",
+    "source": "business/competitive/D2-release-strategy.md",
+    "kind": "doc"
+  },
+  {
+    "title": "The one inviolable line",
+    "summary": "The one inviolable line: never imply frequency-of-lift we haven't measured — the launch post says \"here is the existence proof, here are eight nulls, here is the experiment that will settle it, watch this repo.\"",
+    "source": "business/competitive/D2-release-strategy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "5 of 6 direct comparables",
+    "summary": "5 of 6 direct comparables — including every memory-layer competitor and the biggest Claude Code tool — chose Apache-2.0.",
+    "source": "business/competitive/D2-release-strategy.md",
+    "kind": "decision"
+  },
+  {
+    "title": "AGPL-3",
+    "summary": "AGPL-3.0 — protects against cloud-wrapping, but the threat is unreal here: nobody wraps a localhost daemon that requires each user's own Claude Code install and subscription — there is no service to resell.",
+    "source": "business/competitive/D2-release-strategy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The hosted-later path does NOT require it",
+    "summary": "The hosted-later path does NOT require it: Apache-2.0 lets us run a hosted offering of our own code forever; the future hosted product differentiates on multi-tenant/team/SSO layers built then (open-core), not on relicensing the daemon.",
+    "source": "business/competitive/D2-release-strategy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Reason",
+    "summary": "Reason: the commercial arm is a stated goal, and the option to relicense others' contributions is irreversible if deferred — contributions accepted under DCO/Apache can never be retroactively relicensed, so the cheapest moment to lock it is now, at ~0 stars (where contribution friction is also near-zero).",
+    "source": "business/competitive/D2-release-strategy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never ship on a Friday",
+    "summary": "Never ship on a Friday; never ship launch week except for P0s.",
+    "source": "business/competitive/D2-release-strategy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not wait for",
+    "summary": "Do not wait for: bench v4 (>2-week slip), context-gate wiring, Windows, hosted, dashboard polish.",
+    "source": "business/competitive/D2-release-strategy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Walk-away triggers (pause and reassess, don't lurch)",
+    "summary": "Walk-away triggers (pause and reassess, don't lurch): name collision discovered (execute R7 rename, ~1 week slip), Anthropic native-graph GA announcement in launch week (execute R2 response, slip 1–2 weeks), P0 data-loss bug from beta (fix first — a memory product that loses memory cannot launch).",
+    "source": "business/competitive/D2-release-strategy.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Aggregators reposted because the pitch was one sentence + a number (\"95% redu...",
+    "summary": "Aggregators reposted because the pitch was one sentence + a number (\"95% reduction in token",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "doc"
+  },
+  {
+    "title": "manage your AI coding agents",
+    "summary": "manage your AI coding agents.\" Worked because: pain framing (\"the 2–5 min agent wait makes you",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "doc"
+  },
+  {
+    "title": "story vibe-kanban never had",
+    "summary": "story vibe-kanban never had; (3) their orphaned users are a targetable migration audience NOW;",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(4) never ship telemetry-on-by-default into an HN launch",
+    "summary": "(4) never ship telemetry-on-by-default into an HN launch.",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Zep deliberately narrowed OSS to one repo (killed the",
+    "summary": "Zep deliberately narrowed OSS to one repo (killed the",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "decision"
+  },
+  {
+    "title": "GitHub-native",
+    "summary": "GitHub-native. awesome-claude-code (hesreallyhim): **do NOT open a PR — only their Claude",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "r/LocalLLaMA",
+    "summary": "r/LocalLLaMA: lead with local-first daemon, your data never leaves. r/ExperiencedDevs:",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "hostile to self-promo",
+    "summary": "hostile to self-promo — participate in agent-workflow threads only, never post the tool.",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "strengths stated (\"claude-mem is great if you want X",
+    "summary": "strengths stated (\"claude-mem is great if you want X; we differ because the work graph IS the",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Nimbalyst-style parasites otherwise capture",
+    "summary": "Nimbalyst-style parasites otherwise capture.",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "doc"
+  },
+  {
+    "title": "(don't dilute the first story",
+    "summary": "(don't dilute the first story; the null IS the first story, the win is the sequel).",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(the retention number vibe-kanban never had)",
+    "summary": "(the retention number vibe-kanban never had).",
+    "source": "business/competitive/D3-gtm-channels.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "shipped with the task (oracle contamination)",
+    "summary": "shipped with the task (oracle contamination) — and must not ship.** This doc classifies every",
+    "source": "business/competitive/D5-bench-triage.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "looked smart because they were grading themselves against a visible answer key",
+    "summary": "looked smart because they were grading themselves against a visible answer key.\"",
+    "source": "business/competitive/D5-bench-triage.md",
+    "kind": "doc"
+  },
+  {
+    "title": "were \"self-solvable\" partly because the answer key was readable",
+    "summary": "were \"self-solvable\" partly because the answer key was readable.",
+    "source": "business/competitive/D5-bench-triage.md",
+    "kind": "doc"
+  },
+  {
+    "title": "numbers come from invalid runs and must not ship as results",
+    "summary": "numbers come from invalid runs and must not ship as results.",
+    "source": "business/competitive/D5-bench-triage.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "moat rows 3/5/10 evidence cells, §5",
+    "summary": "moat rows 3/5/10 evidence cells, §5.1, §7 \"receipts must stay honest\" footnote.",
+    "source": "business/competitive/D5-bench-triage.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "spec and an external suite it never sees grades the frozen artifact, with a c...",
+    "summary": "spec and an external suite it never sees grades the frozen artifact, with a cold-arm-must-fail",
+    "source": "business/competitive/D5-bench-triage.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Exclude the 42 EXCLUDE files from the release tree (do not delete locally",
+    "summary": "Exclude the 42 EXCLUDE files from the release tree (do not delete locally — they are the",
+    "source": "business/competitive/D5-bench-triage.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "No fixed prior is the product",
+    "summary": "No fixed prior is the product: inject-always is the floor, the learned boundary is the moat.",
+    "source": "business/competitive/E1-launch-messaging.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "What must be proven or fixed for the story to hold",
+    "summary": "What must be proven or fixed for the story to hold:",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Neither Cosmos nor Beads has execution coupling",
+    "summary": "Neither Cosmos nor Beads has execution coupling — but both claim the outcome (\"agents don't start cold\").",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The framing must now specify how context persists, not just that it does",
+    "summary": "The framing must now specify how context persists, not just that it does.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Claim the productized, measured instantiation",
+    "summary": "Claim the productized, measured instantiation; never claim novelty over Dreaming's direction.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Kill shot",
+    "summary": "Kill shot: Graphiti knows when a fact stopped being true; our graph knows which task superseded it, why, and what the replacement cost — because memory is the byproduct of execution, not a store ingested after the fact.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: that their bi-temporality is fake (it is real and more granular on world-fact event time), or eval superiority — Zep has DMR 94.8% / LongMemEval 63.8% published, enterprise compliance, and significant distribution.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Our counter",
+    "summary": "Our counter: Letta's memory is agent-identity-scoped (memory blocks belong to one agent's self-model, always-in-context — the opposite token economics), learning is self-judged (/doctor, sleeptime = LLM auditing itself with no external metric), and there is no task DAG — subagents form a call graph, not a dependency graph.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: novelty on git-versioned context or multi-agent concurrent writes — they shipped Context Repositories before our substrate was public and their worktree-based concurrency is real.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Our counter",
+    "summary": "Our counter: Mem0's retrieval quality gains are real and measurable — do not dismiss them.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Their graph-in-cloud-only move is a bet that most developers don't need graph...",
+    "summary": "Their graph-in-cloud-only move is a bet that most developers don't need graph structure; our bet is that execution-coupled provenance is precisely what fleet agents need and cannot get from retrieval quality alone.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Kill shot",
+    "summary": "Kill shot: Mem0 is the best retrieval engine for episodic agent memory — we do not contest that; we contest whether retrieval quality over episodes is sufficient when you need to know which task proved a fact, which superseded it, and which future task needs it specifically.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: retrieval parity — Mem0's v3.0 numbers (LoCoMo 91.6, LongMemEval 93.4) are the best published retrieval benchmarks in the category.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Their AWS partnership gives them distribution we do not have",
+    "summary": "Their AWS partnership gives them distribution we do not have.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Their deployment model is cloud-org (requires Augment platform) vs our local...",
+    "summary": "Their deployment model is cloud-org (requires Augment platform) vs our local daemon (runs on your machine, offline-capable, no egress).",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The difference",
+    "summary": "The difference: their memory stores what ran; ours knows which task proved what, which superseded it (with a provenance chain), and what the next task needs specifically — under a token budget — rather than surfacing run history wholesale.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: comparable enterprise distribution — Cosmos is built by Augment (well-funded, enterprise sales motion) and we are a local daemon.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The critical structural differences",
+    "summary": "The critical structural differences: (1) Opt-in vs automatic — bd remember requires explicit annotation; our graph produces knowledge as a byproduct of every completed task, supersession event, and judge verdict, with no annotation burden.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Kilo distribution is a real ceiling we do not have",
+    "summary": "Kilo distribution is a real ceiling we do not have.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: distribution or community advantage — Beads has 13K stars in 3 months, Kilo cloud backing, and the Yegge distribution machine.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Our counter",
+    "summary": "Our counter: The public audit findings are now even more documented: simulate_benchmarks.py (random.uniform()), hardcoded sleep(352), no token counting code for any token-savings claim, fabricated SWE-bench numbers never appearing on the official SWE-bench leaderboard.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: they are all theater — the audit confirmed real vector infrastructure and real pattern-confidence updates, and their distribution (52K downloads/week) dwarfs ours by orders of magnitude.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: UX parity — their review ergonomics and install story are best-in-class; we have a localhost dashboard.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: mindshare or simplicity — it owns \"Claude Code memory plugin\" with explosive star velocity and a one-line install.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: independence from the substrate — native-tasks.js reads an undocumented format; generic worktree isolation and routing are already subsumed and we deliberately ride them.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT dismiss Dreaming",
+    "summary": "Do NOT dismiss Dreaming — the Harvey 6x case study is real and the direction signal is clear.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The methodology (cold-must-fail-first, held-out graders, rigging guards, publ...",
+    "summary": "The methodology (cold-must-fail-first, held-out graders, rigging guards, published nulls, retracted contaminated runs) is itself a category-defining differentiator.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Urgency",
+    "summary": "Urgency: Gas Town/Beads is the most likely architectural converger; publishing the benchmark protocol means they must score against it, not just claim architectural similarity.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not write it as a takedown",
+    "summary": "Do not write it as a takedown — write it as \"here is why we built it differently and what that costs us.\"",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Consider becoming an MCP provider for ACP-compliant orchestrators rather than...",
+    "summary": "Consider becoming an MCP provider for ACP-compliant orchestrators rather than running a parallel daemon.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Cosmos also claims \"agents draw on previous runs rather than starting cold\"",
+    "summary": "Cosmos also claims \"agents draw on previous runs rather than starting cold\" — they remember what was done, at a summary level.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "decision"
+  },
+  {
+    "title": "vs \"just use native/Dreaming\"",
+    "summary": "vs \"just use native/Dreaming\": Survives, but \"receipts\" must remain honest: the receipts are provenance + verdicts + costs; the lift is an existence proof, not a frequency proof.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "\"Self-learning\" vocabulary note",
+    "summary": "\"Self-learning\" vocabulary note: Do not lead with \"self-learning\" in any public copy.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Claim the productized, work-graph-coupled, honest-benchmark instantiation",
+    "summary": "Claim the productized, work-graph-coupled, honest-benchmark instantiation; never conceptual novelty over DGM/AlphaEvolve/Dreaming.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Not memory",
+    "summary": "Not memory; but the Context Usage Explorer is the first UX acknowledgment that token distribution is a solved problem they don't yet have a solution for.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06-12.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: that their bi-temporality is fake (it's real and more granular on world-fact event time), or eval superiority — they have published peer-visible research and enterprise compliance; we have neither.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Our counter",
+    "summary": "Our counter: Letta's memory is agent-identity-scoped (memory blocks belong to one agent's self-model, always-in-context — the opposite token economics), learning is self-judged (/doctor, sleeptime = LLM auditing itself), and there is no task DAG — subagents form a call graph, not a dependency graph.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: novelty on git-versioned context — they shipped Context Repositories (Feb 2026) before our substrate was public.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: they're all theater — the audit confirmed real pattern-confidence updates and real vector infra (HNSW/AgentDB) beyond our search stack, and their distribution dwarfs ours.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: UX parity — their review ergonomics and install story are best-in-class and ours is a localhost dashboard.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Kill shot",
+    "summary": "Kill shot: Native forgets your tasks on a timer and never measures whether the agent improved; Darwin is the layer that remembers, proves it, and feeds it forward — riding native, not replacing it.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT claim",
+    "summary": "Do NOT claim: independence from the substrate — native-tasks.js reads an undocumented format; routing, loop pacing, budgets, and generic worktree isolation are already subsumed and we deliberately ride them.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "What survives is the protocol that fixed it",
+    "summary": "What survives is the protocol that fixed it: held-out grading where the agent solves from a prose spec and an external suite it never sees grades the frozen artifact, with a cold-arm-must-fail guard before any win is claimed.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Agent HQ/Cursor/Conductor own the runner UI",
+    "summary": "Agent HQ/Cursor/Conductor own the runner UI; the graveyard says don't fight there.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Our methodology (cold-must-fail-first, held-out graders, rigging guards, publ...",
+    "summary": "Our methodology (cold-must-fail-first, held-out graders, rigging guards, published nulls) is itself a differentiator no vendor matches — open-sourcing the protocol turns \"trust-but-thin\" into a category-defining eval and forces competitors onto our turf (execution-coupled memory), where Graphiti/Mem0/claude-mem structurally cannot score.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "B3 (native)",
+    "summary": "B3 (native): Survives — native memory remembers what was written (markdown), never what was done or whether it worked.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "But \"receipts\" must stay honest",
+    "summary": "But \"receipts\" must stay honest: the receipts are real (provenance, verdicts, costs); the lift is not yet proven (§5.1).",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "On the learning axis, claim the productized, work-graph-coupled, honest-bench...",
+    "summary": "On the learning axis, claim the productized, work-graph-coupled, honest-benchmark instantiation; never conceptual novelty over DGM/AlphaEvolve.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "PyPI weft (Van Lindberg, modelmonster",
+    "summary": "PyPI weft (Van Lindberg, modelmonster.ai, 8.5k dl/mo, near 1.0) — Temporal-lite durable task substrate, no knowledge layer by design.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Big-co adjacent",
+    "summary": "Big-co adjacent: Microsoft Durable Task for AI Agents + DBOS are contesting the substrate layer — do not position on \"durable tasks.\"",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Category is dying at the indie level and being absorbed by the platforms",
+    "summary": "Category is dying at the indie level and being absorbed by the platforms — Cursor 3 /best-of-n, Windsurf Wave 13, Codex App, Claude Code all do worktree-parallel natively. → The cockpit is an IDE feature, not a product; Zonoid is the engine below it — integrate as a surface, do not compete.",
+    "source": "business/competitive/archive/competitive-analysis-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Correction applied (supersedes D2 §1 \"DON'T BLOCK ON\" row)",
+    "summary": "Correction applied (supersedes D2 §1 \"DON'T BLOCK ON\" row): the context-need gate IS live in the daemon — daemon.js:24 imports lib/context-gate; gated retrieval runs at daemon.js:1202-1215 (?gated=1, abstain-by-default).",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Side benefit",
+    "summary": "Side benefit: fewer tools = smaller always-loaded MCP schema payload, and payload size is the entire ON-cost story (1.63×→1.03×).",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Warm at daemon boot, background, non-blocking",
+    "summary": "Warm at daemon boot, background, non-blocking; lexical fallback must stay silent-correct.",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Only workspace-level frequency-methodology",
+    "summary": "Only workspace-level frequency-methodology.md / frequency-phase0a.md must move into bench/ or the frequency claim gets dropped entirely.",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never imply unmeasured lift frequency",
+    "summary": "Never imply unmeasured lift frequency; never \"neural\"/\"swarm\"/unmeasured multipliers.",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Release-gate tests (each must pass cold)",
+    "summary": "Release-gate tests (each must pass cold): clean-~/.claude plugin install (CLI + desktop); daemon self-boot both ways incl. port-8787-busy; empty-state dashboard + live SSE; search-before-model-download (lexical fallback silent); the supersede/as-of round trip via MCP tools only; orch off honored.",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "KPIs",
+    "summary": "KPIs: star velocity d0–3; marketplace installs/wk; Discussions threads/wk; % of installs still emitting graph events at d30 — the retention number vibe-kanban never had (data gravity is the moat free OSS gets).",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT wait for",
+    "summary": "Do NOT wait for: bench v4 (>2-week slip), auto-consult wiring, Windows, hosted, dashboard polish.",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "NOTE",
+    "summary": "NOTE: bare zonoid on npm is permanently blocked by the typosquat filter (too similar to nanoid) — all npm artifacts ship scoped under @zonoid/* (same pattern as @anthropic-ai/claude-code); update install copy accordingly. crates.io deliberately skipped.",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Hard invariant",
+    "summary": "Hard invariant: sensitive material never exists in any pushed commit — held-out JSONL transcripts, agents.json blobs, and personal-path bench data are stripped locally before the first commit; cosmetic cleanup (README rewrite, renames, path fixes) then proceeds as normal visible commits; push only when history is verified sensitive-free.",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Public claims citing v1–v7 numbers must be re-derived or reframed before launch",
+    "summary": "Public claims citing v1–v7 numbers must be re-derived or reframed before launch.",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Local-environment ship-manifest workstream added (task #21)",
+    "summary": "Local-environment ship-manifest workstream added (task #21): the running system depends on locally patched ~/.claude state (orch-gate hook, router registrations, skills, workspace CLAUDE.md conventions); these must be packaged (plugin hooks.json / setup skill / install script) and drift-checked against in-repo copies before the cut.",
+    "source": "business/release-plan-2026-06.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "They do not embed orchestrator business logic",
+    "summary": "They do not embed orchestrator business logic.",
+    "source": "docs/adapter-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "fail-open (allow) except where the harness itself requires a deny",
+    "summary": "fail-open (allow) except where the harness itself requires a deny — document per harness.",
+    "source": "docs/adapter-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Each row is one harness lifecycle moment and the daemon endpoint the adapter...",
+    "summary": "Each row is one harness lifecycle moment and the daemon endpoint the adapter must call.",
+    "source": "docs/adapter-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "harness = namespace folder",
+    "summary": "harness = namespace folder: cursor, codex, opencode, local, … (not hardcoded; avoid followup and uuid-like names)",
+    "source": "docs/adapter-contract.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Task key in graph = <harness>/<id> (never collides with Claude's <session-uui...",
+    "summary": "Task key in graph = <harness>/<id> (never collides with Claude's <session-uuid>/<id>)",
+    "source": "docs/adapter-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Adapters MUST NOT delete stubs",
+    "summary": "Adapters MUST NOT delete stubs",
+    "source": "docs/adapter-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "before adoption (snapshot must exist first)",
+    "summary": "before adoption (snapshot must exist first).",
+    "source": "docs/adapter-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Subagent workers must register first (POST /agent/start with subagent_session...",
+    "summary": "Subagent workers must register first (POST /agent/start with subagent_session), then claim.",
+    "source": "docs/adapter-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Requires GET /dispatcher/children?session= to report children",
+    "summary": "Requires GET /dispatcher/children?session= to report children.length > 0.",
+    "source": "docs/adapter-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "daemon stores and sums",
+    "summary": "daemon stores and sums — it never walks harness transcript dirs on GET /costflow and never",
+    "source": "docs/adapter-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Re-arm replaces",
+    "summary": "Re-arm replaces: a second call with the same session never stacks timers — the old pid",
+    "source": "docs/adapter-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Classify injection (POST /classify → additional_context) always includes the...",
+    "summary": "Classify injection (POST /classify → additional_context) always includes the heartbeat nudge",
+    "source": "docs/adapter-contract.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Secondary (future)",
+    "summary": "Secondary (future): RAG-required scenarios where a KB note holds the fact and the gate must inject it.",
+    "source": "docs/bench-e2e-plan.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Avoid dual hook configs without dedup",
+    "summary": "Avoid dual hook configs without dedup.",
+    "source": "docs/cursor-compat-spike.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Do not ship until live hook capture confirms tool_name and todos[]",
+    "summary": "Do not ship until live hook capture confirms tool_name and todos[].",
+    "source": "docs/cursor-compat-spike.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Ensure orchestrator MCP is configured and daemon reachable at localhost",
+    "summary": "Ensure orchestrator MCP is configured and daemon reachable at localhost:8787.",
+    "source": "docs/cursor-e2e.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Judge identifies failure pattern (JSON write instead of event-log write)",
+    "summary": "Judge identifies failure pattern (JSON write instead of event-log write).",
+    "source": "docs/demo-3-self-learning-loop.md",
+    "kind": "decision"
+  },
+  {
+    "title": "ingest-reversible stays FAIL all rounds",
+    "summary": "ingest-reversible stays FAIL all rounds — convention notes don't transfer to cold agents.",
+    "source": "docs/demo-3-self-learning-loop.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Honest judge with external metrics",
+    "summary": "Honest judge with external metrics — they use self-reported pass/fail, not a held-out grader the agent never sees.",
+    "source": "docs/demo-3-self-learning-loop.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Iteration 1",
+    "summary": "Iteration 1: vocabulary alignment (note title must mirror agent query tokens).",
+    "source": "docs/demo-3-self-learning-loop.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "featurebench requires Python >= 3",
+    "summary": "featurebench requires Python >= 3.12 (the task brief guessed 3.10/3.11 — that",
+    "source": "docs/featurebench-bringup-notes.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "loads with token=None (just a rate-limit warning)",
+    "summary": "loads with token=None (just a rate-limit warning).",
+    "source": "docs/featurebench-bringup-notes.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Native arm64",
+    "summary": "Native arm64: NOT possible — the images don't exist for arm64.",
+    "source": "docs/featurebench-bringup-notes.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Because fb pull/fb eval issue no --platform, and the manifest is amd64-only,",
+    "summary": "Because fb pull/fb eval issue no --platform, and the manifest is amd64-only,",
+    "source": "docs/featurebench-bringup-notes.md",
+    "kind": "doc"
+  },
+  {
+    "title": "metric-branch invariant)",
+    "summary": "metric-branch invariant).",
+    "source": "docs/multi-harness-plan.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Calls are not reliable and never load-bearing",
+    "summary": "Calls are not reliable and never load-bearing",
+    "source": "docs/multi-harness-plan.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "POST /sync",
+    "summary": "POST /sync: explicit pull trigger so a creator gets immediate adoption instead of",
+    "source": "docs/multi-harness-plan.md",
+    "kind": "decision"
+  },
+  {
+    "title": "local/<id> (generic)",
+    "summary": "local/<id> (generic) — never collide with Claude's <session-uuid>/<id>.",
+    "source": "docs/multi-harness-plan.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Metric-branch invariant enforced at claim time in the daemon (start_task refuses",
+    "summary": "Metric-branch invariant enforced at claim time in the daemon (start_task refuses",
+    "source": "docs/multi-harness-plan.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "task_key?, startedAt, endedAt, usage, human, overhead }`",
+    "summary": "task_key?, startedAt, endedAt, usage, human, overhead }` — daemon never parses IDE JSONL.",
+    "source": "docs/multi-harness-plan.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "OpenCode",
+    "summary": "OpenCode: plugin — throw-to-block in tool.execute.before (never rely on arg rewriting:",
+    "source": "docs/multi-harness-plan.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "launchd/systemd service option for always-on daemon where HTTP connectors are...",
+    "summary": "launchd/systemd service option for always-on daemon where HTTP connectors are used.",
+    "source": "docs/multi-harness-plan.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Native task files were never a data store",
+    "summary": "Native task files were never a data store — they are an **identity mint + frictionless",
+    "source": "docs/multi-harness-plan.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "replicate the handshake per harness, never mirror whole stores",
+    "summary": "replicate the handshake per harness, never mirror whole stores.",
+    "source": "docs/multi-harness-plan.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The hook layer is thin by design",
+    "summary": "The hook layer is thin by design: hooks curl the daemon and relay verdicts (context",
+    "source": "docs/multi-harness-plan.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Errors never propagate to the caller",
+    "summary": "Errors never propagate to the caller.",
+    "source": "docs/node-lifecycle.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "When buildGraph encounters a native, followup, or file-drop task it has never...",
+    "summary": "When buildGraph encounters a native, followup, or file-drop task it has never seen before, it calls adoptNativeTask, which copies the task's metadata into the overlay snapshot.",
+    "source": "docs/node-lifecycle.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Timed-out survivors are flagged provisional rather than silently trusted",
+    "summary": "Timed-out survivors are flagged provisional rather than silently trusted.",
+    "source": "docs/node-lifecycle.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Note nodes (POST /overlay/note) do not go through ingestNode",
+    "summary": "Note nodes (POST /overlay/note) do not go through ingestNode.",
+    "source": "docs/node-lifecycle.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "They should point to the same directory for foreign repos so KB entries don't...",
+    "summary": "They should point to the same directory for foreign repos so KB entries don't collide with your main workspace.",
+    "source": "docs/onboard-workspace.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The daemon must be reachable from inside the container",
+    "summary": "The daemon must be reachable from inside the container.",
+    "source": "docs/onboard-workspace.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "We are honest about what these numbers do and do not imply",
+    "summary": "We are honest about what these numbers do and do not imply: they are internal consistency metrics on a task graph, not direct measurements of real-world developer productivity, and the industry evidence on AI-assisted coding productivity is at best mixed and at worst negative for experienced developers.",
+    "source": "docs/papers/autonomy-score/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "They do not answer the question a developer actually cares about",
+    "summary": "They do not answer the question a developer actually cares about: for each token of human effort I put in, how many tokens of productive output did the system generate on my behalf?",
+    "source": "docs/papers/autonomy-score/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Waste",
+    "summary": "Waste: agents that consume tokens but produce work that never lands to git.",
+    "source": "docs/papers/autonomy-score/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Human overhead inflation",
+    "summary": "Human overhead inflation: systems that require extensive human steering — repeated corrections, clarification loops, copy-paste of generated context.",
+    "source": "docs/papers/autonomy-score/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The machine-injected categories below are collectively the harness cost",
+    "summary": "The machine-injected categories below are collectively the harness cost — tokens the orchestration machinery itself injects, which must not be confused with human steering effort (the dashboard reports this same category as \"Harness cost\").",
+    "source": "docs/papers/autonomy-score/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "isSidechain / isMeta messages",
+    "summary": "isSidechain / isMeta messages — internal harness traffic, never typed by a human.",
+    "source": "docs/papers/autonomy-score/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "We prefer a metric that is hard to game by accident",
+    "summary": "We prefer a metric that is hard to game by accident.",
+    "source": "docs/papers/autonomy-score/index.md",
+    "kind": "decision"
+  },
+  {
+    "title": "The task graph is a directed acyclic graph (DAG) by construction at the compo...",
+    "summary": "The task graph is a directed acyclic graph (DAG) by construction at the component level: context edges may form cycles between tasks, so Tarjan SCC condensation collapses any cycle into a single super-node, and the condensation is always a DAG over which flow runs in topological order.",
+    "source": "docs/papers/autonomy-score/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The 39 percentage-point calibration error between perceived and actual perfor...",
+    "summary": "The 39 percentage-point calibration error between perceived and actual performance is a significant warning about self-reported productivity studies.",
+    "source": "docs/papers/autonomy-score/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Merged-verification is strict",
+    "summary": "Merged-verification is strict — only a git-verified merge to main counts, never agent self-report — but merged work can still contain bugs, introduce regressions, or require immediate follow-up.",
+    "source": "docs/papers/autonomy-score/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Cost-per-outcome is a benchmark metric, not a telemetry metric",
+    "summary": "Cost-per-outcome is a benchmark metric, not a telemetry metric: it requires fixed tasks and repeated trials.",
+    "source": "docs/papers/autonomy-score/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "They do not measure Zonoid as a whole",
+    "summary": "They do not measure Zonoid as a whole — DAG context flow across wired",
+    "source": "docs/papers/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "External grading",
+    "summary": "External grading — held-out test suite run after the agent finishes, never visible to the agent",
+    "source": "docs/papers/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "intervals still overlap at current n",
+    "summary": "intervals still overlap at current n — statistical significance requires more trials — but the",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The spec states only that diagnostics must",
+    "summary": "The spec states only that diagnostics must",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The spec is deliberately silent about which tier to use",
+    "summary": "The spec is deliberately silent about which tier to use.",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "decision"
+  },
+  {
+    "title": "A held-out test suite the agent never sees",
+    "summary": "A held-out test suite the agent never sees.",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "GOTCHA",
+    "summary": "GOTCHA: setDiagnostics/getDiagnostics — must route through graph-store JSONL, null clears included",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "This MUST happen for ALL values including null",
+    "summary": "This MUST happen for ALL values including null — null means \"cleared\".",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT skip emitting the event when value is null",
+    "summary": "Do NOT skip emitting the event when value is null.",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "This candidate is excluded from the overlay-save/locale-sum aggregate statist...",
+    "summary": "This candidate is excluded from the overlay-save/locale-sum aggregate statistics (which measure the RAG injection component in isolation) because the whole-product dynamics dominate.",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Grading runs after the trial, in a temp directory with CLAUDE_PLUGIN_DATA red...",
+    "summary": "Grading runs after the trial, in a temp directory with CLAUDE_PLUGIN_DATA redirected — it never",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "case**",
+    "summary": "case** — note said \"emit an event\" but didn't specify that null values must also emit.",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Added explicit rule",
+    "summary": "Added explicit rule: *\"This MUST happen for ALL values including null — null means 'cleared'.",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The gate correctly withheld an imperfect match rather than injecting noise",
+    "summary": "The gate correctly withheld an imperfect match rather than injecting noise.",
+    "source": "docs/papers/quality-gain/index.md",
+    "kind": "decision"
+  },
+  {
+    "title": "The scenario is task-transcript",
+    "summary": "The scenario is task-transcript: the spec requires correctly implementing a function based on",
+    "source": "docs/papers/token-economy/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "implementation must follow an architectural pattern (event sourcing into a JS...",
+    "summary": "implementation must follow an architectural pattern (event sourcing into a JSONL log) that exists",
+    "source": "docs/papers/token-economy/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "With KB context (a graph note that teaches the non-obvious",
+    "summary": "With KB context (a graph note that teaches the non-obvious",
+    "source": "docs/papers/token-economy/index.md",
+    "kind": "doc"
+  },
+  {
+    "title": "The OFF arm must pass all 37 to be counted as solved",
+    "summary": "The OFF arm must pass all 37 to be counted as solved.",
+    "source": "docs/papers/token-economy/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "the agent never sees the test suite",
+    "summary": "the agent never sees the test suite.",
+    "source": "docs/papers/token-economy/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "never produced a working implementation",
+    "summary": "never produced a working implementation — 0/37 cases passed.",
+    "source": "docs/papers/token-economy/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "isolated gotcha tasks (overlay-save, locale-sum)",
+    "summary": "isolated gotcha tasks (overlay-save, locale-sum).",
+    "source": "docs/papers/token-economy/index.md",
+    "kind": "doc"
+  },
+  {
+    "title": "because it makes a search_knowledge call that adds tokens even when the injec...",
+    "summary": "because it makes a search_knowledge call that adds tokens even when the injection provides only",
+    "source": "docs/papers/token-economy/index.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Solve rate lifts (+18–22pp), but per-trial token cost increases because OFF can",
+    "summary": "Solve rate lifts (+18–22pp), but per-trial token cost increases because OFF can",
+    "source": "docs/papers/token-economy/index.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Regime B (Paper 003)",
+    "summary": "Regime B (Paper 003): whole-product, task fundamentally requires KB context to approach",
+    "source": "docs/papers/token-economy/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Controlled environment",
+    "summary": "Controlled environment: the task-transcript scenario was designed to require KB context.",
+    "source": "docs/papers/token-economy/index.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Core principle",
+    "summary": "Core principle: agent never sees the test suite during solving.",
+    "source": "docs/swe-bench-eval.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Agent must navigate architecture without hints",
+    "summary": "Agent must navigate architecture without hints.",
+    "source": "docs/swe-bench-eval.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Tasks must be run in chronological order per repo",
+    "summary": "Tasks must be run in chronological order per repo.",
+    "source": "docs/swe-bench-eval.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(task_key, agent_id, branch, target_repo) into its graph duties instead of pa...",
+    "summary": "(task_key, agent_id, branch, target_repo) into its graph duties instead of parsing them",
+    "source": "schemas/README.md",
+    "kind": "decision"
+  },
+  {
+    "title": "decisions[]",
+    "summary": "decisions[].wires_to carries note provenance — always includes the current task_key",
+    "source": "schemas/README.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Use to auto-progress a DAG across turns (spawn ready tasks as dependencies co...",
+    "summary": "Use to auto-progress a DAG across turns (spawn ready tasks as dependencies complete) without an always-on event loop.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "DEFAULT",
+    "summary": "DEFAULT — autonomous code work is HELD, never merged.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "spawns MUST",
+    "summary": "spawns MUST: (1) do its work in an ISOLATED git branch + worktree off the CODE repo",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(~/",
+    "summary": "(~/.claude/orchestrator; branch orch/attempt/<task-slug>, e.g. git worktree add -b orch/attempt/<slug> worktrees/self/<slug> HEAD) — NEVER edit the live checkout and NEVER merge to main;",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Merging to main is a HUMAN decision on review",
+    "summary": "Merging to main is a HUMAN decision on review — the loop never merges and never halts on guidance; it queues everything for the morning.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Pass session = this conversation's id so a cooperative-stop on its claimed ta...",
+    "summary": "Pass session = this conversation's id so a cooperative-stop on its claimed task halts that loop within one tick (see Cooperative stop). loop_control(action:\"start\") INSERTS a new loop and returns its loopId — it never clobbers an existing loop, so several loops can run at once.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "It returns { loops",
+    "summary": "It returns { loops: [ { loopId, action, tasks?, next_poll_seconds, ... } ] } — one entry per ACTIVE loop (empty array ⇒ nothing active; do NOT reschedule).",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "On failure or error, the subagent MUST call set_status(key, \"failed\", <one-li...",
+    "summary": "On failure or error, the subagent MUST call set_status(key, \"failed\", <one-line reason>) before exiting — silent exit leaves the task in_progress indefinitely; the staleness sweep is the last resort, not the primary path.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "If start_task returns 409 (already in_progress by another agent / claimed by...",
+    "summary": "If start_task returns 409 (already in_progress by another agent / claimed by another loop this tick), SKIP that task and let the next heartbeat re-poll — never force-takeover.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Include in each worker's prompt the GATE-FIRST consult rule",
+    "summary": "Include in each worker's prompt the GATE-FIRST consult rule: before coding, call search_knowledge(<task in one sentence>, gated:true); on decision:\"inject\" apply the returned note, on \"abstain\" proceed without retrieval (never re-query ungated).",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Tasks always win",
+    "summary": "Tasks always win: the daemon spawns ready tasks into the loop's spare concurrency (headroom = maxConcurrency − running) FIRST, then fans the edge-judge into the LEFTOVER slots — so K = min(headroom − spawnedThisTick, judgeQueueDepth, judgeParallelCap), further clamped to what the loop's remaining token budget affords.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Fan out K CONCURRENT self-learn-edge-judge efforts (not one), each on model s...",
+    "summary": "Fan out K CONCURRENT self-learn-edge-judge efforts (not one), each on model sonnet (never haiku — verdict discrimination degrades to rubber-stamp keeps): run K parallel invocations, each doing GET /judge/next?budget=N → reason each item per that skill's conservative keep/prune/create/surface criteria (default verdict = NO edge) → POST /judge/verdict.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Because the daemon is single-threaded, the K GET /judge/next calls advance th...",
+    "summary": "Because the daemon is single-threaded, the K GET /judge/next calls advance the persisted cursor in series and return DISJOINT slices — no edge is judged twice.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "For EACH node, fan out ONE self-learn-edge-judge effort (model sonnet, never...",
+    "summary": "For EACH node, fan out ONE self-learn-edge-judge effort (model sonnet, never haiku) that judges that node's WHOLE edge-set in a single dispatch: GET /judge/next?node=<key>&budget=N → reason each returned edge item per the skill's conservative criteria (default verdict = NO edge) → POST /judge/verdict.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "ONE dispatch covers the node's entire candidate edge-set (never one per edge)",
+    "summary": "ONE dispatch covers the node's entire candidate edge-set (never one per edge).",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Whenever a decision carries wire",
+    "summary": "Whenever a decision carries wire: [{key, label}] (on a spawn, idle, or judge_edges action): those tasks are READY but unwired — created with no edges and never wired in.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The daemon will NEVER spawn them (a worker's start_task would 409), so YOU mu...",
+    "summary": "The daemon will NEVER spawn them (a worker's start_task would 409), so YOU must wire each one before your next tick: call suggest_links(key) and add the right add_dependency (blocking/context) edges, or mark_root(key) ONLY if your judgment says it is genuinely a standalone root — never mark_root just to unblock.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT spawn a worker for a task listed in wire[]",
+    "summary": "Do NOT spawn a worker for a task listed in wire[].",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "It reads accumulated learnings (get_learnings",
+    "summary": "It reads accumulated learnings (get_learnings — judge verdicts, failures, recent completions), proposes 1-3 parallelism-maximizing initiatives and wires them in (structuring \"try alternatives\" as a problem → attempts → judge subtree per the self-learn-judge skill, so the judge's verdict is recorded back as durable learning), and calls request_guidance on any decision the user must make.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Invoke the self-learn-planner skill scoped to P",
+    "summary": "Invoke the self-learn-planner skill scoped to P: feed it prior_verdict (and get_learnings) and have it wire a NEW attempts → judge round on the SAME P proposing a DIFFERENT change (never a repeat of prior_verdict.winner).",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT cancel/replan P",
+    "summary": "Do NOT cancel/replan P — only ADD the next attempt subtree.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "If EVERY entry reported stop/await_user (or the array was empty), do NOT resc...",
+    "summary": "If EVERY entry reported stop/await_user (or the array was empty), do NOT reschedule — the whole heartbeat is done; report briefly.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Keep calling ScheduleWakeup directly",
+    "summary": "Keep calling ScheduleWakeup directly — do NOT route through any native /loop wrapper.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "On an idle tick, do not reason or call other tools",
+    "summary": "On an idle tick, do not reason or call other tools — the daemon already decided.",
+    "source": "skills/orch-loop/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "plugs into the Agent-tool schema option) instead of prose duties",
+    "summary": "plugs into the Agent-tool schema option) instead of prose duties: the dispatcher fills the",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "copies them into its graph calls rather than re-deriving them",
+    "summary": "copies them into its graph calls rather than re-deriving them. return_contract ($ref",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "parallelizing, check the tasks don't share files",
+    "summary": "parallelizing, check the tasks don't share files; if they do, serialize.",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "never force-merges (merge auto-aborts on conflict)",
+    "summary": "never force-merges (merge auto-aborts on conflict).",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "merge_feature(key) call (feature→main) once complete",
+    "summary": "merge_feature(key) call (feature→main) once complete — never automatic.",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "All file writes must happen",
+    "summary": "All file writes must happen",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "inside the worktree",
+    "summary": "inside the worktree; NEVER edit the live checkout.",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "⇒ read and apply the returned note",
+    "summary": "⇒ read and apply the returned note; \"abstain\" ⇒ proceed WITHOUT retrieval (do NOT",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "dependents can fetch it precisely instead of you re-deriving it",
+    "summary": "dependents can fetch it precisely instead of you re-deriving it.",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Always include the dashboard link",
+    "summary": "Always include the dashboard link — 📊 http://localhost:8787/graph — in your replies while",
+    "source": "skills/parallel-orchestrate/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Operate ONLY via MCP tools",
+    "summary": "Operate ONLY via MCP tools — never shell the daemon directly.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Prefer the deep-research skill if available, with a tight question",
+    "summary": "Prefer the deep-research skill if available, with a tight question",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Otherwise a handful of WebSearch / WebFetch calls",
+    "summary": "Otherwise a handful of WebSearch / WebFetch calls — cap it (≤ ~4–5 queries).",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "as you have one credible figure with a real source",
+    "summary": "as you have one credible figure with a real source; don't keep digging.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "metric MUST name the same objective as the spec's metric",
+    "summary": "metric MUST name the same objective as the spec's metric.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Degrade gracefully",
+    "summary": "Degrade gracefully — NEVER fabricate.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "note** explaining the caveat ONLY if you have a real (if weak) sourced figure",
+    "summary": "note** explaining the caveat ONLY if you have a real (if weak) sourced figure.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never fabricate a number",
+    "summary": "Never fabricate a number.",
+    "source": "skills/self-learn-benchmark/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Conservative by default",
+    "summary": "Conservative by default: similarity is necessary but NOT sufficient — the default edge verdict is NO edge, and two notes must be the SAME fact (not merely related) to consolidate.",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The daemon stays dumb (it computes embeddings + runs /search, never an LLM)",
+    "summary": "The daemon stays dumb (it computes embeddings + runs /search, never an LLM).",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "up to N items from a PERSISTED cursor that advances + wraps across ticks, so...",
+    "summary": "up to N items from a PERSISTED cursor that advances + wraps across ticks, so you NEVER re-walk the",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "whole graph and never re-judge an item until the cursor laps or the epoch grows",
+    "summary": "whole graph and never re-judge an item until the cursor laps or the epoch grows. idle:true ⇒",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "for each candidate, whether to create an edge",
+    "summary": "for each candidate, whether to create an edge — and in almost all cases, do NOT.",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "UNVERIFIED edge",
+    "summary": "UNVERIFIED edge: keep ONLY if it clears the context bar above; otherwise prune.",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "the key) is always a prune",
+    "summary": "the key) is always a prune.",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "KIND",
+    "summary": "KIND — does anchor REQUIRE N?",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "retired (canceled + supersede edge) and a replan reconciles cleanly instead o...",
+    "summary": "retired (canceled + supersede edge) and a replan reconciles cleanly instead of leaving an orphan",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Conservative",
+    "summary": "Conservative: when unsure it's a dup, keep the edge as context and do NOT supersede.",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "measurements from different runs/regimes, are DISTINCT",
+    "summary": "measurements from different runs/regimes, are DISTINCT — do NOT consolidate them.",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "guidance item, never per-pair",
+    "summary": "guidance item, never per-pair.",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT surface repeated-ingestion duplicates",
+    "summary": "Do NOT surface repeated-ingestion duplicates — [ingest] notes with near-identical content are",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT call surfaceCluster",
+    "summary": "Do NOT call surfaceCluster — that creates a dashboard guidance item, which is the wrong path.",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Edge items don't need markJudged",
+    "summary": "Edge items don't need markJudged — keep/prune resolves them",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Consolidation is reversible (supersede stamps validTo, never deletes), but a...",
+    "summary": "Consolidation is reversible (supersede stamps validTo, never deletes), but a wrong merge still",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The cursor handles continuity",
+    "summary": "The cursor handles continuity — don't try to drain it in one",
+    "source": "skills/self-learn-edge-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "When the problem carries a metric spec + measurements, judge METRIC-FIRST (im...",
+    "summary": "When the problem carries a metric spec + measurements, judge METRIC-FIRST (improvement vs baseline, guardrail regressions, gap to a researched competitor benchmark) and weigh the tradeoffs with judgment; otherwise fall back to test pass/fail + rationale.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "the judge NEVER auto-merges into main and NEVER halts the loop",
+    "summary": "the judge NEVER auto-merges into main and NEVER halts the loop.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "- Single-attempt problems (exactly one attempt) do NOT pick a rival winner",
+    "summary": "- Single-attempt problems (exactly one attempt) do NOT pick a rival winner: the code review IS the",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "under a FEATURE → auto-merge to the feature branch",
+    "summary": "under a FEATURE → auto-merge to the feature branch; flat (attempt→main) → HOLD, record ⏸ MERGE PENDING, never merge.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "- Never auto-merge into main",
+    "summary": "- Never auto-merge into main.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "feature→main is the dispatcher's gated merge_feature, NEVER the judge's call",
+    "summary": "feature→main is the dispatcher's gated merge_feature, NEVER the judge's call.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT request_guidance (it would halt the loop)",
+    "summary": "Do NOT request_guidance (it would halt the loop).",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Everything (merges, conflicts, failures) is queued for the morning human revi...",
+    "summary": "Everything (merges, conflicts, failures) is queued for the morning human review via the verdict + the ⏸/⚠ summary — never escalated mid-run.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Operate ONLY via MCP tools",
+    "summary": "Operate ONLY via MCP tools — never shell git directly.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "guardrail / fails to improve), do NOT force a merge",
+    "summary": "guardrail / fails to improve), do NOT force a merge.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "for inspection, and request_guidance({ question",
+    "summary": "for inspection, and request_guidance({ question: \"Winning attempt <key> conflicts with base on <files> — resolve manually, pick another attempt, or abandon?\", trigger: \"irreversible_action\" }) rather than guessing the resolution.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "(Do not cancel/remove the winner",
+    "summary": "(Do not cancel/remove the winner; its worktree can be cleaned once the merge is confirmed.)",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "You only EVALUATE",
+    "summary": "You only EVALUATE; rival generation already happened upstream — never",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "but regresses a guardrail should almost never beat a clean attempt with a sma...",
+    "summary": "but regresses a guardrail should almost never beat a clean attempt with a smaller gain.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "each regression (metric",
+    "summary": "each regression (metric: base→meas) in the verdict; never let one pass silently.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "When node",
+    "summary": "When node.benchmark is absent, judge on baseline-only — do NOT fabricate",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Weighing the tradeoff (judgment, not arithmetic)",
+    "summary": "Weighing the tradeoff (judgment, not arithmetic): prefer the attempt with the best metric",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "passing test on a vacuous assertion does NOT clear this check",
+    "summary": "passing test on a vacuous assertion does NOT clear this check — read the change, don't trust the green.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "unrelated churn",
+    "summary": "unrelated churn: drive-by reformatting, renames, refactors of code the task never mentioned.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "A test that asserts nothing, mocks the thing under test, or never calls the",
+    "summary": "A test that asserts nothing, mocks the thing under test, or never calls the",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "tiebreaker, never a veto on its own",
+    "summary": "tiebreaker, never a veto on its own.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT merge (in EITHER tier)",
+    "summary": "Do NOT merge (in EITHER tier). set_status(attempt, 'failed', note=\"<what must change>\")",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "On merge conflict ({merged",
+    "summary": "On merge conflict ({merged:false, conflict:true, files}) do NOT force.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "feature→main is NEVER the judge's call",
+    "summary": "feature→main is NEVER the judge's call.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "merges an attempt into its feature branch",
+    "summary": "merges an attempt into its feature branch; it never promotes a feature to main.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "NEVER auto-merge into main",
+    "summary": "NEVER auto-merge into main — a flat attempt→main APPROVE only HOLDS (records the",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "And **feature→main is the dispatcher's gated merge_feature, NEVER the",
+    "summary": "And **feature→main is the dispatcher's gated merge_feature, NEVER the",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "feature is a near-veto",
+    "summary": "feature is a near-veto: record {conflict,files}, do not force, KICK BACK / escalate.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Read the code, never just the green",
+    "summary": "Read the code, never just the green.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Metric mode",
+    "summary": "Metric mode: evaluate, never generate.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never fabricate a benchmark",
+    "summary": "Never fabricate a benchmark",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Metric mode is purely additive and never blocks an older problem",
+    "summary": "Metric mode is purely additive and never blocks an older problem.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "request_guidance(",
+    "summary": "request_guidance(...) to halt the loop instead of forcing an outcome.",
+    "source": "skills/self-learn-judge/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "it never modifies existing nodes, never edits source files, never merges, nev...",
+    "summary": "it never modifies existing nodes, never edits source files, never merges, never replans.",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "NEVER cancel, supersede, replan, or touch any existing task or note",
+    "summary": "NEVER cancel, supersede, replan, or touch any existing task or note",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not edit source files, do not create worktrees or branches",
+    "summary": "Do not edit source files, do not create worktrees or branches.",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Prefer zero noise over marginal coverage",
+    "summary": "Prefer zero noise over marginal coverage.",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Always spawn learner subagents with model",
+    "summary": "Always spawn learner subagents with model: claude-sonnet-4-6.",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(search hits truncate at 200 chars",
+    "summary": "(search hits truncate at 200 chars; always read the detail before trusting the watermark).",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "≥10 active agents → do NOT spawn anything",
+    "summary": "≥10 active agents → do NOT spawn anything.",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "as watermark (do NOT advance the delta watermark",
+    "summary": "as watermark (do NOT advance the delta watermark — nothing was read).",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The title MUST start literally with [ingest-candidate]",
+    "summary": "The title MUST start literally with [ingest-candidate] — this makes it filterable.",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Title MUST start literally with [ingest-stale]",
+    "summary": "Title MUST start literally with [ingest-stale].",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Always list_agents before spawning",
+    "summary": "Always list_agents before spawning.",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "preserves history rather than destroying it)",
+    "summary": "preserves history rather than destroying it).",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Never touch existing tasks or other notes",
+    "summary": "Never touch existing tasks or other notes.",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Promotion from candidate to [ingest] is a human/planner decision",
+    "summary": "Promotion from candidate to [ingest] is a human/planner decision — never do it",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Bounded always",
+    "summary": "Bounded always. ≤5 candidates/run, ≤5 staleness flags/run.",
+    "source": "skills/self-learn-kb/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "judge blocked_by each attempt",
+    "summary": "judge blocked_by each attempt — but do NOT call branch_task (it targets the daemon workspace, not",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Prefer BUILDING over escalating",
+    "summary": "Prefer BUILDING over escalating: in",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "autonomous hold-merge mode do NOT request_guidance for ordinary priority/scop...",
+    "summary": "autonomous hold-merge mode do NOT request_guidance for ordinary priority/scope calls (it halts the",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "NEVER cancel or supersede an existing in-flight task (in_progress/ready/not_r...",
+    "summary": "NEVER cancel or supersede an existing in-flight task (in_progress/ready/not_ready).",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "NEVER create a duplicate of an existing open task",
+    "summary": "NEVER create a duplicate of an existing open task.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Always suggest_links BEFORE TaskCreate",
+    "summary": "Always suggest_links BEFORE TaskCreate",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not fabricate work to look busy",
+    "summary": "Do not fabricate work to look busy.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "ambiguous or strategic), call request_guidance",
+    "summary": "ambiguous or strategic), call request_guidance — do NOT guess.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Escalate, don't improvise",
+    "summary": "Escalate, don't improvise.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "what's already been resolved",
+    "summary": "what's already been resolved; do NOT re-propose a settled question.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "\"superseded by X\" (already replaced",
+    "summary": "\"superseded by X\" (already replaced — not an open gap) vs genuine dead ends (avoid",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "(source",
+    "summary": "(source:'verdict', with the reason it lost and the beatenBy winner) or a **genuine",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "dead end** (source",
+    "summary": "dead end** (source:'failure', with the reason/note).",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "open = in_progress / ready / not_ready (the no-fly zone",
+    "summary": "open = in_progress / ready / not_ready (the no-fly zone — never touch),",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "canceled / failed (avoid repeating",
+    "summary": "canceled / failed (avoid repeating; respect \"superseded\" notes).",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Never leave a new task as a disconnected root node",
+    "summary": "Never leave a new task as a disconnected root node.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(a source",
+    "summary": "(a source:'verdict' loser) — the new task's description MUST cite that prior verdict",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "it via get_learnings()",
+    "summary": "it via get_learnings().rejected[] instead of relitigating the same loss.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "\"we don't know the best approach",
+    "summary": "\"we don't know the best approach — try a few and pick,\" don't make one flat task.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "approaches**",
+    "summary": "approaches** — do NOT wait for or accept a prescribed implementation.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "If measure_task fails or returns null, abort and report",
+    "summary": "If measure_task fails or returns null, abort and report — do not proceed",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never edit files before capturing the baseline",
+    "summary": "Never edit files before capturing the baseline.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "worktree MUST spin up its own isolated daemon instance and measure against th...",
+    "summary": "worktree MUST spin up its own isolated daemon instance and measure against that port — never",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Attempt workers must call start_task",
+    "summary": "Attempt workers must call start_task",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "and ensure they are in the correct worktree before any edit",
+    "summary": "and ensure they are in the correct worktree before any edit.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not resolve it yourself",
+    "summary": "Do not resolve it yourself.",
+    "source": "skills/self-learn-planner/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "The QA agent is the intelligence",
+    "summary": "The QA agent is the intelligence; the daemon stays dumb — it only stores test commands and serves the delta, it never runs tests itself.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "DEFAULT",
+    "summary": "DEFAULT — OBSERVE AND FILE, NEVER FIX, NEVER MERGE, ADD-ONLY.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "NEVER cancel, supersede, replan, or touch any existing task",
+    "summary": "NEVER cancel, supersede, replan, or touch any existing task",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do not edit code, do not create attempt branches/worktrees",
+    "summary": "Do not edit code, do not create attempt branches/worktrees",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(branch_task is off-limits here), do not merge_attempt",
+    "summary": "(branch_task is off-limits here), do not merge_attempt.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "A NEW failure must reproduce on one rerun before it may become a",
+    "summary": "A NEW failure must reproduce on one rerun before it may become a",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Non-reproducing failures are logged in the run record only",
+    "summary": "Non-reproducing failures are logged in the run record only — never filed.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "→ full summary on task",
+    "summary": "→ full summary on task.summary (search hits truncate at 200 chars; always read the detail).",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Every Bash call must either be a built-in read-only",
+    "summary": "Every Bash call must either be a built-in read-only",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "command (which never prompts) or deterministically match the project allowlis...",
+    "summary": "command (which never prompts) or deterministically match the project allowlist in",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never, in any Bash call",
+    "summary": "Never, in any Bash call: command substitution $(...), for/while loops, heredocs,",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "seems to need one, qa-suite",
+    "summary": "seems to need one, qa-suite.sh already does it — otherwise it is out of scope for the night.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Never improvise an alternative invocation to dodge a prompt",
+    "summary": "Never improvise an alternative invocation to dodge a prompt.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "never shell daemon endpoints",
+    "summary": "never shell daemon endpoints.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "the design (the daemon stores test_cmd but never executes it",
+    "summary": "the design (the daemon stores test_cmd but never executes it; the QA agent runs it).",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "(Caveat",
+    "summary": "(Caveat: merges only includes verdicts that carry a timestamp; it is best-effort.)",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Repo with NO test_cmd → do NOT guess a command",
+    "summary": "Repo with NO test_cmd → do NOT guess a command.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Headless rule",
+    "summary": "Headless rule: the command must satisfy the shell discipline",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "test_cmd the allowlist doesn't cover goes to skipped= instead of being run",
+    "summary": "test_cmd the allowlist doesn't cover goes to skipped= instead of being run.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "STILL-FAILING",
+    "summary": "STILL-FAILING — recorded last night, still failing → do NOT re-file (its problem",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Non-reproducing failures go under flakes= in the run record and nowhere else",
+    "summary": "Non-reproducing failures go under flakes= in the run record and nowhere else — never a",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "problem node, never a guidance question",
+    "summary": "problem node, never a guidance question.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Do NOT create attempts, worktrees, or a judge subtree",
+    "summary": "Do NOT create attempts, worktrees, or a judge subtree — that is the day loop's job.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "record and test-plan notes",
+    "summary": "record and test-plan notes — and that chain preserves history rather than destroying it.)",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "decision"
+  },
+  {
+    "title": "Never guess a test command",
+    "summary": "Never guess a test command.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Don't re-file known failures",
+    "summary": "Don't re-file known failures.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Every Bash call must pass headless (see Headless shell",
+    "summary": "Every Bash call must pass headless (see Headless shell",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "A permission prompt at 2am is a dead run",
+    "summary": "A permission prompt at 2am is a dead run — never improvise loops, $(), or",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "files and proposes",
+    "summary": "files and proposes; it never ships.",
+    "source": "skills/self-learn-qa/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never run a step that needs a password",
+    "summary": "Never run a step that needs a password",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "MCP server",
+    "summary": "MCP server; otherwise node ~/.claude/orchestrator/daemon.js &.",
+    "source": "skills/setup/SKILL.md",
+    "kind": "doc"
+  },
+  {
+    "title": "Add the connector (manual",
+    "summary": "Add the connector (manual — UI step the user must do): Settings → Connectors →",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "connector path (local stdio servers don't render it)",
+    "summary": "connector path (local stdio servers don't render it).",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Write if missing or incomplete (idempotent",
+    "summary": "Write if missing or incomplete (idempotent — merge, don't clobber):",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Substitute it verbatim into every prompt below",
+    "summary": "Substitute it verbatim into every prompt below — never hardcode a path.",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Your job is lightweight",
+    "summary": "Your job is lightweight: ensure the task graph keeps moving.",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never exit silently",
+    "summary": "Never exit silently.\" judge_edges/plan/optimize/await_user → ignore.",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Never call request_guidance",
+    "summary": "Never call request_guidance.",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "gate",
+    "summary": "gate — never run it automatically:",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  },
+  {
+    "title": "Read the file first and merge carefully",
+    "summary": "Read the file first and merge carefully — do not clobber existing keys.",
+    "source": "skills/setup/SKILL.md",
+    "kind": "constraint"
+  }
+]

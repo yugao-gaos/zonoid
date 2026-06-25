@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/review-runtime-skill-surface-prompts",
+  "git_user": "seed <seed@example.test>",
+  "session_id": "019ee80d-831a-7ed1-a47a-5158745d6b73",
+  "branch": "orch/attempt/codex-review-runtime-skill-surface-prompts",
+  "status": "failed",
+  "claimed_at": "2026-06-21T02:42:02.185Z",
+  "lease_until": "2026-06-21T03:42:02.185Z",
+  "completed_at": "2026-06-21T03:05:40.082Z"
+}

@@ -1,0 +1,11 @@
+{
+  "task_key": "judge-fix-search-arm-pending-dup",
+  "agent_id": "judge-fix-search-arm",
+  "session_id": "judge-fix-search-arm-session",
+  "workspace": "D:/zonoid",
+  "branch": "orch/attempt/judge-fix-search-arm-pending-dup",
+  "status": "done",
+  "claimed_at": "2026-06-18T13:37:23.176Z",
+  "lease_until": "2026-06-18T14:37:23.176Z",
+  "completed_at": "2026-06-18T13:38:00.867Z"
+}

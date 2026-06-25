@@ -1,0 +1,15 @@
+{
+  "_comment": "Portable + committable: 'node' resolves on every OS, and the script path is RELATIVE to the workspace root (where this file lives), so it works on Windows/macOS/Linux without per-machine edits. mcp-graph.js self-boots the daemon and defaults its workspace to cwd, so no absolute ORCH_WORKSPACE is needed. For a GLOBAL install (orchestrator under ~/.claude/orchestrator, used across many workspaces) run 'node bin/install.js' to generate an absolute-path .mcp.json instead.",
+  "mcpServers": {
+    "orchestrator-graph": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "mcp-graph.js"
+      ],
+      "env": {
+        "ORCH_PORT": "8787"
+      }
+    }
+  }
+}

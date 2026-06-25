@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/search-economy-phase1b-cmm-judge",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "019efa16-535e-7a53-9206-5e3dace4eb57",
+  "branch": "orch/attempt/codex-search-economy-phase1b-cmm-judge",
+  "status": "done",
+  "claimed_at": "2026-06-24T14:44:54.831Z",
+  "lease_until": "2026-06-24T15:44:54.831Z",
+  "completed_at": "2026-06-24T14:52:00.711Z"
+}
