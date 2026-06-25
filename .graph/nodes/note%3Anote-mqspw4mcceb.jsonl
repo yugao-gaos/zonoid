@@ -29,3 +29,4 @@
 {"evt":"edge_removed","from":"note:note-mqspw4mcceb","to":"codex/audit-task-lifecycle-control","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:38:32.768Z"}
 {"evt":"edge_promoted","from":"note:note-mqspw4mcceb","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:00:00.055Z","weight":1,"judged":true}
 {"evt":"edge_promoted","from":"note:note-mqspw4mcceb","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:06:27.104Z","weight":1,"judged":true}
+{"evt":"edge_promoted","from":"note:note-mqspw4mcceb","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:17:11.292Z","weight":1,"judged":true}
