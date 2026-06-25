@@ -51,3 +51,4 @@
 {"evt":"edge_added","from":"note:note-mqplemzsrvt","to":"codex/add-arc-agi-3-zonoid-benchmark-adapter","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:54.390Z","weight":0.869,"by":"subconscious","judged":true,"score":0.869,"origin":"subconscious-agentic-search"}
 {"evt":"edge_removed","from":"note:note-mqplemzsrvt","to":"codex/add-arc-agi-3-zonoid-benchmark-adapter","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:55.222Z"}
 {"evt":"edge_added","from":"note:note-mqplemzsrvt","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:03:51.210Z","weight":0.843,"by":"subconscious","judged":true,"score":0.843,"origin":"subconscious-agentic-search"}
+{"evt":"edge_removed","from":"note:note-mqplemzsrvt","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:08:48.136Z"}
