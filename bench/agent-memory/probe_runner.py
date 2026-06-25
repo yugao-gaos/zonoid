@@ -823,9 +823,9 @@ def run_probe(
     conv_id: str,
     probe: dict[str, Any],
     candidates: list[_SessionCandidate],
-    arms: "list[str] | None" = None,
+    arms: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Run the standard arms for one probe and return one result record per arm.
+    """Run requested standard arms for one probe and return one result record per arm.
 
     Each record: {arm, conv_id, qid, category, question, gold, predicted, ...diagnostics}.
     ``gold`` is recorded FOR THE SCORER ONLY; it never enters any prediction path above.
@@ -850,6 +850,7 @@ def run_probe(
         "gold": probe.get("answer"),  # for the scorer; NOT used by any arm
     }
     records: list[dict[str, Any]] = []
+    requested = set(arms or ["our-way", "search", "cold"])
 
     # Start ONE embedded daemon for the our-way / our-way-prod / search arms.
     # The embedded daemon loads a fresh overlay from graph-store (no pendingDup),
@@ -862,26 +863,25 @@ def run_probe(
         emb_client = ZonoidClient(emb_url, workspace=workspace, timeout=120)
         _ingest_candidates_into_daemon(emb_client, candidates, workspace)
 
-        # ARM our-way (headline, frozen-DAG read) — reuses embedded daemon
-        ow = run_our_way(
-            base_url, workspace, probe, candidates,
-            _embedded_client=emb_client,
-            _embedded_data_dir=emb_data_dir,
-        )
-        records.append({
-            "arm": "our-way",
-            **common,
-            "predicted": ow.get("predicted", ""),
-            "kept_sids": ow.get("kept_sids"),
-            "context_keys": ow.get("context_keys"),
-            "candidate_sids": ow.get("candidate_sids"),
-        })
+        if "our-way" in requested:
+            # ARM our-way (headline, frozen-DAG read) — reuses embedded daemon
+            ow = run_our_way(
+                base_url, workspace, probe, candidates,
+                _embedded_client=emb_client,
+                _embedded_data_dir=emb_data_dir,
+            )
+            records.append({
+                "arm": "our-way",
+                **common,
+                "predicted": ow.get("predicted", ""),
+                "kept_sids": ow.get("kept_sids"),
+                "context_keys": ow.get("context_keys"),
+                "candidate_sids": ow.get("candidate_sids"),
+            })
 
-        # ARM our-way-prod (production agentic + LLM-grader retrieval) — reuses embedded daemon.
-        # Gated on request so its extra grader/answerer cost is only paid when asked for. Run
-        # ALONGSIDE our-way to measure the grader delta (our-way is intentionally kept).
-        if want_prod:
-            owp = run_our_way_prod(
+        if "our-way-prod" in requested:
+            # ARM our-way-prod (production agentic + LLM-grader retrieval) — reuses embedded daemon.
+            op = run_our_way_prod(
                 base_url, workspace, probe, candidates,
                 _embedded_client=emb_client,
                 _embedded_data_dir=emb_data_dir,
@@ -889,21 +889,22 @@ def run_probe(
             records.append({
                 "arm": "our-way-prod",
                 **common,
-                "predicted": owp.get("predicted", ""),
-                "kept_sids": owp.get("kept_sids"),
-                "context_keys": owp.get("context_keys"),
-                "candidate_sids": owp.get("candidate_sids"),
-                "grader": owp.get("grader"),
+                "predicted": op.get("predicted", ""),
+                "kept_sids": op.get("kept_sids"),
+                "context_keys": op.get("context_keys"),
+                "candidate_sids": op.get("candidate_sids"),
+                "grader": op.get("grader"),
             })
 
-        # ARM search — uses embedded daemon for full note visibility (no pendingDup)
-        sr = run_search(emb_url, workspace, probe)
-        records.append({
-            "arm": "search",
-            **common,
-            "predicted": sr.get("predicted", ""),
-            "hit_keys": sr.get("hit_keys"),
-        })
+        if "search" in requested:
+            # ARM search — uses embedded daemon for full note visibility (no pendingDup)
+            sr = run_search(emb_url, workspace, probe)
+            records.append({
+                "arm": "search",
+                **common,
+                "predicted": sr.get("predicted", ""),
+                "hit_keys": sr.get("hit_keys"),
+            })
     finally:
         if handle is not None:
             try:
@@ -912,12 +913,13 @@ def run_probe(
                 pass
 
     # ARM cold (floor) — no memory needed, runs after daemon stop
-    cd = run_cold(probe)
-    records.append({
-        "arm": "cold",
-        **common,
-        "predicted": cd.get("predicted", ""),
-    })
+    if "cold" in requested:
+        cd = run_cold(probe)
+        records.append({
+            "arm": "cold",
+            **common,
+            "predicted": cd.get("predicted", ""),
+        })
 
     return records
 

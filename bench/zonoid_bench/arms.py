@@ -742,6 +742,9 @@ def run_retrieve_and_answer(
     )
     # KEEP the canonical wiring + judge drain for BOTH retrieval modes: it mints the probe, seeds
     # autowire candidates, and drives the production sync judge so the DAG Tier-1 edges settle.
+    if retrieval not in {"task_search", "agentic"}:
+        raise ValueError(f"unknown retrieval mode: {retrieval!r}")
+
     wiring = run_canonical_wiring(client, unit_id, summary, data_dir=dd)
     context_blocks: list[str] = []
     all_context_keys: list[str] = []
