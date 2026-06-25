@@ -369,10 +369,10 @@ def run_on_arm(
     # autowire (NOTE→probe candidates under daemon candidate policy), then DRIVES the production sync
     # judge via POST /judge/drain (P3 de-port — no bench judge LLM): the daemon's in-process
     # runJudgeDrainSync runs the keep/prune rubric and applies keepEdge/pruneEdge. The kept context
-    # edges are then read back from the production task-scoped search response.
+    # edges are then read back through the production Subconscious search-context response.
     wiring = arms_mod.run_canonical_wiring(client, unit_id, summary, data_dir=data_dir)
 
-    # Production task context: settled probes return system + frozen DAG tiers and no semantic RAG fill.
+    # Production task context: use the same Subconscious DAG/RAG loop and grader as foreground agents.
     dag_keys: set[str] = set()
     context_blocks: list[str] = []
     context_keys: list[str] = []
