@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "codex-mcp-46558-3ec4580be194688a79163992735deab3",
   "branch": "orch/attempt/codex-resolve-arc-agi3-cli-context-hook-conflict",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-25T19:08:14.523Z",
-  "lease_until": "2026-06-25T20:08:14.523Z"
+  "lease_until": "2026-06-25T20:08:14.523Z",
+  "completed_at": "2026-06-25T20:25:38.962Z"
 }
