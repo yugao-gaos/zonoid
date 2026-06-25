@@ -5635,3 +5635,15 @@
 {"ts":1782397467384,"from":"codex/code-node-layer","to":"codex/paper-code-retrieval-economy","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.5700750664707327,"cosine":0.533,"model_version":"v1"}
 {"ts":1782397467385,"from":"codex/fix-dashboard-config-smoke-kickback-judge","to":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/7","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.5995005274272085,"cosine":0.593,"model_version":"v1"}
 {"ts":1782397467386,"from":"codex/fix-dashboard-config-smoke-kickback-judge","to":"codex/code-ast-extractor-judge","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.6244425285813001,"cosine":0.645,"model_version":"v1"}
+{"ts":1782398013342,"from":"note:note-mqgsot6ywxr","to":"codex/fix-dashboard-config-smoke-kickback-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.37175988824181777,"cosine":0.56,"model_version":"v1"}
+{"ts":1782398013344,"from":"note:note-mqh2eifaveh","to":"codex/code-node-layer","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3521657030718812,"cosine":0.518,"model_version":"v1"}
+{"ts":1782398013345,"from":"note:note-mqoalfsrx01","to":"codex/fix-dashboard-config-smoke-kickback-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.37081660824271684,"cosine":0.558,"model_version":"v1"}
+{"ts":1782398013346,"from":"note:note-mqoalfsrx01","to":"codex/onboard-code-cli-sync-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.38650191627916647,"cosine":0.591,"model_version":"v1"}
+{"ts":1782398013346,"from":"note:note-mqolegq2416","to":"codex/code-node-layer","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.350784078780432,"cosine":0.515,"model_version":"v1"}
+{"ts":1782398013348,"from":"note:note-mqolegq2416","to":"codex/onboard-code-cli-sync-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.36705339252819175,"cosine":0.55,"model_version":"v1"}
+{"ts":1782398013349,"from":"note:note-mqozwmjr1a3","to":"codex/fix-dashboard-config-smoke-kickback-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3595757592481478,"cosine":0.534,"model_version":"v1"}
+{"ts":1782398013350,"from":"note:note-mqp5a3fxoit","to":"codex/fix-dashboard-config-smoke-kickback-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3471120048467649,"cosine":0.507,"model_version":"v1"}
+{"ts":1782398013352,"from":"note:note-mqp5a3fxoit","to":"codex/onboard-code-cli-sync-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3614389485032127,"cosine":0.538,"model_version":"v1"}
+{"ts":1782398013353,"from":"note:note-mqp5e2pdcji","to":"codex/fix-dashboard-config-smoke-kickback-judge","verdict":"prune","shadow_verdict":"prune","shadow_conf":0.3956432442831974,"cosine":0.61,"model_version":"v1"}
+{"ts":1782398013354,"from":"note:note-mqq2xj787yq","to":"codex/code-node-layer","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.38698111135056606,"cosine":0.592,"model_version":"v1"}
+{"ts":1782398039853,"from":"note:note-mqq2xj787yq","to":"codex/code-node-layer","verdict":"prune","shadow_verdict":"keep","shadow_conf":0.16028271567016877,"cosine":0,"model_version":"v1"}
