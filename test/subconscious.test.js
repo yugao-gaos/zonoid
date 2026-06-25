@@ -706,7 +706,12 @@ test('subconscious execution permit store issues reads and revokes scoped permit
 test('subconscious execution permit routes issue read and revoke permits', async () => {
   const ws = makeWorkspace();
   const store = createSubconsciousStore();
-  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null });
+  const ov = overlayStore.EMPTY();
+  ov.status['task/anchor'] = 'in_progress';
+  ov.claimSessions['task/anchor'] = 'session-a';
+  ov.assignee['task/anchor'] = 'agent-a';
+  ov.git['task/anchor'] = { branch: 'orch/attempt/task-anchor', worktree: `${ws}/wt` };
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null, overlay: ov });
 
   const issued = await callRoute(ctx, '/subconscious/permit', {
     workspace: ws,
@@ -746,6 +751,53 @@ test('subconscious execution permit routes issue read and revoke permits', async
   });
   assert.equal(revoked.status, 200);
   assert.equal(revoked.body.execution_permit.status, 'revoked');
+});
+
+test('subconscious execution permit issue requires verified active claim', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore();
+  const ov = overlayStore.EMPTY();
+  ov.status['task/anchor'] = 'in_progress';
+  ov.claimSessions['task/anchor'] = 'session-a';
+  ov.assignee['task/anchor'] = 'agent-a';
+  ov.git['task/anchor'] = { branch: 'orch/attempt/task-anchor', worktree: `${ws}/wt` };
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null, overlay: ov });
+
+  const wrongSession = await callRoute(ctx, '/subconscious/permit', {
+    workspace: ws,
+    action: 'issue',
+    session_id: 'other-session',
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
+    worktree: `${ws}/wt`,
+    branch: 'orch/attempt/task-anchor',
+  });
+  assert.equal(wrongSession.status, 409);
+  assert.match(wrongSession.body.error, /verified active claim/);
+
+  const wrongWorktree = await callRoute(ctx, '/subconscious/permit', {
+    workspace: ws,
+    action: 'issue',
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
+    worktree: `${ws}/other`,
+    branch: 'orch/attempt/task-anchor',
+  });
+  assert.equal(wrongWorktree.status, 409);
+  assert.match(wrongWorktree.body.error, /verified active claim/);
+
+  const issued = await callRoute(ctx, '/subconscious/permit', {
+    workspace: ws,
+    action: 'issue',
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
+    worktree: `${ws}/wt`,
+    branch: 'orch/attempt/task-anchor',
+  });
+  assert.equal(issued.status, 200);
+  assert.equal(issued.body.valid, true);
 });
 
 test('subconscious assignment prepare records same-node review request without visible judge task', async () => {

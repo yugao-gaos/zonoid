@@ -106,12 +106,21 @@ function permitCoversClaim(permit, claim) {
 function ensureExecutionPermitForClaim(store, claim) {
   if (!store || !claim.sessionId || !claim.taskKey || !claim.worktree || !claim.branch) return null;
   if (typeof store.executionPermit !== 'function') return null;
+  const activeClaim = {
+    workspace: claim.workspace,
+    session_id: claim.sessionId,
+    agent_id: claim.agentId || null,
+    task_key: claim.taskKey,
+    worktree: claim.worktree,
+    branch: claim.branch,
+  };
   const read = typeof store.readExecutionPermit === 'function'
     ? store.readExecutionPermit({
       workspace: claim.workspace,
       session_id: claim.sessionId,
       agent_id: claim.agentId,
       task_key: claim.taskKey,
+      active_claim: activeClaim,
     })
     : null;
   if (read && permitCoversClaim(read.execution_permit, claim)) return read.execution_permit;
@@ -125,6 +134,8 @@ function ensureExecutionPermitForClaim(store, claim) {
     branch: claim.branch,
     scope: 'worktree',
     reason: 'auto-issued after accepted worker claim',
+    active_claim: activeClaim,
+    require_active_claim: true,
   });
   return issued && issued.ok ? issued.execution_permit : null;
 }

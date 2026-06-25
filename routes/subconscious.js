@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const overlayStore = require('../lib/overlay');
 const { defaultSubconsciousStore } = require('../lib/subconscious');
 
@@ -51,6 +52,14 @@ function wantsSameNodeReview(body) {
   return body && (body.create_judge === true || body.judge === true || body.judge_requested === true || !!cleanString(body.judge_task_key));
 }
 
+function normalizePermitPath(value, base) {
+  const raw = String(value || '').replace(/\\/g, '/').trim();
+  if (!raw) return '';
+  const absolute = raw.startsWith('/') || /^[A-Za-z]:\//.test(raw);
+  const resolved = absolute ? raw : `${String(base || '').replace(/\\/g, '/').replace(/\/+$/, '')}/${raw}`;
+  return path.posix.normalize(resolved).replace(/\/+$/, '');
+}
+
 function activeClaimForPermit(ov, input) {
   if (!ov || !input) return null;
   const sessionId = cleanString(input.session_id);
@@ -62,11 +71,20 @@ function activeClaimForPermit(ov, input) {
   const assignee = cleanString(ov.assignee && ov.assignee[taskKey]);
   const agentId = cleanString(input.agent_id);
   if (agentId && assignee && agentId !== assignee) return null;
+  const gitInfo = ov.git && ov.git[taskKey];
+  const branch = cleanString(gitInfo && gitInfo.branch);
+  const worktree = cleanString(gitInfo && gitInfo.worktree);
+  const requestedBranch = cleanString(input.branch);
+  if (requestedBranch && branch && requestedBranch !== branch) return null;
+  const requestedWorktree = cleanString(input.worktree);
+  if (requestedWorktree && worktree && normalizePermitPath(requestedWorktree, worktree) !== normalizePermitPath(worktree)) return null;
   return {
     workspace: cleanString(input.workspace),
     session_id: sessionId,
     task_key: taskKey,
     agent_id: assignee || agentId || null,
+    branch: branch || null,
+    worktree: worktree || null,
   };
 }
 
@@ -646,7 +664,12 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     const b = await readBody(req) || {};
     const T = targetOverlay(b, u);
     const input = { ...b, workspace: T.ws || b.workspace };
-    const result = store.executionPermit({ ...input, active_claim: activeClaimForPermit(T.ov, input) });
+    const activeClaim = activeClaimForPermit(T.ov, input);
+    if (cleanString(input.action || 'issue') === 'issue' && !activeClaim) {
+      send(res, 409, { ok: false, error: 'execution permit issue requires a verified active claim for this session/task/worktree' });
+      return true;
+    }
+    const result = store.executionPermit({ ...input, active_claim: activeClaim, require_active_claim: true });
     const code = result.status || (result.ok ? 200 : 400);
     const { status, ...body } = result;
     send(res, code, body);
