@@ -2921,8 +2921,14 @@ if (require.main === module) {
       || Number(process.env.HEADLESS_DRAIN_INTERVAL_MS)
       || 2 * 60 * 1000)
     + Math.floor(Math.random() * 60 * 1000);
+  // Gap between back-to-back drain pumps when the previous pump did work (or a graph change is
+  // pending). At 1000ms this self-sustained: judge verdicts mutate the graph → requestHeadlessDrainWake
+  // → another pump 1s later, each forking up to maxConcurrency slow agentic-cli claude judges, which
+  // saturated the single-threaded daemon's HTTP listener (observed: listener wedged within ~10-20min,
+  // needing repeated restarts). 15s gives the event loop room to serve requests + commit .graph
+  // between batches; maintenance throughput is not latency-sensitive. Override via env to retune.
   const HEADLESS_DRAIN_CONTINUOUS_DELAY_MS =
-    Number(process.env.HEADLESS_DRAIN_CONTINUOUS_DELAY_MS) || 1000;
+    Number(process.env.HEADLESS_DRAIN_CONTINUOUS_DELAY_MS) || 15000;
   const HEADLESS_DRAIN_RETRY_DELAY_MS =
     Number(process.env.HEADLESS_DRAIN_RETRY_DELAY_MS) || 5000;
   let headlessDrainTimer = null;
