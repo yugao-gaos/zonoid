@@ -42,10 +42,9 @@ the bench no longer runs ANY judge LLM of its own — it DRIVES the production s
                                               candidate edges the production judge KEPT surface as
                                               weight>0 context deps. These are the verified wired edges
                                               (the bench reads them back; it does not author them).
-  5. read = production task search  ......... client.search(..., task_key=<probe>) — after eager
-                                              judgment, a settled probe returns system notes plus
-                                              frozen DAG context. It is DAG-only: semantic RAG is
-                                              not appended to that response.
+  5. read = production Subconscious context . client.search_context(..., task_key=<probe>) — after
+                                              eager judgment, the same agentic DAG/RAG loop and grader
+                                              used by foreground agents selects the answer context.
 
 WHY a TASK probe + a LIVE-bound daemon (note-mqgwrh5a63x, note-mqh0gwz1mxc):
   - The eager judge is task-centric: /judge/next?node=, markEagerJudge, and the judging→ready gate
@@ -69,7 +68,7 @@ Pluggable executor (design §5):
                                instructions; the bench spawns the agent and grades by its tests.
                                Returns AGENTS.md text + resolved context provenance (no LLM call
                                here).
-  - ``retrieve_and_answer``  : read production ``/search?task_key=`` context and answer via
+  - ``retrieve_and_answer``  : read production ``/subconscious/search-context`` context and answer via
                                ``judge.claude_p`` (a tool-less completion), scored vs a gold answer
                                (QA benches — can't spawn a real agent per 500 probes).
 
@@ -483,13 +482,15 @@ def read_task_search_context(
     *,
     k: int = 5,
 ) -> list[dict[str, Any]]:
-    """Read the task-scoped production search response after eager judgment.
+    """Read production Subconscious context for a task probe.
 
-    A settled probe is non-provisional, so ``/search?task_key=`` returns system notes plus
-    frozen DAG context and omits semantic RAG. A provisional probe may legitimately return a
-    RAG tier; callers preserve the daemon's tier instead of manufacturing a separate fill.
+    The ON-arm grader path must match foreground-agent production retrieval: the daemon-owned
+    ``/subconscious/search-context`` route runs the DAG/RAG loop, filtering, and grader. Keep the
+    legacy list-returning helper shape so existing bench callers do not need to know about the
+    full envelope.
     """
-    return client.search(query, k=k, gated=False, task_key=node_key)
+    envelope = read_agentic_search_context(client, node_key, query, k=k, use_grader=True)
+    return envelope.get("context") or envelope.get("context_deps") or []
 
 
 def read_agentic_search_context(
