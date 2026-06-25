@@ -3,7 +3,8 @@
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
   "session_id": "worker-task-lifecycle-control-audit-retry",
   "branch": "orch/attempt/codex-audit-task-lifecycle-control",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-25T16:34:27.426Z",
-  "lease_until": "2026-06-25T17:34:27.426Z"
+  "lease_until": "2026-06-25T17:34:27.426Z",
+  "completed_at": "2026-06-25T16:38:06.339Z"
 }
