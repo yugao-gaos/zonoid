@@ -19,6 +19,7 @@ POST /overlay/status    — update a node's status
 POST /workspace         — bind the daemon's LIVE state.workspace (eager-judge prerequisite)
 GET  /task/suggest      — suggest_links (cross-encoder ceScore ranked candidates)
 POST /overlay/edge      — create/upsert a DAG edge (createEdge workaround; see §6 note)
+POST /sync              — adopt file-drop task stubs into the daemon graph
 warm_up                 — pre-pay embedding-model cold start
 
 Load-bearing daemon findings (verified; encoded as code + asserts)
@@ -269,6 +270,15 @@ def post_status(
     if agent_id is not None:
         body["agent_id"] = agent_id
     return _http_post(f"{_base(base_url)}/overlay/status", body, timeout)
+
+
+def sync(
+    base_url: str,
+    workspace: str,
+    timeout: int = 120,
+) -> dict[str, Any]:
+    """POST /sync — force adoption of file-drop task stubs for *workspace*."""
+    return _http_post(f"{_base(base_url)}/sync", {"workspace": workspace}, timeout)
 
 
 def task_suggest(
@@ -668,6 +678,18 @@ class ZonoidClient:
             status,
             summary=summary,
             agent_id=agent_id,
+            timeout=timeout or self.timeout,
+        )
+
+    def sync(
+        self,
+        workspace: str | None = None,
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
+        """POST /sync — force adoption of file-drop task stubs."""
+        return sync(
+            self.base_url,
+            self._ws(workspace),
             timeout=timeout or self.timeout,
         )
 

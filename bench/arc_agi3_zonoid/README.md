@@ -140,7 +140,10 @@ agent command through environment variables instead of inventing official checko
 
 In the zonoid-on arm, the runner can start an isolated daemon with `zonoid_bench.daemon.start`, bind it
 to a per-run workspace, optionally inject a KB snapshot with `zonoid_bench.warm.load_snapshot`, and
-register an ARC probe task. The config passed to the ARC SDK includes task-scoped instructions for:
+register an ARC requirements task through the daemon's file-drop task lane. That requirements task is
+the first Zonoid node for the run; the runner waits until the isolated daemon adopts it, marks it
+`not_ready` with the benchmark requirements summary so ingest/autowire can run, and exports that real
+task key as `ZONOID_TASK_KEY`. The config passed to the ARC SDK includes task-scoped instructions for:
 
 - `/task/context` with `workspace` and `task_key`
 - `/search` with `workspace`, `task_key`, `k`, and `gated=false`
