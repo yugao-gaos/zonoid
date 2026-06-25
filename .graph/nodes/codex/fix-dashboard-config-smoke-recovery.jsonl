@@ -64,3 +64,4 @@
 {"evt":"edge_promoted","from":"codex/fix-dashboard-config-smoke-recovery","to":"codex/resolve-dashboard-config-smoke-recovery-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:52:15.556Z","weight":1,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"codex/fix-dashboard-config-smoke-recovery","to":"codex/resolve-dashboard-config-smoke-recovery-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:52:57.244Z","weight":1,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"codex/fix-dashboard-config-smoke-recovery","to":"codex/resolve-dashboard-config-smoke-recovery-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:53:54.647Z","weight":1,"origin":"subconscious-assignment"}
+{"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-recovery","to":"codex/resolve-dashboard-config-smoke-recovery-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:00:00.055Z"}
