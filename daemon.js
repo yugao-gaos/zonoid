@@ -908,9 +908,10 @@ function sweepStaleNativeClaims(ws, ov, tasks) {
   if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
   return dirty;
 }
-// Auto-retry failed tasks: flip ALL failed tasks back to ready with a note about the prior attempt.
-// Mirrors sweepStaleClaims in structure. Returns true if any task was retried.
+// Optional auto-retry for failed tasks. Disabled by default: a failure may represent a hard
+// external blocker, and silently requeueing it creates stale ready loops.
 function sweepFailedTasks(ws, ov) {
+  if (!(ov.config && ov.config.auto_retry_failed === true)) return false;
   let dirty = false;
   const g = buildGraph(ws);
   for (const t of g.tasks) {
@@ -923,6 +924,9 @@ function sweepFailedTasks(ws, ov) {
     ov.notes[t.id] = `auto-requeued after failure (attempt ${retryCount})${prevAgent ? ` — prior agent: '${prevAgent}'` : ''}. Review previous summary before re-attempting.`.slice(0, 280);
     // Flip status back to pending so the task re-enters the ready pipeline
     delete ov.status[t.id];
+    if (ov.snapshots && ov.snapshots[t.id]) {
+      overlayStore.setSnapshot(ov, t.id, { ...ov.snapshots[t.id], status: 'pending' });
+    }
     try { writeTaskStatus(ws, t.id, 'pending'); } catch { /* best effort */ }
     console.log(`[retry] task ${t.id} attempt ${retryCount} (prev agent: ${prevAgent || '?'})`);
     dirty = true;
@@ -2023,6 +2027,8 @@ function makeResolver() {
     const { tasks, overlay } = loadWs(ws);
     const override = overlay.status[key];
     if (override) return (memo[id] = override);
+    const lifecycle = overlayStore.lifecycleDerivedStatus(overlay, key);
+    if (lifecycle) return (memo[id] = lifecycle);
     const t = tasks[key];
     if (!t) return 'not_ready'; // ghost target missing / unknown
     const base = baseStatus(t.native_status);
