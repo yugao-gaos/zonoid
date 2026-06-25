@@ -12,3 +12,4 @@
 {"evt":"timestamps_set","id":"codex/audit-task-lifecycle-control","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-25T16:14:23.938Z","lastChanged":"2026-06-25T16:38:16.995Z","lastStatus":"tested"},"actor":"overlay-sync","ts":"2026-06-25T16:38:17.042Z"}
 {"evt":"edge_removed","from":"codex/audit-task-lifecycle-control","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:38:32.768Z"}
 {"evt":"status_changed","id":"codex/audit-task-lifecycle-control","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-25T16:38:32.768Z"}
+{"evt":"timestamps_set","id":"codex/audit-task-lifecycle-control","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-25T16:14:23.938Z","lastChanged":"2026-06-25T16:38:47.640Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-25T16:38:53.584Z"}
