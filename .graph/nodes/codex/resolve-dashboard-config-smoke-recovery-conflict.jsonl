@@ -16,3 +16,4 @@
 {"evt":"edge_removed","from":"codex/resolve-dashboard-config-smoke-recovery-conflict","to":"codex/fix-dashboard-config-smoke-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:00:00.055Z"}
 {"evt":"edge_removed","from":"codex/resolve-dashboard-config-smoke-recovery-conflict","to":"codex/fix-dashboard-config-smoke-recovery-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:00:00.055Z"}
 {"evt":"status_changed","id":"codex/resolve-dashboard-config-smoke-recovery-conflict","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-25T17:00:00.055Z"}
+{"evt":"timestamps_set","id":"codex/resolve-dashboard-config-smoke-recovery-conflict","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-25T16:49:30.628Z","lastChanged":"2026-06-25T17:00:08.721Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-25T17:00:45.209Z"}
