@@ -83,3 +83,4 @@
 {"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:17:11.292Z"}
 {"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/add-arc-agi-3-zonoid-benchmark-adapter","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:17:11.292Z"}
 {"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/resolve-arc-agi3-cli-context-hook-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:17:11.292Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:29:47.725Z"}
