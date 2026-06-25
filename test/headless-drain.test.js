@@ -1936,7 +1936,7 @@ test('isThrottled detects 429/529/overloaded/rate-limit; false for a clean resul
 test('recordDrainOutcome: LLM trouble sets a short fixed backoff; a clean run resets it', () => {
   const hd = freshModule();
   const T0 = 1_000_000;
-  const { baseMs, capMs } = hd.backoffConfig();
+  const { baseMs, capMs, hardFailureMs } = hd.backoffConfig();
   hd.recordDrainOutcome({ stderr: '429' }, T0);
   assert.equal(hd._governor.consecutiveThrottles, 1);
   assert.equal(hd._governor.backoffUntil, T0 + baseMs, 'first throttle = base window');
@@ -1948,7 +1948,7 @@ test('recordDrainOutcome: LLM trouble sets a short fixed backoff; a clean run re
   assert.equal(hd._governor.backoffUntil, T0 + capMs);
   hd.recordDrainOutcome({ exitCode: 127, stderr: 'missing binary' }, T0);
   assert.equal(hd._governor.consecutiveThrottles, 4);
-  assert.equal(hd._governor.backoffUntil, T0 + capMs);
+  assert.equal(hd._governor.backoffUntil, T0 + hardFailureMs, 'hard spawn failures get a longer pause');
   hd.recordDrainOutcome({ exitCode: 0, stdout: 'done' }, T0); // clean run resets
   assert.equal(hd._governor.consecutiveThrottles, 0);
   assert.equal(hd._governor.backoffUntil, 0, 'clean run clears the backoff');
