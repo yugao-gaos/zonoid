@@ -146360,6 +146360,8 @@
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
       "snapshot": {
         "subject": "Build LoCoMo + LongMemEval eval harness (Zonoid memory adapter → our own score)",
         "description": "TRACKED / NOT YET DISPATCHED — deliberate next build to close the benchmark-legibility gap by producing Zonoid's OWN LoCoMo + LongMemEval scores.\n\nScope: implement a Zonoid memory adapter for the LoCoMo and LongMemEval datasets (mirror the existing SWE-Bench-CL 3-arm adapter), run the eval, and publish Zonoid's scores next to the competitor targets (Mem0 92.5/94.4, Zep 91.6/94.8).\n\nMETHODOLOGY CAVEAT (must resolve before publishing any number): LoCoMo and LongMemEval are multi-session CONVERSATIONAL-QA recall benchmarks — off Zonoid's work-graph/coding home turf. The adapter must map conversational episodes into the graph (notes/edges) and answer QA probes via search_knowledge. Decide up front whether we publish to (a) beat the bar, or (b) demonstrate the \"recall ≠ outcome\" thesis (show the gap and argue task-outcome is the better metric). Target metric: LoCoMo accuracy (max), LongMemEval accuracy (max). Benchmark refs recorded on this node.",
@@ -146385,8 +146387,7 @@
       "measurements": null,
       "usage_records": null,
       "last_actor": "overlay-sync",
-      "last_agent_id": null,
-      "code_node": null
+      "last_agent_id": null
     },
     "59fc18e1-744e-4f7a-9093-a8e12d43087b/36": {
       "id": "59fc18e1-744e-4f7a-9093-a8e12d43087b/36",
@@ -231799,6 +231800,8 @@
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
       "snapshot": {
         "subject": "Phase 3+4: onboard-code CLI (full + incremental git-diff sync) — completes the native onboarder",
         "description": "Complete the native code onboarder with incremental sync + the user CLI. The feature branch HAS: multi-language AST extractor (lib/code-extract), code_node layer (overlay.code_nodes, POST /overlay/code-nodes/bulk, direct-RAG retrieval, lib/code-extract/ingest.js). Design: note:note-mqpzfgjlux8 (git-diff sync section). ADDITIVE only — don't change note_nodes/knowledge_nodes/existing routes.\n\nDELIVERABLES:\n1. **Delete-by-file** (lib/overlay.js + routes/overlay.js): `removeCodeNodesForFile(overlay, file)` (removes all code_nodes whose file===file, with a graph-store event) + a route to invoke it (e.g. POST /overlay/code-nodes/replace {file, nodes, workspace} that deletes-then-bulk-adds, OR DELETE /overlay/code-nodes {file, workspace}). Needed so sync can replace a changed file's symbols.\n2. **lastIndexedCommit tracking**: persist the last-indexed git commit per workspace (via overlay setConfig/getConfig or a sidecar file). Read/write helpers.\n3. **Incremental sync** (lib/code-extract/sync.js): `syncRepo({repo, workspace, daemon})` → `git diff <lastIndexedCommit>..HEAD --name-status` (spawn git or lib/git.js) → for ADDED/MODIFIED code files: re-extract (extractRepo or single-file) and REPLACE their code_nodes (delete-by-file then bulk-upsert); DELETED files: remove their code_nodes; advance lastIndexedCommit→HEAD; return {changed_files, upserted, deleted}. No-lastIndexedCommit ⇒ full onboard.\n4. **CLI** (scripts/onboard-code.js): `node scripts/onboard-code.js --repo <abs> --workspace <ws> [--daemon <url>] [--sync]`. Default=FULL onboard (extractRepo → /overlay/code-nodes/bulk for all symbols, set lastIndexedCommit=HEAD). `--sync`=incremental (syncRepo). Print a summary.\n5. **Tests**: (a) STUBBED unit for syncRepo — simulate a git diff (added/modified/deleted), assert correct replace (delete-by-file + bulk-upsert) + delete + lastIndexedCommit advance, no real daemon; (b) E2E on an ISOLATED daemon (symlink prod models C:\\\\Users\\\\Imyu\\\\.claude\\\\orchestrator\\\\.zonoid\\\\models into temp ORCH_DATA/models to skip the 90MB download; ORCH_PORT=8799; prod :8787 NEVER touched): full onboard this repo's lib/, then make a small change in a throwaway git fixture (add a function to a file + delete a file), run --sync, assert the new symbol's code_node appears and the deleted file's code_nodes are gone. npm install in the worktree first. \n\nHonesty: if the e2e sync setup is hard, land sync+CLI+unit-test solidly and report the e2e status rather than faking it. Commit before complete.",
@@ -231821,8 +231824,7 @@
       "measurements": null,
       "usage_records": null,
       "last_actor": "overlay-sync",
-      "last_agent_id": null,
-      "code_node": null
+      "last_agent_id": null
     },
     "codex/p1-sync-judge-drain-judge": {
       "id": "codex/p1-sync-judge-drain-judge",
@@ -236378,6 +236380,8 @@
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
       "snapshot": {
         "subject": "Update orchestration docs to prohibit visible judge tasks",
         "description": "Update project instructions and docs that currently tell dispatchers to create separate judge tasks. Scope: AGENTS.md/project docs and any README or skill text in this repo that describes judge pairing. Replace the model with same-node review lifecycle: dispatchers create real implementation tasks only; review request is state/metadata; daemon/internal review jobs may run but are hidden from frontier. Include compatibility note for old judge nodes. Success: future agents reading repo docs are not instructed to create judge tasks, and the docs match the new review_state behavior.",
@@ -237110,22 +237114,24 @@
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
       "snapshot": {
         "subject": "Fresh memory-bench: LoCoMo + LongMemEval-Oracle on enrich+grader defaults → report + scorecard",
         "description": "",
-        "status": "pending",
+        "status": "failed",
         "blockedBy": [],
         "owner": null,
         "metadata": {
           "synthetic_overlay_task": true,
           "created_by": "subconscious_assignment"
         },
-        "snapshotted_at": "2026-06-24T19:56:13.418Z"
+        "snapshotted_at": "2026-06-25T21:09:05.174Z"
       },
       "assignee": "worker-fresh-memory-bench-scorecard",
       "timestamps": {
         "firstSeen": "2026-06-24T04:05:21.907Z",
-        "lastChanged": "2026-06-24T20:00:08.821Z",
+        "lastChanged": "2026-06-25T21:09:05.175Z",
         "lastStatus": "failed"
       },
       "metrics": null,
@@ -237146,6 +237152,8 @@
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
       "snapshot": {
         "subject": "Auto-drain tested approvals, keep ready work spawning, and drop stale bench smoke gate",
         "description": "Fix the orchestrator automation gap observed on 2026-06-24: tasks reach tested/reviewed states but do not reliably merge/promote to done, while ready work piles up with 0 in_progress until the user manually drives next_action. Also retire the stale default `python3 bench/zonoid_bench/smoke.py` gate from routine task completion/review so tasks that pass targeted tests are not KICK_BACK/requeued solely because Claude smoke times out. Success criteria: (1) tested tasks with review_verdict APPROVE/review_state approved and merge_state pending automatically call the normal no-force merge path and become done when merge succeeds; (2) tasks with merge_state merged but status tested are promoted to done automatically; (3) conflicts or blocked merges stay visible and are not force-merged; (4) the ready frontier loop keeps spawning returned ready tasks without requiring user prompts, within existing loop budget/concurrency rules; (5) tests cover pending->merged->done, already-merged->done cleanup, conflict/no-force behavior, and stale smoke gate not blocking targeted-pass tasks.",
@@ -237215,6 +237223,8 @@
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
       "snapshot": {
         "subject": "Implement execution brain memory and state boundary split",
         "description": "Retry the execution/brain seam implementation after the first attempt was gate-blocked. Implement the split between local live execution state and git-synced durable claim/audit state. Key requirements: git claim files must not store local session ids or workspace paths; default git claim mode should be advisory when a remote exists, with strict mode available; local daemon overlay remains authoritative for live process/session/worktree state; store git-claim diagnostics locally for dashboard/debug only; config accepts git/local/strict/git-strict/empty claim modes; update tests for advisory vs strict behavior and local-vs-git boundary.",
@@ -237300,6 +237310,44 @@
         "firstSeen": "2026-06-22T03:10:50.891Z",
         "lastChanged": "2026-06-25T01:38:36.117Z",
         "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/resolve-arc-agi3-cli-context-hook-conflict": {
+      "id": "codex/resolve-arc-agi3-cli-context-hook-conflict",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Resolved ARC-AGI-3 CLI/context hook merge conflict on branch orch/attempt/codex-resolve-arc-agi3-cli-context-hook-conflict. Commit 99d66c50f preserves benchmark adapter behavior plus --agent-command, Zonoid context JSON/env hook surface, official checkout agent-command env propagation, honest blocker behavior, preflight agent-command validation, and direct CLI mode not marking Zonoid enabled without daemon/workspace. Verified preflight, dry-run, py_compile, and git diff --check.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Resolve ARC-AGI-3 CLI/context hook merge conflict",
+        "description": "Resolve the merge conflict for approved attempt codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook into /Users/imyu/Desktop/zonoid. Conflict files from merge_attempt: bench/arc_agi3_zonoid/README.md and bench/arc_agi3_zonoid/runner.py. Preserve both the already-merged ARC-AGI-3 benchmark adapter behavior and the CLI/context hook attempt behavior: --agent-command, Zonoid context JSON/env hook surface, official checkout agent-command env propagation, honest blocker behavior, benchmarking preflight validates agent command, and direct CLI mode does not mark Zonoid enabled without daemon/workspace. Verify with the task test command if available: python3 bench/arc_agi3_zonoid/runner.py --preflight --benchmarking-repo /tmp/arc-agi-3-benchmarking --agent-command 'python3 -c \"print(\\\"WAIT\\\")\"' && python3 bench/arc_agi3_zonoid/runner.py --dry-run --max-steps 3 && python3 -m py_compile bench/arc_agi3_zonoid/*.py && git diff --check -- bench/arc_agi3_zonoid/README.md bench/arc_agi3_zonoid/runner.py patches/arc-agi3-local-cli.patch",
+        "status": "completed",
+        "blockedBy": [
+          "codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook",
+          "codex/add-arc-agi-3-zonoid-benchmark-adapter"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-25T20:25:54.513Z"
+      },
+      "assignee": "worker-resolve-arc-agi3-cli-context-hook-conflict-20260625",
+      "timestamps": {
+        "firstSeen": "2026-06-25T19:06:33.108Z",
+        "lastChanged": "2026-06-25T20:25:49.730Z",
+        "lastStatus": "tested"
       },
       "metrics": null,
       "measurements": null,
@@ -264900,11 +264948,11 @@
       "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5",
       "to": "codex/fix-dashboard-config-smoke-recovery",
       "kind": "context",
-      "weight": 0.97,
-      "judged": true,
-      "origin": "subconscious-agentic-search",
+      "weight": 0.6,
       "by": "subconscious",
-      "score": 0.97
+      "judged": true,
+      "score": 0.97,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/5",
@@ -267110,16 +267158,6 @@
     },
     {
       "from": "note:note-mqr366hr6af",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.538,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqr366hr6af",
       "to": "codex/reconcile-bench-sdk-s7-conflict",
       "kind": "context",
       "weight": 0.877,
@@ -267692,10 +267730,10 @@
       "to": "codex/fix-dashboard-config-smoke-recovery",
       "kind": "context",
       "weight": 1,
-      "judged": true,
-      "origin": "subconscious-agentic-search",
       "by": "subconscious",
-      "score": 1
+      "judged": true,
+      "score": 1,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/fix-dashboard-config-smoke-kickback",
@@ -267726,10 +267764,10 @@
       "to": "codex/fix-dashboard-config-smoke-recovery",
       "kind": "context",
       "weight": 1,
-      "judged": true,
-      "origin": "subconscious-agentic-search",
       "by": "subconscious",
-      "score": 1
+      "judged": true,
+      "score": 1,
+      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/fix-dashboard-config-test-contract-judge",
@@ -267759,8 +267797,8 @@
       "from": "codex/fix-dashboard-smoke-pinned-drift-recovery-judge",
       "to": "codex/fix-dashboard-config-smoke-recovery",
       "kind": "context",
-      "weight": 1,
-      "by": "subconscious",
+      "weight": 0.717,
+      "by": "judge",
       "judged": true,
       "score": 1,
       "origin": "subconscious-agentic-search"
@@ -267769,8 +267807,8 @@
       "from": "codex/fix-dashboard-smoke-pinned-drift-recovery",
       "to": "codex/fix-dashboard-config-smoke-recovery",
       "kind": "context",
-      "weight": 0.965,
-      "by": "subconscious",
+      "weight": 0.685,
+      "by": "judge",
       "judged": true,
       "score": 0.965,
       "origin": "subconscious-agentic-search"
@@ -270202,7 +270240,10 @@
       "to": "claude/fresh-memory-bench-locomo-longmemeval-oracle-on-enrich-grader-defaults-report-sc",
       "kind": "context",
       "weight": 1,
-      "judged": true
+      "judged": true,
+      "by": "subconscious",
+      "score": 0.988,
+      "origin": "subconscious-agentic-search"
     },
     {
       "from": "091a4bf1-b671-4ff9-854d-993775faa5ee/27",
@@ -270358,23 +270399,12 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "codex/onboard-code-cli-sync-judge",
-      "to": "codex/onboard-code-cli-sync",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.728,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
-      "to": "codex/fix-dashboard-config-smoke-kickback-judge",
+      "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
+      "to": "note:note-mqqqrlczyc2",
       "kind": "context",
-      "weight": 0.474,
+      "weight": 0.6,
       "by": "judge",
-      "judged": true,
-      "score": 0.474,
-      "origin": "autowire-semantic"
+      "judged": true
     },
     {
       "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
@@ -270384,16 +270414,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.531,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-claude-md-7-3-judge-workers-in-automode-must-include-t-fc20b76631",
-      "to": "codex/fix-dashboard-config-smoke-kickback-judge",
-      "kind": "context",
-      "weight": 0.549,
-      "by": "judge",
-      "judged": true,
-      "score": 0.549,
       "origin": "autowire-semantic"
     },
     {
@@ -270408,21 +270428,11 @@
     },
     {
       "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-2",
-      "to": "codex/code-node-layer",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.49,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-2",
       "to": "codex/onboard-code-cli-sync-judge",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.516,
+      "by": "judge",
+      "judged": true,
       "score": 0.516,
       "origin": "autowire-semantic"
     },
@@ -270430,33 +270440,31 @@
       "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-3",
       "to": "codex/onboard-code-cli-sync-judge",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.519,
+      "by": "judge",
+      "judged": true,
       "score": 0.519,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqqpqf49a5m#note-evidence:chunk-3",
+      "to": "note:note-mqqt68limis",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "knowledge:source_chunk:note-mqqvw755vf0#note-evidence:chunk-1",
       "to": "codex/code-node-layer",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.483,
+      "by": "judge",
+      "judged": true,
       "score": 0.483,
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
-      "to": "codex/fix-dashboard-config-smoke-kickback-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.398,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
       "to": "note:note-mqsi4rz0p98",
       "kind": "context",
@@ -270465,32 +270473,12 @@
       "origin": "note-source-cluster"
     },
     {
-      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
-      "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-      "kind": "context",
-      "weight": 0.974,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.974,
-      "origin": "subconscious-agentic-search"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
       "to": "note:note-mqsi4rz0p98",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
-      "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
-      "kind": "context",
-      "weight": 0.975,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.975,
-      "origin": "subconscious-agentic-search"
     },
     {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-3",
@@ -270499,6 +270487,14 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mqqnit1ph68",
+      "to": "note:note-mqqnit1ph68",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "knowledge:source_doc:note-mqsi4rz0p98",
@@ -270878,16 +270874,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.583,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mq7iaabuefb",
-      "to": "codex/code-node-layer",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.521,
       "origin": "autowire-semantic"
     },
     {
@@ -271421,16 +271407,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqf7j1hinjg",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.547,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqf906vsjhu",
       "to": "note:note-mq7dzydv",
       "kind": "context",
@@ -271758,16 +271734,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgsot6ywxr",
-      "to": "codex/fix-dashboard-config-smoke-kickback-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.56,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgt5xujio3",
       "to": "b1c48279-9822-4abe-81a5-1b7b2a329970/7",
       "kind": "context",
@@ -271911,9 +271877,9 @@
       "from": "note:note-mqh2eifaveh",
       "to": "codex/code-node-layer",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.518,
+      "by": "judge",
+      "judged": true,
       "score": 0.518,
       "origin": "autowire-semantic"
     },
@@ -273441,26 +273407,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqoalfsrx01",
-      "to": "codex/fix-dashboard-config-smoke-kickback-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.558,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqoalfsrx01",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.591,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqoi8nt95ad",
       "to": "note:note-mqaqmb62a5k",
       "kind": "context",
@@ -273488,26 +273434,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.593,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqolegq2416",
-      "to": "codex/code-node-layer",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.515,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqolegq2416",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.55,
       "origin": "autowire-semantic"
     },
     {
@@ -273585,16 +273511,6 @@
       "weight": 0.6,
       "by": "judge",
       "judged": true
-    },
-    {
-      "from": "note:note-mqozwmjr1a3",
-      "to": "codex/fix-dashboard-config-smoke-kickback-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.534,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqp4l9znaqf",
@@ -274038,9 +273954,9 @@
       "from": "note:note-mqp5a3fxoit",
       "to": "codex/fix-dashboard-config-smoke-kickback-judge",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.507,
+      "by": "judge",
+      "judged": true,
       "score": 0.507,
       "origin": "autowire-semantic"
     },
@@ -274048,9 +273964,9 @@
       "from": "note:note-mqp5a3fxoit",
       "to": "codex/onboard-code-cli-sync-judge",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.538,
+      "by": "judge",
+      "judged": true,
       "score": 0.538,
       "origin": "autowire-semantic"
     },
@@ -274154,9 +274070,9 @@
       "from": "note:note-mqp5e2pdcji",
       "to": "codex/fix-dashboard-config-smoke-kickback-judge",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.61,
+      "by": "judge",
+      "judged": true,
       "score": 0.61,
       "origin": "autowire-semantic"
     },
@@ -274640,9 +274556,9 @@
       "from": "note:note-mqq2xj787yq",
       "to": "codex/code-node-layer",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.592,
+      "by": "judge",
+      "judged": true,
       "score": 0.592,
       "origin": "autowire-semantic"
     },
@@ -274677,18 +274593,16 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mqqlra053ej",
-      "to": "codex/code-node-layer",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.575,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqqosxptv7i",
       "to": "note:note-mqqqrlczyc2",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqqt68limis",
+      "to": "note:note-mqquqci425x",
       "kind": "context",
       "weight": 0.6,
       "by": "judge",
@@ -274744,11 +274658,11 @@
       "from": "note:note-mqs6aze3yvt",
       "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
       "kind": "context",
-      "weight": 1,
-      "by": "subconscious",
+      "weight": 0.715,
+      "by": "judge",
       "judged": true,
-      "score": 1,
-      "origin": "subconscious-agentic-search"
+      "score": 0.715,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqsem2307jf",
@@ -274799,10 +274713,10 @@
       "from": "note:note-mqsi4rz0p98",
       "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
       "kind": "context",
-      "weight": 0.976,
+      "weight": 1,
       "judged": true,
       "by": "subconscious",
-      "score": 0.976,
+      "score": 0.966,
       "origin": "subconscious-agentic-search"
     },
     {
@@ -274874,14 +274788,20 @@
       "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
       "kind": "context",
       "weight": 1,
-      "judged": true
+      "judged": true,
+      "by": "subconscious",
+      "score": 0.944,
+      "origin": "subconscious-agentic-search"
     },
     {
       "from": "note:note-mqsl484nr91",
       "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
       "kind": "context",
       "weight": 1,
-      "judged": true
+      "judged": true,
+      "by": "subconscious",
+      "score": 0.943,
+      "origin": "subconscious-agentic-search"
     },
     {
       "from": "note:note-mqsl4gh5vxe",
@@ -274988,6 +274908,14 @@
       "to": "38e5ec0b-859b-4d1d-8686-71f3519fc56d/10",
       "kind": "context",
       "weight": 0.252,
+      "judged": true
+    },
+    {
+      "from": "codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook",
+      "to": "codex/resolve-arc-agi3-cli-context-hook-conflict",
+      "kind": "context",
+      "weight": 1,
+      "origin": "asserted",
       "judged": true
     },
     {
@@ -275126,5 +275054,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-25T15:05:46.628Z"
+  "compacted_at": "2026-06-25T21:21:25.554Z"
 }
