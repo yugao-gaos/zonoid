@@ -1,0 +1,4 @@
+{"evt":"status_changed","id":"codex/code-ast-extractor-judge","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-24T13:13:31.140Z"}
+{"evt":"summary_set","id":"codex/code-ast-extractor-judge","workspace":"/Users/imyu/Desktop/zonoid","summary":"Auto-promoted approved tested attempt after merge.","actor":"overlay-sync","ts":"2026-06-24T13:13:31.140Z"}
+{"evt":"assignee_set","id":"codex/code-ast-extractor-judge","workspace":"/Users/imyu/Desktop/zonoid","assignee":"headless-review-merge-drain","actor":"overlay-sync","ts":"2026-06-24T13:13:31.140Z"}
+{"evt":"timestamps_set","id":"codex/code-ast-extractor-judge","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-23T01:46:28.756Z","lastChanged":"2026-06-24T13:13:28.164Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-24T13:13:31.140Z"}
