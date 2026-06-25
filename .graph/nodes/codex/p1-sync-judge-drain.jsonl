@@ -1,4 +1,0 @@
-{"evt":"status_changed","id":"codex/p1-sync-judge-drain","workspace":"/Users/imyu/Desktop/zonoid","status":"done","actor":"overlay-sync","ts":"2026-06-24T12:43:41.494Z"}
-{"evt":"timestamps_set","id":"codex/p1-sync-judge-drain","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-23T02:15:07.295Z","lastChanged":"2026-06-24T12:43:41.476Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-24T12:48:02.322Z"}
-{"evt":"edge_added","from":"codex/p1-sync-judge-drain","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-24T12:50:09.638Z","weight":0.95,"origin":"asserted"}
-{"evt":"edge_promoted","from":"codex/p1-sync-judge-drain","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-24T12:53:45.613Z","weight":0.95,"origin":"subconscious-assignment"}
