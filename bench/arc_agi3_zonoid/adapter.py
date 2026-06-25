@@ -9,8 +9,12 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import json
 import os
+import shlex
+import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -87,6 +91,11 @@ def contract_summary() -> str:
         "  --preflight, --contract, and --dry-run do not import or require ARC credentials.",
         "",
         "Supported real-run SDK contract:",
+        "  Mode 0 - local authenticated CLI agent:",
+        "  1. Pass --agent-command with a generic local command, such as `codex exec` or `claude -p`.",
+        "  2. The adapter sends one ARC prompt on stdin per task and records stdout as the prediction.",
+        "  3. If stdout is JSON, correct/solved/pass/passed/success and predicted/output/answer are honored.",
+        "",
         "  Mode A - direct Python hook:",
         "  1. One likely package is importable: " + ", ".join(SDK_CANDIDATES),
         "     Official ARC Toolkit package is documented as `pip install arc-agi`, likely import `arc_agi`.",
@@ -117,6 +126,13 @@ def contract_summary() -> str:
         "  - search with /search using workspace and task_key",
         "  - record durable findings with /overlay/note when useful",
         "",
+        "Zonoid context hook surface:",
+        "  - env: ZONOID_ENABLED, ZONOID_DAEMON_URL, ZONOID_WORKSPACE, ZONOID_TASK_KEY",
+        "  - env: ZONOID_KB_SNAPSHOT, ZONOID_TASK_INSTRUCTIONS, ZONOID_CONTEXT_JSON",
+        "  - JSON payload: enabled, daemon_url, workspace, task_key, task_instructions, kb_snapshot",
+        "  The official checkout path exports these only for a visible Zonoid hook; otherwise zonoid-on",
+        "  reports a blocker after the baseline instead of pretending env vars were consumed.",
+        "",
         "Current SDK detection:",
         f"  available: {state.available}",
         f"  module: {state.module_name or 'none'}",
@@ -142,6 +158,117 @@ def zonoid_task_instructions(*, daemon_url: str, workspace: str, task_key: str) 
         "- Prefer task evidence over generic ARC priors. Record non-obvious reusable findings as notes "
         "only if the SDK exposes a note/write hook.\n"
     )
+
+
+def zonoid_context_payload(
+    *,
+    enabled: bool,
+    daemon_url: str | None,
+    workspace: str | None,
+    task_key: str | None,
+    kb_snapshot: str | None = None,
+) -> dict[str, Any]:
+    """Reusable payload for patched ARC harnesses and local CLI agents."""
+
+    instructions = None
+    if enabled and daemon_url and workspace and task_key:
+        instructions = zonoid_task_instructions(
+            daemon_url=daemon_url, workspace=workspace, task_key=task_key
+        )
+    return {
+        "enabled": enabled,
+        "daemon_url": daemon_url,
+        "workspace": workspace,
+        "task_key": task_key,
+        "task_instructions": instructions,
+        "kb_snapshot": kb_snapshot,
+    }
+
+
+def write_zonoid_context_file(payload: dict[str, Any], out_dir: str, *, arm: str) -> str:
+    """Write a small JSON context file and return its absolute path."""
+
+    path = Path(out_dir).resolve() / f"{arm}-zonoid-context.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return str(path)
+
+
+def zonoid_context_env(payload: dict[str, Any], *, context_json: str | None = None) -> dict[str, str]:
+    """Environment variables a patched official harness or CLI wrapper can consume."""
+
+    env = {
+        "ZONOID_ENABLED": "1" if payload.get("enabled") else "0",
+        "ZONOID_DAEMON_URL": str(payload.get("daemon_url") or ""),
+        "ZONOID_WORKSPACE": str(payload.get("workspace") or ""),
+        "ZONOID_TASK_KEY": str(payload.get("task_key") or ""),
+        "ZONOID_KB_SNAPSHOT": str(payload.get("kb_snapshot") or ""),
+        "ZONOID_TASK_INSTRUCTIONS": str(payload.get("task_instructions") or ""),
+    }
+    if context_json:
+        env["ZONOID_CONTEXT_JSON"] = context_json
+    return env
+
+
+def run_agent_arm(config: dict[str, Any], *, agent_command: str) -> list[dict[str, Any]]:
+    """Run one arm through a local authenticated CLI agent command."""
+
+    task_ids = list(config.get("task_ids") or ["all-games"])
+    command = shlex.split(agent_command)
+    if not command:
+        raise ArcSdkUnavailable("--agent-command must not be empty.")
+
+    records: list[dict[str, Any]] = []
+    env = os.environ.copy()
+    zonoid = config.get("zonoid") if isinstance(config.get("zonoid"), dict) else {}
+    if zonoid:
+        context_path = zonoid.get("context_json")
+        env.update(zonoid_context_env(zonoid, context_json=context_path))
+    env["ZONOID_ARC_ARM"] = str(config.get("arm") or "unknown")
+
+    for task_id in task_ids:
+        prompt = _agent_prompt(task_id=task_id, config=config)
+        res = subprocess.run(command, input=prompt, env=env, text=True, capture_output=True)
+        item = _parse_agent_stdout(res.stdout)
+        if "task_id" not in item:
+            item["task_id"] = task_id
+        if "predicted" not in item and "output" not in item and "answer" not in item:
+            item["predicted"] = res.stdout.strip()
+        item["exit_code"] = res.returncode
+        item["stderr"] = res.stderr.strip()
+        records.extend(normalize_results([item], arm=str(config.get("arm") or "unknown")))
+    return records
+
+
+def _agent_prompt(*, task_id: str, config: dict[str, Any]) -> str:
+    zonoid = config.get("zonoid") if isinstance(config.get("zonoid"), dict) else {}
+    lines = [
+        "Solve the ARC-AGI-3 task requested by this benchmark adapter.",
+        f"Task id: {task_id}",
+        f"Max steps: {config.get('max_steps')}",
+        "",
+        "Return a concise final answer. If possible, return JSON with keys task_id, predicted, and correct.",
+    ]
+    instructions = zonoid.get("task_instructions")
+    if instructions:
+        lines.extend(["", instructions])
+    context_json = zonoid.get("context_json")
+    if context_json:
+        lines.extend(["", f"Zonoid context JSON file: {context_json}"])
+    return "\n".join(lines) + "\n"
+
+
+def _parse_agent_stdout(stdout: str) -> dict[str, Any]:
+    text = stdout.strip()
+    if not text:
+        return {"predicted": ""}
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return {"predicted": text}
+    if isinstance(parsed, dict):
+        return parsed
+    return {"predicted": text}
 
 
 def run_real_arm(config: dict[str, Any]) -> list[dict[str, Any]]:
@@ -222,23 +349,20 @@ def build_config(
 ) -> dict[str, Any]:
     """Build the small config object passed to a real ARC SDK runner hook."""
 
-    instructions = None
-    if zonoid_enabled and daemon_url and workspace and task_key:
-        instructions = zonoid_task_instructions(
-            daemon_url=daemon_url, workspace=workspace, task_key=task_key
-        )
+    payload = zonoid_context_payload(
+        enabled=zonoid_enabled,
+        daemon_url=daemon_url,
+        workspace=workspace,
+        task_key=task_key,
+        kb_snapshot=kb_snapshot,
+    )
 
     return {
         "arm": arm,
         "max_steps": max_steps,
         "task_ids": task_ids,
         "zonoid": {
-            "enabled": zonoid_enabled,
-            "daemon_url": daemon_url,
-            "workspace": workspace,
-            "task_key": task_key,
-            "task_instructions": instructions,
-            "kb_snapshot": kb_snapshot,
+            **payload,
         },
         "metadata": {
             "adapter": "bench.arc_agi3_zonoid",
