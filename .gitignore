@@ -96,6 +96,19 @@ business/
 
 # Editor backups
 .cursor/*.bak
+*.bak
+
+# Path-bug / misnamed dump artifacts (e.g. an endpoint dump whose name collapsed a
+# C:\Windows\Temp\peek.json path into one cwd filename; or graph/HTML dumps left at root)
+/*WindowsTemp*
+/tmp_graph.json
+/tmp_*.json
+
+# Root-level bench dumps (the bench/ subdir variants are already ignored above;
+# these root twins slipped past — generated, reproducible, not source)
+/bench-*results*.json
+/bench-*results*.jsonl
+/bench-results-report.*
 
 # File-drop task mint stubs (adopted into .graph on first sight; not source)
 tasks/
