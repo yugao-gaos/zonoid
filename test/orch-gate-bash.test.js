@@ -546,6 +546,33 @@ function makeMultiClaimConfig({ noWtA = false, noWtB = false } = {}) {
   ok('claimed session: open write outside worktree → exit 2', r.status === 2);
 }
 
+// 47b. SCOPE-ESCAPE REGRESSION: claimed session, inline write to a COMPUTED path (no literal
+//      target the gate can extract) must fail CLOSED — previously line 91 allowed any
+//      target-less write once a valid permit existed, letting a worker escape its worktree.
+{
+  const r = runWithConfig(
+    mkInput('python3 -c "import os; open(os.environ[\'OUT\'],\'w\').write(\'x\')"'),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: computed-path write (no extractable target) → exit 2', r.status === 2);
+  ok('claimed session: unverifiable-target message', r.stderr.includes('could not extract a concrete target path'));
+}
+
+// NOTE: a write whose target IS extractable but is an UNEXPANDED shell variable (e.g.
+// `dd of=$DEST`, `echo x > "$OUT"`) is a SEPARATE escape class — the gate extracts the literal
+// token `$DEST`, resolves it under the worktree, and deems it inside. That variable-expansion gap
+// is NOT closed by this change (closing it without over-blocking legitimate relative `$VAR` writes
+// needs more design) and is tracked separately.
+
+// 47d. Guard: the fix must NOT over-block — a literal-path inline write inside a worktree still allowed
+{
+  const r = runWithConfig(
+    mkInput(`python3 -c "open('${WT_A}/literal-inside.txt','w').write('x')"`),
+    makeMultiClaimConfig(),
+  );
+  ok('claimed session: literal-path inline write inside worktree still → exit 0', r.status === 0);
+}
+
 // 48. Claimed session: sed -i target outside every worktree → denied
 {
   const r = runWithConfig(
