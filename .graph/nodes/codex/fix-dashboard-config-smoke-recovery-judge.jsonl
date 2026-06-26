@@ -5,3 +5,4 @@
 {"evt":"edge_added","from":"codex/fix-dashboard-config-smoke-recovery-judge","to":"codex/fix-post-subconscious-review-findings","kind":"context","actor":"overlay-sync","ts":"2026-06-22T03:57:14.455Z","weight":0,"by":"autowire-blockdep","judged":false,"origin":"blocking-dep-seed"}
 {"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-recovery-judge","to":"codex/fix-post-subconscious-review-findings","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:14:40.741Z"}
 {"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-recovery-judge","to":"codex/verify-post-subconscious-review-fixes","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:02:44.540Z"}
+{"evt":"timestamps_set","id":"codex/fix-dashboard-config-smoke-recovery-judge","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-22T03:56:59.012Z","lastChanged":"2026-06-25T21:27:32.735Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-26T13:43:33.083Z"}
