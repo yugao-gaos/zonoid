@@ -290,12 +290,13 @@ test('no pending queue repos → runDueDrains skips with no_due_drains (flag ON,
   }
 });
 
-test('runDueDrains does not merge approved tested tasks', async () => {
+test('runDueDrains does not merge approved tested tasks when automode is OFF', async () => {
   const saved = process.env.ORCH_HEADLESS_DRAINS;
   process.env.ORCH_HEADLESS_DRAINS = '1';
   const hd = freshModule();
   const overlayStore = require('../lib/overlay');
   const o = overlayStore.EMPTY();
+  o.config = { automode: false };
   const key = 'codex/review-pending';
   overlayStore.setStatus(o, key, 'tested');
   overlayStore.setReviewLifecycle(o, key, {
@@ -325,6 +326,48 @@ test('runDueDrains does not merge approved tested tasks', async () => {
     assert.deepEqual(calls, []);
     assert.equal(o.status[key], 'tested');
     assert.equal(overlayStore.reviewLifecycleFor(o, key, 'tested').merge_state, 'pending');
+  } finally {
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+test('runDueDrains merges approved tested tasks when automode is ON', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const hd = freshModule();
+  const overlayStore = require('../lib/overlay');
+  const o = overlayStore.EMPTY();
+  o.config = { automode: true };
+  const key = 'codex/review-pending';
+  overlayStore.setStatus(o, key, 'tested');
+  overlayStore.setReviewLifecycle(o, key, {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'pending',
+  });
+  const calls = [];
+  try {
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, noopHttp(), {
+      reviewMergeDeps: {
+        overlay: o,
+        overlayStore,
+        mergeTask: async (candidate) => {
+          calls.push(['merge', candidate.key]);
+          return { merged: true, head: 'abc123' };
+        },
+        promoteTask: async (candidate, merge) => {
+          calls.push(['promote', candidate.key, merge.head]);
+          overlayStore.setStatus(o, candidate.key, 'done');
+          overlayStore.setReviewLifecycle(o, candidate.key, { review_state: 'landed', merge_state: 'merged', merge_sha: merge.head });
+          return { ok: true };
+        },
+      },
+    });
+    assert.ok(result.ran >= 1, 'expected at least 1 drain result');
+    assert.deepEqual(calls, [['merge', key], ['promote', key, 'abc123']]);
+    assert.equal(o.status[key], 'done');
+    assert.equal(overlayStore.reviewLifecycleFor(o, key, 'done').merge_state, 'merged');
   } finally {
     if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
     else process.env.ORCH_HEADLESS_DRAINS = saved;

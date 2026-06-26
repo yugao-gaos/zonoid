@@ -5742,7 +5742,8 @@ async function renderGuidance(force){
   guidSig=sig;
   const reviewFollowUps=review.filter(it=>it.action&&it.action.kind==='follow-up');
   const reviewClusters=dedupeClustersBySig(review.filter(isCluster));
-  if(!pending.length&&!reviewFollowUps.length&&!reviewClusters.length){ box.classList.remove('show','has-pending'); box.innerHTML=''; const btn=document.getElementById('notifBtn'); if(btn) btn.classList.remove('show','has-pending'); return; }
+  const reviewStale=review.filter(it=>it.action&&it.action.kind==='stale-verdict');
+  if(!pending.length&&!reviewFollowUps.length&&!reviewClusters.length&&!reviewStale.length){ box.classList.remove('show','has-pending'); box.innerHTML=''; const btn=document.getElementById('notifBtn'); if(btn) btn.classList.remove('show','has-pending'); return; }
   // One expandable member row per cluster note: radio keeper pick + label + lazy summary.
   const memberRow=(it,k,i)=>{
     const meta=(Array.isArray(it.action.notes)?it.action.notes:[]).find(n=>n.key===k)||{};
@@ -5777,6 +5778,13 @@ async function renderGuidance(force){
       return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'approved\')">Approve &amp; reset counter</button>'+
         '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
     }
+    if(it.action&&it.action.kind==='stale-verdict'){
+      const tk=esc(it.action.task_key||'');
+      return '<div class="gact"><button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\',\'merge\')">Merge &amp; promote</button>'+
+        '<button class="gbtn" onclick="resolveGuidance(\''+esc(it.id)+'\',\'dismiss\')">Dismiss</button>'+
+        (tk?' <span class="gkey">'+tk+'</span>':'')+
+        '<span class="gstat" id="gst-'+esc(it.id)+'"></span></div>';
+    }
     return '<div class="gact"><input class="gans" id="ans-'+esc(it.id)+'" placeholder="your answer…" value="'+esc(guidAns[it.id]||'')+'"'+
       ' oninput="guidAns[\''+esc(it.id)+'\']=this.value">'+
       '<button class="gbtn primary" onclick="resolveGuidance(\''+esc(it.id)+'\')">Answer</button>'+
@@ -5793,15 +5801,16 @@ async function renderGuidance(force){
   if(pending.length) html+='<span class="gtitle">⏸ Loop paused — waiting on you ('+pending.length+')</span>'+pending.map(gitem).join('');
   if(reviewFollowUps.length) html+='<span class="gtitle" style="margin-top:10px">Follow-up review ('+reviewFollowUps.length+')</span>'+reviewFollowUps.map(gitem).join('');
   if(reviewClusters.length) html+='<span class="gtitle" style="margin-top:10px">Dup clusters ('+reviewClusters.length+')</span>'+reviewClusters.map(gitem).join('');
+  if(reviewStale.length) html+='<span class="gtitle" style="margin-top:10px">⚠ Stale work — session gone ('+reviewStale.length+')</span>'+reviewStale.map(gitem).join('');
   box.innerHTML=html;
   box.classList.add('has-pending');
   const btn=document.getElementById('notifBtn');
   if(btn){
-    const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent=pending.length;
+    const cnt=document.getElementById('notifCount'); if(cnt) cnt.textContent=pending.length+reviewStale.length;
     btn.classList.add('has-pending','show');
   }
   // Auto-open only for blocking items (loop paused); review-only stays collapsed until clicked.
-  if(pending.length||reviewFollowUps.length||reviewClusters.length) box.classList.add('show');
+  if(pending.length||reviewFollowUps.length||reviewClusters.length||reviewStale.length) box.classList.add('show');
 }
 // POST a resolution. decision: 'consolidate'|'distinct' for dup-clusters (consolidate sends the
 // picked keeper, daemon defaults to newest if omitted); absent → send the answer box as { answer }.
@@ -5815,7 +5824,7 @@ async function resolveGuidance(id,decision){
     if(sel) body.keep=sel.value;
   }
   else if(decision==='distinct'){ body.decision='distinct'; }
-  else if(decision==='approve'||decision==='reject'){ body.decision=decision; }
+  else if(decision==='approve'||decision==='reject'||decision==='merge'||decision==='dismiss'){ body.decision=decision; }
   else { const inp=document.getElementById('ans-'+id); body.answer=(inp?inp.value:guidAns[id])||''; }
   delete guidErr[id];
   try{

@@ -9,6 +9,7 @@ const judge = require('../lib/judge');
 const { listDispatcherChildren } = require('../lib/dispatcher-children');
 const { attributionMeta } = require('../lib/dispatcher-attribution');
 const gitClaims = require('../lib/git-claims');
+const git = require('../lib/git');
 
 // Auto-resolve a guidance escalation by spawning an Opus CLI process.
 // Returns the trimmed answer string, or null if Opus is unavailable or fails.
@@ -25,7 +26,7 @@ async function resolveViaOpusCli({ question, context, workspace }) {
 }
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
-  const { send, readBody, notifyChange, buildGraph, state, targetOverlay,
+  const { send, readBody, notifyChange, buildGraph, state, targetOverlay, resolveRepo, now,
     stopSignalFor, agentsArr, loops, saveLoops, ESCALATION_DEFAULTS, OPTIMIZE_DEFAULTS } = ctx;
 
   if (p === '/active-claim') {
@@ -322,6 +323,27 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const sr = verdicts.resolveStaleHold(T.ov, action, b.decision, b.answer);
       if (sr) Object.assign(result, sr);
       overlayStore.resolveGuidance(T.ov, b.id, b.answer != null ? b.answer : b.decision);
+    } else if (action && action.kind === 'stale-verdict' && (b.decision === 'merge' || b.decision === 'dismiss')) {
+      if (b.decision === 'merge' && action.task_key) {
+        const repo = resolveRepo(action.task_key, null, T.ov, T.ws);
+        if (repo && (await git.isRepoAsync(repo))) {
+          const mr = await git.mergeBranchAsync(repo, action.task_key, {});
+          if (mr.merged) {
+            const mergedAt = now();
+            overlayStore.setGit(T.ov, action.task_key, { merged: true, merge_sha: mr.head || null, merged_at: mergedAt });
+            overlayStore.setReviewLifecycle(T.ov, action.task_key, { merge_state: 'merged', merge_sha: mr.head || null, merged_at: mergedAt, review_state: 'landed', review_verdict: 'APPROVE' });
+            overlayStore.setStatus(T.ov, action.task_key, 'done');
+            result.merged = true; result.merge_sha = mr.head || null;
+          } else {
+            result.merged = false; result.conflict = !!mr.conflict;
+            result.error = (mr && (mr.error || mr.reason)) || null;
+          }
+        } else {
+          result.merged = false; result.error = 'target repo not available';
+        }
+      }
+      overlayStore.resolveGuidance(T.ov, b.id, b.decision);
+      result.decision = b.decision;
     } else if (action && action.kind === 'force_claim_cap') {
       // Dashboard-only approval: reset the force-claim counter for this task so the agent can retry.
       if (T.ov.forceClaims && action.taskKey) delete T.ov.forceClaims[action.taskKey];
