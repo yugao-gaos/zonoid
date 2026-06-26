@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "worker-backend-key-ui",
   "branch": "orch/attempt/opencode-backend-key-ui-and-model-clear",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-26T14:44:25.689Z",
-  "lease_until": "2026-06-26T15:44:25.689Z"
+  "lease_until": "2026-06-26T15:44:25.689Z",
+  "completed_at": "2026-06-26T15:42:18.035Z"
 }
