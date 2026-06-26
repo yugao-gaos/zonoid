@@ -709,6 +709,13 @@
       </div>
       <button class="spsave" style="margin-top:10px" onclick="saveBackend()">Save backend</button>
       <div id="bk-status"></div>
+      <div id="bk-key-row" style="display:none">
+        <div class="splabel" style="margin-top:12px">API key</div>
+        <input class="spinput" id="bk-key" type="password" placeholder="set API key" autocomplete="new-password" />
+        <div class="spdesc" id="bk-key-desc"></div>
+        <button class="spsave" style="margin-top:8px" onclick="saveBackendKey()">Save key</button>
+        <div id="bk-key-status"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -7307,7 +7314,7 @@ function renderBackendPanel(){
   }).join('');
   updateAvNotice();
 }
-function selectBackendProvider(id){ _bkSelected=id; renderBackendPanel(); }
+function selectBackendProvider(id){ _bkSelected=id; const m=document.getElementById('bk-model'); if(m) m.value=''; renderBackendPanel(); }
 // Show/hide the AV notice based on the SELECTED provider's kind (agentic-cli ⇒ show, api ⇒ hide).
 function updateAvNotice(){
   const box=document.getElementById('bk-avnotice');
@@ -7322,6 +7329,17 @@ function updateAvNotice(){
     box.classList.add('show');
   } else {
     box.classList.remove('show');
+  }
+  const keyRow=document.getElementById('bk-key-row');
+  const keyEl=document.getElementById('bk-key');
+  const keyDesc=document.getElementById('bk-key-desc');
+  const hasKey=prov&&Array.isArray(prov.apiKeyEnv)&&prov.apiKeyEnv.length;
+  if(hasKey&&keyRow){
+    keyRow.style.display='';
+    if(keyEl) keyEl.placeholder='set '+prov.apiKeyEnv[0];
+    if(keyDesc) keyDesc.textContent='Stored locally in backend.env (write-only; never shown back). Status: '+(prov.isAuthed?'set':'not set');
+  } else if(keyRow){
+    keyRow.style.display='none';
   }
 }
 async function saveBackend(){
@@ -7345,6 +7363,26 @@ async function saveBackend(){
   await loadBackendConfig();
   status.className='ok';
   status.textContent='saved — active: '+(active.provider||'?')+(active.model?(' / '+active.model):'');
+}
+async function saveBackendKey(){
+  const prov=_bkData&&_bkData.providers.find(p=>p.id===_bkSelected);
+  if(!prov||!Array.isArray(prov.apiKeyEnv)||!prov.apiKeyEnv.length) return;
+  const keyEl=document.getElementById('bk-key');
+  const st=document.getElementById('bk-key-status');
+  const key=keyEl.value;
+  st.className=''; st.textContent='saving…';
+  let res,d;
+  try{
+    res=await dfetch('/config/backend/key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:_bkSelected,key:key})});
+    d=await res.json();
+  }catch{ st.className='err'; st.textContent='save failed (unreachable)'; return; }
+  if(!res.ok||!d||!d.ok){
+    st.className='err'; st.textContent=(d&&d.error)||('failed ('+res.status+')'); return;
+  }
+  keyEl.value='';
+  await loadBackendConfig();
+  st.className='ok';
+  st.textContent='API key saved';
 }
 // Cost-flow popup: fetch /costflow on open (it walks every transcript — too heavy for tick()).
 async function toggleCostPopup(){

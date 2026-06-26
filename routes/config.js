@@ -48,6 +48,7 @@ function annotateProvider(prov) {
       ? safe(prov.isAvailable.bind(prov))
       : null,
     isAuthed: typeof prov.isAuthed === 'function' ? safe(prov.isAuthed.bind(prov)) : false,
+    apiKeyEnv: (Array.isArray(prov.apiKeyEnv) && prov.apiKeyEnv.length) ? prov.apiKeyEnv : null,
   };
   if (prov.defaultModel) out.defaultModel = prov.defaultModel;
   return out;
@@ -97,6 +98,33 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     notifyChange();
     const active = llmBackend.getActiveBackend(T.ov);
     send(res, 200, { ok: true, active: { provider: active.providerId, model: active.model || null } });
+    return true;
+  }
+
+  if (p === '/config/backend/key' && m === 'POST') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!requireWorkspace(T, send, res)) return true;
+    const provider = b && b.provider;
+    const prov = provider && llmBackend.getProvider(String(provider));
+    if (!prov) {
+      send(res, 400, { ok: false, error: `unknown backend provider '${provider}'` });
+      return true;
+    }
+    const envs = Array.isArray(prov.apiKeyEnv) ? prov.apiKeyEnv : null;
+    if (!envs || !envs.length) {
+      send(res, 400, { ok: false, error: `provider '${prov.id}' does not use an API key (CLI-authed)` });
+      return true;
+    }
+    const key = (b && b.key != null) ? String(b.key) : '';
+    if (!key.trim()) {
+      send(res, 400, { ok: false, error: 'key is required (empty key rejected; clear it by editing backend.env)' });
+      return true;
+    }
+    const canonical = envs[0];
+    llmBackend.writeBackendCredentialKey(canonical, key);
+    notifyChange();
+    send(res, 200, { ok: true, apiKeySet: true, env: canonical });
     return true;
   }
 
