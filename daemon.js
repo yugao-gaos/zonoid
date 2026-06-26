@@ -1862,6 +1862,8 @@ async function ingestNode(overlay, g, key, { title, summary } = {}, ws = null) {
       if (!vec) return out;                                 // no embedding ⇒ lexical fallback, nothing to seed
       overlayStore.setTaskVec(overlay, key, vec, er.meta);
       out.vec = vec;
+      const rootNote = overlay.notes && typeof overlay.notes[key] === 'string' && overlay.notes[key].startsWith('root:');
+      if (rootNote) return { ...out, skipped: 'root' };
       const seeded = await autowireNewTaskWholeGraph(overlay, g, key, title, summary, vec, undefined, { expectedMeta: er.meta, targetVecMeta: er.meta });
       out.seeded = seeded;
       if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }

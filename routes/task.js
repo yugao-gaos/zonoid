@@ -219,6 +219,12 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     ensureTaskSnapshot(T, key);
     const wasUnwired = !!(T.ov.unwired && T.ov.unwired[key]);
     if (T.ov.unwired) delete T.ov.unwired[key];
+    if (Array.isArray(T.ov.edges)) {
+      T.ov.edges = T.ov.edges.filter((e) => !(e && e.kind === 'context' && e.judged === false && (e.from === key || e.to === key)));
+    }
+    overlayStore.clearEagerJudge(T.ov, key);
+    overlayStore.clearJudgingSince(T.ov, key);
+    overlayStore.clearEagerJudgeLease(T.ov, key);
     T.ov.notes[key] = `root: ${b.reason || 'declared standalone root'}`.slice(0, 280);
     T.save(); ctx.notifyChange();
     send(res, 200, { ok: true, key, was_unwired: wasUnwired }); return true;
