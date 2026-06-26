@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/p4-migrate-benches-sdk",
+  "git_user": "Yu Gao <yu.gao@gaos.ca>",
+  "session_id": "c6dc7976-f69d-4ee2-a2c4-cbcff8471eab",
+  "branch": "orch/attempt/codex-p4-migrate-benches-sdk",
+  "status": "tested",
+  "claimed_at": "2026-06-23T12:12:08.325Z",
+  "lease_until": "2026-06-23T13:12:08.325Z",
+  "completed_at": "2026-06-23T12:25:17.102Z"
+}

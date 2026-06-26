@@ -3,3 +3,5 @@
 {"evt":"summary_set","id":"note:note-mqp4ym5jj5v","workspace":"/Users/imyu/Desktop/zonoid","summary":"Frontier archiving defaults to `14` days unless a workspace overrides `archive_after_days`. That determines when completed work stops appearing in the live frontier and shifts into archive status.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp4ym5jj5v","to":"note:note-mqityk7d7am","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:39:29.903Z"}
 {"evt":"edge_added","from":"note:note-mqp4ym5jj5v","to":"note:note-mqityk7d7am","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.779,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp4ym5jj5v","to":"note:note-mqityk7d7am","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:19:00.281Z"}
+{"evt":"note_superseded","id":"note-mqp4ym5jj5v","supersededBy":"note-mqityk7d7am","validTo":"2026-06-18T01:37:43.369Z","ts":"2026-06-18T01:37:43.369Z","actor":"supersede"}

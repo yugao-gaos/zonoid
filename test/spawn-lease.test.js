@@ -72,6 +72,17 @@ function tempWorkspace() {
   ok('dispatch L2: second loop does NOT re-spawn q1', !l2Spawned.includes('s/q1'));
 }
 
+// --- CONTINUATION: all-ready-but-leased idles instead of stopping the loop -----------------------
+{
+  const o = ov.EMPTY();
+  ov.acquireSpawnLease(o, 's/q0', 'loop1', 60000);
+  daemon.__setOverlayForTest(o);
+  const L = makeLoop('loop-continue');
+  const d = daemon.decideOne(L, ctxFor(makeGraph(0, 1)));
+  ok('leased ready work keeps heartbeat active', d.action === 'idle' && /spawn leases/.test(d.reason || '') && d.next_poll_seconds === L.config.minPoll);
+  ok('leased ready work does not stop the loop', L.active === true);
+}
+
 // --- RELEASE: a leased task becomes re-dispatchable after the lease clears -----------------------
 {
   const o = ov.EMPTY();

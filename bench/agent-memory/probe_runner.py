@@ -9,13 +9,14 @@ probe THREE ways, sharing one answerer model + one answer-prompt template:
       ``arms.run_retrieve_and_answer`` (bench/zonoid_bench/arms.py), which does the
       EXACT production eager-judge pipeline:
         mint probe task → autowire (daemon-configured top-K candidate seeding) →
-        judge_next pull → LLM EdgeJudge keep/prune → keepEdge (promote in place) →
+        POST /judge/drain (DRIVE the production sync judge — P3 de-port; the bench runs no
+        judge LLM) → keepEdge/pruneEdge applied IN the daemon →
         get_task_context → answer from ONLY kept context summaries.
 
       For each conversation, an EMBEDDED daemon is started with its LIVE workspace bound
       to the conversation's isolated workspace dir.  Session notes are ingested directly
-      into that embedded daemon so judge_next + keepEdge resolve against them.  The
-      embedded daemon is stopped after all probes for the conversation complete.
+      into that embedded daemon so the drain's /judge/next pull + keepEdge resolve against
+      them.  The embedded daemon is stopped after all probes for the conversation complete.
 
       The SDK bench daemon drops the old hard cosine floor with ORCH_AUTOWIRE_THRESHOLD=0.0
       and bounds candidate cost with ORCH_AUTOWIRE_K/top-K; keepEdge still only promotes a
@@ -46,17 +47,19 @@ The ``our-way`` arm delegates ENTIRELY to ``arms.run_retrieve_and_answer``, whic
 2. Fires the ingest funnel (embed → setTaskVec → autowireNewTaskWholeGraph → markEagerJudge):
    autowire seeds weight-0 NOTE→probe candidate edges according to the daemon's configured
    candidate policy (canonical bench default: threshold 0.0 + top-K cap).
-3. Pulls the autowire candidate set via client.judge_next(node=<probe>).
-4. Runs the LLM EdgeJudge (keep/prune, DEFAULT prune) — keepEdge promotes weight-0
+3. DRIVES the production sync judge via client.judge_drain(node=<probe>): ONE POST /judge/drain
+   reuses the in-process production judge (runJudgeDrainSync) to pull the autowire candidate set
+   (/judge/next), run the keep/prune rubric, and apply keepEdge/pruneEdge — all in the daemon.
+   The bench holds NO judge LLM and parses NO verdict (P3 de-port). keepEdge promotes a weight-0
    candidate IN PLACE (judged:true + real weight); pruneEdge deletes it.
-5. Reads GET /task/context → dependencySummaries (weight>0 = kept context edges).
-6. Answers from ONLY those summaries via a tool-less claude -p.
+4. Reads GET /task/context → dependencySummaries (weight>0 = kept context edges).
+5. Answers from ONLY those summaries via a tool-less claude -p.
 
 WHY embedded daemon (note-mqgwrh5a63x):
-  keepEdge and judge_next are HARD-BOUND to the daemon's LIVE state.workspace.
-  A keepEdge on a non-live (isolated) workspace does NOT surface in /task/context.
+  /judge/drain, /judge/next and the keepEdge save are HARD-BOUND to the daemon's LIVE
+  state.workspace. A keepEdge on a non-live (isolated) workspace does NOT surface in /task/context.
   One embedded daemon per conversation whose live workspace IS the conv dir ensures
-  the whole pipeline (autowire seed → markEagerJudge → judge_next → keepEdge save →
+  the whole pipeline (autowire seed → markEagerJudge → /judge/drain → keepEdge save →
   /task/context) operates on ONE consistent in-memory + persisted overlay.
 
 Runtime (note-mqgz977tbqe): embeddable Python 3.12 — stdlib ONLY (urllib.request, json,
@@ -412,7 +415,8 @@ def run_our_way(
 
     Delegates to ``arms.run_retrieve_and_answer`` which does:
       mint probe task → autowire (daemon-configured top-K candidate seeding) →
-      judge_next pull → LLM EdgeJudge keep/prune → keepEdge (promote in place) →
+      POST /judge/drain (DRIVE the production sync judge — P3 de-port; no bench judge LLM) →
+      keepEdge/pruneEdge applied IN the daemon →
       get_task_context (read kept context) → answer.
 
     If *_embedded_client* is provided (pre-started embedded daemon, see
@@ -472,6 +476,86 @@ def run_our_way(
         diag["context_keys"] = list(result.context_keys)
         if w is not None:
             diag["kept_sids"] = list(w.wired_edges)    # kept note keys
+            diag["judge_idle"] = w.judge_idle
+            diag["timeout_kills"] = w.timeout_kills
+            diag["provisional_kept"] = w.provisional_kept
+            if w.task_key:
+                diag["probe_key"] = w.task_key
+        diag["predicted"] = result.predicted or ""
+
+    finally:
+        if own_daemon and handle is not None:
+            try:
+                _daemon_mod.stop(handle)
+            except Exception:  # noqa: BLE001
+                pass
+    return diag
+
+
+def run_our_way_prod(
+    base_url: str,
+    workspace: str,
+    probe: dict[str, Any],
+    candidates: list["_SessionCandidate"],
+    *,
+    _embedded_client: "ZonoidClient | None" = None,
+    _embedded_data_dir: "str | None" = None,
+) -> dict[str, Any]:
+    """ARM our-way-prod: PRODUCTION agentic + LLM-GRADER retrieval (the grader-delta arm).
+
+    Identical to ``run_our_way`` up to and INCLUDING the canonical wiring + production sync-judge
+    drain (which settles the DAG Tier-1 edges), but the context is retrieved through the PRODUCTION
+    agentic loop ``POST /subconscious/search-context`` (``store.searchContext`` →
+    ``runAgenticContextSearches`` + ``gradeSearchRound`` per round) instead of the one-shot
+    ``/search?task_key=`` read. That loop EXERCISES the LLM grader, so this arm is byte-identical to
+    the live production agentic retrieval. We run it ALONGSIDE the frozen-DAG ``our-way`` arm to
+    measure the grader delta — ``our-way`` is intentionally kept.
+
+    Delegates to ``arms.run_retrieve_and_answer(..., retrieval="agentic")``.
+
+    Returns a diagnostics dict shaped like ``run_our_way`` plus ``grader`` (the grader provenance —
+    {enabled, rounds, kept_keys, last_verdict, ...} — the evidence the agentic+grader loop fired).
+    The gold answer / evidence labels are NEVER consulted here.
+    """
+    question = probe["question"]
+    unit_id = f"{probe['qid']}-prod-{int(time.time() * 1000) % 1_000_000}"
+
+    diag: dict[str, Any] = {
+        "candidate_sids": [c.sid for c in candidates],
+        "kept_sids": [],
+        "context_keys": [],
+        "judge_idle": False,
+        "timeout_kills": 0,
+        "provisional_kept": 0,
+        "grader": {},
+    }
+
+    own_daemon = _embedded_client is None
+    handle = None
+    try:
+        if own_daemon:
+            handle = _start_our_way_daemon(workspace)
+            client = ZonoidClient(handle.base_url, workspace=workspace, timeout=120)
+            data_dir = handle.data_dir
+            _ingest_candidates_into_daemon(client, candidates, workspace)
+        else:
+            client = _embedded_client
+            data_dir = _embedded_data_dir or ""
+
+        # Production agentic + grader retrieval path (retrieval="agentic").
+        result = _arms.run_retrieve_and_answer(
+            client,
+            unit_id=unit_id,
+            question=question,
+            task_summary=question,
+            data_dir=data_dir,
+            retrieval="agentic",
+        )
+        w = result.wiring
+        diag["context_keys"] = list(result.context_keys)
+        diag["grader"] = dict(result.grader or {})
+        if w is not None:
+            diag["kept_sids"] = list(w.wired_edges)
             diag["judge_idle"] = w.judge_idle
             diag["timeout_kills"] = w.timeout_kills
             diag["provisional_kept"] = w.provisional_kept
@@ -635,7 +719,8 @@ def run_probe_dag_combined(
     """ARM dag-combined: settled task context plus distill fact search, merged context.
 
     Merges two production-faithful retrieval surfaces then answers ONCE:
-      1. Task context : autowire candidate set → LLM EdgeJudge → task-scoped search. A settled
+      1. Task context : autowire candidate set → production sync judge (POST /judge/drain, P3
+                        de-port — no bench judge LLM) → task-scoped search. A settled
                         probe yields system + frozen DAG context, not a synthetic RAG fill.
       2. Distill tier : top-k vector search over atomic fact notes (*distill_workspace*).
 
@@ -738,17 +823,25 @@ def run_probe(
     conv_id: str,
     probe: dict[str, Any],
     candidates: list[_SessionCandidate],
+    arms: "list[str] | None" = None,
 ) -> list[dict[str, Any]]:
-    """Run all THREE arms for one probe and return one result record per arm.
+    """Run the standard arms for one probe and return one result record per arm.
 
     Each record: {arm, conv_id, qid, category, question, gold, predicted, ...diagnostics}.
     ``gold`` is recorded FOR THE SCORER ONLY; it never enters any prediction path above.
 
-    Uses ONE embedded daemon for both our-way and search arms so the search arm benefits
+    Always runs our-way + search + cold (the legacy default). When ``arms`` includes
+    ``"our-way-prod"``, ALSO runs the production agentic + LLM-grader retrieval arm (run_our_way_prod)
+    reusing the SAME embedded daemon — gated on the arm being requested so its extra grader +
+    answerer cost is only paid when asked for. ``arms`` is the caller's requested-arm list (run.py
+    passes it); None means "legacy three only".
+
+    Uses ONE embedded daemon for the our-way / our-way-prod / search arms so they all benefit
     from the embedded daemon's fresh overlay (no pendingDup) — all ingested session notes
     are visible. The main daemon's overlay can have pendingDup entries that make notes
     retrieval-invisible, causing 0% accuracy on real multi-session data.
     """
+    want_prod = bool(arms) and ("our-way-prod" in arms)
     common = {
         "conv_id": conv_id,
         "qid": probe.get("qid"),
@@ -758,7 +851,7 @@ def run_probe(
     }
     records: list[dict[str, Any]] = []
 
-    # Start ONE embedded daemon for both our-way and search arms.
+    # Start ONE embedded daemon for the our-way / our-way-prod / search arms.
     # The embedded daemon loads a fresh overlay from graph-store (no pendingDup),
     # making all ingested session notes visible to search retrieval.
     handle = None
@@ -769,7 +862,7 @@ def run_probe(
         emb_client = ZonoidClient(emb_url, workspace=workspace, timeout=120)
         _ingest_candidates_into_daemon(emb_client, candidates, workspace)
 
-        # ARM our-way (headline) — reuses embedded daemon
+        # ARM our-way (headline, frozen-DAG read) — reuses embedded daemon
         ow = run_our_way(
             base_url, workspace, probe, candidates,
             _embedded_client=emb_client,
@@ -783,6 +876,25 @@ def run_probe(
             "context_keys": ow.get("context_keys"),
             "candidate_sids": ow.get("candidate_sids"),
         })
+
+        # ARM our-way-prod (production agentic + LLM-grader retrieval) — reuses embedded daemon.
+        # Gated on request so its extra grader/answerer cost is only paid when asked for. Run
+        # ALONGSIDE our-way to measure the grader delta (our-way is intentionally kept).
+        if want_prod:
+            owp = run_our_way_prod(
+                base_url, workspace, probe, candidates,
+                _embedded_client=emb_client,
+                _embedded_data_dir=emb_data_dir,
+            )
+            records.append({
+                "arm": "our-way-prod",
+                **common,
+                "predicted": owp.get("predicted", ""),
+                "kept_sids": owp.get("kept_sids"),
+                "context_keys": owp.get("context_keys"),
+                "candidate_sids": owp.get("candidate_sids"),
+                "grader": owp.get("grader"),
+            })
 
         # ARM search — uses embedded daemon for full note visibility (no pendingDup)
         sr = run_search(emb_url, workspace, probe)

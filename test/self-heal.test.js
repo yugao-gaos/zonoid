@@ -7,8 +7,14 @@
 //   (b) SURFACING — staleVerdictKeys: a stale 'tested' node whose owner isn't live is surfaced exactly
 //       once, its status is NOT mutated, and a live owner / fresh timestamp suppresses surfacing.
 'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const ov = require('../lib/overlay');
-const { staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, staleVerdictKeys } = require('../daemon');
+const {
+  staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys,
+  releaseNativeClaim, staleVerdictKeys, sweepStaleVerdicts, __setAgentsForTest,
+} = require('../daemon');
 
 let pass = 0, fail = 0;
 const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++; } else { console.log(`FAIL  ${label}`); fail++; } };
@@ -21,6 +27,7 @@ const FRESH = 60000;        // 1m ago — within the window
 // --- (a) REAPER: dead-agent in_progress orphan is released once, then idempotent --------------
 {
   const overlay = ov.EMPTY();
+  overlay.config.stale_minutes = 10;   // pin the window so the 20m/1m boundary is independent of the default (now 60m)
   overlay.status['s/1'] = 'in_progress';
   overlay.assignee['s/1'] = 'dead-worker';
   overlay.timestamps['s/1'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
@@ -50,6 +57,7 @@ const FRESH = 60000;        // 1m ago — within the window
 // --- (a2) REAPER: adopted snapshot in_progress orphan is released once ------------------------
 {
   const overlay = ov.EMPTY();
+  overlay.config.stale_minutes = 10;   // pin the window (default is now 60m) so 20m counts as stale
   ov.setSnapshot(overlay, 's/20', { subject: 'orphan snapshot', description: '', status: 'in_progress', blockedBy: [] });
   overlay.timestamps['s/20'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
   // Explicit overlay status still belongs to staleClaimKeys, not the snapshot fallback selector.
@@ -75,6 +83,7 @@ const FRESH = 60000;        // 1m ago — within the window
 // --- (a3) REAPER: native in_progress echo is released once ------------------------
 {
   const overlay = ov.EMPTY();
+  overlay.config.stale_minutes = 10;   // pin the window (default is now 60m) so 20m counts as stale
   overlay.timestamps['s/30'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
   overlay.timestamps['s/31'] = { firstSeen: ISO(STALE), lastChanged: ISO(STALE), lastStatus: 'in_progress' };
   overlay.status['s/31'] = 'in_progress';
@@ -138,15 +147,20 @@ const FRESH = 60000;        // 1m ago — within the window
   ok('tested status NOT auto-promoted (s/10 still tested)', overlay.status['s/10'] === 'tested');
   ok('ready status NOT mutated (s/11 still ready)', overlay.status['s/11'] === 'ready');
 
-  // idempotency model: the sweep enqueues ONE guidance item tagged with verdictKey and skips keys
-  // that already have an unresolved tagged item. Simulate that skip here.
-  const surfaced = new Set();
-  const enqueueOnce = () => staleVerdictKeys(overlay, agents, NOW).filter((x) => !surfaced.has(x.key));
-  const round1 = enqueueOnce();
-  round1.forEach((x) => surfaced.add(x.key));
-  ok('first enqueue surfaces both nodes', round1.length === 2);
-  const round2 = enqueueOnce();
-  ok('second enqueue is idempotent (already-surfaced keys skipped)', round2.length === 0);
+  // The sweep enqueues ONE guidance item tagged with verdictKey and skips keys that already have
+  // an unresolved tagged item.
+  __setAgentsForTest(agents);
+  const realFresh = new Date().toISOString();
+  overlay.timestamps['s/13'] = { firstSeen: realFresh, lastChanged: realFresh, lastStatus: 'tested' };
+  const ws = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-self-heal-verdict-')));
+  ok('first sweep surfaces stale verdicts as guidance', sweepStaleVerdicts(ws, overlay) === true);
+  ok('tested status still NOT mutated by sweep', overlay.status['s/10'] === 'tested');
+  ok('ready status still NOT mutated by sweep', overlay.status['s/11'] === 'ready');
+  ok('sweep tagged tested verdict guidance', overlay.guidance.some((g) => !g.resolved && g.verdictKey === 's/10'));
+  ok('sweep tagged ready verdict guidance', overlay.guidance.some((g) => !g.resolved && g.verdictKey === 's/11'));
+  ok('sweep skips fresh verdicts under the real clock', overlay.guidance.filter((g) => g.action && g.action.kind === 'stale-verdict').length === 2);
+  ok('second sweep is idempotent (already-surfaced keys skipped)', sweepStaleVerdicts(ws, overlay) === false);
+  ok('second sweep does not duplicate guidance', overlay.guidance.filter((g) => g.verdictKey === 's/10' || g.verdictKey === 's/11').length === 2);
 }
 
 // --- explicit stale_minutes=0 honors any past timestamp as stale ------------------------------

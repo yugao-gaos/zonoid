@@ -3,3 +3,15 @@
 {"evt":"summary_set","id":"note:note-mqp50sg0wuf","workspace":"/Users/imyu/Desktop/zonoid","summary":"The in-process HTTPS API seam gives each request a 60 second wall-clock timeout. This bounds backend hangs and keeps the drain governor from waiting forever on a stuck provider.","actor":"overlay-sync","ts":"2026-06-22T11:39:58.392Z"}
 {"evt":"edge_removed","from":"note:note-mqp50sg0wuf","to":"note:note-mqivisw9s2s","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:40:12.861Z"}
 {"evt":"edge_added","from":"note:note-mqp50sg0wuf","to":"note:note-mqivisw9s2s","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.577,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp50sg0wuf","to":"note:note-mqivisw9s2s","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:51:11.158Z"}
+{"evt":"edge_added","from":"note:note-mqp50sg0wuf","to":"note:note-mqp516rj0lg","kind":"context","actor":"overlay-sync","ts":"2026-06-23T01:21:24.076Z","by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqp50sg0wuf","to":"note:note-mqp516rj0lg","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
+{"evt":"edge_added","from":"note:note-mqp50sg0wuf","to":"note:note-mqp516rj0lg","kind":"context","actor":"overlay-sync","ts":"2026-06-24T20:35:40.061Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqp50sg0wuf","to":"note:note-mqp516rj0lg","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:17.044Z"}
+{"evt":"edge_added","from":"note:note-mqp50sg0wuf","to":"note:note-mqp516rj0lg","kind":"context","actor":"overlay-sync","ts":"2026-06-25T01:47:29.898Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqp50sg0wuf","to":"note:note-mqp516rj0lg","kind":"context","actor":"overlay-sync","ts":"2026-06-25T02:15:44.905Z"}
+{"evt":"edge_added","from":"note:note-mqp50sg0wuf","to":"note:note-mqp516rj0lg","kind":"context","actor":"overlay-sync","ts":"2026-06-25T02:15:49.137Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqp50sg0wuf","to":"note:note-mqp516rj0lg","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:28.880Z"}
+{"evt":"edge_added","from":"note:note-mqp50sg0wuf","to":"note:note-mqp516rj0lg","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:46.495Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqp50sg0wuf","to":"note:note-mqp516rj0lg","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:54.390Z"}
+{"evt":"edge_added","from":"note:note-mqp50sg0wuf","to":"note:note-mqp516rj0lg","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:55.222Z","weight":0.6,"by":"judge","judged":true}

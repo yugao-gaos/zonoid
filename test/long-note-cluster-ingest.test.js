@@ -23,6 +23,8 @@ const { expandStructuralContext } = require('../lib/search/memory-search');
 
 const PORT = 19950 + Math.floor(Math.random() * 100);
 const BASE = `http://127.0.0.1:${PORT}`;
+const DAEMON_STARTUP_TIMEOUT_MS = 30000;
+const DAEMON_OUTPUT_LIMIT = 12000;
 
 async function post(p, body) {
   const res = await fetch(`${BASE}${p}`, {
@@ -33,17 +35,54 @@ async function post(p, body) {
   return { status: res.status, body: await res.json() };
 }
 
-async function waitForPing(ms = 10000) {
-  const until = Date.now() + ms;
+function boundedTextBuffer(limit = DAEMON_OUTPUT_LIMIT) {
+  let text = '';
+  return {
+    add(chunk) {
+      text += String(chunk);
+      if (text.length > limit) text = text.slice(text.length - limit);
+    },
+    text() {
+      return text;
+    },
+  };
+}
+
+function startupDiagnostics(result, output) {
+  const lines = [
+    `sandboxed daemon did not come up (port ${PORT}, waited ${result.elapsedMs}ms, attempts ${result.attempts})`,
+  ];
+  if (result.exit) lines.push(`daemon exited early: code=${result.exit.code} signal=${result.exit.signal}`);
+  if (result.lastError) lines.push(`last ping error: ${result.lastError}`);
+  const stdout = output.stdout.text().trim();
+  const stderr = output.stderr.text().trim();
+  if (stdout) lines.push(`daemon stdout:\n${stdout}`);
+  if (stderr) lines.push(`daemon stderr:\n${stderr}`);
+  return lines.join('\n\n');
+}
+
+async function waitForPing({ ms = DAEMON_STARTUP_TIMEOUT_MS, exited = () => null } = {}) {
+  const started = Date.now();
+  const until = started + ms;
+  let attempts = 0;
+  let lastError = '';
+  let delay = 100;
   while (Date.now() < until) {
+    attempts++;
+    const exit = exited();
+    if (exit) return { ok: false, attempts, elapsedMs: Date.now() - started, lastError, exit };
     try {
       const res = await fetch(`${BASE}/ping`);
       const r = await res.json();
-      if (r && r.ok) return true;
-    } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 100));
+      if (r && r.ok) return { ok: true, attempts, elapsedMs: Date.now() - started };
+      lastError = `unexpected /ping response: status=${res.status}`;
+    } catch (err) {
+      lastError = err && err.message ? err.message : String(err);
+    }
+    await new Promise((r) => setTimeout(r, Math.min(delay, Math.max(0, until - Date.now()))));
+    delay = Math.min(500, Math.ceil(delay * 1.4));
   }
-  return false;
+  return { ok: false, attempts, elapsedMs: Date.now() - started, lastError, exit: exited() };
 }
 
 function graphFromOverlay(ov) {
@@ -72,12 +111,18 @@ function dropStub(harness, id) {
 }
 
 test('long note ingestion creates source cluster without changing short notes or explicit wires', async () => {
+  const daemonOutput = { stdout: boundedTextBuffer(), stderr: boundedTextBuffer() };
+  let daemonExit = null;
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ORCH_RERANK: '0' },
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
+  child.stdout.on('data', (chunk) => daemonOutput.stdout.add(chunk));
+  child.stderr.on('data', (chunk) => daemonOutput.stderr.add(chunk));
+  child.once('exit', (code, signal) => { daemonExit = { code, signal }; });
   try {
-    assert.ok(await waitForPing(), 'sandboxed daemon came up');
+    const startup = await waitForPing({ exited: () => daemonExit });
+    assert.ok(startup.ok, startupDiagnostics(startup, daemonOutput));
     await post('/workspace', { path: WS });
 
     const shortSummary = 'A compact note should stay exactly as written.';

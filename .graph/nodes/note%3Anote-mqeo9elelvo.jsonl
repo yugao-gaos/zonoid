@@ -13,3 +13,15 @@
 {"evt":"edge_promoted","from":"note:note-mqeo9elelvo","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:53:46.639Z","weight":0.8,"by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqb975duzqu","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:29:38.941Z"}
 {"evt":"edge_added","from":"note:note-mqeo9elelvo","to":"note:note-mqb975duzqu","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.631,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqatk2hs8sr","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:01:16.624Z"}
+{"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqatewqv506","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:01:16.624Z"}
+{"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqatewqwmt8","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:01:16.624Z"}
+{"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:01:16.624Z"}
+{"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"note:note-mqb975duzqu","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:01:16.624Z"}
+{"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:33:36.175Z"}
+{"evt":"edge_added","from":"note:note-mqeo9elelvo","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:31:02.983Z","weight":0,"by":"autowire","judged":false,"score":0.568,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqeo9elelvo","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:33:43.363Z"}
+{"evt":"edge_added","from":"note:note-mqeo9elelvo","to":"note:note-mqatewqv506","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.625,"by":"judge","judged":true,"score":0.625,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqeo9elelvo","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.631,"by":"judge","judged":true,"score":0.631,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqeo9elelvo","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mqeo9elelvo","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.572,"by":"judge","judged":true,"score":0.572,"origin":"autowire-semantic"}

@@ -29,6 +29,21 @@ Respect the budget — at most N items per tick, no fan-out. The cursor + epoch 
 restart, so a long backlog (e.g. the ~273 blind note edges from the old autowire pass) is chewed
 through incrementally, a handful per tick, across many ticks.
 
+## Mechanics — never litter the repo root
+
+You run as an agent whose cwd is the repo root, driving `/judge/next` + `/judge/verdict` over HTTP.
+Keeping the working tree clean is a **hard rule**, not a nicety (prior runs dumped 100+ stray
+`edge_*` / `judge_*` / `jnext_*` files into the repo root and never cleaned up):
+
+- **Prefer no files at all.** Read `/judge/next` straight into your reasoning, and POST the verdict
+  with the JSON piped via a stdin heredoc rather than a saved payload file:
+  `curl -s -X POST "$DAEMON/judge/verdict" -H 'content-type: application/json' --data @- <<'JSON' … JSON`
+- **If you must stage a payload or capture a response to a file, use the git-ignored sandbox
+  `scratch/edge-judge/`** (create it if needed) — NEVER the repo root. `scratch/` is already
+  gate-exempt and ignored by git, so it is the correct home for any intermediate.
+- **Delete your scratch before the tick ends.** Leave behind no `edge_*`, `judge_*`, `jnext_*`,
+  `jq_*`, `verdict_*`, or `orphan*` files anywhere in the working tree.
+
 ## Item kinds
 
 `/judge/next` returns these kinds:

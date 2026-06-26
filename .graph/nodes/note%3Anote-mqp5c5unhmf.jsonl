@@ -2,3 +2,4 @@
 {"evt":"edge_added","from":"note:note-mqp5c5unhmf","to":"note:note-mqp4wosn3qd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T11:42:52.612Z","weight":0,"by":"autowire","judged":false,"score":0.58,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqp5c5unhmf","to":"note:note-mqp4wosn3qd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:22:52.902Z"}
 {"evt":"edge_added","from":"note:note-mqp5c5unhmf","to":"note:note-mqp4wosn3qd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.58,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqp5c5unhmf","to":"note:note-mqp4wosn3qd","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:09:09.545Z"}

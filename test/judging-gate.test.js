@@ -1,23 +1,26 @@
 #!/usr/bin/env node
-// Plain Node test for the JUDGING→READY gate (task D) — no framework; matches judge-eager.test.js
-// style. Run: node test/judging-gate.test.js — exits non-zero on any failed assertion.
+// Plain Node test for the JUDGING→READY gate (task D / P6 STRICT) — no framework; matches
+// judge-eager.test.js style. Run: node test/judging-gate.test.js — exits non-zero on any failed assert.
 //
 // Lifecycle gated here: created → wiring → JUDGING → ready → claimable. A task with outstanding
 // unjudged autowire candidate edges (judged:false, by:'autowire') is in the 'judging' phase and is
-// NOT ready/claimable — UNTIL a configurable timeout fires, at which point it FALLS BACK to ready with
-// its surviving unjudged edges FLAGGED provisional (never a permanent deadlock).
+// NOT ready/claimable.
+//
+// P6 INVARIANT (STRICT — no time-based release): a node with ANY unjudged autowire candidate edge is
+// NOT READY until those edges are judged. There is NO timeout, NO hard ceiling, NO provisional
+// fallback — the node holds until the candidate set actually drains. judgingState.timedOut is
+// therefore ALWAYS false, and the projection's `provisional` flag is always false. Recovery from a
+// stalled judge is the on-demand drain CLI (scripts/judge-drain-once.js), NOT a clock.
 //
 // Two layers under test:
 //   PURE substrate (lib/overlay + lib/judge) — deterministic, always runs:
-//     - markEagerJudge stamps a wall-clock judgingSince anchor (once); clearJudgingSince removes it.
-//     - judgingState classifies a node: not-judging / judging-within-timeout / timed-out-provisional.
-//     - judgingTimeoutMs honours config.judge.timeoutMs > env JUDGE_TIMEOUT_MS > default.
-//     - a node with NO judgingSince anchor but unjudged edges is treated as timed-out (never deadlocks).
+//     - judgingState classifies a node: not-judging (drained) vs judging (held, never timed-out).
+//     - judgingState ignores any nowMs/timeoutMs/hardCeilingMs args (back-compat shape only).
+//     - keepEdge / removeEdge drain the candidate set → judging:false → ready.
 //   GATE PREDICATE — the exact boolean both callsites use (daemon.effective readiness derivation +
-//     routes/overlay claim gate): `held = js.judging && !js.timedOut`. Both sites are a thin wrapper
-//     over judgingState, so asserting the predicate over the lifecycle covers the gate behaviour
-//     deterministically without spawning a daemon (the E2E claim harness is fragile in sandbox — see
-//     the ~11-14 pre-existing daemon-spawn failures).
+//     routes/overlay claim gate): `held = js.judging`. Both sites are a thin wrapper over judgingState,
+//     so asserting the predicate over the lifecycle covers the gate behaviour deterministically
+//     without spawning a daemon (the E2E claim harness is fragile in sandbox).
 'use strict';
 const ov = require('../lib/overlay');
 const judge = require('../lib/judge');
@@ -27,156 +30,109 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
 
 const HOUR = 3600 * 1000;
 
-// --- PURE: markEagerJudge stamps a judgingSince anchor; clearJudgingSince removes it -------------
+// --- PURE: markEagerJudge still stamps the eager-dispatch state (the happy-path drainer trigger) ----
+// (judgingSince is now a vestigial timestamp the strict gate no longer reads, but markEagerJudge is
+// still the eager-judge dispatch marker — assert it remains wired.)
 {
   const o = ov.EMPTY();
   o.epoch = 1;
   ov.markEagerJudge(o, 's/1');
-  ok('markEagerJudge stamps a judgingSince anchor', typeof o.judgingSince['s/1'] === 'number' && o.judgingSince['s/1'] > 0);
-  const first = o.judgingSince['s/1'];
-  ov.markEagerJudge(o, 's/1');   // re-mark
-  ok('re-mark does NOT refresh the anchor (timeout measured from birth)', o.judgingSince['s/1'] === first);
-  ok('clearJudgingSince removes the anchor (returns true)', ov.clearJudgingSince(o, 's/1') === true && !('s/1' in o.judgingSince));
-  ok('clearJudgingSince on absent node returns false', ov.clearJudgingSince(o, 's/1') === false);
+  ok('markEagerJudge marks the node for eager dispatch', !!(o.eagerJudge && o.eagerJudge['s/1']));
+  ok('clearJudgingSince removes the vestigial anchor (returns true when present)',
+    (o.judgingSince && 's/1' in o.judgingSince) ? ov.clearJudgingSince(o, 's/1') === true : true);
 }
 
-// --- PURE: judgingState — the three lifecycle branches ------------------------------------------
+// --- PURE: judgingState — STRICT two-branch classification (no timeout branch) --------------------
 {
   const o = ov.EMPTY();
   const now = 1_000_000_000_000;
   // (a) no unjudged edges at all → not judging.
   o.edges = [{ from: 's/a', to: 'note:x', kind: 'context', judged: true }];
-  const a = judge.judgingState(o, 's/a', now, HOUR);
+  const a = judge.judgingState(o, 's/a');
   ok('no unjudged edges → judging:false', a.judging === false && a.timedOut === false);
 
-  // (b) unjudged edge, anchor fresh (within timeout) → judging, not timed out.
+  // (b) unjudged edge → judging:true, timedOut ALWAYS false (held, no clock).
   o.edges = [{ from: 's/b', to: 'note:y', kind: 'context', judged: false }];
-  o.judgingSince = { 's/b': now - 60_000 };   // 1 min ago, timeout 1h
-  const b = judge.judgingState(o, 's/b', now, HOUR);
-  ok('fresh unjudged edge → judging:true, timedOut:false', b.judging === true && b.timedOut === false);
+  const b = judge.judgingState(o, 's/b');
+  ok('unjudged edge → judging:true, timedOut:false (held)', b.judging === true && b.timedOut === false);
 
-  // (c) unjudged edge, anchor stale (past timeout) → judging, TIMED OUT (provisional fallback).
-  o.judgingSince = { 's/b': now - 2 * HOUR };   // 2h ago, timeout 1h
-  const c = judge.judgingState(o, 's/b', now, HOUR);
-  ok('stale unjudged edge → judging:true, timedOut:true', c.judging === true && c.timedOut === true);
+  // (c) STRICT: even with an ancient anchor + ancient firstSeen + tiny timeout args, NEVER times out.
+  o.judgingSince = { 's/b': now - 100 * HOUR };
+  o.timestamps = { 's/b': { firstSeen: new Date(now - 100 * HOUR).toISOString() } };
+  const c = judge.judgingState(o, 's/b', now, 1, 1);   // pass a 1ms timeout + 1ms ceiling — must be ignored
+  ok('STRICT: ancient anchor + tiny timeout args still held (no time-release)', c.judging === true && c.timedOut === false);
 
-  // (d) unjudged edge but NO anchor → treated as timed-out so it can never permanently deadlock.
+  // (d) unjudged edge but NO anchor → STILL held (strict gate does not depend on an anchor).
   o.judgingSince = {};
-  const d = judge.judgingState(o, 's/b', now, HOUR);
-  ok('unjudged edge with no anchor → timedOut:true (never deadlocks)', d.judging === true && d.timedOut === true);
+  o.timestamps = {};
+  const d = judge.judgingState(o, 's/b');
+  ok('unjudged edge with no anchor → still held (judging:true, timedOut:false)', d.judging === true && d.timedOut === false);
 
   // incoming-edge incidence also counts (gate is symmetric on either endpoint).
   o.edges = [{ from: 'note:p', to: 's/c', kind: 'context', judged: false }];
-  o.judgingSince = { 's/c': now };
-  const e = judge.judgingState(o, 's/c', now, HOUR);
+  const e = judge.judgingState(o, 's/c');
   ok('incoming unjudged edge counts as judging', e.judging === true && e.timedOut === false);
 }
 
-// --- PURE: judgingTimeoutMs precedence (config > env > default) ----------------------------------
+// --- PURE: the removed timeout symbols are GONE (regression guard for P6) -------------------------
 {
-  const base = ov.EMPTY();
-  delete process.env.JUDGE_TIMEOUT_MS;
-  ok('default timeout = JUDGING_TIMEOUT_MS', judge.judgingTimeoutMs(base) === judge.JUDGING_TIMEOUT_MS);
-
-  process.env.JUDGE_TIMEOUT_MS = String(5 * 60 * 1000);
-  ok('env JUDGE_TIMEOUT_MS overrides default', judge.judgingTimeoutMs(ov.EMPTY()) === 5 * 60 * 1000);
-
-  const cfg = ov.EMPTY(); cfg.config = { judge: { timeoutMs: 90 * 1000 } };
-  ok('config.judge.timeoutMs overrides env', judge.judgingTimeoutMs(cfg) === 90 * 1000);
-  delete process.env.JUDGE_TIMEOUT_MS;
-
-  // non-positive / non-finite config is ignored (falls through to default).
-  const bad = ov.EMPTY(); bad.config = { judge: { timeoutMs: 0 } };
-  ok('config timeoutMs:0 ignored → default', judge.judgingTimeoutMs(bad) === judge.JUDGING_TIMEOUT_MS);
-}
-
-// --- PURE: HARD CEILING (FU-2) — firstSeen-anchored backstop, immune to judgingSince resets --------
-// The deadlock: the soft judgingSince anchor gets reset to "now" by edge churn / overlay races, so the
-// soft timeout never fires. The hard ceiling measures from the task's stable firstSeen instead.
-{
-  const now = 3_000_000_000_000;
-  const HARD = 30 * 60 * 1000;
-  const o = ov.EMPTY();
-  o.edges = [{ from: 's/d', to: 'note:q', kind: 'context', judged: false }];
-  o.judgingSince = { 's/d': now - 10_000 };                                        // soft anchor only 10s old
-  o.timestamps = { 's/d': { firstSeen: new Date(now - 2 * HARD).toISOString() } }; // but firstSeen is 1h old
-  const soft = judge.judgingState(o, 's/d', now, HOUR);                            // 4-arg: soft-only
-  ok('hard-ceiling: soft-only (4-arg) still HOLDS on a fresh judgingSince (the deadlock)', soft.judging === true && soft.timedOut === false);
-  const hard = judge.judgingState(o, 's/d', now, HOUR, HARD);                      // 5-arg: ceiling on
-  ok('hard-ceiling: firstSeen past ceiling FORCES timedOut (breaks the deadlock)', hard.judging === true && hard.timedOut === true);
-  o.timestamps = { 's/d': { firstSeen: new Date(now - 60_000).toISOString() } };   // 1 min old
-  const young = judge.judgingState(o, 's/d', now, HOUR, HARD);
-  ok('hard-ceiling: young task within ceiling still holds (no premature release)', young.judging === true && young.timedOut === false);
-  o.timestamps = {};
-  const noTs = judge.judgingState(o, 's/d', now, HOUR, HARD);
-  ok('hard-ceiling: missing firstSeen → soft-only, no spurious timeout', noTs.judging === true && noTs.timedOut === false);
-}
-
-// --- PURE: judgingHardCeilingMs precedence (config > env > default) ------------------------------
-{
-  delete process.env.JUDGE_HARD_CEILING_MS;
-  ok('hard-ceiling default = JUDGING_HARD_CEILING_MS', judge.judgingHardCeilingMs(ov.EMPTY()) === judge.JUDGING_HARD_CEILING_MS);
-  process.env.JUDGE_HARD_CEILING_MS = String(15 * 60 * 1000);
-  ok('hard-ceiling env JUDGE_HARD_CEILING_MS overrides default', judge.judgingHardCeilingMs(ov.EMPTY()) === 15 * 60 * 1000);
-  const cfg = ov.EMPTY(); cfg.config = { judge: { hardCeilingMs: 99 * 1000 } };
-  ok('hard-ceiling config.judge.hardCeilingMs overrides env', judge.judgingHardCeilingMs(cfg) === 99 * 1000);
-  delete process.env.JUDGE_HARD_CEILING_MS;
+  ok('JUDGING_TIMEOUT_MS removed from exports', judge.JUDGING_TIMEOUT_MS === undefined);
+  ok('JUDGING_HARD_CEILING_MS removed from exports', judge.JUDGING_HARD_CEILING_MS === undefined);
+  ok('judgingTimeoutMs removed from exports', typeof judge.judgingTimeoutMs !== 'function');
+  ok('judgingHardCeilingMs removed from exports', typeof judge.judgingHardCeilingMs !== 'function');
+  // The pending-dup visibility timeout is SEPARATE and survives (its own dedicated accessor).
+  ok('pendingDupTimeoutMs survives (separate concern)', typeof judge.pendingDupTimeoutMs === 'function');
 }
 
 // --- GATE PREDICATE over the full lifecycle (what daemon.effective + the claim gate compute) -----
-// Both callsites hold a task iff `js.judging && !js.timedOut`. We drive a node through the real
-// overlay helpers (markEagerJudge seed → judge edge → drain) and assert the predicate at each step.
-const held = (o, key, now, timeout) => { const j = judge.judgingState(o, key, now, timeout); return j.judging && !j.timedOut; };
-const flagged = (o, key, now, timeout) => { const j = judge.judgingState(o, key, now, timeout); return j.judging && j.timedOut; };
+// Both callsites hold a task iff `js.judging` (P6: no longer `&& !js.timedOut`, since timedOut is
+// always false). We drive a node through the real overlay helpers and assert the predicate at each step.
+const held = (o, key) => judge.judgingState(o, key).judging;
 {
   const o = ov.EMPTY();
   o.epoch = 1;
-  const now = 2_000_000_000_000;
   // SEED: task born with an unjudged autowire candidate edge + eager mark (B/C path).
   o.edges.push({ from: 's/t', to: 'note:n', kind: 'context', weight: 0, by: 'autowire', judged: false, score: 0.4 });
-  ov.markEagerJudge(o, 's/t');                 // stamps judgingSince anchor
-  o.judgingSince['s/t'] = now - 30_000;        // pin anchor 30s ago for a deterministic clock
-  ok('LIFECYCLE seed: gate HOLDS the task (judging within timeout)', held(o, 's/t', now, HOUR) === true);
-  ok('LIFECYCLE seed: not yet flagged provisional', flagged(o, 's/t', now, HOUR) === false);
+  ov.markEagerJudge(o, 's/t');
+  ok('LIFECYCLE seed: gate HOLDS the task (unjudged candidate edge)', held(o, 's/t') === true);
 
   // JUDGE the edge (keep) → edge.judged flips true, set drains, gate releases.
   judge.keepEdge(o, 's/t', 'note:n');
   ok('LIFECYCLE judged: edge now verified', o.edges[0].judged === true);
-  ok('LIFECYCLE judged: gate RELEASES (no longer judging)', held(o, 's/t', now, HOUR) === false);
-  ok('LIFECYCLE judged: start_task rejection path clears after keep', held(o, 's/t', now, HOUR) === false);
-  ok('LIFECYCLE judged: not flagged provisional', flagged(o, 's/t', now, HOUR) === false);
+  ok('LIFECYCLE judged: gate RELEASES (no longer judging)', held(o, 's/t') === false);
   // anchor cleanup mirrors routes/judge.js drain sweep
   if (judge.unverifiedEdgesForNode(o, 's/t').length === 0) ov.clearJudgingSince(o, 's/t');
-  ok('LIFECYCLE judged: anchor pruned on drain', !('s/t' in o.judgingSince));
+  ok('LIFECYCLE judged: anchor pruned on drain', !('s/t' in (o.judgingSince || {})));
 }
 {
   const o = ov.EMPTY();
   o.epoch = 1;
-  const now = 2_000_000_000_000;
   o.edges.push({ from: 's/prune', to: 'note:n', kind: 'context', weight: 0, by: 'autowire', judged: false, score: 0.4 });
   ov.markEagerJudge(o, 's/prune');
-  o.judgingSince['s/prune'] = now - 30_000;
-  ok('LIFECYCLE prune seed: start_task rejection path HOLDS before verdict', held(o, 's/prune', now, HOUR) === true);
+  ok('LIFECYCLE prune seed: gate HOLDS before verdict', held(o, 's/prune') === true);
 
   // PRUNE the edge via the same primitive routes/judge.js uses for pruneEdge verdicts.
   ov.removeEdge(o, 's/prune', 'note:n', null, 'context');
   if (judge.unverifiedEdgesForNode(o, 's/prune').length === 0) ov.clearJudgingSince(o, 's/prune');
   ok('LIFECYCLE pruned: edge gone', o.edges.length === 0);
-  ok('LIFECYCLE pruned: start_task rejection path clears after prune', held(o, 's/prune', now, HOUR) === false);
-  ok('LIFECYCLE pruned: anchor pruned on drain', !('s/prune' in o.judgingSince));
+  ok('LIFECYCLE pruned: gate clears after prune', held(o, 's/prune') === false);
 }
 {
-  // TIMEOUT FALLBACK: a node whose judgment STALLS (edge never judged) past the timeout falls back —
-  // gate releases (not held) but the node is FLAGGED provisional. Proves no permanent deadlock.
+  // STRICT NO-RELEASE: a node whose judgment STALLS (edge never judged) is held INDEFINITELY — there
+  // is no timeout that releases it. Recovery is the drain CLI, not a clock. Proves the P6 invariant:
+  // the only exit from 'judging' is an actual verdict (keep/prune), not the passage of time.
   const o = ov.EMPTY();
   o.epoch = 1;
   const now = 2_000_000_000_000;
   o.edges.push({ from: 's/stall', to: 'note:z', kind: 'context', weight: 0, by: 'autowire', judged: false });
   ov.markEagerJudge(o, 's/stall');
-  o.judgingSince['s/stall'] = now - 2 * HOUR;  // 2h ago, judgment never happened
-  ok('STALL: gate does NOT hold (timed out → released)', held(o, 's/stall', now, HOUR) === false);
-  ok('STALL: node FLAGGED provisional (context not silently trusted)', flagged(o, 's/stall', now, HOUR) === true);
-  ok('STALL: a tiny configurable timeout flips it immediately', flagged(o, 's/stall', now, 1) === true);
+  o.judgingSince = { 's/stall': now - 100 * HOUR };  // ancient — under the OLD gate this would release
+  o.timestamps = { 's/stall': { firstSeen: new Date(now - 100 * HOUR).toISOString() } };
+  ok('STALL: gate STILL HOLDS after an arbitrarily long wait (no time-release)', held(o, 's/stall') === true);
+  ok('STALL: never flagged provisional (timedOut pinned false)', judge.judgingState(o, 's/stall').timedOut === false);
+  // The ONLY way out: judge the edge (the drain CLI / eager judge does exactly this).
+  judge.keepEdge(o, 's/stall', 'note:z');
+  ok('STALL: a verdict (what the drain CLI applies) is what releases it', held(o, 's/stall') === false);
 }
 
 console.log('-----');

@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/fix-codex-task-transcript-attribution",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-25015-0c9867064518cdb01243b27b2624639f",
+  "branch": "orch/attempt/codex-fix-codex-task-transcript-attribution",
+  "status": "done",
+  "claimed_at": "2026-06-23T04:00:09.104Z",
+  "lease_until": "2026-06-23T05:00:09.104Z",
+  "completed_at": "2026-06-23T04:11:55.763Z"
+}

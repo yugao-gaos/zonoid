@@ -25,8 +25,10 @@ directory (or individual .done files) to re-run from scratch.
 
 Arms
 ----
---arms is a comma-separated subset of:  our-way, search, cold, distill, combined
+--arms is a comma-separated subset of:  our-way, our-way-prod, search, cold, distill, combined
 Default: our-way,search,cold (all three).
+Add our-way-prod to ALSO retrieve context through the production agentic + LLM-grader path
+  (POST /subconscious/search-context) alongside the frozen-DAG our-way arm — measures the grader delta.
 Add distill to compare LLM fact-distillation against raw-chunk ingest.
 Add combined to merge both ingest paths (production-equivalent retrieval).
 
@@ -161,7 +163,8 @@ def _run_conv(
 
     n = 0
     for probe in probes:
-        # Standard arms (our-way, search, cold) — dag-combined has its own dispatch below.
+        # Standard arms (our-way, our-way-prod, search, cold) — distill/combined/dag-combined have
+        # their own dispatch below.
         standard_arms = [a for a in arms if a not in ("distill", "combined", "dag-combined")]
         if standard_arms:
             all_records = run_probe(
@@ -170,6 +173,7 @@ def _run_conv(
                 conv_id=conv_id,
                 probe=probe,
                 candidates=candidates,
+                arms=arms,
             )
             for rec in all_records:
                 if rec["arm"] in arms:
@@ -252,7 +256,10 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default="our-way,search,cold",
         help=(
             "Comma-separated arms to run (default: our-way,search,cold). "
-            "Also: distill, combined. "
+            "Also: our-way-prod, distill, combined. "
+            "our-way-prod retrieves context through the production agentic + LLM-grader path "
+            "(POST /subconscious/search-context) alongside the frozen-DAG our-way arm to measure "
+            "the grader delta. "
             "combined merges raw-chunk + distill retrieval pools (auto-enables distill ingest)."
         ),
     )
@@ -345,7 +352,7 @@ def main(argv: list[str] | None = None) -> int:
     results_path = os.path.join(output_dir, "results.jsonl")
 
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
-    valid_arms = {"our-way", "search", "cold", "distill", "combined", "dag-combined"}
+    valid_arms = {"our-way", "our-way-prod", "search", "cold", "distill", "combined", "dag-combined"}
     bad = [a for a in arms if a not in valid_arms]
     if bad:
         print(f"ERROR: unknown arm(s): {bad}. Valid: {sorted(valid_arms)}", file=sys.stderr)

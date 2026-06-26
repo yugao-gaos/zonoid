@@ -1,0 +1,10 @@
+{
+  "task_key": "codex/review-state-daemon-queues",
+  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
+  "session_id": "codex-mcp-49580-20d3c2a9e712ab41fd7136bee6af6c87",
+  "branch": "orch/attempt/codex-review-state-daemon-queues",
+  "status": "done",
+  "claimed_at": "2026-06-22T20:50:33.077Z",
+  "lease_until": "2026-06-22T21:50:33.077Z",
+  "completed_at": "2026-06-22T21:03:20.023Z"
+}

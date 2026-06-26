@@ -290,6 +290,170 @@ test('no pending queue repos → runDueDrains skips with no_due_drains (flag ON,
   }
 });
 
+test('runDueDrains does not merge approved tested tasks', async () => {
+  const saved = process.env.ORCH_HEADLESS_DRAINS;
+  process.env.ORCH_HEADLESS_DRAINS = '1';
+  const hd = freshModule();
+  const overlayStore = require('../lib/overlay');
+  const o = overlayStore.EMPTY();
+  const key = 'codex/review-pending';
+  overlayStore.setStatus(o, key, 'tested');
+  overlayStore.setReviewLifecycle(o, key, {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'pending',
+  });
+  const calls = [];
+  try {
+    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, noopHttp(), {
+      reviewMergeDeps: {
+        overlay: o,
+        overlayStore,
+        mergeTask: async (candidate) => {
+          calls.push(['merge', candidate.key]);
+          return { merged: true, head: 'abc123' };
+        },
+        promoteTask: async (candidate, merge) => {
+          calls.push(['promote', candidate.key, merge.head]);
+          overlayStore.setStatus(o, candidate.key, 'done');
+          overlayStore.setReviewLifecycle(o, candidate.key, { review_state: 'landed', merge_state: 'merged', merge_sha: merge.head });
+          return { ok: true };
+        },
+      },
+    });
+    assert.equal(result.ran, 0);
+    assert.deepEqual(calls, []);
+    assert.equal(o.status[key], 'tested');
+    assert.equal(overlayStore.reviewLifecycleFor(o, key, 'tested').merge_state, 'pending');
+  } finally {
+    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
+    else process.env.ORCH_HEADLESS_DRAINS = saved;
+  }
+});
+
+test('review merge drain promotes already-merged tested task to done', async () => {
+  const hd = freshModule();
+  const overlayStore = require('../lib/overlay');
+  const o = overlayStore.EMPTY();
+  const key = 'codex/review-already-merged';
+  overlayStore.setStatus(o, key, 'tested');
+  overlayStore.setReviewLifecycle(o, key, {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'merged',
+    merge_sha: 'def456',
+  });
+  const calls = [];
+  const result = await hd.runReviewMergeDrain(os.tmpdir(), {
+    overlay: o,
+    overlayStore,
+    mergeTask: async (candidate) => {
+      calls.push(['merge', candidate.key]);
+      return { merged: true };
+    },
+    promoteTask: async (candidate, merge) => {
+      calls.push(['promote', candidate.key, merge.head || candidate.merge_sha]);
+      overlayStore.setStatus(o, candidate.key, 'done');
+      return { ok: true };
+    },
+  });
+  assert.equal(result.ran, 1);
+  assert.deepEqual(calls, [['promote', key, 'def456']]);
+  assert.equal(o.status[key], 'done');
+});
+
+test('review merge drain repairs ready task that already has merged metadata', async () => {
+  const hd = freshModule();
+  const overlayStore = require('../lib/overlay');
+  const o = overlayStore.EMPTY();
+  const key = 'codex/review-ready-merged';
+  overlayStore.setStatus(o, key, 'ready');
+  overlayStore.setReviewLifecycle(o, key, {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'merged',
+    merge_sha: 'def456',
+  });
+  const calls = [];
+  const result = await hd.runReviewMergeDrain(os.tmpdir(), {
+    overlay: o,
+    overlayStore,
+    mergeTask: async (candidate) => {
+      calls.push(['merge', candidate.key]);
+      return { merged: true };
+    },
+    promoteTask: async (candidate, merge) => {
+      calls.push(['promote', candidate.key, merge.head || candidate.merge_sha]);
+      overlayStore.setStatus(o, candidate.key, 'done');
+      return { ok: true };
+    },
+  });
+  assert.equal(result.ran, 1);
+  assert.deepEqual(calls, [['promote', key, 'def456']]);
+  assert.equal(o.status[key], 'done');
+});
+
+test('review merge drain does not merge ready task that only has pending review metadata', async () => {
+  const hd = freshModule();
+  const overlayStore = require('../lib/overlay');
+  const o = overlayStore.EMPTY();
+  const key = 'codex/review-ready-pending';
+  overlayStore.setStatus(o, key, 'ready');
+  overlayStore.setReviewLifecycle(o, key, {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'pending',
+  });
+  const calls = [];
+  const result = await hd.runReviewMergeDrain(os.tmpdir(), {
+    overlay: o,
+    overlayStore,
+    mergeTask: async (candidate) => {
+      calls.push(['merge', candidate.key]);
+      return { merged: true };
+    },
+    promoteTask: async (candidate) => {
+      calls.push(['promote', candidate.key]);
+      return { ok: true };
+    },
+  });
+  assert.equal(result.ran, 0);
+  assert.deepEqual(calls, []);
+  assert.equal(o.status[key], 'ready');
+});
+
+test('review merge drain leaves merge conflicts visible and does not promote', async () => {
+  const hd = freshModule();
+  const overlayStore = require('../lib/overlay');
+  const o = overlayStore.EMPTY();
+  const key = 'codex/review-conflict';
+  overlayStore.setStatus(o, key, 'tested');
+  overlayStore.setReviewLifecycle(o, key, {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'pending',
+  });
+  const calls = [];
+  const result = await hd.runReviewMergeDrain(os.tmpdir(), {
+    overlay: o,
+    overlayStore,
+    mergeTask: async (candidate) => {
+      calls.push(['merge', candidate.key]);
+      overlayStore.setReviewLifecycle(o, candidate.key, { merge_state: 'conflict' });
+      return { merged: false, conflict: true, files: ['lib/a.js'] };
+    },
+    promoteTask: async (candidate) => {
+      calls.push(['promote', candidate.key]);
+      return { ok: true };
+    },
+  });
+  assert.equal(result.ran, 1);
+  assert.deepEqual(calls, [['merge', key]]);
+  assert.equal(o.status[key], 'tested');
+  assert.equal(overlayStore.reviewLifecycleFor(o, key, 'tested').merge_state, 'conflict');
+  assert.equal(result.drains[0].conflict, true);
+});
+
 // ---------------------------------------------------------------------------
 // Test 2b: clean drains snapshot .graph changes to git
 // ---------------------------------------------------------------------------
@@ -790,12 +954,12 @@ test('effectiveConfig defaults timeoutMs to 5 minutes', () => {
   }
 });
 
-test('effectiveConfig defaults drain concurrency to 12', () => {
+test('effectiveConfig defaults drain concurrency to 4', () => {
   const saved = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   try {
     const hd = freshModule();
-    assert.equal(hd.effectiveConfig().maxConcurrency, 12);
+    assert.equal(hd.effectiveConfig().maxConcurrency, 4);
   } finally {
     if (saved === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = saved;
@@ -1772,7 +1936,7 @@ test('isThrottled detects 429/529/overloaded/rate-limit; false for a clean resul
 test('recordDrainOutcome: LLM trouble sets a short fixed backoff; a clean run resets it', () => {
   const hd = freshModule();
   const T0 = 1_000_000;
-  const { baseMs, capMs } = hd.backoffConfig();
+  const { baseMs, capMs, hardFailureMs } = hd.backoffConfig();
   hd.recordDrainOutcome({ stderr: '429' }, T0);
   assert.equal(hd._governor.consecutiveThrottles, 1);
   assert.equal(hd._governor.backoffUntil, T0 + baseMs, 'first throttle = base window');
@@ -1784,7 +1948,7 @@ test('recordDrainOutcome: LLM trouble sets a short fixed backoff; a clean run re
   assert.equal(hd._governor.backoffUntil, T0 + capMs);
   hd.recordDrainOutcome({ exitCode: 127, stderr: 'missing binary' }, T0);
   assert.equal(hd._governor.consecutiveThrottles, 4);
-  assert.equal(hd._governor.backoffUntil, T0 + capMs);
+  assert.equal(hd._governor.backoffUntil, T0 + hardFailureMs, 'hard spawn failures get a longer pause');
   hd.recordDrainOutcome({ exitCode: 0, stdout: 'done' }, T0); // clean run resets
   assert.equal(hd._governor.consecutiveThrottles, 0);
   assert.equal(hd._governor.backoffUntil, 0, 'clean run clears the backoff');

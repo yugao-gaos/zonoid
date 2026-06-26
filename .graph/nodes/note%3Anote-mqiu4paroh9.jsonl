@@ -13,3 +13,11 @@
 {"evt":"edge_added","from":"note:note-mqiu4paroh9","to":"note:note-mqitzwyyknu","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.644,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqiu4paroh9","to":"note:note-mqftu5i57j0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.614,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqiu4paroh9","to":"bench/bench-trial-12-6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.759,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqiu4paroh9","to":"note:note-mqf624kvlk9","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:22.040Z"}
+{"evt":"edge_removed","from":"note:note-mqiu4paroh9","to":"note:note-mqitzwyyknu","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:22.040Z"}
+{"evt":"edge_removed","from":"note:note-mqiu4paroh9","to":"note:note-mqftu5i57j0","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:22.040Z"}
+{"evt":"edge_removed","from":"note:note-mqiu4paroh9","to":"bench/bench-trial-12-6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:22.040Z"}
+{"evt":"edge_added","from":"note:note-mqiu4paroh9","to":"note:note-mqiu51a07d3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T21:12:44.502Z","by":"judge","judged":true}
+{"evt":"edge_added","from":"note:note-mqiu4paroh9","to":"note:note-mqf624kvlk9","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.649,"by":"judge","judged":true,"score":0.649,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqiu4paroh9","to":"bench/bench-trial-12-6","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.759,"by":"judge","judged":true,"score":0.759,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqiu4paroh9","to":"note:note-mqiu51a07d3","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}

@@ -59,6 +59,22 @@ function readyOverlay(ws, tasks) {
   daemon.__setOverlayForTest(ov);
 }
 
+function testedReviewOverlay(ws, key, lifecycle) {
+  const ov = overlayStore.EMPTY();
+  overlayStore.setSnapshot(ov, key, {
+    subject: key,
+    description: key,
+    status: 'pending',
+    blockedBy: [],
+    owner: null,
+    metadata: {},
+  });
+  overlayStore.setStatus(ov, key, 'tested');
+  overlayStore.setReviewLifecycle(ov, key, lifecycle);
+  daemon.__setWorkspaceForTest(ws);
+  daemon.__setOverlayForTest(ov);
+}
+
 function loopsById() {
   return daemon.__getLoopsForTest();
 }
@@ -120,6 +136,52 @@ test('daemon ensure creates managed graph loop before next_action is consumed', 
   const decisions = daemon.decideAll();
   assert.equal(decisions[0].loopId, loopId);
   assert.equal(decisions[0].action, 'spawn');
+});
+
+test('tested task with pending review creates managed loop and surfaces review action', () => {
+  const ws = registerWorkspace('pending-review');
+  testedReviewOverlay(ws, 'codex/pending-review', {
+    review_state: 'requested',
+    merge_state: 'review_pending',
+  });
+
+  const decisions = daemon.decideAll();
+  const loopId = managedGraphLoopId(ws);
+
+  assert.equal(decisions.length, 1);
+  assert.equal(decisions[0].loopId, loopId);
+  assert.equal(decisions[0].action, 'review');
+  assert.equal(decisions[0].task.key, 'codex/pending-review');
+});
+
+test('approved tested task surfaces explicit merge action instead of hidden drain work', () => {
+  const ws = registerWorkspace('pending-merge');
+  testedReviewOverlay(ws, 'codex/pending-merge', {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'pending',
+  });
+
+  const decisions = daemon.decideAll();
+
+  assert.equal(decisions.length, 1);
+  assert.equal(decisions[0].action, 'merge');
+  assert.equal(decisions[0].task.key, 'codex/pending-merge');
+});
+
+test('conflicted tested task surfaces conflict resolution action', () => {
+  const ws = registerWorkspace('merge-conflict');
+  testedReviewOverlay(ws, 'codex/merge-conflict', {
+    review_state: 'approved',
+    review_verdict: 'APPROVE',
+    merge_state: 'conflict',
+  });
+
+  const decisions = daemon.decideAll();
+
+  assert.equal(decisions.length, 1);
+  assert.equal(decisions[0].action, 'resolve_merge_conflict');
+  assert.equal(decisions[0].task.key, 'codex/merge-conflict');
 });
 
 test('active managed graph loop is reused, while foreground session loop may coexist', () => {

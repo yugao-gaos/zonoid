@@ -116,6 +116,33 @@ test('subconscious event keeps bounded per-agent recent state', async () => {
   assert.equal(res.body.recent_agent_events[1].text, 'third');
 });
 
+test('subconscious execution brain memory and state counters are store-local', async () => {
+  const ws = makeWorkspace();
+  const storeA = createSubconsciousStore();
+  const storeB = createSubconsciousStore();
+
+  const eventA = storeA.recordEvent({ workspace: ws, agent_id: 'agent-a', type: 'step', text: 'a' });
+  const eventB = storeB.recordEvent({ workspace: ws, agent_id: 'agent-b', type: 'step', text: 'b' });
+
+  assert.equal(eventA.event.id, 'subevt-1');
+  assert.equal(eventB.event.id, 'subevt-1');
+
+  const permitInput = {
+    workspace: ws,
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
+    worktree: `${ws}/wt`,
+    branch: 'orch/attempt/task-anchor',
+    now: '2026-06-21T13:00:00.000Z',
+  };
+  const permitA = storeA.issueExecutionPermit(permitInput);
+  const permitB = storeB.issueExecutionPermit(permitInput);
+
+  assert.equal(permitA.execution_permit.id, 'subpermit-1');
+  assert.equal(permitB.execution_permit.id, 'subpermit-1');
+});
+
 test('subconscious loop store keeps bounded observations isolated by identity', async () => {
   const ws = makeWorkspace();
   const otherWs = makeWorkspace();
@@ -679,7 +706,12 @@ test('subconscious execution permit store issues reads and revokes scoped permit
 test('subconscious execution permit routes issue read and revoke permits', async () => {
   const ws = makeWorkspace();
   const store = createSubconsciousStore();
-  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null });
+  const ov = overlayStore.EMPTY();
+  ov.status['task/anchor'] = 'in_progress';
+  ov.claimSessions['task/anchor'] = 'session-a';
+  ov.assignee['task/anchor'] = 'agent-a';
+  ov.git['task/anchor'] = { branch: 'orch/attempt/task-anchor', worktree: `${ws}/wt` };
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null, overlay: ov });
 
   const issued = await callRoute(ctx, '/subconscious/permit', {
     workspace: ws,
@@ -721,7 +753,54 @@ test('subconscious execution permit routes issue read and revoke permits', async
   assert.equal(revoked.body.execution_permit.status, 'revoked');
 });
 
-test('subconscious assignment prepare creates assignment envelope and wires task judge and worktree', async () => {
+test('subconscious execution permit issue requires verified active claim', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore();
+  const ov = overlayStore.EMPTY();
+  ov.status['task/anchor'] = 'in_progress';
+  ov.claimSessions['task/anchor'] = 'session-a';
+  ov.assignee['task/anchor'] = 'agent-a';
+  ov.git['task/anchor'] = { branch: 'orch/attempt/task-anchor', worktree: `${ws}/wt` };
+  const ctx = makeCtx({ graph: { tasks: [] }, workspace: ws, store, body: null, overlay: ov });
+
+  const wrongSession = await callRoute(ctx, '/subconscious/permit', {
+    workspace: ws,
+    action: 'issue',
+    session_id: 'other-session',
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
+    worktree: `${ws}/wt`,
+    branch: 'orch/attempt/task-anchor',
+  });
+  assert.equal(wrongSession.status, 409);
+  assert.match(wrongSession.body.error, /verified active claim/);
+
+  const wrongWorktree = await callRoute(ctx, '/subconscious/permit', {
+    workspace: ws,
+    action: 'issue',
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
+    worktree: `${ws}/other`,
+    branch: 'orch/attempt/task-anchor',
+  });
+  assert.equal(wrongWorktree.status, 409);
+  assert.match(wrongWorktree.body.error, /verified active claim/);
+
+  const issued = await callRoute(ctx, '/subconscious/permit', {
+    workspace: ws,
+    action: 'issue',
+    session_id: 'session-a',
+    agent_id: 'agent-a',
+    task_key: 'task/anchor',
+    worktree: `${ws}/wt`,
+    branch: 'orch/attempt/task-anchor',
+  });
+  assert.equal(issued.status, 200);
+  assert.equal(issued.body.valid, true);
+});
+
+test('subconscious assignment prepare records same-node review request without visible judge task', async () => {
   const ws = makeWorkspace();
   const store = createSubconsciousStore();
   const ov = overlayStore.EMPTY();
@@ -743,7 +822,13 @@ test('subconscious assignment prepare creates assignment envelope and wires task
   ctx.resolveRepo = (key, repoPath, overlay, workspace) => repoPath || workspace;
   ctx.git = {
     isRepo(repo) { calls.push({ fn: 'isRepo', repo }); return true; },
+    isRepoAsync(repo) { calls.push({ fn: 'isRepo', repo }); return true; },
+    initRepoAsync(repo) { calls.push({ fn: 'initRepo', repo }); return { initialized: false, head: 'abc123' }; },
     createWorktree(repo, key, options) {
+      calls.push({ fn: 'createWorktree', repo, key, options });
+      return { branch: 'orch/attempt/codex-impl', worktree: path.join(ws, 'attempt'), head: 'abc123' };
+    },
+    createWorktreeAsync(repo, key, options) {
       calls.push({ fn: 'createWorktree', repo, key, options });
       return { branch: 'orch/attempt/codex-impl', worktree: path.join(ws, 'attempt'), head: 'abc123' };
     },
@@ -765,20 +850,52 @@ test('subconscious assignment prepare creates assignment envelope and wires task
   assert.equal(res.status, 200);
   assert.equal(res.body.ok, true);
   assert.equal(res.body.assignment.task_key, 'codex/impl');
-  assert.equal(res.body.assignment.judge_task_key, 'codex/impl-judge');
+  assert.equal(res.body.assignment.judge_task_key, null);
+  assert.equal(res.body.assignment.review_task_key, 'codex/impl');
+  assert.equal(res.body.assignment.review_requested, true);
+  assert.equal(res.body.assignment.review_state, 'requested');
+  assert.equal(res.body.assignment.legacy_judge_task_key, 'codex/impl-judge');
+  assert.equal(res.body.judge_task_key, null);
+  assert.equal(res.body.review_task_key, 'codex/impl');
+  assert.equal(res.body.review_requested, true);
+  assert.equal(res.body.legacy_judge_task_key, 'codex/impl-judge');
   assert.equal(res.body.assignment.branch, 'orch/attempt/codex-impl');
   assert.equal(res.body.assignment.worktree, path.join(ws, 'attempt'));
   assert.equal(res.body.assignment.repo_path, ws);
   assert.equal(res.body.assignment.next_expected_worker_action, 'subconscious_assignment.accept');
   assert.deepEqual(res.body.assignment.context.parent_task_keys, ['codex/parent']);
   assert.deepEqual(res.body.assignment.context.context_task_keys, ['note:ctx']);
+  assert.equal(res.body.assignment.progressive_disclosure_context.version, 1);
+  assert.strictEqual(
+    res.body.assignment.context.progressive_disclosure_context,
+    res.body.assignment.progressive_disclosure_context
+  );
+  assert.equal(res.body.assignment.progressive_disclosure_context.kind, 'subconscious_progressive_disclosure_context');
+  assert.equal(res.body.assignment.progressive_disclosure_context.layer1.task.key, 'codex/impl');
+  assert.match(res.body.assignment.progressive_disclosure_context.layer1.next_action, /subconscious_assignment\.accept/);
+  assert.deepEqual(
+    res.body.assignment.progressive_disclosure_context.layer2.dependency_summaries.map((item) => [item.key, item.via, item.priority]),
+    [['codex/parent', 'blocking', 1], ['note:ctx', 'context', 2]]
+  );
+  assert.deepEqual(
+    res.body.assignment.progressive_disclosure_context.layer3.related_tasks.map((item) => item.key),
+    ['codex/parent']
+  );
+  assert.deepEqual(
+    res.body.assignment.progressive_disclosure_context.layer3.related_notes.map((item) => item.key),
+    ['note:ctx']
+  );
   assert.equal(ov.snapshots['codex/impl'].subject, 'Implement assignment facade');
-  assert.equal(ov.snapshots['codex/impl-judge'].subject, 'Judge codex/impl');
+  assert.equal(ov.snapshots['codex/impl-judge'], undefined);
   assert(ov.edges.some((e) => e.from === 'codex/parent' && e.to === 'codex/impl' && !e.kind));
   assert(ov.edges.some((e) => e.from === 'note:ctx' && e.to === 'codex/impl' && e.kind === 'context'));
-  assert(ov.edges.some((e) => e.from === 'codex/impl' && e.to === 'codex/impl-judge' && !e.kind));
+  assert(!ov.edges.some((e) => e.from === 'codex/impl' && e.to === 'codex/impl-judge'));
   assert.equal(ov.repos['codex/impl'], ws);
-  assert.equal(ov.repos['codex/impl-judge'], ws);
+  assert.equal(ov.repos['codex/impl-judge'], undefined);
+  assert.equal(ov.reviews['codex/impl'].review_state, 'requested');
+  assert.equal(ov.reviews['codex/impl'].merge_state, 'review_pending');
+  assert.equal(ov.reviews['codex/impl'].legacy_judge_task_key, 'codex/impl-judge');
+  assert.equal(ov.reviews['codex/impl'].review_requested_at, '2026-06-21T12:00:00.000Z');
   assert.equal(ov.config.test_cmds[ws], 'npm test');
   assert.equal(ov.git['codex/impl'].worktree, path.join(ws, 'attempt'));
   assert(calls.some((call) => call.fn === 'createWorktree' && call.key === 'codex/impl' && call.options.base === 'orch/feature/test'));
@@ -819,6 +936,10 @@ test('subconscious search-context returns filtered multi-step DAG and RAG envelo
   assert.equal(res.status, 200);
   assert.equal(res.body.ok, true);
   assert.equal(res.body.subconscious_context.kind, 'subconscious_agentic_search_context');
+  assert.equal(res.body.human_summary, res.body.subconscious_context.human_summary);
+  assert.match(res.body.subconscious_context.human_summary, /^Subconscious context brief:/);
+  assert.doesNotMatch(res.body.subconscious_context.human_summary, /^For "/);
+  assert.match(res.body.subconscious_context.human_summary, /foreground agent/);
   const modes = res.body.subconscious_context.search_steps.map((step) => step.mode);
   assert.equal(modes[0], 'dag_task_gated');
   assert(modes.length >= 1 && modes.length <= 4);
@@ -1014,6 +1135,8 @@ test('subconscious search-context abstains when evidence quality is insufficient
   assert.deepEqual(res.body.subconscious_context.context_task_keys, []);
   assert.deepEqual(res.body.subconscious_context.context_deps, []);
   assert.deepEqual(res.body.subconscious_context.context, []);
+  assert.match(res.body.subconscious_context.human_summary, /^Subconscious context brief: no foreground context cleared/);
+  assert.match(res.body.subconscious_context.human_summary, /Treat this as an abstain result/);
   assert(res.body.subconscious_context.decisions.stop_reason);
   assert(res.body.subconscious_context.confidence < 0.42);
 });
@@ -1046,7 +1169,13 @@ test('subconscious assignment prepare carries and wires agentic search context e
   ctx.resolveRepo = (key, repoPath, overlay, workspace) => repoPath || workspace;
   ctx.git = {
     isRepo(repo) { calls.push({ fn: 'isRepo', repo }); return true; },
+    isRepoAsync(repo) { calls.push({ fn: 'isRepo', repo }); return true; },
+    initRepoAsync(repo) { calls.push({ fn: 'initRepo', repo }); return { initialized: false, head: 'abc123' }; },
     createWorktree(repo, key, options) {
+      calls.push({ fn: 'createWorktree', repo, key, options });
+      return { branch: 'orch/attempt/codex-impl', worktree: path.join(ws, 'attempt'), head: 'abc123' };
+    },
+    createWorktreeAsync(repo, key, options) {
       calls.push({ fn: 'createWorktree', repo, key, options });
       return { branch: 'orch/attempt/codex-impl', worktree: path.join(ws, 'attempt'), head: 'abc123' };
     },
@@ -1072,6 +1201,14 @@ test('subconscious assignment prepare carries and wires agentic search context e
   assert(res.body.assignment.context.agentic_search_context.decisions.stop_reason);
   assert(res.body.assignment.context.context_task_keys.includes('note:dag'));
   assert(res.body.assignment.context.dependency_summaries.some((summary) => summary.key === 'note:dag' && summary.via === 'subconscious_agentic_search'));
+  const progressiveContext = res.body.assignment.progressive_disclosure_context;
+  assert(progressiveContext.layer2.dependency_summaries.some((summary) =>
+    summary.key === 'note:dag' &&
+    summary.via === 'subconscious_agentic_search' &&
+    summary.priority === 1
+  ));
+  assert(progressiveContext.layer2.dependency_summaries.every((summary) => String(summary.summary || '').length <= 360));
+  assert.equal(progressiveContext.layer3.full_trace.href, '/task/detail?key=codex%2Fimpl&include_internal=1');
   assert(ov.edges.some((edge) =>
     edge.from === 'note:dag' &&
     edge.to === 'codex/impl' &&
@@ -1080,6 +1217,51 @@ test('subconscious assignment prepare carries and wires agentic search context e
     edge.judged === true &&
     edge.origin === 'subconscious-agentic-search'
   ));
+});
+
+test('subconscious assignment read includes progressive disclosure from graph dependencies', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore();
+  const ov = overlayStore.EMPTY();
+  overlayStore.setGit(ov, 'codex/read', {
+    branch: 'orch/attempt/codex-read',
+    worktree: path.join(ws, 'attempt'),
+  });
+  const ctx = makeCtx({
+    graph: {
+      tasks: [
+        node('codex/read', 'Read assignment context', {
+          status: 'in_progress',
+          deps: ['codex/blocker'],
+          context_deps: ['note:ctx'],
+          summary: 'Read route should reconstruct cheap live-agent context.',
+        }),
+        node('codex/blocker', 'Blocking prerequisite', { summary: 'blocking summary' }),
+        node('note:ctx', 'Context note', { kind: 'note', summary: 'context summary' }),
+      ],
+    },
+    workspace: ws,
+    store,
+    body: null,
+    overlay: ov,
+  });
+
+  const res = await callRoute(
+    ctx,
+    `/subconscious/assignment?workspace=${encodeURIComponent(ws)}&task_key=codex%2Fread`,
+    null,
+    'GET'
+  );
+
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.assignment.context.parent_task_keys, ['codex/blocker']);
+  assert.deepEqual(res.body.assignment.context.context_task_keys, ['note:ctx']);
+  assert.equal(res.body.assignment.progressive_disclosure_context.layer1.blockers[0].key, 'codex/blocker');
+  assert.deepEqual(
+    res.body.assignment.progressive_disclosure_context.layer2.dependency_summaries.map((item) => item.key),
+    ['codex/blocker', 'note:ctx']
+  );
+  assert.equal(res.body.assignment.progressive_disclosure_context.layer3.prior_attempts[0].label, 'orch/attempt/codex-read');
 });
 
 test('subconscious_loop MCP tool forwards to loop routes', async () => {
@@ -1948,6 +2130,256 @@ test('subconscious skill records third-party recommendations without applying cl
   assert.equal(listed.body.recommendations[0].decision_id, recommendation.body.decision.decision_id);
   assert.equal(getActiveSkillVersion(ws, { target_path: skillPath }).version_id, active.version_id);
   assert.equal(fs.readFileSync(skillPath, 'utf8'), 'third-party installed skill file\n');
+});
+
+// ---------------------------------------------------------------------------------------------------
+// LLM-GRADER integration tests (task #4). The grader is the ADDITIVE controller layer; these assert
+// the four BINDING constraints: (a) the loop invokes the grader and respects continue/nextQuery/kept/
+// aggregate; (b) the returned set is never fewer/worse than the single-shot + structural FLOOR; (c)
+// grader `abstain` keeps the floor (never empties); (d) the round cap holds. All use a MOCKED backend
+// (zero network) injected via ctx.graderBackend, enabled per-request with use_grader:true.
+// ---------------------------------------------------------------------------------------------------
+
+// Build a mock grader backend that returns a scripted JSON verdict per call (round-indexed). Records
+// every call so tests can assert the loop invoked it and what candidates/intent it saw.
+function mockGraderBackend(scripts, log) {
+  let call = 0;
+  return {
+    async complete({ prompt, system }) {
+      const idx = call;
+      call += 1;
+      if (log) log.push({ call: idx, prompt, system });
+      const script = typeof scripts === 'function' ? scripts(idx, prompt) : (scripts[idx] || scripts[scripts.length - 1]);
+      const verdict = typeof script === 'function' ? script(prompt) : script;
+      return { text: JSON.stringify(verdict) };
+    },
+  };
+}
+
+// Shared graph fixture with a guaranteed heuristic FLOOR: a task-gated DAG context note (always
+// selected as structural evidence) plus a couple of broad notes the grader can keep/add.
+function graderGraph() {
+  return {
+    tasks: [
+      node('task/target', 'Grader integration target', {
+        status: 'ready',
+        context_deps: ['note:dag'],
+        context_weights: { 'note:dag': 0.95 },
+      }),
+      node('note:dag', 'DAG floor context', {
+        kind: 'note',
+        summary: 'Task-gated DAG floor context is the guaranteed structural floor for worker assignment.',
+      }),
+      node('note:broad', 'Broad RAG context', {
+        kind: 'note',
+        summary: 'Broad RAG assignment context the grader may keep or add on top of the floor.',
+      }),
+    ],
+  };
+}
+
+test('grader integration: loop invokes grader and respects continue/nextQuery/kept/aggregate', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const log = [];
+  const ctx = makeCtx({ graph: graderGraph(), workspace: ws, store, body: null });
+  // Round 1: continue with a reformulated query; round 2: stop, keep the DAG floor note, aggregate.
+  ctx.graderBackend = mockGraderBackend([
+    { continue: true, nextQuery: 'reformulated intent-driven query', kept: ['note:dag'], abstain: false, aggregate: 'partial' },
+    { continue: false, nextQuery: null, kept: ['note:dag'], abstain: false, aggregate: 'final aggregate summary' },
+  ], log);
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    use_grader: true,
+    max_rounds: 4,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  // (a) the grader was invoked.
+  assert(log.length >= 1, 'grader backend was called at least once');
+  assert.equal(res.body.subconscious_context.grader.enabled, true);
+  assert(res.body.subconscious_context.grader.rounds >= 1);
+  // it respected nextQuery — a later search step carries the grader's reformulated query.
+  const steps = res.body.subconscious_context.search_steps;
+  assert(steps.some((s) => s.grader_reformulated === true && s.query === 'reformulated intent-driven query'),
+    'a follow-up step used the grader reformulated query');
+  // it respected kept — the kept DAG note is in the returned context.
+  assert(res.body.context_task_keys.includes('note:dag'));
+  // it respected aggregate — the final aggregate is surfaced.
+  assert.equal(res.body.subconscious_context.grader.aggregate, 'final aggregate summary');
+  assert.equal(res.body.grader.aggregate, 'final aggregate summary');
+  // it respected continue:false — the loop stopped on the grader's terminal verdict.
+  assert(['grader_stop', 'grader_fallback_stop', 'budget_exhausted', 'grader_round_cap'].includes(res.body.subconscious_context.decisions.stop_reason));
+});
+
+test('grader integration: returned set is never fewer/worse than the single-shot + structural floor', async () => {
+  const ws = makeWorkspace();
+  const graph = graderGraph();
+
+  // Baseline: heuristic path (grader off) — capture the floor it produces.
+  const baseStore = createSubconsciousStore({ maxEvents: 5 });
+  const baseCtx = makeCtx({ graph, workspace: ws, store: baseStore, body: null });
+  const baseRes = await callRoute(baseCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    max_rounds: 4,
+  });
+  const floorKeys = new Set(baseRes.body.context_task_keys);
+  assert(floorKeys.size >= 1, 'baseline floor is non-empty for a retrieval intent');
+
+  // Grader path with the SAME inputs — grader keeps only the DAG note and abstains on the rest.
+  const gradeStore = createSubconsciousStore({ maxEvents: 5 });
+  const gradeCtx = makeCtx({ graph, workspace: ws, store: gradeStore, body: null });
+  gradeCtx.graderBackend = mockGraderBackend([
+    { continue: false, nextQuery: null, kept: ['note:dag'], abstain: false, aggregate: 'kept floor note' },
+  ]);
+  const gradeRes = await callRoute(gradeCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    use_grader: true,
+    max_rounds: 4,
+  });
+
+  // (b) superset-or-equal: every floor key is still present with the grader on.
+  const gradedKeys = new Set(gradeRes.body.context_task_keys);
+  for (const key of floorKeys) {
+    assert(gradedKeys.has(key), `grader output preserves floor key ${key}`);
+  }
+  assert(gradedKeys.size >= floorKeys.size, 'grader output is superset-or-equal in size to the floor');
+  assert.notEqual(gradeRes.body.subconscious_context.verdict, 'abstain_no_context');
+  assert.equal(gradeRes.body.subconscious_context.grader.floor_size, floorKeys.size);
+});
+
+test('grader integration: grader abstain keeps the floor (does not empty the result)', async () => {
+  const ws = makeWorkspace();
+  const graph = graderGraph();
+
+  // Baseline floor (heuristic).
+  const baseStore = createSubconsciousStore({ maxEvents: 5 });
+  const baseCtx = makeCtx({ graph, workspace: ws, store: baseStore, body: null });
+  const baseRes = await callRoute(baseCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    max_rounds: 4,
+  });
+  const floorKeys = new Set(baseRes.body.context_task_keys);
+  assert(floorKeys.size >= 1);
+
+  // Grader ABSTAINS on every round (kept empty, abstain true) — meaning "nothing to ADD beyond floor".
+  const gradeStore = createSubconsciousStore({ maxEvents: 5 });
+  const gradeCtx = makeCtx({ graph, workspace: ws, store: gradeStore, body: null });
+  gradeCtx.graderBackend = mockGraderBackend([
+    { continue: false, nextQuery: null, kept: [], abstain: true, aggregate: '' },
+  ]);
+  const gradeRes = await callRoute(gradeCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    use_grader: true,
+    max_rounds: 4,
+  });
+
+  // (c) abstain must NOT empty the result — the floor is still returned in full.
+  assert.notEqual(gradeRes.body.subconscious_context.verdict, 'abstain_no_context');
+  const gradedKeys = new Set(gradeRes.body.context_task_keys);
+  for (const key of floorKeys) {
+    assert(gradedKeys.has(key), `floor key ${key} survives grader abstain`);
+  }
+  assert(gradeRes.body.context_task_keys.length >= floorKeys.size);
+  assert.equal(gradeRes.body.subconscious_context.grader.added_beyond_floor, 0);
+});
+
+test('grader integration: round cap holds even when the grader always asks to continue', async () => {
+  const ws = makeWorkspace();
+  const store = createSubconsciousStore({ maxEvents: 5 });
+  const log = [];
+  const ctx = makeCtx({ graph: graderGraph(), workspace: ws, store, body: null });
+  // The grader ALWAYS wants another round — only the hard cap can stop the loop.
+  ctx.graderBackend = mockGraderBackend(
+    () => ({ continue: true, nextQuery: 'keep going forever', kept: ['note:dag'], abstain: false, aggregate: 'loop' }),
+    log
+  );
+
+  const res = await callRoute(ctx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context',
+    use_grader: true,
+    grader_max_rounds: 2,
+    max_rounds: 6,
+    include_internal: true,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  // (d) the cap holds: grader rounds never exceed the configured grader_max_rounds.
+  assert(res.body.subconscious_context.grader.rounds <= 2, `grader rounds (${res.body.subconscious_context.grader.rounds}) within cap 2`);
+  // and the planner search rounds never exceed the hard planner budget.
+  assert(res.body.subconscious_context.search_steps.length <= 6);
+  assert(['grader_round_cap', 'budget_exhausted'].includes(res.body.subconscious_context.decisions.stop_reason),
+    `stop reason ${res.body.subconscious_context.decisions.stop_reason} is a cap`);
+  // floor still preserved despite the runaway grader.
+  assert(res.body.context_task_keys.includes('note:dag'));
+});
+
+test('grader integration: backend failure degrades cleanly to the heuristic floor (no abstain-below-floor)', async () => {
+  const ws = makeWorkspace();
+  const graph = graderGraph();
+
+  // Floor baseline.
+  const baseStore = createSubconsciousStore({ maxEvents: 5 });
+  const baseCtx = makeCtx({ graph, workspace: ws, store: baseStore, body: null });
+  const baseRes = await callRoute(baseCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    max_rounds: 4,
+  });
+  const floorKeys = new Set(baseRes.body.context_task_keys);
+
+  // A backend that THROWS — gradeSearchRound returns its conservative fallback (stop, abstain). Because
+  // abstain is additive, the floor must still be returned (clean degrade to single-shot).
+  const gradeStore = createSubconsciousStore({ maxEvents: 5 });
+  const gradeCtx = makeCtx({ graph, workspace: ws, store: gradeStore, body: null });
+  gradeCtx.graderBackend = { async complete() { throw new Error('mock backend down'); } };
+  const gradeRes = await callRoute(gradeCtx, '/subconscious/search-context', {
+    workspace: ws,
+    agent_id: 'agent-a',
+    task_key: 'task/target',
+    intent: 'prepare worker assignment context',
+    situation: 'Need DAG and RAG assignment context before worker handoff',
+    use_grader: true,
+    max_rounds: 4,
+  });
+
+  assert.equal(gradeRes.status, 200);
+  assert.notEqual(gradeRes.body.subconscious_context.verdict, 'abstain_no_context');
+  const gradedKeys = new Set(gradeRes.body.context_task_keys);
+  for (const key of floorKeys) {
+    assert(gradedKeys.has(key), `floor key ${key} survives grader backend failure`);
+  }
 });
 
 (async () => {

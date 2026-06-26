@@ -1,10 +1,10 @@
 {
   "task_key": "codex/move-dashboard-onboarding-output-out-of-bench",
   "git_user": "yugao-gaos <yu.gao@gaos.ca>",
-  "session_id": "codex-mcp-75824-c257aa39bc338921d5f337c365871e63",
+  "session_id": "codex-mcp-19700-2f2d847f704a77668e1ecc607b294ef5",
   "branch": "orch/attempt/codex-move-dashboard-onboarding-output-out-of-bench",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-22T11:07:09.669Z",
   "lease_until": "2026-06-22T12:07:09.669Z",
-  "completed_at": "2026-06-22T11:16:03.298Z"
+  "completed_at": "2026-06-24T02:41:41.112Z"
 }

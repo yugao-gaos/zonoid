@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const overlayStore = require('../lib/overlay');
 const { defaultSubconsciousStore } = require('../lib/subconscious');
 
@@ -47,6 +48,18 @@ function defaultJudgeTaskKey(taskKey) {
   return `${taskKey.slice(0, i + 1)}${taskKey.slice(i + 1)}-judge`;
 }
 
+function wantsSameNodeReview(body) {
+  return body && (body.create_judge === true || body.judge === true || body.judge_requested === true || !!cleanString(body.judge_task_key));
+}
+
+function normalizePermitPath(value, base) {
+  const raw = String(value || '').replace(/\\/g, '/').trim();
+  if (!raw) return '';
+  const absolute = raw.startsWith('/') || /^[A-Za-z]:\//.test(raw);
+  const resolved = absolute ? raw : `${String(base || '').replace(/\\/g, '/').replace(/\/+$/, '')}/${raw}`;
+  return path.posix.normalize(resolved).replace(/\/+$/, '');
+}
+
 function activeClaimForPermit(ov, input) {
   if (!ov || !input) return null;
   const sessionId = cleanString(input.session_id);
@@ -58,11 +71,20 @@ function activeClaimForPermit(ov, input) {
   const assignee = cleanString(ov.assignee && ov.assignee[taskKey]);
   const agentId = cleanString(input.agent_id);
   if (agentId && assignee && agentId !== assignee) return null;
+  const gitInfo = ov.git && ov.git[taskKey];
+  const branch = cleanString(gitInfo && gitInfo.branch);
+  const worktree = cleanString(gitInfo && gitInfo.worktree);
+  const requestedBranch = cleanString(input.branch);
+  if (requestedBranch && branch && requestedBranch !== branch) return null;
+  const requestedWorktree = cleanString(input.worktree);
+  if (requestedWorktree && worktree && normalizePermitPath(requestedWorktree, worktree) !== normalizePermitPath(worktree)) return null;
   return {
     workspace: cleanString(input.workspace),
     session_id: sessionId,
     task_key: taskKey,
     agent_id: assignee || agentId || null,
+    branch: branch || null,
+    worktree: worktree || null,
   };
 }
 
@@ -114,6 +136,104 @@ function summaryForKey(graph, ov, key, via) {
   };
 }
 
+function truncateText(value, max = 360) {
+  const text = cleanString(value);
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 3)).trimEnd()}...`;
+}
+
+function taskForKey(graph, key) {
+  return graph && Array.isArray(graph.tasks) ? graph.tasks.find((x) => x.id === key) : null;
+}
+
+function compactDependencySummary(summary, index) {
+  return {
+    key: summary.key,
+    label: truncateText(summary.label, 120),
+    status: summary.status,
+    summary: truncateText(summary.summary, 360),
+    via: summary.via,
+    priority: index + 1,
+    weight: summary.relevance_score == null ? undefined : summary.relevance_score,
+    reason: summary.reason ? truncateText(summary.reason, 220) : null,
+  };
+}
+
+function buildProgressiveDisclosureContext(graph, ov, taskKey, dependencySummaries) {
+  const task = taskForKey(graph, taskKey);
+  const snapshot = ov.snapshots && ov.snapshots[taskKey];
+  const status = (task && task.status) || ov.status[taskKey] || (snapshot && snapshot.status) || 'pending';
+  const title = (task && task.label) || (snapshot && snapshot.subject) || taskKey;
+  const description = (snapshot && snapshot.description) || (task && task.summary) || ov.summaries[taskKey] || '';
+  const blocking = dependencySummaries
+    .filter((summary) => summary.via === 'blocking')
+    .map(compactDependencySummary);
+  const requiredContext = dependencySummaries.map(compactDependencySummary);
+  const files = new Set();
+  const attempts = [];
+  const gitInfo = (ov.git && ov.git[taskKey]) || null;
+  if (gitInfo && gitInfo.worktree) attempts.push({ task_key: taskKey, branch: gitInfo.branch || null, worktree: gitInfo.worktree });
+  const metadataFiles = snapshot && snapshot.metadata && Array.isArray(snapshot.metadata.files_in_scope)
+    ? snapshot.metadata.files_in_scope
+    : [];
+  for (const file of metadataFiles) {
+    const cleaned = cleanString(file);
+    if (cleaned) files.add(cleaned);
+  }
+  return {
+    version: 1,
+    kind: 'subconscious_progressive_disclosure_context',
+    layer1: {
+      task: {
+        key: taskKey,
+        label: truncateText(title, 140),
+        status,
+        summary: truncateText(description || title, 360),
+      },
+      why: truncateText(description || `Complete ${title}.`, 360),
+      next_action: 'Claim the assignment with subconscious_assignment.accept, work in the assigned worktree, commit changes, then complete with task_result.',
+      must_know_constraints: [
+        'Preserve existing assignment fields and consumers.',
+        'Keep default context concise; use drill-down handles for deeper payloads.',
+      ],
+      blockers: blocking,
+    },
+    layer2: {
+      dependency_summaries: requiredContext,
+      required_files: Array.from(files),
+    },
+    layer3: {
+      related_notes: requiredContext
+        .filter((summary) => String(summary.key || '').startsWith('note:'))
+        .map((summary) => ({ kind: 'note', key: summary.key, label: summary.label, summary: summary.summary, tool: 'search_knowledge' })),
+      related_tasks: requiredContext
+        .filter((summary) => !String(summary.key || '').startsWith('note:'))
+        .map((summary) => ({ kind: 'task', key: summary.key, label: summary.label, summary: summary.summary, tool: 'get_task_detail' })),
+      related_files: Array.from(files).map((path) => ({ kind: 'file', key: path, label: path, href: path })),
+      prior_attempts: attempts.map((attempt) => ({
+        kind: 'attempt',
+        key: attempt.task_key,
+        label: attempt.branch || attempt.task_key,
+        href: attempt.worktree,
+      })),
+      full_trace: {
+        kind: 'trace',
+        key: taskKey,
+        label: 'Full task trace',
+        href: `/task/detail?key=${encodeURIComponent(taskKey)}&include_internal=1`,
+      },
+    },
+    truncation: {
+      layer1_max_chars: 360,
+      summary_max_chars: 360,
+      layer2_max_items: requiredContext.length,
+      layer3_max_handles_per_kind: Math.max(requiredContext.length, files.size, attempts.length),
+      truncated: false,
+      omitted_counts: {},
+    },
+  };
+}
+
 function contextQueryForAssignment(body) {
   return cleanString(body.context_query || body.query || body.situation);
 }
@@ -143,17 +263,27 @@ function buildAssignmentEnvelope(ctx, T, input) {
   const graph = typeof ctx.buildGraph === 'function' ? ctx.buildGraph(T.ws) : { tasks: [] };
   const taskKey = input.task_key;
   const gitInfo = (T.ov.git && T.ov.git[taskKey]) || {};
+  const lifecycle = overlayStore.reviewLifecycleFor(T.ov, taskKey, T.ov.status && T.ov.status[taskKey]);
+  const reviewRequested = input.review_requested === true || lifecycle.review_state === 'requested' || lifecycle.review_state === 'pending';
   const repoPath = input.repo_path || (T.ov.repos && T.ov.repos[taskKey]) || T.ws || null;
+  const graphTask = taskForKey(graph, taskKey);
   const parentKeys = normalizeStringArray(input.parent_task_keys);
   const contextKeys = normalizeStringArray(input.context_task_keys);
+  if (!parentKeys.length && graphTask) parentKeys.push(...normalizeStringArray(graphTask.deps));
+  if (!contextKeys.length && graphTask) contextKeys.push(...normalizeStringArray(graphTask.context_deps));
   const dependencySummaries = [
     ...parentKeys.map((key) => summaryForKey(graph, T.ov, key, 'blocking')),
     ...contextKeys.map((key) => summaryFromAgenticContext(input.agentic_search_context, key) || summaryForKey(graph, T.ov, key, 'context')),
   ];
+  const progressiveDisclosureContext = buildProgressiveDisclosureContext(graph, T.ov, taskKey, dependencySummaries);
   const envelope = {
     version: 1,
     task_key: taskKey,
-    judge_task_key: input.judge_task_key || null,
+    judge_task_key: null,
+    review_task_key: taskKey,
+    review_requested: reviewRequested,
+    review_state: lifecycle.review_state || null,
+    legacy_judge_task_key: input.legacy_judge_task_key || lifecycle.legacy_judge_task_key || null,
     branch: gitInfo.branch || null,
     worktree: gitInfo.worktree || null,
     repo_path: repoPath,
@@ -162,7 +292,9 @@ function buildAssignmentEnvelope(ctx, T, input) {
       parent_task_keys: parentKeys,
       context_task_keys: contextKeys,
       dependency_summaries: dependencySummaries,
+      progressive_disclosure_context: progressiveDisclosureContext,
     },
+    progressive_disclosure_context: progressiveDisclosureContext,
     next_expected_worker_action: 'subconscious_assignment.accept',
   };
   if (input.agentic_search_context) {
@@ -183,7 +315,8 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     if (!taskKey) { send(res, 400, { ok: false, error: 'task_key required' }); return true; }
     const input = {
       task_key: taskKey,
-      judge_task_key: cleanString(u.searchParams.get('judge_task_key')),
+      legacy_judge_task_key: cleanString(u.searchParams.get('judge_task_key')),
+      review_requested: !!cleanString(u.searchParams.get('judge_task_key')),
       repo_path: cleanString(u.searchParams.get('repo_path')),
       base: cleanString(u.searchParams.get('base')),
     };
@@ -259,10 +392,9 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
         if (dep.relevance_score != null) agenticContextScores.set(key, dep.relevance_score);
       }
     }
-    const createJudge = b.create_judge === true || b.judge === true || b.judge_requested === true || !!cleanString(b.judge_task_key);
-    const judgeTaskKey = createJudge ? (cleanString(b.judge_task_key) || defaultJudgeTaskKey(taskKey)) : null;
+    const reviewRequested = wantsSameNodeReview(b);
+    const legacyJudgeTaskKey = reviewRequested ? (cleanString(b.judge_task_key) || defaultJudgeTaskKey(taskKey)) : null;
     const creatingKeys = new Set([taskKey]);
-    if (judgeTaskKey) creatingKeys.add(judgeTaskKey);
     const unknownDependency = parentKeys.concat(contextKeys).find((key) => !assignmentDependencyExists(ctx, T, key, creatingKeys));
     if (unknownDependency) {
       send(res, 404, { ok: false, error: `unknown task: ${unknownDependency}` });
@@ -280,37 +412,46 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
         ? { origin: 'subconscious-agentic-search', by: 'subconscious', judged: true, score: agenticContextScores.get(key) }
         : { origin: 'subconscious-assignment' });
     }
-    if (judgeTaskKey) {
-      ensureTaskSnapshot(ctx, T, judgeTaskKey, {
-        subject: b.judge_subject || `Judge ${taskKey}`,
-        description: b.judge_description || `Review attempt for ${taskKey}.`,
-      }, `Judge ${taskKey}`);
-      overlayStore.addEdge(T.ov, taskKey, judgeTaskKey, null, 'blocking', null, { origin: 'subconscious-assignment' });
+    if (reviewRequested) {
+      const reviewPatch = {
+        review_state: 'requested',
+        merge_state: 'review_pending',
+        legacy_judge_task_key: legacyJudgeTaskKey,
+      };
+      const requestedBy = cleanString(b.agent_id);
+      const requestedAt = typeof ctx.now === 'function' ? ctx.now() : new Date().toISOString();
+      const reviewNote = cleanString(b.judge_description || b.judge_subject);
+      if (requestedBy) reviewPatch.review_requested_by = requestedBy;
+      if (requestedAt) reviewPatch.review_requested_at = requestedAt;
+      if (reviewNote) {
+        reviewPatch.review_note = reviewNote;
+        reviewPatch.review_reason = reviewNote;
+      }
+      overlayStore.setReviewLifecycle(T.ov, taskKey, reviewPatch);
     }
 
     const repoPath = cleanString(b.repo_path);
     const repo = ctx.resolveRepo ? ctx.resolveRepo(taskKey, repoPath, T.ov, T.ws) : (repoPath || T.ws);
     if (!repo) { send(res, 400, { ok: false, error: 'repo_path or workspace required' }); return true; }
     overlayStore.setRepo(T.ov, taskKey, repo);
-    if (judgeTaskKey) overlayStore.setRepo(T.ov, judgeTaskKey, repo);
     if (b.test_cmd !== undefined) overlayStore.setTestCmd(T.ov, repo, b.test_cmd || '');
 
     let gitInfo = T.ov.git && T.ov.git[taskKey];
     if (!gitInfo || !gitInfo.worktree || b.reallocate === true) {
-      if (!ctx.git || typeof ctx.git.createWorktree !== 'function') {
+      if (!ctx.git || typeof ctx.git.createWorktreeAsync !== 'function') {
         send(res, 500, { ok: false, error: 'git worktree primitive unavailable' });
         return true;
       }
-      if (typeof ctx.git.isRepo === 'function' && !ctx.git.isRepo(repo)) {
-        if (typeof ctx.git.initRepo === 'function') {
-          const init = ctx.git.initRepo(repo);
+      if (typeof ctx.git.isRepoAsync === 'function' && !(await ctx.git.isRepoAsync(repo))) {
+        if (typeof ctx.git.initRepoAsync === 'function') {
+          const init = await ctx.git.initRepoAsync(repo);
           if (init && init.error) { send(res, 409, { ok: false, error: init.error, init }); return true; }
         } else {
           send(res, 409, { ok: false, error: 'target repo is not a git repo' });
           return true;
         }
       }
-      const info = ctx.git.createWorktree(repo, taskKey, { base: cleanString(b.base) || undefined });
+      const info = await ctx.git.createWorktreeAsync(repo, taskKey, { base: cleanString(b.base) || undefined });
       if (info && info.contended) {
         send(res, 409, { ...info, ok: false, repo, error: 'worktree path is currently leased by another creator; retry subconscious_assignment action:"prepare"' });
         return true;
@@ -323,7 +464,8 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     if (typeof ctx.notifyChange === 'function') ctx.notifyChange(T.ws);
     const assignment = buildAssignmentEnvelope(ctx, T, {
       task_key: taskKey,
-      judge_task_key: judgeTaskKey,
+      review_requested: reviewRequested,
+      legacy_judge_task_key: legacyJudgeTaskKey,
       repo_path: repo,
       base: cleanString(b.base),
       parent_task_keys: parentKeys,
@@ -336,7 +478,11 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
       workspace: T.ws,
       assignment,
       task_key: taskKey,
-      judge_task_key: judgeTaskKey,
+      judge_task_key: null,
+      review_task_key: taskKey,
+      review_requested: assignment.review_requested,
+      review_state: assignment.review_state,
+      legacy_judge_task_key: assignment.legacy_judge_task_key,
       branch: assignment.branch,
       worktree: assignment.worktree,
       repo_path: assignment.repo_path,
@@ -518,7 +664,12 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
     const b = await readBody(req) || {};
     const T = targetOverlay(b, u);
     const input = { ...b, workspace: T.ws || b.workspace };
-    const result = store.executionPermit({ ...input, active_claim: activeClaimForPermit(T.ov, input) });
+    const activeClaim = activeClaimForPermit(T.ov, input);
+    if (cleanString(input.action || 'issue') === 'issue' && !activeClaim) {
+      send(res, 409, { ok: false, error: 'execution permit issue requires a verified active claim for this session/task/worktree' });
+      return true;
+    }
+    const result = store.executionPermit({ ...input, active_claim: activeClaim, require_active_claim: true });
     const code = result.status || (result.ok ? 200 : 400);
     const { status, ...body } = result;
     send(res, code, body);
