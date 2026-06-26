@@ -28,3 +28,4 @@
 {"evt":"edge_promoted","from":"note:note-mqq52ygnlmd","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-24T04:35:46.054Z","weight":0.64,"by":"judge","judged":true,"score":0.64,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqq52ygnlmd","to":"codex/resolve-arc-agi3-cli-context-hook-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T19:07:30.098Z","weight":0.668,"by":"subconscious","judged":true,"score":0.668,"origin":"subconscious-agentic-search"}
 {"evt":"edge_removed","from":"note:note-mqq52ygnlmd","to":"codex/resolve-arc-agi3-cli-context-hook-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:17:11.292Z"}
+{"evt":"edge_removed","from":"note:note-mqq52ygnlmd","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

@@ -65,3 +65,6 @@
 {"evt":"edge_promoted","from":"codex/fix-dashboard-config-smoke-recovery","to":"codex/resolve-dashboard-config-smoke-recovery-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:52:57.244Z","weight":1,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"codex/fix-dashboard-config-smoke-recovery","to":"codex/resolve-dashboard-config-smoke-recovery-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T16:53:54.647Z","weight":1,"origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-recovery","to":"codex/resolve-dashboard-config-smoke-recovery-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T17:00:00.055Z"}
+{"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-recovery","to":"codex/fix-dashboard-config-smoke-recovery-judge","kind":"blocking","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-recovery","to":"codex/fix-dashboard-smoke-pinned-drift-recovery","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-recovery","to":"codex/fix-dashboard-config-smoke-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

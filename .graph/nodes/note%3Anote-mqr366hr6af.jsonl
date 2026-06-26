@@ -84,3 +84,16 @@
 {"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/add-arc-agi-3-zonoid-benchmark-adapter","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:17:11.292Z"}
 {"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/resolve-arc-agi3-cli-context-hook-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:17:11.292Z"}
 {"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:29:47.725Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/progressive-disclosure-context-implementation","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/code-ast-extractor-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/code-extractor-multilang-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/code-node-layer-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/2","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/inject-concurrency-batch-ingest-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/reconcile-bench-sdk-s7-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"7324f0fd-3872-4c3a-a82b-e7b554aea59d/7","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"claude/fresh-memory-bench-locomo-longmemeval-oracle-on-enrich-grader-defaults-report-sc","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/fix-dashboard-config-smoke-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

@@ -2,3 +2,4 @@
 {"evt":"edge_added","from":"note:note-mqqoju0dw11","to":"codex/define-artifact-provider-contract-without-ast-shapes","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:03:30.142Z","weight":1,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqqoju0dw11","to":"codex/define-artifact-provider-contract-without-ast-shapes","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:04:30.227Z","weight":1,"by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqqoju0dw11","to":"codex/define-artifact-provider-contract-without-ast-shapes","kind":"context","actor":"overlay-sync","ts":"2026-06-23T15:39:05.582Z","weight":0.5,"by":"judge","judged":true,"origin":"subconscious-assignment"}
+{"evt":"edge_removed","from":"note:note-mqqoju0dw11","to":"codex/define-artifact-provider-contract-without-ast-shapes","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

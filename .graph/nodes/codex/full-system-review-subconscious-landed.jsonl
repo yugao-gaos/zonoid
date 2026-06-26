@@ -30,3 +30,17 @@
 {"evt":"edge_added","from":"codex/full-system-review-subconscious-landed","to":"codex/reconcile-post-subconscious-feature-with-main","kind":"context","actor":"overlay-sync","ts":"2026-06-22T08:15:47.719Z","origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/review-subconscious-assignment-lifecycle","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:50.363Z"}
 {"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:50.363Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/review-hooks-adapters-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/review-search-kb-learning-skills","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/review-api-ui-docs-tests","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/fix-post-subconscious-review-findings","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/fix-subconscious-claim-permit-result-contracts","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/fix-shell-opencode-write-gates","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/fix-graph-dispatch-invariants","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/fix-search-kb-recall-semantics","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/fix-dashboard-config-test-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/verify-post-subconscious-review-fixes","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/fix-broad-npm-test-regressions-after-post-review","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/verify-post-subconscious-review-fixes-final","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/full-system-review-subconscious-landed","to":"codex/reconcile-post-subconscious-feature-with-main","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

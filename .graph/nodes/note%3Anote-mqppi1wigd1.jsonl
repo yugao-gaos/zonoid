@@ -153,3 +153,4 @@
 {"evt":"edge_removed","from":"note:note-mqppi1wigd1","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"edge_added","from":"note:note-mqppi1wigd1","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-24T00:46:48.918Z","weight":0,"by":"autowire","judged":false,"score":0.655,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqppi1wigd1","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-24T00:48:03.987Z","weight":0.655,"by":"judge","judged":true,"score":0.655,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqppi1wigd1","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

@@ -28,3 +28,4 @@
 {"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"codex/fix-stale-reaper-readiness","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:54:14.262Z"}
 {"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"note:note-mqqqrlczyc2","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:54:14.262Z"}
 {"evt":"edge_added","from":"note:note-mqqosxptv7i","to":"note:note-mqqqrlczyc2","kind":"context","actor":"overlay-sync","ts":"2026-06-24T20:13:39.125Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqqosxptv7i","to":"note:note-mqqqrlczyc2","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

@@ -23,3 +23,4 @@
 {"evt":"edge_added","from":"note:note-mqsewl0q7bl","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:46.495Z","weight":1,"judged":true}
 {"evt":"edge_removed","from":"note:note-mqsewl0q7bl","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:54.390Z"}
 {"evt":"edge_added","from":"note:note-mqsewl0q7bl","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:55.222Z","weight":1,"judged":true}
+{"evt":"edge_removed","from":"note:note-mqsewl0q7bl","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

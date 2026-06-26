@@ -31,3 +31,4 @@
 {"evt":"edge_promoted","from":"note:note-mqqt68limis","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T16:27:32.725Z","weight":0.5,"by":"judge","judged":true}
 {"evt":"edge_removed","from":"note:note-mqqt68limis","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-23T16:30:16.750Z"}
 {"evt":"edge_added","from":"note:note-mqqt68limis","to":"note:note-mqquqci425x","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:32:05.753Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqqt68limis","to":"note:note-mqquqci425x","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

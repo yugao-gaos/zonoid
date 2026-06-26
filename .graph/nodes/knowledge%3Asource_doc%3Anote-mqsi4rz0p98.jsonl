@@ -11,3 +11,4 @@
 {"evt":"edge_removed","from":"knowledge:source_doc:note-mqsi4rz0p98","to":"knowledge:source_section:note-mqsi4rz0p98#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:54.390Z"}
 {"evt":"edge_added","from":"knowledge:source_doc:note-mqsi4rz0p98","to":"knowledge:source_section:note-mqsi4rz0p98#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-25T14:57:55.222Z","weight":1,"judged":true,"origin":"note-source-cluster"}
 {"evt":"timestamps_set","id":"knowledge:source_doc:note-mqsi4rz0p98","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-25T16:14:42.874Z","lastChanged":"2026-06-25T16:14:42.874Z","lastStatus":"knowledge"},"actor":"overlay-sync","ts":"2026-06-25T16:14:42.893Z"}
+{"evt":"edge_removed","from":"knowledge:source_doc:note-mqsi4rz0p98","to":"knowledge:source_section:note-mqsi4rz0p98#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

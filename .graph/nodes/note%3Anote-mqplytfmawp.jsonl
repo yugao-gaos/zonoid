@@ -47,3 +47,14 @@
 {"evt":"edge_promoted","from":"note:note-mqplytfmawp","to":"codex/review-state-dashboard-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:04:10.405Z","weight":0.552,"by":"judge","judged":true,"score":0.552,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqplytfmawp","to":"codex/review-state-lifecycle-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-23T04:04:10.405Z","weight":0.555,"by":"judge","judged":true,"score":0.555,"origin":"autowire-semantic"}
 {"evt":"note_reinforced","actor":"judge:reinforce","boost":0.2,"winRate":1,"total":6,"ts":"2026-06-23T05:22:57.993Z"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"knowledge:source_chunk:chunk-claude-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-ed1147fac7","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"note:note-mqh5elf8cq8","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"note:note-mqe1cey1lux","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"note:note-mqp5937smpk","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"codex/review-state-daemon-queues","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"codex/review-state-dashboard-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"codex/review-state-docs-instructions","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"codex/review-state-lifecycle-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"codex/review-state-subconscious-flow","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"codex/review-state-integration-migration-tests","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

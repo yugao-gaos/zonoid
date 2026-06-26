@@ -27,3 +27,4 @@
 {"evt":"edge_promoted","from":"note:note-mqqpqf49a5m","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-24T00:48:03.987Z","weight":0.597,"by":"judge","judged":true,"score":0.597,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqqpqf49a5m","to":"codex/paper-code-retrieval-economy-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T03:57:56.616Z","weight":0,"by":"autowire","judged":false,"score":0.554,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqqpqf49a5m","to":"codex/paper-code-retrieval-economy-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-24T04:19:20.487Z"}
+{"evt":"edge_removed","from":"note:note-mqqpqf49a5m","to":"codex/search-economy-retrieval-phase1","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

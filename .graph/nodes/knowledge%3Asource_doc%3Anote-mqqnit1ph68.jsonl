@@ -7,3 +7,4 @@
 {"evt":"edge_removed","from":"knowledge:source_doc:note-mqqnit1ph68","to":"knowledge:source_section:note-mqqnit1ph68#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z"}
 {"evt":"timestamps_set","id":"knowledge:source_doc:note-mqqnit1ph68","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-24T12:48:52.862Z","lastChanged":"2026-06-24T12:48:52.862Z","lastStatus":"knowledge"},"actor":"overlay-sync","ts":"2026-06-24T12:48:52.880Z"}
 {"evt":"edge_added","from":"knowledge:source_doc:note-mqqnit1ph68","to":"note:note-mqqnit1ph68","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:32:05.753Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"knowledge:source_doc:note-mqqnit1ph68","to":"note:note-mqqnit1ph68","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

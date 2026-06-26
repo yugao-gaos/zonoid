@@ -11,3 +11,4 @@
 {"evt":"edge_added","from":"note:note-mqiu8gwbgzo","to":"bench/bench-trial-27-13","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z","weight":0.626,"by":"judge","judged":true,"score":0.626,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqiu8gwbgzo","to":"bench/bench-trial-5-discovered","kind":"context","actor":"overlay-sync","ts":"2026-06-18T19:48:54.521Z","weight":0.605,"by":"judge","judged":true,"score":0.605,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqiu8gwbgzo","to":"note:note-mq7ymupctb8","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:39:47.579Z"}
+{"evt":"edge_added","from":"note:note-mqiu8gwbgzo","to":"note:note-mq7ymupctb8","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.66,"origin":"autowire-semantic"}

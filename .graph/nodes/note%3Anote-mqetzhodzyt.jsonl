@@ -32,3 +32,10 @@
 {"evt":"edge_removed","from":"note:note-mqetzhodzyt","to":"note:note-mqedjw0rypf","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:01:16.624Z"}
 {"evt":"edge_removed","from":"note:note-mqetzhodzyt","to":"note:note-mqfbygur4go","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:01:16.624Z"}
 {"evt":"edge_removed","from":"note:note-mqetzhodzyt","to":"note:note-mqfatdr2s67","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:01:16.624Z"}
+{"evt":"edge_added","from":"note:note-mqetzhodzyt","to":"note:note-mq4nsovf","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.617,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqetzhodzyt","to":"note:note-mqeapqae6jf","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.617,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqetzhodzyt","to":"note:note-mq7lck6j3l9","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.582,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqetzhodzyt","to":"note:note-mq780b1f","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.577,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqetzhodzyt","to":"note:note-mqedjw0rypf","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.563,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqetzhodzyt","to":"note:note-mqfbygur4go","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.577,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqetzhodzyt","to":"note:note-mqfatdr2s67","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.563,"origin":"autowire-semantic"}

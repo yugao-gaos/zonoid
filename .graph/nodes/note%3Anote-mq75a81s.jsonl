@@ -18,3 +18,4 @@
 {"evt":"edge_added","from":"note:note-mq75a81s","to":"eeadb38f-7472-4703-9689-fbf24eebee4d/8","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.55,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mq75a81s","to":"eeadb38f-7472-4703-9689-fbf24eebee4d/8","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:03:41.254Z","weight":0.55,"by":"judge","judged":true,"score":0.55,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mq75a81s","to":"eeadb38f-7472-4703-9689-fbf24eebee4d/8","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:04:50.995Z"}
+{"evt":"edge_added","from":"note:note-mq75a81s","to":"eeadb38f-7472-4703-9689-fbf24eebee4d/8","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.55,"origin":"autowire-semantic"}

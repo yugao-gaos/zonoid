@@ -49,3 +49,4 @@
 {"evt":"edge_promoted","from":"codex/fix-dashboard-config-smoke-kickback","to":"codex/fix-dashboard-config-smoke-recovery","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:25:58.083Z","weight":1,"judged":true,"origin":"subconscious-assignment"}
 {"evt":"status_changed","id":"codex/fix-dashboard-config-smoke-kickback","workspace":"/Users/imyu/Desktop/zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-25T20:26:16.165Z"}
 {"evt":"timestamps_set","id":"codex/fix-dashboard-config-smoke-kickback","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-22T03:09:25.975Z","lastChanged":"2026-06-25T20:28:25.172Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-06-25T20:28:31.427Z"}
+{"evt":"edge_removed","from":"codex/fix-dashboard-config-smoke-kickback","to":"codex/fix-dashboard-config-smoke-recovery","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

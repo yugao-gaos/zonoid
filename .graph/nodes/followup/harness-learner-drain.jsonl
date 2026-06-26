@@ -268,3 +268,4 @@
 {"evt":"edge_added","from":"followup/harness-learner-drain","to":"6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T18:03:07.099Z","weight":0,"by":"autowire","judged":false,"score":0.553,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"followup/harness-learner-drain","to":"6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/6","kind":"context","actor":"overlay-sync","ts":"2026-06-22T19:03:36.791Z"}
 {"evt":"edge_added","from":"followup/harness-learner-drain","to":"6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/6","kind":"context","actor":"overlay-sync","ts":"2026-06-23T21:23:14.281Z","weight":0.553,"by":"judge","judged":true,"score":0.553,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"followup/harness-learner-drain","to":"6b04b7a6-beb1-4fb5-9dd0-7e5dd0dcbe95/6","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.553,"origin":"autowire-semantic"}

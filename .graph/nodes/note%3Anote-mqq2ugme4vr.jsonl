@@ -28,3 +28,12 @@
 {"evt":"edge_promoted","from":"note:note-mqq2ugme4vr","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:09:26.406Z","weight":0.561,"by":"judge","judged":true,"score":0.561,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqq2ugme4vr","to":"codex/fix-codex-uuid-session-transcript-resolution","kind":"context","actor":"overlay-sync","ts":"2026-06-23T05:57:51.488Z"}
 {"evt":"edge_added","from":"note:note-mqq2ugme4vr","to":"codex/add-cost-cause-ledger-to-costflow-billing","kind":"context","actor":"overlay-sync","ts":"2026-06-23T11:23:52.994Z","weight":0.9,"origin":"asserted"}
+{"evt":"edge_removed","from":"note:note-mqq2ugme4vr","to":"codex/token-accounting-attribution-audit","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqq2ugme4vr","to":"note:note-mqe9hy58oqj","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqq2ugme4vr","to":"note:note-mqff4agm67d","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqq2ugme4vr","to":"codex/fix-token-accounting-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqq2ugme4vr","to":"codex/fix-codex-task-transcript-attribution","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqq2ugme4vr","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqq2ugme4vr","to":"codex/constrain-costflow-claim-session-to-accounting-source","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqq2ugme4vr","to":"codex/fix-costflow-pruned-snapshot-session-splits","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqq2ugme4vr","to":"codex/add-cost-cause-ledger-to-costflow-billing","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

@@ -1,0 +1,2 @@
+{"evt":"status_changed","id":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","workspace":"D:\\PersonalProject\\zonoid","status":"ready","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"timestamps_set","id":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","workspace":"D:\\PersonalProject\\zonoid","timestamps":{"firstSeen":"2026-06-22T01:31:55.937Z","lastChanged":"2026-06-22T02:31:54.778Z","lastStatus":"ready"},"actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

@@ -85,3 +85,9 @@
 {"evt":"edge_promoted","from":"note:note-mqsi4rz0p98","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T18:58:50.370Z","weight":0.966,"by":"subconscious","judged":true,"score":0.966,"origin":"subconscious-agentic-search"}
 {"evt":"edge_promoted","from":"note:note-mqsi4rz0p98","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:17:11.292Z","weight":1,"judged":true}
 {"evt":"edge_promoted","from":"note:note-mqsi4rz0p98","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:25:58.083Z","weight":1,"judged":true}
+{"evt":"edge_removed","from":"note:note-mqsi4rz0p98","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqsi4rz0p98","to":"knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqsi4rz0p98","to":"knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqsi4rz0p98","to":"knowledge:source_doc:note-mqsi4rz0p98","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqsi4rz0p98","to":"knowledge:source_section:note-mqsi4rz0p98#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqsi4rz0p98","to":"knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

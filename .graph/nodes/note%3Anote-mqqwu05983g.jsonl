@@ -80,3 +80,17 @@
 {"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:17:11.292Z"}
 {"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/add-arc-agi-3-zonoid-benchmark-adapter","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:17:11.292Z"}
 {"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/resolve-arc-agi3-cli-context-hook-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-25T20:17:11.292Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/progressive-disclosure-context-implementation","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/code-ast-extractor-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/code-extractor-multilang-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/code-node-layer-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/code-node-layer","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/inject-concurrency-batch-ingest-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/onboard-code-cli-sync-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/reconcile-bench-sdk-s7-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/merge-origin-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/consolidate-universal-skills-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"claude/fresh-memory-bench-locomo-longmemeval-oracle-on-enrich-grader-defaults-report-sc","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqqwu05983g","to":"claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

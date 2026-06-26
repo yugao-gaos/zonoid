@@ -11,3 +11,5 @@
 {"evt":"edge_added","from":"note:note-mqs2kpieojw","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:42:28.110Z","origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mqs2kpieojw","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:43:15.149Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"note:note-mqs2kpieojw","to":"codex/onboard-code-cli-sync","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:44:11.777Z"}
+{"evt":"edge_removed","from":"note:note-mqs2kpieojw","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"note:note-mqs2kpieojw","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

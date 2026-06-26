@@ -21,3 +21,6 @@
 {"evt":"edge_removed","from":"codex/review-subconscious-assignment-lifecycle","to":"codex/full-system-review-subconscious-landed","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:13:50.363Z"}
 {"evt":"edge_removed","from":"codex/review-subconscious-assignment-lifecycle","to":"codex/research-subconscious-positioning-2026-06-21","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:14:23.281Z"}
 {"evt":"edge_removed","from":"codex/review-subconscious-assignment-lifecycle","to":"codex/subconscious-idea-scheduler-policy","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:14:23.281Z"}
+{"evt":"edge_removed","from":"codex/review-subconscious-assignment-lifecycle","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/review-subconscious-assignment-lifecycle","to":"codex/fix-subconscious-claim-permit-result-contracts","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/review-subconscious-assignment-lifecycle","to":"codex/fix-claim-permit-result-contract-kickback","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}

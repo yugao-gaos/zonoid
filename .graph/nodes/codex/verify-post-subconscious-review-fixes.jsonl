@@ -42,3 +42,6 @@
 {"evt":"edge_added","from":"codex/verify-post-subconscious-review-fixes","to":"codex/fix-post-subconscious-review-findings","kind":"blocking","actor":"overlay-sync","ts":"2026-06-23T06:14:40.741Z","by":"judge","judged":true,"origin":"blocking-dep-seed"}
 {"evt":"edge_removed","from":"codex/verify-post-subconscious-review-fixes","to":"codex/fix-post-subconscious-review-findings","kind":"context","actor":"overlay-sync","ts":"2026-06-23T06:14:40.741Z"}
 {"evt":"edge_removed","from":"codex/verify-post-subconscious-review-fixes","to":"codex/judge-subconscious-internalized-orchestration","kind":"context","actor":"overlay-sync","ts":"2026-06-23T08:02:44.540Z"}
+{"evt":"edge_removed","from":"codex/verify-post-subconscious-review-fixes","to":"codex/judge-subconscious-live-polish","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/verify-post-subconscious-review-fixes","to":"codex/fix-broad-npm-test-regressions-after-post-review","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_removed","from":"codex/verify-post-subconscious-review-fixes","to":"codex/fix-post-subconscious-review-findings","kind":"blocking","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
