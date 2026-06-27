@@ -111,3 +111,5 @@
 {"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-27T00:20:36.709Z","weight":0.8,"judged":true,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-27T00:20:59.364Z","weight":0.9,"judged":true,"origin":"asserted"}
 {"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-27T00:20:59.364Z","weight":0.8,"judged":true,"origin":"asserted"}
+{"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-27T00:25:15.697Z","weight":0.9,"judged":true,"origin":"asserted"}
+{"evt":"edge_promoted","from":"codex/exec-brain-state-seam","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-27T00:25:15.697Z","weight":0.8,"judged":true,"origin":"asserted"}
