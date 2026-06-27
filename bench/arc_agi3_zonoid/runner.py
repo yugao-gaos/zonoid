@@ -228,8 +228,9 @@ def run_real(
     no_isolated_daemon: bool,
     benchmarking_repo: str | None,
     agent_command: str | None,
+    no_baseline: bool = False,
 ) -> int:
-    """Run zonoid-on and no-zonoid arms through a supported ARC SDK."""
+    """Run zonoid-on and (unless no_baseline) no-zonoid arms through a supported ARC SDK."""
 
     if benchmarking_repo:
         return run_benchmarking_repo(
@@ -241,6 +242,7 @@ def run_real(
             out_dir=out_dir,
             no_isolated_daemon=no_isolated_daemon,
             agent_command=agent_command,
+            no_baseline=no_baseline,
         )
 
     pf = preflight(require_node=not no_isolated_daemon, agent_command=agent_command)
@@ -301,22 +303,24 @@ def run_real(
         else:
             records.extend(adapter_mod.run_real_arm(on_cfg))
 
-        cold_cfg = adapter_mod.build_config(
-            arm="no_zonoid",
-            max_steps=max_steps,
-            task_ids=task_ids,
-            out_dir=str(out_root),
-            zonoid_enabled=False,
-        )
-        cold_cfg["zonoid"]["context_json"] = adapter_mod.write_zonoid_context_file(
-            cold_cfg["zonoid"], str(out_root), arm="no_zonoid"
-        )
-        if agent_command:
-            records.extend(adapter_mod.run_agent_arm(cold_cfg, agent_command=agent_command))
-        else:
-            records.extend(adapter_mod.run_real_arm(cold_cfg))
+        if not no_baseline:
+            cold_cfg = adapter_mod.build_config(
+                arm="no_zonoid",
+                max_steps=max_steps,
+                task_ids=task_ids,
+                out_dir=str(out_root),
+                zonoid_enabled=False,
+            )
+            cold_cfg["zonoid"]["context_json"] = adapter_mod.write_zonoid_context_file(
+                cold_cfg["zonoid"], str(out_root), arm="no_zonoid"
+            )
+            if agent_command:
+                records.extend(adapter_mod.run_agent_arm(cold_cfg, agent_command=agent_command))
+            else:
+                records.extend(adapter_mod.run_real_arm(cold_cfg))
 
-        _write_report(records, out_root, title="ARC-AGI-3 Zonoid A/B")
+        report_title = "ARC-AGI-3 Zonoid (on-arm only)" if no_baseline else "ARC-AGI-3 Zonoid A/B"
+        _write_report(records, out_root, title=report_title)
         print(json.dumps({"ok": True, "mode": "real", "out_dir": str(out_root)}, indent=2))
         return 0
     except adapter_mod.ArcSdkUnavailable as exc:
@@ -337,6 +341,7 @@ def run_benchmarking_repo(
     out_dir: str,
     no_isolated_daemon: bool,
     agent_command: str | None,
+    no_baseline: bool = False,
 ) -> int:
     """Run the official arc-agi-3-benchmarking CLI path when supplied.
 
@@ -402,16 +407,24 @@ def run_benchmarking_repo(
                 "(no ZONOID/zonoid tokens found in Python files), so only the official baseline was run."
             )
 
-        baseline_results = _run_official_cli_arm(
-            repo=repo,
-            task_ids=task_ids,
-            arm="no_zonoid",
-            out_root=out_root,
-            max_steps=max_steps,
-            extra_env={},
-            agent_command=agent_command,
-        )
-        records.extend(baseline_results)
+        if no_baseline and not (supports_zonoid and zonoid_env):
+            print("[arc_agi3_zonoid] --no-baseline set, but the Zonoid (zonoid_on) arm is "
+                  "not available, so there is nothing to run.")
+            if blocker:
+                print(f"  reason: {blocker}")
+            return 2
+
+        if not no_baseline:
+            baseline_results = _run_official_cli_arm(
+                repo=repo,
+                task_ids=task_ids,
+                arm="no_zonoid",
+                out_root=out_root,
+                max_steps=max_steps,
+                extra_env={},
+                agent_command=agent_command,
+            )
+            records.extend(baseline_results)
 
         if supports_zonoid and zonoid_env:
             records.extend(_run_official_cli_arm(
@@ -423,7 +436,9 @@ def run_benchmarking_repo(
                 extra_env=zonoid_env,
                 agent_command=agent_command,
             ))
-            _write_report(records, out_root, title="ARC-AGI-3 official harness Zonoid A/B")
+            on_title = ("ARC-AGI-3 official harness Zonoid (on-arm only)"
+                        if no_baseline else "ARC-AGI-3 official harness Zonoid A/B")
+            _write_report(records, out_root, title=on_title)
             print(json.dumps({"ok": True, "mode": "benchmarking-repo", "out_dir": str(out_root)}, indent=2))
             return 0
 
@@ -627,6 +642,12 @@ def main(argv: list[str] | None = None) -> int:
         "(appends --dangerously-skip-permissions for a claude-family --agent-command). Required "
         "for a real agentic run; the agent works against an isolated per-run workspace/daemon.",
     )
+    parser.add_argument(
+        "--no-baseline",
+        action="store_true",
+        help="Run only the zonoid_on arm; skip the no_zonoid (cold) baseline arm. Halves cost when "
+        "you only need the on-arm run (compare against published ARC bars or a separate baseline).",
+    )
     args = parser.parse_args(argv)
 
     task_ids = _parse_task_ids(args.task_ids)
@@ -655,6 +676,7 @@ def main(argv: list[str] | None = None) -> int:
         no_isolated_daemon=args.no_isolated_daemon,
         benchmarking_repo=args.benchmarking_repo,
         agent_command=agent_command,
+        no_baseline=args.no_baseline,
     )
 
 
