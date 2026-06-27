@@ -143,8 +143,9 @@ def _bootstrap_zonoid_requirements_task(
     subject = f"ARC-AGI-3 requirements for {games}"
     summary = (
         f"Run ARC-AGI-3 via {source} for {games}. The playing agent should solve the game within "
-        f"the configured action budget ({max_steps}), use task-scoped Zonoid context before each "
-        "decision, and record concise observations after each parsed action."
+        "the game's OWN action/resource budget, which it must DISCOVER from the game's signals (do "
+        "not assume any externally supplied step count is the real budget), use task-scoped Zonoid "
+        "context before each decision, and record concise observations after each parsed action."
     )
     task_key = workspace_mod.drop_task_stub(
         data_dir,

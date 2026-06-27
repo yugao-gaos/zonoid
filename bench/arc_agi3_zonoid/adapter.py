@@ -296,7 +296,8 @@ def _agent_prompt(*, task_id: str, config: dict[str, Any]) -> str:
     lines = [
         "Solve the ARC-AGI-3 task requested by this benchmark adapter.",
         f"Task id: {task_id}",
-        f"Max steps: {config.get('max_steps')}",
+        "Work within the game's OWN action/resource budget, which you must discover from the game's "
+        "signals — do not assume any externally supplied step count is the real budget.",
         "",
         "Return a concise final answer. If possible, return JSON with keys task_id, predicted, and correct.",
     ]
