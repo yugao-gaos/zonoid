@@ -519,6 +519,35 @@ def _agent_command_name(agent_command: str | None) -> str | None:
     return parts[0]
 
 
+def _enable_agent_tools(agent_command: str) -> str:
+    """Append a permission-bypass flag so a headless claude-family agent can actually use tools
+    instead of stalling on interactive permission prompts (which are auto-denied in --print mode).
+
+    Only claude is handled, because we do not presume to know other CLIs' bypass flags — for those,
+    pass the agent's own flag directly via --agent-command. The agent runs against an isolated
+    per-run workspace/daemon, so a scoped bypass is acceptable for a benchmark."""
+
+    name = (_agent_command_name(agent_command) or "")
+    program = os.path.basename(name).lower()
+    if program.endswith(".exe"):
+        program = program[:-4]
+    if program != "claude":
+        print(
+            f"[arc_agi3_zonoid] --agent-allow-all-tools: do not know how to enable tools for "
+            f"{name!r}; pass that agent's own bypass flag via --agent-command instead.",
+            file=sys.stderr,
+        )
+        return agent_command
+    flag = "--dangerously-skip-permissions"
+    try:
+        parts = shlex.split(agent_command)
+    except ValueError:
+        parts = []
+    if flag in parts:
+        return agent_command
+    return f"{agent_command} {flag}"
+
+
 def _inspect_benchmarking_repo(path: str | None) -> dict[str, Any] | None:
     if not path:
         return None
@@ -591,10 +620,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Do not start a Zonoid daemon; pass zonoid instructions only if the SDK can use them.",
     )
+    parser.add_argument(
+        "--agent-allow-all-tools",
+        action="store_true",
+        help="Let the local CLI agent use tools without interactive permission prompts "
+        "(appends --dangerously-skip-permissions for a claude-family --agent-command). Required "
+        "for a real agentic run; the agent works against an isolated per-run workspace/daemon.",
+    )
     args = parser.parse_args(argv)
 
     task_ids = _parse_task_ids(args.task_ids)
     out_dir = args.out_dir or tempfile.mkdtemp(prefix="zonoid-arc-agi3-")
+
+    agent_command = args.agent_command
+    if agent_command and args.agent_allow_all_tools:
+        agent_command = _enable_agent_tools(agent_command)
 
     if args.contract:
         print(adapter_mod.contract_summary())
@@ -614,7 +654,7 @@ def main(argv: list[str] | None = None) -> int:
         out_dir=out_dir,
         no_isolated_daemon=args.no_isolated_daemon,
         benchmarking_repo=args.benchmarking_repo,
-        agent_command=args.agent_command,
+        agent_command=agent_command,
     )
 
 
