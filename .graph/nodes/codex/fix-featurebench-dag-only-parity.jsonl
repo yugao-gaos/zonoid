@@ -143,3 +143,5 @@
 {"evt":"edge_promoted","from":"codex/fix-featurebench-dag-only-parity","to":"codex/fix-featurebench-canonical-arm-docs","kind":"blocking","actor":"overlay-sync","ts":"2026-06-27T12:50:26.931Z","origin":"native-blockedBy"}
 {"evt":"edge_promoted","from":"codex/fix-featurebench-dag-only-parity","to":"codex/judge-fix-featurebench-dag-only-parity","kind":"blocking","actor":"overlay-sync","ts":"2026-06-27T12:50:38.280Z","origin":"native-blockedBy"}
 {"evt":"edge_promoted","from":"codex/fix-featurebench-dag-only-parity","to":"codex/fix-featurebench-canonical-arm-docs","kind":"blocking","actor":"overlay-sync","ts":"2026-06-27T12:50:38.280Z","origin":"native-blockedBy"}
+{"evt":"edge_promoted","from":"codex/fix-featurebench-dag-only-parity","to":"codex/judge-fix-featurebench-dag-only-parity","kind":"blocking","actor":"overlay-sync","ts":"2026-06-27T12:51:05.317Z","origin":"native-blockedBy"}
+{"evt":"edge_promoted","from":"codex/fix-featurebench-dag-only-parity","to":"codex/fix-featurebench-canonical-arm-docs","kind":"blocking","actor":"overlay-sync","ts":"2026-06-27T12:51:05.317Z","origin":"native-blockedBy"}
