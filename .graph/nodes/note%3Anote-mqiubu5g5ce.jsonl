@@ -25,3 +25,6 @@
 {"evt":"edge_added","from":"note:note-mqiubu5g5ce","to":"note:note-mqiu7w6hus0","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.644,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqiubu5g5ce","to":"note:note-mqiu9he0phm","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.603,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqiubu5g5ce","to":"note:note-mqiubeogxna","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.567,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqiubu5g5ce","to":"note:note-mqiu9he0phm","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.603,"by":"judge","judged":true,"score":0.603,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqiubu5g5ce","to":"note:note-mqiu7w6hus0","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_removed","from":"note:note-mqiubu5g5ce","to":"note:note-mqiubeogxna","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}

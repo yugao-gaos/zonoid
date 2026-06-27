@@ -18,3 +18,5 @@
 {"evt":"edge_promoted","from":"codex/fix-stale-tested-verdict-requeue","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-24T12:53:45.613Z","weight":0.95,"origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"codex/fix-stale-tested-verdict-requeue","to":"codex/fix-stale-tested-verdict-requeue-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
 {"evt":"edge_removed","from":"codex/fix-stale-tested-verdict-requeue","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
+{"evt":"edge_added","from":"codex/fix-stale-tested-verdict-requeue","to":"codex/fix-stale-tested-verdict-requeue-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","origin":"subconscious-assignment"}
+{"evt":"edge_added","from":"codex/fix-stale-tested-verdict-requeue","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.95,"judged":true,"origin":"subconscious-assignment"}

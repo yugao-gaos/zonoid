@@ -4,3 +4,4 @@
 {"evt":"edge_promoted","from":"note:note-mqk41uozhf6","to":"ae0d4490-d7c7-4efd-be15-3916d9e059bf/3","kind":"context","actor":"overlay-sync","ts":"2026-06-18T23:11:13.501Z","weight":1,"by":"autowire","judged":false}
 {"evt":"edge_promoted","from":"note:note-mqk41uozhf6","to":"ae0d4490-d7c7-4efd-be15-3916d9e059bf/3","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:34:29.107Z","weight":0.5,"by":"judge","judged":true}
 {"evt":"edge_promoted","from":"note:note-mqk41uozhf6","to":"ae0d4490-d7c7-4efd-be15-3916d9e059bf/3","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":1,"by":"autowire","judged":false}
+{"evt":"edge_promoted","from":"note:note-mqk41uozhf6","to":"ae0d4490-d7c7-4efd-be15-3916d9e059bf/3","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.5,"by":"judge","judged":true}

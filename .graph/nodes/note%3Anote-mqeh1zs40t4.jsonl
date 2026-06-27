@@ -13,3 +13,6 @@
 {"evt":"edge_added","from":"note:note-mqeh1zs40t4","to":"codex/trace-daemon-lifecycle-codex","kind":"context","actor":"overlay-sync","ts":"2026-06-17T17:31:59.408Z","weight":0.7,"origin":"asserted"}
 {"evt":"edge_removed","from":"note:note-mqeh1zs40t4","to":"note:note-mqd9ezu3tu4","kind":"context","actor":"overlay-sync","ts":"2026-06-22T16:23:34.419Z"}
 {"evt":"edge_added","from":"note:note-mqeh1zs40t4","to":"note:note-mqd9ezu3tu4","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z","weight":0,"by":"autowire","judged":false,"score":0.578,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqeh1zs40t4","to":"note:note-mqeapqae6jf","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_removed","from":"note:note-mqeh1zs40t4","to":"note:note-mq82mggjhu5","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_removed","from":"note:note-mqeh1zs40t4","to":"note:note-mqd9ezu3tu4","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}

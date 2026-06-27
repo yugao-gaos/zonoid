@@ -7,3 +7,5 @@
 {"evt":"edge_removed","from":"note:note-mqpav1c1qcf","to":"codex/consolidate-universal-skills","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
 {"evt":"edge_removed","from":"note:note-mqpav1c1qcf","to":"codex/judge-adapter-installer-skill-surfaces","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
 {"evt":"edge_removed","from":"note:note-mqpav1c1qcf","to":"codex/verify-universal-skill-surfaces-tests","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
+{"evt":"edge_added","from":"note:note-mqpav1c1qcf","to":"codex/consolidate-universal-skills","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.721,"by":"judge","judged":true,"score":0.721,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqpav1c1qcf","to":"codex/judge-adapter-installer-skill-surfaces","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.607,"by":"judge","judged":true,"score":0.607,"origin":"autowire-semantic"}

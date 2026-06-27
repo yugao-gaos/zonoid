@@ -42,3 +42,12 @@
 {"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"codex/judge-exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
 {"evt":"edge_promoted","from":"note:note-mqk0pyjpxtc","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:03:33.028Z","weight":1,"by":"autowire","judged":false}
 {"evt":"edge_promoted","from":"note:note-mqk0pyjpxtc","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-24T14:11:23.232Z","weight":1,"by":"autowire","judged":false}
+{"evt":"edge_promoted","from":"note:note-mqk0pyjpxtc","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":1,"by":"subconscious","judged":true,"score":1,"origin":"subconscious-agentic-search"}
+{"evt":"edge_promoted","from":"note:note-mqk0pyjpxtc","to":"codex/exec-brain-state-seam-agent-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.756,"by":"judge","judged":true,"score":0.756,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqk0pyjpxtc","to":"codex/judge-exec-brain-state-seam-minimal-patch","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.571,"by":"judge","judged":true,"score":0.571,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"note:note-mqjyqrg5t5f","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"note:note-mqft8cz9ula","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"note:note-mqftffo7f2b","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"note:note-mqfatdr2s67","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"codex/fix-strict-git-claim-finalize-owner","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"followup/investigate-force-claim-cap-test-judging-yf0n","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}

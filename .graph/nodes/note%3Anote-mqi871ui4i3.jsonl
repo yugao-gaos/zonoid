@@ -3,3 +3,4 @@
 {"evt":"note_superseded","id":"note-mqi871ui4i3","supersededBy":"note-mqi8yezu1i9","validTo":"2026-06-17T15:49:44.682Z","ts":"2026-06-17T15:49:44.682Z","actor":"supersede"}
 {"evt":"edge_removed","from":"note:note-mqi871ui4i3","to":"note:note-mqi8473etpl","kind":"context","actor":"overlay-sync","ts":"2026-06-22T20:23:05.430Z"}
 {"evt":"edge_added","from":"note:note-mqi871ui4i3","to":"note:note-mqi8473etpl","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":1,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqi871ui4i3","to":"note:note-mqi8473etpl","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
