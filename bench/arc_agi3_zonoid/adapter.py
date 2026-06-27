@@ -143,20 +143,39 @@ def contract_summary() -> str:
 
 
 def zonoid_task_instructions(*, daemon_url: str, workspace: str, task_key: str) -> str:
-    """Instructions a capable ARC SDK/agent can inject into a task solve loop."""
+    """Agent-facing Zonoid MEMORY PROTOCOL, injected into the agent's system prompt.
+
+    Zonoid is offered as a tool, not wired in by the harness: the agent itself decides whether and
+    how to record/recall. This keeps the benchmark a test of whether an agent can GENERALIZE using
+    an external memory, rather than a hand-built memory feature. The protocol asks the agent to
+    persist before->action->after grid transitions and recall similar ones before deciding."""
 
     return (
-        "Zonoid is enabled for this ARC-AGI-3 trial. Use the task-scoped memory APIs; do not "
-        "treat prior knowledge as ground truth without checking the task.\n\n"
-        f"- task_key: {task_key}\n"
-        f"- workspace: {workspace}\n"
+        "You have access to Zonoid, a persistent memory shared across turns and games. It is a "
+        "TOOL, not an autopilot: nothing is recorded or recalled unless you do it yourself. Use it "
+        "to learn from experience instead of relying only on priors. Call it over HTTP with these "
+        "identifiers:\n"
         f"- daemon: {daemon_url}\n"
-        "- Before proposing a grid transformation, request context:\n"
-        f"  GET {daemon_url}/task/context?key={task_key}&workspace=<urlencoded workspace>\n"
-        "- Search for related evidence with:\n"
-        f"  GET {daemon_url}/search?q=<query>&k=5&workspace=<urlencoded workspace>&task_key={task_key}&gated=false\n"
-        "- Prefer task evidence over generic ARC priors. Record non-obvious reusable findings as notes "
-        "only if the SDK exposes a note/write hook.\n"
+        f"- workspace: {workspace}\n"
+        f"- task_key: {task_key}\n"
+        "Follow this memory loop every turn:\n"
+        "1. RECORD the previous transition. If you took an action on a prior turn, the CURRENT grid "
+        "is its result; save that before->action->after transition as a note:\n"
+        f"   POST {daemon_url}/overlay/note  (JSON body) with fields: "
+        'workspace=<workspace>, title="<game> transition", '
+        'summary="before-grid: <compact rows>; action: <action>; after-grid: <compact rows>; '
+        'score <old>-><new>; worked: <yes/no>", category="arc-agi-3", '
+        f'wires_to=["{task_key}"].\n'
+        "2. RECALL before deciding. Search for grids similar to the CURRENT frame and how earlier "
+        "actions changed them:\n"
+        f"   GET {daemon_url}/search?q=<describe current grid/state>&k=5&"
+        f"workspace=<urlencoded workspace>&task_key={task_key}&gated=false\n"
+        "   Reuse any recalled before->action->after transition that matches; treat it as evidence, "
+        "not ground truth, and verify it against the live grid.\n"
+        "3. DECIDE the next action using both the live frame and the recalled transitions.\n"
+        "Keep grid encodings compact (one short string per row). The point: over many turns, "
+        "recalled state->action->result transitions should help you generalize to frames you have "
+        "not seen before. Prefer recalled task evidence over generic ARC priors.\n"
     )
 
 
