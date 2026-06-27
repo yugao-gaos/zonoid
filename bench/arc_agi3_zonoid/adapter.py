@@ -195,7 +195,7 @@ def zonoid_task_instructions(*, daemon_url: str, workspace: str, task_key: str) 
         "not ground truth, and verify it against the live grid.\n"
         "3. ACT. If EXECUTING: play the next move of your committed plan (do not re-derive). If "
         "EXPLORING: probe using the live frame + recalled transitions, and commit to a candidate "
-        "path as soon as one exists.\n"
+        "plan as soon as one exists.\n"
         "RELIABLE WRITES (important): build note bodies that survive shell and JSON escaping.\n"
         "   - Encode each grid row as a plain digit string (cells are 0-9); join rows with '/' or "
         "'|'. NEVER put backslashes or literal newlines inside the JSON; they silently break the "
