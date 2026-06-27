@@ -173,9 +173,18 @@ def zonoid_task_instructions(*, daemon_url: str, workspace: str, task_key: str) 
         "   Reuse any recalled before->action->after transition that matches; treat it as evidence, "
         "not ground truth, and verify it against the live grid.\n"
         "3. DECIDE the next action using both the live frame and the recalled transitions.\n"
-        "Keep grid encodings compact (one short string per row). The point: over many turns, "
-        "recalled state->action->result transitions should help you generalize to frames you have "
-        "not seen before. Prefer recalled task evidence over generic ARC priors.\n"
+        "RELIABLE WRITES (important): build note bodies that survive shell and JSON escaping.\n"
+        "   - Encode each grid row as a plain digit string (cells are 0-9); join rows with '/' or "
+        "'|'. NEVER put backslashes or literal newlines inside the JSON; they silently break the "
+        "write.\n"
+        "   - Prefer POSTing from a file to avoid inline-quoting bugs: write the JSON body to a temp "
+        "file, then send it with: "
+        f"curl -sS -X POST -H 'Content-Type: application/json' --data @<file> {daemon_url}/overlay/note\n"
+        "   - CHECK the response: a successful write returns an ok flag and a note id. If you do not "
+        "see one, the write FAILED; simplify the encoding and retry. Do not assume it saved.\n"
+        "Keep grid encodings compact (one short backslash-free string per row). The point: over many "
+        "turns, recalled state->action->result transitions should help you generalize to frames you "
+        "have not seen before. Prefer recalled task evidence over generic ARC priors.\n"
     )
 
 
