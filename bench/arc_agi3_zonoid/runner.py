@@ -229,6 +229,8 @@ def run_real(
     benchmarking_repo: str | None,
     agent_command: str | None,
     no_baseline: bool = False,
+    reuse_data_dir: str | None = None,
+    reuse_workspace: str | None = None,
 ) -> int:
     """Run zonoid-on and (unless no_baseline) no-zonoid arms through a supported ARC SDK."""
 
@@ -243,6 +245,8 @@ def run_real(
             no_isolated_daemon=no_isolated_daemon,
             agent_command=agent_command,
             no_baseline=no_baseline,
+            reuse_data_dir=reuse_data_dir,
+            reuse_workspace=reuse_workspace,
         )
 
     pf = preflight(require_node=not no_isolated_daemon, agent_command=agent_command)
@@ -342,6 +346,8 @@ def run_benchmarking_repo(
     no_isolated_daemon: bool,
     agent_command: str | None,
     no_baseline: bool = False,
+    reuse_data_dir: str | None = None,
+    reuse_workspace: str | None = None,
 ) -> int:
     """Run the official arc-agi-3-benchmarking CLI path when supplied.
 
@@ -374,8 +380,18 @@ def run_benchmarking_repo(
     try:
         zonoid_env: dict[str, str] = {}
         if supports_zonoid and not no_isolated_daemon:
-            workspace = os.path.abspath(tempfile.mkdtemp(prefix="zonoid-arc-agi3-ws-"))
-            handle = daemon_mod.start(daemon_js=daemon_js, workspace=workspace)
+            if reuse_workspace and reuse_data_dir:
+                workspace = os.path.abspath(reuse_workspace)
+                handle = daemon_mod.start(
+                    daemon_js=daemon_js,
+                    workspace=workspace,
+                    data_dir=os.path.abspath(reuse_data_dir),
+                )
+                print(f"[arc_agi3_zonoid] WARM START: reusing prior memory "
+                      f"(workspace={workspace}, data_dir={reuse_data_dir})")
+            else:
+                workspace = os.path.abspath(tempfile.mkdtemp(prefix="zonoid-arc-agi3-ws-"))
+                handle = daemon_mod.start(daemon_js=daemon_js, workspace=workspace)
             client = ZonoidClient(handle.base_url, workspace=workspace, timeout=180)
             client.warm_up()
             if kb_snapshot:
@@ -648,6 +664,17 @@ def main(argv: list[str] | None = None) -> int:
         help="Run only the zonoid_on arm; skip the no_zonoid (cold) baseline arm. Halves cost when "
         "you only need the on-arm run (compare against published ARC bars or a separate baseline).",
     )
+    parser.add_argument(
+        "--reuse-data-dir",
+        default=None,
+        help="WARM START: reuse a prior run's daemon data dir so its accumulated notes are recalled. "
+        "Must be paired with --reuse-workspace. Benchmarking-repo (Mode B) path only.",
+    )
+    parser.add_argument(
+        "--reuse-workspace",
+        default=None,
+        help="WARM START: the prior run's workspace path (key for its notes in --reuse-data-dir).",
+    )
     args = parser.parse_args(argv)
 
     task_ids = _parse_task_ids(args.task_ids)
@@ -677,6 +704,8 @@ def main(argv: list[str] | None = None) -> int:
         benchmarking_repo=args.benchmarking_repo,
         agent_command=agent_command,
         no_baseline=args.no_baseline,
+        reuse_data_dir=args.reuse_data_dir,
+        reuse_workspace=args.reuse_workspace,
     )
 
 
