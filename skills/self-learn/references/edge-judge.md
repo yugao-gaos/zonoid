@@ -120,6 +120,26 @@ When both endpoints are tasks, a `keep` is not the whole verdict — also decide
   duplicate. Use the `neighborhood`/`supersedeChain` to confirm they're the SAME work, not two real
   steps. Conservative: when unsure it's a dup, keep the edge as `context` and do NOT supersede.
 
+### Contradiction-candidate edges (`origin: contradiction-seed`, `relation: contradicts`)
+
+These are note→note `context` edges seeded automatically when a new note lands in the high-cosine
+band *just below* subsumption versus an older CURRENT note (same subject, not a near-duplicate). The
+edge points **`from` = the NEWER note → `to` = the OLDER note**. Cosine flagged them as *related*; YOU
+decide whether they actually **conflict**:
+
+- **True update/contradiction — the newer REPLACES the older.** The two notes make CONFLICTING claims
+  about the SAME subject and the newer one makes the older's claim FALSE/STALE (e.g. "marker at
+  cols19-23" → "marker at cols50-52"; "ACTION1 = DOWN" → corrected "ACTION1 = UP"). Emit
+  **`consolidate` `{ keep: <newer note>, supersede: [<older note>] }`** — this retires the older note
+  via `supersedeNote` (stamps `validTo`; as-of reversible; history kept). The NEWER note is the keeper.
+- **Complementary — NOT a conflict.** The notes describe DIFFERENT facets of a shared subject that are
+  both still true (e.g. "ACTION1 = UP" + "ACTION3 = LEFT"; a rule + a separate special case). **`pruneEdge`**
+  the contradiction candidate and KEEP BOTH notes. The seed was a cosine false-positive.
+- **Conservative default.** When unsure whether the newer truly *replaces* the older vs merely relates
+  to it, **prune and keep both**. Only supersede when the older claim is clearly made wrong/stale by
+  the newer — never on topic-similarity alone. (Determine newer/older from `created_at`/`validFrom`;
+  the edge already orients newer→older.)
+
 ### Dedup criteria (dup-cluster items)
 
 The bar is **same FACT**, not same topic. Two notes that merely cite the same subject, or two
