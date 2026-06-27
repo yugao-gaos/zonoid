@@ -16,6 +16,7 @@
     "daemon.js",
     "mcp-graph.js",
     "lib/",
+    "routes/",
     "bin/",
     "hooks/",
     "adapters/",
