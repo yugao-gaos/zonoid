@@ -1,0 +1,2 @@
+{"evt":"edge_removed","from":"phase3/hybrid-retrieval","to":"phase4/unification","kind":"context","actor":"overlay-sync","ts":"2026-06-27T14:28:53.033Z"}
+{"evt":"edge_removed","from":"phase3/hybrid-retrieval","to":"judge/phase3-hybrid-retrieval","kind":"context","actor":"overlay-sync","ts":"2026-06-27T14:28:53.033Z"}
