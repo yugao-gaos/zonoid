@@ -83,6 +83,28 @@ stdin per task and records stdout as the prediction. If stdout is JSON, the adap
 Otherwise stdout is treated as the prediction and correctness remains false unless the CLI returned a
 recognized JSON field.
 
+### Real agentic run (let the agent use tools)
+
+By default a headless CLI agent (e.g. `claude -p`) gates every tool call behind an interactive
+permission prompt, which is auto-denied in print mode — so the agent cannot reach the daemon's
+`/task/context` or `/search` endpoints and falls back to refusing. For a real agentic run, pass
+`--agent-allow-all-tools`, which appends `--dangerously-skip-permissions` to a claude-family
+`--agent-command` (for other CLIs, put the equivalent bypass flag in `--agent-command` yourself). The
+agent works only against the isolated per-run workspace/daemon, so the scoped bypass is benchmark-safe.
+
+```bash
+python3 bench/arc_agi3_zonoid/runner.py \
+  --agent-command "claude -p" \
+  --agent-allow-all-tools \
+  --task-ids arc-agi-3-smoke-1 \
+  --max-steps 5
+```
+
+The Zonoid context (`daemon_url`, `workspace`, `task_key`, `kb_snapshot`) is inlined directly into the
+prompt as a fenced JSON block in the zonoid-on arm, so the agent never has to read an out-of-sandbox
+context file. (The context file is still written for patched official harnesses.) A real *score* also
+needs a real ARC task id rather than the `arc-agi-3-smoke-*` placeholders — see Mode A / Mode B.
+
 ## Mode B: official benchmarking checkout
 
 Pass a checkout path:

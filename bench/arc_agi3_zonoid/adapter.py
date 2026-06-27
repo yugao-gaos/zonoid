@@ -252,9 +252,24 @@ def _agent_prompt(*, task_id: str, config: dict[str, Any]) -> str:
     instructions = zonoid.get("task_instructions")
     if instructions:
         lines.extend(["", instructions])
-    context_json = zonoid.get("context_json")
-    if context_json:
-        lines.extend(["", f"Zonoid context JSON file: {context_json}"])
+    if zonoid.get("enabled"):
+        # Inline the context directly in the prompt so the agent never has to read an
+        # out-of-sandbox file. The context file is still written (write_zonoid_context_file)
+        # for patched official harnesses that consume ZONOID_CONTEXT_JSON.
+        inline = {
+            "enabled": zonoid.get("enabled"),
+            "daemon_url": zonoid.get("daemon_url"),
+            "workspace": zonoid.get("workspace"),
+            "task_key": zonoid.get("task_key"),
+            "kb_snapshot": zonoid.get("kb_snapshot"),
+        }
+        lines.extend([
+            "",
+            "Zonoid context (inline — no file access required):",
+            "```json",
+            json.dumps(inline, indent=2),
+            "```",
+        ])
     return "\n".join(lines) + "\n"
 
 
