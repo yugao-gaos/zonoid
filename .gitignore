@@ -38,6 +38,9 @@ models/
 /.claude/scheduled_tasks.lock
 _README.bak
 .graph/daemon.port
+# Build staging — never commit (ollama binaries, large artifacts)
+staging/
+
 # Invalidated v1-v7 bench results (oracle contamination — not shipped)
 bench/results.jsonl
 bench/results-v2.jsonl

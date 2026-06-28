@@ -1866,6 +1866,7 @@ async function autowireNewTaskWholeGraph(overlay, g, anchorKey, title, summary, 
 // `_g` is an optional pre-built graph (for unit tests — omit in production and buildGraph(ws) is used).
 function seedBlockingDepContext(ov, ws, taskId, _g) {
   if (!ov || !taskId) return;
+  if (SEMANTIC_AUTOWIRE_THRESHOLD >= 999) return; // autowire disabled (bench/test mode) — skip seeding
   const g = _g || buildGraph(ws);
   const task = g.tasks.find((t) => t.id === taskId);
   if (!task || (task.kind || 'task') === 'gate') return; // gates don't receive context seeds
@@ -2546,6 +2547,7 @@ function readTranscript(p, maxLines = 200) {
 }
 
 function send(res, code, body, type = 'application/json') {
+  if (res.headersSent) return false;
   res.writeHead(code, { 'Content-Type': type, 'Access-Control-Allow-Origin': '*', 'Connection': 'close' });
   res.end(type === 'application/json' ? JSON.stringify(body) : body);
   return true;
@@ -2937,6 +2939,7 @@ if (require.main === module) {
       loadState().then(() => {
         writeDaemonPort(port);
         superviseCodexWakeDeliveryForRegisteredWorkspaces();
+        scheduleHeadlessDrain(0, 'boot');
       })
         .catch((e) => { process.stderr.write(`loadState failed: ${(e && e.stack) || e}\n`); process.exit(1); });
 
@@ -3070,7 +3073,6 @@ if (require.main === module) {
   }
 
   requestHeadlessDrainWake = () => scheduleHeadlessDrain(0, 'graph-change');
-  scheduleHeadlessDrain(0, 'boot');
 
   // Periodic claim sweep: release orphaned in_progress claims when no route (buildGraph) is being
   // called — catches the case after a Claude app restart where the user hasn't issued any command
