@@ -1113,6 +1113,23 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         }
       } catch { /* subsumption is best-effort — never block the note write */ }
     }
+    // Contradiction band (judge-mediated supersession, GATED via ZONOID_CONTRADICTION_RESOLUTION=1;
+    // default OFF). Below the 0.92 subsumption bar sit notes about the SAME subject that may be a
+    // contradiction/update OR merely complementary — cosine cannot tell them apart. So we only SEED a
+    // 'contradicts' CANDIDATE edge new->old and let the eager judge decide per edge-judge.md
+    // (supersede the older via a consolidate verdict, or keep both). Nothing is retired here without a
+    // judge verdict; the new note is NOT hidden. Best-effort: never blocks the note write.
+    if (b.vec && judge.contradictionResolutionEnabled()) {
+      try {
+        const cands = judge.findContradictionCandidates(id, b.vec, T.ov);
+        for (const { noteId, similarity } of cands) {
+          overlayStore.addEdge(T.ov, 'note:' + id, 'note:' + noteId, null, 'context',
+            Math.max(0, 1 - similarity),
+            { judged: false, by: 'subconscious', origin: 'contradiction-seed', relation: 'contradicts', score: similarity });
+        }
+        if (cands.length) overlayStore.markEagerJudge(T.ov, 'note:' + id);
+      } catch { /* contradiction seeding is best-effort — never block the note write */ }
+    }
     T.save(); notifyChange(T.ws);
     const resp = { ok: true, id, key: 'note:' + id, superseded, autowired: ingestResult.seeded, hint };
     if (sourceCluster) resp.source_cluster = { nodes: sourceCluster.nodes.length, chunks: sourceCluster.chunkCount };
