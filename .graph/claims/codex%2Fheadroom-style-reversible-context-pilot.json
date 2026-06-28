@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/headroom-style-reversible-context-pilot",
+  "git_user": "test <test@example.com>",
+  "session_id": "codex-worker-headroom-reversible-context-20260628",
+  "branch": "orch/attempt/codex-headroom-style-reversible-context-pilot",
+  "status": "claimed",
+  "claimed_at": "2026-06-28T10:31:05.789Z",
+  "lease_until": "2026-06-28T11:31:05.789Z"
+}
