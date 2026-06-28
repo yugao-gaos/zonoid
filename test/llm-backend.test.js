@@ -84,6 +84,7 @@ async function assertNoChildProcess(fn) {
 function withEnv(overrides) {
   const keys = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENROUTER_API_KEY', 'OPENROUTER_KEY',
     'ZAI_API_KEY', 'GLM_API_KEY', 'ZHIPUAI_API_KEY', 'BIGMODEL_API_KEY',
+    'ZONOID_OLLAMA_BASE_URL', 'ORCH_OLLAMA_BASE_URL', 'OLLAMA_HOST', 'ORCH_OLLAMA_MODEL',
     'ORCH_DATA', 'ZONOID_DATA', 'CLAUDE_PLUGIN_DATA',
     'ZONOID_CLAUDE_BIN', 'CLAUDE_BIN',
     // Codex/Cursor agentic-cli provider env (bin overrides + auth keys).
@@ -113,6 +114,7 @@ test('registry: claude + hosted API providers are seeded and looked up by id', (
   const claude = backend.getProvider('claude');
   const openrouter = backend.getProvider('openrouter');
   const zai = backend.getProvider('zai');
+  const ollama = backend.getProvider('ollama');
   assert.ok(claude, 'claude provider registered');
   assert.equal(claude.id, 'claude');
   assert.equal(claude.kind, 'agentic-cli');
@@ -121,6 +123,9 @@ test('registry: claude + hosted API providers are seeded and looked up by id', (
   assert.ok(zai, 'standalone Z.AI GLM provider registered');
   assert.equal(zai.kind, 'api');
   assert.equal(zai.defaultModel, 'glm-5.2');
+  assert.ok(ollama, 'local Ollama provider registered');
+  assert.equal(ollama.kind, 'api');
+  assert.equal(ollama.defaultModel, backend.OLLAMA_DEFAULT_MODEL);
   assert.equal(backend.getProvider('does-not-exist'), null, 'unknown id returns null');
 });
 
@@ -129,6 +134,7 @@ test('registry: listProviders includes seeded providers', () => {
   assert.ok(ids.includes('claude'));
   assert.ok(ids.includes('openrouter'));
   assert.ok(ids.includes('zai'));
+  assert.ok(ids.includes('ollama'));
 });
 
 // --- registry: register / replace / validation -------------------------------------------------
@@ -306,6 +312,14 @@ test('getActiveBackend: selects standalone Z.AI GLM when configured', () => {
   assert.equal(r.model, 'glm-5.2');
 });
 
+test('getActiveBackend: selects local Ollama when configured', () => {
+  const r = backend.getActiveBackend({ config: { backend: { provider: 'ollama', model: 'llama3.1:8b' } } });
+  assert.equal(r.providerId, 'ollama');
+  assert.equal(r.provider.kind, 'api');
+  assert.equal(r.provider.defaultModel, backend.OLLAMA_DEFAULT_MODEL);
+  assert.equal(r.model, 'llama3.1:8b');
+});
+
 test('getActiveBackend: unknown provider id falls back to Claude (soft fallback, no throw)', () => {
   const r = backend.getActiveBackend({ config: { backend: { provider: 'totally-unregistered' } } });
   assert.equal(r.providerId, 'claude');
@@ -339,6 +353,14 @@ test('api provider: Z.AI isAuthed reflects ZAI_API_KEY and GLM aliases', () => {
   restore = withEnv({ GLM_API_KEY: 'glm-test' });
   try {
     assert.equal(backend.zaiProvider.isAuthed(), true, 'GLM_API_KEY alias -> authed');
+  } finally { restore(); }
+});
+
+test('api provider: Ollama isAuthed is true without API keys', () => {
+  const restore = withEnv({});
+  try {
+    assert.equal(backend.ollamaProvider.isAuthed(), true);
+    assert.equal(backend.ollamaProvider.apiKeyEnv, undefined);
   } finally { restore(); }
 });
 
@@ -415,6 +437,45 @@ test('api provider: callZaiApi targets Z.AI directly with glm-5.2 default (no Op
   } finally { restore(); }
 });
 
+test('api provider: callOllamaApi targets the local OpenAI-compatible endpoint with no Authorization header', async () => {
+  const restore = withEnv({ ZONOID_OLLAMA_BASE_URL: 'http://127.0.0.1:11434/v1' });
+  const fake = makeFakeHttp((opts, body) => {
+    assert.equal(opts.hostname, '127.0.0.1');
+    assert.equal(opts.port, 11434);
+    assert.equal(opts.path, '/v1/chat/completions');
+    assert.equal(opts.method, 'POST');
+    assert.equal(opts.headers.Authorization, undefined);
+    const sent = JSON.parse(body);
+    assert.equal(sent.model, 'llama3.1:8b');
+    assert.ok(Array.isArray(sent.messages) && sent.messages.length >= 1);
+    return { status: 200, body: { choices: [{ message: { content: 'local reply' } }], usage: { total_tokens: 5 } } };
+  });
+  try {
+    const out = await assertNoChildProcess(() => backend.callOllamaApi({
+      messages: [{ role: 'user', content: 'hi' }], model: 'llama3.1:8b', httpsModule: fake,
+    }));
+    assert.equal(out.text, 'local reply');
+    assert.deepEqual(out.usage, { total_tokens: 5 });
+    assert.equal(fake.requests.length, 1, 'exactly one local HTTP request was made');
+  } finally { restore(); }
+});
+
+test('api provider: callOllamaApi accepts OLLAMA_HOST and appends /v1 when needed', async () => {
+  const restore = withEnv({ OLLAMA_HOST: 'localhost:11435' });
+  const fake = makeFakeHttp((opts, body) => {
+    assert.equal(opts.hostname, 'localhost');
+    assert.equal(opts.port, 11435);
+    assert.equal(opts.path, '/v1/chat/completions');
+    const sent = JSON.parse(body);
+    assert.equal(sent.model, backend.OLLAMA_DEFAULT_MODEL);
+    return { status: 200, body: { choices: [{ message: { content: 'from host' } }] } };
+  });
+  try {
+    const out = await backend.callOllamaApi({ messages: [{ role: 'user', content: 'hi' }], httpsModule: fake });
+    assert.equal(out.text, 'from host');
+  } finally { restore(); }
+});
+
 test('api provider: callApi rejects with ApiBackendError on a missing key (no spawn, no request)', async () => {
   const restore = withEnv({}); // no OPENROUTER_API_KEY
   const fake = makeFakeHttp(() => ({ status: 200, body: {} }));
@@ -456,6 +517,16 @@ test('api provider: zaiProvider.callApi delegates to the direct Z.AI call', asyn
     const out = await backend.zaiProvider.callApi({ messages: [{ role: 'user', content: 'x' }], httpsModule: fake });
     assert.equal(out.text, 'via-zai-provider');
     assert.equal(fake.requests[0].opts.hostname, 'api.z.ai');
+  } finally { restore(); }
+});
+
+test('api provider: ollamaProvider.callApi delegates to the local Ollama call', async () => {
+  const restore = withEnv({ ORCH_OLLAMA_BASE_URL: 'http://localhost:11434/v1' });
+  const fake = makeFakeHttp(() => ({ status: 200, body: { choices: [{ message: { content: 'via-ollama-provider' } }] } }));
+  try {
+    const out = await backend.ollamaProvider.callApi({ messages: [{ role: 'user', content: 'x' }], httpsModule: fake });
+    assert.equal(out.text, 'via-ollama-provider');
+    assert.equal(fake.requests[0].opts.hostname, 'localhost');
   } finally { restore(); }
 });
 
@@ -509,6 +580,24 @@ test('api provider: runZaiJudgeLoop uses glm-5.2 as the default model', async ()
   assert.equal(result.exitCode, 0);
   assert.equal(callApiCalls.length, 1);
   assert.equal(callApiCalls[0].model, 'glm-5.2');
+});
+
+test('api provider: runOllamaJudgeLoop uses the Ollama default model', async () => {
+  const fakeHttp = makeFakeHttp((opts) => {
+    if (opts.method === 'GET' && /\/judge\/next/.test(opts.path)) {
+      return { status: 200, body: { idle: false, items: [{ kind: 'edge', id: 'e1' }] } };
+    }
+    return { status: 404, body: {} };
+  });
+  const callApiCalls = [];
+  const fakeCallApi = async (o) => { callApiCalls.push(o); return { text: '{"verdicts":[]}', usage: null }; };
+
+  const result = await assertNoChildProcess(() => backend.runOllamaJudgeLoop({
+    daemonUrl: 'http://localhost:8787', httpModule: fakeHttp, callApiFn: fakeCallApi,
+  }));
+  assert.equal(result.exitCode, 0);
+  assert.equal(callApiCalls.length, 1);
+  assert.equal(callApiCalls[0].model, backend.OLLAMA_DEFAULT_MODEL);
 });
 
 test('api provider: runJudgeLoop on an idle queue returns exit 0 without calling callApi or POSTing', async () => {
