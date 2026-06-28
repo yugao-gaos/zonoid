@@ -37,3 +37,4 @@
 {"evt":"edge_removed","from":"note:note-mqgsb1mcnid","to":"note:note-mqfmkwytf2n","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqgsb1mcnid","to":"note:note-mqfatdr2s67","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_promoted","from":"note:note-mqgsb1mcnid","to":"note:note-mqgqkxlboi0","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.654,"by":"judge","judged":true,"score":0.654,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqgsb1mcnid","to":"codex/headless-drain-context-compression","kind":"context","actor":"overlay-sync","ts":"2026-06-28T15:08:51.832Z","weight":0,"by":"autowire","judged":false,"score":0.481,"origin":"autowire-semantic"}
