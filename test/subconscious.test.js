@@ -1146,6 +1146,7 @@ test('subconscious assignment prepare carries and wires agentic search context e
   const store = createSubconsciousStore();
   const ov = overlayStore.EMPTY();
   const calls = [];
+  const longDagSummary = `Task-gated context should be selected by Subconscious before worker dispatch. ${'Worker handoff evidence should stay retrievable through compact context handles. '.repeat(12)}dag tail marker`;
   const graph = {
     tasks: [
       node('codex/impl', 'Implement agentic context assignment', {
@@ -1155,7 +1156,7 @@ test('subconscious assignment prepare carries and wires agentic search context e
       }),
       node('note:dag', 'DAG assignment context', {
         kind: 'note',
-        summary: 'Task-gated context should be selected by Subconscious before worker dispatch.',
+        summary: longDagSummary,
       }),
       node('note:rag', 'RAG assignment context', {
         kind: 'note',
@@ -1196,6 +1197,15 @@ test('subconscious assignment prepare carries and wires agentic search context e
   assert.equal(res.body.ok, true);
   assert.equal(res.body.assignment.agentic_search_context.kind, 'subconscious_agentic_search_context');
   assert.equal(res.body.assignment.context.agentic_search_context.kind, 'subconscious_agentic_search_context');
+  assert.equal(res.body.assignment.agentic_search_context.briefing.kind, 'subconscious_compact_briefing');
+  assert(res.body.assignment.agentic_search_context.briefing.human_summary.includes('Subconscious context brief'));
+  assert(res.body.assignment.agentic_search_context.briefing.ccr_handles.some((handle) => handle.key === 'note:dag'));
+  assert(res.body.assignment.agentic_search_context.briefing.metrics.saved_tokens > 0);
+  assert.equal(res.body.assignment.agentic_search_context.retrieve_more.route, 'POST /context/resolve');
+  assert.equal(res.body.assignment.briefing.kind, 'subconscious_assignment_briefing');
+  assert(res.body.assignment.briefing.ccr_handles.some((handle) => handle.key === 'note:dag'));
+  assert(res.body.assignment.briefing.metrics.saved_tokens > 0);
+  assert.equal(res.body.assignment.retrieve_more.route, 'POST /context/resolve');
   const modes = res.body.assignment.context.agentic_search_context.search_steps.map((step) => step.mode);
   assert.equal(modes[0], 'dag_task_gated');
   assert(res.body.assignment.context.agentic_search_context.decisions.stop_reason);
