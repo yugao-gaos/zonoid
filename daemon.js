@@ -2052,8 +2052,47 @@ function makeResolver() {
     return (memo[id] = 'ready');
   }
 
+  function exists(ws, key) {
+    const { tasks } = loadWs(ws);
+    return !!tasks[key];
+  }
+
+  function explicitStatus(ws, key) {
+    const { overlay } = loadWs(ws);
+    return overlay.status[key] || null;
+  }
+
   function label(ws, key) { const { tasks } = loadWs(ws); return tasks[key] ? tasks[key].label : key; }
-  return { loadWs, depRefs, effective, label };
+  return { loadWs, depRefs, effective, exists, explicitStatus, label };
+}
+
+function readinessDetail(R, ws, key, opts = {}) {
+  const status = opts.status || R.effective(ws, key);
+  if (status !== 'not_ready') return null;
+  if (opts.blocked) return { kind: 'explicit_block', label: 'blocked', reason: String(opts.blocked) };
+
+  const blocking = R.depRefs(ws, key).filter((d) => d.kind !== 'context');
+  for (const d of blocking) {
+    if (!R.exists(d.ws, d.key)) return { kind: 'missing_dependency', label: 'missing dep', dependency: d.key, workspace: d.ws };
+    const depStatus = R.effective(d.ws, d.key);
+    if (depStatus === 'canceled') return { kind: 'canceled_dependency', label: 'canceled dep', dependency: d.key, workspace: d.ws };
+    if (depStatus === 'failed') return { kind: 'failed_dependency', label: 'failed dep', dependency: d.key, workspace: d.ws };
+    if (!depSatisfied(depStatus)) return { kind: 'waiting_dependency', label: 'waiting deps', dependency: d.key, dependency_status: depStatus, workspace: d.ws };
+  }
+
+  if (opts.judging) return { kind: 'judging_hold', label: 'judging', reason: 'unjudged context candidates' };
+  if (R.explicitStatus(ws, key) === 'not_ready') return { kind: 'explicit_hold', label: 'held', reason: opts.note || '' };
+  return { kind: 'stale_projection', label: 'stale state', reason: 'not_ready with no dependency, judge, or explicit hold' };
+}
+
+function readinessRepairable(readiness) {
+  return !!readiness && [
+    'missing_dependency',
+    'canceled_dependency',
+    'failed_dependency',
+    'explicit_hold',
+    'stale_projection',
+  ].includes(readiness.kind);
 }
 
 // Find the transcript of the HARNESS agent that actually ran a task, by time-window correlation.
@@ -2209,10 +2248,11 @@ function reconcileGraphBeforeProjection(ws, ovWs) {
   const nativeByKey = Object.fromEntries(native.map((t) => [t.key, t]));
   const repairedReverseJudgeEdges = overlayStore.pruneReversePairedJudgeBlockingEdges(ovWs, { tasks: nativeByKey });
   return { native, effects: {
-    tsDirty: false,
-    edgesDirty: repairedReverseJudgeEdges > 0,
-    adoptDirty: false,
-    newlySeen: [],
+	    tsDirty: false,
+	    edgesDirty: repairedReverseJudgeEdges > 0,
+	    adoptDirty: false,
+	    repairDirty: false,
+	    newlySeen: [],
     newlyAdoptedSet: new Set(),
     newlyAdopted: [],
   } };
@@ -2229,7 +2269,7 @@ function commitGraphProjectionEffects(ws, ovWs, effects) {
     overlayStore.bumpEpoch(ovWs);
     effects.edgesDirty = true;
   }
-  if (effects.tsDirty || effects.edgesDirty || effects.adoptDirty) {
+  if (effects.tsDirty || effects.edgesDirty || effects.adoptDirty || effects.repairDirty) {
     overlayStore.save(ws, ovWs, { deferred: true }); refreshOverlayStamp(ws); notifyChange();
   }
   // INGEST-AT-BIRTH (BUILD1): native tasks adopted THIS build pass through the unified ingestNode funnel
@@ -2316,12 +2356,30 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
     const _adoptHold = effects.newlyAdoptedSet.has(t.key) && status === 'ready';
     const _status = (_adoptHold || (_js.judging && status === 'ready')) ? 'not_ready' : status;
     const _judging = _adoptHold || _js.judging;
+	    const readiness = readinessDetail(R, ws, t.key, {
+	      status: _status,
+	      judging: _judging,
+	      blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null,
+	      note: ovWs.notes[t.key] || '',
+	    });
+	    if (!ovWs.readinessRepairs) ovWs.readinessRepairs = {};
+	    if (readinessRepairable(readiness)) {
+	      const nextRepair = { task_key: t.key, kind: readiness.kind, dependency: readiness.dependency || null, dependency_status: readiness.dependency_status || null, reason: readiness.reason || null, created_at: now() };
+	      const prevRepair = ovWs.readinessRepairs[t.key];
+	      if (!prevRepair || prevRepair.kind !== nextRepair.kind || prevRepair.dependency !== nextRepair.dependency || prevRepair.dependency_status !== nextRepair.dependency_status) {
+	        ovWs.readinessRepairs[t.key] = nextRepair;
+	        effects.repairDirty = true;
+	      }
+	    } else if (ovWs.readinessRepairs[t.key]) {
+	      delete ovWs.readinessRepairs[t.key];
+	      effects.repairDirty = true;
+	    }
     const taskVecNode = embeddingStore.taskNode(ovWs, t.key);
     // Review-lifecycle (origin): expose same-node review state as extra DTO fields via spread.
     // `provisional` stays false (P6 strict gate — see judgingState above; timedOut is pinned false,
     // so origin's `_js.judging && _js.timedOut` is equivalent — we keep the explicit literal).
     const reviewLifecycle = overlayStore.reviewLifecycleFor(ovWs, t.key, _status);
-    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, ...reviewLifecycle, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
+    return { id: t.key, label: t.label, session: t.session, deps, context_deps, context_weights, status: _status, readiness, judging: _judging, provisional: false, note: ovWs.notes[t.key] || '', agent_id: ovWs.assignee[t.key] || null, summary: ovWs.summaries[t.key] || '', vecs: taskVecNode.vecs, vecsMeta: taskVecNode.vecsMeta, tags: (ovWs.taskTags && ovWs.taskTags[t.key]) || [], git: ovWs.git[t.key] || null, git_user: (ovWs.git_users && ovWs.git_users[t.key]) || null, repo: (ovWs.repos && ovWs.repos[t.key]) || null, metric: (ovWs.metrics && ovWs.metrics[t.key]) || null, measurement: (ovWs.measurements && ovWs.measurements[t.key]) || null, benchmark: (ovWs.benchmarks && ovWs.benchmarks[t.key]) || null, ...reviewLifecycle, firstSeen: ts ? ts.firstSeen : null, lastChanged: ts ? ts.lastChanged : null, tokens: taskTokens(t.key, t.session, sessionCount[t.session] === 1, stWs), maxRetries: (_rc && _rc.maxRetries) || 0, retryCount: (_rc && _rc.retryCount) || 0, blocked: (ovWs.blocked && ovWs.blocked[t.key]) || null };
   });
   // KEPT context edges → context_deps for overlay-only graph nodes. The structBoost reranker
   // (/search) and BFS path tier read each node's context_deps as graph adjacency. Mirror the task-side
@@ -2788,7 +2846,7 @@ function isPrimaryCheckout(root = __dirname) {
 module.exports = { taskTokens, taskTranscript, harnessTranscriptForTask, digestRejected, leanLearnings, isTruthy, scoreMatchesSemantic, scoreNodeAgainstTokens, noteCurrentAsOf, suggestToks, suggestForTask, autowireNoteProvider, autowireNewTaskWholeGraph, ingestNode, seedBlockingDepContext, noteRagCandidates, RAG_RECALL_THRESHOLD, SEMANTIC_AUTOWIRE_THRESHOLD, SEMANTIC_DUP_THRESHOLD, touchAgent, staleClaimKeys, staleSnapshotClaimKeys, releaseSnapshotClaim, staleNativeClaimKeys, releaseNativeClaim, localInProgressCount, staleVerdictKeys, sweepStaleClaims, sweepStaleVerdicts, sweepStaleGuidance, migrateBlindEdges, sessionBindings, worktreeVouchesLive, depSatisfied, vouchedLive, STALE_MINUTES_DEFAULT,
   isPrimaryCheckout, respCacheGet, respCachePut, notifyChange, RESP_TTL, sseClients, nodeExistsInGraph,
   // test hooks (no server side effects): drive a single loop's per-tick decision in isolation.
-  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
+  decideOne, decideAll, ensureManagedGraphLoops, buildGraph, targetOverlay, sweepFailedTasks, sweepFiledropStubs, registeredWorkspaces, overlayFor, refreshOverlayStamp, __readinessDetailForTest: readinessDetail, __clearOverlayCacheForTest: () => overlayCache.clear(), __setOverlayForTest: (o) => { __testOv = o; if (__testWs !== null) overlayCache.set(__testWs, { ov: o, stamp: overlayStamp(__testWs) }); }, __setWorkspaceForTest: (w) => { __testWs = w; }, __setAgentsForTest: (a) => { state.agents = a; }, __getAgentsForTest: () => state.agents, __getLoopsForTest: () => loops, __setLoopsForTest: (entries) => { loops.clear(); for (const [k, v] of entries) loops.set(k, v); }, __clearLoopsForTest: () => loops.clear() };
 
 if (require.main === module) {
   // Log unhandled promise rejections instead of crashing (Node's default is to exit the process).

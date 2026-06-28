@@ -17,8 +17,12 @@
   .badge { font-size: 9px; background: #1f6feb33; color: #79c0ff; border-radius: 8px; padding: 0 5px; margin-left: 5px; }
   .s-not_ready{border-left-color:#6e7681;opacity:.55}.s-not_ready .st{color:#6e7681}
   .s-needs_guidance,.s-needs_approval{border-left-color:#d29922}.s-needs_guidance .st,.s-needs_approval .st{color:#e3b341}
-  .s-waiting_deps{border-left-color:#6e7681;opacity:.55}.s-waiting_deps .st{color:#6e7681}
+  .s-waiting_deps,.s-waiting_dependency{border-left-color:#6e7681;opacity:.55}.s-waiting_deps .st,.s-waiting_dependency .st{color:#6e7681}
   .s-waiting_ghost{border-left-color:#8957e5;opacity:.75}.s-waiting_ghost .st{color:#d2a8ff}
+  .s-missing_dependency,.s-canceled_dependency,.s-failed_dependency{border-left-color:#8957e5;opacity:.85}.s-missing_dependency .st,.s-canceled_dependency .st,.s-failed_dependency .st{color:#d2a8ff}
+  .s-judging_hold{border-left-color:#2dd4bf;opacity:.85}.s-judging_hold .st{color:#2dd4bf}
+  .s-explicit_hold,.s-explicit_block{border-left-color:#d29922;opacity:.85}.s-explicit_hold .st,.s-explicit_block .st{color:#e3b341}
+  .s-stale_projection{border-left-color:#f85149;opacity:.9}.s-stale_projection .st{color:#ff7b72}
   .s-blocked{border-left-color:#f85149}.s-blocked .st{color:#ff7b72}
   .s-ready{border-left-color:#d29922}.s-ready .st{color:#e3b341}
   .s-in_progress{border-left-color:#1f6feb;position:relative;overflow:hidden}.s-in_progress .st{color:#58a6ff}
@@ -86,13 +90,14 @@ const GUIDANCE_HOLD_RE=/disruptive follow-up|gated on guidance|held by user|user
 function taskDisplayStatus(t,byId){
   if(!t||t.kind==='note') return {key:t&&t.status||'note',label:(t&&t.status||'note').replace('_',' '),color:'#d29922'};
   if(t.status!=='not_ready') return {key:t.status,label:t.status.replace('_',' '),color:{'ready':'#e3b341','in_progress':'#58a6ff','done':'#3fb950','failed':'#ff7b72'}[t.status]||'#6e7681'};
+  if(t.readiness&&t.readiness.kind) return {key:t.readiness.kind,label:t.readiness.label||t.readiness.kind.replace(/_/g,' '),color:DISPLAY_STATUS_COLOR[t.readiness.kind]||'#6e7681'};
   if(t.blocked) return {key:'blocked',label:'blocked',color:DISPLAY_STATUS_COLOR.blocked};
   if(GUIDANCE_HOLD_RE.test(String(t.note||''))||String(t.blocked||'').includes('cost_gate')){
     const approval=/held by user|disruptive/i.test(String(t.note||''));
     return {key:approval?'needs_approval':'needs_guidance',label:approval?'needs approval':'needs guidance',color:'#e3b341'};
   }
   const open=(t.deps||[]).filter(d=>!String(d).startsWith('ghost:')&&byId[d]&&byId[d].status!=='done'&&byId[d].status!=='canceled');
-  if(open.length) return {key:'waiting_deps',label:'waiting on deps',color:DISPLAY_STATUS_COLOR.waiting_deps};
+  if(open.length) return {key:'waiting_deps',label:'waiting deps',color:DISPLAY_STATUS_COLOR.waiting_deps};
   if((t.deps||[]).some(d=>String(d).startsWith('ghost:'))) return {key:'waiting_ghost',label:'waiting on ghost',color:DISPLAY_STATUS_COLOR.waiting_ghost};
   return {key:'not_ready',label:'not ready',color:'#6e7681'};
 }

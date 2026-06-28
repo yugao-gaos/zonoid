@@ -202,8 +202,23 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     const isNoteKey = (k) => typeof k === 'string' && k.startsWith('note:');
     // Reuse ONE adjacency build across all edge items in this slice (positive-weight context edges).
     const nbAdjacency = judge.buildContextAdjacency(T.ov);
-    const items = slice.items.map((it) => {
-      if (it.kind === 'edge') {
+	    const items = slice.items.map((it) => {
+	      if (it.kind === 'readiness-repair') {
+	        const task = detail(it.task_key);
+	        const dep = it.dependency ? detail(it.dependency) : null;
+	        return {
+	          kind: 'readiness-repair',
+	          id: it.id,
+	          task,
+	          readiness_kind: it.readiness_kind || null,
+	          dependency: dep,
+	          dependency_key: it.dependency || null,
+	          dependency_status: it.dependency_status || null,
+	          reason: it.reason || null,
+	          allowed_actions: ['remove_dependency', 'release_hold', 'cancel_task', 'escalate'],
+	        };
+	      }
+	      if (it.kind === 'edge') {
         // The candidate edge is anchor(from) → N(to). Adjudicate N WITH structure: expand N's
         // weighted neighborhood + its supersede chain so the agent reasons over context, not the
         // endpoint alone. task→task candidates additionally carry kind/dup classification flags.
@@ -279,7 +294,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/judge/verdict' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
-    const verdicts = Array.isArray(b.verdicts) ? b.verdicts : (b.createEdge || b.keepEdge || b.pruneEdge || b.consolidate || b.surfaceCluster || b.markJudged || b.item ? [b] : []);
+	    const verdicts = Array.isArray(b.verdicts) ? b.verdicts : (b.createEdge || b.keepEdge || b.pruneEdge || b.consolidate || b.surfaceCluster || b.markJudged || b.repairTask || b.item ? [b] : []);
     const epoch = T.ov.epoch || 0;
     if (!T.ov.judgedAtEpoch) T.ov.judgedAtEpoch = {};
     if (!T.ov.judgedClusters) T.ov.judgedClusters = {};
@@ -294,14 +309,65 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     // LEGACY FALLBACK: by:'autowire' + note source ⇒ semantic; by:'autowire' + both endpoints tasks ⇒
     // lexical; otherwise asserted. A node id starting 'note:' marks a note endpoint.
     const isNote = (id) => typeof id === 'string' && id.startsWith('note:');
-    const edgeOrigin = (e) => {
+	    const edgeOrigin = (e) => {
       if (e && typeof e.origin === 'string') return e.origin;
       if (e && e.by === 'autowire') return isNote(e.from) ? 'autowire-semantic' : 'autowire-lexical';
       return 'asserted';
-    };
-    const findEdge = (from, to, kind) => T.ov.edges.find((x) => x.from === from && x.to === to && (kind == null || x.kind === kind));
-    for (const v of verdicts) {
-      if (v && v.createEdge && v.createEdge.from && v.createEdge.to) {
+	    };
+	    const findEdge = (from, to, kind) => T.ov.edges.find((x) => x.from === from && x.to === to && (kind == null || x.kind === kind));
+	    const removeBlockingDependency = (taskKey, depKey) => {
+	      let changed = 0;
+	      const beforeEdges = T.ov.edges.length;
+	      T.ov.edges = T.ov.edges.filter((e) => !(e.from === depKey && e.to === taskKey && (e.kind == null || e.kind === 'blocking')));
+	      changed += beforeEdges - T.ov.edges.length;
+	      const snap = T.ov.snapshots && T.ov.snapshots[taskKey];
+	      if (snap && Array.isArray(snap.blockedBy)) {
+	        const beforeDeps = snap.blockedBy.length;
+	        snap.blockedBy = snap.blockedBy.filter((d) => String(d) !== String(depKey));
+	        changed += beforeDeps - snap.blockedBy.length;
+	      }
+	      return changed;
+	    };
+	    const clearRepair = (taskKey) => {
+	      if (T.ov.readinessRepairs && T.ov.readinessRepairs[taskKey]) delete T.ov.readinessRepairs[taskKey];
+	    };
+	    for (const v of verdicts) {
+	      if (v && v.repairTask && v.repairTask.task_key && v.repairTask.action) {
+	        const taskKey = String(v.repairTask.task_key);
+	        const action = String(v.repairTask.action);
+	        const depKey = v.repairTask.dependency ? String(v.repairTask.dependency) : (T.ov.readinessRepairs && T.ov.readinessRepairs[taskKey] && T.ov.readinessRepairs[taskKey].dependency);
+	        const reason = String(v.repairTask.reason || 'readiness repair verdict');
+	        if (action === 'remove_dependency' && depKey) {
+	          const removed = removeBlockingDependency(taskKey, depKey);
+	          if (removed > 0) {
+	            clearRepair(taskKey);
+	            applied.repaired = (applied.repaired || 0) + 1;
+	            applied.removedDeps = (applied.removedDeps || 0) + removed;
+	            judge.appendVerdict(T.ws, { epoch, verdict: 'repair:remove_dependency', from: depKey, to: taskKey, edgeKind: 'blocking', cosine: null, by: 'judge' });
+	          }
+	        } else if (action === 'release_hold') {
+	          if (T.ov.status && T.ov.status[taskKey] === 'not_ready') delete T.ov.status[taskKey];
+	          clearRepair(taskKey);
+	          applied.repaired = (applied.repaired || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'repair:release_hold', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'cancel_task') {
+	          overlayStore.setStatus(T.ov, taskKey, 'canceled', reason);
+	          T.ov.cancel_requested[taskKey] = new Date().toISOString();
+	          clearRepair(taskKey);
+	          applied.repaired = (applied.repaired || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'repair:cancel_task', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'escalate') {
+	          if (!Array.isArray(T.ov.guidance)) T.ov.guidance = [];
+	          const existing = T.ov.guidance.some((g) => !g.resolved && g.action && g.action.kind === 'readiness-repair' && g.action.task_key === taskKey);
+	          if (!existing) {
+	            T.ov.guidance.push({ id: `gate/readiness-repair-${Date.now().toString(36)}`, question: `Resolve readiness repair for ${taskKey}`, context: reason, trigger: 'readiness_repair', ts: new Date().toISOString(), resolved: false, action: { kind: 'readiness-repair', task_key: taskKey, dependency: depKey || null } });
+	            applied.escalated = (applied.escalated || 0) + 1;
+	          }
+	          clearRepair(taskKey);
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'repair:escalate', from: taskKey, to: depKey || null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        }
+	      }
+	      if (v && v.createEdge && v.createEdge.from && v.createEdge.to) {
         const before = T.ov.edges.length;
         overlayStore.addEdge(T.ov, v.createEdge.from, v.createEdge.to, null, 'context', v.createEdge.weight);
         const e = T.ov.edges.find((x) => x.from === v.createEdge.from && x.to === v.createEdge.to && x.kind === 'context');
