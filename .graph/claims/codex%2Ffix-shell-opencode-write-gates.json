@@ -1,10 +1,9 @@
 {
   "task_key": "codex/fix-shell-opencode-write-gates",
-  "git_user": "yugao-gaos <yu.gao@gaos.ca>",
-  "session_id": "worker-fix-write-gates",
+  "git_user": "test <test@example.com>",
+  "session_id": "codex-main-gate-fix-session",
   "branch": "orch/attempt/codex-fix-shell-opencode-write-gates",
-  "status": "failed",
-  "claimed_at": "2026-06-22T02:41:50.201Z",
-  "lease_until": "2026-06-22T03:41:50.201Z",
-  "completed_at": "2026-06-22T03:07:34.321Z"
+  "status": "claimed",
+  "claimed_at": "2026-06-28T18:30:59.330Z",
+  "lease_until": "2026-06-28T19:30:59.330Z"
 }
