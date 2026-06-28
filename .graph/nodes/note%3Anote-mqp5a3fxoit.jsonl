@@ -80,3 +80,4 @@
 {"evt":"edge_added","from":"note:note-mqp5a3fxoit","to":"codex/workflow-review-merge-judge-items","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:17.831Z","weight":0,"by":"autowire","judged":false,"score":0.591,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqp5a3fxoit","to":"codex/workflow-review-merge-judge-items","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:37.399Z"}
 {"evt":"edge_added","from":"note:note-mqp5a3fxoit","to":"codex/resolve-internal-lane-projection-merge-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-28T22:29:38.357Z","weight":0,"by":"autowire","judged":false,"score":0.357,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqp5a3fxoit","to":"codex/review-merge-judge-lane-items","kind":"context","actor":"overlay-sync","ts":"2026-06-28T23:04:02.083Z","weight":0,"by":"autowire","judged":false,"score":0.591,"origin":"autowire-semantic"}
