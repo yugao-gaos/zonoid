@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "codex-desktop-2026-06-28",
   "branch": "orch/attempt/codex-resolve-internal-lane-projection-merge-conflict",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-28T22:29:35.942Z",
-  "lease_until": "2026-06-28T23:29:35.942Z"
+  "lease_until": "2026-06-28T23:29:35.942Z",
+  "completed_at": "2026-06-28T22:31:32.406Z"
 }
