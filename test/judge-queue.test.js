@@ -371,6 +371,28 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ok('follow-up triage priority does not advance tail cursor', slice.cursorAfter === 0);
 }
 
+// --- review / merge / kick-back / discard / cancel decisions are priority judge items -----------
+{
+  const o = ov.EMPTY(); o.epoch = 1;
+  ov.setReviewLifecycle(o, 'task/review', { review_state: 'requested', merge_state: 'review_pending', attempt_branch: 'orch/attempt/review' });
+  ov.setReviewLifecycle(o, 'task/merge', { review_state: 'approved', review_verdict: 'APPROVE', merge_state: 'pending', attempt_branch: 'orch/attempt/merge' });
+  ov.setReviewLifecycle(o, 'task/kick', { review_state: 'rejected', review_verdict: 'KICK_BACK', merge_state: 'blocked' });
+  o.notes['task/discard'] = 'discard requested by judge/1: obsolete attempt';
+  o.notes['task/cancel'] = 'canceled by judge/1: superseded';
+  o.edges = [{ from: 'note:src', to: 'note:dst', kind: 'context', judged: false }];
+  const q = judge.buildQueue(o);
+  ok('review decision appears in judge queue', q.some((i) => i.kind === 'task-decision' && i.task_key === 'task/review' && i.action === 'review'));
+  ok('merge decision appears in judge queue without merging', q.some((i) => i.kind === 'task-decision' && i.task_key === 'task/merge' && i.action === 'merge' && i.attempt_branch === 'orch/attempt/merge'));
+  ok('kick-back decision appears in judge queue', q.some((i) => i.kind === 'task-decision' && i.task_key === 'task/kick' && i.action === 'kick_back'));
+  ok('discard decision note appears in judge queue', q.some((i) => i.kind === 'task-decision' && i.task_key === 'task/discard' && i.action === 'discard'));
+  ok('cancel decision note appears in judge queue', q.some((i) => i.kind === 'task-decision' && i.task_key === 'task/cancel' && i.action === 'cancel'));
+  ok('judgeQueueDepth counts task decisions', judge.judgeQueueDepth(o) === q.length);
+  const slice = judge.nextSlice(q, 0, 1);
+  ok('task decision is priority over edge tail', slice.items.length === 1 && slice.items[0].kind === 'task-decision');
+  ok('task decision priority does not advance tail cursor', slice.cursorAfter === 0);
+  ok('same-node review state remains on implementation task', o.reviews['task/merge'].merge_state === 'pending' && !o.reviews['task/merge-judge']);
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

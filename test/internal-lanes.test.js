@@ -26,6 +26,19 @@ overlay.setReviewLifecycle(ov, 'task/review', {
   merge_state: 'review_pending',
   attempt_branch: 'orch/attempt/task-review',
 });
+overlay.setReviewLifecycle(ov, 'task/merge', {
+  review_state: 'approved',
+  review_verdict: 'APPROVE',
+  merge_state: 'pending',
+  attempt_branch: 'orch/attempt/task-merge',
+});
+overlay.setReviewLifecycle(ov, 'task/kick', {
+  review_state: 'rejected',
+  review_verdict: 'KICK_BACK',
+  merge_state: 'blocked',
+});
+ov.notes['task/discard'] = 'discard requested by judge/1: obsolete attempt';
+ov.notes['task/cancel'] = 'canceled by judge/1: superseded';
 overlay.addGuidance(ov, {
   question: 'Should this outward action proceed?',
   context: 'Needs user approval',
@@ -51,6 +64,10 @@ const graph = {
     { id: 'task/ready', label: 'Ready task', status: 'ready', deps: [] },
     { id: 'task/run', label: 'Running task', status: 'in_progress', deps: [], agent_id: 'worker-a' },
     { id: 'task/review', label: 'Review task', status: 'tested', deps: [] },
+    { id: 'task/merge', label: 'Merge task', status: 'tested', deps: [] },
+    { id: 'task/kick', label: 'Kick task', status: 'failed', deps: [] },
+    { id: 'task/discard', label: 'Discard task', status: 'tested', deps: [] },
+    { id: 'task/cancel', label: 'Cancel task', status: 'canceled', deps: [] },
   ],
 };
 
@@ -63,6 +80,12 @@ assert.ok(Array.isArray(projection.items));
 
 assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'judge_queue' && item.count >= 2));
 assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'review' && item.key === 'task/review' && item.merge_state === 'review_pending'));
+assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'task-decision' && item.task_key === 'task/review' && item.action === 'review'));
+assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'task-decision' && item.task_key === 'task/merge' && item.action === 'merge' && item.merge_state === 'pending'));
+assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'task-decision' && item.task_key === 'task/kick' && item.action === 'kick_back'));
+assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'task-decision' && item.task_key === 'task/discard' && item.action === 'discard'));
+assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'task-decision' && item.task_key === 'task/cancel' && item.action === 'cancel'));
+assert.ok(!ov.reviews['task/merge-judge']);
 assert.ok(projection.items.some((item) => item.lane === 'work' && item.kind === 'task' && item.key === 'task/ready'));
 assert.ok(projection.items.some((item) => item.lane === 'work' && item.key === 'task/run' && item.agent_id === 'worker-a'));
 assert.ok(projection.items.some((item) => item.lane === 'user_gate' && item.kind === 'guidance' && item.severity === 'blocking'));
