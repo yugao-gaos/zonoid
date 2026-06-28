@@ -1,10 +1,10 @@
 {
   "task_key": "codex/judge-decision-lane-followups-stale-holds",
   "git_user": "test <test@example.com>",
-  "session_id": "worker-judge-followups-stale-holds",
+  "session_id": "main-review-followups",
   "branch": "orch/attempt/codex-judge-decision-lane-followups-stale-holds",
-  "status": "done",
+  "status": "tested",
   "claimed_at": "2026-06-28T22:51:33.298Z",
   "lease_until": "2026-06-28T23:51:33.298Z",
-  "completed_at": "2026-06-28T23:00:10.952Z"
+  "completed_at": "2026-06-28T23:00:14.638Z"
 }
