@@ -355,6 +355,22 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ok('readiness repair priority does not advance tail cursor', slice.cursorAfter === 0);
 }
 
+// --- follow-up triage guidance is a priority judge item ----------------------------------------
+{
+  const o = ov.EMPTY(); o.epoch = 1;
+  o.guidance = [
+    { id: 'g-follow', resolved: false, question: 'Approve restart?', context: 'Restart after build', action: { kind: 'follow-up', task_key: 'followup/restart-abcd', when: null } },
+    { id: 'g-human', resolved: false, question: 'Human-owned approval', context: '', action: { kind: 'follow-up', task_key: 'followup/manual-abcd', judge_eligible: false } },
+  ];
+  o.edges = [{ from: 'note:src', to: 'note:dst', kind: 'context', judged: false }];
+  const q = judge.buildQueue(o);
+  ok('follow-up triage appears in judge queue', q.some((i) => i.kind === 'followup-triage' && i.task_key === 'followup/restart-abcd' && i.guidance_id === 'g-follow'));
+  ok('human-owned follow-up guidance is not judge queued', !q.some((i) => i.task_key === 'followup/manual-abcd'));
+  const slice = judge.nextSlice(q, 0, 1);
+  ok('follow-up triage is priority over edge tail', slice.items.length === 1 && slice.items[0].kind === 'followup-triage');
+  ok('follow-up triage priority does not advance tail cursor', slice.cursorAfter === 0);
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
