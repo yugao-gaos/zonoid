@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/judge-decision-lane-followups-stale-holds",
+  "git_user": "test <test@example.com>",
+  "session_id": "worker-judge-followups-stale-holds",
+  "branch": "orch/attempt/codex-judge-decision-lane-followups-stale-holds",
+  "status": "claimed",
+  "claimed_at": "2026-06-28T22:51:33.298Z",
+  "lease_until": "2026-06-28T23:51:33.298Z"
+}
