@@ -39,6 +39,12 @@ overlay.addGuidance(ov, {
   severity: 'review',
   action: { kind: 'dup-cluster', keys: ['note:a', 'note:b'] },
 });
+overlay.addGuidance(ov, {
+  question: 'Resolve readiness repair for task/blocked',
+  context: 'Missing dependency can be removed by the judge',
+  trigger: 'readiness_repair',
+  action: { kind: 'readiness-repair', task_key: 'task/blocked', dependency: 'task/missing' },
+});
 
 const graph = {
   tasks: [
@@ -60,7 +66,10 @@ assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind 
 assert.ok(projection.items.some((item) => item.lane === 'work' && item.kind === 'task' && item.key === 'task/ready'));
 assert.ok(projection.items.some((item) => item.lane === 'work' && item.key === 'task/run' && item.agent_id === 'worker-a'));
 assert.ok(projection.items.some((item) => item.lane === 'user_gate' && item.kind === 'guidance' && item.severity === 'blocking'));
+assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'guidance' && item.action_kind === 'dup-cluster'));
+assert.ok(projection.items.some((item) => item.lane === 'decision' && item.kind === 'guidance' && item.action_kind === 'readiness-repair' && item.task_key === 'task/blocked'));
 assert.ok(!projection.items.some((item) => item.lane === 'user_gate' && item.action_kind === 'dup-cluster'));
+assert.ok(!projection.items.some((item) => item.lane === 'user_gate' && item.action_kind === 'readiness-repair'));
 assert.equal(projection.summary.total, projection.items.length);
 assert.ok(projection.summary.lanes.decision.count >= 2);
 assert.ok(projection.summary.lanes.work.count >= 2);
