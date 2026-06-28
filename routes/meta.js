@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const mcpCore = require('../lib/mcp-core');
+const internalLanes = require('../lib/internal-lanes');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, buildGraph, state, setState, setWorkspace,
@@ -235,6 +236,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       const f = frontier.projectFrontier(graphTasks, g.ghosts, edgesOut, { windowMs, includeInternal: true });
       const body = { workspace: ws, scope: 'frontier', tasks: f.tasks, ghosts: f.ghosts, edges: f.edges, summary: { ...g.summary, archived: f.archived, frontier_kept: f.tasks.length } };
       if (archivedTasks) body.archived_tasks = archivedTasks;
+      if (includeInternal) body.internal_lanes = internalLanes.buildInternalLaneProjection({ workspace: ws, graph: g, overlay: T.ov });
       send(res, 200, respCachePut(stWs, stKey, body)); return true;
     }
     let tasks = graphTasks;
@@ -251,9 +253,13 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
         if (t.git && t.git.merged) o.merged = true;
         return o;
       });
-      send(res, 200, respCachePut(stWs, stKey, { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary, ...archField })); return true;
+      const body = { workspace: ws, compact: true, tasks: slim, ghosts: g.ghosts, edges: edgesOut, summary, ...archField };
+      if (includeInternal) body.internal_lanes = internalLanes.buildInternalLaneProjection({ workspace: ws, graph: g, overlay: T.ov });
+      send(res, 200, respCachePut(stWs, stKey, body)); return true;
     }
-    send(res, 200, respCachePut(stWs, stKey, { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr().filter((a) => a.workspace === ws), summary, config: T.ov.config || {}, ...archField })); return true;
+    const body = { workspace: ws, tasks, ghosts: g.ghosts, edges: edgesOut, routes: state.routes, agents: agentsArr().filter((a) => a.workspace === ws), summary, config: T.ov.config || {}, ...archField };
+    if (includeInternal) body.internal_lanes = internalLanes.buildInternalLaneProjection({ workspace: ws, graph: g, overlay: T.ov });
+    send(res, 200, respCachePut(stWs, stKey, body)); return true;
   }
 
   if (p === '/workspaces' && m === 'GET') {
