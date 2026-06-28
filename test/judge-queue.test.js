@@ -340,6 +340,21 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ok('epoch-wrap: queue unchanged after epoch bump (edges are epoch-independent)', queue2.length === 5);
 }
 
+// --- readiness repairs are priority judge items ------------------------------------------------
+{
+  const o = ov.EMPTY(); o.epoch = 1;
+  o.readinessRepairs = {
+    'task/blocked': { task_key: 'task/blocked', kind: 'canceled_dependency', dependency: 'task/old', dependency_status: 'canceled' },
+  };
+  o.edges = [{ from: 'note:src', to: 'note:dst', kind: 'context', judged: false }];
+  const q = judge.buildQueue(o);
+  ok('readiness repair appears in judge queue', q.some((i) => i.kind === 'readiness-repair' && i.task_key === 'task/blocked'));
+  ok('readiness repair preserves blocker kind separately', q.find((i) => i.kind === 'readiness-repair').readiness_kind === 'canceled_dependency');
+  const slice = judge.nextSlice(q, 0, 1);
+  ok('readiness repair is priority over edge tail', slice.items.length === 1 && slice.items[0].kind === 'readiness-repair');
+  ok('readiness repair priority does not advance tail cursor', slice.cursorAfter === 0);
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

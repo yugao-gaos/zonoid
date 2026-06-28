@@ -76,6 +76,21 @@ async function waitForPing(ms = 8000) {
   ok('default surface includes subconscious_search_context', defaultList.result.tools.some((t) => t.name === 'subconscious_search_context'));
   ok('default surface includes subconscious_idea_scheduler', defaultList.result.tools.some((t) => t.name === 'subconscious_idea_scheduler'));
   ok('default surface includes subconscious_assignment', defaultList.result.tools.some((t) => t.name === 'subconscious_assignment'));
+  ok('default surface includes internal_lanes diagnostic', defaultList.result.tools.some((t) => t.name === 'internal_lanes'));
+
+  const graphTool = TOOLS.find((t) => t.name === 'get_graph');
+  ok('get_graph schema exposes opt-in internal diagnostics', graphTool && graphTool.inputSchema.properties.include_internal && graphTool.inputSchema.properties.include_internal.type === 'boolean');
+  let graphCall = null;
+  await graphTool.run({ scope: 'all', compact: true, include_internal: true }, (method, path) => {
+    graphCall = { method, path };
+    return { ok: true };
+  });
+  ok('get_graph forwards include_internal only when requested', graphCall && graphCall.method === 'GET' && graphCall.path.includes('include_internal=1'));
+
+  const internalLanesTool = TOOLS.find((t) => t.name === 'internal_lanes');
+  ok('internal_lanes diagnostic is read-only', internalLanesTool && internalLanesTool.description.includes('Read-only diagnostic'));
+  const lanesProjection = await internalLanesTool.run({}, () => ({ internal_lanes: { version: 1, summary: { total: 0 }, items: [] } }));
+  ok('internal_lanes returns projection payload', lanesProjection && lanesProjection.version === 1 && lanesProjection.summary.total === 0 && Array.isArray(lanesProjection.items));
 
   const startTaskTool = TOOLS.find((t) => t.name === 'start_task');
   ok('start_task schema has session_id', startTaskTool && startTaskTool.inputSchema.properties.session_id && startTaskTool.inputSchema.properties.session_id.type === 'string');
