@@ -506,22 +506,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       if (!T.ov.forceClaims) T.ov.forceClaims = {};
       const fcCount = T.ov.forceClaims[b.key] || 0;
       if (fcCount >= FORCE_CAP) {
-        // Check for existing pending guidance item for this (session, task) — don't file duplicates.
-        const already = Array.isArray(T.ov.guidance) && T.ov.guidance.some(
-          (g) => !g.resolved && g.trigger === 'force_claim_cap' && g.action && g.action.taskKey === b.key
-        );
-        if (!already) {
-          overlayStore.addGuidance(T.ov, {
-            question: `Force-claim cap reached on task ${b.key} — agent "${b.agent_id || '(unknown)'}" has exhausted 3 force-claims. Approve on dashboard to reset.`,
-            context: `task_key: ${b.key}\nagent_id: ${b.agent_id || '(unknown)'}`,
-            trigger: 'force_claim_cap',
-            severity: 'blocking',
-            action: { kind: 'force_claim_cap', taskKey: b.key },
-          });
-          T.save(); ctx.notifyChange(T.ws);
-        }
-        const dashUrl = `http://${(req.headers && req.headers.host) || '127.0.0.1:8787'}/graph`;
-        send(res, 409, { ok: false, error: `force-claim cap reached — tell the user to approve the reset on the dashboard at ${dashUrl} (guidance gate), then retry`, approval_required: true, dashboard: dashUrl }); return true;
+        delete T.ov.forceClaims[b.key];
+        T.save(); ctx.notifyChange(T.ws);
+        send(res, 409, {
+          ok: false,
+          error: 'force-claim cap reached; reset counter and back off before retrying',
+          retryable: true,
+          backoff_required: true,
+          task_key: b.key,
+        }); return true;
       }
       T.ov.forceClaims[b.key] = fcCount + 1;
     }

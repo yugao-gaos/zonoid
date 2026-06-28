@@ -954,29 +954,33 @@ function staleVerdictKeys(overlay, agents, nowMs, bootMs = BOOT_MS) {
   }
   return out;
 }
-function hasPendingStaleVerdictGuidance(ov, key) {
+function hasPendingStaleVerdictReview(ov, key) {
+  const lifecycle = overlayStore.reviewLifecycleFor(ov, key, ov.status && ov.status[key]);
+  if (lifecycle.review_state === 'requested' || lifecycle.review_state === 'pending') return true;
+  if (lifecycle.merge_state === 'review_pending') return true;
   return Array.isArray(ov.guidance) && ov.guidance.some((g) => !g.resolved
     && (g.verdictKey === key
       || (g.action && g.action.kind === 'stale-verdict' && (g.action.task_key === key || g.action.verdictKey === key))));
 }
 
-// Surface stale verdict-pending hand-offs for review. Do not mutate status/assignee or write native
-// pending: a stale tested/ready handoff is evidence to inspect, not work to auto-requeue.
+// Route stale verdict-pending hand-offs into same-node review. Do not mutate status/assignee or write
+// native pending: a stale tested/ready handoff is evidence for the judge drain, not a user dashboard
+// decision.
 function sweepStaleVerdicts(ws, ov) {
   const stale = staleVerdictKeys(ov, state.agents, Date.now());
   if (!stale.length) return false;
   let dirty = false;
   for (const { key, status, agentId } of stale) {
-    if (hasPendingStaleVerdictGuidance(ov, key)) continue;
-    const gid = overlayStore.addGuidance(ov, {
-      question: `Stale ${status} verdict handoff for ${key} needs review`,
-      context: `Task ${key} has overlay status '${status}', but owner '${agentId || '?'}' is not running and the status timestamp is stale. The self-heal sweep left status and assignee unchanged.`,
-      trigger: 'stale_verdict',
-      severity: 'review',
-      action: { kind: 'stale-verdict', task_key: key, status, agent_id: agentId || null },
+    if (hasPendingStaleVerdictReview(ov, key)) continue;
+    overlayStore.setReviewLifecycle(ov, key, {
+      review_state: 'requested',
+      merge_state: 'review_pending',
+      review_requested_at: new Date().toISOString(),
+      review_requested_by: 'stale-verdict-sweep',
+      review_reason: `Stale ${status} handoff: owner '${agentId || '?'}' is not running and the status timestamp is stale.`,
+      review_note: 'Routed to same-node review instead of dashboard escalation.',
     });
-    overlayStore.annotateGuidance(ov, gid, { verdictKey: key });
-    console.log(`[self-heal] task ${key} (was ${status}) surfaced for review — owner gone`);
+    console.log(`[self-heal] task ${key} (was ${status}) routed to same-node review — owner gone`);
     dirty = true;
   }
   if (dirty) { overlayStore.save(ws, ov); notifyChange(); }
@@ -1446,7 +1450,7 @@ function decideOne(L, ctx) {
 
 function loopDecisionContext(ws, batch = null) {
   const ov = ws ? overlayFor(ws) : overlayStore.EMPTY();
-  const pend = overlayStore.pendingGuidance(ov);
+  const pend = overlayStore.userAttentionGuidance(ov);
   return {
     ws, ov,
     graph: buildGraph(ws),

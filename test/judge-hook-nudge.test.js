@@ -48,7 +48,7 @@ function runHook(input, extraEnv = {}) {
 }
 
 const BASE_CTX = `[Model routing] Recommended: main=claude-sonnet-4-6, subagent=claude-opus-4-8 (fast) (complexity=0.2, gate=abstain)
-[Orch gate] Claim only the task matching the work at hand — NEVER force-claim a task to unlock edits for unrelated work; create a new task instead. Force-claims are capped at 3 per task; over cap requires user approval on the dashboard.
+[Orch gate] Claim only the task matching the work at hand — NEVER force-claim a task to unlock edits for unrelated work; create a new task instead. Force-claims are capped at 3 per task; over cap is an automated backoff signal, not a user approval request.
 ${HEARTBEAT}`;
 
 ok('BASE_CTX heartbeat matches classify HEARTBEAT constant', BASE_CTX.includes(HEARTBEAT));

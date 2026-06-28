@@ -2,7 +2,7 @@
 // Test for per-repo daemon: per-workspace self-healing sweeps + workspace-tagged SSE (#1, #5).
 // Run: node test/per-ws-sweeps.test.js — exits non-zero on any failed assertion.
 //
-// (a) sweepStaleVerdicts(ws, ov) / sweepStaleGuidance(ws, ov): a stale verdict/guidance item in
+// (a) sweepStaleVerdicts(ws, ov) / sweepStaleGuidance(ws, ov): stale verdict/review state in
 //     a NON-current workspace is swept when those sweeps are called directly with a 2nd ws overlay.
 // (b) notifyChange(ws) emits `data: changed:<ws>\n\n`; bare notifyChange() emits `data: changed\n\n`.
 'use strict';
@@ -60,9 +60,9 @@ __setAgentsForTest({
   ok('(a1) sweepStaleVerdicts: dirty=true when stale verdict in secondary ws', dirty === true);
   ok('(a1) sweepStaleVerdicts: stale tested task status preserved', secondOv.status['s/101'] === 'tested');
   ok('(a1) sweepStaleVerdicts: stale tested task assignee preserved', secondOv.assignee['s/101'] === 'dead-judge');
-  const surfaced = secondOv.guidance.find((g) => g.verdictKey === 's/101');
-  ok('(a1) sweepStaleVerdicts: stale tested task surfaced as guidance', !!surfaced);
-  ok('(a1) sweepStaleVerdicts: guidance is review severity with stale-verdict action', surfaced && surfaced.severity === 'review' && surfaced.action && surfaced.action.kind === 'stale-verdict' && surfaced.action.task_key === 's/101');
+  const review = secondOv.reviews['s/101'];
+  ok('(a1) sweepStaleVerdicts: stale tested task requested same-node review', !!review);
+  ok('(a1) sweepStaleVerdicts: review is pending for stale verdict', review && review.review_state === 'requested' && review.merge_state === 'review_pending');
   ok('(a1) sweepStaleVerdicts: fresh tested task NOT swept', secondOv.status['s/102'] === 'tested');
   ok('(a1) sweepStaleVerdicts: live-owner task NOT swept', secondOv.status['s/103'] === 'tested');
 
@@ -72,7 +72,7 @@ __setAgentsForTest({
   // Idempotency: second pass leaves the unresolved tagged guidance as the single surfaced item
   const dirty2 = sweepStaleVerdicts(SECONDARY_WS, secondOv);
   ok('(a1) sweepStaleVerdicts: idempotent — second pass is clean', dirty2 === false);
-  ok('(a1) sweepStaleVerdicts: idempotent — no duplicate guidance', secondOv.guidance.filter((g) => g.verdictKey === 's/101').length === 1);
+  ok('(a1) sweepStaleVerdicts: idempotent — one review row remains', Object.keys(secondOv.reviews).filter((k) => k === 's/101').length === 1);
 }
 
 // ─── (a2) sweepStaleGuidance on a SECONDARY workspace overlay ────────────────

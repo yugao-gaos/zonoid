@@ -95,12 +95,12 @@ const WS_LOOP    = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-r
 
   const afterA = ov.load(WS_REG_A);
   const afterB = ov.load(WS_REG_B);
-  const surfacedA = afterA.guidance && afterA.guidance.find((g) => g.verdictKey === 'a/1');
-  const surfacedB = afterB.guidance && afterB.guidance.find((g) => g.verdictKey === 'b/1');
+  const reviewA = afterA.reviews && afterA.reviews['a/1'];
+  const reviewB = afterB.reviews && afterB.reviews['b/1'];
   ok('(b) stale verdict in registered ws A preserved by decideAll', afterA.status['a/1'] === 'tested');
   ok('(b) stale verdict in registered ws B preserved by decideAll', afterB.status['b/1'] === 'tested');
-  ok('(b) stale verdict in registered ws A surfaced by decideAll', surfacedA && surfacedA.action && surfacedA.action.kind === 'stale-verdict');
-  ok('(b) stale verdict in registered ws B surfaced by decideAll', surfacedB && surfacedB.action && surfacedB.action.kind === 'stale-verdict');
+  ok('(b) stale verdict in registered ws A requested review by decideAll', reviewA && reviewA.review_state === 'requested');
+  ok('(b) stale verdict in registered ws B requested review by decideAll', reviewB && reviewB.review_state === 'requested');
 
   // PRIMARY (state.workspace, NOT registered) must be untouched — there's nothing in it, but more
   // importantly the sweep set is the registry, so a verdict placed in PRIMARY would NOT be swept.
