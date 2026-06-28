@@ -3,8 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "worker-review-merge-judge-lane-items",
   "branch": "orch/attempt/codex-review-merge-judge-lane-items",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-28T23:03:48.522Z",
   "lease_until": "2026-06-29T00:03:48.522Z",
-  "completed_at": "2026-06-28T23:08:57.612Z"
+  "completed_at": "2026-06-28T23:10:42.580Z"
 }
