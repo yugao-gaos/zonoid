@@ -324,7 +324,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/judge/verdict' && m === 'POST') {
     const b = await readBody(req);
     const T = targetOverlay(b, u);
-	    const verdicts = Array.isArray(b.verdicts) ? b.verdicts : (b.createEdge || b.keepEdge || b.pruneEdge || b.consolidate || b.surfaceCluster || b.markJudged || b.repairTask || b.item ? [b] : []);
+	    const verdicts = Array.isArray(b.verdicts) ? b.verdicts : (b.createEdge || b.keepEdge || b.pruneEdge || b.consolidate || b.surfaceCluster || b.markJudged || b.repairTask || b.taskDecision || b.item ? [b] : []);
     const epoch = T.ov.epoch || 0;
     if (!T.ov.judgedAtEpoch) T.ov.judgedAtEpoch = {};
     if (!T.ov.judgedClusters) T.ov.judgedClusters = {};
@@ -368,6 +368,76 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	      overlayStore.resolveGuidance(T.ov, guidanceId, answer);
 	    };
 	    for (const v of verdicts) {
+	      if (v && v.taskDecision && v.taskDecision.task_key && v.taskDecision.action) {
+	        const taskKey = String(v.taskDecision.task_key);
+	        const action = String(v.taskDecision.action).toLowerCase().replace(/[\s-]+/g, '_');
+	        const reason = String(v.taskDecision.reason || 'task decision verdict');
+	        const now = new Date().toISOString();
+	        if (action === 'approve') {
+	          overlayStore.setReviewLifecycle(T.ov, taskKey, {
+	            review_state: 'approved',
+	            review_verdict: 'APPROVE',
+	            merge_state: 'pending',
+	            reviewed_at: now,
+	            review_agent: 'judge',
+	            review_reason: reason,
+	          });
+	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:approve', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'kick_back' || action === 'reject') {
+	          overlayStore.setStatus(T.ov, taskKey, 'failed', `judge kick-back: ${reason}`);
+	          overlayStore.setReviewLifecycle(T.ov, taskKey, {
+	            review_state: 'rejected',
+	            review_verdict: 'KICK_BACK',
+	            merge_state: 'blocked',
+	            reviewed_at: now,
+	            review_agent: 'judge',
+	            review_reason: reason,
+	          });
+	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:kick_back', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'merge') {
+	          T.ov.notes[taskKey] = `merge requested by judge: ${reason}`.slice(0, 280);
+	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
+	          applied.mergeRequested = (applied.mergeRequested || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:merge_request', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'discard') {
+	          overlayStore.setReviewLifecycle(T.ov, taskKey, {
+	            review_state: 'canceled',
+	            merge_state: 'closed',
+	            reviewed_at: now,
+	            review_agent: 'judge',
+	            review_reason: reason,
+	          });
+	          T.ov.notes[taskKey] = `discard decision applied by judge: ${reason}`.slice(0, 280);
+	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
+	          applied.discarded = (applied.discarded || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:discard', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'cancel') {
+	          overlayStore.setStatus(T.ov, taskKey, 'canceled', `cancel decision applied by judge: ${reason}`);
+	          T.ov.cancel_requested[taskKey] = now;
+	          overlayStore.setReviewLifecycle(T.ov, taskKey, {
+	            review_state: 'canceled',
+	            merge_state: 'closed',
+	            reviewed_at: now,
+	            review_agent: 'judge',
+	            review_reason: reason,
+	          });
+	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
+	          applied.canceled = (applied.canceled || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:cancel', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'escalate') {
+	          overlayStore.addGuidance(T.ov, {
+	            question: `Resolve task decision for ${taskKey}`,
+	            context: reason,
+	            trigger: 'task_decision',
+	            severity: 'blocking',
+	            action: { kind: 'task-decision', task_key: taskKey, source_action: v.taskDecision.source_action || null },
+	          });
+	          applied.escalated = (applied.escalated || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:escalate', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        }
+	      }
 	      if (v && v.followupTriage && v.followupTriage.task_key && v.followupTriage.action) {
 	        const taskKey = String(v.followupTriage.task_key);
 	        const action = String(v.followupTriage.action);
