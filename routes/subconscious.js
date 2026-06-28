@@ -3,6 +3,7 @@
 const path = require('path');
 const overlayStore = require('../lib/overlay');
 const { defaultSubconsciousStore } = require('../lib/subconscious');
+const { applyReversibleContextCompression } = require('../lib/search/context-compression');
 
 function cleanString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -147,7 +148,7 @@ function taskForKey(graph, key) {
 }
 
 function compactDependencySummary(summary, index) {
-  return {
+  const compact = {
     key: summary.key,
     label: truncateText(summary.label, 120),
     status: summary.status,
@@ -157,6 +158,8 @@ function compactDependencySummary(summary, index) {
     weight: summary.relevance_score == null ? undefined : summary.relevance_score,
     reason: summary.reason ? truncateText(summary.reason, 220) : null,
   };
+  if (summary.ccr) compact.ccr = summary.ccr;
+  return compact;
 }
 
 function buildProgressiveDisclosureContext(graph, ov, taskKey, dependencySummaries) {
@@ -275,6 +278,7 @@ function buildAssignmentEnvelope(ctx, T, input) {
     ...parentKeys.map((key) => summaryForKey(graph, T.ov, key, 'blocking')),
     ...contextKeys.map((key) => summaryFromAgenticContext(input.agentic_search_context, key) || summaryForKey(graph, T.ov, key, 'context')),
   ];
+  const contextCompression = applyReversibleContextCompression(dependencySummaries, { fieldForResult: () => 'summary' });
   const progressiveDisclosureContext = buildProgressiveDisclosureContext(graph, T.ov, taskKey, dependencySummaries);
   const envelope = {
     version: 1,
@@ -292,9 +296,11 @@ function buildAssignmentEnvelope(ctx, T, input) {
       parent_task_keys: parentKeys,
       context_task_keys: contextKeys,
       dependency_summaries: dependencySummaries,
+      context_compression: contextCompression,
       progressive_disclosure_context: progressiveDisclosureContext,
     },
     progressive_disclosure_context: progressiveDisclosureContext,
+    context_compression: contextCompression,
     next_expected_worker_action: 'subconscious_assignment.accept',
   };
   if (input.agentic_search_context) {

@@ -81,20 +81,25 @@ async function callRoute(ctx, p, body, method = 'POST') {
   return res;
 }
 
-test('subconscious search-context carries opt-in reversible context handles into context deps', async () => {
+test('subconscious search-context carries default reversible context handles into context deps', async () => {
   const ws = makeWorkspace();
   const store = createSubconsciousStore({ maxEvents: 5, useGrader: false });
   const longSummary = `alpha reversible assignment context ${'retrievable worker handoff detail '.repeat(30)}tail marker`;
+  const shortSummary = 'alpha reversible assignment short context';
   const graph = {
     tasks: [
       node('task/target', 'Assignment compression target', {
         status: 'ready',
-        context_deps: ['note:long'],
-        context_weights: { 'note:long': 1 },
+        context_deps: ['note:long', 'note:short'],
+        context_weights: { 'note:long': 1, 'note:short': 0.9 },
       }),
       node('note:long', 'Long assignment context note', {
         kind: 'note',
         summary: longSummary,
+      }),
+      node('note:short', 'Short assignment context note', {
+        kind: 'note',
+        summary: shortSummary,
       }),
     ],
   };
@@ -106,7 +111,6 @@ test('subconscious search-context carries opt-in reversible context handles into
     task_key: 'task/target',
     intent: 'prepare reversible assignment context',
     situation: 'Need alpha reversible assignment context before worker handoff',
-    reversible_context: true,
   });
 
   assert.equal(res.status, 200);
@@ -118,4 +122,12 @@ test('subconscious search-context carries opt-in reversible context handles into
   assert.equal(dep.ccr.handle.key, 'note:long');
   assert.equal(dep.ccr.handle.tool, 'search_knowledge');
   assert.equal(dep.ccr.handle.field, 'content');
+  const shortDep = res.body.subconscious_context.context_deps.find((item) => item.key === 'note:short');
+  assert(shortDep, 'expected short note context dep');
+  assert.equal(shortDep.summary, shortSummary);
+  assert.equal(shortDep.ccr, null);
+  assert.equal(res.body.subconscious_context.context[0].ccr.handle.key, 'note:long');
+  assert.equal(res.body.subconscious_context.context[1].ccr, undefined);
+  assert.equal(res.body.subconscious_context.decisions.context_compression.compressed_entries, 1);
+  assert(res.body.subconscious_context.decisions.context_compression.before_tokens > res.body.subconscious_context.decisions.context_compression.after_tokens);
 });
