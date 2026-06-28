@@ -147,20 +147,18 @@ const FRESH = 60000;        // 1m ago — within the window
   ok('tested status NOT auto-promoted (s/10 still tested)', overlay.status['s/10'] === 'tested');
   ok('ready status NOT mutated (s/11 still ready)', overlay.status['s/11'] === 'ready');
 
-  // The sweep enqueues ONE guidance item tagged with verdictKey and skips keys that already have
-  // an unresolved tagged item.
+  // The sweep requests same-node review and skips keys that already have pending review.
   __setAgentsForTest(agents);
   const realFresh = new Date().toISOString();
   overlay.timestamps['s/13'] = { firstSeen: realFresh, lastChanged: realFresh, lastStatus: 'tested' };
   const ws = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-self-heal-verdict-')));
-  ok('first sweep surfaces stale verdicts as guidance', sweepStaleVerdicts(ws, overlay) === true);
+  ok('first sweep routes stale verdicts to review', sweepStaleVerdicts(ws, overlay) === true);
   ok('tested status still NOT mutated by sweep', overlay.status['s/10'] === 'tested');
   ok('ready status still NOT mutated by sweep', overlay.status['s/11'] === 'ready');
-  ok('sweep tagged tested verdict guidance', overlay.guidance.some((g) => !g.resolved && g.verdictKey === 's/10'));
-  ok('sweep tagged ready verdict guidance', overlay.guidance.some((g) => !g.resolved && g.verdictKey === 's/11'));
-  ok('sweep skips fresh verdicts under the real clock', overlay.guidance.filter((g) => g.action && g.action.kind === 'stale-verdict').length === 2);
-  ok('second sweep is idempotent (already-surfaced keys skipped)', sweepStaleVerdicts(ws, overlay) === false);
-  ok('second sweep does not duplicate guidance', overlay.guidance.filter((g) => g.verdictKey === 's/10' || g.verdictKey === 's/11').length === 2);
+  ok('sweep requested tested verdict review', overlay.reviews['s/10'] && overlay.reviews['s/10'].review_state === 'requested');
+  ok('sweep requested ready verdict review', overlay.reviews['s/11'] && overlay.reviews['s/11'].review_state === 'requested');
+  ok('sweep skips fresh verdicts under the real clock', Object.keys(overlay.reviews).length === 2);
+  ok('second sweep is idempotent (already-reviewed keys skipped)', sweepStaleVerdicts(ws, overlay) === false);
 }
 
 // --- explicit stale_minutes=0 honors any past timestamp as stale ------------------------------

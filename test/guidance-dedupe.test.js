@@ -15,6 +15,13 @@ o.guidance.push({ id: 'g-old2', resolved: false, action: { kind: 'dup-cluster', 
 const collapsed = ov.dedupeGuidanceClusters(o);
 ok('dedupeGuidanceClusters collapses duplicate signatures', collapsed.length === 1);
 ok('one pending row per cluster signature remains', o.guidance.filter((g) => !g.resolved && g.action && g.action.kind === 'dup-cluster').length === 2);
+ok('dup-cluster guidance is internal, not user attention', ov.internalGuidance(o).length === 2 && ov.userAttentionGuidance(o).length === 0);
+
+const u = ov.EMPTY();
+ov.addGuidance(u, { question: 'Ship this?', trigger: 'scope_expansion', severity: 'blocking' });
+ov.addGuidance(u, { question: 'Stale tested handoff', trigger: 'stale_verdict', severity: 'review', action: { kind: 'stale-verdict', task_key: 's/1' } });
+ok('plain blocking guidance remains user attention', ov.userAttentionGuidance(u).length === 1);
+ok('mechanical stale-verdict guidance is internal diagnostics', ov.internalGuidance(u).length === 1);
 
 console.log('-----\n' + (n - f) + ' passed, ' + f + ' failed');
 process.exit(f ? 1 : 0);

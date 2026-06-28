@@ -261,8 +261,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const settled = judge.resolveSettledClusterGuidance(T.ov);
     const ambiguous = judge.resolveAmbiguousClusterGuidance(T.ov);
     if (settled.length || ambiguous.length) { T.save(); notifyChange(); }
-    const all = overlayStore.pendingGuidance(T.ov);
-    send(res, 200, { pending: all.filter((g) => g.severity !== 'review'), review: all.filter((g) => g.severity === 'review') }); return true;
+    const userAttention = overlayStore.userAttentionGuidance(T.ov);
+    const internal = overlayStore.internalGuidance(T.ov);
+    send(res, 200, {
+      pending: userAttention.filter((g) => g.severity !== 'review'),
+      review: userAttention.filter((g) => g.severity === 'review'),
+      user_attention: userAttention,
+      internal,
+      internal_count: internal.length,
+    }); return true;
   }
 
   if (p === '/guidance/resolve' && m === 'POST') {
