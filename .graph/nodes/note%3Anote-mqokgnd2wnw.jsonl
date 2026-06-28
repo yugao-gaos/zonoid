@@ -24,3 +24,4 @@
 {"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"note:note-mqiu5lpjox6","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_added","from":"note:note-mqokgnd2wnw","to":"codex/review-state-dashboard-frontier","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.7,"judged":true,"origin":"asserted"}
 {"evt":"edge_added","from":"note:note-mqokgnd2wnw","to":"opencode/setup-project-structure","kind":"context","actor":"overlay-sync","ts":"2026-06-28T14:30:52.836Z","weight":0,"by":"autowire","judged":false,"score":0.386,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqokgnd2wnw","to":"codex/resolve-internal-lane-projection-merge-conflict","kind":"context","actor":"overlay-sync","ts":"2026-06-28T22:29:38.357Z","weight":0,"by":"autowire","judged":false,"score":0.517,"origin":"autowire-semantic"}
