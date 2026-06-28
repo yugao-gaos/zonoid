@@ -66,3 +66,6 @@
 {"evt":"edge_removed","from":"note:note-mqolmwgser3","to":"codex/subconscious-adaptive-agentic-search-loop-code-review","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqolmwgser3","to":"codex/verify-post-subconscious-review-fixes-final","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqolmwgser3","to":"codex/reconcile-post-subconscious-feature-with-main","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_added","from":"note:note-mqolmwgser3","to":"codex/review-state-subconscious-flow","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.8,"judged":true,"origin":"asserted"}
+{"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"codex/review-subconscious-assignment-lifecycle","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.649,"by":"judge","judged":true,"score":0.649,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqolmwgser3","to":"codex/verify-post-subconscious-review-fixes-after-main-reconcile","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.585,"by":"judge","judged":true,"score":0.585,"origin":"autowire-semantic"}

@@ -51,3 +51,4 @@
 {"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"note:note-mqfatdr2s67","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"codex/fix-strict-git-claim-finalize-owner","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqk0pyjpxtc","to":"followup/investigate-force-claim-cap-test-judging-yf0n","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_added","from":"note:note-mqk0pyjpxtc","to":"codex/fix-costflow-durable-claim-session-provenance","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.567,"by":"judge","judged":true,"score":0.567,"origin":"autowire-semantic"}

@@ -6,3 +6,4 @@
 {"evt":"edge_removed","from":"note:note-mqphl024dko","to":"codex/make-search-animation-brain-activation-style","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
 {"evt":"edge_removed","from":"note:note-mqphl024dko","to":"note:note-mql03ljetqg","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
 {"evt":"edge_added","from":"note:note-mqphl024dko","to":"codex/make-search-animation-brain-activation-style","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.817,"by":"judge","judged":true,"score":0.817,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqphl024dko","to":"codex/dashboard-use-subconscious-agentic-search","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.575,"by":"judge","judged":true,"score":0.575,"origin":"autowire-semantic"}

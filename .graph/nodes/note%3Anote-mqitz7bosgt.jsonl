@@ -56,3 +56,5 @@
 {"evt":"edge_removed","from":"note:note-mqitz7bosgt","to":"note:note-mqe763h3dhy","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqitz7bosgt","to":"codex/judge-subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqitz7bosgt","to":"codex/judge-subconscious-permit-gate-kickback-fix","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_promoted","from":"note:note-mqitz7bosgt","to":"note:note-mqefyksc2io","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.756,"by":"judge","judged":true,"score":0.756,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqitz7bosgt","to":"note:note-mqf9rujm41b","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.727,"by":"judge","judged":true,"score":0.727,"origin":"autowire-semantic"}

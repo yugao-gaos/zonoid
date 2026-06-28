@@ -23,3 +23,5 @@
 {"evt":"edge_removed","from":"note:note-mqgvuijz6kk","to":"note:note-mqfsyl39pz2","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqgvuijz6kk","to":"note:note-mqe2awxnjjf","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqgvuijz6kk","to":"ae0d4490-d7c7-4efd-be15-3916d9e059bf/3","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_added","from":"note:note-mqgvuijz6kk","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/16","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.573,"by":"judge","judged":true,"score":0.573,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqgvuijz6kk","to":"codex/reapply-causal-edges-preserve-blocking-dependencies","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.721,"by":"subconscious","judged":true,"score":0.721,"origin":"subconscious-agentic-search"}

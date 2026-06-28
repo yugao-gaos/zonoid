@@ -38,3 +38,8 @@
 {"evt":"edge_removed","from":"note:note-mqp5cw2yjp6","to":"knowledge:source_chunk:chunk-claude-md-6-0-override-signal-when-a-note-contradicts--7a2cdbb38f","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqp5cw2yjp6","to":"knowledge:source_section:section-agents-md-6-kb-note-authoring-5b2e2d6033","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqp5cw2yjp6","to":"knowledge:source_section:section-claude-md-6-kb-note-authoring-6405cb40a9","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_promoted","from":"note:note-mqp5cw2yjp6","to":"note:note-mqiu6jpwect","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5cw2yjp6","to":"note:note-mqiu6jpwect","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5cw2yjp6","to":"note:note-mqiu6jpwect","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:27:53.616Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5cw2yjp6","to":"note:note-mqiu6jpwect","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:28:05.643Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5cw2yjp6","to":"note:note-mqiu6jpwect","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:28:11.935Z","weight":0.6,"by":"judge","judged":true,"score":0.846,"origin":"autowire-semantic"}

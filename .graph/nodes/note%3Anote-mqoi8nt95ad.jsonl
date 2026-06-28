@@ -16,3 +16,4 @@
 {"evt":"edge_removed","from":"note:note-mqoi8nt95ad","to":"note:note-mqjo2xdqs7m","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqoi8nt95ad","to":"note:note-mql0nv0w8dp","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqoi8nt95ad","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_promoted","from":"note:note-mqoi8nt95ad","to":"note:note-mqaqmb62a5k","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.55,"by":"judge","judged":true,"score":0.55,"origin":"autowire-semantic"}

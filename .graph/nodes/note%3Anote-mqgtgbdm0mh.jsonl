@@ -34,3 +34,4 @@
 {"evt":"edge_removed","from":"note:note-mqgtgbdm0mh","to":"note:note-mqflqx78zk2","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqgtgbdm0mh","to":"followup/harness-judge-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqgtgbdm0mh","to":"codex/review-onboard-drain-headless","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_added","from":"note:note-mqgtgbdm0mh","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.937,"by":"subconscious","judged":true,"score":0.937,"origin":"subconscious-agentic-search"}

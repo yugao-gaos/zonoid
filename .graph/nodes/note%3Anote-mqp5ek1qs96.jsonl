@@ -20,3 +20,8 @@
 {"evt":"edge_promoted","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu7rp9366","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.6,"by":"judge","judged":true}
 {"evt":"edge_removed","from":"note:note-mqp5ek1qs96","to":"knowledge:source_chunk:chunk-contributing-md-5-2-sandboxed-daemon-convention-tests--d66a085242","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu5v7wjfe","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_promoted","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu7rp9366","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu7rp9366","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu7rp9366","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:27:53.616Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu7rp9366","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:28:05.643Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5ek1qs96","to":"note:note-mqiu7rp9366","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:28:11.935Z","weight":0.6,"by":"judge","judged":true,"score":0.864,"origin":"autowire-semantic"}

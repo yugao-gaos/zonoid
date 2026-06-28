@@ -86,3 +86,6 @@
 {"evt":"edge_promoted","from":"note:note-mqb1i6ssdft","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-27T15:38:21.796Z","by":"autowire","judged":false}
 {"evt":"edge_promoted","from":"note:note-mqb1i6ssdft","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-27T15:38:40.144Z","by":"autowire","judged":false}
 {"evt":"edge_promoted","from":"note:note-mqb1i6ssdft","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-27T16:18:37.264Z","by":"autowire","judged":false}
+{"evt":"edge_promoted","from":"note:note-mqb1i6ssdft","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z","weight":0.5,"by":"judge","judged":true}
+{"evt":"edge_removed","from":"note:note-mqb1i6ssdft","to":"6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/3","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z"}
+{"evt":"edge_removed","from":"note:note-mqb1i6ssdft","to":"followup/harness-label-drain","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z"}

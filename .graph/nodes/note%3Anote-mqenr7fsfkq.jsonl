@@ -29,3 +29,4 @@
 {"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"note:note-mq7dzydv","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"codex/fix-shell-opencode-write-gates-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqenr7fsfkq","to":"codex/fix-shell-opencode-relative-git-kickback-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_promoted","from":"note:note-mqenr7fsfkq","to":"234cd322-22bc-4fed-adaa-ef4fb9a59b42/2","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.607,"by":"judge","judged":true,"score":0.607,"origin":"autowire-semantic"}

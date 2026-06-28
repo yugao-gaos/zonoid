@@ -27,3 +27,4 @@
 {"evt":"edge_removed","from":"note:note-mqnnn02rf0d","to":"note:note-mqiu0vkd4em","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqnnn02rf0d","to":"note:note-mqe5sbyj4uq","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqnnn02rf0d","to":"codex/subconscious-agentic-search-envelope-judge","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_added","from":"note:note-mqnnn02rf0d","to":"d42ebe37-ee9f-46b6-ae21-f6f82464d482/16","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.553,"by":"judge","judged":true,"score":0.553,"origin":"autowire-semantic"}

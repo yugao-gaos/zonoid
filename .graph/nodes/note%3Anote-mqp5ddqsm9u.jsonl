@@ -42,3 +42,8 @@
 {"evt":"edge_removed","from":"note:note-mqp5ddqsm9u","to":"knowledge:source_chunk:chunk-claude-md-6-2-provenance-wiring-agents-creating-notes--8b207882f0","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqp5ddqsm9u","to":"note:note-mqa3j03bqhi","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqp5ddqsm9u","to":"note:note-mqap5zpksrb","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_promoted","from":"note:note-mqp5ddqsm9u","to":"note:note-mqiu734gzsl","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5ddqsm9u","to":"note:note-mqiu734gzsl","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5ddqsm9u","to":"note:note-mqiu734gzsl","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:27:53.616Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5ddqsm9u","to":"note:note-mqiu734gzsl","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:28:05.643Z","weight":0.6,"by":"judge","judged":true}
+{"evt":"edge_promoted","from":"note:note-mqp5ddqsm9u","to":"note:note-mqiu734gzsl","kind":"context","actor":"overlay-sync","ts":"2026-06-28T10:28:11.935Z","weight":0.6,"by":"judge","judged":true,"score":0.904,"origin":"autowire-semantic"}
