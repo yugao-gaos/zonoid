@@ -9,3 +9,4 @@ risks, costs, and learned skills activate when an agent is deciding what to do n
 - [Artifact provider contract](artifact-provider-contract.md)
 - [Setup](setup.md)
 - [Onboarding a workspace](onboard-workspace.md)
+- [Headroom evaluation](headroom-evaluation.md)
