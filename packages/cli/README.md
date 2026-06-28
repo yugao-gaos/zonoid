@@ -28,6 +28,25 @@ npx @zonoid/cli onboard          # mine + validate repo KB, then stop for review
 
 All harnesses: clone Zonoid to `~/.claude/orchestrator` (if missing), `npm install`, install skills, start/register the daemon, and register the workspace. Runtime files live under `.zonoid/` by default; `.graph/` remains in each workspace. Combine `--harness` with `--service` when the IDE uses HTTP MCP and cannot rely on session-start hooks to boot the daemon.
 
+## Local Ollama backend
+
+Backend/headless API-kind runs can use a local Ollama server without an API key. Start Ollama, read
+the models reported by the daemon, then select the backend for a workspace:
+
+```sh
+ollama serve
+curl -s 'http://localhost:8787/config/backend?workspace=/path/to/repo'
+
+curl -s -X POST http://localhost:8787/config/backend \
+  -H 'Content-Type: application/json' \
+  -d '{"workspace":"/path/to/repo","provider":"ollama","model":"qwen3.6:35b"}'
+```
+
+The `GET /config/backend` response includes live Ollama `supportedModels` from `/api/tags`; choose
+one of those ids for the POST body. The default endpoint is `http://127.0.0.1:11434/v1`. Override it
+with `ZONOID_OLLAMA_BASE_URL` or `ORCH_OLLAMA_BASE_URL`; `OLLAMA_HOST` is also accepted. Use
+`ORCH_OLLAMA_MODEL` to set the default model when the workspace backend config does not specify one.
+
 ## Repo learning
 
 Run `npx @zonoid/cli onboard` inside a repo to mine static candidates, run the learner, and write a review bundle before any graph mutation. After review, inject approved notes with the command printed by the onboard run, or use the dashboard onboarding controls.

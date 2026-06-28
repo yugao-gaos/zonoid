@@ -140,32 +140,62 @@ test('config routes require an explicit workspace and do not read/write EMPTY ov
 test('GET /config/backend: defaults to claude when unset, lists providers with readiness flags', async () => {
   const ws = freshWorkspace();
   const { route, captured } = makeCtx(ws);
-  const handled = await route('/config/backend', 'GET', {}, {}, U, null);
-  assert.equal(handled, true, 'route handled the GET');
-  assert.equal(captured.code, 200);
-  assert.equal(captured.body.ok, true);
-  // Unset selection ⇒ active provider defaults to 'claude'.
-  assert.equal(captured.body.active.provider, 'claude', 'active defaults to claude when unset');
-  assert.equal(captured.body.active.model, null, 'no model when unset');
-  // Providers are annotated with readiness.
-  const ids = captured.body.providers.map((p) => p.id);
-  assert.ok(ids.includes('claude'), 'claude provider listed');
-  assert.ok(ids.includes('openrouter'), 'openrouter provider listed');
-  assert.ok(ids.includes('zai'), 'standalone Z.AI GLM provider listed');
-  const claude = captured.body.providers.find((p) => p.id === 'claude');
-  assert.equal(claude.kind, 'agentic-cli');
-  assert.equal(typeof claude.isAvailable, 'boolean', 'agentic-cli provider reports isAvailable boolean');
-  assert.equal(typeof claude.isAuthed, 'boolean', 'provider reports isAuthed boolean');
-  const openrouter = captured.body.providers.find((p) => p.id === 'openrouter');
-  assert.equal(openrouter.kind, 'api');
-  assert.equal(typeof openrouter.defaultModel, 'string', 'providers may expose a default model');
-  assert.equal(openrouter.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
-  assert.equal(typeof openrouter.isAuthed, 'boolean', 'api provider still reports isAuthed');
-  const zai = captured.body.providers.find((p) => p.id === 'zai');
-  assert.equal(zai.kind, 'api');
-  assert.equal(zai.defaultModel, 'glm-5.2', 'Z.AI provider advertises the GLM 5.2 default model');
-  assert.equal(zai.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
-  assert.equal(typeof zai.isAuthed, 'boolean', 'api provider still reports isAuthed');
+  const savedListModels = llmBackend.ollamaProvider.listModels;
+  llmBackend.ollamaProvider.listModels = async () => [{ id: 'qwen3.6:35b' }, { id: 'qwen-coding:latest' }];
+  try {
+    const handled = await route('/config/backend', 'GET', {}, {}, U, null);
+    assert.equal(handled, true, 'route handled the GET');
+    assert.equal(captured.code, 200);
+    assert.equal(captured.body.ok, true);
+    // Unset selection ⇒ active provider defaults to 'claude'.
+    assert.equal(captured.body.active.provider, 'claude', 'active defaults to claude when unset');
+    assert.equal(captured.body.active.model, null, 'no model when unset');
+    // Providers are annotated with readiness.
+    const ids = captured.body.providers.map((p) => p.id);
+    assert.ok(ids.includes('claude'), 'claude provider listed');
+    assert.ok(ids.includes('openrouter'), 'openrouter provider listed');
+    assert.ok(ids.includes('zai'), 'standalone Z.AI GLM provider listed');
+    assert.ok(ids.includes('ollama'), 'local Ollama provider listed');
+    const claude = captured.body.providers.find((p) => p.id === 'claude');
+    assert.equal(claude.kind, 'agentic-cli');
+    assert.equal(typeof claude.isAvailable, 'boolean', 'agentic-cli provider reports isAvailable boolean');
+    assert.equal(typeof claude.isAuthed, 'boolean', 'provider reports isAuthed boolean');
+    const openrouter = captured.body.providers.find((p) => p.id === 'openrouter');
+    assert.equal(openrouter.kind, 'api');
+    assert.equal(typeof openrouter.defaultModel, 'string', 'providers may expose a default model');
+    assert.equal(openrouter.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
+    assert.equal(typeof openrouter.isAuthed, 'boolean', 'api provider still reports isAuthed');
+    const zai = captured.body.providers.find((p) => p.id === 'zai');
+    assert.equal(zai.kind, 'api');
+    assert.equal(zai.defaultModel, 'glm-5.2', 'Z.AI provider advertises the GLM 5.2 default model');
+    assert.equal(zai.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
+    assert.equal(typeof zai.isAuthed, 'boolean', 'api provider still reports isAuthed');
+    const ollama = captured.body.providers.find((p) => p.id === 'ollama');
+    assert.equal(ollama.kind, 'api');
+    assert.equal(ollama.defaultModel, llmBackend.OLLAMA_DEFAULT_MODEL, 'Ollama provider advertises its local default model');
+    assert.equal(ollama.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
+    assert.equal(ollama.isAuthed, true, 'Ollama requires no API key');
+    assert.equal(ollama.apiKeyEnv, null, 'Ollama exposes no API key env');
+    assert.deepEqual(ollama.supportedModels.map((m) => m.id), ['qwen3.6:35b', 'qwen-coding:latest']);
+    assert.equal(ollama.modelListError, null);
+  } finally {
+    llmBackend.ollamaProvider.listModels = savedListModels;
+  }
+});
+
+test('GET /config/backend: Ollama model listing degrades to an empty list when unavailable', async () => {
+  const ws = freshWorkspace();
+  const { route, captured } = makeCtx(ws);
+  const savedListModels = llmBackend.ollamaProvider.listModels;
+  llmBackend.ollamaProvider.listModels = async () => { throw new Error('Ollama is not running'); };
+  try {
+    await route('/config/backend', 'GET', {}, {}, U, null);
+    const ollama = captured.body.providers.find((p) => p.id === 'ollama');
+    assert.deepEqual(ollama.supportedModels, []);
+    assert.match(ollama.modelListError, /not running/);
+  } finally {
+    llmBackend.ollamaProvider.listModels = savedListModels;
+  }
 });
 
 test('GET /config/backend: API readiness can read daemon-global backend.env', async () => {
@@ -224,6 +254,20 @@ test('POST /config/backend: sets a known provider and persists it', async () => 
   // Persisted to the overlay on disk.
   const reloaded = overlayStore.load(ws);
   assert.deepEqual(overlayStore.getBackendConfig(reloaded), { provider: 'zai', model: 'glm-5.2' });
+});
+
+test('POST /config/backend: sets Ollama without requiring an API key', async () => {
+  const ws = freshWorkspace();
+  const { route, captured } = makeCtx(ws);
+  const req = { __body: { provider: 'ollama', model: 'llama3.1:8b' } };
+  const handled = await route('/config/backend', 'POST', req, {}, U, null);
+  assert.equal(handled, true, 'route handled the POST');
+  assert.equal(captured.code, 200);
+  assert.equal(captured.body.ok, true);
+  assert.equal(captured.body.active.provider, 'ollama');
+  assert.equal(captured.body.active.model, 'llama3.1:8b');
+  const reloaded = overlayStore.load(ws);
+  assert.deepEqual(overlayStore.getBackendConfig(reloaded), { provider: 'ollama', model: 'llama3.1:8b' });
 });
 
 test('POST /config/backend: REJECTS an unknown provider id with 400 (no write)', async () => {
@@ -351,6 +395,8 @@ test('GET /config/backend: annotates apiKeyEnv per provider (api=array, cli=null
   const zai = captured.body.providers.find((p) => p.id === 'zai');
   assert.ok(Array.isArray(zai.apiKeyEnv), 'zai apiKeyEnv is an array');
   assert.ok(zai.apiKeyEnv.includes('ZAI_API_KEY'), 'zai apiKeyEnv includes the canonical name');
+  const ollama = captured.body.providers.find((p) => p.id === 'ollama');
+  assert.equal(ollama.apiKeyEnv, null, 'ollama provider has no apiKeyEnv (null)');
 });
 
 test('GET /config/embedding: defaults to MiniLM and lists narrowed providers', async () => {
