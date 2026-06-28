@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "codex-live-route-escalations-session",
   "branch": "orch/attempt/codex-route-mechanical-dashboard-escalations-to-automation",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-28T16:27:11.810Z",
-  "lease_until": "2026-06-28T17:27:11.810Z"
+  "lease_until": "2026-06-28T17:27:11.810Z",
+  "completed_at": "2026-06-28T16:39:55.703Z"
 }
