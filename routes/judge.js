@@ -231,6 +231,23 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	          allowed_actions: ['approve', 'reject', 'escalate'],
 	        };
 	      }
+	      if (it.kind === 'task-decision') {
+	        const task = detail(it.task_key);
+	        return {
+	          kind: 'task-decision',
+	          id: it.id,
+	          task,
+	          task_key: it.task_key,
+	          action: it.action || null,
+	          reason: it.reason || null,
+	          review_state: it.review_state || null,
+	          review_verdict: it.review_verdict || null,
+	          merge_state: it.merge_state || null,
+	          attempt_branch: it.attempt_branch || null,
+	          attempt_worktree: it.attempt_worktree || null,
+	          allowed_actions: ['review', 'merge', 'kick_back', 'discard', 'cancel', 'escalate'],
+	        };
+	      }
 	      if (it.kind === 'edge') {
         // The candidate edge is anchor(from) → N(to). Adjudicate N WITH structure: expand N's
         // weighted neighborhood + its supersede chain so the agent reasons over context, not the
