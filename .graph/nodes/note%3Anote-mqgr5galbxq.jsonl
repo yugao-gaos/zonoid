@@ -16,3 +16,7 @@
 {"evt":"edge_added","from":"note:note-mqgr5galbxq","to":"opencode/tested-task-takeover","kind":"context","actor":"overlay-sync","ts":"2026-06-26T16:58:07.759Z","weight":0,"by":"autowire","judged":false,"score":0.513,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqgr5galbxq","to":"opencode/tested-task-takeover","kind":"context","actor":"overlay-sync","ts":"2026-06-26T16:59:36.402Z"}
 {"evt":"edge_added","from":"note:note-mqgr5galbxq","to":"codex/headless-drain-context-compression","kind":"context","actor":"overlay-sync","ts":"2026-06-28T15:08:51.832Z","weight":0,"by":"autowire","judged":false,"score":0.484,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqgr5galbxq","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:07.640Z","weight":0,"by":"autowire","judged":false,"score":0.455,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqgr5galbxq","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:09.389Z"}
+{"evt":"edge_added","from":"note:note-mqgr5galbxq","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:13.489Z","weight":0,"by":"autowire","judged":false,"score":0.455,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqgr5galbxq","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:37.399Z"}
