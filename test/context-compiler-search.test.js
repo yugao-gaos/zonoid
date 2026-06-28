@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { compileSearchContext } = require('../lib/search/context-compiler');
+const { buildContextRetrievalHandle, resolveContextHandle } = require('../lib/search/context-compression');
 const recallJournal = require('../lib/recall-outcome-journal');
 
 let pass = 0;
@@ -509,9 +510,59 @@ test('reversible context compression preserves keys provenance and retrieval han
   assert.equal(hit.ccr.handle.original_chars, longSummary.length);
   assert(hit.ccr.handle.compressed_chars < hit.ccr.handle.original_chars);
   assert.equal(body.context_compression.enabled, true);
+  assert.equal(body.context_compression.mode, 'reversible_context');
   assert.equal(body.context_compression.compressed_entries, 1);
   assert(body.context_compression.before_tokens > body.context_compression.after_tokens);
+  assert.equal(body.context_compression.saved_tokens, body.context_compression.before_tokens - body.context_compression.after_tokens);
   assert.deepEqual(body.context_compression.handles.map((handle) => handle.key), ['note:long']);
+
+  const resolved = resolveContextHandle(hit.ccr.handle, graph, {});
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.key, 'note:long');
+  assert.equal(resolved.field, 'content');
+  assert.equal(resolved.kind, 'note');
+  assert.equal(resolved.content, longSummary);
+});
+
+test('CCR resolver returns original task fields by key and field', async () => {
+  const taskSummary = `task reversible context ${'implementation detail '.repeat(30)}task tail marker`;
+  const graph = {
+    tasks: [
+      node('task/long', 'Long resolver task', {
+        summary: taskSummary,
+      }),
+    ],
+  };
+  const handle = buildContextRetrievalHandle({ key: 'task/long', kind: 'task' }, 'summary', taskSummary.length, 10);
+
+  const resolved = resolveContextHandle(handle, graph, {});
+
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.key, 'task/long');
+  assert.equal(resolved.field, 'summary');
+  assert.equal(resolved.kind, 'task');
+  assert.equal(resolved.title, 'Long resolver task');
+  assert.equal(resolved.content, taskSummary);
+});
+
+test('CCR resolver returns original overlay source chunk content by key and field', async () => {
+  const chunk = `source reversible context ${'chunk evidence '.repeat(40)}source tail marker`;
+  const graph = { tasks: [node('note:source', 'Source note', { kind: 'note' })] };
+  const overlay = {
+    knowledge: {
+      'note:source': [{ value: chunk }],
+    },
+  };
+  const handle = buildContextRetrievalHandle({ key: 'note:source#k0', kind: 'knowledge' }, 'content', chunk.length, 10);
+
+  const resolved = resolveContextHandle(handle, graph, overlay);
+
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.key, 'note:source#k0');
+  assert.equal(resolved.field, 'content');
+  assert.equal(resolved.kind, 'knowledge');
+  assert.equal(resolved.source, 'note:source');
+  assert.equal(resolved.content, chunk);
 });
 
 (async () => {
