@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const test = require('node:test');
 const routeFactory = require('../routes/subconscious');
+const graphRouteFactory = require('../routes/graph');
 const { createSubconsciousStore } = require('../lib/subconscious');
 
 function node(id, label, extra = {}) {
@@ -81,6 +82,15 @@ async function callRoute(ctx, p, body, method = 'POST') {
   return res;
 }
 
+async function callGraphRoute(ctx, p, body, method = 'POST') {
+  ctx.readBody = async () => body;
+  const res = {};
+  const u = new URL(`http://127.0.0.1${p}`);
+  const handled = await graphRouteFactory(ctx)(u.pathname, method, { socket: { remoteAddress: '127.0.0.1' } }, res, u);
+  assert.equal(handled, true);
+  return res;
+}
+
 test('subconscious search-context carries default reversible context handles into context deps', async () => {
   const ws = makeWorkspace();
   const store = createSubconsciousStore({ maxEvents: 5, useGrader: false });
@@ -130,4 +140,19 @@ test('subconscious search-context carries default reversible context handles int
   assert.equal(res.body.subconscious_context.context[1].ccr, undefined);
   assert.equal(res.body.subconscious_context.decisions.context_compression.compressed_entries, 1);
   assert(res.body.subconscious_context.decisions.context_compression.before_tokens > res.body.subconscious_context.decisions.context_compression.after_tokens);
+  assert.equal(res.body.subconscious_context.briefing.kind, 'subconscious_compact_briefing');
+  assert(res.body.subconscious_context.briefing.human_summary.includes('Subconscious context brief'));
+  assert(res.body.subconscious_context.briefing.ccr_handles.some((handle) => handle.key === 'note:long'));
+  assert(res.body.subconscious_context.briefing.metrics.saved_tokens > 0);
+  assert.equal(res.body.subconscious_context.retrieve_more.route, 'POST /context/resolve');
+  assert.equal(res.body.subconscious_context.retrieve_more.handle_count, 1);
+
+  const resolveRes = await callGraphRoute(ctx, '/context/resolve', {
+    workspace: ws,
+    handle: dep.ccr.handle,
+  });
+  assert.equal(resolveRes.status, 200);
+  assert.equal(resolveRes.body.ok, true);
+  assert.equal(resolveRes.body.key, 'note:long');
+  assert.equal(resolveRes.body.content, longSummary);
 });

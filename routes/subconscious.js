@@ -162,6 +162,57 @@ function compactDependencySummary(summary, index) {
   return compact;
 }
 
+function ccrHandlesFromSummaries(items) {
+  const handles = [];
+  const seen = new Set();
+  for (const item of items || []) {
+    const handle = item && item.ccr && item.ccr.handle;
+    if (!handle) continue;
+    const id = handle.ccr_id || `${handle.key}:${handle.field}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    handles.push(handle);
+  }
+  return handles;
+}
+
+function retrieveMoreInstructions(handles) {
+  return {
+    route: 'POST /context/resolve',
+    handle_field: 'ccr.handle',
+    handle_count: handles.length,
+    instruction: 'Post one of the listed CCR handles to /context/resolve when the compact briefing is not enough.',
+  };
+}
+
+function buildAssignmentBriefing(taskKey, progressiveDisclosureContext, dependencySummaries, contextCompression, agenticSearchContext) {
+  const compactDeps = dependencySummaries.map(compactDependencySummary);
+  const handles = ccrHandlesFromSummaries(compactDeps)
+    .concat((agenticSearchContext && Array.isArray(agenticSearchContext.ccr_handles)) ? agenticSearchContext.ccr_handles : [])
+    .filter((handle, index, arr) => arr.findIndex((other) => (other.ccr_id || `${other.key}:${other.field}`) === (handle.ccr_id || `${handle.key}:${handle.field}`)) === index);
+  const agenticMetrics = agenticSearchContext && agenticSearchContext.briefing && agenticSearchContext.briefing.metrics
+    ? agenticSearchContext.briefing.metrics
+    : {};
+  return {
+    version: 1,
+    kind: 'subconscious_assignment_briefing',
+    task_key: taskKey,
+    human_summary: agenticSearchContext && agenticSearchContext.human_summary
+      ? agenticSearchContext.human_summary
+      : progressiveDisclosureContext.layer1.why,
+    selected_count: compactDeps.length,
+    selected_context: compactDeps,
+    ccr_handles: handles,
+    retrieve_more: retrieveMoreInstructions(handles),
+    metrics: {
+      before_tokens: (contextCompression.before_tokens || 0) + (agenticMetrics.before_tokens || 0),
+      after_tokens: (contextCompression.after_tokens || 0) + (agenticMetrics.after_tokens || 0),
+      saved_tokens: (contextCompression.saved_tokens || 0) + (agenticMetrics.saved_tokens || 0),
+      compressed_entries: (contextCompression.compressed_entries || 0) + (agenticMetrics.compressed_entries || 0),
+    },
+  };
+}
+
 function buildProgressiveDisclosureContext(graph, ov, taskKey, dependencySummaries) {
   const task = taskForKey(graph, taskKey);
   const snapshot = ov.snapshots && ov.snapshots[taskKey];
@@ -257,6 +308,7 @@ function summaryFromAgenticContext(agenticSearchContext, key) {
     status: 'context',
     summary: hit.summary || '',
     via: 'subconscious_agentic_search',
+    ccr: hit.ccr || null,
     relevance_score: hit.relevance_score == null ? null : hit.relevance_score,
     reason: hit.reason || null,
   };
@@ -280,6 +332,7 @@ function buildAssignmentEnvelope(ctx, T, input) {
   ];
   const contextCompression = applyReversibleContextCompression(dependencySummaries, { fieldForResult: () => 'summary' });
   const progressiveDisclosureContext = buildProgressiveDisclosureContext(graph, T.ov, taskKey, dependencySummaries);
+  const briefing = buildAssignmentBriefing(taskKey, progressiveDisclosureContext, dependencySummaries, contextCompression, input.agentic_search_context);
   const envelope = {
     version: 1,
     task_key: taskKey,
@@ -298,9 +351,13 @@ function buildAssignmentEnvelope(ctx, T, input) {
       dependency_summaries: dependencySummaries,
       context_compression: contextCompression,
       progressive_disclosure_context: progressiveDisclosureContext,
+      briefing,
     },
     progressive_disclosure_context: progressiveDisclosureContext,
     context_compression: contextCompression,
+    briefing,
+    ccr_handles: briefing.ccr_handles,
+    retrieve_more: briefing.retrieve_more,
     next_expected_worker_action: 'subconscious_assignment.accept',
   };
   if (input.agentic_search_context) {
