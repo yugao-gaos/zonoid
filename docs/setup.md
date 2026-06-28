@@ -79,17 +79,22 @@ preferred place when one daemon serves multiple projects: put values such as `ZA
 `OPENROUTER_API_KEY=...` there, and keep workspace overlay config limited to provider/model
 selection. Real process environment variables still take precedence over `backend.env`.
 
-For local Ollama backend/headless runs, start Ollama and select the `ollama` backend with a model:
+For local Ollama backend/headless runs, start Ollama, read the models reported by the daemon, then
+select the `ollama` backend with one of those model ids:
 
 ```sh
 ollama serve
+curl -s 'http://localhost:8787/config/backend?workspace=/path/to/repo'
+
 curl -s -X POST http://localhost:8787/config/backend \
   -H 'Content-Type: application/json' \
-  -d '{"workspace":"/path/to/repo","provider":"ollama","model":"llama3.1:8b"}'
+  -d '{"workspace":"/path/to/repo","provider":"ollama","model":"qwen3.6:35b"}'
 ```
 
 The Ollama backend calls the local OpenAI-compatible endpoint, defaults to
 `http://127.0.0.1:11434/v1/chat/completions`, and does not require an API key.
+The `GET /config/backend` response includes `providers[].supportedModels` for Ollama, populated
+from local `/api/tags`. If Ollama is unavailable, the list is empty and `modelListError` explains why.
 
 ## First run
 

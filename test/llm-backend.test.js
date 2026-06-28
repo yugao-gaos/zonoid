@@ -476,6 +476,32 @@ test('api provider: callOllamaApi accepts OLLAMA_HOST and appends /v1 when neede
   } finally { restore(); }
 });
 
+test('api provider: listOllamaModels reads local /api/tags dynamically', async () => {
+  const restore = withEnv({ ZONOID_OLLAMA_BASE_URL: 'http://127.0.0.1:11434/v1' });
+  const fake = makeFakeHttp((opts) => {
+    assert.equal(opts.hostname, '127.0.0.1');
+    assert.equal(opts.port, 11434);
+    assert.equal(opts.path, '/api/tags');
+    assert.equal(opts.method, 'GET');
+    return {
+      status: 200,
+      body: {
+        models: [
+          { name: 'qwen3.6:35b', size: 23000000000, modified_at: '2026-06-28T01:00:00Z' },
+          { model: 'qwen-coding:latest' },
+        ],
+      },
+    };
+  });
+  try {
+    const models = await backend.listOllamaModels({ httpModule: fake });
+    assert.deepEqual(models, [
+      { id: 'qwen3.6:35b', size: 23000000000, modifiedAt: '2026-06-28T01:00:00Z' },
+      { id: 'qwen-coding:latest', size: undefined, modifiedAt: undefined },
+    ]);
+  } finally { restore(); }
+});
+
 test('api provider: callApi rejects with ApiBackendError on a missing key (no spawn, no request)', async () => {
   const restore = withEnv({}); // no OPENROUTER_API_KEY
   const fake = makeFakeHttp(() => ({ status: 200, body: {} }));

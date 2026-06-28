@@ -37,7 +37,7 @@ function requireWorkspace(T, send, res) {
 // only to agentic-cli providers (they resolve a local binary); api providers spawn nothing, so it is
 // null there. Both kinds answer isAuthed(). Each probe is wrapped so one provider's throw can't break
 // the whole listing (a misbehaving adapter degrades to false/null, not a 500).
-function annotateProvider(prov) {
+async function annotateProvider(prov) {
   const safe = (fn) => { try { return !!fn(); } catch { return false; } };
   const out = {
     id: prov.id,
@@ -51,6 +51,15 @@ function annotateProvider(prov) {
     apiKeyEnv: (Array.isArray(prov.apiKeyEnv) && prov.apiKeyEnv.length) ? prov.apiKeyEnv : null,
   };
   if (prov.defaultModel) out.defaultModel = prov.defaultModel;
+  if (typeof prov.listModels === 'function') {
+    try {
+      out.supportedModels = await prov.listModels();
+      out.modelListError = null;
+    } catch (e) {
+      out.supportedModels = [];
+      out.modelListError = e && e.message ? e.message : String(e);
+    }
+  }
   return out;
 }
 
@@ -62,7 +71,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     if (!requireWorkspace(T, send, res)) return true;
     // Resolve the ACTIVE backend the same way the drains will (defaults to Claude when unset).
     const active = llmBackend.getActiveBackend(T.ov);
-    const providers = llmBackend.listProviders().map(annotateProvider);
+    const providers = await Promise.all(llmBackend.listProviders().map(annotateProvider));
     send(res, 200, {
       ok: true,
       active: { provider: active.providerId, model: active.model || null },

@@ -30,16 +30,22 @@ All harnesses: clone Zonoid to `~/.claude/orchestrator` (if missing), `npm insta
 
 ## Local Ollama backend
 
-Backend/headless API-kind runs can use a local Ollama server without an API key. Start Ollama, then select the backend for a workspace:
+Backend/headless API-kind runs can use a local Ollama server without an API key. Start Ollama, read
+the models reported by the daemon, then select the backend for a workspace:
 
 ```sh
 ollama serve
+curl -s 'http://localhost:8787/config/backend?workspace=/path/to/repo'
+
 curl -s -X POST http://localhost:8787/config/backend \
   -H 'Content-Type: application/json' \
-  -d '{"workspace":"/path/to/repo","provider":"ollama","model":"llama3.1:8b"}'
+  -d '{"workspace":"/path/to/repo","provider":"ollama","model":"qwen3.6:35b"}'
 ```
 
-The default endpoint is `http://127.0.0.1:11434/v1`. Override it with `ZONOID_OLLAMA_BASE_URL` or `ORCH_OLLAMA_BASE_URL`; `OLLAMA_HOST` is also accepted. Use `ORCH_OLLAMA_MODEL` to set the default model when the workspace backend config does not specify one.
+The `GET /config/backend` response includes live Ollama `supportedModels` from `/api/tags`; choose
+one of those ids for the POST body. The default endpoint is `http://127.0.0.1:11434/v1`. Override it
+with `ZONOID_OLLAMA_BASE_URL` or `ORCH_OLLAMA_BASE_URL`; `OLLAMA_HOST` is also accepted. Use
+`ORCH_OLLAMA_MODEL` to set the default model when the workspace backend config does not specify one.
 
 ## Repo learning
 
