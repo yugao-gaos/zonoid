@@ -5,6 +5,7 @@ const graphStore = require('../lib/graph-store');
 const path = require('path');
 const fs = require('fs');
 const { compileSearchContext } = require('../lib/search/context-compiler');
+const { resolveContextHandle } = require('../lib/search/context-compression');
 
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, buildGraph, state, targetOverlay, overlayFor,
@@ -101,6 +102,15 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   if (p === '/search') {
     const result = await compileSearchContext(ctx, { req, u });
     send(res, result.status, result.body); return true;
+  }
+
+  if (p === '/context/resolve' && m === 'POST') {
+    const b = await readBody(req);
+    const ws = b.workspace || u.searchParams.get('workspace');
+    if (!ws) { send(res, 400, { ok: false, error: 'workspace required' }); return true; }
+    const handle = b.handle || b.ccr || b.ccr_handle;
+    const resolved = resolveContextHandle(handle, buildGraph(ws), overlayFor(ws));
+    send(res, resolved.ok ? 200 : 404, resolved); return true;
   }
 
   if (p === '/note/chain') {
