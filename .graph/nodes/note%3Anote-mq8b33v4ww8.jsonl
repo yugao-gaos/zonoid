@@ -81,3 +81,4 @@
 {"evt":"edge_promoted","from":"note:note-mq8b33v4ww8","to":"b1c48279-9822-4abe-81a5-1b7b2a329970/1","kind":"context","actor":"overlay-sync","ts":"2026-06-27T15:38:40.144Z","by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq8b33v4ww8","to":"b1c48279-9822-4abe-81a5-1b7b2a329970/1","kind":"context","actor":"overlay-sync","ts":"2026-06-27T16:18:37.264Z","by":"autowire","judged":false,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mq8b33v4ww8","to":"b1c48279-9822-4abe-81a5-1b7b2a329970/1","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mq8b33v4ww8","to":"opencode/setup-project-structure","kind":"context","actor":"overlay-sync","ts":"2026-06-28T14:30:52.836Z","weight":0,"by":"autowire","judged":false,"score":0.363,"origin":"autowire-semantic"}

@@ -3,3 +3,4 @@
 {"evt":"edge_added","from":"note:note-mqpaatcrmro","to":"note:note-mq845nbldiu","kind":"context","actor":"overlay-sync","ts":"2026-06-22T14:01:47.357Z","weight":0,"by":"autowire","judged":false,"score":0.551,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqpaatcrmro","to":"note:note-mq561rur","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
 {"evt":"edge_removed","from":"note:note-mqpaatcrmro","to":"note:note-mq845nbldiu","kind":"context","actor":"overlay-sync","ts":"2026-06-23T13:57:13.044Z"}
+{"evt":"edge_added","from":"note:note-mqpaatcrmro","to":"opencode/icalemma_setup","kind":"context","actor":"overlay-sync","ts":"2026-06-28T14:30:49.154Z","weight":0,"by":"autowire","judged":false,"score":0.278,"origin":"autowire-semantic"}
