@@ -2,6 +2,7 @@
 const overlayStore = require('../lib/overlay');
 const judge = require('../lib/judge');
 const headlessDrain = require('../lib/headless-drain');
+const { applyStructuredContextCompression } = require('../lib/search/context-compression');
 const graphStore = require('../lib/graph-store');
 const { computeNoteUsageEvidence, scoreNoteNecessity, WIN_RATE_THRESHOLD } = require('../lib/recall-outcome-journal');
 const { nodeVecs, embeddingMeta } = require('../lib/embed');
@@ -183,7 +184,8 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         const taskTask = !isNK(it.from) && !isNK(it.to);
         return { kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to), neighborhood: neighborhood.nodes, neighborhoodTruncated: neighborhood.truncated, supersedeChain, taskTask };
       });
-      send(res, 200, { epoch: T.ov.epoch || 0, workspace: ws, budget, node: eagerNode, eager: true, idle: eagerItems.length === 0, total: nodeItems.length, items: eagerItems }); return true;
+      const contextCompression = applyStructuredContextCompression(eagerItems);
+      send(res, 200, { epoch: T.ov.epoch || 0, workspace: ws, budget, node: eagerNode, eager: true, idle: eagerItems.length === 0, total: nodeItems.length, items: eagerItems, context_compression: contextCompression }); return true;
     }
     const queue = judge.buildQueue(T.ov);
     const slice = judge.nextSlice(queue, T.ov.judgeCursor || 0, budget);
@@ -263,12 +265,14 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
       T.ov.judgeCursor = slice.cursorAfter;
       T.save();
     }
+    const contextCompression = applyStructuredContextCompression(items);
     send(res, 200, {
       epoch: T.ov.epoch || 0,
       workspace: ws,
       budget, idle: slice.idle, total: slice.total,
       cursorBefore: slice.cursorBefore, cursorAfter: slice.cursorAfter,
       items,
+      context_compression: contextCompression,
     }); return true;
   }
 

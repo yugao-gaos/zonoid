@@ -20,6 +20,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const realJudge = require('../lib/judge');
+const { applyStructuredContextCompression } = require('../lib/search/context-compression');
 
 // The route file (routes/judge.js) binds `const headlessDrain = require('../lib/headless-drain')`
 // ONCE at load. Require both here, at top of file, BEFORE any freshModule() churns the cache — so
@@ -189,6 +190,27 @@ test('runJudgeDrainSync returns a clean idle no-op when node is omitted', async 
   assert.equal(out.idle, true);
   assert.equal(out.judged, 0);
   assert.equal(out.skipped, 'node_required');
+});
+
+test('judge structured context compression adds handles for long recoverable summaries', () => {
+  const longSummary = `${'dependency review context '.repeat(40)}tail marker`;
+  const payload = [{
+    kind: 'edge',
+    from: { key: 'task/source', title: 'Source', summary: longSummary },
+    to: { key: 'note:target', title: 'Target', summary: longSummary },
+    neighborhood: [{ key: 'note:neighbor', title: 'Neighbor', summary: longSummary }],
+  }];
+
+  const metrics = applyStructuredContextCompression(payload);
+
+  assert.equal(metrics.mode, 'reversible_structured_context');
+  assert.equal(metrics.compressed_entries, 3);
+  assert(metrics.before_tokens > metrics.after_tokens);
+  assert(payload[0].from.summary.includes('[CCR omitted '));
+  assert.equal(payload[0].from.ccr.handle.key, 'task/source');
+  assert.equal(payload[0].from.ccr.handle.field, 'summary');
+  assert.equal(payload[0].to.ccr.handle.tool, 'search_knowledge');
+  assert.equal(payload[0].neighborhood[0].ccr.handle.key, 'note:neighbor');
 });
 
 // ---- HTTP route wiring: POST /judge/drain drives runJudgeDrainSync and returns its counts --------
