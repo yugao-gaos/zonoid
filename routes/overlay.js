@@ -1053,9 +1053,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     }
     if (Array.isArray(b.wires_to)) {
       for (const taskKey of b.wires_to) {
-        overlayStore.addEdge(T.ov, 'note:' + id, taskKey, null, 'context', 1.0);
+        overlayStore.addEdge(T.ov, 'note:' + id, taskKey, null, 'context', 1.0, { origin: 'asserted', judged: true });
         const gs = T.ws ? graphStore.open(path.join(T.ws, '.graph')) : null;
-        if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, actor: b.actor || 'record-decision', ts: Date.now() });
+        if (gs) graphStore.appendEvent(gs, 'note:' + id, { evt: 'edge_added', from: 'note:' + id, to: taskKey, kind: 'context', weight: 1.0, origin: 'asserted', judged: true, actor: b.actor || 'record-decision', ts: Date.now() });
       }
     }
     const sourceCluster = noteSourceCluster.buildSourceClusterForNote('note:' + id, rawNotePayload);
