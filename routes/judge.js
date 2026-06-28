@@ -218,6 +218,19 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	          allowed_actions: ['remove_dependency', 'release_hold', 'cancel_task', 'escalate'],
 	        };
 	      }
+	      if (it.kind === 'followup-triage') {
+	        const task = detail(it.task_key);
+	        return {
+	          kind: 'followup-triage',
+	          id: it.id,
+	          guidance_id: it.guidance_id || null,
+	          task,
+	          reason: it.reason || null,
+	          when: it.when || null,
+	          bucket: it.bucket || null,
+	          allowed_actions: ['approve', 'reject', 'escalate'],
+	        };
+	      }
 	      if (it.kind === 'edge') {
         // The candidate edge is anchor(from) → N(to). Adjudicate N WITH structure: expand N's
         // weighted neighborhood + its supersede chain so the agent reasons over context, not the
@@ -331,7 +344,48 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	    const clearRepair = (taskKey) => {
 	      if (T.ov.readinessRepairs && T.ov.readinessRepairs[taskKey]) delete T.ov.readinessRepairs[taskKey];
 	    };
+	    const resolveFollowupGuidance = (guidanceId, answer) => {
+	      if (!guidanceId || !Array.isArray(T.ov.guidance)) return;
+	      const g = T.ov.guidance.find((item) => item.id === guidanceId);
+	      if (!g || g.resolved) return;
+	      overlayStore.resolveGuidance(T.ov, guidanceId, answer);
+	    };
 	    for (const v of verdicts) {
+	      if (v && v.followupTriage && v.followupTriage.task_key && v.followupTriage.action) {
+	        const taskKey = String(v.followupTriage.task_key);
+	        const action = String(v.followupTriage.action);
+	        const guidanceId = v.followupTriage.guidance_id ? String(v.followupTriage.guidance_id) : null;
+	        const reason = String(v.followupTriage.reason || 'follow-up triage verdict');
+	        const followups = require('../lib/followups');
+	        const guidance = guidanceId && Array.isArray(T.ov.guidance) ? T.ov.guidance.find((g) => g.id === guidanceId) : null;
+	        const guidanceAction = guidance && guidance.action && guidance.action.kind === 'follow-up'
+	          ? guidance.action
+	          : { kind: 'follow-up', task_key: taskKey };
+	        if (action === 'approve') {
+	          const fr = followups.resolveGate(T.ov, guidanceAction, 'approve');
+	          resolveFollowupGuidance(guidanceId, reason);
+	          applied.repaired = (applied.repaired || 0) + 1;
+	          applied.followupsApproved = (applied.followupsApproved || 0) + 1;
+	          if (fr && fr.released) applied.released = (applied.released || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'followup:approve', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'reject') {
+	          const fr = followups.resolveGate(T.ov, guidanceAction, 'reject');
+	          resolveFollowupGuidance(guidanceId, reason);
+	          applied.repaired = (applied.repaired || 0) + 1;
+	          applied.followupsRejected = (applied.followupsRejected || 0) + 1;
+	          if (fr && fr.canceled) applied.canceled = (applied.canceled || 0) + 1;
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'followup:reject', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        } else if (action === 'escalate') {
+	          if (!Array.isArray(T.ov.guidance)) T.ov.guidance = [];
+	          const existing = T.ov.guidance.some((g) => !g.resolved && g.action && g.action.kind === 'follow-up' && g.action.task_key === taskKey && g.action.judge_eligible === false);
+	          if (!existing) {
+	            T.ov.guidance.push({ id: `gate/followup-human-${Date.now().toString(36)}`, question: `Approve follow-up ${taskKey}?`, context: reason, trigger: 'follow_up', severity: 'blocking', ts: new Date().toISOString(), resolved: false, action: { kind: 'follow-up', task_key: taskKey, guidance_id: guidanceId, judge_eligible: false } });
+	            applied.escalated = (applied.escalated || 0) + 1;
+	          }
+	          resolveFollowupGuidance(guidanceId, 'escalated to user guidance');
+	          judge.appendVerdict(T.ws, { epoch, verdict: 'followup:escalate', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
+	        }
+	      }
 	      if (v && v.repairTask && v.repairTask.task_key && v.repairTask.action) {
 	        const taskKey = String(v.repairTask.task_key);
 	        const action = String(v.repairTask.action);
