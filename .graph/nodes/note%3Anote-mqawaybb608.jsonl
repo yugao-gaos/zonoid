@@ -38,3 +38,4 @@
 {"evt":"edge_removed","from":"note:note-mqawaybb608","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:09.389Z"}
 {"evt":"edge_added","from":"note:note-mqawaybb608","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:13.489Z","weight":0,"by":"autowire","judged":false,"score":0.458,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqawaybb608","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:37.399Z"}
+{"evt":"edge_added","from":"note:note-mqawaybb608","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-06-28T22:03:01.259Z","weight":0,"by":"autowire","judged":false,"score":0.458,"origin":"autowire-semantic"}
