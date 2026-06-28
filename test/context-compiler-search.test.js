@@ -445,6 +445,75 @@ test('conversational query keeps structural graph expansion beyond direct k', as
   assert(expanded.every((item) => item.expanded_from === 'note:seed'));
 });
 
+test('reversible context compression is default-off for full content search results', async () => {
+  const longSummary = `alpha reversible context ${'detail '.repeat(100)}final provenance sentence`;
+  const graph = {
+    tasks: [
+      node('note:long', 'Long reversible context note', {
+        kind: 'note',
+        summary: longSummary,
+      }),
+    ],
+  };
+
+  const body = await runSearch(graph, { q: 'alpha reversible context', k: '1', full_content: '1' });
+  const hit = body.results.find((item) => item.key === 'note:long');
+
+  assert(hit, 'expected long note result');
+  assert.equal(body.context_compression, undefined);
+  assert.equal(hit.ccr, undefined);
+  assert.equal(hit.content, longSummary.slice(0, 1200));
+});
+
+test('reversible context compression preserves keys provenance and retrieval handles', async () => {
+  const longSummary = `alpha reversible context ${'retrievable provenance detail '.repeat(35)}tail marker`;
+  const graph = {
+    tasks: [
+      node('task/target', 'Compression target', {
+        status: 'ready',
+        context_deps: ['note:long'],
+        context_weights: { 'note:long': 0.9 },
+        provisional: false,
+      }),
+      node('note:long', 'Long reversible context note', {
+        kind: 'note',
+        summary: longSummary,
+      }),
+    ],
+  };
+
+  const body = await runSearch(graph, {
+    q: 'alpha reversible context',
+    task_key: 'task/target',
+    k: '1',
+    full_content: '1',
+    reversible_context: '1',
+  });
+  const hit = body.results.find((item) => item.key === 'note:long');
+
+  assert(hit, 'expected direct context result');
+  assert.equal(hit.key, 'note:long');
+  assert.equal(hit.kind, 'note');
+  assert.equal(hit.tier, 'dag');
+  assert.equal(hit.via, 'context');
+  assert.deepEqual(hit.path, ['context_dep of task/task/target']);
+  assert(hit.content.includes('[CCR omitted '), 'expected reversible compression marker');
+  assert(hit.content.includes('tail marker'), 'expected tail context to survive compression');
+  assert.equal(hit.ccr.reversible, true);
+  assert.equal(hit.ccr.handle.key, 'note:long');
+  assert.equal(hit.ccr.handle.tool, 'search_knowledge');
+  assert.equal(hit.ccr.handle.field, 'content');
+  assert.equal(hit.ccr.handle.tier, 'dag');
+  assert.equal(hit.ccr.handle.via, 'context');
+  assert.match(hit.ccr.handle.ccr_id, /^ccr:/);
+  assert.equal(hit.ccr.handle.original_chars, longSummary.length);
+  assert(hit.ccr.handle.compressed_chars < hit.ccr.handle.original_chars);
+  assert.equal(body.context_compression.enabled, true);
+  assert.equal(body.context_compression.compressed_entries, 1);
+  assert(body.context_compression.before_tokens > body.context_compression.after_tokens);
+  assert.deepEqual(body.context_compression.handles.map((handle) => handle.key), ['note:long']);
+});
+
 (async () => {
   const oldRerank = process.env.ORCH_RERANK;
   process.env.ORCH_RERANK = '0';
