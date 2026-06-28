@@ -343,6 +343,8 @@ async function waitForPing(ms = 8000) {
   ok('submit_judge_verdict is on default MCP surface', !!judgeVerdictTool);
   ok('submit_judge_verdict schema exposes verdicts and edge actions',
     judgeVerdictTool && judgeVerdictTool.inputSchema.properties.verdicts && judgeVerdictTool.inputSchema.properties.keepEdge && judgeVerdictTool.inputSchema.properties.pruneEdge);
+  ok('submit_judge_verdict schema exposes taskDecision',
+    judgeVerdictTool && judgeVerdictTool.inputSchema.properties.taskDecision);
   let capturedJudgeVerdict = null;
   await judgeVerdictTool.run({ verdicts: [{ pruneEdge: { from: 'note:a', to: 'local/y' } }] }, (method, path, body) => {
     capturedJudgeVerdict = { method, path, body };
