@@ -33,6 +33,7 @@ const cohereMeta = { provider: 'cohere', model: 'embed-v4.0', dimensions: 1536, 
   ok('Voyage hosted provider is present', ids.includes('voyage'));
   ok('Cohere hosted provider is present', ids.includes('cohere'));
   ok('Gemini hosted provider is present', ids.includes('gemini'));
+  ok('Jina v5 omni provider family is present', ids.includes('jina-v5-omni'));
   ok('local instruct provider is present', ids.includes('local-instruct'));
 }
 
@@ -41,6 +42,24 @@ const cohereMeta = { provider: 'cohere', model: 'embed-v4.0', dimensions: 1536, 
   ok('local provider declares query/document template support', local.supportsQueryDocumentMode === 'template');
   ok('local provider declares LoRA tuning support', local.tuningSupport === 'lora');
   ok('local provider only lists instruct-tunable models', local.supportedModels.some((m) => /qwen3|bge|e5|gemma/i.test(m.id)));
+  ok('text-only local provider does not pass multimodal provider gate', local.capabilityGate.providerSwapEligible === false);
+}
+
+{
+  const voyage = listEmbeddingProviders().find((p) => p.id === 'voyage');
+  const cohere = listEmbeddingProviders().find((p) => p.id === 'cohere');
+  const gemini = listEmbeddingProviders().find((p) => p.id === 'gemini');
+  const jina = listEmbeddingProviders().find((p) => p.id === 'jina-v5-omni');
+  ok('Voyage declares multimodal input_type capability gate', voyage.capabilityGate.providerSwapEligible === true && voyage.modalities.includes('image') && voyage.modeSignal === 'input_type');
+  ok('Cohere declares embed-v4 multimodal input_type capability gate', cohere.capabilityGate.providerSwapEligible === true && cohere.modalities.includes('image') && cohere.customizationLevel === 'hosted_tuned_model');
+  ok('Gemini declares task type retrieval modes and modality verification', gemini.taskModes.includes('query') && gemini.taskModes.includes('document') && gemini.capabilityGate.adapterMustVerifyModality === true);
+  ok('Jina v5 omni declares local multimodal adapter placeholder', jina.capabilityGate.providerSwapEligible === true && jina.capabilityGate.adapterPending === true && jina.modalities.includes('audio'));
+  ok('eligible providers expose cost and cache hints', [voyage, cohere, gemini, jina].every((p) => p.costHints && p.cacheHints && p.maxInput));
+}
+
+{
+  const minilm = listEmbeddingProviders().find((p) => p.id === 'minilm');
+  ok('MiniLM is marked legacy fallback only', minilm.capabilityGate.legacyFallbackOnly === true && minilm.capabilityGate.providerSwapEligible === false);
 }
 
 {
