@@ -3,12 +3,14 @@
 
 const {
   DIMS,
+  VECTOR_SCHEMA_VERSION,
   embeddingMeta,
   listEmbeddingProviders,
   nodeVecs,
   validateEmbeddingConfig,
   vectorMatchesMeta,
 } = require('../lib/embed');
+const { planVectorInvalidation } = require('../lib/embedding-store');
 const overlayStore = require('../lib/overlay');
 const { scoreMatchesSemantic } = require('../daemon');
 const { askGate } = require('../lib/ask-gate');
@@ -21,9 +23,11 @@ const ok = (label, cond) => {
 };
 
 const minilmVec = Array.from({ length: DIMS }, (_, i) => i / DIMS);
-const voyageMeta = { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024, identity: 'voyage:voyage-4-lite:1024' };
+const voyageMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 }, { mode: 'document' });
+const voyageQueryMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 }, { mode: 'query' });
+const voyageImageMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 }, { mode: 'document', modality: 'image' });
 const voyageVec = Array.from({ length: 1024 }, (_, i) => i / 1024);
-const cohereMeta = { provider: 'cohere', model: 'embed-v4.0', dimensions: 1536, identity: 'cohere:embed-v4.0:1536' };
+const cohereMeta = embeddingMeta({ provider: 'cohere', model: 'embed-v4.0', dimensions: 1536 }, { mode: 'document' });
 
 {
   const providers = listEmbeddingProviders();
@@ -72,12 +76,17 @@ const cohereMeta = { provider: 'cohere', model: 'embed-v4.0', dimensions: 1536, 
 {
   const ov = overlayStore.EMPTY();
   const meta = embeddingMeta(ov);
-  ok('default embedding identity is MiniLM', meta.provider === 'minilm' && meta.dimensions === DIMS);
+  ok('default embedding identity is MiniLM document text v1', meta.provider === 'minilm' && meta.dimensions === DIMS && meta.task_mode === 'document' && meta.modality === 'text' && meta.vector_schema_version === VECTOR_SCHEMA_VERSION);
   ok('legacy MiniLM vector is accepted under MiniLM default', nodeVecs({ vec: minilmVec }, { expectedMeta: meta }).length === 1);
   ok('legacy MiniLM vector is rejected under hosted provider identity', nodeVecs({ vec: minilmVec }, { expectedMeta: voyageMeta }).length === 0);
   ok('matching hosted metadata is accepted', nodeVecs({ vec: voyageVec, vecMeta: voyageMeta }, { expectedMeta: voyageMeta }).length === 1);
   ok('mismatched hosted metadata is rejected', nodeVecs({ vec: voyageVec, vecMeta: cohereMeta }, { expectedMeta: voyageMeta }).length === 0);
-  ok('vectorMatchesMeta checks provider/model/dimensions', vectorMatchesMeta(voyageVec, voyageMeta, voyageMeta) && !vectorMatchesMeta(voyageVec, cohereMeta, voyageMeta));
+  ok('vectorMatchesMeta checks provider/model/dimensions/mode/modality', vectorMatchesMeta(voyageVec, voyageMeta, voyageMeta) && !vectorMatchesMeta(voyageVec, cohereMeta, voyageMeta) && !vectorMatchesMeta(voyageVec, voyageQueryMeta, voyageMeta) && !vectorMatchesMeta(voyageVec, voyageImageMeta, voyageMeta));
+  ok('hosted identity string carries versioned vector fields', voyageMeta.identity.includes('vector_schema_version=1') && voyageMeta.identity.includes('task_mode=document') && voyageMeta.identity.includes('modality=text'));
+  const tunedMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024, tuned_model_id: 'tenant-a' }, { mode: 'document' });
+  const adapterMeta = embeddingMeta({ provider: 'jina-v5-omni', adapter: 'retrieval-v1', dimensions: 1024 }, { mode: 'document' });
+  ok('tuned model id participates in vector identity', tunedMeta.tuned_model_id === 'tenant-a' && !vectorMatchesMeta(voyageVec, voyageMeta, tunedMeta));
+  ok('adapter id participates in vector identity', adapterMeta.adapter === 'retrieval-v1' && adapterMeta.identity.includes('adapter=retrieval-v1'));
 }
 
 {
@@ -90,9 +99,25 @@ const cohereMeta = { provider: 'cohere', model: 'embed-v4.0', dimensions: 1536, 
   const ov = overlayStore.EMPTY();
   overlayStore.setTaskVec(ov, 'sess/1', voyageVec, voyageMeta);
   ok('setTaskVec preserves raw vector array shape', Array.isArray(ov.taskVecs['sess/1']) && Array.isArray(ov.taskVecs['sess/1'][0]));
-  ok('setTaskVec stores metadata sidecar', ov.taskVecMeta['sess/1'][0].identity === voyageMeta.identity);
+  ok('setTaskVec stores versioned metadata sidecar', ov.taskVecMeta['sess/1'][0].identity === voyageMeta.identity && ov.taskVecMeta['sess/1'][0].task_mode === 'document');
   overlayStore.setTaskVec(ov, 'sess/1', null);
   ok('setTaskVec(null) clears metadata sidecar', !ov.taskVecMeta['sess/1']);
+}
+
+{
+  const ov = overlayStore.EMPTY();
+  ov.status['sess/1'] = 'done';
+  ov.note_nodes.fresh = { id: 'fresh', title: 'fresh', summary: '', vec: voyageVec, vecMeta: voyageMeta };
+  ov.note_nodes.stale = { id: 'stale', title: 'stale', summary: '', vec: voyageVec, vecMeta: cohereMeta };
+  overlayStore.setTaskVec(ov, 'sess/1', voyageVec, voyageMeta);
+  overlayStore.setTaskVec(ov, 'sess/2', voyageVec, cohereMeta);
+  ov.edges.push({ from: 'note:stale', to: 'sess/2', origin: 'autowire-semantic', kind: 'context' });
+  ov.edges.push({ from: 'sess/1', to: 'sess/2', origin: 'manual', kind: 'blocking' });
+  const beforeStatus = ov.status['sess/1'];
+  const plan = planVectorInvalidation(ov, { expectedMeta: voyageMeta });
+  ok('vector invalidation plan reports only stale dense vector layer', plan.denseVectors.total === 4 && plan.denseVectors.stale === 2 && plan.denseVectors.staleByLayer['note.vec'] === 1 && plan.denseVectors.staleByLayer.taskVecs === 1);
+  ok('vector invalidation plan reports semantic derived artifacts separately', plan.semanticDerivedArtifacts.stale === 1 && plan.semanticDerivedArtifacts.refs[0].layer === 'edges.autowire-semantic');
+  ok('vector invalidation plan does not mutate unrelated task state', ov.status['sess/1'] === beforeStatus && plan.unaffected.includes('dependencies'));
 }
 
 async function runAsyncTests() {
