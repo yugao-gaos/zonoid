@@ -1,7 +1,7 @@
 {
   "task_key": "codex/extract-headless-drain-runner",
   "git_user": "test <test@example.com>",
-  "session_id": "codex-session",
-  "status": "failed",
-  "completed_at": "2026-06-29T07:58:00.115Z"
+  "session_id": "codex-mcp-5466-18ab4f16edee30e197329a6c41e39af4",
+  "status": "tested",
+  "completed_at": "2026-06-29T08:00:27.464Z"
 }
