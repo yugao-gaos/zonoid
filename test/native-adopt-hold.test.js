@@ -6,8 +6,9 @@
 //
 // P6 STRICT: the JUDGING→READY gate has NO time-based release. A node with any unjudged autowire
 // candidate edge is held until the set drains (a judge verdict), full stop — there is no timeout, no
-// provisional fallback. The adopt-hold term still applies for the birth tick. `provisional` is now
-// always false. Recovery from a stalled judge is the drain CLI (scripts/judge-drain-once.js).
+// provisional fallback. The adopt-hold term mirrors that same real-edge predicate on the birth tick.
+// `provisional` is now always false. Recovery from a stalled judge is the drain CLI
+// (scripts/judge-drain-once.js).
 //
 // WHY a predicate-replica test (not an E2E daemon spawn): the held state requires a SEEDED autowire
 // candidate edge, which requires a live embed backend. In a sandbox embed is disabled → ingestNode
@@ -18,12 +19,12 @@
 //
 // The predicate under test (verbatim from buildGraph, where `status` = R.effective() and `js` =
 // judge.judgingState over the same overlay):
-//   _adoptHold = newlyAdoptedSet.has(key) && status === 'ready';
+//   _adoptHold = newlyAdoptedSet.has(key) && status === 'ready' && js.judging;
 //   _status    = (_adoptHold || (js.judging && status === 'ready')) ? 'not_ready' : status;
 //   _judging   = _adoptHold || js.judging;
 //   provisional = false;   // P6: no timeout fallback, so never provisional-while-released
 // BUILD2's contribution is the `_adoptHold` term: a native-adopted node that effective() computed as
-// `ready` is held the SAME way harness-lane nodes are, via the SAME judge.judgingState gate.
+// `ready` is held only when the SAME judge.judgingState gate sees real unjudged candidate edges.
 'use strict';
 const ov = require('../lib/overlay');
 const judge = require('../lib/judge');
@@ -39,7 +40,7 @@ const HOUR = 3600 * 1000;
 // gate is strict, so no timeout arg is threaded and `provisional` is always false.
 function project(overlay, key, status, adopted) {
   const js = judge.judgingState(overlay, key);
-  const adoptHold = adopted && status === 'ready';
+  const adoptHold = adopted && status === 'ready' && js.judging;
   const _status = (adoptHold || (js.judging && status === 'ready')) ? 'not_ready' : status;
   const _judging = adoptHold || js.judging;
   const provisional = false;
@@ -69,21 +70,19 @@ function project(overlay, key, status, adopted) {
   ok('SAME GATE: non-adopted node with the same unjudged edge is held identically', pGeneric.status === 'not_ready' && pGeneric.judging === true);
 }
 
-// --- ADOPT-HOLD IS ONE-TICK: it holds unconditionally on the BIRTH build, regardless of edge state.
-// newlyAdoptedSet only contains nodes adopted in THIS build tick; the async ingest + clearJudgingSince
-// (or a judge verdict) resolve on a LATER build where the node is no longer newly-adopted. So even a
-// node whose edge happens to already read judged, or whose anchor is already stale, is still held for
-// this one birth tick — the hold is deliberately decoupled from judging state on the birth build.
+// --- ADOPT-HOLD DOES NOT INVENT A BIRTH-TICK WAIT: with no unjudged edge, ready stays ready. -------
+// newlyAdoptedSet only contains nodes adopted in THIS build tick, but the hold must still be coupled
+// to the real candidate-edge state; otherwise isolated smoke/root tasks disappear from /ready.
 {
   const o = ov.EMPTY();
   o.epoch = 1;
   const now = 2_000_000_000_000;
   const KEY = 's/native2';
   o.edges.push({ from: KEY, to: 'note:n', kind: 'context', weight: 0, by: 'autowire', judged: true, score: 0.5 });
-  // (no unjudged edge → judgingState would say judging:false, yet adopt-hold STILL holds for the tick)
+  // no unjudged edge → judgingState says judging:false, so adoption must not hold it.
   const p = project(o, KEY, 'ready', /*adopted*/ true);
-  ok('BIRTH-TICK: adopt-hold holds at not_ready even if no unjudged edge yet (one-tick safety)', p.status === 'not_ready');
-  ok('BIRTH-TICK: reports judging:true for the birth tick', p.judging === true);
+  ok('BIRTH-TICK: no unjudged edge stays ready', p.status === 'ready');
+  ok('BIRTH-TICK: no unjudged edge reports judging:false', p.judging === false);
 }
 
 // --- RELEASE: on a LATER build the node is no longer newly-adopted; once its eager edge is JUDGED

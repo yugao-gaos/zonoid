@@ -7,7 +7,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, state, setState, setWorkspace,
     GIT_HEAD, BOOTED_AT, FEATURES, sseClients, overlayStore, harness, analytics,
     analyticsState, analyticsFlush, PUBLIC, loops, taskTranscript, usageCached,
-    staleClaimKeys, releaseClaim, reapAgent, saveAgents, cache, targetOverlay,
+    staleClaimKeys, releaseClaim, reapAgent, saveAgents, cache, targetOverlay, buildGraph,
     embedStatus, isTruthy, sessionCount,
     WORKSPACES_FILE, graphStore, loadRegistry, repoToWorkspace, repoRoot } = ctx;
 

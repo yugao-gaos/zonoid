@@ -12,7 +12,7 @@ SSE_OUT="$SMOKE_ROOT/sse.out"
 export CLAUDE_PLUGIN_DATA="$SMOKE_ROOT/data"      # isolate overlay/loop/workspace from production
 chk(){ if [ "$2" = "$3" ]; then echo "PASS  $1"; pass=$((pass+1)); else echo "FAIL  $1 (got '$2' want '$3')"; fail=$((fail+1)); fi; }
 boot(){
-  ORCH_AUTOWIRE_THRESHOLD=2 ORCH_PORT=$PORT node "$PWD/daemon.js" >>"$SMOKE_LOG" 2>&1 & DPID=$!
+  ORCH_AUTOWIRE_THRESHOLD=999 ORCH_PORT=$PORT node "$PWD/daemon.js" >>"$SMOKE_LOG" 2>&1 & DPID=$!
   for i in $(seq 1 120); do
     curl -s --max-time 0.5 "localhost:$PORT/health" 2>/dev/null | jq -e '.phase=="ready"' >/dev/null 2>&1 && return
     sleep 0.25

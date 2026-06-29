@@ -2354,12 +2354,10 @@ function projectGraphFromNative(ws, ovWs, native, effects) {
     // false: P6 removed the timeout fallback, so there is no "fell back to ready while still unjudged"
     // state — a task is either fully judging (held) or fully ready.
     const _js = judge.judgingState(ovWs, t.key);
-    // ADOPT-HOLD projection fix: R.effective() memoized status BEFORE we stamped markEagerJudge at
-    // adoption. For newly adopted nodes that would otherwise be 'ready', hold them at 'not_ready' and
-    // show judging:true so this build's projection is consistent with the persist. The hold expires
-    // when the async ingest either seeds edges (which the strict judgingState gate then manages) or
-    // finds nothing to seed (which clears the eager mark).
-    const _adoptHold = effects.newlyAdoptedSet.has(t.key) && status === 'ready';
+    // ADOPT-HOLD projection fix: R.effective() can memoize status before adoption-side ingest has
+    // finished. Hold only when the node already has real unjudged candidate edges; isolated roots
+    // must remain ready in the same projection instead of being delayed by a synthetic birth tick.
+    const _adoptHold = effects.newlyAdoptedSet.has(t.key) && status === 'ready' && _js.judging;
     const _status = (_adoptHold || (_js.judging && status === 'ready')) ? 'not_ready' : status;
     const _judging = _adoptHold || _js.judging;
 	    const readiness = readinessDetail(R, ws, t.key, {
