@@ -4,12 +4,14 @@
 const {
   DIMS,
   VECTOR_SCHEMA_VERSION,
+  getEmbeddingProvider,
   embeddingMeta,
   listEmbeddingProviders,
   nodeVecs,
   validateEmbeddingConfig,
   vectorMatchesMeta,
 } = require('../lib/embed');
+const https = require('https');
 const { planVectorInvalidation } = require('../lib/embedding-store');
 const overlayStore = require('../lib/overlay');
 const { scoreMatchesSemantic } = require('../daemon');
@@ -23,11 +25,38 @@ const ok = (label, cond) => {
 };
 
 const minilmVec = Array.from({ length: DIMS }, (_, i) => i / DIMS);
-const voyageMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 }, { mode: 'document' });
-const voyageQueryMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 }, { mode: 'query' });
-const voyageImageMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 }, { mode: 'document', modality: 'image' });
+const voyageMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 }, { mode: 'document' });
+const voyageQueryMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 }, { mode: 'query' });
+const voyageImageMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 }, { mode: 'document', modality: 'image' });
 const voyageVec = Array.from({ length: 1024 }, (_, i) => i / 1024);
 const cohereMeta = embeddingMeta({ provider: 'cohere', model: 'embed-v4.0', dimensions: 1536 }, { mode: 'document' });
+
+function withMockHttps(response, fn) {
+  const original = https.request;
+  const calls = [];
+  https.request = (opts, cb) => {
+    const chunks = [];
+    const req = {
+      write: (data) => chunks.push(String(data)),
+      end: () => {
+        calls.push({ opts, body: chunks.join('') ? JSON.parse(chunks.join('')) : null });
+        const res = new (require('events').EventEmitter)();
+        res.statusCode = 200;
+        cb(res);
+        process.nextTick(() => {
+          res.emit('data', JSON.stringify(response));
+          res.emit('end');
+        });
+      },
+      on: () => req,
+      setTimeout: () => req,
+    };
+    return req;
+  };
+  return Promise.resolve()
+    .then(() => fn(calls))
+    .finally(() => { https.request = original; });
+}
 
 {
   const providers = listEmbeddingProviders();
@@ -56,7 +85,7 @@ const cohereMeta = embeddingMeta({ provider: 'cohere', model: 'embed-v4.0', dime
   const jina = listEmbeddingProviders().find((p) => p.id === 'jina-v5-omni');
   ok('Voyage declares multimodal input_type capability gate', voyage.capabilityGate.providerSwapEligible === true && voyage.modalities.includes('image') && voyage.modeSignal === 'input_type');
   ok('Cohere declares embed-v4 multimodal input_type capability gate', cohere.capabilityGate.providerSwapEligible === true && cohere.modalities.includes('image') && cohere.customizationLevel === 'hosted_tuned_model');
-  ok('Gemini declares task type retrieval modes and modality verification', gemini.taskModes.includes('query') && gemini.taskModes.includes('document') && gemini.capabilityGate.adapterMustVerifyModality === true);
+  ok('Gemini text endpoint is not marked multimodal provider-swap eligible', gemini.capabilityGate.providerSwapEligible === false && gemini.capabilityGate.adapterMustVerifyModality === true && !gemini.modalities.includes('image'));
   ok('Jina v5 omni declares local multimodal adapter placeholder', jina.capabilityGate.providerSwapEligible === true && jina.capabilityGate.adapterPending === true && jina.modalities.includes('audio'));
   ok('eligible providers expose cost and cache hints', [voyage, cohere, gemini, jina].every((p) => p.costHints && p.cacheHints && p.maxInput));
 }
@@ -69,8 +98,10 @@ const cohereMeta = embeddingMeta({ provider: 'cohere', model: 'embed-v4.0', dime
 {
   const bad = validateEmbeddingConfig({ provider: 'openai', model: 'text-embedding-3-small' });
   ok('generic OpenAI embeddings are rejected by registry validation', bad.ok === false);
-  const good = validateEmbeddingConfig({ provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 });
+  const good = validateEmbeddingConfig({ provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 });
   ok('Voyage instruct provider validates', good.ok === true && good.config.provider === 'voyage');
+  const badModality = validateEmbeddingConfig({ provider: 'gemini', model: 'gemini-embedding-001', modality: 'image' });
+  ok('text-only Gemini adapter rejects image modality validation', badModality.ok === false);
 }
 
 {
@@ -121,6 +152,54 @@ const cohereMeta = embeddingMeta({ provider: 'cohere', model: 'embed-v4.0', dime
 }
 
 async function runAsyncTests() {
+  {
+    const voyage = getEmbeddingProvider('voyage');
+    const oldKey = process.env.VOYAGE_API_KEY;
+    process.env.VOYAGE_API_KEY = 'test-voyage-key';
+    await withMockHttps({ data: [{ embedding: Array.from({ length: 1024 }, () => 0.25) }] }, async (calls) => {
+      const vec = await voyage.embed(
+        { imageUrl: 'https://example.test/image.png', text: 'diagram' },
+        { provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 },
+        { mode: 'document', modality: 'image' }
+      );
+      ok('Voyage multimodal adapter extracts hosted vector', Array.isArray(vec) && vec.length === 1024);
+      ok('Voyage multimodal adapter sends image content and document input_type', calls[0].body.input_type === 'document' && Array.isArray(calls[0].body.input[0]) && calls[0].body.input[0].some((p) => p.type === 'image_url'));
+    });
+    if (oldKey === undefined) delete process.env.VOYAGE_API_KEY;
+    else process.env.VOYAGE_API_KEY = oldKey;
+  }
+
+  {
+    const cohere = getEmbeddingProvider('cohere');
+    const oldKey = process.env.COHERE_API_KEY;
+    process.env.COHERE_API_KEY = 'test-cohere-key';
+    await withMockHttps({ embeddings: { float: [Array.from({ length: 1536 }, () => 0.5)] } }, async (calls) => {
+      const vec = await cohere.embed(
+        'find similar screenshots',
+        { provider: 'cohere', model: 'embed-v4.0', dimensions: 1536 },
+        { mode: 'query', modality: 'text' }
+      );
+      ok('Cohere embed-v4 adapter extracts hosted vector', Array.isArray(vec) && vec.length === 1536);
+      ok('Cohere embed-v4 adapter sends search_query text request', calls[0].body.input_type === 'search_query' && calls[0].body.texts[0] === 'find similar screenshots');
+    });
+    if (oldKey === undefined) delete process.env.COHERE_API_KEY;
+    else process.env.COHERE_API_KEY = oldKey;
+  }
+
+  {
+    const gemini = getEmbeddingProvider('gemini');
+    const oldKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'test-gemini-key';
+    const vec = await gemini.embed(
+      { imageUrl: 'https://example.test/image.png' },
+      { provider: 'gemini', model: 'gemini-embedding-001', dimensions: 3072, modality: 'image' },
+      { mode: 'document', modality: 'image' }
+    );
+    ok('Gemini adapter returns null for unverified image modality', vec === null);
+    if (oldKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = oldKey;
+  }
+
   {
     const target = { id: 'sess/query', label: 'alpha request', summary: '', deps: [], context_deps: [] };
     const matching = { id: 'note:matching', label: 'bravo corpus', summary: '', status: 'note', kind: 'note', vec: voyageVec, vecMeta: voyageMeta };
