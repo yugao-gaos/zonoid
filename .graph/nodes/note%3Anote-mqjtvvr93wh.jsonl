@@ -66,3 +66,4 @@
 {"evt":"edge_promoted","from":"note:note-mqjtvvr93wh","to":"codex/judge-brain-search-task-context","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqjtvvr93wh","to":"codex/judge-brain-search-activation-engine","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
 {"evt":"edge_promoted","from":"note:note-mqjtvvr93wh","to":"codex/judge-brain-search-context-compiler","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.5,"by":"judge","judged":true,"origin":"asserted"}
+{"evt":"edge_added","from":"note:note-mqjtvvr93wh","to":"codex/embed-provider-instruct-api","kind":"context","actor":"overlay-sync","ts":"2026-06-29T16:44:07.144Z","weight":0,"by":"autowire","judged":false,"score":0.373,"origin":"autowire-semantic"}
