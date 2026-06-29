@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/fix-headless-drain-default-contract-tests",
+  "git_user": "test <test@example.com>",
+  "session_id": "codex-session",
+  "branch": "orch/attempt/codex-fix-headless-drain-default-contract-tests",
+  "status": "claimed",
+  "claimed_at": "2026-06-29T08:02:38.459Z",
+  "lease_until": "2026-06-29T09:02:38.459Z"
+}
