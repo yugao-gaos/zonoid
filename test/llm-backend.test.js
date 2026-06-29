@@ -43,7 +43,7 @@ function makeFakeHttp(responder) {
       requests.push(rec);
       const req = new EventEmitter();
       req.write = (chunk) => { rec.body += chunk; };
-      req.setTimeout = () => {};
+      req.setTimeout = (ms) => { rec.timeoutMs = ms; };
       req.destroy = (err) => { req.emit('error', err || new Error('destroyed')); };
       req.end = () => {
         setImmediate(() => {
@@ -610,6 +610,30 @@ test('api provider: runJudgeLoop walks /judge/next → callApi → /judge/verdic
   // The verdicts parsed from the model reply were forwarded to the daemon.
   const postReq = fakeHttp.requests.find((r) => r.opts.method === 'POST');
   assert.deepEqual(JSON.parse(postReq.body).verdicts, [{ pruneEdge: { from: 'note:a', to: 't1' } }]);
+});
+
+test('api provider: runJudgeLoop applies caller timeout to daemon GET and POST calls', async () => {
+  const fakeHttp = makeFakeHttp((opts) => {
+    if (opts.method === 'GET' && /\/judge\/next/.test(opts.path)) {
+      return { status: 200, body: { idle: false, items: [{ kind: 'edge', id: 'e1', from: { key: 'note:a' }, to: { key: 't1' } }] } };
+    }
+    if (opts.method === 'POST' && /\/judge\/verdict/.test(opts.path)) {
+      return { status: 200, body: { ok: true, applied: { pruned: 1 } } };
+    }
+    return { status: 404, body: {} };
+  });
+  const fakeCallApi = async () => ({ text: '{"verdicts":[{"pruneEdge":{"from":"note:a","to":"t1"}}]}', usage: null });
+
+  const result = await backend.runJudgeLoop({
+    daemonUrl: 'http://localhost:8787',
+    budget: 1,
+    timeoutMs: 123456,
+    httpModule: fakeHttp,
+    callApiFn: fakeCallApi,
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(fakeHttp.requests.map((r) => r.timeoutMs), [123456, 123456]);
 });
 
 test('api provider: runZaiJudgeLoop uses glm-5.2 as the default model', async () => {
