@@ -77,8 +77,8 @@ test('overlay: config.backend persists across save → load (round-trip on disk)
 test('overlay: setEmbeddingConfig writes config.embedding; getEmbeddingConfig reads it back', () => {
   const ov = overlayStore.EMPTY();
   assert.equal(overlayStore.getEmbeddingConfig(ov), null, 'unset ⇒ null (= MiniLM default)');
-  overlayStore.setEmbeddingConfig(ov, { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 });
-  assert.deepEqual(overlayStore.getEmbeddingConfig(ov), { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 });
+  overlayStore.setEmbeddingConfig(ov, { provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024, tuned_model_id: 'tenant-a' });
+  assert.deepEqual(overlayStore.getEmbeddingConfig(ov), { provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024, tuned_model_id: 'tenant-a' });
   overlayStore.setEmbeddingConfig(ov, {});
   assert.equal(overlayStore.getEmbeddingConfig(ov), null, 'falsy provider clears selection');
 });
@@ -124,7 +124,7 @@ test('config routes require an explicit workspace and do not read/write EMPTY ov
     ['/config/backend', 'GET', {}, U],
     ['/config/backend', 'POST', { __body: { provider: 'openrouter' } }, U],
     ['/config/embedding', 'GET', {}, UE],
-    ['/config/embedding', 'POST', { __body: { provider: 'voyage', model: 'voyage-4-lite' } }, UE],
+    ['/config/embedding', 'POST', { __body: { provider: 'voyage', model: 'voyage-multimodal-3.5' } }, UE],
   ];
   for (const [pathName, method, req, url] of cases) {
     const { route, captured } = makeCtx(null);
@@ -453,17 +453,17 @@ test('GET /config/embedding: defaults to MiniLM and lists narrowed providers', a
 test('POST /config/embedding: sets a known narrowed provider and persists it', async () => {
   const ws = freshWorkspace();
   const { route, captured } = makeCtx(ws);
-  const req = { __body: { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 } };
+  const req = { __body: { provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 } };
   const handled = await route('/config/embedding', 'POST', req, {}, UE, null);
   assert.equal(handled, true, 'route handled the POST');
   assert.equal(captured.code, 200);
   assert.equal(captured.body.ok, true);
   assert.equal(captured.body.active.provider, 'voyage');
-  assert.equal(captured.body.active.model, 'voyage-4-lite');
+  assert.equal(captured.body.active.model, 'voyage-multimodal-3.5');
   assert.equal(captured.body.active.dimensions, 1024);
   assert.ok(captured.notified >= 1, 'notifyChange called on a successful write');
   const reloaded = overlayStore.load(ws);
-  assert.deepEqual(overlayStore.getEmbeddingConfig(reloaded), { provider: 'voyage', model: 'voyage-4-lite', dimensions: 1024 });
+  assert.deepEqual(overlayStore.getEmbeddingConfig(reloaded), { provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 });
 });
 
 test('POST /config/embedding: rejects generic OpenAI embeddings and unknown models', async () => {
