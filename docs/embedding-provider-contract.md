@@ -3,7 +3,10 @@
 Status: architecture contract plus registry metadata. Runtime adapter work is
 limited to providers that already have an implementation in
 `lib/embed-providers.js`; Voyage multimodal and Cohere Embed v4 are the current
-hosted multimodal adapters.
+hosted multimodal adapters. Jina v5 omni is registered as the first local
+multimodal instruct candidate, but its adapter is intentionally disabled because
+the current `@xenova/transformers` 2.17.2 / ONNX Runtime 1.14 stack cannot run a
+verified local Jina v5 omni retrieval artifact.
 
 This contract defines the capability surface future embedding adapters must
 expose before they are eligible for provider-swap work. MiniLM remains the legacy
@@ -75,7 +78,13 @@ to be implemented in this task:
 | Voyage multimodal | hosted | text, image | `input_type` | `hosted_tuned_model` |
 | Cohere Embed v4 | hosted | text, image | `input_type` | `hosted_tuned_model` |
 | Gemini / Vertex embeddings | hosted | text only in the current adapter | `task_type` / Vertex task type | `hosted_tuned_model` |
-| Jina v5 omni/local | hosted or local | text, image, video, audio | adapter/template prefixes | `local_lora_adapter` |
+| Jina v5 omni/local | local candidate, disabled in current Node runtime | text, image, video, audio | adapter/template prefixes | `local_lora_adapter` |
+
+For Jina v5 omni, the local adapter must stay fail-soft until runtime support is
+verified. The current implementation returns `null` and marks
+`capabilityGate.providerSwapEligible=false` with `runtimeUnsupported=true`
+instead of claiming local support that the pinned Node/Transformers/ONNX stack
+cannot provide.
 
 For Gemini, adapter code must verify the selected API/model supports the
 declared modality before passing the gate. The existing text endpoint is not
@@ -127,6 +136,8 @@ Downstream migration controls should:
 
 ## Child task boundaries
 
-This task intentionally does not implement the Jina adapter, hosted multimodal
-payload formats, vector migration UI, or provider evaluation docs. Those tasks
-should consume this contract and preserve the existing fail-soft embedding API.
+This task intentionally does not implement hosted multimodal payload formats,
+vector migration UI, or provider evaluation docs. Future local Jina work must
+first add or select a runtime that can actually execute the Jina v5 omni
+retrieval models, then flip the runtime gate with tests that exercise real local
+embedding calls.
