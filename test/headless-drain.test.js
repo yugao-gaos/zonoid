@@ -997,12 +997,12 @@ test('effectiveConfig defaults timeoutMs to 5 minutes', () => {
   }
 });
 
-test('effectiveConfig defaults drain concurrency to 4', () => {
+test('effectiveConfig defaults drain concurrency to 2', () => {
   const saved = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   try {
     const hd = freshModule();
-    assert.equal(hd.effectiveConfig().maxConcurrency, 4);
+    assert.equal(hd.effectiveConfig().maxConcurrency, 2);
   } finally {
     if (saved === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = saved;
@@ -1022,7 +1022,7 @@ test('backoffConfig defaults to a short retry window', () => {
   try {
     const hd = freshModule();
     assert.equal(hd.backoffConfig().baseMs, 5_000);
-    assert.equal(hd.backoffConfig().capMs, 5_000);
+    assert.equal(hd.backoffConfig().capMs, 60_000);
   } finally {
     if (savedBase === undefined) delete process.env.HEADLESS_DRAIN_BACKOFF_BASE_MS;
     else process.env.HEADLESS_DRAIN_BACKOFF_BASE_MS = savedBase;
@@ -1976,7 +1976,7 @@ test('isThrottled detects 429/529/overloaded/rate-limit; false for a clean resul
   assert.ok(!hd.isThrottled(null));
 });
 
-test('recordDrainOutcome: LLM trouble sets a short fixed backoff; a clean run resets it', () => {
+test('recordDrainOutcome: LLM trouble grows backoff exponentially; a clean judge run resets it', () => {
   const hd = freshModule();
   const T0 = 1_000_000;
   const { baseMs, capMs, hardFailureMs } = hd.backoffConfig();
@@ -1985,14 +1985,14 @@ test('recordDrainOutcome: LLM trouble sets a short fixed backoff; a clean run re
   assert.equal(hd._governor.backoffUntil, T0 + baseMs, 'first throttle = base window');
   hd.recordDrainOutcome({ stdout: '529 overloaded' }, T0);
   assert.equal(hd._governor.consecutiveThrottles, 2);
-  assert.equal(hd._governor.backoffUntil, T0 + capMs, 'second throttle stays capped');
+  assert.equal(hd._governor.backoffUntil, T0 + baseMs * 2, 'second throttle doubles the base window');
   hd.recordDrainOutcome({ timedOut: true }, T0); // a timeout is also a backoff trigger
   assert.equal(hd._governor.consecutiveThrottles, 3);
-  assert.equal(hd._governor.backoffUntil, T0 + capMs);
+  assert.equal(hd._governor.backoffUntil, T0 + baseMs * 4, 'third throttle keeps growing below the cap');
   hd.recordDrainOutcome({ exitCode: 127, stderr: 'missing binary' }, T0);
   assert.equal(hd._governor.consecutiveThrottles, 4);
   assert.equal(hd._governor.backoffUntil, T0 + hardFailureMs, 'hard spawn failures get a longer pause');
-  hd.recordDrainOutcome({ exitCode: 0, stdout: 'done' }, T0); // clean run resets
+  hd.recordDrainOutcome({ exitCode: 0, stdout: 'done', _drainKind: 'judge' }, T0); // clean judge run resets
   assert.equal(hd._governor.consecutiveThrottles, 0);
   assert.equal(hd._governor.backoffUntil, 0, 'clean run clears the backoff');
 });
