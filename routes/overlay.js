@@ -58,8 +58,8 @@ function noteKnowledge(overlay, n) {
 }
 
 async function embedDocument(ctx, overlay, text) {
-  if (typeof ctx.embedWithMeta === 'function') return ctx.embedWithMeta(text, { mode: 'document', overlay });
-  const vec = await ctx.embed(text);
+  if (typeof ctx.embedWithMeta === 'function') return ctx.embedWithMeta({ input: text, mode: 'retrieval.document' }, { overlay });
+  const vec = await ctx.embed({ input: text, mode: 'retrieval.document' });
   return { vec, meta: null };
 }
 
@@ -1168,7 +1168,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     for (let off = 0; off < pooledTexts.length; off += CHUNK) {
       const slice = pooledTexts.slice(off, off + CHUNK);
       let batch;
-      try { batch = await embedBatchFn(slice, { mode: 'document', overlay: T.ov }); }
+      try { batch = await embedBatchFn(slice, { mode: 'retrieval.document', overlay: T.ov }); }
       catch { batch = slice.map(() => ({ vec: null })); }
       for (let i = 0; i < slice.length; i++) {
         const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
@@ -1227,7 +1227,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     for (let off = 0; off < pooledTexts.length; off += CHUNK) {
       const slice = pooledTexts.slice(off, off + CHUNK);
       let batch;
-      try { batch = await embedBatchFn(slice, { mode: 'document', overlay: T.ov }); }
+      try { batch = await embedBatchFn(slice, { mode: 'retrieval.document', overlay: T.ov }); }
       catch { batch = slice.map(() => ({ vec: null })); }
       for (let i = 0; i < slice.length; i++) {
         const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
@@ -1314,7 +1314,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     for (let off = 0; off < pooledTexts.length; off += CHUNK) {
       const slice = pooledTexts.slice(off, off + CHUNK);
       let batch;
-      try { batch = await embedBatchFn(slice, { mode: 'document', overlay: T.ov }); }
+      try { batch = await embedBatchFn(slice, { mode: 'retrieval.document', overlay: T.ov }); }
       catch { batch = slice.map(() => ({ vec: null })); }
       for (let i = 0; i < slice.length; i++) {
         const v = batch && batch[i] && Array.isArray(batch[i].vec) ? batch[i].vec : null;
