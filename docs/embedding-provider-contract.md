@@ -31,9 +31,12 @@ Every provider registry entry should expose:
   must be part of the cache key
 - `capabilityGate`: machine-readable eligibility results
 
-The normalized embedding identity is still provider/model/dimensions today.
-Adapters that use tuned hosted models, local adapters, quantization variants, or
-non-float encodings must extend that identity before storing vectors.
+The normalized embedding identity is versioned and stored beside every vector.
+Version 1 identity fields are `vector_schema_version`, `provider`, `model`,
+`dimensions`, `task_mode`, `modality`, plus `adapter` or `tuned_model_id` when
+present. Future adapters that add quantization variants or non-float encodings
+must add those fields by bumping the vector schema version before storing
+vectors.
 
 ## Capability gates
 
@@ -103,6 +106,12 @@ Search must ignore stale vectors whose metadata does not match the active
 embedding identity. A provider swap, model swap, dimension change, tuned model
 change, adapter change, quantization change, or encoding change requires fresh
 vectors.
+
+Model-swap invalidation is scoped to the dense vector layer and semantic derived
+artifacts. The planning helper reports stale `vecMeta`, `vecsMeta`,
+`taskVecMeta`, knowledge `_vecMeta`, code/entity vector metadata, and
+`autowire-semantic` edges. It must not clear or rewrite unrelated task graph
+state such as status, summaries, dependencies, git/review metadata, or metrics.
 
 Downstream migration controls should:
 
