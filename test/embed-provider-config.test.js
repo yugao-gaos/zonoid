@@ -86,7 +86,7 @@ function withMockHttps(response, fn) {
   ok('Voyage declares multimodal input_type capability gate', voyage.capabilityGate.providerSwapEligible === true && voyage.modalities.includes('image') && voyage.modeSignal === 'input_type');
   ok('Cohere declares embed-v4 multimodal input_type capability gate', cohere.capabilityGate.providerSwapEligible === true && cohere.modalities.includes('image') && cohere.customizationLevel === 'hosted_tuned_model');
   ok('Gemini text endpoint is not marked multimodal provider-swap eligible', gemini.capabilityGate.providerSwapEligible === false && gemini.capabilityGate.adapterMustVerifyModality === true && !gemini.modalities.includes('image'));
-  ok('Jina v5 omni declares local multimodal adapter placeholder', jina.capabilityGate.providerSwapEligible === true && jina.capabilityGate.adapterPending === true && jina.modalities.includes('audio'));
+  ok('Jina v5 omni declares disabled local multimodal runtime gap', jina.capabilityGate.providerSwapEligible === false && jina.capabilityGate.adapterPending === true && jina.capabilityGate.runtimeUnsupported === true && jina.modalities.includes('audio'));
   ok('eligible providers expose cost and cache hints', [voyage, cohere, gemini, jina].every((p) => p.costHints && p.cacheHints && p.maxInput));
 }
 
@@ -198,6 +198,17 @@ async function runAsyncTests() {
     ok('Gemini adapter returns null for unverified image modality', vec === null);
     if (oldKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = oldKey;
+  }
+
+  {
+    const jina = getEmbeddingProvider('jina-v5-omni');
+    const vec = await jina.embed(
+      'find related screenshots',
+      { provider: 'jina-v5-omni', model: 'jinaai/jina-embeddings-v5-omni-small-retrieval', dimensions: 1024 },
+      { mode: 'query', modality: 'text' }
+    );
+    ok('Jina v5 omni local adapter fails soft while runtime is unsupported', vec === null);
+    ok('Jina v5 omni provider reports unavailable runtime', jina.isAvailable() === false);
   }
 
   {
