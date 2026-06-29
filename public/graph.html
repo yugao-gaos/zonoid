@@ -5436,25 +5436,27 @@ async function tick(){
   liveAgentIds=new Set((d.agents||[]).filter(a=>a&&a.state==='running').map(a=>a.agent_id));
   const s=d.summary, sc=s.statuses||{}; const order=['not_ready','ready','in_progress','tested','done','failed','canceled'];
 
-  const cf=costCache, cfShare=cf&&cf.totals.total>0?Math.round(cf.totals.productive*100/cf.totals.total):null;
+  const cf=costCache, econ=cf&&(cf.economy_totals||cf.totals)||null, usageTotals=cf&&cf.usage_totals||null;
+  const cfShare=econ&&econ.total>0?Math.round(econ.productive*100/econ.total):null;
   document.getElementById('ws').textContent=d.workspace?d.workspace.split('/').pop():'';
   const autoScore=cf&&cf.autonomy_score!=null?cf.autonomy_score+'×':'—';
-  const prodTok=cf?fmtK(cf.totals.productive):'—';
+  const prodTok=econ?fmtK(econ.productive):'—';
   // totalRaw: DELTA basis (prod+expl+trap) — denominator for productivity% and token-economy
-  const totalRaw=cf?cf.totals.total:null;
+  const totalRaw=econ?econ.total:null;
   const totalTok=cf?fmtK(totalRaw):'—';
   const bm=cf&&cf.by_model||{};
   const costByModel=cf&&cf.cost&&cf.cost.by_model||{};
   const serverModelCost=m=>costByModel[m]&&costByModel[m].usd!=null?Number(costByModel[m].usd):null;
   // billCost: server-priced GROSS session dollars from /costflow.cost (adapter-priced, daemon-summed)
-  const billCost=cf&&cf.cost?Number(cf.cost.usd||0):null;
+  const billingAvailable=!!(cf&&cf.sources&&cf.sources.billing!=='missing');
+  const billCost=cf&&cf.cost&&billingAvailable?Number(cf.cost.usd||0):null;
   const fmtUSD=n=>n==null?'—':n>=1000?'$'+Math.round(n/1000)+'K':n>=1?'$'+n.toFixed(0):'$'+n.toFixed(2);
   // cronCostCached: from harnessOhCache (populated by refreshInfraHero); use 0 if not yet loaded
   const cronCostCached=harnessOhCache?harnessOhCache.cronCost:0;
   // Billing hero = sessions + cron so it agrees with "Total est." in the popup
   const billStr=fmtUSD(billCost!=null?billCost+cronCostCached:null);
   // Plan recommendation uses GROSS output (what was actually billed to the quota)
-  const outTokTotal=cf&&cf.gross_totals?cf.gross_totals.output_tokens:(cf?cf.totals.output_tokens:0);
+  const outTokTotal=cf&&cf.gross_totals?cf.gross_totals.output_tokens:(usageTotals?usageTotals.output_tokens:0);
   // estimate weekly rate: costCache refreshes periodically; use total as proxy for "lifetime"
   // show plan fit based on absolute total (lifetime context)
   const planRec=outTokTotal>50e6?'API direct (Max plan capacity far exceeded)':outTokTotal>10e6?'API direct or Max 20× ($200/mo)':outTokTotal>3e6?'Max 20× ($200/mo) or API direct':outTokTotal>1e6?'Max 5× ($100/mo) or Max 20×':'Max 5× ($100/mo) likely sufficient';
@@ -5466,7 +5468,7 @@ async function tick(){
   const autoMedianPct=Math.round(autoMedian/autoMax*100);
   const autoColor=autoRaw==null?'#484f58':autoRaw>=autoMedian?'#3fb950':'#e3b341';
   const autoVs=autoRaw==null?'':(autoRaw>=autoMedian?`<b style="color:#3fb950">+${(autoRaw-autoMedian).toFixed(1)}× above median</b>`:`<b style="color:#e3b341">${(autoMedian-autoRaw).toFixed(1)}× below median</b>`);
-  const prodRaw=cf?cf.totals.productive:null;
+  const prodRaw=econ?econ.productive:null;
   // unrouted: session tokens that costflow couldn't attribute (from cf.sessions.unattributed) — informational only, NOT a 4th partition slice
   const unroutedTok=cf&&cf.sessions?fmtK(cf.sessions.unattributed):'—';
   const prodPct=totalRaw>0?Math.round(prodRaw/totalRaw*100):null;
@@ -5514,14 +5516,14 @@ async function tick(){
     `</span>` +
     `<span class="hero" onclick="toggleCostPopup()">` +
     `<span class="hlabel">Productivity</span><span class="hval" style="color:${prodBarColor}">${prodPct!=null?prodPct+'%':'—'}</span>` +
-    `<span class="hval-sub">${prodTok} · ${totalTok} total</span>` +
+    `<span class="hval-sub">${prodTok} · ${totalTok} attributed</span>` +
     `<span class="htip"><div class="tip-title">Productive Tokens</div>` +
     `Output tokens only (not input/cache). Attributed per task by claim-window duration, then flowed through the task DAG — only tokens that reached a git-merged task count as productive.` +
     `<div class="tip-bench" style="margin-top:8px">` +
     `<div style="display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:10px;color:#8b949e">` +
     `<span><b style="color:#3fb950">✓ Productive</b> — reached a merged branch</span><b style="color:#3fb950">${prodTok}</b>` +
-    `<span><b style="color:#e3b341">~ Exploration</b> — canceled / superseded / attempt branches</span><b style="color:#e3b341">${cf?fmtK(cf.totals.exploration??0):'—'}</b>` +
-    `<span><b style="color:#6e7681">✕ Trapped</b> — terminal dead-ends with no captured output</span><b style="color:#6e7681">${cf?fmtK(cf.totals.trapped):'—'}</b>` +
+    `<span><b style="color:#e3b341">~ Exploration</b> — canceled / superseded / attempt branches</span><b style="color:#e3b341">${econ?fmtK(econ.exploration??0):'—'}</b>` +
+    `<span><b style="color:#6e7681">✕ Trapped</b> — terminal dead-ends with no captured output</span><b style="color:#6e7681">${econ?fmtK(econ.trapped):'—'}</b>` +
     `<span style="color:#484f58">Total (attributed work)</span><b style="color:#e6edf3">${totalTok}</b>` +
     `<span style="color:#484f58;font-size:9px">○ unrouted session remainder (pre-flow)</span><b style="color:#484f58;font-size:9px">${unroutedTok}</b>` +
     `</div>` +
@@ -7474,10 +7476,12 @@ async function toggleBillingPopup(){
   let delta;
   try{ [cf,cd,oh,delta]=await Promise.all([dfetch('/costflow').then(r=>r.json()), fetchCronData(), fetch(BASE+'/harness/overhead').then(r=>r.json()).catch(()=>null), dfetch('/graph/delta?since=0').then(r=>r.json()).catch(()=>null)]); }catch{ el.innerHTML='<div class="empty">fetch failed</div>'; return; }
 
-  const t=cf.totals||{};
+  const t=cf.economy_totals||cf.totals||{};
+  const usageTotals=cf.usage_totals||{};
   const bm=cf.by_model||{};
   const serverCost=cf.cost||null;
   const serverCostByModel=serverCost&&serverCost.by_model||{};
+  const billingAvailable=!(cf.sources&&cf.sources.billing==='missing');
   const human=cf.human||{};
   const entries=(cd&&cd.entries)||[];
 
@@ -7493,8 +7497,8 @@ async function toggleBillingPopup(){
   const fmtUSD=v=>v<0.01?'<$0.01':v<1?'$'+v.toFixed(2):'$'+Math.round(v).toLocaleString();
   const fmtN=n=>n==null?'—':Number(n).toLocaleString();
 
-  const sessionCost=serverCost?Number(serverCost.usd||0):0;
-  const sessionCostLabel=serverCost?`${fmtUSD(sessionCost)}${serverCost.source==='estimated'?' ≈':''}`:'—';
+  const sessionCost=serverCost&&billingAvailable?Number(serverCost.usd||0):0;
+  const sessionCostLabel=serverCost&&billingAvailable?`${fmtUSD(sessionCost)}${serverCost.source==='estimated'?' ≈':''}`:'unreconciled';
   const costByCause=cf.cost_by_cause||cf.cause_ledger||{};
   const causeColor={foreground:'#79c0ff',worker:'#3fb950',review:'#d29922',daemon:'#a371f7',auxiliary:'#8b949e',unknown:'#484f58'};
   const causeRows=(costByCause.buckets||[]).filter(b=>b&&((b.tokens||0)>0||(b.usd||0)>0)).map(b=>{
@@ -7514,7 +7518,7 @@ async function toggleBillingPopup(){
   // unrouted: session tokens costflow couldn't route — informational, NOT a 4th partition slice
   const unroutedTokPopup=cf.sessions?fmtK(cf.sessions.unattributed):'—';
 
-  const modelRows=Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&((bm[m].input_tokens||0)+(bm[m].output_tokens||0))>0)
+  const modelRows=Object.entries(bm).filter(([m])=>m!=='<synthetic>'&&((bm[m].input_tokens||0)+(bm[m].output_tokens||0)+(bm[m].cache_read||0))>0)
     .sort(([,a],[,b])=>(b.output_tokens||0)-(a.output_tokens||0))
     .map(([m,v])=>{
       const cost=serverCostByModel[m]&&serverCostByModel[m].usd!=null?Number(serverCostByModel[m].usd):null;
@@ -7523,7 +7527,7 @@ async function toggleBillingPopup(){
       return `<div class="bprow"><span class="bpdot" style="background:${dot}"></span><span class="bplabel">${short}</span>`+
         `<span class="bpnum" style="color:#6e7681;font-size:10px">in ${fmtK(v.input_tokens)} · out ${fmtK(v.output_tokens)} · cache ${fmtK(v.cache_read)}</span>`+
         `<span class="bpcost">${cost!=null?fmtUSD(cost):'—'}</span></div>`;
-    }).join('');
+    }).join('') || `<div style="font-size:10px;color:#484f58">Billing/model usage has not been reconciled for these attributed tokens.</div>`;
 
   el.innerHTML=
     `<div class="bpsec"><h3>Token Economy <span style="font-size:9px;color:#484f58;font-weight:400">(net of inherited context)</span></h3>`+
@@ -7556,7 +7560,7 @@ async function toggleBillingPopup(){
       const weeks=oldest<Infinity?(Date.now()-oldest)/(7*24*60*60*1000):null;
       const opusOut=Object.entries(bm).filter(([m])=>m.includes('opus')&&m!=='<synthetic>').reduce((s,[,v])=>s+(v.output_tokens||0),0);
       // totalOut: GROSS basis (gross_totals.output_tokens) — denominator for "Opus % of output" and plan quota
-      const totalOut=(cf.gross_totals&&cf.gross_totals.output_tokens)||t.output_tokens||0;
+      const totalOut=(cf.gross_totals&&cf.gross_totals.output_tokens)||usageTotals.output_tokens||0;
       const opusPct=totalOut>0?Math.round(opusOut/totalOut*100):0;
       const wOpus=weeks&&weeks>0?opusOut/weeks:null;
       const wTotal=weeks&&weeks>0?totalOut/weeks:null;

@@ -132,6 +132,19 @@ const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
   ok('sumUsageRecords does not double-count nested cost when top-level cost exists', merged.cost.usd === 2 && !merged.cost.by_model.nested);
 }
 
+{
+  const overhead = usageAccounting.sumOverhead({
+    usage_records: {
+      a: { overhead: { tokens: 10, chars: 40, by_category: { tool_result: 7, command_blocks: 3 } } },
+      b: { overhead: { tokens: 5, chars: 20, by_category: { tool_result: 5 } } },
+      c: { usage: { output_tokens: 99 } },
+    },
+  });
+  ok('sumOverhead is exported', typeof usageAccounting.sumOverhead === 'function');
+  ok('sumOverhead totals overhead slices', overhead.tokens === 15 && overhead.chars === 60);
+  ok('sumOverhead merges categories', overhead.by_category.tool_result === 12 && overhead.by_category.command_blocks === 3);
+}
+
 // --- cost-cause ledger: classify slices and put residual snapshot cost in unknown --------------
 {
   const cost = (usd, tokens) => ({ usd, source: 'real', by_model: { m1: { tokens, usd } } });

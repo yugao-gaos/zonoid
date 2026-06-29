@@ -294,7 +294,9 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const explorationTok = rnd(wasteExploration.reduce((s, w) => s + w.trapped, 0));
     const trappedTok = rnd(wasteTrapped.reduce((s, w) => s + w.trapped, 0));
     // gross_totals: BILLING basis — Σ by_model (gross, pre-baseline). Reconciles exactly with by_model rows.
-    // totals.*: ATTRIBUTION basis — net-of-baseline delta. Used for token-economy, productivity%, autonomy.
+    // economy_totals: output-token attribution basis — productive/exploration/trapped partition.
+    // usage_totals: scalar usage-record/reconcile basis — input/output/cache/cache-create.
+    // `totals` remains an alias for economy_totals for dashboard/client backcompat.
     const byModelEmit = Object.fromEntries(Object.entries(rawByModel).map(([m2,v])=>[m2,{input_tokens:rnd(v.input_tokens),output_tokens:rnd(v.output_tokens),cache_read:rnd(v.cache_read_input_tokens)}]));
     const grossTotals = Object.values(byModelEmit).reduce((acc, v) => {
       acc.input_tokens += v.input_tokens || 0;
@@ -302,6 +304,16 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       acc.cache_read += v.cache_read || 0;
       return acc;
     }, { input_tokens: 0, output_tokens: 0, cache_read: 0 });
+    const economyTotals = { total: productive + explorationTok + trappedTok, productive, exploration: explorationTok, trapped: trappedTok };
+    const usageTotals = {
+      input_tokens: rnd(rawInput),
+      output_tokens: rnd(rawOutput),
+      cache_read: rnd(rawCacheRead),
+      cache_creation: rnd(merged.totals.cache_creation_input_tokens || 0),
+      total: rnd(rawInput + rawOutput + rawCacheRead + (merged.totals.cache_creation_input_tokens || 0)),
+    };
+    const grossUsageTotal = grossTotals.input_tokens + grossTotals.output_tokens + grossTotals.cache_read;
+    const hasBillingData = grossUsageTotal > 0 || (((merged.cost && merged.cost.usd) || 0) > 0);
     const costByCause = usageAccounting.costCauseLedger(T.ov, {
       tasks: g.tasks,
       snapshots: T.ov.snapshots,
@@ -312,10 +324,17 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       workspace: T.ws,
       autonomy_score: human.tokens > 0 ? Math.round((flow.totals.productive / human.tokens) * 10) / 10 : null,
       human,
-      // totals: net-of-baseline (DELTA/attribution) — token-economy, productivity%, autonomy
-      totals: { total: productive + explorationTok + trappedTok, productive, exploration: explorationTok, trapped: trappedTok, input_tokens: rnd(rawInput), output_tokens: rnd(rawOutput), cache_read: rnd(rawCacheRead) },
+      // Backcompat alias: output-token attribution basis — token-economy, productivity%, autonomy.
+      totals: economyTotals,
+      economy_totals: economyTotals,
+      usage_totals: usageTotals,
       // gross_totals: gross/pre-baseline (BILLING) — Σ by_model, for billing %, plan quota, "X% of output"
       gross_totals: grossTotals,
+      sources: {
+        economy: 'transcript_output_attribution',
+        usage: usageTotals.total > 0 ? 'usage_records_or_reconcile' : 'missing',
+        billing: hasBillingData ? 'usage_records_or_reconcile' : 'missing',
+      },
       by_model: byModelEmit,
       // cost: DOLLAR overlay (CDX-3). Daemon SUMS already-computed per-slice cost.usd (adapter-priced
       // from pricing.json); it does NOT price here. source is weakest-wins ('estimated' if any
