@@ -27,7 +27,10 @@ const k = require('./lib/hookkit');
   if (sid) body.session_id = sid;
   const pm = input.permission_mode || input.permissionMode || '';
   if (pm) body.permission_mode = pm;
-  if (process.env.ORCH_AUTO_LOOP === '1') body.auto_mode = true;
+  const autoMode = input.auto_mode ?? input.autoMode;
+  if (autoMode != null) body.auto_mode = autoMode;
+  if (input.capabilities && typeof input.capabilities === 'object') body.capabilities = input.capabilities;
+  if (process.env.ORCH_AUTO_LOOP === '1') body.auto_loop_env = true;
   if (process.env.ORCH_GATE_OFF === '1') body.orch_gate_off = true;
 
   const respText = await k.post('/classify', body, 2000);

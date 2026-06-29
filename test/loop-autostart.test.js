@@ -10,7 +10,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 const {
-  isAutoMode, hasActiveSessionLoop, maybeAutostartLoop, AUTOSTART_CONFIG,
+  resolveAutoLoopMode, isAutoMode, hasActiveSessionLoop, maybeAutostartLoop, AUTOSTART_CONFIG,
 } = require('../lib/loop-autostart');
 const { classifyHeuristic } = require('../lib/prompt-heuristic');
 const { assembleClassifyResponse } = require('../lib/classify-assemble');
@@ -46,6 +46,18 @@ test('isAutoMode: bypassPermissions and acceptEdits are auto; default/plan are n
 test('isAutoMode: ORCH_AUTO_LOOP env fallback forces auto regardless of permission_mode', () => {
   assert.ok(isAutoMode({ permissionMode: 'default', autoLoopEnv: true }));
   assert.ok(isAutoMode({ autoLoopEnv: true }));
+});
+
+test('resolveAutoLoopMode: adapter-neutral auto_mode forces auto regardless of client permission names', () => {
+  assert.ok(resolveAutoLoopMode({ autoMode: true, permissionMode: 'manual' }));
+  assert.ok(resolveAutoLoopMode({ autoMode: '1', permissionMode: 'ask' }));
+  assert.ok(!resolveAutoLoopMode({ autoMode: false, permissionMode: 'manual' }));
+});
+
+test('resolveAutoLoopMode: client capabilities auto_execute is the universal adapter contract', () => {
+  assert.ok(resolveAutoLoopMode({ clientCapabilities: { auto_execute: true }, permissionMode: 'manual' }));
+  assert.ok(resolveAutoLoopMode({ clientCapabilities: { auto_execute: 'true' } }));
+  assert.ok(!resolveAutoLoopMode({ clientCapabilities: { auto_execute: false }, permissionMode: 'manual' }));
 });
 
 // ---- maybeAutostartLoop ---------------------------------------------------

@@ -34,11 +34,12 @@ fi
 
 # --- relay to daemon POST /classify ---
 SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // .sessionId // empty' 2>/dev/null)
-# Auto-mode signal: Claude Code's UserPromptSubmit payload carries permission_mode
-# (default|acceptEdits|bypassPermissions|plan). Forward it so the daemon can enforce loop-default-on
-# in auto-accept modes. ORCH_AUTO_LOOP=1 is an explicit env fallback for harnesses whose payload
-# lacks permission_mode.
+# Auto-mode signal: adapters may pass neutral auto_mode/capabilities.auto_execute; Claude Code also
+# carries permission_mode (default|acceptEdits|bypassPermissions|plan). ORCH_AUTO_LOOP=1 is an
+# explicit env fallback for harnesses whose payload lacks an auto-execute signal.
 PERMISSION_MODE=$(printf '%s' "$INPUT" | jq -r '.permission_mode // .permissionMode // empty' 2>/dev/null)
+AUTO_MODE=$(printf '%s' "$INPUT" | jq -r '.auto_mode // .autoMode // empty' 2>/dev/null)
+CAPABILITIES=$(printf '%s' "$INPUT" | jq -c '.capabilities // empty' 2>/dev/null)
 # Build the POST body with jq (already a hard dependency of this hook) rather than python3, which
 # is not present on every platform — notably the Windows Store 'python3' is a non-executing stub,
 # which would yield an empty body and drop the auto-mode signal.
@@ -46,10 +47,14 @@ BODY=$(jq -nc \
   --arg prompt "$PROMPT" \
   --arg session_id "$SESSION_ID" \
   --arg permission_mode "$PERMISSION_MODE" \
+  --arg auto_mode "$AUTO_MODE" \
+  --argjson capabilities "${CAPABILITIES:-null}" \
   '{prompt: $prompt}
    + (if $session_id != "" then {session_id: $session_id} else {} end)
    + (if $permission_mode != "" then {permission_mode: $permission_mode} else {} end)
-   + (if env.ORCH_AUTO_LOOP == "1" then {auto_mode: true} else {} end)
+   + (if $auto_mode != "" then {auto_mode: $auto_mode} else {} end)
+   + (if $capabilities != null then {capabilities: $capabilities} else {} end)
+   + (if env.ORCH_AUTO_LOOP == "1" then {auto_loop_env: true} else {} end)
    + (if env.ORCH_GATE_OFF == "1" then {orch_gate_off: true} else {} end)')
 
 RESP=$(curl -s --max-time 2 -XPOST "localhost:$PORT/classify" \
