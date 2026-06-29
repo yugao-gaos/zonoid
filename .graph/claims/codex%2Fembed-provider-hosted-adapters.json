@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/embed-provider-hosted-adapters",
+  "git_user": "test <test@example.com>",
+  "session_id": "codex-main-embed-provider-loop",
+  "branch": "orch/attempt/codex-embed-provider-hosted-adapters",
+  "status": "claimed",
+  "claimed_at": "2026-06-29T16:27:48.436Z",
+  "lease_until": "2026-06-29T17:27:48.436Z"
+}
