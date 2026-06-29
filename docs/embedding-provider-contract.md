@@ -134,10 +134,15 @@ Downstream migration controls should:
 - avoid mixing vector spaces in semantic scoring
 - keep MiniLM vectors valid only under the MiniLM default identity
 
+## Operational evaluation
+
+Provider rollout choices, benchmark procedure, and the current provider matrix
+are documented in [Embedding provider evaluation](embedding-provider-evaluation.md).
+
 ## Child task boundaries
 
 This task intentionally does not implement hosted multimodal payload formats,
-vector migration UI, or provider evaluation docs. Future local Jina work must
-first add or select a runtime that can actually execute the Jina v5 omni
+vector migration UI, or additional provider adapters. Future local Jina work
+must first add or select a runtime that can actually execute the Jina v5 omni
 retrieval models, then flip the runtime gate with tests that exercise real local
 embedding calls.
