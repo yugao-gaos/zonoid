@@ -240060,8 +240060,8 @@
       "assignee": "headless-review-merge-drain",
       "timestamps": {
         "firstSeen": "2026-06-29T08:01:58.849Z",
-        "lastChanged": "2026-06-29T08:05:23.810Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-29T10:01:05.563Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -240098,8 +240098,121 @@
       "assignee": "headless-review-merge-drain",
       "timestamps": {
         "firstSeen": "2026-06-29T07:51:56.763Z",
-        "lastChanged": "2026-06-29T07:57:13.507Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-29T10:01:05.564Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/exec-brain-state-seam-retry-judge": {
+      "id": "codex/exec-brain-state-seam-retry-judge",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Judge codex/exec-brain-state-seam-retry",
+        "description": "Review attempt for codex/exec-brain-state-seam-retry.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T14:08:02.205Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-22T14:08:02.205Z",
+        "lastChanged": "2026-06-29T13:59:27.759Z",
+        "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/exec-brain-state-seam-session-claim-impl-judge": {
+      "id": "codex/exec-brain-state-seam-session-claim-impl-judge",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Judge codex/exec-brain-state-seam-session-claim-impl",
+        "description": "Review attempt for codex/exec-brain-state-seam-session-claim-impl.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-22T14:16:23.234Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-22T14:16:23.235Z",
+        "lastChanged": "2026-06-29T13:59:27.759Z",
+        "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/judge-exec-brain-state-seam-retry": {
+      "id": "codex/judge-exec-brain-state-seam-retry",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Review execution brain state seam retry",
+        "description": "Judge the retry implementation for separating execution brain/memory and local/git state. Use code-review stance: inspect the retry attempt diff against its base, verify the implementation keeps local live process/session/worktree state out of git-synced claim files, treats git claims as durable/advisory audit by default with strict mode available, stores git-claim diagnostics as local-only overlay state, updates config parsing and tests, and preserves existing orchestration gate behavior. Do not force-merge; approve only if tests pass and scope is disciplined.",
+        "status": "pending",
+        "blockedBy": [
+          "codex/exec-brain-state-seam-retry"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-18T20:24:21.626Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-06-18T20:24:21.626Z",
+        "lastChanged": "2026-06-29T13:59:27.766Z",
+        "lastStatus": "canceled"
       },
       "metrics": null,
       "measurements": null,
@@ -281963,5 +282076,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-29T12:06:32.988Z"
+  "compacted_at": "2026-06-29T14:38:45.193Z"
 }
