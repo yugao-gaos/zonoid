@@ -16,3 +16,4 @@
 {"evt":"edge_removed","from":"note:note-mqiued6mhla","to":"note:note-mqa12hw637x","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqiued6mhla","to":"note:note-mqa1dtbxirw","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqiued6mhla","to":"note:note-mqa16klgs77","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_added","from":"note:note-mqiued6mhla","to":"codex/refactor-judge-item-registry-contracts","kind":"context","actor":"overlay-sync","ts":"2026-06-29T00:53:58.700Z","weight":0,"by":"autowire","judged":false,"score":0.317,"origin":"autowire-semantic"}
