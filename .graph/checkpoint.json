@@ -239878,6 +239878,120 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/modularize-mcp-tool-definitions": {
+      "id": "codex/modularize-mcp-tool-definitions",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Split MCP tool definitions into grouped modules",
+        "description": "Refactor lib/mcp-core.js so tool definitions are grouped by domain modules while preserving the exported tool list and behavior. Start with low-risk extraction of graph/state tools, judge tools, task/git tools, and guidance/subconscious tools. Do not change route behavior or tool schemas except mechanical relocation.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-29T00:49:38.813Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-06-29T00:49:38.813Z",
+        "lastChanged": "2026-06-29T00:59:58.583Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/refactor-judge-item-registry-contracts": {
+      "id": "codex/refactor-judge-item-registry-contracts",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Refactor judge item kinds into a single registry with contract tests",
+        "description": "Create a judge item registry so each judge item kind has one source of truth for projection, allowed actions, verdict applicability, and application routing. Preserve existing behavior for edge, dup-cluster, decay, reinforce, readiness-repair, followup-triage, and task-decision. Add tests proving every item kind emitted by judge.buildQueue has projection support and verdict support or is explicitly read-only.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-29T00:49:23.178Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-06-29T00:49:23.178Z",
+        "lastChanged": "2026-06-29T00:59:58.583Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/split-meta-routes-mcp-state": {
+      "id": "codex/split-meta-routes-mcp-state",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Split MCP and state routes out of routes/meta.js",
+        "description": "Extract the /mcp transport and /state projection handlers from routes/meta.js into focused route modules while preserving behavior and response shapes. Leave sweep, workspace listing, health, analytics, and other meta endpoints in routes/meta.js for now.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-29T00:49:58.305Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-06-29T00:49:58.305Z",
+        "lastChanged": "2026-06-29T01:30:25.117Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -273524,46 +273638,8 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-0-0-thin-relay-hooks-for-open-68c0dd96cb",
-      "to": "codex/headroom-style-reversible-context-pilot",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.439,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
-      "to": "note:note-mqqqrlczyc2",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-agents-md-3-0-when-you-hit-a-decision-the-user-might-o-ff8b950fe0",
-      "to": "codex/workflow-user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.433,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:chunk-agents-md-3-0-when-you-hit-a-decision-the-user-might-o-ff8b950fe0",
       "to": "codex/user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.433,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-claude-md-3-0-when-you-hit-a-decision-the-user-might-o-15c75e5a2f",
-      "to": "codex/workflow-user-gate-guidance-projection",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -273579,16 +273655,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.433,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0.531,
-      "by": "judge",
-      "judged": true,
-      "score": 0.531,
       "origin": "autowire-semantic"
     },
     {
@@ -273622,6 +273688,1223 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "knowledge:source_chunk:chunk-readme-md-0-4-agent-subconscious-relevant-task-history-b22e4c704a",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.347,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.524,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.524,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
+      "to": "codex/review-merge-judge-lane-items",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.556,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.515,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.515,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/review-merge-judge-lane-items",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.565,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.508,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.508,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3",
+      "to": "codex/review-merge-judge-lane-items",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.552,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq75a80y",
+      "to": "codex/resolve-internal-lane-projection-merge-conflict",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.38,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqb3vxazrub",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.329,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqd5d1xatlo",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.372,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqeccmrhqx2",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.481,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqeccmrhqx2",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.481,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqefyksc2io",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.434,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqefyksc2io",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.434,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqelbnmypa9",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.345,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqeln4edrjs",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.378,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqf624kvlk9",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.483,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfm5mvl8zw",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.387,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfsyl39pz2",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.45,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgt2bjvle5",
+      "to": "codex/review-merge-judge-lane-items",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.614,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiu4paroh9",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.428,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqn7x0d9lv8",
+      "to": "codex/resolve-internal-lane-projection-merge-conflict",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.363,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqobjpjb5bh",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.461,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqokgnd2wnw",
+      "to": "codex/resolve-internal-lane-projection-merge-conflict",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.517,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp4zyztt79",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.469,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp4zyztt79",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.469,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp59bb1f4l",
+      "to": "codex/resolve-internal-lane-projection-merge-conflict",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.392,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp5a3fxoit",
+      "to": "codex/resolve-internal-lane-projection-merge-conflict",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.357,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp5a3fxoit",
+      "to": "codex/review-merge-judge-lane-items",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.591,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp5byzb5hu",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.445,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp5e2pdcji",
+      "to": "codex/review-merge-judge-lane-items",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.5,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0.885,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.885,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0.884,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.884,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0.849,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.849,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqplytfmawp",
+      "to": "codex/review-merge-judge-lane-items",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.601,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqqjxaewu58",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqqjxaewu58",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqqjxaewu58",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqqmeewyhir",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.499,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqqmeewyhir",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.499,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqqwu05983g",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0.84,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.84,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqqwu05983g",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqqwu05983g",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqr366hr6af",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0.84,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.84,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqr366hr6af",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.515,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqr366hr6af",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0.869,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.869,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqr366hr6af",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0.871,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.871,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqr366hr6af",
+      "to": "codex/review-merge-judge-lane-items",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.539,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqvfbgaglra",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqvfbgaglra",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqvfbgaglra",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/consolidate-universal-skills-judge",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0.836,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.836,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "codex/review-merge-judge-lane-items",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "codex/workflow-lanes-queue-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.384,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "knowledge:source_section:section-readme-md-8-graph-reads-a8e5250b3a",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.37,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "codex/review-graph-overlay-dispatch-loops",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.314,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.313,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "codex/resolve-internal-lane-projection-merge-conflict",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "codex/user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0.888,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.888,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0.872,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.872,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/judge-decision-lane-followups-stale-holds",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-decision-lane-followups-stale-holds",
+      "to": "codex/fix-stale-tested-verdict-requeue-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.534,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-decision-lane-followups-stale-holds",
+      "to": "knowledge:source_doc:note-mqr366hr6af",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.52,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-decision-lane-followups-stale-holds",
+      "to": "knowledge:source_section:note-mqr366hr6af#note-evidence",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.52,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/judge-decision-lane-followups-stale-holds",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.461,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/resolve-internal-lane-projection-merge-conflict",
+      "to": "codex/workflow-lanes-queue-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.476,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/resolve-internal-lane-projection-merge-conflict",
+      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.469,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/resolve-internal-lane-projection-merge-conflict",
+      "to": "codex/merge-origin-sync",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.458,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/resolve-internal-lane-projection-merge-conflict",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.451,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/resolve-internal-lane-projection-merge-conflict",
+      "to": "codex/fix-subconscious-claim-permit-result-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.416,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-merge-judge-lane-items",
+      "to": "codex/workflow-review-merge-judge-items",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-merge-judge-lane-items",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.616,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-merge-judge-lane-items",
+      "to": "codex/workflow-label-learner-fold-plan",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.585,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-merge-judge-lane-items",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.578,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-merge-judge-lane-items",
+      "to": "knowledge:source_doc:note-mqr366hr6af",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.56,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/user-gate-guidance-projection",
+      "to": "codex/review-merge-judge-lane-items",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/user-gate-guidance-projection",
+      "to": "codex/workflow-user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 1,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/user-gate-guidance-projection",
+      "to": "knowledge:source_section:section-agents-md-3-predict-by-default-request-guidance-is-a-17265807e5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.433,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/user-gate-guidance-projection",
+      "to": "knowledge:source_section:section-claude-md-3-predict-by-default-request-guidance-is-a-362516c7ac",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.433,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/user-gate-guidance-projection",
+      "to": "f38c7d2a-e05b-4d1d-a418-ae62c414fba2/9",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.4,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/user-gate-guidance-projection",
+      "to": "codex/subconscious-pressure-protocol",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.384,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-judge-followups-stale-holds",
+      "to": "codex/fix-stale-tested-verdict-requeue-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.534,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-judge-followups-stale-holds",
+      "to": "knowledge:source_doc:note-mqr366hr6af",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.52,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-judge-followups-stale-holds",
+      "to": "knowledge:source_section:note-mqr366hr6af#note-evidence",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.52,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-judge-followups-stale-holds",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.461,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-judge-followups-stale-holds",
+      "to": "codex/workflow-label-learner-fold-plan",
+      "kind": "blocking",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/workflow-judge-followups-stale-holds",
+      "to": "codex/workflow-label-learner-fold-plan",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/workflow-label-learner-fold-plan",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.451,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-label-learner-fold-plan",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.407,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-label-learner-fold-plan",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.403,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-label-learner-fold-plan",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.398,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-label-learner-fold-plan",
+      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.395,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-lanes-queue-projection",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.384,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-lanes-queue-projection",
+      "to": "codex/workflow-judge-followups-stale-holds",
+      "kind": "blocking",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/workflow-lanes-queue-projection",
+      "to": "codex/workflow-user-gate-guidance-projection",
+      "kind": "blocking",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/workflow-lanes-queue-projection",
+      "to": "codex/workflow-user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/workflow-lanes-queue-projection",
+      "to": "codex/workflow-review-merge-judge-items",
+      "kind": "blocking",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/workflow-lanes-queue-projection",
+      "to": "codex/workflow-review-merge-judge-items",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/workflow-lanes-queue-projection",
+      "to": "knowledge:source_section:section-readme-md-8-graph-reads-a8e5250b3a",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.37,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-lanes-queue-projection",
+      "to": "codex/review-graph-overlay-dispatch-loops",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.314,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-lanes-queue-projection",
+      "to": "codex/review-state-daemon-queues",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.313,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-review-merge-judge-items",
+      "to": "codex/workflow-label-learner-fold-plan",
+      "kind": "blocking",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/workflow-review-merge-judge-items",
+      "to": "codex/workflow-label-learner-fold-plan",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/workflow-user-gate-guidance-projection",
+      "to": "codex/workflow-review-merge-judge-items",
+      "kind": "blocking",
+      "origin": "asserted"
+    },
+    {
+      "from": "codex/workflow-user-gate-guidance-projection",
+      "to": "codex/workflow-review-merge-judge-items",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire-blockdep",
+      "judged": false,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "codex/workflow-user-gate-guidance-projection",
+      "to": "knowledge:source_section:section-agents-md-3-predict-by-default-request-guidance-is-a-17265807e5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.433,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-user-gate-guidance-projection",
+      "to": "knowledge:source_section:section-claude-md-3-predict-by-default-request-guidance-is-a-362516c7ac",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.433,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-user-gate-guidance-projection",
+      "to": "f38c7d2a-e05b-4d1d-a418-ae62c414fba2/9",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.4,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/workflow-user-gate-guidance-projection",
+      "to": "codex/subconscious-pressure-protocol",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.384,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-0-0-thin-relay-hooks-for-open-68c0dd96cb",
+      "to": "codex/headroom-style-reversible-context-pilot",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.439,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
+      "to": "note:note-mqqqrlczyc2",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-agents-md-3-0-when-you-hit-a-decision-the-user-might-o-ff8b950fe0",
+      "to": "codex/workflow-user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.433,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-agents-md-6-0-override-signal-when-a-note-contradicts--39045fffe2",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.301,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-claude-md-3-0-when-you-hit-a-decision-the-user-might-o-15c75e5a2f",
+      "to": "codex/workflow-user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.433,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-claude-md-6-0-override-signal-when-a-note-contradicts--7a2cdbb38f",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.301,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
+      "to": "codex/onboard-code-cli-sync-judge",
+      "kind": "context",
+      "weight": 0.531,
+      "by": "judge",
+      "judged": true,
+      "score": 0.531,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-4-0-all-tools-live-in-the-tools-array--731f5b67e8",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.378,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-4-0-all-tools-live-in-the-tools-array--731f5b67e8",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.674,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-4-1-call-method-path-body-is-an-http-c-dc3c245056",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.378,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-4-1-call-method-path-body-is-an-http-c-dc3c245056",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.674,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:chunk-readme-md-0-1-zonoid-gives-ai-coding-agents-a-project--a2874b1f3e",
       "to": "codex/headroom-style-reversible-context-pilot",
       "kind": "context",
@@ -273652,13 +274935,23 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:chunk-readme-md-0-4-agent-subconscious-relevant-task-history-b22e4c704a",
-      "to": "codex/user-gate-guidance-projection",
+      "from": "knowledge:source_chunk:chunk-readme-md-6-0-47-tools-served-identically-over-both-tr-4e2b538443",
+      "to": "codex/split-meta-routes-mcp-state",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.347,
+      "score": 0.354,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-readme-md-6-0-47-tools-served-identically-over-both-tr-4e2b538443",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.611,
       "origin": "autowire-semantic"
     },
     {
@@ -273711,52 +275004,12 @@
     },
     {
       "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.524,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
       "to": "codex/workflow-label-learner-fold-plan",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
       "score": 0.359,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.524,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
-      "to": "codex/review-merge-judge-lane-items",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.556,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.515,
       "origin": "autowire-semantic"
     },
     {
@@ -273770,36 +275023,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.515,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
-      "to": "codex/review-merge-judge-lane-items",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.565,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.508,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3",
       "to": "codex/workflow-label-learner-fold-plan",
       "kind": "context",
@@ -273807,26 +275030,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.358,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.508,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-3",
-      "to": "codex/review-merge-judge-lane-items",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.552,
       "origin": "autowire-semantic"
     },
     {
@@ -274059,16 +275262,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mq75a80y",
-      "to": "codex/resolve-internal-lane-projection-merge-conflict",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.38,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq75a817",
       "to": "codex/token-accounting-attribution-audit",
       "kind": "context",
@@ -274282,6 +275475,16 @@
       "judged": true
     },
     {
+      "from": "note:note-mq87mffnxbx",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.517,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq89ptfjx0y",
       "to": "codex/token-accounting-attribution-audit",
       "kind": "context",
@@ -274289,6 +275492,16 @@
       "by": "judge",
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "note:note-mq89y47bsrz",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.605,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mq8aoc7vu8n",
@@ -274326,6 +275539,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mq8sikxgydu",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.616,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq8w3p79db1",
       "to": "4114fba8-df22-4ebd-a73b-12bac12f8b99/1",
       "kind": "context",
@@ -274354,6 +275577,16 @@
       "origin": "asserted"
     },
     {
+      "from": "note:note-mqacft0tdqh",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.332,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqaqmb62a5k",
       "to": "note:note-mq9gifkl7hh",
       "kind": "context",
@@ -274368,6 +275601,16 @@
       "weight": 0.5,
       "by": "judge",
       "judged": true
+    },
+    {
+      "from": "note:note-mqatxdyv38f",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.426,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqawaybb608",
@@ -274452,16 +275695,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqb3vxazrub",
-      "to": "codex/internal-lane-model-queue-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.329,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqd5d1xatlo",
       "to": "codex/workflow-lanes-queue-projection",
       "kind": "context",
@@ -274473,12 +275706,12 @@
     },
     {
       "from": "note:note-mqd5d1xatlo",
-      "to": "codex/internal-lane-model-queue-projection",
+      "to": "codex/refactor-judge-item-registry-contracts",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.372,
+      "score": 0.319,
       "origin": "autowire-semantic"
     },
     {
@@ -274532,26 +275765,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqeccmrhqx2",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.481,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqeccmrhqx2",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.481,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqecnw7hs7k",
       "to": "followup/drain-final-13-onboarding-learner-candid-l29o",
       "kind": "context",
@@ -274579,26 +275792,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.601,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqefyksc2io",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.434,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqefyksc2io",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.434,
       "origin": "autowire-semantic"
     },
     {
@@ -274672,16 +275865,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqelbnmypa9",
-      "to": "codex/internal-lane-model-queue-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.345,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqelk8e5ths",
       "to": "note:note-mq7lck6j3l9",
       "kind": "context",
@@ -274704,16 +275887,6 @@
     {
       "from": "note:note-mqeln4edrjs",
       "to": "codex/workflow-lanes-queue-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.378,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqeln4edrjs",
-      "to": "codex/internal-lane-model-queue-projection",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -274958,16 +276131,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqf624kvlk9",
-      "to": "codex/user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.483,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqf906vsjhu",
       "to": "note:note-mq7dzydv",
       "kind": "context",
@@ -275076,16 +276239,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqfm5mvl8zw",
-      "to": "codex/internal-lane-model-queue-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.387,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqfnyddvxdj",
       "to": "note:note-mqe5sbyj4uq",
       "kind": "context",
@@ -275108,16 +276261,6 @@
     {
       "from": "note:note-mqfsyl39pz2",
       "to": "codex/workflow-user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.45,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqfsyl39pz2",
-      "to": "codex/user-gate-guidance-projection",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -275315,16 +276458,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgt2bjvle5",
-      "to": "codex/review-merge-judge-lane-items",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.614,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgt5xujio3",
       "to": "b1c48279-9822-4abe-81a5-1b7b2a329970/7",
       "kind": "context",
@@ -275372,6 +276505,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.607,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgw1hhxxss",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.368,
       "origin": "autowire-semantic"
     },
     {
@@ -276355,16 +277498,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqiu4paroh9",
-      "to": "codex/user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.428,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqiu5c6u6b0",
       "to": "local/dg4",
       "kind": "context",
@@ -276736,6 +277869,16 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "note:note-mqiued6mhla",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.317,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqivir09qko",
       "to": "note:note-mqivjg3b5yl",
       "kind": "context",
@@ -276797,6 +277940,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.559,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqjh7j03b4f",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.416,
       "origin": "autowire-semantic"
     },
     {
@@ -277127,6 +278280,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqlapu0wi63",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.332,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqlc786kcl2",
       "to": "note:note-mqlapu0wi63",
       "kind": "context",
@@ -277167,16 +278330,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqn7x0d9lv8",
-      "to": "codex/resolve-internal-lane-projection-merge-conflict",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.363,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqo6bg6ubr0",
       "to": "note:note-mq9ozrwibvj",
       "kind": "context",
@@ -277195,23 +278348,13 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqobjpjb5bh",
-      "to": "codex/user-gate-guidance-projection",
+      "from": "note:note-mqoe9lmojot",
+      "to": "codex/split-meta-routes-mcp-state",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.461,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqokgnd2wnw",
-      "to": "codex/resolve-internal-lane-projection-merge-conflict",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.517,
+      "score": 0.457,
       "origin": "autowire-semantic"
     },
     {
@@ -277221,6 +278364,16 @@
       "weight": 0.65,
       "by": "judge",
       "judged": true
+    },
+    {
+      "from": "note:note-mqonvqqre1d",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.413,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqoxvl18k5p",
@@ -277411,26 +278564,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqp4zyztt79",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.469,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp4zyztt79",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.469,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqp5068xfba",
       "to": "note:note-mqiu64rw1k2",
       "kind": "context",
@@ -277476,6 +278609,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.777,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp50ztrfk8",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.481,
       "origin": "autowire-semantic"
     },
     {
@@ -277751,16 +278894,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqp59bb1f4l",
-      "to": "codex/resolve-internal-lane-projection-merge-conflict",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.392,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqp59ulbxqf",
       "to": "note:note-mqp59nrfuo0",
       "kind": "context",
@@ -277808,26 +278941,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.538,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp5a3fxoit",
-      "to": "codex/resolve-internal-lane-projection-merge-conflict",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.357,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp5a3fxoit",
-      "to": "codex/review-merge-judge-lane-items",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.591,
       "origin": "autowire-semantic"
     },
     {
@@ -277891,16 +279004,6 @@
     {
       "from": "note:note-mqp5byzb5hu",
       "to": "codex/workflow-user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.445,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp5byzb5hu",
-      "to": "codex/user-gate-guidance-projection",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -277992,16 +279095,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.61,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp5e2pdcji",
-      "to": "codex/review-merge-judge-lane-items",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.5,
       "origin": "autowire-semantic"
     },
     {
@@ -278349,6 +279442,16 @@
       "weight": 0.6,
       "by": "judge",
       "judged": true
+    },
+    {
+      "from": "note:note-mqph9bwihv5",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.492,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqphb5vshff",
@@ -278756,32 +279859,12 @@
     },
     {
       "from": "note:note-mqplemzsrvt",
-      "to": "codex/internal-lane-model-queue-projection",
+      "to": "codex/refactor-judge-item-registry-contracts",
       "kind": "context",
-      "weight": 0.885,
+      "weight": 0.844,
       "by": "subconscious",
       "judged": true,
-      "score": 0.885,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqplemzsrvt",
-      "to": "codex/user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0.884,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.884,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqplemzsrvt",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0.849,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.849,
+      "score": 0.844,
       "origin": "subconscious-agentic-search"
     },
     {
@@ -278893,16 +279976,6 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mqplytfmawp",
-      "to": "codex/review-merge-judge-lane-items",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.601,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqppi1wigd1",
       "to": "codex/search-economy-retrieval-phase1",
       "kind": "context",
@@ -278960,6 +280033,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.696,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpxyj4af7t",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.333,
       "origin": "autowire-semantic"
     },
     {
@@ -279352,27 +280435,7 @@
     },
     {
       "from": "note:note-mqqjxaewu58",
-      "to": "codex/internal-lane-model-queue-projection",
-      "kind": "context",
-      "weight": 0.83,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.83,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqqjxaewu58",
-      "to": "codex/user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0.83,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.83,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqqjxaewu58",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "to": "codex/refactor-judge-item-registry-contracts",
       "kind": "context",
       "weight": 0.83,
       "by": "subconscious",
@@ -279386,26 +280449,6 @@
       "kind": "context",
       "weight": 1,
       "judged": true
-    },
-    {
-      "from": "note:note-mqqmeewyhir",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.499,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqqmeewyhir",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.499,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqqmixayq8m",
@@ -279618,32 +280661,12 @@
     },
     {
       "from": "note:note-mqqwu05983g",
-      "to": "codex/internal-lane-model-queue-projection",
+      "to": "codex/refactor-judge-item-registry-contracts",
       "kind": "context",
-      "weight": 0.84,
+      "weight": 0.86,
       "by": "subconscious",
       "judged": true,
-      "score": 0.84,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqqwu05983g",
-      "to": "codex/user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0.83,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.83,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqqwu05983g",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0.83,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.83,
+      "score": 0.86,
       "origin": "subconscious-agentic-search"
     },
     {
@@ -279786,53 +280809,13 @@
     },
     {
       "from": "note:note-mqr366hr6af",
-      "to": "codex/internal-lane-model-queue-projection",
+      "to": "codex/refactor-judge-item-registry-contracts",
       "kind": "context",
-      "weight": 0.84,
+      "weight": 0.86,
       "by": "subconscious",
       "judged": true,
-      "score": 0.84,
+      "score": 0.86,
       "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqr366hr6af",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.515,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqr366hr6af",
-      "to": "codex/user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0.869,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.869,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqr366hr6af",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0.871,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.871,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqr366hr6af",
-      "to": "codex/review-merge-judge-lane-items",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.539,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqs2kpieojw",
@@ -280039,32 +281022,12 @@
     },
     {
       "from": "note:note-mqvfbgaglra",
-      "to": "codex/internal-lane-model-queue-projection",
+      "to": "codex/refactor-judge-item-registry-contracts",
       "kind": "context",
-      "weight": 0.83,
+      "weight": 0.859,
       "by": "subconscious",
       "judged": true,
-      "score": 0.83,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqvfbgaglra",
-      "to": "codex/user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0.83,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.83,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqvfbgaglra",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0.83,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.83,
+      "score": 0.859,
       "origin": "subconscious-agentic-search"
     },
     {
@@ -280183,16 +281146,6 @@
       "kind": "context",
       "weight": 0.252,
       "judged": true
-    },
-    {
-      "from": "codex/consolidate-universal-skills-judge",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0.836,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.836,
-      "origin": "subconscious-agentic-search"
     },
     {
       "from": "codex/embed-provider-contract",
@@ -280316,562 +281269,163 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "blocking",
-      "origin": "asserted",
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "codex/user-gate-guidance-projection",
-      "kind": "blocking",
-      "origin": "asserted",
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "codex/review-merge-judge-lane-items",
-      "kind": "blocking",
-      "origin": "asserted",
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "codex/workflow-lanes-queue-projection",
+      "from": "codex/modularize-mcp-tool-definitions",
+      "to": "knowledge:source_section:section-contributing-md-4-adding-a-new-mcp-tool-3ea7cbb647",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 1,
+      "score": 0.674,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "codex/workflow-judge-followups-stale-holds",
+      "from": "codex/modularize-mcp-tool-definitions",
+      "to": "knowledge:source_section:section-readme-md-6-mcp-tools-44ad56c285",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.384,
+      "score": 0.611,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "knowledge:source_section:section-readme-md-8-graph-reads-a8e5250b3a",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.37,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "codex/review-graph-overlay-dispatch-loops",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.314,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "codex/review-state-daemon-queues",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.313,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "codex/resolve-internal-lane-projection-merge-conflict",
-      "kind": "blocking",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "codex/user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0.888,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.888,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0.872,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.872,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "codex/judge-decision-lane-followups-stale-holds",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-decision-lane-followups-stale-holds",
-      "to": "codex/fix-stale-tested-verdict-requeue-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.534,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-decision-lane-followups-stale-holds",
-      "to": "knowledge:source_doc:note-mqr366hr6af",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.52,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-decision-lane-followups-stale-holds",
-      "to": "knowledge:source_section:note-mqr366hr6af#note-evidence",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.52,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-decision-lane-followups-stale-holds",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.461,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/resolve-internal-lane-projection-merge-conflict",
-      "to": "codex/workflow-lanes-queue-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.476,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/resolve-internal-lane-projection-merge-conflict",
+      "from": "codex/modularize-mcp-tool-definitions",
       "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.469,
+      "score": 0.523,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/resolve-internal-lane-projection-merge-conflict",
-      "to": "codex/merge-origin-sync",
+      "from": "codex/modularize-mcp-tool-definitions",
+      "to": "codex/code-extractor-multilang-judge",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.458,
+      "score": 0.52,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/resolve-internal-lane-projection-merge-conflict",
-      "to": "codex/internal-lane-model-queue-projection",
+      "from": "codex/modularize-mcp-tool-definitions",
+      "to": "codex/code-ast-extractor-judge",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.451,
+      "score": 0.502,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/resolve-internal-lane-projection-merge-conflict",
-      "to": "codex/fix-subconscious-claim-permit-result-contracts",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.416,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/review-merge-judge-lane-items",
-      "to": "codex/workflow-review-merge-judge-items",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/review-merge-judge-lane-items",
-      "to": "codex/judge-decision-lane-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.616,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/review-merge-judge-lane-items",
-      "to": "codex/workflow-label-learner-fold-plan",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.585,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/review-merge-judge-lane-items",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.578,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/review-merge-judge-lane-items",
-      "to": "knowledge:source_doc:note-mqr366hr6af",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.56,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/user-gate-guidance-projection",
-      "to": "codex/review-merge-judge-lane-items",
-      "kind": "blocking",
-      "origin": "asserted",
-      "by": "judge",
-      "judged": true
-    },
-    {
-      "from": "codex/user-gate-guidance-projection",
-      "to": "codex/workflow-user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 1,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/user-gate-guidance-projection",
-      "to": "knowledge:source_section:section-agents-md-3-predict-by-default-request-guidance-is-a-17265807e5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.433,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/user-gate-guidance-projection",
-      "to": "knowledge:source_section:section-claude-md-3-predict-by-default-request-guidance-is-a-362516c7ac",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.433,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/user-gate-guidance-projection",
-      "to": "f38c7d2a-e05b-4d1d-a418-ae62c414fba2/9",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.4,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/user-gate-guidance-projection",
-      "to": "codex/subconscious-pressure-protocol",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.384,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/workflow-judge-followups-stale-holds",
+      "from": "codex/refactor-judge-item-registry-contracts",
       "to": "codex/fix-stale-tested-verdict-requeue-judge",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.534,
+      "score": 0.401,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/workflow-judge-followups-stale-holds",
-      "to": "knowledge:source_doc:note-mqr366hr6af",
+      "from": "codex/refactor-judge-item-registry-contracts",
+      "to": "codex/judge-enforce-test-pass-before-push-judge",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.52,
+      "score": 0.362,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/workflow-judge-followups-stale-holds",
-      "to": "knowledge:source_section:note-mqr366hr6af#note-evidence",
+      "from": "codex/refactor-judge-item-registry-contracts",
+      "to": "codex/fix-stale-tested-verdict-requeue-judge-judge",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.52,
+      "score": 0.359,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/workflow-judge-followups-stale-holds",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "from": "codex/refactor-judge-item-registry-contracts",
+      "to": "codex/fix-stale-tested-verdict-requeue",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.461,
+      "score": 0.357,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/workflow-judge-followups-stale-holds",
-      "to": "codex/workflow-label-learner-fold-plan",
-      "kind": "blocking",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/workflow-judge-followups-stale-holds",
-      "to": "codex/workflow-label-learner-fold-plan",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/workflow-label-learner-fold-plan",
-      "to": "codex/workflow-judge-followups-stale-holds",
+      "from": "codex/refactor-judge-item-registry-contracts",
+      "to": "codex/judge-subconscious-skill-version-store",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.451,
+      "score": 0.349,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/workflow-label-learner-fold-plan",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/8",
+      "from": "codex/review-state-docs-instructions",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0.849,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.849,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/split-meta-routes-mcp-state",
+      "to": "knowledge:source_section:section-contributing-md-4-adding-a-new-mcp-tool-3ea7cbb647",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.407,
+      "score": 0.378,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/workflow-label-learner-fold-plan",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/4",
+      "from": "codex/split-meta-routes-mcp-state",
+      "to": "knowledge:source_section:section-readme-md-6-mcp-tools-44ad56c285",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.403,
+      "score": 0.354,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/workflow-label-learner-fold-plan",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/10",
+      "from": "codex/split-meta-routes-mcp-state",
+      "to": "codex/modularize-mcp-tool-definitions",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.398,
+      "score": 0.333,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/workflow-label-learner-fold-plan",
-      "to": "d42ebe37-ee9f-46b6-ae21-f6f82464d482/16",
+      "from": "codex/split-meta-routes-mcp-state",
+      "to": "codex/internal-lane-model-queue-projection",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.395,
+      "score": 0.316,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/workflow-lanes-queue-projection",
-      "to": "codex/workflow-judge-followups-stale-holds",
+      "from": "codex/split-meta-routes-mcp-state",
+      "to": "codex/fix-claim-permit-result-contract-kickback",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.384,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/workflow-lanes-queue-projection",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "blocking",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/workflow-lanes-queue-projection",
-      "to": "codex/workflow-user-gate-guidance-projection",
-      "kind": "blocking",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/workflow-lanes-queue-projection",
-      "to": "codex/workflow-user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/workflow-lanes-queue-projection",
-      "to": "codex/workflow-review-merge-judge-items",
-      "kind": "blocking",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/workflow-lanes-queue-projection",
-      "to": "codex/workflow-review-merge-judge-items",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/workflow-lanes-queue-projection",
-      "to": "knowledge:source_section:section-readme-md-8-graph-reads-a8e5250b3a",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.37,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/workflow-lanes-queue-projection",
-      "to": "codex/review-graph-overlay-dispatch-loops",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.314,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/workflow-lanes-queue-projection",
-      "to": "codex/review-state-daemon-queues",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.313,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/workflow-review-merge-judge-items",
-      "to": "codex/workflow-label-learner-fold-plan",
-      "kind": "blocking",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/workflow-review-merge-judge-items",
-      "to": "codex/workflow-label-learner-fold-plan",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/workflow-user-gate-guidance-projection",
-      "to": "codex/workflow-review-merge-judge-items",
-      "kind": "blocking",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/workflow-user-gate-guidance-projection",
-      "to": "codex/workflow-review-merge-judge-items",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/workflow-user-gate-guidance-projection",
-      "to": "knowledge:source_section:section-agents-md-3-predict-by-default-request-guidance-is-a-17265807e5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.433,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/workflow-user-gate-guidance-projection",
-      "to": "knowledge:source_section:section-claude-md-3-predict-by-default-request-guidance-is-a-362516c7ac",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.433,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/workflow-user-gate-guidance-projection",
-      "to": "f38c7d2a-e05b-4d1d-a418-ae62c414fba2/9",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.4,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/workflow-user-gate-guidance-projection",
-      "to": "codex/subconscious-pressure-protocol",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.384,
+      "score": 0.274,
       "origin": "autowire-semantic"
     },
     {
@@ -280955,5 +281509,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-29T00:34:25.820Z"
+  "compacted_at": "2026-06-29T07:49:30.909Z"
 }
