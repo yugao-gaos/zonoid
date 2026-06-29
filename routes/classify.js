@@ -155,8 +155,10 @@ module.exports = (ctx) => async (p, m, req, res, u) => {
   const sessionId = b.session_id ? String(b.session_id) : null;
   const orchGateOff = b.orch_gate_off === true || b.orch_gate_off === 1 || b.orch_gate_off === '1';
   const autoMode = isAutoMode({
+    autoMode: b.auto_mode,
+    clientCapabilities: b.capabilities,
     permissionMode: b.permission_mode,
-    autoLoopEnv: b.auto_mode === true || b.auto_mode === 1 || b.auto_mode === '1',
+    autoLoopEnv: b.auto_loop_env,
   });
 
   const heuristic = classifyHeuristic(prompt);

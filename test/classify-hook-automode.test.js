@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Tests that hooks/classify.sh forwards the auto-mode signal to POST /classify:
+//   - neutral auto_mode and capabilities.auto_execute from any adapter
 //   - permission_mode from the UserPromptSubmit payload
-//   - auto_mode:true when ORCH_AUTO_LOOP=1 (env fallback)
+//   - auto_loop_env:true when ORCH_AUTO_LOOP=1 (env fallback)
 //   - opted-out sessions ('orch off') never relay at all (case d)
 // Uses a stub curl that echoes the request body back so we can assert what was forwarded.
 // Run: node test/classify-hook-automode.test.js
@@ -75,12 +76,28 @@ function runHook(input, extraEnv = {}) {
   ok('no env → auto_mode omitted', body && body.auto_mode === undefined);
 }
 
-// (4) ORCH_AUTO_LOOP=1 env fallback → auto_mode:true
+// (4) neutral auto_mode from non-Claude adapters is forwarded
+{
+  const { body } = runHook(JSON.stringify({
+    prompt: 'do the work', session_id: 'neutral-sid', auto_mode: true,
+  }));
+  ok('neutral auto_mode forwarded to /classify body', body && body.auto_mode === 'true');
+}
+
+// (5) neutral capabilities.auto_execute from non-Claude adapters is forwarded
+{
+  const { body } = runHook(JSON.stringify({
+    prompt: 'do the work', session_id: 'cap-sid', capabilities: { auto_execute: true },
+  }));
+  ok('capabilities.auto_execute forwarded to /classify body', body && body.capabilities && body.capabilities.auto_execute === true);
+}
+
+// (6) ORCH_AUTO_LOOP=1 env fallback → auto_loop_env:true
 {
   const { body } = runHook(JSON.stringify({ prompt: 'do the work', session_id: 'env-sid' }), {
     ORCH_AUTO_LOOP: '1',
   });
-  ok('ORCH_AUTO_LOOP=1 → auto_mode:true forwarded', body && body.auto_mode === true);
+  ok('ORCH_AUTO_LOOP=1 → auto_loop_env:true forwarded', body && body.auto_loop_env === true);
 }
 
 // (d) opted-out session never relays (no curl body written, silent output)
