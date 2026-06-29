@@ -128,3 +128,5 @@
 {"evt":"edge_removed","from":"note:note-mqodt9p3kwd","to":"codex/embed-provider-vector-identity","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqodt9p3kwd","to":"codex/embed-provider-reembed-migration","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_added","from":"note:note-mqodt9p3kwd","to":"codex/support-local-ollama-models-for-backend-cli-runs","kind":"context","actor":"overlay-sync","ts":"2026-06-28T18:27:22.300Z","weight":0,"by":"autowire","judged":false,"score":0.418,"origin":"autowire-semantic"}
+{"evt":"edge_promoted","from":"note:note-mqodt9p3kwd","to":"codex/embed-provider-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-29T15:33:29.962Z","weight":0.936,"by":"subconscious","judged":true,"score":0.936,"origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mqodt9p3kwd","to":"codex/embed-provider-contract","kind":"context","actor":"overlay-sync","ts":"2026-06-29T15:33:52.124Z","weight":0.936,"by":"subconscious","judged":true,"score":0.936,"origin":"subconscious-agentic-search"}
