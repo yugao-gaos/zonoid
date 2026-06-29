@@ -1,6 +1,7 @@
 'use strict';
 const overlayStore = require('../lib/overlay');
 const embeddingStore = require('../lib/embedding-store');
+const embedConfig = require('../lib/embed');
 const filedropGc = require('../lib/filedrop-gc');
 const judge = require('../lib/judge');
 const graphStore = require('../lib/graph-store');
@@ -327,6 +328,37 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const acceptsTaskKey = (T, key) => graphHasKey(T.ws, key)
     || !!(T.ov.snapshots && T.ov.snapshots[key])
     || !!(T.ov.knowledge_nodes && T.ov.knowledge_nodes[key]);
+  const runReembed = async (T, opts = {}) => {
+    const force = !!opts.force;
+    const actor = opts.actor || 'reembed';
+    const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : null;
+    const isFreshVec = (vec, meta) => Array.isArray(vec) && (!expectedMeta || (ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(vec, meta, expectedMeta) : vec.length === DIMS));
+    const isFreshVecs = (vecs, metas) => Array.isArray(vecs) && vecs.length > 0
+      && (!expectedMeta || vecs.every((v, i) => ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(v, Array.isArray(metas) ? metas[i] : null, expectedMeta) : v.length === DIMS));
+    let embedded = 0, skipped = 0, failed = 0;
+    const gs = graphStore.open(path.join(T.ws, '.graph'));
+    const ts = new Date().toISOString();
+    for (const n of Object.values(T.ov.note_nodes || {})) {
+      const vecOk = isFreshVec(n.vec, n.vecMeta);
+      const vecsOk = isFreshVecs(n.vecs, n.vecsMeta);
+      if (!force && vecOk && vecsOk) { skipped++; continue; }
+      let touched = false;
+      const r = await embedDocument(ctx, T.ov, noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
+      if (r.vec) { n.vec = r.vec; n.vecMeta = r.meta || null; touched = true; graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: r.vec, vecMeta: n.vecMeta, actor, ts }); } else failed++;
+      const fieldResult = await embedDocumentFields(ctx, T.ov, noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }));
+      if (fieldResult.vecs.length) { n.vecs = fieldResult.vecs; n.vecsMeta = fieldResult.vecsMeta; touched = true; graphStore.appendEvent(gs, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs: n.vecs, vecsMeta: n.vecsMeta, actor, ts }); }
+      if (touched) embedded++;
+    }
+    let tasksEmbedded = 0, tasksSkipped = 0;
+    const g = buildGraph(T.ws);
+    for (const node of g.tasks) {
+      if (overlayStore.isNonTaskNode(node)) continue;
+      if (!force && embeddingStore.taskVecFresh(T.ov, node.id, { expectedMeta, vectorMatchesMeta: ctx.vectorMatchesMeta })) { tasksSkipped++; continue; }
+      const r = await embedDocument(ctx, T.ov, taskEmbedText({ title: node.label, summary: node.summary }));
+      if (r.vec) { overlayStore.setTaskVec(T.ov, node.id, r.vec, r.meta); tasksEmbedded++; } else failed++;
+    }
+    return { activeIdentity: expectedMeta, embedded, skipped, failed, tasks: { embedded: tasksEmbedded, skipped: tasksSkipped } };
+  };
   const ensureTaskSnapshot = (T, key) => {
     if (!isAdmissibleOverlayTaskKey(key)) return;
     if (T.ov.snapshots && T.ov.snapshots[key]) return;
@@ -1530,39 +1562,42 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     const body2 = await readBody(req).catch(() => ({}));
     const T = targetOverlay(body2, u);
     if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
-    const force2 = body2 && body2.force;
-    const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : null;
-    const isFreshVec = (vec, meta) => Array.isArray(vec) && (!expectedMeta || (ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(vec, meta, expectedMeta) : vec.length === DIMS));
-    const isFreshVecs = (vecs, metas) => Array.isArray(vecs) && vecs.length > 0
-      && (!expectedMeta || vecs.every((v, i) => ctx.vectorMatchesMeta ? ctx.vectorMatchesMeta(v, Array.isArray(metas) ? metas[i] : null, expectedMeta) : v.length === DIMS));
-    let embedded = 0, skipped = 0, failed = 0;
-    // P3: resolve the graph-store per request workspace (no daemon-global state.graphStore).
-    const gs2 = graphStore.open(path.join(T.ws, '.graph'));
-    const ts2 = new Date().toISOString();
-    for (const n of Object.values(T.ov.note_nodes || {})) {
-      // Skip only when BOTH the pooled `.vec` and the field-level `.vecs` set are already present at
-      // full DIMS (and not forced) — so existing single-vec notes get upgraded to multivec.
-      const vecOk2 = isFreshVec(n.vec, n.vecMeta);
-      const vecsOk2 = isFreshVecs(n.vecs, n.vecsMeta);
-      if (!force2 && vecOk2 && vecsOk2) { skipped++; continue; }
-      let touched = false;
-      const r = await embedDocument(ctx, T.ov, noteEmbedText({ title: n.title, category: n.category, tags: n.tags, summary: n.summary }));
-      if (r.vec) { n.vec = r.vec; n.vecMeta = r.meta || null; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vec_set', id: n.id, vec: r.vec, vecMeta: n.vecMeta, actor: 'reembed', ts: ts2 }); } else failed++;
-      const fieldResult = await embedDocumentFields(ctx, T.ov, noteFieldTexts({ title: n.title, summary: n.summary, knowledge: noteKnowledge(T.ov, n) }));
-      if (fieldResult.vecs.length) { n.vecs = fieldResult.vecs; n.vecsMeta = fieldResult.vecsMeta; touched = true; graphStore.appendEvent(gs2, 'note:' + n.id, { evt: 'note_vecs_set', id: n.id, vecs: n.vecs, vecsMeta: n.vecsMeta, actor: 'reembed', ts: ts2 }); }
-      if (touched) embedded++;
-    }
-    let tasksEmbedded = 0, tasksSkipped = 0;
-    const g2 = buildGraph(T.ws);
-    for (const node of g2.tasks) {
-      if (overlayStore.isNonTaskNode(node)) continue;
-      if (!force2 && embeddingStore.taskVecFresh(T.ov, node.id, { expectedMeta, vectorMatchesMeta: ctx.vectorMatchesMeta })) { tasksSkipped++; continue; }
-      const r = await embedDocument(ctx, T.ov, taskEmbedText({ title: node.label, summary: node.summary }));
-      if (r.vec) { overlayStore.setTaskVec(T.ov, node.id, r.vec, r.meta); tasksEmbedded++; } else failed++;
-    }
+    const result = await runReembed(T, { force: body2 && body2.force, actor: 'reembed' });
     overlayStore.save(T.ws, T.ov);
     notifyChange(T.ws);
-    send(res, 200, { ok: true, embedded, skipped, failed, tasks: { embedded: tasksEmbedded, skipped: tasksSkipped } }); return true;
+    send(res, 200, { ok: true, ...result }); return true;
+  }
+
+  if (p === '/overlay/embedding-provider/swap' && m === 'POST') {
+    const body3 = await readBody(req).catch(() => ({}));
+    const T = targetOverlay(body3, u);
+    if (!T.ws) { send(res, 400, { ok: false, error: 'no workspace resolved — pass workspace (body or ?workspace=)' }); return true; }
+    const before = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : null;
+    if (!body3 || !body3.provider) { send(res, 400, { ok: false, error: 'provider required' }); return true; }
+    const valid = embedConfig.validateEmbeddingConfig(body3);
+    if (!valid.ok) { send(res, 400, valid); return true; }
+    const dryRun = body3.dry_run === true;
+    const workOverlay = dryRun ? JSON.parse(JSON.stringify(T.ov || {})) : T.ov;
+    overlayStore.setEmbeddingConfig(workOverlay, valid.config);
+    const workTarget = { ...T, ov: workOverlay };
+    const after = ctx.embeddingMeta ? ctx.embeddingMeta(workOverlay) : null;
+    const plan = embeddingStore.planVectorInvalidation(workOverlay, { expectedMeta: after });
+    const shouldReembed = body3.reembed !== false && !dryRun;
+    let migration = null;
+    if (shouldReembed) migration = await runReembed(workTarget, { force: true, actor: 'provider-swap' });
+    if (!dryRun) {
+      overlayStore.save(T.ws, workOverlay);
+      notifyChange(T.ws);
+    }
+    send(res, 200, {
+      ok: true,
+      previousIdentity: before,
+      activeIdentity: after,
+      active: embedConfig.normalizeEmbeddingConfig(workOverlay),
+      plan,
+      reembedded: shouldReembed,
+      migration,
+    }); return true;
   }
 
   if (p === '/supersede' && m === 'POST') {
