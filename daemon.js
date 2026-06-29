@@ -1938,8 +1938,8 @@ async function ingestNode(overlay, g, key, { title, summary } = {}, ws = null) {
       if (seeded > 0) { overlayStore.markEagerJudge(overlay, key); out.marked = true; }
     } else {
       const er = typeof embedWithMeta === 'function'
-        ? await embedWithMeta(taskEmbedText({ title, summary }), { mode: 'document', overlay })
-        : { vec: await embed(taskEmbedText({ title, summary })), meta: null };
+        ? await embedWithMeta({ input: taskEmbedText({ title, summary }), mode: 'retrieval.document' }, { overlay })
+        : { vec: await embed({ input: taskEmbedText({ title, summary }), mode: 'retrieval.document' }), meta: null };
       const vec = er.vec;
       if (!vec) return out;                                 // no embedding ⇒ lexical fallback, nothing to seed
       overlayStore.setTaskVec(overlay, key, vec, er.meta);

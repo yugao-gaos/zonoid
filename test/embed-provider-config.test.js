@@ -4,6 +4,7 @@
 const {
   DIMS,
   VECTOR_SCHEMA_VERSION,
+  embedWithMeta,
   getEmbeddingProvider,
   embeddingMeta,
   listEmbeddingProviders,
@@ -27,6 +28,8 @@ const ok = (label, cond) => {
 const minilmVec = Array.from({ length: DIMS }, (_, i) => i / DIMS);
 const voyageMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 }, { mode: 'document' });
 const voyageQueryMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 }, { mode: 'query' });
+const voyageRetrievalQueryMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 }, { mode: 'retrieval.query' });
+const voyageRetrievalDocumentMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 }, { mode: 'retrieval.document' });
 const voyageImageMeta = embeddingMeta({ provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 }, { mode: 'document', modality: 'image' });
 const voyageVec = Array.from({ length: 1024 }, (_, i) => i / 1024);
 const cohereMeta = embeddingMeta({ provider: 'cohere', model: 'embed-v4.0', dimensions: 1536 }, { mode: 'document' });
@@ -108,6 +111,7 @@ function withMockHttps(response, fn) {
   const ov = overlayStore.EMPTY();
   const meta = embeddingMeta(ov);
   ok('default embedding identity is MiniLM document text v1', meta.provider === 'minilm' && meta.dimensions === DIMS && meta.task_mode === 'document' && meta.modality === 'text' && meta.vector_schema_version === VECTOR_SCHEMA_VERSION);
+  ok('retrieval mode aliases normalize into query/document identity', voyageRetrievalQueryMeta.task_mode === 'query' && voyageRetrievalDocumentMeta.task_mode === 'document' && voyageRetrievalQueryMeta.identity === voyageQueryMeta.identity && voyageRetrievalDocumentMeta.identity === voyageMeta.identity);
   ok('legacy MiniLM vector is accepted under MiniLM default', nodeVecs({ vec: minilmVec }, { expectedMeta: meta }).length === 1);
   ok('legacy MiniLM vector is rejected under hosted provider identity', nodeVecs({ vec: minilmVec }, { expectedMeta: voyageMeta }).length === 0);
   ok('matching hosted metadata is accepted', nodeVecs({ vec: voyageVec, vecMeta: voyageMeta }, { expectedMeta: voyageMeta }).length === 1);
@@ -152,6 +156,17 @@ function withMockHttps(response, fn) {
 }
 
 async function runAsyncTests() {
+  {
+    const oldKey = process.env.VOYAGE_API_KEY;
+    delete process.env.VOYAGE_API_KEY;
+    const r = await embedWithMeta(
+      { input: 'find provider config', mode: 'retrieval.query', provider: 'voyage', model: 'voyage-multimodal-3.5', dimensions: 1024 },
+      {}
+    );
+    ok('embedWithMeta object request preserves query metadata when provider is unavailable', r.vec === null && r.meta.provider === 'voyage' && r.meta.task_mode === 'query');
+    if (oldKey !== undefined) process.env.VOYAGE_API_KEY = oldKey;
+  }
+
   {
     const voyage = getEmbeddingProvider('voyage');
     const oldKey = process.env.VOYAGE_API_KEY;
