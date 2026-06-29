@@ -3,8 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "codex-main-embed-provider-loop",
   "branch": "orch/attempt/codex-embed-provider-hosted-adapters",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-06-29T16:27:48.436Z",
   "lease_until": "2026-06-29T17:27:48.436Z",
-  "completed_at": "2026-06-29T16:32:10.142Z"
+  "completed_at": "2026-06-29T16:33:21.481Z"
 }
