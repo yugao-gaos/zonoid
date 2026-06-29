@@ -239992,6 +239992,120 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/extract-headless-drain-runner": {
+      "id": "codex/extract-headless-drain-runner",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Reviewed mechanical daemon extraction. Syntax checks and isolated runner export smoke pass. Worker smoke /ping on alternate port passed. `test/internal-lanes.test.js` passed. `test/headless-drain.test.js` has 3 default/backoff assertion failures that reproduce unchanged on current main, so this attempt does not introduce that red suite.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Extract headless drain scheduling from daemon.js",
+        "description": "Move the headless drain timer/pump scheduling logic out of daemon.js into a focused module while preserving behavior, environment variable handling, and wake semantics. Keep startup/listener behavior unchanged.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-29T00:50:50.866Z"
+      },
+      "assignee": "codex-bg-headless-drain-runner",
+      "timestamps": {
+        "firstSeen": "2026-06-29T00:50:50.866Z",
+        "lastChanged": "2026-06-29T08:00:38.349Z",
+        "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/fix-headless-drain-default-contract-tests": {
+      "id": "codex/fix-headless-drain-default-contract-tests",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Reviewed narrow test-only change. It aligns stale expectations with documented runtime defaults and worker verified `node test/headless-drain.test.js` passes 89/89.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Align headless drain default/backoff tests with current runtime contract",
+        "description": "Fix the red headless-drain test expectations so they match the current runtime defaults documented in lib/headless-drain.js: maxConcurrency defaults to 2, backoff base defaults to 5s, cap defaults to 60s, and exponential throttle behavior should assert the actual capped progression. Do not change runtime behavior unless the test reveals a real inconsistency.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-29T08:01:58.849Z"
+      },
+      "assignee": "codex-worker-headless-drain-tests",
+      "timestamps": {
+        "firstSeen": "2026-06-29T08:01:58.849Z",
+        "lastChanged": "2026-06-29T08:05:23.810Z",
+        "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/overlay-schema-store-facade-split": {
+      "id": "codex/overlay-schema-store-facade-split",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Reviewed mechanical facade split. Overlay public exports are preserved, worker ran readiness-detail and subconscious tests, and local facade smoke checks pass.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Split overlay schema and store helpers behind compatibility facade",
+        "description": "Start modularizing lib/overlay.js by extracting only schema/default-state and low-level load/save/file helper concerns into focused modules behind the existing lib/overlay.js public facade. Preserve all existing exports and behavior. Do not move review lifecycle, guidance, graph-event emission, or status logic in this slice.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-06-29T07:51:56.763Z"
+      },
+      "assignee": "codex-worker-overlay-split",
+      "timestamps": {
+        "firstSeen": "2026-06-29T07:51:56.763Z",
+        "lastChanged": "2026-06-29T07:57:13.507Z",
+        "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -274797,6 +274911,446 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "knowledge:source_chunk:chunk-agents-md-6-0-override-signal-when-a-note-contradicts--39045fffe2",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.301,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-claude-md-6-0-override-signal-when-a-note-contradicts--7a2cdbb38f",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.301,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-4-0-all-tools-live-in-the-tools-array--731f5b67e8",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.378,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-4-0-all-tools-live-in-the-tools-array--731f5b67e8",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.674,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-4-1-call-method-path-body-is-an-http-c-dc3c245056",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.378,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-4-1-call-method-path-body-is-an-http-c-dc3c245056",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.674,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-readme-md-6-0-47-tools-served-identically-over-both-tr-4e2b538443",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.354,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-readme-md-6-0-47-tools-served-identically-over-both-tr-4e2b538443",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.611,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq87mffnxbx",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.517,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq89y47bsrz",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.605,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq8sikxgydu",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.616,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqacft0tdqh",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.332,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqatxdyv38f",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.426,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqd5d1xatlo",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.319,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgw1hhxxss",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.368,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiued6mhla",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.317,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqjh7j03b4f",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.416,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqlapu0wi63",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.332,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoe9lmojot",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.457,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqonvqqre1d",
+      "to": "codex/split-meta-routes-mcp-state",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.413,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp50ztrfk8",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.481,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqph9bwihv5",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.492,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0.844,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.844,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqpxyj4af7t",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.333,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqqjxaewu58",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqqwu05983g",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0.86,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.86,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqr366hr6af",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0.86,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.86,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "note:note-mqvfbgaglra",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0.859,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.859,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/modularize-mcp-tool-definitions",
+      "to": "knowledge:source_section:section-contributing-md-4-adding-a-new-mcp-tool-3ea7cbb647",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.674,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/modularize-mcp-tool-definitions",
+      "to": "knowledge:source_section:section-readme-md-6-mcp-tools-44ad56c285",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.611,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/modularize-mcp-tool-definitions",
+      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.523,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/modularize-mcp-tool-definitions",
+      "to": "codex/code-extractor-multilang-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.52,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/modularize-mcp-tool-definitions",
+      "to": "codex/code-ast-extractor-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.502,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/refactor-judge-item-registry-contracts",
+      "to": "codex/fix-stale-tested-verdict-requeue-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.401,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/refactor-judge-item-registry-contracts",
+      "to": "codex/judge-enforce-test-pass-before-push-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.362,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/refactor-judge-item-registry-contracts",
+      "to": "codex/fix-stale-tested-verdict-requeue-judge-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.359,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/refactor-judge-item-registry-contracts",
+      "to": "codex/fix-stale-tested-verdict-requeue",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.357,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/refactor-judge-item-registry-contracts",
+      "to": "codex/judge-subconscious-skill-version-store",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.349,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/review-state-docs-instructions",
+      "to": "codex/refactor-judge-item-registry-contracts",
+      "kind": "context",
+      "weight": 0.849,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.849,
+      "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/split-meta-routes-mcp-state",
+      "to": "knowledge:source_section:section-contributing-md-4-adding-a-new-mcp-tool-3ea7cbb647",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.378,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/split-meta-routes-mcp-state",
+      "to": "knowledge:source_section:section-readme-md-6-mcp-tools-44ad56c285",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.354,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/split-meta-routes-mcp-state",
+      "to": "codex/modularize-mcp-tool-definitions",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.333,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/split-meta-routes-mcp-state",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.316,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/split-meta-routes-mcp-state",
+      "to": "codex/fix-claim-permit-result-contract-kickback",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.274,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-0-0-thin-relay-hooks-for-open-68c0dd96cb",
       "to": "codex/headroom-style-reversible-context-pilot",
       "kind": "context",
@@ -274804,6 +275358,16 @@
       "by": "autowire",
       "judged": false,
       "score": 0.439,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-1-3-alternative-merge-adapter-3d2a948e27",
+      "to": "codex/overlay-schema-store-facade-split",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.37,
       "origin": "autowire-semantic"
     },
     {
@@ -274825,16 +275389,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:chunk-agents-md-6-0-override-signal-when-a-note-contradicts--39045fffe2",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.301,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:chunk-claude-md-3-0-when-you-hit-a-decision-the-user-might-o-15c75e5a2f",
       "to": "codex/workflow-user-gate-guidance-projection",
       "kind": "context",
@@ -274842,16 +275396,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.433,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-claude-md-6-0-override-signal-when-a-note-contradicts--7a2cdbb38f",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.301,
       "origin": "autowire-semantic"
     },
     {
@@ -274865,43 +275409,13 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:chunk-contributing-md-4-0-all-tools-live-in-the-tools-array--731f5b67e8",
-      "to": "codex/split-meta-routes-mcp-state",
+      "from": "knowledge:source_chunk:chunk-contributing-md-5-2-sandboxed-daemon-convention-tests--d66a085242",
+      "to": "codex/extract-headless-drain-runner",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.378,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-contributing-md-4-0-all-tools-live-in-the-tools-array--731f5b67e8",
-      "to": "codex/modularize-mcp-tool-definitions",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.674,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-contributing-md-4-1-call-method-path-body-is-an-http-c-dc3c245056",
-      "to": "codex/split-meta-routes-mcp-state",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.378,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-contributing-md-4-1-call-method-path-body-is-an-http-c-dc3c245056",
-      "to": "codex/modularize-mcp-tool-definitions",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.674,
+      "score": 0.508,
       "origin": "autowire-semantic"
     },
     {
@@ -274932,26 +275446,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.347,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-readme-md-6-0-47-tools-served-identically-over-both-tr-4e2b538443",
-      "to": "codex/split-meta-routes-mcp-state",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.354,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-readme-md-6-0-47-tools-served-identically-over-both-tr-4e2b538443",
-      "to": "codex/modularize-mcp-tool-definitions",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.611,
       "origin": "autowire-semantic"
     },
     {
@@ -275013,6 +275507,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.509,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
       "to": "codex/workflow-label-learner-fold-plan",
       "kind": "context",
@@ -275039,6 +275543,16 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.466,
+      "origin": "autowire-semantic"
     },
     {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
@@ -275325,6 +275839,16 @@
       "judged": true
     },
     {
+      "from": "note:note-mq75a82d",
+      "to": "codex/overlay-schema-store-facade-split",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.42,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq75a82e",
       "to": "af585417-07f3-4b6f-8c96-d9b784271d32/8",
       "kind": "context",
@@ -275475,16 +275999,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mq87mffnxbx",
-      "to": "codex/modularize-mcp-tool-definitions",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.517,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq89ptfjx0y",
       "to": "codex/token-accounting-attribution-audit",
       "kind": "context",
@@ -275492,16 +276006,6 @@
       "by": "judge",
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "note:note-mq89y47bsrz",
-      "to": "codex/modularize-mcp-tool-definitions",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.605,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mq8aoc7vu8n",
@@ -275539,13 +276043,13 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mq8sikxgydu",
-      "to": "codex/modularize-mcp-tool-definitions",
+      "from": "note:note-mq8uoisbwav",
+      "to": "codex/overlay-schema-store-facade-split",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.616,
+      "score": 0.339,
       "origin": "autowire-semantic"
     },
     {
@@ -275577,16 +276081,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mqacft0tdqh",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.332,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqaqmb62a5k",
       "to": "note:note-mq9gifkl7hh",
       "kind": "context",
@@ -275595,22 +276089,22 @@
       "judged": true
     },
     {
+      "from": "note:note-mqaqmb62a5k",
+      "to": "codex/overlay-schema-store-facade-split",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.437,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqasdxx0tnt",
       "to": "6c89a72a-e6a3-4a8b-845c-5bd9a0d7166f/2",
       "kind": "context",
       "weight": 0.5,
       "by": "judge",
       "judged": true
-    },
-    {
-      "from": "note:note-mqatxdyv38f",
-      "to": "codex/split-meta-routes-mcp-state",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.426,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqawaybb608",
@@ -275702,16 +276196,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.372,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqd5d1xatlo",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.319,
       "origin": "autowire-semantic"
     },
     {
@@ -276141,6 +276625,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqf906vsjhu",
+      "to": "codex/overlay-schema-store-facade-split",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.386,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqf9rujm41b",
       "to": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/1",
       "kind": "context",
@@ -276428,6 +276922,26 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqgsb1mcnid",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.666,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgsb1mcnid",
+      "to": "codex/fix-headless-drain-default-contract-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.423,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqgsfzw9rnh",
       "to": "note:note-mqfhmxul2io",
       "kind": "context",
@@ -276478,6 +276992,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqgtgbdm0mh",
+      "to": "codex/fix-headless-drain-default-contract-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.464,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqgvjghmn2z",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/7",
       "kind": "context",
@@ -276508,16 +277032,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgw1hhxxss",
-      "to": "codex/split-meta-routes-mcp-state",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.368,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgw7oy7b8z",
       "to": "fbeb4c89-3ac8-44de-94c5-49a9793e27d5/8",
       "kind": "context",
@@ -276525,6 +277039,26 @@
       "by": "judge",
       "judged": true,
       "score": 0.623,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgwagrdguj",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.633,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgwagrdguj",
+      "to": "codex/fix-headless-drain-default-contract-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.419,
       "origin": "autowire-semantic"
     },
     {
@@ -276740,6 +277274,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqh5elf8cq8",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.659,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqh5j4p7moe",
       "to": "note:note-mqgw1hhxxss",
       "kind": "context",
@@ -276767,6 +277311,16 @@
       "by": "judge",
       "judged": true,
       "origin": "asserted"
+    },
+    {
+      "from": "note:note-mqh79ecn05l",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.706,
+      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqh7dq5na2a",
@@ -276834,6 +277388,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.628,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqheiw4iv5t",
+      "to": "codex/overlay-schema-store-facade-split",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.359,
       "origin": "autowire-semantic"
     },
     {
@@ -277869,16 +278433,6 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mqiued6mhla",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.317,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqivir09qko",
       "to": "note:note-mqivjg3b5yl",
       "kind": "context",
@@ -277940,16 +278494,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.559,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqjh7j03b4f",
-      "to": "codex/split-meta-routes-mcp-state",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.416,
       "origin": "autowire-semantic"
     },
     {
@@ -278280,16 +278824,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqlapu0wi63",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.332,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqlc786kcl2",
       "to": "note:note-mqlapu0wi63",
       "kind": "context",
@@ -278349,12 +278883,12 @@
     },
     {
       "from": "note:note-mqoe9lmojot",
-      "to": "codex/split-meta-routes-mcp-state",
+      "to": "codex/fix-headless-drain-default-contract-tests",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.457,
+      "score": 0.52,
       "origin": "autowire-semantic"
     },
     {
@@ -278364,16 +278898,6 @@
       "weight": 0.65,
       "by": "judge",
       "judged": true
-    },
-    {
-      "from": "note:note-mqonvqqre1d",
-      "to": "codex/split-meta-routes-mcp-state",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.413,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqoxvl18k5p",
@@ -278609,16 +279133,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.777,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp50ztrfk8",
-      "to": "codex/modularize-mcp-tool-definitions",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.481,
       "origin": "autowire-semantic"
     },
     {
@@ -279444,13 +279958,13 @@
       "judged": true
     },
     {
-      "from": "note:note-mqph9bwihv5",
-      "to": "codex/modularize-mcp-tool-definitions",
+      "from": "note:note-mqpd82jw9j3",
+      "to": "codex/extract-headless-drain-runner",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.492,
+      "score": 0.659,
       "origin": "autowire-semantic"
     },
     {
@@ -279858,16 +280372,6 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mqplemzsrvt",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0.844,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.844,
-      "origin": "subconscious-agentic-search"
-    },
-    {
       "from": "note:note-mqplytfmawp",
       "to": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "kind": "context",
@@ -280033,16 +280537,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.696,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpxyj4af7t",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.333,
       "origin": "autowire-semantic"
     },
     {
@@ -280434,16 +280928,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqqjxaewu58",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0.83,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.83,
-      "origin": "subconscious-agentic-search"
-    },
-    {
       "from": "note:note-mqqlz3oc3we",
       "to": "codex/add-daemon-global-backend-credentials-file",
       "kind": "context",
@@ -280660,16 +281144,6 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mqqwu05983g",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0.86,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.86,
-      "origin": "subconscious-agentic-search"
-    },
-    {
       "from": "note:note-mqqyd0ugp2b",
       "to": "note-mq7dzydv",
       "kind": "context",
@@ -280805,16 +281279,6 @@
       "by": "subconscious",
       "judged": true,
       "score": 0.877,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqr366hr6af",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0.86,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.86,
       "origin": "subconscious-agentic-search"
     },
     {
@@ -280970,6 +281434,16 @@
       "judged": true
     },
     {
+      "from": "note:note-mqsiyvoyset",
+      "to": "codex/fix-headless-drain-default-contract-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.423,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqsktjtz8ch",
       "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
       "kind": "context",
@@ -281018,16 +281492,6 @@
       "by": "subconscious",
       "judged": true,
       "score": 1,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqvfbgaglra",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0.859,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.859,
       "origin": "subconscious-agentic-search"
     },
     {
@@ -281166,6 +281630,56 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "codex/extract-headless-drain-runner",
+      "to": "codex/p1-sync-judge-drain",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.68,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/extract-headless-drain-runner",
+      "to": "codex/onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.61,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/extract-headless-drain-runner",
+      "to": "codex/auto-drain-tested-ready-and-drop-stale-smoke",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.606,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/extract-headless-drain-runner",
+      "to": "codex/judge-breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.565,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/extract-headless-drain-runner",
+      "to": "codex/review-onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.563,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "codex/fix-consolidate-universal-skills-kickback",
       "to": "codex/consolidate-universal-skills-judge",
       "kind": "context",
@@ -281228,6 +281742,56 @@
       "judged": true
     },
     {
+      "from": "codex/fix-headless-drain-default-contract-tests",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.493,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-headless-drain-default-contract-tests",
+      "to": "codex/auto-drain-tested-ready-and-drop-stale-smoke",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.447,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-headless-drain-default-contract-tests",
+      "to": "codex/headless-drain-context-compression",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.398,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-headless-drain-default-contract-tests",
+      "to": "codex/review-onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.395,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-headless-drain-default-contract-tests",
+      "to": "codex/p1-sync-judge-drain",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.395,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "codex/fix-shell-write-gate-cross-shell",
       "to": "af585417-07f3-4b6f-8c96-d9b784271d32/1",
       "kind": "context",
@@ -281269,88 +281833,28 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "codex/modularize-mcp-tool-definitions",
-      "to": "knowledge:source_section:section-contributing-md-4-adding-a-new-mcp-tool-3ea7cbb647",
+      "from": "codex/overlay-schema-store-facade-split",
+      "to": "codex/embedding-store-interface-impl",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.674,
+      "score": 0.441,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/modularize-mcp-tool-definitions",
-      "to": "knowledge:source_section:section-readme-md-6-mcp-tools-44ad56c285",
+      "from": "codex/overlay-schema-store-facade-split",
+      "to": "codex/embedding-store-interface",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.611,
+      "score": 0.367,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/modularize-mcp-tool-definitions",
+      "from": "codex/overlay-schema-store-facade-split",
       "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.523,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/modularize-mcp-tool-definitions",
-      "to": "codex/code-extractor-multilang-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.52,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/modularize-mcp-tool-definitions",
-      "to": "codex/code-ast-extractor-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.502,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/refactor-judge-item-registry-contracts",
-      "to": "codex/fix-stale-tested-verdict-requeue-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.401,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/refactor-judge-item-registry-contracts",
-      "to": "codex/judge-enforce-test-pass-before-push-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.362,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/refactor-judge-item-registry-contracts",
-      "to": "codex/fix-stale-tested-verdict-requeue-judge-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.359,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/refactor-judge-item-registry-contracts",
-      "to": "codex/fix-stale-tested-verdict-requeue",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -281359,38 +281863,8 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/refactor-judge-item-registry-contracts",
-      "to": "codex/judge-subconscious-skill-version-store",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.349,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/review-state-docs-instructions",
-      "to": "codex/refactor-judge-item-registry-contracts",
-      "kind": "context",
-      "weight": 0.849,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.849,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "codex/split-meta-routes-mcp-state",
-      "to": "knowledge:source_section:section-contributing-md-4-adding-a-new-mcp-tool-3ea7cbb647",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.378,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/split-meta-routes-mcp-state",
-      "to": "knowledge:source_section:section-readme-md-6-mcp-tools-44ad56c285",
+      "from": "codex/overlay-schema-store-facade-split",
+      "to": "codex/embed-provider-contract",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -281399,33 +281873,13 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/split-meta-routes-mcp-state",
-      "to": "codex/modularize-mcp-tool-definitions",
+      "from": "codex/overlay-schema-store-facade-split",
+      "to": "codex/define-artifact-provider-contract-without-ast-shapes",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.333,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/split-meta-routes-mcp-state",
-      "to": "codex/internal-lane-model-queue-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.316,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/split-meta-routes-mcp-state",
-      "to": "codex/fix-claim-permit-result-contract-kickback",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.274,
+      "score": 0.347,
       "origin": "autowire-semantic"
     },
     {
@@ -281509,5 +281963,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-29T07:49:30.909Z"
+  "compacted_at": "2026-06-29T08:12:57.645Z"
 }

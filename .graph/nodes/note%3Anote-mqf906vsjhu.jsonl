@@ -35,3 +35,4 @@
 {"evt":"edge_removed","from":"note:note-mqf906vsjhu","to":"note:note-mq893v1vuxe","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqf906vsjhu","to":"note:note-mqeapqae6jf","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqf906vsjhu","to":"note:note-mqfbygur4go","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_added","from":"note:note-mqf906vsjhu","to":"codex/overlay-schema-store-facade-split","kind":"context","actor":"overlay-sync","ts":"2026-06-29T07:53:14.549Z","weight":0,"by":"autowire","judged":false,"score":0.386,"origin":"autowire-semantic"}
