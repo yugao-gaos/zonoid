@@ -3,6 +3,19 @@ const fs = require('fs');
 const path = require('path');
 const mcpCore = require('../lib/mcp-core');
 
+const NATIVE_FORMAT_HEALTH_TTL_MS = 10_000;
+const nativeFormatHealthCache = new Map();
+
+function nativeFormatHealth(harness, workspace) {
+  if (!workspace) return null;
+  const hit = nativeFormatHealthCache.get(workspace);
+  const nowMs = Date.now();
+  if (hit && nowMs - hit.ts < NATIVE_FORMAT_HEALTH_TTL_MS) return hit.value;
+  const value = harness.tasks.formatHealth(workspace);
+  nativeFormatHealthCache.set(workspace, { ts: nowMs, value });
+  return value;
+}
+
 module.exports = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, state, setState, setWorkspace,
     GIT_HEAD, BOOTED_AT, FEATURES, sseClients, overlayStore, harness, analytics,
@@ -165,7 +178,7 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
     // P3: no global current workspace. `workspace`/`native_format` reflect the OPTIONAL ?workspace=
     // the dashboard passes (null when absent — health is otherwise workspace-agnostic).
     const hwWs = u.searchParams.get('workspace') || null;
-    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: hwWs, sessions: sessionCount(), loops: loopHealth, embedding: embedStatus(), native_format: hwWs ? harness.tasks.formatHealth(hwWs) : null }); return true;
+    send(res, 200, { ok: true, phase: boot.phase, step: boot.step, progress: boot.progress, bootedAt: BOOTED_AT, head: GIT_HEAD, workspace: hwWs, sessions: sessionCount(), loops: loopHealth, embedding: embedStatus(), native_format: nativeFormatHealth(harness, hwWs) }); return true;
   }
 
   if (p === '/ready') {
