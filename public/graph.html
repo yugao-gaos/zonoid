@@ -78,6 +78,12 @@
   #bk-avnotice .bk-avtitle { font-weight: 700; display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
   #bk-status { font-size: 11px; margin-top: 6px; min-height: 14px; }
   #bk-status.ok { color: #3fb950; } #bk-status.err { color: #f85149; }
+  .bk-key-meta { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+  .bk-key-state { display: inline-flex; align-items: center; gap: 5px; color: #8b949e; }
+  .bk-key-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: #f85149; box-shadow: 0 0 0 2px #f8514922; }
+  .bk-key-dot.set { background: #3fb950; box-shadow: 0 0 0 2px #3fb95022; }
+  .bk-key-delete { display: none; margin-left: auto; background: #da363333; border: 1px solid #f8514955; color: #ff7b72; border-radius: 6px; padding: 2px 8px; cursor: pointer; font: inherit; font-size: 10px; }
+  .bk-key-delete.show { display: inline-block; }
   .sum span { color: #8b949e; } .sum b { color: #e6edf3; }
   /* hero metrics */
   .hero { display: inline-flex; flex-direction: column; align-items: center; padding: 0 clamp(8px, 1.4vw, 20px); cursor: pointer; border-right: 1px solid #21262d; position: relative; }
@@ -687,7 +693,7 @@
       <div class="sp-toggle-row" style="margin-top:8px">
         <div>
           <div class="sp-toggle-label">Full Automode</div>
-          <div class="sp-toggle-sublabel">Escalations answered by Opus · Judges merge on approve</div>
+          <div class="sp-toggle-sublabel">Escalations answered by LLM backend · Judges merge on approve</div>
         </div>
         <label class="sp-switch">
           <input type="checkbox" id="sp-automode" onchange="saveAutomode(this.checked)">
@@ -701,8 +707,8 @@
       <div class="spdesc">Which engine drives background judging/learning. Claude is the default.</div>
       <div class="bk-list" id="bk-list"><div class="empty" style="font-size:11px">loading…</div></div>
       <div class="splabel" style="margin-top:12px">Model (optional)</div>
-      <input class="spinput" id="bk-model" type="text" placeholder="default for provider" />
-      <div class="spdesc">Leave blank to use the provider's default model.</div>
+      <select class="spinput" id="bk-model"></select>
+      <div class="spdesc" id="bk-model-desc">Use the provider's default model, or choose one of its available models.</div>
       <div id="bk-avnotice">
         <div class="bk-avtitle">⚠ Antivirus note</div>
         <div id="bk-avnotice-body"></div>
@@ -713,6 +719,10 @@
         <div class="splabel" style="margin-top:12px">API key</div>
         <input class="spinput" id="bk-key" type="password" placeholder="set API key" autocomplete="new-password" />
         <div class="spdesc" id="bk-key-desc"></div>
+        <div class="spdesc bk-key-meta">
+          <span class="bk-key-state"><span class="bk-key-dot" id="bk-key-dot"></span><span id="bk-key-state">not set</span></span>
+          <button class="bk-key-delete" id="bk-key-delete" onclick="deleteBackendKey()">Delete API key</button>
+        </div>
         <button class="spsave" style="margin-top:8px" onclick="saveBackendKey()">Save key</button>
         <div id="bk-key-status"></div>
       </div>
@@ -7325,14 +7335,38 @@ function renderBackendPanel(){
   }).join('');
   updateAvNotice();
 }
-function selectBackendProvider(id){ _bkSelected=id; const m=document.getElementById('bk-model'); if(m) m.value=''; renderBackendPanel(); }
+function selectBackendProvider(id){ _bkSelected=id; renderBackendPanel(); }
+function bkModelOptions(prov, activeModel){
+  const seen=new Set();
+  const opts=[];
+  const add=(id,label)=>{
+    id=String(id||'').trim(); if(!id||seen.has(id)) return;
+    seen.add(id); opts.push({id,label:label||id});
+  };
+  if(prov&&prov.defaultModel) add(prov.defaultModel, prov.defaultModel+' (default)');
+  for(const m of ((prov&&Array.isArray(prov.supportedModels)&&prov.supportedModels)||[])) add(m&&m.id, m&&m.name);
+  if(activeModel) add(activeModel, activeModel+' (saved)');
+  return opts;
+}
+function renderBackendModelSelect(prov){
+  const model=document.getElementById('bk-model');
+  if(!model) return;
+  const activeModel=(_bkData&&_bkData.active&&_bkData.active.provider===_bkSelected&&_bkData.active.model)||'';
+  const opts=bkModelOptions(prov, activeModel);
+  model.innerHTML='<option value="">Provider default'+(prov&&prov.defaultModel?' ('+esc(prov.defaultModel)+')':'')+'</option>'
+    +opts.map(o=>'<option value="'+esc(o.id)+'">'+esc(o.label)+'</option>').join('');
+  model.value=activeModel&&opts.some(o=>o.id===activeModel)?activeModel:'';
+  const desc=document.getElementById('bk-model-desc');
+  if(desc) desc.textContent=opts.length
+    ? 'Choose one of the selected provider\'s available models.'
+    : 'This provider does not expose a model list; the default will be used.';
+}
 // Show/hide the AV notice based on the SELECTED provider's kind (agentic-cli ⇒ show, api ⇒ hide).
 function updateAvNotice(){
   const box=document.getElementById('bk-avnotice');
   const prov=_bkData&&_bkData.providers.find(p=>p.id===_bkSelected);
   const kind=prov&&prov.kind;
-  const model=document.getElementById('bk-model');
-  if(model) model.placeholder=(prov&&prov.defaultModel)?('default: '+prov.defaultModel):'default for provider';
+  renderBackendModelSelect(prov);
   if(bkShouldShowAvNotice(kind)){
     // Render `code` spans for the inline command/binary names; rest is escaped text.
     document.getElementById('bk-avnotice-body').innerHTML=
@@ -7344,11 +7378,17 @@ function updateAvNotice(){
   const keyRow=document.getElementById('bk-key-row');
   const keyEl=document.getElementById('bk-key');
   const keyDesc=document.getElementById('bk-key-desc');
+  const keyDot=document.getElementById('bk-key-dot');
+  const keyState=document.getElementById('bk-key-state');
+  const keyDelete=document.getElementById('bk-key-delete');
   const hasKey=prov&&Array.isArray(prov.apiKeyEnv)&&prov.apiKeyEnv.length;
   if(hasKey&&keyRow){
     keyRow.style.display='';
     if(keyEl) keyEl.placeholder='set '+prov.apiKeyEnv[0];
-    if(keyDesc) keyDesc.textContent='Stored locally in backend.env (write-only; never shown back). Status: '+(prov.isAuthed?'set':'not set');
+    if(keyDesc) keyDesc.textContent='Stored locally in backend.env (write-only; never shown back).';
+    if(keyDot) keyDot.classList.toggle('set', !!prov.isAuthed);
+    if(keyState) keyState.textContent=prov.isAuthed?'set':'not set';
+    if(keyDelete) keyDelete.classList.toggle('show', !!prov.isAuthed);
   } else if(keyRow){
     keyRow.style.display='none';
   }
@@ -7394,6 +7434,23 @@ async function saveBackendKey(){
   await loadBackendConfig();
   st.className='ok';
   st.textContent='API key saved';
+}
+async function deleteBackendKey(){
+  const prov=_bkData&&_bkData.providers.find(p=>p.id===_bkSelected);
+  if(!prov||!Array.isArray(prov.apiKeyEnv)||!prov.apiKeyEnv.length) return;
+  const st=document.getElementById('bk-key-status');
+  st.className=''; st.textContent='deleting…';
+  let res,d;
+  try{
+    res=await dfetch('/config/backend/key',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:_bkSelected})});
+    d=await res.json();
+  }catch{ st.className='err'; st.textContent='delete failed (unreachable)'; return; }
+  if(!res.ok||!d||!d.ok){
+    st.className='err'; st.textContent=(d&&d.error)||('failed ('+res.status+')'); return;
+  }
+  await loadBackendConfig();
+  st.className='ok';
+  st.textContent='API key deleted';
 }
 // Cost-flow popup: fetch /costflow on open (it walks every transcript — too heavy for tick()).
 async function toggleCostPopup(){

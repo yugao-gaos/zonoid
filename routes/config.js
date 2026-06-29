@@ -137,6 +137,28 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
     return true;
   }
 
+  if (p === '/config/backend/key' && m === 'DELETE') {
+    const b = await readBody(req);
+    const T = targetOverlay(b, u);
+    if (!requireWorkspace(T, send, res)) return true;
+    const provider = b && b.provider;
+    const prov = provider && llmBackend.getProvider(String(provider));
+    if (!prov) {
+      send(res, 400, { ok: false, error: `unknown backend provider '${provider}'` });
+      return true;
+    }
+    const envs = Array.isArray(prov.apiKeyEnv) ? prov.apiKeyEnv : null;
+    if (!envs || !envs.length) {
+      send(res, 400, { ok: false, error: `provider '${prov.id}' does not use an API key (CLI-authed)` });
+      return true;
+    }
+    const canonical = envs[0];
+    llmBackend.writeBackendCredentialKey(canonical, '');
+    notifyChange();
+    send(res, 200, { ok: true, apiKeyDeleted: true, env: canonical });
+    return true;
+  }
+
   if (p === '/config/embedding' && m === 'GET') {
     const T = targetOverlay(null, u);
     if (!requireWorkspace(T, send, res)) return true;

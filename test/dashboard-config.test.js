@@ -20,8 +20,14 @@ ok('settings save refreshes mutable BASE', html.includes('setDaemonBase(url);'))
 ok('workspace discovery uses token-aware dfetch',
   !html.includes("fetch(BASE + '/workspaces')") && (html.match(/dfetch\('\/workspaces'\)/g) || []).length >= 2);
 ok('backend provider rows surface default model metadata', html.includes("default '+prov.defaultModel"));
-ok('backend model input placeholder follows selected provider default',
-  html.includes("model.placeholder=(prov&&prov.defaultModel)?('default: '+prov.defaultModel):'default for provider'"));
+ok('backend model selector is a dropdown, not a textbox',
+  html.includes('<select class="spinput" id="bk-model"></select>') && !html.includes('id="bk-model" type="text"'));
+ok('backend model selector is populated from provider supportedModels',
+  html.includes('function bkModelOptions(prov, activeModel)') && html.includes('prov.supportedModels'));
+ok('backend API key status uses a colored dot and delete button',
+  html.includes('id="bk-key-dot"') && html.includes('id="bk-key-delete"') && html.includes('function deleteBackendKey()'));
+ok('backend API key delete calls DELETE /config/backend/key',
+  html.includes("method:'DELETE'") && html.includes("dfetch('/config/backend/key'"));
 
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);

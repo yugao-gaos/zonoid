@@ -502,6 +502,28 @@ test('api provider: listOllamaModels reads local /api/tags dynamically', async (
   } finally { restore(); }
 });
 
+test('api provider: listOpenRouterModels reads OpenRouter /models dynamically', async () => {
+  const fake = makeFakeHttp((opts) => {
+    assert.equal(opts.hostname, 'openrouter.ai');
+    assert.equal(opts.path, '/api/v1/models');
+    assert.equal(opts.method, 'GET');
+    return {
+      status: 200,
+      body: {
+        data: [
+          { id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', context_length: 200000 },
+          { id: 'openai/gpt-5' },
+        ],
+      },
+    };
+  });
+  const models = await backend.listOpenRouterModels({ httpsModule: fake });
+  assert.deepEqual(models, [
+    { id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', contextLength: 200000 },
+    { id: 'openai/gpt-5', name: undefined, contextLength: undefined },
+  ]);
+});
+
 test('api provider: callApi rejects with ApiBackendError on a missing key (no spawn, no request)', async () => {
   const restore = withEnv({}); // no OPENROUTER_API_KEY
   const fake = makeFakeHttp(() => ({ status: 200, body: {} }));

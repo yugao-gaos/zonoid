@@ -27,6 +27,11 @@ const overlayStore = require('../lib/overlay');
 const llmBackend = require('../lib/llm-backend');
 const makeConfigRoute = require('../routes/config');
 
+llmBackend.openRouterProvider.listModels = async () => [
+  { id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
+  { id: 'openai/gpt-5', name: 'GPT-5' },
+];
+
 // A fresh sandboxed workspace per call so tests don't leak overlay state into each other.
 function freshWorkspace() {
   return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cfg-backend-ws-')));
@@ -165,6 +170,7 @@ test('GET /config/backend: defaults to claude when unset, lists providers with r
     assert.equal(typeof openrouter.defaultModel, 'string', 'providers may expose a default model');
     assert.equal(openrouter.isAvailable, null, 'api providers report isAvailable=null (no local binary)');
     assert.equal(typeof openrouter.isAuthed, 'boolean', 'api provider still reports isAuthed');
+    assert.deepEqual(openrouter.supportedModels.map((m) => m.id), ['anthropic/claude-sonnet-4-6', 'openai/gpt-5']);
     const zai = captured.body.providers.find((p) => p.id === 'zai');
     assert.equal(zai.kind, 'api');
     assert.equal(zai.defaultModel, 'glm-5.2', 'Z.AI provider advertises the GLM 5.2 default model');
@@ -347,6 +353,33 @@ test('POST /config/backend/key {zai, sk-test} => 200 apiKeySet; GET => zai.isAut
     await ctx2.route('/config/backend', 'GET', {}, {}, U, null);
     const zai = ctx2.captured.body.providers.find((p) => p.id === 'zai');
     assert.equal(zai.isAuthed, true, 'zai.isAuthed flips to true after the key is set');
+  } finally {
+    try { fs.unlinkSync(backendEnv); } catch { /* ignore */ }
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+test('DELETE /config/backend/key {zai} => 200 apiKeyDeleted; GET => zai.isAuthed===false', async () => {
+  const saved = {};
+  for (const k of ZAI_ENV_NAMES) { saved[k] = process.env[k]; delete process.env[k]; }
+  const backendEnv = path.join(SANDBOX, 'backend.env');
+  try { fs.unlinkSync(backendEnv); } catch { /* ensure clean */ }
+  try {
+    const ws = freshWorkspace();
+    const { route, captured } = makeCtx(ws);
+    llmBackend.writeBackendCredentialKey('ZAI_API_KEY', 'sk-test');
+    await route('/config/backend/key', 'DELETE', { __body: { provider: 'zai' } }, {}, U, null);
+    assert.equal(captured.code, 200);
+    assert.equal(captured.body.ok, true);
+    assert.equal(captured.body.apiKeyDeleted, true, 'response confirms the key was deleted');
+    assert.equal(captured.body.env, 'ZAI_API_KEY', 'canonical env name returned');
+    const ctx2 = makeCtx(ws);
+    await ctx2.route('/config/backend', 'GET', {}, {}, U, null);
+    const zai = ctx2.captured.body.providers.find((p) => p.id === 'zai');
+    assert.equal(zai.isAuthed, false, 'zai.isAuthed flips to false after the key is deleted');
   } finally {
     try { fs.unlinkSync(backendEnv); } catch { /* ignore */ }
     for (const [k, v] of Object.entries(saved)) {
