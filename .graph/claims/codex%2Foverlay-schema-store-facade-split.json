@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "codex-worker-overlay-split-20260629",
   "branch": "orch/attempt/codex-overlay-schema-store-facade-split",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-06-29T07:52:58.460Z",
-  "lease_until": "2026-06-29T08:52:58.460Z"
+  "lease_until": "2026-06-29T08:52:58.460Z",
+  "completed_at": "2026-06-29T07:57:01.922Z"
 }
