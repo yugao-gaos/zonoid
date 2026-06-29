@@ -2667,6 +2667,8 @@ function sendOp(res, b, code, body) {
 
 
 // Route modules: each handles a group of endpoints. Built once; ctx is live via getters.
+const mcpRoute = require('./routes/mcp');
+const stateRoute = require('./routes/state');
 const metaRoute = require('./routes/meta');
 const graphRoute = require('./routes/graph');
 const taskRoute = require('./routes/task');
@@ -2773,7 +2775,7 @@ const ctx = {
   PORT,
 };
 const routeModules = [
-  metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
+  mcpRoute(ctx), stateRoute(ctx), metaRoute(ctx), graphRoute(ctx), taskRoute(ctx), overlayRoute(ctx),
   gitRoute(ctx), judgeRoute(ctx), labelRoute(ctx), configRoute(ctx), analyticsRoute(ctx), onboardRoute(ctx),
   sessionRoute(ctx), execRoute(ctx), classifyRoute(ctx), usageRoute(ctx), subconsciousRoute(ctx), uiRoute(ctx),
 ];
