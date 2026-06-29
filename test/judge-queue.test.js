@@ -393,6 +393,40 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ok('same-node review state remains on implementation task', o.reviews['task/merge'].merge_state === 'pending' && !o.reviews['task/merge-judge']);
 }
 
+// --- judge item registry contract: every emitted kind has projection + verdict coverage ---------
+{
+  const o = ov.EMPTY(); o.epoch = 1;
+  ov.setReviewLifecycle(o, 'task/review', { review_state: 'requested', attempt_branch: 'orch/attempt/review' });
+  o.readinessRepairs = {
+    'task/blocked': { task_key: 'task/blocked', kind: 'canceled_dependency', dependency: 'task/old', dependency_status: 'canceled' },
+  };
+  o.guidance = [
+    { id: 'g-follow', resolved: false, question: 'Approve restart?', context: 'Restart after build', action: { kind: 'follow-up', task_key: 'followup/restart-abcd', when: null } },
+  ];
+  const cloneA = new Array(384).fill(0); cloneA[0] = 1;
+  const cloneB = new Array(384).fill(0); cloneB[0] = 1; cloneB[1] = 0.001;
+  const cloneBNorm = Math.hypot(cloneB[0], cloneB[1]); cloneB[0] /= cloneBNorm; cloneB[1] /= cloneBNorm;
+  o.note_nodes = {
+    c1: { id: 'c1', title: 'Clone 1', summary: '', validTo: null, vec: cloneA },
+    c2: { id: 'c2', title: 'Clone 2', summary: '', validTo: null, vec: cloneB },
+    orphan: { id: 'orphan', title: 'Orphan', summary: '', validTo: null, vec: null },
+  };
+  o.edges = [
+    { from: 'note:c1', to: 'task:connected', kind: 'context', judged: true },
+    { from: 'note:c2', to: 'task:connected', kind: 'context', judged: true },
+    { from: 'note:src', to: 'note:dst', kind: 'context', judged: false },
+  ];
+  const queue = judge.buildQueue(o);
+  ok('judge item registry covers emitted queue kinds', judge.assertJudgeItemContracts(queue) === true);
+  const emittedKinds = Array.from(new Set(queue.map((i) => i.kind)));
+  ok('registry contract includes projection marker for emitted kinds',
+    emittedKinds.every((kind) => judge.judgeItemContract(kind) && judge.judgeItemContract(kind).project === true));
+  ok('registry contract includes verdict support or read-only marking for emitted kinds',
+    emittedKinds.every((kind) => judge.judgeItemHasVerdictSupport(kind)));
+  ok('registry contract fails closed for unknown kinds',
+    (() => { try { judge.assertJudgeItemContracts([{ kind: 'new-kind', id: 'x' }]); return false; } catch { return true; } })());
+}
+
 console.log('-----');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

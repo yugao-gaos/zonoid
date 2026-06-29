@@ -182,7 +182,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
         const neighborhood = judge.expandNeighborhood(T.ov, it.to, nodeOfE, { adjacency: nbAdj });
         const supersedeChain = judge.supersedeChain(T.ov, it.to);
         const taskTask = !isNK(it.from) && !isNK(it.to);
-        return { kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to), neighborhood: neighborhood.nodes, neighborhoodTruncated: neighborhood.truncated, supersedeChain, taskTask };
+        return { kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to), neighborhood: neighborhood.nodes, neighborhoodTruncated: neighborhood.truncated, supersedeChain, taskTask, allowed_actions: judge.judgeItemAllowedActions('edge') };
       });
       const contextCompression = applyStructuredContextCompression(eagerItems);
       send(res, 200, { epoch: T.ov.epoch || 0, workspace: ws, budget, node: eagerNode, eager: true, idle: eagerItems.length === 0, total: nodeItems.length, items: eagerItems, context_compression: contextCompression }); return true;
@@ -215,7 +215,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	          dependency_key: it.dependency || null,
 	          dependency_status: it.dependency_status || null,
 	          reason: it.reason || null,
-	          allowed_actions: ['remove_dependency', 'release_hold', 'cancel_task', 'escalate'],
+	          allowed_actions: judge.judgeItemAllowedActions('readiness-repair'),
 	        };
 	      }
 	      if (it.kind === 'followup-triage') {
@@ -228,7 +228,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	          reason: it.reason || null,
 	          when: it.when || null,
 	          bucket: it.bucket || null,
-	          allowed_actions: ['approve', 'reject', 'escalate'],
+	          allowed_actions: judge.judgeItemAllowedActions('followup-triage'),
 	        };
 	      }
 	      if (it.kind === 'task-decision') {
@@ -245,7 +245,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	          merge_state: it.merge_state || null,
 	          attempt_branch: it.attempt_branch || null,
 	          attempt_worktree: it.attempt_worktree || null,
-	          allowed_actions: ['review', 'merge', 'kick_back', 'discard', 'cancel', 'escalate'],
+	          allowed_actions: judge.judgeItemAllowedActions('task-decision'),
 	        };
 	      }
 	      if (it.kind === 'edge') {
@@ -259,6 +259,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           kind: 'edge', id: it.id, from: detail(it.from), to: detail(it.to),
           neighborhood: neighborhood.nodes, neighborhoodTruncated: neighborhood.truncated,
           supersedeChain, taskTask,
+          allowed_actions: judge.judgeItemAllowedActions('edge'),
         };
       }
       if (it.kind === 'dup-cluster') {
@@ -266,7 +267,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           const n = T.ov.note_nodes[String(k).replace(/^note:/, '')];
           return n ? { key: k, title: n.title, summary: String(n.summary || '').slice(0, 300), created_at: n.created_at || null } : { key: k, title: k, summary: '', created_at: null, missing: true };
         });
-        return { kind: 'dup-cluster', id: it.id, keys: it.keys, notes, pending_dup: !!it.pending_dup };
+        return { kind: 'dup-cluster', id: it.id, keys: it.keys, notes, pending_dup: !!it.pending_dup, allowed_actions: judge.judgeItemAllowedActions('dup-cluster') };
       }
       if (it.kind === 'decay') {
         const noteId = String(it.noteId || it.id).replace(/^note:/, '');
@@ -284,6 +285,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           confidence: it.confidence,
           reasons: it.reasons || [],
           action: it.action,
+          allowed_actions: judge.judgeItemAllowedActions('decay'),
         };
       }
       if (it.kind === 'reinforce') {
@@ -298,13 +300,14 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
           winRate: it.winRate,
           total: it.total,
           action: it.action,
+          allowed_actions: judge.judgeItemAllowedActions('reinforce'),
         };
       }
       const note = byId.get(it.id) || { id: it.id, label: it.id, summary: '', vec: null };
       const expectedMeta = ctx.embeddingMeta ? ctx.embeddingMeta(T.ov) : embeddingMeta(T.ov);
       const candidates = noteRagCandidates(T.ov, g, it.id, note.label, note.summary, note.vec, 8, { expectedMeta, targetVecMeta: note.vecMeta || null })
         .map((c) => ({ key: c.key, title: c.title, summary: c.summary, score: c.score, status: c.status, via: c.via }));
-      return { kind: 'orphan', id: it.id, note: detail(it.id), candidates };
+      return { kind: 'orphan', id: it.id, note: detail(it.id), candidates, allowed_actions: judge.judgeItemAllowedActions('orphan') };
     });
     if (!slice.idle && slice.cursorAfter !== (T.ov.judgeCursor || 0)) {
       T.ov.judgeCursor = slice.cursorAfter;
