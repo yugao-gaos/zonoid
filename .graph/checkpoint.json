@@ -239998,8 +239998,8 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
-      "summary": "Reviewed mechanical daemon extraction. Syntax checks and isolated runner export smoke pass. Worker smoke /ping on alternate port passed. `test/internal-lanes.test.js` passed. `test/headless-drain.test.js` has 3 default/backoff assertion failures that reproduce unchanged on current main, so this attempt does not introduce that red suite.",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
       "category": null,
       "tags": [],
       "knowledge": [],
@@ -240019,11 +240019,11 @@
         },
         "snapshotted_at": "2026-06-29T00:50:50.866Z"
       },
-      "assignee": "codex-bg-headless-drain-runner",
+      "assignee": "headless-review-merge-drain",
       "timestamps": {
         "firstSeen": "2026-06-29T00:50:50.866Z",
-        "lastChanged": "2026-06-29T08:00:38.349Z",
-        "lastStatus": "tested"
+        "lastChanged": "2026-06-29T08:26:39.411Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -240036,8 +240036,8 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
-      "summary": "Reviewed narrow test-only change. It aligns stale expectations with documented runtime defaults and worker verified `node test/headless-drain.test.js` passes 89/89.",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
       "category": null,
       "tags": [],
       "knowledge": [],
@@ -240057,7 +240057,7 @@
         },
         "snapshotted_at": "2026-06-29T08:01:58.849Z"
       },
-      "assignee": "codex-worker-headless-drain-tests",
+      "assignee": "headless-review-merge-drain",
       "timestamps": {
         "firstSeen": "2026-06-29T08:01:58.849Z",
         "lastChanged": "2026-06-29T08:05:23.810Z",
@@ -240074,8 +240074,8 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
-      "summary": "Reviewed mechanical facade split. Overlay public exports are preserved, worker ran readiness-detail and subconscious tests, and local facade smoke checks pass.",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
       "category": null,
       "tags": [],
       "knowledge": [],
@@ -240095,7 +240095,7 @@
         },
         "snapshotted_at": "2026-06-29T07:51:56.763Z"
       },
-      "assignee": "codex-worker-overlay-split",
+      "assignee": "headless-review-merge-drain",
       "timestamps": {
         "firstSeen": "2026-06-29T07:51:56.763Z",
         "lastChanged": "2026-06-29T07:57:13.507Z",
@@ -275351,16 +275351,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-0-0-thin-relay-hooks-for-open-68c0dd96cb",
-      "to": "codex/headroom-style-reversible-context-pilot",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.439,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-1-3-alternative-merge-adapter-3d2a948e27",
       "to": "codex/overlay-schema-store-facade-split",
       "kind": "context",
@@ -275368,6 +275358,346 @@
       "by": "autowire",
       "judged": false,
       "score": 0.37,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-contributing-md-5-2-sandboxed-daemon-convention-tests--d66a085242",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.508,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.509,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.466,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq75a82d",
+      "to": "codex/overlay-schema-store-facade-split",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.42,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq8uoisbwav",
+      "to": "codex/overlay-schema-store-facade-split",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.339,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqaqmb62a5k",
+      "to": "codex/overlay-schema-store-facade-split",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.437,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqf906vsjhu",
+      "to": "codex/overlay-schema-store-facade-split",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.386,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgsb1mcnid",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.666,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgsb1mcnid",
+      "to": "codex/fix-headless-drain-default-contract-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.423,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgtgbdm0mh",
+      "to": "codex/fix-headless-drain-default-contract-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.464,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgwagrdguj",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.633,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgwagrdguj",
+      "to": "codex/fix-headless-drain-default-contract-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.419,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh5elf8cq8",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.659,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh79ecn05l",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.706,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqheiw4iv5t",
+      "to": "codex/overlay-schema-store-facade-split",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.359,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoe9lmojot",
+      "to": "codex/fix-headless-drain-default-contract-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.52,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpd82jw9j3",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.659,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqsiyvoyset",
+      "to": "codex/fix-headless-drain-default-contract-tests",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.423,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/extract-headless-drain-runner",
+      "to": "codex/p1-sync-judge-drain",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.68,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/extract-headless-drain-runner",
+      "to": "codex/onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.61,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/extract-headless-drain-runner",
+      "to": "codex/auto-drain-tested-ready-and-drop-stale-smoke",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.606,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/extract-headless-drain-runner",
+      "to": "codex/judge-breathing-learning-cloud-live-inject",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.565,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/extract-headless-drain-runner",
+      "to": "codex/review-onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.563,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-headless-drain-default-contract-tests",
+      "to": "codex/extract-headless-drain-runner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.493,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-headless-drain-default-contract-tests",
+      "to": "codex/auto-drain-tested-ready-and-drop-stale-smoke",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.447,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-headless-drain-default-contract-tests",
+      "to": "codex/headless-drain-context-compression",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.398,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-headless-drain-default-contract-tests",
+      "to": "codex/review-onboard-drain-headless",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.395,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/fix-headless-drain-default-contract-tests",
+      "to": "codex/p1-sync-judge-drain",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.395,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/overlay-schema-store-facade-split",
+      "to": "codex/embedding-store-interface-impl",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.441,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/overlay-schema-store-facade-split",
+      "to": "codex/embedding-store-interface",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.367,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/overlay-schema-store-facade-split",
+      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.357,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/overlay-schema-store-facade-split",
+      "to": "codex/embed-provider-contract",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.354,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/overlay-schema-store-facade-split",
+      "to": "codex/define-artifact-provider-contract-without-ast-shapes",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.347,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-0-0-thin-relay-hooks-for-open-68c0dd96cb",
+      "to": "codex/headroom-style-reversible-context-pilot",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.439,
       "origin": "autowire-semantic"
     },
     {
@@ -275406,16 +275736,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.531,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-contributing-md-5-2-sandboxed-daemon-convention-tests--d66a085242",
-      "to": "codex/extract-headless-drain-runner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.508,
       "origin": "autowire-semantic"
     },
     {
@@ -275507,16 +275827,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1",
-      "to": "codex/extract-headless-drain-runner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.509,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
       "to": "codex/workflow-label-learner-fold-plan",
       "kind": "context",
@@ -275543,16 +275853,6 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
-      "to": "codex/extract-headless-drain-runner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.466,
-      "origin": "autowire-semantic"
     },
     {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
@@ -275839,16 +276139,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mq75a82d",
-      "to": "codex/overlay-schema-store-facade-split",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.42,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq75a82e",
       "to": "af585417-07f3-4b6f-8c96-d9b784271d32/8",
       "kind": "context",
@@ -276043,16 +276333,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mq8uoisbwav",
-      "to": "codex/overlay-schema-store-facade-split",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.339,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq8w3p79db1",
       "to": "4114fba8-df22-4ebd-a73b-12bac12f8b99/1",
       "kind": "context",
@@ -276087,16 +276367,6 @@
       "weight": 0.6,
       "by": "judge",
       "judged": true
-    },
-    {
-      "from": "note:note-mqaqmb62a5k",
-      "to": "codex/overlay-schema-store-facade-split",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.437,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqasdxx0tnt",
@@ -276625,16 +276895,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqf906vsjhu",
-      "to": "codex/overlay-schema-store-facade-split",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.386,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqf9rujm41b",
       "to": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/1",
       "kind": "context",
@@ -276922,26 +277182,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgsb1mcnid",
-      "to": "codex/extract-headless-drain-runner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.666,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgsb1mcnid",
-      "to": "codex/fix-headless-drain-default-contract-tests",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.423,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgsfzw9rnh",
       "to": "note:note-mqfhmxul2io",
       "kind": "context",
@@ -276992,16 +277232,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgtgbdm0mh",
-      "to": "codex/fix-headless-drain-default-contract-tests",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.464,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgvjghmn2z",
       "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/7",
       "kind": "context",
@@ -277039,26 +277269,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.623,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgwagrdguj",
-      "to": "codex/extract-headless-drain-runner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.633,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqgwagrdguj",
-      "to": "codex/fix-headless-drain-default-contract-tests",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.419,
       "origin": "autowire-semantic"
     },
     {
@@ -277274,16 +277484,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqh5elf8cq8",
-      "to": "codex/extract-headless-drain-runner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.659,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqh5j4p7moe",
       "to": "note:note-mqgw1hhxxss",
       "kind": "context",
@@ -277311,16 +277511,6 @@
       "by": "judge",
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqh79ecn05l",
-      "to": "codex/extract-headless-drain-runner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.706,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqh7dq5na2a",
@@ -277388,16 +277578,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.628,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqheiw4iv5t",
-      "to": "codex/overlay-schema-store-facade-split",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.359,
       "origin": "autowire-semantic"
     },
     {
@@ -278882,16 +279062,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqoe9lmojot",
-      "to": "codex/fix-headless-drain-default-contract-tests",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.52,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqonvqqre1d",
       "to": "codex/fix-onboarding-stale-legacy-queue",
       "kind": "context",
@@ -279956,16 +280126,6 @@
       "weight": 0.6,
       "by": "judge",
       "judged": true
-    },
-    {
-      "from": "note:note-mqpd82jw9j3",
-      "to": "codex/extract-headless-drain-runner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.659,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqphb5vshff",
@@ -281434,16 +281594,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqsiyvoyset",
-      "to": "codex/fix-headless-drain-default-contract-tests",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.423,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqsktjtz8ch",
       "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
       "kind": "context",
@@ -281630,56 +281780,6 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "codex/extract-headless-drain-runner",
-      "to": "codex/p1-sync-judge-drain",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.68,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/extract-headless-drain-runner",
-      "to": "codex/onboard-drain-headless",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.61,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/extract-headless-drain-runner",
-      "to": "codex/auto-drain-tested-ready-and-drop-stale-smoke",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.606,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/extract-headless-drain-runner",
-      "to": "codex/judge-breathing-learning-cloud-live-inject",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.565,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/extract-headless-drain-runner",
-      "to": "codex/review-onboard-drain-headless",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.563,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "codex/fix-consolidate-universal-skills-kickback",
       "to": "codex/consolidate-universal-skills-judge",
       "kind": "context",
@@ -281742,56 +281842,6 @@
       "judged": true
     },
     {
-      "from": "codex/fix-headless-drain-default-contract-tests",
-      "to": "codex/extract-headless-drain-runner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.493,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/fix-headless-drain-default-contract-tests",
-      "to": "codex/auto-drain-tested-ready-and-drop-stale-smoke",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.447,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/fix-headless-drain-default-contract-tests",
-      "to": "codex/headless-drain-context-compression",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.398,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/fix-headless-drain-default-contract-tests",
-      "to": "codex/review-onboard-drain-headless",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.395,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/fix-headless-drain-default-contract-tests",
-      "to": "codex/p1-sync-judge-drain",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.395,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "codex/fix-shell-write-gate-cross-shell",
       "to": "af585417-07f3-4b6f-8c96-d9b784271d32/1",
       "kind": "context",
@@ -281831,56 +281881,6 @@
       "weight": 0.95,
       "judged": true,
       "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/overlay-schema-store-facade-split",
-      "to": "codex/embedding-store-interface-impl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.441,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/overlay-schema-store-facade-split",
-      "to": "codex/embedding-store-interface",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.367,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/overlay-schema-store-facade-split",
-      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.357,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/overlay-schema-store-facade-split",
-      "to": "codex/embed-provider-contract",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.354,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/overlay-schema-store-facade-split",
-      "to": "codex/define-artifact-provider-contract-without-ast-shapes",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.347,
-      "origin": "autowire-semantic"
     },
     {
       "from": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/8",
@@ -281963,5 +281963,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-29T08:12:57.645Z"
+  "compacted_at": "2026-06-29T12:06:32.988Z"
 }
