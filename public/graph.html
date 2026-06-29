@@ -124,6 +124,8 @@
   .s-blocked { border-left-color: #f85149; } .s-blocked .st { color: #ff7b72; }
   .s-ready      { border-left-color: #d29922; } .s-ready .st { color: #e3b341; }
   .s-in_progress{ border-left-color: #1f6feb; animation: pulse 1.4s ease-in-out infinite; } .s-in_progress .st { color: #58a6ff; }
+  .s-reviewing{ border-left-color: #d29922; animation: reviewPulse 1.4s ease-in-out infinite; } .s-reviewing .st { color: #f0d77a; }
+  .s-merging{ border-left-color: #2dd4bf; animation: mergePulse 1.4s ease-in-out infinite; } .s-merging .st { color: #2dd4bf; }
   .s-tested     { border-left-color: #2dd4bf; } .s-tested .st { color: #2dd4bf; }
   .s-done       { border-left-color: #2ea043; } .s-done .st { color: #3fb950; }
   .s-failed     { border-left-color: #f85149; } .s-failed .st { color: #ff7b72; }
@@ -131,6 +133,8 @@
   .s-ghost      { border-left-color: #8957e5; border-style: dashed; opacity: .7; } .s-ghost .st { color: #d2a8ff; }
   .s-note       { border-left-color: #d29922; background: #d2992211; } .s-note .st { color: #e3b341; }
   @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 #1f6feb66; } 50% { box-shadow: 0 0 0 5px #1f6feb00; } }
+  @keyframes reviewPulse { 0%,100% { box-shadow: 0 0 0 0 #d2992266; } 50% { box-shadow: 0 0 0 5px #d2992200; } }
+  @keyframes mergePulse { 0%,100% { box-shadow: 0 0 0 0 #2dd4bf66; } 50% { box-shadow: 0 0 0 5px #2dd4bf00; } }
   /* detail drawer */
   #panel { width: 0; transition: width .2s; overflow: hidden; border-left: 1px solid #21262d; background: #11151c; height: 100%; overflow-y: auto; flex-shrink: 0; }
   #panel.open { width: 380px; }
@@ -306,9 +310,13 @@
   /* work-in-progress: pulsing blue ring + left-to-right shine sweep on node body */
   #flowsvg g.fn .fhalo { opacity: 0; pointer-events: none; }
   #flowsvg g.fn.wip .fhalo { opacity: 1; stroke: #58a6ff; animation: wipHalo 1.6s ease-in-out infinite; }
+  #flowsvg g.fn.reviewing .fhalo { opacity: 1; stroke: #d29922; animation: wipHalo 1.6s ease-in-out infinite; }
+  #flowsvg g.fn.merging .fhalo { opacity: 1; stroke: #2dd4bf; animation: wipHalo 1.6s ease-in-out infinite; }
   @keyframes wipHalo { 0%,100% { stroke-opacity: .7; stroke-width: 1.5; } 50% { stroke-opacity: .12; stroke-width: 3.5; } }
   #flowsvg g.fn .fshine-wrap { opacity: 0; pointer-events: none; }
-  #flowsvg g.fn.wip .fshine-wrap { opacity: 1; }
+  #flowsvg g.fn.wip .fshine-wrap,
+  #flowsvg g.fn.reviewing .fshine-wrap,
+  #flowsvg g.fn.merging .fshine-wrap { opacity: 1; }
   /* Focus view: steady amber halo on the focused node */
   #flowsvg g.fn.focused .fhalo { opacity: 1; stroke: #e3b341; }
   /* ── Status Dock ── */
@@ -5328,6 +5336,15 @@ function reviewCue(t){
   if(verdict==='APPROVE'||state==='approved') return 'approved';
   return reviewText(state||merge);
 }
+function taskActivityPhase(t){
+  if(!t||t.kind==='note') return '';
+  if(t.status==='in_progress') return 'wip';
+  const state=String(t.review_state||'').toLowerCase();
+  const merge=String(t.merge_state||'').toLowerCase();
+  if(merge==='pending') return 'merging';
+  if(merge==='review_pending'||state==='pending'||state==='requested') return 'reviewing';
+  return '';
+}
 function reviewCueColor(t){
   const cue=reviewCue(t);
   const tone=reviewTone(cue||t?.review_state||t?.merge_state||t?.review_verdict);
@@ -7025,7 +7042,7 @@ function wipShineOffset(){
   return p*(WIP_SHINE_NW+WIP_SHINE_BAR);
 }
 function runWipShineFrame(){
-  const wraps=document.querySelectorAll('#flowsvg g.fn.wip .fshine-wrap');
+  const wraps=document.querySelectorAll('#flowsvg g.fn.wip .fshine-wrap,#flowsvg g.fn.reviewing .fshine-wrap,#flowsvg g.fn.merging .fshine-wrap');
   if(!wraps.length){ _wipShineRaf=null; return; }
   const tx=wipShineOffset();
   wraps.forEach(el=>el.setAttribute('transform','translate('+tx+',0)'));
@@ -7134,8 +7151,9 @@ function renderDagSubset(view, nodes, links, byId){
     .attr('width',100).attr('x',-NW/2-100).attr('fill','url(#wip-shine-grad)');
   na.select('.flbar').attr('height',t=>nodeH(t)).attr('y',t=>-nodeH(t)/2);
   const isFocus=t=>view==='focus'&&t.id===focusedId;   // focused node: halo + slightly larger
+  na.attr('class',t=>'fn '+(taskActivityPhase(t)||t.status||'').replace(/[^a-zA-Z0-9_-]/g,'_'));
   na.attr('transform',t=>{ const n=g.node(t.id); return `translate(${n.x},${n.y})`+(isFocus(t)?' scale(1.12)':''); });
-  na.select('.fbg').attr('fill','#161b22').attr('stroke',t=>isFocus(t)?'#e3b341':t.status==='in_progress'?'#58a6ff':t.id===selected?'#58a6ff':'#30363d').attr('stroke-width',t=>isFocus(t)?2.5:(t.status==='in_progress'||t.id===selected)?2:1);
+  na.select('.fbg').attr('fill','#161b22').attr('stroke',t=>isFocus(t)?'#e3b341':taskActivityPhase(t)==='reviewing'?'#d29922':taskActivityPhase(t)==='merging'?'#2dd4bf':t.status==='in_progress'?'#58a6ff':t.id===selected?'#58a6ff':'#30363d').attr('stroke-width',t=>isFocus(t)?2.5:(taskActivityPhase(t)||t.status==='in_progress'||t.id===selected)?2:1);
   na.select('.flbar').attr('fill',t=>taskDisplayStatus(t,byId).color);
   na.select('.ftxt').attr('y',titleY).each(function(t){ const ls=nodeLines(t); d3.select(this).selectAll('tspan').data(ls).join('tspan').attr('x',-NW/2+12).attr('dy',(d,i)=>i===0?0:NH_EXTRA+'px').text(d=>d); });
   // Superseded notes (validTo set) read as dimmed history; current/active notes stay full-opacity.
@@ -7145,7 +7163,7 @@ function renderDagSubset(view, nodes, links, byId){
   na.on('click',(ev,t)=>openDetail(t.id));
   na.classed('wip', t=>t.status==='in_progress'&&t.agent_id&&liveAgentIds.has(t.agent_id));   // left-to-right shine sweep
   na.classed('focused', isFocus);                   // steady amber halo on the focused node
-  syncWipShineLoop(nodes.some(t=>t.status==='in_progress'&&t.agent_id&&liveAgentIds.has(t.agent_id)));
+  syncWipShineLoop(nodes.some(t=>['wip','reviewing','merging'].includes(taskActivityPhase(t))));
 
   const vw=svgEl.clientWidth||800;
   const H=nodes.length?Math.min(gh+40, Math.max(320, window.innerHeight-260)):0;

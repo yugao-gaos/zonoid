@@ -87,6 +87,13 @@ try {
   ok('writeStatus false on unkeyed input', fd.writeStatus(WS, 'plain', 'pending') === false);
   ok('no tmp left behind', fs.readdirSync(path.join(fd.dirFor(WS), 'cursor')).filter((f) => f.includes('.tmp')).length === 1); // only our deliberate fixture
 
+  ok('removeBlockedBy true count on existing stub dep', fd.removeBlockedBy(WS, 'codex/x1', 'cursor/min') === 1);
+  after = fd.readStub(WS, 'codex/x1');
+  ok('removeBlockedBy updates stub source blockedBy', after.blockedBy.includes('abc123') && !after.blockedBy.includes('cursor/min'));
+  agg = fd.aggregateWorkspace(WS);
+  const x1After = agg.find((t) => t.key === 'codex/x1');
+  ok('removeBlockedBy updates aggregate deps', x1After && !x1After.deps.includes('cursor/min') && x1After.deps.includes('codex/abc123'));
+
   // --- watch: fires on a stub drop; disposer doesn't throw ---
   (async () => {
     let fired = false;

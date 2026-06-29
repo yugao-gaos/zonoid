@@ -86,6 +86,15 @@ function applyVerdict(overlay, v) {
   ok('createEdge stamps the source note judgedAtEpoch=epoch', o.judgedAtEpoch['note:a'] === 3);
 }
 
+// --- readiness repair: removing a snapshotted native blockedBy restamps the snapshot -------------
+{
+  const o = ov.EMPTY();
+  o.snapshots['s/task'] = { subject: 'task', description: '', status: 'pending', blockedBy: ['s/old', 's/keep'], snapshotted_at: '2026-01-01T00:00:00.000Z' };
+  const removed = ov.removeSnapshotBlockedBy(o, 's/task', 's/old');
+  ok('removeSnapshotBlockedBy removes exactly the requested dependency', removed === 1 && !o.snapshots['s/task'].blockedBy.includes('s/old') && o.snapshots['s/task'].blockedBy.includes('s/keep'));
+  ok('removeSnapshotBlockedBy restamps changed snapshots for persistence', o.snapshots['s/task'].snapshotted_at !== '2026-01-01T00:00:00.000Z');
+}
+
 // --- keepEdge: flip an unverified edge to judged:true -------------------------------------------
 {
   const o = ov.EMPTY();

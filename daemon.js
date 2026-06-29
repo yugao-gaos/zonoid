@@ -173,6 +173,11 @@ function aggregateCached(ws) {
   return v;
 }
 
+function invalidateAggregate(ws) {
+  cache.agg.delete(ws);
+  cache.aggAt.delete(ws);
+}
+
 // (P3) The Phase-1 workspace-fallback observability seam (warnWorkspaceFallback) has been REMOVED:
 // it instrumented the silent fall-through to the daemon-global pointer, and that pointer no longer
 // exists — every seam that used to fall through now either receives an explicit workspace or 400s.
@@ -552,7 +557,7 @@ function targetOverlay(b, u) {
   if (!explicit) return { ws: null, ov: overlayStore.EMPTY(), save: () => {} };
   const ws = explicit;
   const ov = overlayFor(ws);
-  return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws, ov); } };
+  return { ws, ov, save: () => { overlayStore.save(ws, ov); refreshOverlayStamp(ws, ov); invalidateAggregate(ws); } };
 }
 
 function saveDispatchOverlay(ws, ov) {

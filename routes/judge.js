@@ -144,7 +144,7 @@ function ensureHarnessJudgeDrainTask(ov, save) {
 
 const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
   const { send, readBody, notifyChange, buildGraph, state, targetOverlay,
-    noteRagCandidates } = ctx;
+    noteRagCandidates, filedrop } = ctx;
 
   // PROMOTION QUEUE: autowire context edges are seeded at weight 0 (retrieval-invisible). An `edge`
   // item here is an unjudged autowire edge awaiting confirmation; a keepEdge verdict PROMOTES it
@@ -354,11 +354,8 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	      T.ov.edges = T.ov.edges.filter((e) => !(e.from === depKey && e.to === taskKey && (e.kind == null || e.kind === 'blocking')));
 	      changed += beforeEdges - T.ov.edges.length;
 	      const snap = T.ov.snapshots && T.ov.snapshots[taskKey];
-	      if (snap && Array.isArray(snap.blockedBy)) {
-	        const beforeDeps = snap.blockedBy.length;
-	        snap.blockedBy = snap.blockedBy.filter((d) => String(d) !== String(depKey));
-	        changed += beforeDeps - snap.blockedBy.length;
-	      }
+	      if (snap && Array.isArray(snap.blockedBy)) changed += overlayStore.removeSnapshotBlockedBy(T.ov, taskKey, depKey);
+	      if (filedrop && typeof filedrop.removeBlockedBy === 'function') changed += filedrop.removeBlockedBy(T.ws, taskKey, depKey);
 	      return changed;
 	    };
 	    const clearRepair = (taskKey) => {
