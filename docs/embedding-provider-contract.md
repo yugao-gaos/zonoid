@@ -1,7 +1,9 @@
 # Embedding Provider Contract
 
 Status: architecture contract plus registry metadata. Runtime adapter work is
-limited to providers that already have an implementation in `lib/embed-providers.js`.
+limited to providers that already have an implementation in
+`lib/embed-providers.js`; Voyage multimodal and Cohere Embed v4 are the current
+hosted multimodal adapters.
 
 This contract defines the capability surface future embedding adapters must
 expose before they are eligible for provider-swap work. MiniLM remains the legacy
@@ -72,12 +74,14 @@ to be implemented in this task:
 |---|---|---|---|---|
 | Voyage multimodal | hosted | text, image | `input_type` | `hosted_tuned_model` |
 | Cohere Embed v4 | hosted | text, image | `input_type` | `hosted_tuned_model` |
-| Gemini / Vertex embeddings | hosted | text, image, video | `task_type` / Vertex task type | `hosted_tuned_model` |
+| Gemini / Vertex embeddings | hosted | text only in the current adapter | `task_type` / Vertex task type | `hosted_tuned_model` |
 | Jina v5 omni/local | hosted or local | text, image, video, audio | adapter/template prefixes | `local_lora_adapter` |
 
 For Gemini, adapter code must verify the selected API/model supports the
 declared modality before passing the gate. The existing text endpoint is not
-enough by itself.
+enough by itself, so the current Gemini registry entry is disabled for
+provider-swap eligibility until a verified multimodal Vertex/Gemini adapter is
+implemented.
 
 ## Adapter contract
 
