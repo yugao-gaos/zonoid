@@ -240293,6 +240293,195 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/embed-provider-eval-docs": {
+      "id": "codex/embed-provider-eval-docs",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Evaluate embedding provider swap and document operational choices",
+        "description": "Evaluate and document the embedding-provider rollout. Run focused retrieval benchmarks against the current MiniLM baseline and at least one eligible provider config when credentials or local runtime are available; otherwise provide mocked integration coverage plus a clear manual runbook. Document the provider matrix: local vs hosted, dimensions, cost considerations, query/document support, multimodal support, and customization paths such as hosted tuned models or local LoRA/adapters. Include rollback and reembed instructions. Success: maintainers can decide which provider to enable and can run/rollback the migration without relying on prior chat context.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/embed-provider-reembed-migration"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-29T17:06:23.343Z"
+      },
+      "assignee": "worker-embed-provider-eval-docs",
+      "timestamps": {
+        "firstSeen": "2026-06-21T15:19:48.674Z",
+        "lastChanged": "2026-06-29T17:08:48.554Z",
+        "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/embed-provider-hosted-adapters": {
+      "id": "codex/embed-provider-hosted-adapters",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Implement hosted multimodal instruct embedding adapters",
+        "description": "Add hosted provider adapters for eligible multimodal + instruct embedding providers. Prefer one or two from Voyage multimodal, Cohere embed-v4, and Google Gemini/Vertex embedding, based on API fit and minimal scope. Provider registration must reject/disable providers that lack multimodal support or retrieval query/document task behavior. Handle dimensions, batching, env-based secrets, provider errors, and rate-limit/retry basics. Tests must mock HTTP and must not make paid API calls. Include provider capability declarations consumed by the provider contract.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/embed-provider-contract"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-29T16:32:31.963Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-06-21T15:18:06.725Z",
+        "lastChanged": "2026-06-29T16:35:50.400Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/embed-provider-instruct-api": {
+      "id": "codex/embed-provider-instruct-api",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Thread query and document instruct modes through embedding call sites",
+        "description": "Replace bare embed(text) assumptions with an instruct-aware embedding API, e.g. embed({ input, mode: retrieval.query | retrieval.document, modality, provider options }). Use document mode on ingestion/backfill for notes, tasks, knowledge, entities, and source chunks. Use query mode for search, suggest_links, guidance/knowledge lookup, and other user-query paths. Keep existing behavior deterministic until a provider is configured. Success: tests prove query/document modes are forwarded to providers and call sites do not silently use document embeddings for queries or vice versa.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/embed-provider-contract",
+          "codex/embed-provider-vector-identity"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-29T16:48:34.880Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-06-21T15:17:31.826Z",
+        "lastChanged": "2026-06-29T17:01:35.910Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/embed-provider-local-adapter": {
+      "id": "codex/embed-provider-local-adapter",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Implement local multimodal instruct embedding adapter",
+        "description": "Add a local embedding adapter only for an actually runnable multimodal + instruct-capable candidate, with Jina v5 omni or an equivalent model as the first candidate. Verify runtime support in our Node/transformers/ONNX stack before claiming support. If the candidate cannot run locally, leave the provider disabled with a precise runtime gap rather than faking capability. Include adapter/tuned_model_id or adapter path in vector identity so local LoRA/task adapters invalidate vectors correctly. Tests should mock routing and run a real model smoke only when download/runtime support is available locally.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/embed-provider-contract"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-29T16:42:06.693Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-06-21T15:18:14.196Z",
+        "lastChanged": "2026-06-29T16:45:49.010Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/embed-provider-reembed-migration": {
+      "id": "codex/embed-provider-reembed-migration",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Build reembed migration and provider swap controls",
+        "description": "Add the operational path for switching embedding providers safely. Provide an admin/CLI/API reembed path that can rebuild all affected vectors with explicit provider/model/dimensions/task_mode/adapter identity. Backfill must overwrite existing vectors when vector identity differs; do not silently skip stale vectors. Preserve graph nodes, structural edges, notes, tasks, and decisions. Invalidate or rebuild semantic derived artifacts that depend on old cosine values. Include dry-run/progress/resume behavior where it fits existing patterns, and handle dimension mismatch cleanly. Success: tests cover model, dimension, provider, task-mode, and adapter changes and prove stale vectors are not reused.",
+        "status": "completed",
+        "blockedBy": [
+          "codex/embed-provider-vector-identity",
+          "codex/embed-provider-instruct-api",
+          "codex/embed-provider-hosted-adapters",
+          "codex/embed-provider-local-adapter"
+        ],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-06-29T16:58:54.035Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-06-21T15:19:28.985Z",
+        "lastChanged": "2026-06-29T17:01:45.182Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -265788,7 +265977,7 @@
       "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "blocking-dep-seed"
+      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/embed-provider-hosted-adapters",
@@ -265797,7 +265986,7 @@
       "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "blocking-dep-seed"
+      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/embed-provider-instruct-api",
@@ -265806,7 +265995,7 @@
       "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "blocking-dep-seed"
+      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/embed-provider-local-adapter",
@@ -265815,7 +266004,7 @@
       "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "blocking-dep-seed"
+      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/embed-provider-vector-identity",
@@ -265830,7 +266019,7 @@
       "weight": 0.5,
       "by": "judge",
       "judged": true,
-      "origin": "blocking-dep-seed"
+      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/exec-brain-state-seam-post-gate-fix",
@@ -267354,10 +267543,11 @@
       "from": "note:note-mqodt9p3kwd",
       "to": "codex/embed-provider-hosted-adapters",
       "kind": "context",
-      "weight": 0.5,
-      "by": "judge",
+      "weight": 0.895,
+      "by": "subconscious",
       "judged": true,
-      "origin": "asserted"
+      "origin": "subconscious-agentic-search",
+      "score": 0.895
     },
     {
       "from": "note:note-mqodt9p3kwd",
@@ -276163,6 +276353,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "knowledge:source_chunk:chunk-agents-md-2-10-hand-the-worker-a-typed-handoff-envelop-14ebaabeca",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.34,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "to": "note:note-mqqqrlczyc2",
       "kind": "context",
@@ -276178,6 +276378,16 @@
       "by": "autowire",
       "judged": false,
       "score": 0.433,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-claude-md-2-10-hand-the-worker-a-typed-handoff-envelop-2304120d9e",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.34,
       "origin": "autowire-semantic"
     },
     {
@@ -276228,6 +276438,16 @@
       "by": "autowire",
       "judged": false,
       "score": 0.347,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-readme-md-4-0-after-each-session-zonoid-mines-the-comp-7eb25e4957",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.351,
       "origin": "autowire-semantic"
     },
     {
@@ -276938,6 +277158,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.551,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqd77fazue0",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.399,
       "origin": "autowire-semantic"
     },
     {
@@ -277691,6 +277921,16 @@
       "by": "autowire",
       "judged": false,
       "score": 0.49,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgu5ovs60x",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.376,
       "origin": "autowire-semantic"
     },
     {
@@ -279365,6 +279605,16 @@
       "origin": "asserted"
     },
     {
+      "from": "note:note-mqjtvvr93wh",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.373,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqjx2nj5gav",
       "to": "codex/judge-exec-brain-state-seam",
       "kind": "context",
@@ -279524,6 +279774,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqojzvvx8vf",
+      "to": "codex/embed-provider-hosted-adapters",
+      "kind": "context",
+      "weight": 0.885,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.885,
+      "origin": "subconscious-agentic-search"
+    },
+    {
       "from": "note:note-mqonvqqre1d",
       "to": "codex/fix-onboarding-stale-legacy-queue",
       "kind": "context",
@@ -279648,6 +279908,16 @@
       "judged": true,
       "score": 0.588,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp4y66jmkx",
+      "to": "codex/embed-provider-hosted-adapters",
+      "kind": "context",
+      "weight": 0.92,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.92,
+      "origin": "subconscious-agentic-search"
     },
     {
       "from": "note:note-mqp4ysb8z7l",
@@ -280994,6 +281264,16 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "note:note-mqplemzsrvt",
+      "to": "codex/embed-provider-hosted-adapters",
+      "kind": "context",
+      "weight": 0.83,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.83,
+      "origin": "subconscious-agentic-search"
+    },
+    {
       "from": "note:note-mqplytfmawp",
       "to": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
       "kind": "context",
@@ -281129,6 +281409,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.559,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpwne6dbsp",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.372,
       "origin": "autowire-semantic"
     },
     {
@@ -281904,6 +282194,16 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "note:note-mqr366hr6af",
+      "to": "codex/embed-provider-hosted-adapters",
+      "kind": "context",
+      "weight": 0.857,
+      "by": "subconscious",
+      "judged": true,
+      "score": 0.857,
+      "origin": "subconscious-agentic-search"
+    },
+    {
       "from": "note:note-mqs2kpieojw",
       "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/21",
       "kind": "context",
@@ -282224,6 +282524,128 @@
       "judged": true
     },
     {
+      "from": "codex/embed-provider-contract",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-contract",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-hosted-adapters",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-hosted-adapters",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-hosted-adapters",
+      "to": "codex/embed-provider-eval-docs",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-instruct-api",
+      "to": "codex/embedding-provider-instruct-ft",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.445,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/embed-provider-instruct-api",
+      "to": "codex/progressive-disclosure-context-contract",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.38,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/embed-provider-instruct-api",
+      "to": "codex/progressive-disclosure-context-verification",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.379,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/embed-provider-instruct-api",
+      "to": "codex/embed-provider-eval-docs",
+      "kind": "context",
+      "weight": 0.372,
+      "by": "judge",
+      "judged": true,
+      "score": 0.372,
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-instruct-api",
+      "to": "knowledge:source_section:section-readme-md-4-self-improvement-loop-be64cf7dc2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.351,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/embed-provider-local-adapter",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-local-adapter",
+      "to": "codex/embed-provider-eval-docs",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-reembed-migration",
+      "to": "codex/embed-provider-eval-docs",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-vector-identity",
+      "to": "codex/embed-provider-hosted-adapters",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-vector-identity",
+      "to": "codex/embed-provider-local-adapter",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-vector-identity",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/embed-provider-vector-identity",
+      "to": "codex/embed-provider-eval-docs",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
       "from": "codex/exec-brain-state-seam-agent-impl",
       "to": "codex/exec-brain-state-seam-retry",
       "kind": "context",
@@ -282417,5 +282839,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-29T16:18:39.838Z"
+  "compacted_at": "2026-06-29T17:13:36.880Z"
 }
