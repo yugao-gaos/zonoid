@@ -232321,7 +232321,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "canceled",
+      "status": "failed",
       "summary": "KICK_BACK: causal_edges are intended to write non-blocking context evidence, but applyCausalEdges currently calls overlayStore.addEdge(kind:'context') directly. addEdge dedupes by endpoints and upgrades an existing blocking edge with the same from/to pair into context, so a task_result causal assertion can silently remove a scheduling dependency. Add a regression test and preserve blocking edges when recording causal metadata.",
       "category": null,
       "tags": [],
@@ -232345,8 +232345,8 @@
       "assignee": "codex-main-reviewer-20260623",
       "timestamps": {
         "firstSeen": "2026-06-23T14:45:45.192Z",
-        "lastChanged": "2026-06-23T15:03:16.601Z",
-        "lastStatus": "canceled"
+        "lastChanged": "2026-06-29T20:42:55.902Z",
+        "lastStatus": "failed"
       },
       "metrics": null,
       "measurements": null,
@@ -282913,5 +282913,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-06-29T20:26:03.507Z"
+  "compacted_at": "2026-06-29T20:49:16.305Z"
 }
