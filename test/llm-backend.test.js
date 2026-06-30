@@ -401,12 +401,16 @@ test('api provider: callApi does an IN-PROCESS HTTPS call and returns { text, us
     assert.equal(opts.headers.Authorization, 'Bearer or-key');
     const sent = JSON.parse(body);
     assert.equal(sent.model, 'gpt-test');
+    assert.deepEqual(sent.response_format, { type: 'json_object' });
     assert.ok(Array.isArray(sent.messages) && sent.messages.length >= 1);
     return { status: 200, body: { choices: [{ message: { content: 'hello world' } }], usage: { total_tokens: 12 } } };
   });
   try {
     const out = await assertNoChildProcess(() => backend.callApi({
-      messages: [{ role: 'user', content: 'hi' }], model: 'gpt-test', httpsModule: fake,
+      messages: [{ role: 'user', content: 'hi' }],
+      model: 'gpt-test',
+      responseFormat: { type: 'json_object' },
+      httpsModule: fake,
     }));
     assert.equal(out.text, 'hello world', 'parses choices[0].message.content');
     assert.deepEqual(out.usage, { total_tokens: 12 }, 'carries usage through');

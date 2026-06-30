@@ -316,7 +316,7 @@ test('a backend returning {result:"..."} (claude/codex provider shape) is unwrap
 // ---- default backend over the shared provider seam ----------------------------------
 
 test('createDefaultGraderBackend drives an api-kind provider via callApi', async () => {
-  let seenMessages = null;
+  let seenArgs = null;
   const fakeBackendLib = {
     getActiveBackend() {
       return {
@@ -325,19 +325,30 @@ test('createDefaultGraderBackend drives an api-kind provider via callApi', async
         config: { key: 'k' },
         provider: {
           kind: 'api',
-          async callApi({ messages }) { seenMessages = messages; return { text: JSON.stringify({ continue: false, nextQuery: null, kept: [], abstain: true, aggregate: '' }) }; },
+          async callApi(args) { seenArgs = args; return { text: JSON.stringify({ continue: false, nextQuery: null, kept: [], abstain: true, aggregate: '' }) }; },
         },
       };
     },
   };
-  const backend = createDefaultGraderBackend({ overlay: {}, backendLib: fakeBackendLib });
-  const out = await gradeSearchRound(
-    { intent: 'auth', originalQuery: 'auth', candidates: candidates(), round: 1, maxRounds: 2 },
-    { backend }
-  );
+  const saved = process.env.ORCH_GRADER_MAX_TOKENS;
+  let out;
+  try {
+    process.env.ORCH_GRADER_MAX_TOKENS = '32';
+    const backend = createDefaultGraderBackend({ overlay: {}, backendLib: fakeBackendLib });
+    out = await gradeSearchRound(
+      { intent: 'auth', originalQuery: 'auth', candidates: candidates(), round: 1, maxRounds: 2 },
+      { backend }
+    );
+  } finally {
+    if (saved === undefined) delete process.env.ORCH_GRADER_MAX_TOKENS;
+    else process.env.ORCH_GRADER_MAX_TOKENS = saved;
+  }
+  const seenMessages = seenArgs && seenArgs.messages;
   assert.ok(Array.isArray(seenMessages) && seenMessages.length === 2, 'system + user messages were sent');
   assert.equal(seenMessages[0].role, 'system');
   assert.equal(seenMessages[1].role, 'user');
+  assert.equal(seenArgs.maxTokens, 64);
+  assert.deepEqual(seenArgs.responseFormat, { type: 'json_object' });
   assert.equal(out.abstain, true);
 });
 
