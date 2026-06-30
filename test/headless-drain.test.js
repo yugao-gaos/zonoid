@@ -88,75 +88,18 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 1: default ON; explicit opt-out → no spawn
+// Test 1: drains are mandatory
 // ---------------------------------------------------------------------------
 
-test('flag ORCH_HEADLESS_DRAINS unset → isHeadlessEnabled returns true', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  delete process.env.ORCH_HEADLESS_DRAINS;
-  try {
-    const hd = freshModule();
-    assert.equal(hd.isHeadlessEnabled(), true, 'should be enabled when env var is unset');
+test('isHeadlessEnabled compatibility export always returns true', async () => {
+  const hd = freshModule();
+  assert.equal(hd.isHeadlessEnabled(), true);
 
-    // With no queue files and no judge/label work, runDueDrains is enabled but idle.
-    const result = await hd.runDueDrains({ workspace: os.tmpdir() });
-    assert.equal(result.ran, 0, 'ran should be 0 when no drains are due');
-    assert.equal(result.skipped, 'no_due_drains', 'skipped reason should be no_due_drains');
-    assert.deepEqual(result.drains, [], 'drains array should be empty');
-  } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
-  }
-});
-
-test('flag ORCH_HEADLESS_DRAINS=0 → isHeadlessEnabled returns false', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '0';
-  try {
-    const hd = freshModule();
-    assert.equal(hd.isHeadlessEnabled(), false);
-    const result = await hd.runDueDrains(null);
-    assert.equal(result.skipped, 'flag_off');
-  } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
-  }
-});
-
-test('flag ORCH_HEADLESS_DRAINS=false → isHeadlessEnabled returns false', () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = 'false';
-  try {
-    const hd = freshModule();
-    assert.equal(hd.isHeadlessEnabled(), false);
-  } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
-  }
-});
-
-test('flag ORCH_HEADLESS_DRAINS=no → isHeadlessEnabled returns false', () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = 'no';
-  try {
-    const hd = freshModule();
-    assert.equal(hd.isHeadlessEnabled(), false);
-  } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
-  }
-});
-
-test('flag ORCH_HEADLESS_DRAINS=1 → isHeadlessEnabled returns true', () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
-  try {
-    const hd = freshModule();
-    assert.equal(hd.isHeadlessEnabled(), true);
-  } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
-  }
+  // With no queue files and no judge/label work, runDueDrains is enabled but idle.
+  const result = await hd.runDueDrains({ workspace: os.tmpdir() });
+  assert.equal(result.ran, 0, 'ran should be 0 when no drains are due');
+  assert.equal(result.skipped, 'no_due_drains', 'skipped reason should be no_due_drains');
+  assert.deepEqual(result.drains, [], 'drains array should be empty');
 });
 
 // ---------------------------------------------------------------------------
@@ -164,8 +107,6 @@ test('flag ORCH_HEADLESS_DRAINS=1 → isHeadlessEnabled returns true', () => {
 // ---------------------------------------------------------------------------
 
 test('iterationsUsed >= maxIterations → runDueDrains skips with iterations_exhausted', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
   // Set a very low cap via env
   const savedMax = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '2';
@@ -182,16 +123,12 @@ test('iterationsUsed >= maxIterations → runDueDrains skips with iterations_exh
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedMax === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
     else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedMax;
   }
 });
 
 test('tokensUsed >= tokenBudget → runDueDrains skips with token_budget_exhausted', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedBudget = process.env.HEADLESS_DRAIN_TOKEN_BUDGET;
   process.env.HEADLESS_DRAIN_TOKEN_BUDGET = '1000';
   try {
@@ -206,16 +143,12 @@ test('tokensUsed >= tokenBudget → runDueDrains skips with token_budget_exhaust
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedBudget === undefined) delete process.env.HEADLESS_DRAIN_TOKEN_BUDGET;
     else process.env.HEADLESS_DRAIN_TOKEN_BUDGET = savedBudget;
   }
 });
 
 test('concurrentRunning >= maxConcurrency → runDueDrains skips with concurrency_cap', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '1';
   try {
@@ -230,16 +163,12 @@ test('concurrentRunning >= maxConcurrency → runDueDrains skips with concurrenc
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
   }
 });
 
 test('host-wide lease cap blocks drains across daemon processes', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '1';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -261,8 +190,6 @@ test('host-wide lease cap blocks drains across daemon processes', async () => {
     if (lease && typeof lease.release === 'function') lease.release();
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -270,9 +197,7 @@ test('host-wide lease cap blocks drains across daemon processes', async () => {
   }
 });
 
-test('no pending queue repos → runDueDrains skips with no_due_drains (flag ON, budget OK)', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('no pending queue repos → runDueDrains skips with no_due_drains', async () => {
   try {
     const hd = freshModule();
     // Workspace with a completed queue (cursor === total) — not due
@@ -285,14 +210,10 @@ test('no pending queue repos → runDueDrains skips with no_due_drains (flag ON,
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
   }
 });
 
 test('runDueDrains does not merge approved tested tasks when automode is OFF', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
   const hd = freshModule();
   const overlayStore = require('../lib/overlay');
   const o = overlayStore.EMPTY();
@@ -327,14 +248,10 @@ test('runDueDrains does not merge approved tested tasks when automode is OFF', a
     assert.equal(o.status[key], 'tested');
     assert.equal(overlayStore.reviewLifecycleFor(o, key, 'tested').merge_state, 'pending');
   } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
   }
 });
 
 test('runDueDrains merges approved tested tasks when automode is ON', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
   const hd = freshModule();
   const overlayStore = require('../lib/overlay');
   const o = overlayStore.EMPTY();
@@ -369,8 +286,6 @@ test('runDueDrains merges approved tested tasks when automode is ON', async () =
     assert.equal(o.status[key], 'done');
     assert.equal(overlayStore.reviewLifecycleFor(o, key, 'done').merge_state, 'merged');
   } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
   }
 });
 
@@ -529,8 +444,6 @@ test('commitGraphSnapshot commits only .graph changes', () => {
 });
 
 test('successful label drain records a graph snapshot commit summary', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -555,8 +468,6 @@ test('successful label drain records a graph snapshot commit summary', async () 
   } finally {
     restore();
     fs.rmSync(repo, { recursive: true, force: true });
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -804,8 +715,6 @@ test('findPendingLearnerRepos returns empty when no queue file exists', () => {
 });
 
 test('runDueDrains with mocked runDrain: governor is incremented and decremented correctly', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedMaxIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '10';
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
@@ -837,8 +746,6 @@ test('runDueDrains with mocked runDrain: governor is incremented and decremented
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedMaxIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
     else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedMaxIter;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
@@ -846,9 +753,7 @@ test('runDueDrains with mocked runDrain: governor is incremented and decremented
   }
 });
 
-test('flag ON: learner backlog starts one learner per pump by default', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('learner backlog starts one learner per pump by default', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '2';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -885,8 +790,6 @@ test('flag ON: learner backlog starts one learner per pump by default', async ()
   } finally {
     restore();
     fs.rmSync(tmpDir, { recursive: true, force: true });
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -1275,29 +1178,9 @@ test('findDueJudgeWork swallows loader errors and returns no due work', () => {
   assert.equal(due.depth, 0);
 });
 
-// ---- flag OFF: no judge spawn even when judge work is pending ------------------------
+// ---- judge spawns for both eager + periodic, governor accounted ----------------------
 
-test('explicit flag OFF ⇒ NO judge spawn even when eager + periodic work is pending', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '0';
-  const { hd, calls, restore } = freshModuleWithMockedSpawn();
-  try {
-    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, undefined,
-      judgeDeps({ depth: 5, eagerNodes: ['note:x'] }));
-    assert.equal(result.skipped, 'flag_off');
-    assert.equal(calls.length, 0, 'flag off must spawn nothing');
-  } finally {
-    restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
-  }
-});
-
-// ---- flag ON: judge spawns for both eager + periodic, governor accounted -------------
-
-test('flag ON: runDueDrains spawns judge for each eager node + one periodic batch', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('runDueDrains spawns judge for each eager node + one periodic batch', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -1326,8 +1209,6 @@ test('flag ON: runDueDrains spawns judge for each eager node + one periodic batc
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -1335,9 +1216,7 @@ test('flag ON: runDueDrains spawns judge for each eager node + one periodic batc
   }
 });
 
-test('flag ON: periodic judge backlog refills slots up to maxConcurrency until current backlog is drained', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('periodic judge backlog refills slots up to maxConcurrency until current backlog is drained', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '4';
   const savedPerTick = process.env.HEADLESS_DRAIN_MAX_PER_TICK;
@@ -1366,8 +1245,6 @@ test('flag ON: periodic judge backlog refills slots up to maxConcurrency until c
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedPerTick === undefined) delete process.env.HEADLESS_DRAIN_MAX_PER_TICK;
@@ -1375,9 +1252,7 @@ test('flag ON: periodic judge backlog refills slots up to maxConcurrency until c
   }
 });
 
-test('flag ON: judge fan-out is bounded by the iteration cap', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('judge fan-out is bounded by the iteration cap', async () => {
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '2'; // only 2 spawns allowed total
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
@@ -1393,8 +1268,6 @@ test('flag ON: judge fan-out is bounded by the iteration cap', async () => {
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
     else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
@@ -1402,9 +1275,7 @@ test('flag ON: judge fan-out is bounded by the iteration cap', async () => {
   }
 });
 
-test('flag ON but no judge work due ⇒ no judge spawn (no_due_drains)', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('mandatory drains but no judge work due ⇒ no judge spawn (no_due_drains)', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const tmpDir = makeCompletedQueueDir();
   try {
@@ -1415,8 +1286,6 @@ test('flag ON but no judge work due ⇒ no judge spawn (no_due_drains)', async (
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
   }
 });
 
@@ -1481,9 +1350,7 @@ test('resolveJudgeBackend: api-kind active backend with NO key ⇒ skip:no_backe
 
 // ---- (c) the judge drain SPAWN is driven by the active provider's invocation ---------
 
-test('flag ON: judge spawn argv is built by getActiveBackend().buildInvocation (mocked provider)', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('judge spawn argv is built by getActiveBackend().buildInvocation (mocked provider)', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
@@ -1505,8 +1372,6 @@ test('flag ON: judge spawn argv is built by getActiveBackend().buildInvocation (
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
   }
@@ -1514,9 +1379,7 @@ test('flag ON: judge spawn argv is built by getActiveBackend().buildInvocation (
 
 // ---- (d) HARD-BLOCK: no valid backend ⇒ judge no-ops with skipped:no_backend ----------
 
-test('flag ON: judge due but NO valid backend ⇒ no spawn, skipped:no_backend (hard-block, not crash)', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('judge due but NO valid backend ⇒ no spawn, skipped:no_backend (hard-block, not crash)', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const mb = mockBackendDeps({ available: true, authed: false }); // unauthed ⇒ hard-block
   const tmpDir = makeCompletedQueueDir(); // learner NOT due; label deps empty below
@@ -1533,14 +1396,10 @@ test('flag ON: judge due but NO valid backend ⇒ no spawn, skipped:no_backend (
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
   }
 });
 
-test('flag ON: hard-block judge does NOT suppress a due LABEL drain (label still runs)', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('hard-block judge does NOT suppress a due LABEL drain (label still runs)', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -1564,8 +1423,6 @@ test('flag ON: hard-block judge does NOT suppress a due LABEL drain (label still
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -1575,9 +1432,7 @@ test('flag ON: hard-block judge does NOT suppress a due LABEL drain (label still
 
 // ---- (e) api-kind active backend ⇒ judge runs in a lightweight worker child --------------------
 
-test('flag ON: api-kind active backend ⇒ judge spawns API worker, not provider invocation', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('api-kind active backend ⇒ judge spawns API worker, not provider invocation', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -1614,8 +1469,6 @@ test('flag ON: api-kind active backend ⇒ judge spawns API worker, not provider
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -1623,9 +1476,7 @@ test('flag ON: api-kind active backend ⇒ judge spawns API worker, not provider
   }
 });
 
-test('flag ON: api-kind backend with NO key ⇒ judge hard-blocks (skipped:no_backend), no worker spawn', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('api-kind backend with NO key ⇒ judge hard-blocks (skipped:no_backend), no worker spawn', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: false }); // no key ⇒ hard-block
   const tmpDir = makeCompletedQueueDir();
@@ -1642,14 +1493,10 @@ test('flag ON: api-kind backend with NO key ⇒ judge hard-blocks (skipped:no_ba
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
   }
 });
 
-test('flag ON: api worker failure becomes a clean failed drain and feeds backoff', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('api worker failure becomes a clean failed drain and feeds backoff', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({ code: 1, stderr: 'runJudgeLoop threw: boom' }));
   const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: true });
   const tmpDir = makeCompletedQueueDir();
@@ -1669,14 +1516,10 @@ test('flag ON: api worker failure becomes a clean failed drain and feeds backoff
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
   }
 });
 
-test('flag ON: api worker throttle result feeds the backoff governor (recordDrainOutcome)', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('api worker throttle result feeds the backoff governor (recordDrainOutcome)', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn(() => makeFakeChild({ code: 1, stderr: '429 rate limit / overloaded' }));
   const mb = mockBackendDeps({ id: 'mock-api', kind: 'api', authed: true });
   const tmpDir = makeCompletedQueueDir();
@@ -1693,8 +1536,6 @@ test('flag ON: api worker throttle result feeds the backoff governor (recordDrai
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
   }
 });
 
@@ -1803,31 +1644,9 @@ test('findDueLabelWork swallows loader errors and returns no due work', () => {
   assert.equal(due.pending, 0);
 });
 
-// ---- flag OFF: no label spawn even when label work is pending ------------------------
+// ---- label spawns ONE Node child targeting gate-label.js -----------------------------
 
-test('explicit flag OFF ⇒ NO label spawn even when label work is pending', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '0';
-  const { hd, calls, restore } = freshModuleWithMockedSpawn();
-  try {
-    const result = await hd.runDueDrains({ workspace: os.tmpdir() }, undefined, {
-      ...judgeDeps({ depth: 0, eagerNodes: [] }),
-      ...labelDeps({ journal: [{ _k: 'a', task_key: 't1' }], labeledKeys: [] }),
-    });
-    assert.equal(result.skipped, 'flag_off');
-    assert.equal(calls.length, 0, 'flag off must spawn nothing (label included)');
-  } finally {
-    restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
-  }
-});
-
-// ---- flag ON: label spawns ONE Node child targeting gate-label.js --------------------
-
-test('flag ON: runDueDrains spawns ONE label drain (node gate-label.js), governor accounted', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('runDueDrains spawns ONE label drain (node gate-label.js), governor accounted', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -1862,8 +1681,6 @@ test('flag ON: runDueDrains spawns ONE label drain (node gate-label.js), governo
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -1871,9 +1688,7 @@ test('flag ON: runDueDrains spawns ONE label drain (node gate-label.js), governo
   }
 });
 
-test('flag ON: in-flight detached label drain suppresses duplicate label spawns', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('in-flight detached label drain suppresses duplicate label spawns', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -1904,8 +1719,6 @@ test('flag ON: in-flight detached label drain suppresses duplicate label spawns'
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -1913,9 +1726,7 @@ test('flag ON: in-flight detached label drain suppresses duplicate label spawns'
   }
 });
 
-test('flag ON but no label work due ⇒ no label spawn', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('mandatory drains but no label work due ⇒ no label spawn', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const tmpDir = makeCompletedQueueDir();
   try {
@@ -1928,14 +1739,10 @@ test('flag ON but no label work due ⇒ no label spawn', async () => {
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
   }
 });
 
-test('flag ON: label spawn is suppressed when the concurrency cap is already reached', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('label spawn is suppressed when the concurrency cap is already reached', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '2';
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
@@ -1953,8 +1760,6 @@ test('flag ON: label spawn is suppressed when the concurrency cap is already rea
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
   }
@@ -2001,9 +1806,7 @@ test('recordDrainOutcome: backoff window is capped at capMs', () => {
   assert.equal(hd._governor.backoffUntil, capMs, 'window capped at capMs');
 });
 
-test('flag ON: runDueDrains no-ops with skipped:backoff while backoffUntil is in the future', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('runDueDrains no-ops with skipped:backoff while backoffUntil is in the future', async () => {
   const { hd, calls, restore } = freshModuleWithMockedSpawn();
   const tmpDir = makePendingQueueDir(); // learner WOULD be due — backoff must pre-empt it
   try {
@@ -2017,14 +1820,10 @@ test('flag ON: runDueDrains no-ops with skipped:backoff while backoffUntil is in
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
   }
 });
 
-test('flag ON: judge spawns are capped per tick (HEADLESS_DRAIN_MAX_PER_TICK) despite many eager nodes', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('judge spawns are capped per tick (HEADLESS_DRAIN_MAX_PER_TICK) despite many eager nodes', async () => {
   const savedCap = process.env.HEADLESS_DRAIN_MAX_PER_TICK;
   process.env.HEADLESS_DRAIN_MAX_PER_TICK = '2';
   const { hd, calls, restore } = freshModuleWithMockedSpawn(); // clean exit-0 children
@@ -2039,16 +1838,12 @@ test('flag ON: judge spawns are capped per tick (HEADLESS_DRAIN_MAX_PER_TICK) de
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_PER_TICK;
     else process.env.HEADLESS_DRAIN_MAX_PER_TICK = savedCap;
   }
 });
 
-test('flag ON: label iteration is suppressed when the iteration cap is exhausted mid-pass', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
+test('label iteration is suppressed when the iteration cap is exhausted mid-pass', async () => {
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
   process.env.HEADLESS_DRAIN_MAX_ITERATIONS = '1'; // exactly one spawn allowed total
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
@@ -2071,8 +1866,6 @@ test('flag ON: label iteration is suppressed when the iteration cap is exhausted
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
     else process.env.HEADLESS_DRAIN_MAX_ITERATIONS = savedIter;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
@@ -2109,8 +1902,6 @@ test('runDrain passes windowsHide:true to spawn (Windows console-popup suppressi
 });
 
 test('every runDueDrains spawn (judge fan-out) carries windowsHide:true', async () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '1';
   const savedCap = process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
   process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = '5';
   const savedIter = process.env.HEADLESS_DRAIN_MAX_ITERATIONS;
@@ -2127,8 +1918,6 @@ test('every runDueDrains spawn (judge fan-out) carries windowsHide:true', async 
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     restore();
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
     if (savedCap === undefined) delete process.env.HEADLESS_DRAIN_MAX_CONCURRENCY;
     else process.env.HEADLESS_DRAIN_MAX_CONCURRENCY = savedCap;
     if (savedIter === undefined) delete process.env.HEADLESS_DRAIN_MAX_ITERATIONS;

@@ -60,58 +60,23 @@ test('[Loop] directive ABSENT for a trivial prompt', () => {
 });
 
 test('HEARTBEAT remains present and standing drain nudges are suppressed by default', () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  delete process.env.ORCH_HEADLESS_DRAINS;
   const judgePressure = { nudge: true, depth: 5, dupClusters: 1, harness_task_key: 'followup/harness-judge-drain' };
   const labelPressure = { nudge: true, depth: 3, harness_task_key: 'followup/harness-label-drain' };
   const learnerPressure = {
     nudge: true, depth: 2, repoName: 'zonoid', repoPath: '/repo', outDir: '/out', harness_task_key: 'followup/harness-learner-drain',
   };
-  try {
-    const ctx = assemble('refactor the auth subsystem to support OIDC', { complexity: 0.8 }, {
-      judgePressure, labelPressure, learnerPressure,
-    }).additional_context;
+  const ctx = assemble('refactor the auth subsystem to support OIDC', { complexity: 0.8 }, {
+    judgePressure, labelPressure, learnerPressure,
+  }).additional_context;
 
-    assert.ok(ctx.includes(HEARTBEAT), 'HEARTBEAT must still be present');
-    assert.ok(ctx.includes(GATE_REMINDER), 'GATE_REMINDER must still be present');
-    assert.ok(!ctx.includes('[Judge]'), 'judge nudge must be suppressed when headless drains are enabled');
-    assert.ok(!ctx.includes('[Grader]'), 'label nudge must be suppressed when headless drains are enabled');
-    assert.ok(!ctx.includes('[Learner]'), 'learner nudge must be suppressed when headless drains are enabled');
-    assert.ok(ctx.includes('[Loop]'), 'loop directive should remain present');
-    assert.ok(ctx.includes('standing judge/label/learner drains are owned by the daemon headless drain runner'));
-  } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
-  }
-});
-
-test('standing drain pressure remains Subconscious-facing when headless drains are explicitly disabled', () => {
-  const saved = process.env.ORCH_HEADLESS_DRAINS;
-  process.env.ORCH_HEADLESS_DRAINS = '0';
-  const judgePressure = { nudge: true, depth: 5, dupClusters: 1, harness_task_key: 'followup/harness-judge-drain' };
-  const labelPressure = { nudge: true, depth: 3, harness_task_key: 'followup/harness-label-drain' };
-  const learnerPressure = {
-    nudge: true, depth: 2, repoName: 'zonoid', repoPath: '/repo', outDir: '/out', harness_task_key: 'followup/harness-learner-drain',
-  };
-  try {
-    const ctx = assemble('refactor the auth subsystem to support OIDC', { complexity: 0.8 }, {
-      judgePressure, labelPressure, learnerPressure,
-    }).additional_context;
-
-    assert.ok(ctx.includes('[Subconscious pressure]'), 'maintenance backlog should surface as pressure');
-    assert.ok(ctx.includes('judge backlog'), 'judge pressure should remain visible');
-    assert.ok(ctx.includes('grader backlog'), 'label pressure should remain visible');
-    assert.ok(ctx.includes('learner backlog'), 'learner pressure should remain visible');
-    assert.ok(ctx.includes('ask_subconscious'), 'pressure should point foreground agents through Subconscious');
-    assert.ok(!ctx.includes('[Judge]'), 'manual judge nudge should not be injected');
-    assert.ok(!ctx.includes('[Grader]'), 'manual label nudge should not be injected');
-    assert.ok(!ctx.includes('[Learner]'), 'manual learner nudge should not be injected');
-    assert.ok(!ctx.includes('mcp__orchestrator-graph__start_task'), 'manual start_task recipe should not be injected');
-    assert.ok(!ctx.includes('mcp__orchestrator-graph__complete_task'), 'manual complete_task recipe should not be injected');
-  } finally {
-    if (saved === undefined) delete process.env.ORCH_HEADLESS_DRAINS;
-    else process.env.ORCH_HEADLESS_DRAINS = saved;
-  }
+  assert.ok(ctx.includes(HEARTBEAT), 'HEARTBEAT must still be present');
+  assert.ok(ctx.includes(GATE_REMINDER), 'GATE_REMINDER must still be present');
+  assert.ok(!ctx.includes('[Judge]'), 'judge nudge must be suppressed when headless drains are enabled');
+  assert.ok(!ctx.includes('[Grader]'), 'label nudge must be suppressed when headless drains are enabled');
+  assert.ok(!ctx.includes('[Learner]'), 'learner nudge must be suppressed when headless drains are enabled');
+  assert.ok(!ctx.includes('[Subconscious pressure]'), 'maintenance backlog should not be reassigned to foreground prompts');
+  assert.ok(ctx.includes('[Loop]'), 'loop directive should remain present');
+  assert.ok(ctx.includes('standing judge/label/learner drains are owned by the daemon headless drain runner'));
 });
 
 test('LOOP_DIRECTIVE export is the string pushed into parts', () => {
