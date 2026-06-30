@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { compileSearchContext } = require('../lib/search/context-compiler');
-const { buildContextRetrievalHandle, resolveContextHandle } = require('../lib/search/context-compression');
+const { buildContextRetrievalHandle, compressNaturalLanguage, resolveContextHandle } = require('../lib/search/context-compression');
 const recallJournal = require('../lib/recall-outcome-journal');
 
 let pass = 0;
@@ -522,6 +522,44 @@ test('reversible context compression preserves keys provenance and retrieval han
   assert.equal(resolved.field, 'content');
   assert.equal(resolved.kind, 'note');
   assert.equal(resolved.content, longSummary);
+});
+
+test('reversible context compression compacts prose before CCR while resolver preserves original', async () => {
+  const longSummary = [
+    'alpha caveman context',
+    'You should make sure to utilize the existing helper in order to implement a solution for the assignment.',
+    'It is important to keep `/src/exact/path.js`, `exactSymbolName`, and https://example.test/docs unchanged.',
+    'Additionally, the reason is because the worker really only needs the shortest useful briefing.',
+    'tail marker',
+  ].join(' ');
+  const graph = {
+    tasks: [
+      node('note:compact', 'Compact prose note', {
+        kind: 'note',
+        summary: longSummary + ' '.repeat(10) + 'detail '.repeat(80),
+      }),
+    ],
+  };
+
+  const body = await runSearch(graph, {
+    q: 'alpha caveman context',
+    k: '1',
+    full_content: '1',
+    reversible_context: '1',
+  });
+  const hit = body.results.find((item) => item.key === 'note:compact');
+
+  assert(hit, 'expected compacted note result');
+  assert(body.context_compression.prose_compacted_entries >= 1);
+  assert(!hit.content.includes('You should make sure to utilize'), 'expected filler prose to be compacted before CCR');
+  assert(hit.content.includes('/src/exact/path.js'), 'expected paths to survive compaction');
+  assert(hit.content.includes('`exactSymbolName`'), 'expected inline code to survive compaction');
+  assert(hit.content.includes('https://example.test/docs'), 'expected URLs to survive compaction');
+  assert(compressNaturalLanguage('You should utilize the helper in order to fix it.').includes('use helper to fix it.'));
+
+  const resolved = resolveContextHandle(hit.ccr.handle, graph, {});
+  assert.equal(resolved.ok, true);
+  assert(resolved.content.includes('You should make sure to utilize'), 'resolver returns original uncompressed prose');
 });
 
 test('CCR resolver returns original task fields by key and field', async () => {
