@@ -18,3 +18,5 @@
 {"evt":"edge_removed","from":"note:note-mqd77fazue0","to":"18","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqd77fazue0","to":"followup/harness-daemon-restart","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_added","from":"note:note-mqd77fazue0","to":"codex/embed-provider-instruct-api","kind":"context","actor":"overlay-sync","ts":"2026-06-29T16:44:07.144Z","weight":0,"by":"autowire","judged":false,"score":0.399,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqd77fazue0","to":"codex/embed-provider-instruct-api","kind":"blocking","actor":"overlay-sync","ts":"2026-07-01T05:36:37.619Z","by":"judge","judged":true,"score":0.399,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqd77fazue0","to":"codex/embed-provider-instruct-api","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:36:37.619Z"}
