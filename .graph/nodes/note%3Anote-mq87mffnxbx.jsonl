@@ -41,3 +41,4 @@
 {"evt":"edge_removed","from":"note:note-mq87mffnxbx","to":"4e63de07-4fe7-4457-b8b1-c0d3440d30ea/5","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:23:27.176Z"}
 {"evt":"edge_removed","from":"note:note-mq87mffnxbx","to":"4e63de07-4fe7-4457-b8b1-c0d3440d30ea/6","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:23:27.176Z"}
 {"evt":"edge_added","from":"note:note-mq87mffnxbx","to":"codex/modularize-mcp-tool-definitions","kind":"context","actor":"overlay-sync","ts":"2026-06-29T00:59:00.210Z","weight":0,"by":"autowire","judged":false,"score":0.517,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mq87mffnxbx","to":"codex/modularize-mcp-tool-definitions","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:51:46.713Z"}
