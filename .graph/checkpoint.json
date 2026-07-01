@@ -237684,14 +237684,15 @@
           0.08980467170476913,
           0.03424400836229324
         ]
-      ]
+      ],
+      "supersedes": "note-mqheonbwpzc"
     },
     "codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook": {
       "id": "codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook",
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "done",
+      "status": "failed",
       "summary": "Reviewed ARC-AGI-3 CLI/context hook attempt. It adds --agent-command, Zonoid context JSON/env hook surface, official checkout agent-command env propagation, and preserves honest blocker behavior. Fixed review issues so benchmarking preflight validates agent command and direct CLI mode does not mark Zonoid enabled without daemon/workspace.",
       "category": null,
       "tags": [],
@@ -237715,8 +237716,8 @@
       "assignee": "codex-main-reviewer",
       "timestamps": {
         "firstSeen": "2026-06-25T16:03:50.189Z",
-        "lastChanged": "2026-06-26T20:01:32.115Z",
-        "lastStatus": "done"
+        "lastChanged": "2026-07-01T01:58:24.410Z",
+        "lastStatus": "failed"
       },
       "metrics": null,
       "measurements": null,
@@ -272987,16 +272988,6 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mqpywsqkwff",
-      "to": "opencode/identify_tok_s",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.449,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqqjxaewu58",
       "to": "codex/context-compression-core-ccr",
       "kind": "context",
@@ -273074,16 +273065,6 @@
       "by": "subconscious",
       "judged": true,
       "score": 0.876,
-      "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqqwu05983g",
-      "to": "codex/subconscious-context-default-compression",
-      "kind": "context",
-      "weight": 0.855,
-      "by": "subconscious",
-      "judged": true,
-      "score": 0.855,
       "origin": "subconscious-agentic-search"
     },
     {
@@ -273570,20 +273551,10 @@
       "from": "opencode/icalemma_setup",
       "to": "knowledge:source_section:section-contributing-md-3-architecture-fa6467ef93",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.284,
+      "by": "judge",
+      "judged": true,
       "score": 0.284,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "opencode/icalemma_setup",
-      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.266,
       "origin": "autowire-semantic"
     },
     {
@@ -273608,16 +273579,6 @@
     },
     {
       "from": "opencode/identify_tok_s",
-      "to": "knowledge:source_section:section-cla-md-1-definitions-9f7175517c",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.259,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "opencode/identify_tok_s",
       "to": "knowledge:source_section:section-readme-md-12-misc-7fa5c917db",
       "kind": "context",
       "weight": 0,
@@ -273634,16 +273595,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.248,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "opencode/identify_tok_s",
-      "to": "knowledge:source_section:section-agents-md-5-durable-spec-system-nodes-ad66a92836",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.213,
       "origin": "autowire-semantic"
     },
     {
@@ -274787,9 +274738,9 @@
       "from": "note:note-mqr366hr6af",
       "to": "codex/review-merge-judge-lane-items",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.539,
+      "by": "judge",
+      "judged": true,
       "score": 0.539,
       "origin": "autowire-semantic"
     },
@@ -276013,16 +275964,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqsiyvoyset",
-      "to": "codex/fix-headless-drain-default-contract-tests",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.423,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "codex/extract-headless-drain-runner",
       "to": "codex/p1-sync-judge-drain",
       "kind": "context",
@@ -276256,9 +276197,9 @@
       "from": "note:note-mqpk034sqnp",
       "to": "codex/simplify-inline-dashboard-summary-actions",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.375,
+      "by": "judge",
+      "judged": true,
       "score": 0.375,
       "origin": "autowire-semantic"
     },
@@ -276346,9 +276287,9 @@
       "from": "note:note-mqze87u723h",
       "to": "note:note-mqiu1nohxb0",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.607,
+      "by": "judge",
+      "judged": true,
       "score": 0.607,
       "origin": "autowire-semantic"
     },
@@ -276360,26 +276301,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.51,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqze87u723h",
-      "to": "note:note-mqgrzywzw0q",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.508,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqze87u723h",
-      "to": "note:note-mq75a804",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.502,
       "origin": "autowire-semantic"
     },
     {
@@ -278496,6 +278417,24 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqh34hqq5b7",
+      "to": "note:note-mqh2vvi7qbe",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "note:note-mqh34hqq5b7",
+      "to": "note:note-mqh2vwajp7v",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
+    },
+    {
       "from": "note:note-mqh5j4p7moe",
       "to": "note:note-mqgw1hhxxss",
       "kind": "context",
@@ -278591,24 +278530,6 @@
       "judged": true,
       "score": 0.628,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqheonbwpzc",
-      "to": "note:note-mqh2vvi7qbe",
-      "kind": "context",
-      "weight": 0.5,
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "note:note-mqheonbwpzc",
-      "to": "note:note-mqh2vwajp7v",
-      "kind": "context",
-      "weight": 0.5,
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
     },
     {
       "from": "note:note-mqhgkkxsv3o",
@@ -282090,16 +282011,6 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mqqjxaewu58",
-      "to": "codex/headroom-style-reversible-context-pilot",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.416,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqqlz3oc3we",
       "to": "codex/add-daemon-global-backend-credentials-file",
       "kind": "context",
@@ -282948,5 +282859,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-01T01:44:18.389Z"
+  "compacted_at": "2026-07-01T02:09:26.369Z"
 }

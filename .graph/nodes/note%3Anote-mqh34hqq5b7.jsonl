@@ -1,3 +1,0 @@
-{"evt":"note_supersedes","id":"note-mqh34hqq5b7","supersedes":"note-mqheonbwpzc","ts":"2026-06-16T20:18:44.306Z","actor":"supersede"}
-{"evt":"edge_added","from":"note:note-mqh34hqq5b7","to":"note:note-mqh2vvi7qbe","kind":"context","actor":"overlay-sync","ts":"2026-07-01T02:02:15.761Z","weight":0.5,"by":"judge","judged":true,"origin":"blocking-dep-seed"}
-{"evt":"edge_added","from":"note:note-mqh34hqq5b7","to":"note:note-mqh2vwajp7v","kind":"context","actor":"overlay-sync","ts":"2026-07-01T02:02:15.761Z","weight":0.5,"by":"judge","judged":true,"origin":"blocking-dep-seed"}
