@@ -67,3 +67,4 @@
 {"evt":"edge_removed","from":"note:note-mqjyqrg5t5f","to":"note:note-mqitzt5kp8f","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqjyqrg5t5f","to":"note:note-mqda7rpovti","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqjyqrg5t5f","to":"note:note-mqedjw0rypf","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_removed","from":"note:note-mqjyqrg5t5f","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:01:20.320Z"}
