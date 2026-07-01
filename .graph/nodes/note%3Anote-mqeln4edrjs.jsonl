@@ -45,3 +45,5 @@
 {"evt":"edge_removed","from":"note:note-mqeln4edrjs","to":"codex/workflow-lanes-queue-projection","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:37.399Z"}
 {"evt":"edge_added","from":"note:note-mqeln4edrjs","to":"codex/workflow-lanes-queue-projection","kind":"context","actor":"overlay-sync","ts":"2026-06-28T22:01:56.278Z","weight":0,"by":"autowire","judged":false,"score":0.378,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqeln4edrjs","to":"codex/internal-lane-model-queue-projection","kind":"context","actor":"overlay-sync","ts":"2026-06-28T22:07:30.216Z","weight":0,"by":"autowire","judged":false,"score":0.378,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mqeln4edrjs","to":"codex/internal-lane-model-queue-projection","kind":"blocking","actor":"overlay-sync","ts":"2026-07-01T03:41:40.009Z","by":"judge","judged":true,"score":0.378,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqeln4edrjs","to":"codex/internal-lane-model-queue-projection","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:41:40.009Z"}
