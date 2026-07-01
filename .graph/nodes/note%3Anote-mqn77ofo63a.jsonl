@@ -29,3 +29,4 @@
 {"evt":"edge_added","from":"note:note-mqn77ofo63a","to":"codex/subconscious-agentic-search-envelope-code-review","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.568,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqn77ofo63a","to":"codex/subconscious-agentic-search-envelope-code-review","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_added","from":"note:note-mqn77ofo63a","to":"codex/subconscious-context-default-compression","kind":"context","actor":"overlay-sync","ts":"2026-06-28T15:00:16.281Z","weight":0,"by":"autowire","judged":false,"score":0.477,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqn77ofo63a","to":"codex/subconscious-context-default-compression","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:02:24.641Z"}
