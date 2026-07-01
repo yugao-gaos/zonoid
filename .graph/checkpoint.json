@@ -240546,7 +240546,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "canceled",
+      "status": "failed",
       "summary": null,
       "category": null,
       "tags": [],
@@ -276693,6 +276693,16 @@
       "kind": "supersede"
     },
     {
+      "from": "codex/fix-dashboard-config-smoke-kickback",
+      "to": "codex/fix-dashboard-config-smoke-recovery",
+      "kind": "context",
+      "weight": 1,
+      "by": "subconscious",
+      "judged": true,
+      "score": 1,
+      "origin": "subconscious-assignment"
+    },
+    {
       "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-0-0-thin-relay-hooks-for-open-68c0dd96cb",
       "to": "codex/headroom-style-reversible-context-pilot",
       "kind": "context",
@@ -282784,16 +282794,6 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "codex/fix-dashboard-config-smoke-kickback",
-      "to": "codex/fix-dashboard-config-smoke-recovery",
-      "kind": "context",
-      "weight": 1,
-      "by": "subconscious",
-      "judged": true,
-      "score": 1,
-      "origin": "subconscious-assignment"
-    },
-    {
       "from": "codex/fix-dashboard-config-test-contract",
       "to": "codex/fix-post-subconscious-review-findings",
       "kind": "context",
@@ -282948,5 +282948,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-01T01:34:34.930Z"
+  "compacted_at": "2026-07-01T01:44:18.389Z"
 }
