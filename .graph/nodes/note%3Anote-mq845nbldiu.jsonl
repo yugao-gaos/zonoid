@@ -18,3 +18,4 @@
 {"evt":"edge_removed","from":"note:note-mq845nbldiu","to":"c518dc9a-a501-4506-bc2d-7d29afec8fbc/2","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:22:43.679Z"}
 {"evt":"edge_removed","from":"note:note-mq845nbldiu","to":"followup/bug-fix-acknowledgedaemonrestartonboot-s-cdje","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:22:43.679Z"}
 {"evt":"edge_added","from":"note:note-mq845nbldiu","to":"codex/route-mechanical-dashboard-escalations-to-automation","kind":"context","actor":"overlay-sync","ts":"2026-06-28T16:27:15.980Z","weight":0,"by":"autowire","judged":false,"score":0.432,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mq845nbldiu","to":"codex/route-mechanical-dashboard-escalations-to-automation","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:22:09.640Z"}
