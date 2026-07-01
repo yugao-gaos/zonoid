@@ -11,3 +11,4 @@
 {"evt":"edge_added","from":"note:note-mqp5fk8tsqt","to":"note:note-mq75a81b","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z","weight":0,"by":"autowire","judged":false,"score":0.581,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqp5fk8tsqt","to":"knowledge:source_chunk:chunk-adapters-codex-readme-md-1-6-required-env-orch-client--dd97778ad6","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqp5fk8tsqt","to":"note:note-mq75a81b","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_added","from":"note:note-mqp5fk8tsqt","to":"knowledge:source_chunk:chunk-adapters-codex-readme-md-1-6-required-env-orch-client--dd97778ad6","kind":"context","actor":"overlay-sync","ts":"2026-07-01T02:32:18.359Z","weight":0.6,"by":"judge","judged":true}
