@@ -112,3 +112,5 @@
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/judge-exec-brain-state-seam-agent-impl","kind":"blocking","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z"}
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/judge-exec-brain-state-seam-agent-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z"}
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-07-01T02:38:55.360Z"}
+{"evt":"edge_removed","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/exec-brain-state-seam-session-claim-impl","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:20:18.714Z"}
+{"evt":"edge_removed","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:20:25.693Z"}
