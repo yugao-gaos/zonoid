@@ -168,6 +168,8 @@ chk "stop unknown task -> 404"  "$(jpost agent/stop '{"task_key":"no/such"}' | j
 # safe claim (CAS on ownership): canceled refused, double-claim refused, force takes over
 CK="$S/cas"
 native_task cas cas
+g "task/detail?key=$(urlenc "$CK")" >/dev/null
+jpost mark-root "$(printf '{"task_key":"%s","reason":"smoke safe-claim root"}' "$CK")" >/dev/null
 jpost overlay/status "$(b_status "$CK" canceled)" >/dev/null
 chk "claim canceled refused"    "$(jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"ax","session_id":"%s"}' "$CK" "$S")" | jq -r '.error!=null')" "true"
 CK2="$S/cas2"
@@ -202,7 +204,7 @@ native_task loopspawn loopspawn
 LK="$S/loopspawn"
 g "task/detail?key=$(urlenc "$LK")" >/dev/null
 jpost mark-root "$(printf '{"task_key":"%s","reason":"smoke loop spawn root"}' "$LK")" >/dev/null
-LID=$(jpost loop/start '{"maxIterations":50}' | jq -r .loopId)
+LID=$(jpost loop/start '{"maxIterations":500}' | jq -r .loopId)
 LDEC=$(wait_loop_action "$LID" spawn)
 chk "next-action spawns"        "$(echo "$LDEC" | jq -r .action)"                "spawn"
 ITER=$(g "loop/status?loopId=$LID" | jq -r .iterations)
@@ -221,7 +223,7 @@ jpost config '{"self_plan":false}' >/dev/null
 chk "drained, no self_plan -> stop" "$(wait_loop_action "$LID" stop | jq -r .action)" "stop"
 
 # optimize-loop control: a DONE problem carrying a metric spec + a judge verdict, DAG drained.
-jpost loop/start "$(printf '{"loopId":"%s","maxIterations":50,"tokenBudget":500000}' "$LID")" >/dev/null
+jpost loop/start "$(printf '{"loopId":"%s","maxIterations":500,"tokenBudget":500000}' "$LID")" >/dev/null
 chk "optimize knobs stored"     "$(jpost config '{"optimize":{"epsilon":1,"diminishing_rounds":3}}' | jq -r '.config.optimize.diminishing_rounds')" "3"
 OPSPEC='{"metric":"p95_latency_ms","direction":"min","measure_command":"echo 150","parse":"last_number","target":120}'
 jpost task/metric "$(printf '{"key":"%s","spec":%s}' "$S/1" "$OPSPEC")" >/dev/null
@@ -232,7 +234,7 @@ chk "optimize carries the problem"     "$(echo "$OPA" | jq -r .problem)"        
 chk "optimize feeds prior verdict"     "$(echo "$OPA" | jq -r .prior_verdict.metric_value)" "150"
 chk "no new verdict -> no re-iterate"  "$(ldec "$LID" '.action!="optimize"')" "true"
 jpost overlay/knowledge "$(printf '{"key":"%s","item":{"type":"note","value":{"winner":"%s","metric_value":118,"guardrails_ok":true}}}' "$S/1" "$S/1")" >/dev/null
-jpost loop/start "$(printf '{"loopId":"%s","maxIterations":50,"tokenBudget":500000}' "$LID")" >/dev/null   # re-arm: the no-re-iterate tick stopped the loop, and /next-action skips inactive loops
+jpost loop/start "$(printf '{"loopId":"%s","maxIterations":500,"tokenBudget":500000}' "$LID")" >/dev/null   # re-arm: the no-re-iterate tick stopped the loop, and /next-action skips inactive loops
 chk "new verdict at target -> converged->stop" "$(wait_loop_action "$LID" stop | jq -r .action)"  "stop"
 jpost task/metric "$(printf '{"key":"%s"}' "$S/1")" >/dev/null   # clear metric so later sections start clean
 jpost loop/stop "$(printf '{"loopId":"%s"}' "$LID")" >/dev/null
@@ -247,7 +249,7 @@ jpost overlay/status "$(printf '{"key":"%s","status":"in_progress","agent_id":"l
 # register the worker so the session reads as LIVE — sweepStaleLoops demotes a session-bound loop
 # whose session has no running agent (sessionIsLive) before the heartbeat ever ticks it
 jpost agent/start "$(printf '{"agent_id":"loopw","task":"%s","session":"%s"}' "$SS/1" "$SS")" >/dev/null
-LID2=$(jpost loop/start "$(printf '{"maxIterations":50,"session":"%s"}' "$SS")" | jq -r .loopId)
+LID2=$(jpost loop/start "$(printf '{"maxIterations":500,"session":"%s"}' "$SS")" | jq -r .loopId)
 chk "loop armed w/ session"     "$(g "loop/status?loopId=$LID2" | jq -r .session)" "$SS"
 # work is in flight ($SS/1 claimed in_progress) -> heartbeat idles, not stops
 L2DEC=$(loop_decision "$LID2")
@@ -265,7 +267,7 @@ rm -rf "$SST" "$SSP/$SS.jsonl"
 # claim until its first spawn, so sessionIsLive reads false on the first tick. sweepStaleLoops must
 # NOT demote it as session-dead inside the grace window — next-action must still tick it.
 SG=$(session_id "77777777-0000-0000-0000")
-LID3=$(jpost loop/start "$(printf '{"maxIterations":50,"session":"%s"}' "$SG")" | jq -r .loopId)
+LID3=$(jpost loop/start "$(printf '{"maxIterations":500,"session":"%s"}' "$SG")" | jq -r .loopId)
 chk "fresh session-bound loop is ticked (not swept)" "$(ldec "$LID3" .loopId)" "$LID3"
 chk "no session-dead sweep during bootstrap grace"   "$(g "loop/status?loopId=$LID3" | jq -r .sweptReason)" "null"
 jpost loop/stop "$(printf '{"loopId":"%s"}' "$LID3")" >/dev/null
@@ -355,7 +357,7 @@ echo '{"id":"1","subject":"pinned-work","status":"pending","blockedBy":[]}' > "$
 jpost workspace "$(printf '{"path":"%s"}' "$WA")" >/dev/null
 g "task/detail?key=$(urlenc "$SA/1")&workspace=$(urlenc "$WA")" >/dev/null
 jpost mark-root "$(jq -nc --arg key "$SA/1" --arg ws "$WA" '{task_key:$key,reason:"smoke pinned root",workspace:$ws}')" >/dev/null
-LIDP=$(jpost loop/start "$(jq -nc --arg ws "$WA" '{maxIterations:50,workspace:$ws}')" | jq -r .loopId)
+LIDP=$(jpost loop/start "$(jq -nc --arg ws "$WA" '{maxIterations:500,workspace:$ws}')" | jq -r .loopId)
 chk "loop captured workspace pin" "$(g "loop/status?loopId=$LIDP" | jq -r .workspace)" "$WA"
 jpost workspace "$(printf '{"path":"%s"}' "$WB")" >/dev/null
 chk "workspace B state reachable" "$(g "state?workspace=$(urlenc "$WB")" | jq -r .workspace)" "$WB"

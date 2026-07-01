@@ -59,7 +59,7 @@ async function waitForPing(port, ms = 8000) {
 function spawnDaemon(port, sandbox, extra = {}) {
   return spawn(process.execPath, [path.join(REPO, 'daemon.js')], {
     env: { ...process.env, CLAUDE_PLUGIN_DATA: sandbox, ORCH_PORT: String(port), ...extra },
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
 }
 
@@ -304,7 +304,7 @@ srv.listen(${gatePort}, '127.0.0.1', () => { process.stdout.write('ready\\n'); }
       ok('costflow: 200 response', cf.status === 200);
       ok('costflow: human input from cursor transcript', cf.body.human && cf.body.human.tokens > 0);
       ok('costflow: session catchalls present', cf.body.sessions && cf.body.sessions.count >= 1);
-      ok('costflow: totals include transcript output', cf.body.totals && cf.body.totals.output_tokens >= 400);
+      ok('costflow: totals include transcript output', cf.body.usage_totals && cf.body.usage_totals.output_tokens >= 400);
     } finally {
       cfChild.kill('SIGTERM');
       fs.rmSync(path.dirname(projDir), { recursive: true, force: true });

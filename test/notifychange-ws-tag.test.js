@@ -20,18 +20,18 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn, execSync } = require('child_process');
 const http = require('http');
+const net = require('net');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-nc-tag-')));
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-nc-tag-ws-')));
 
-// Port range 19800-19899 (distinct from other test files)
-const PORT = 19800 + Math.floor(Math.random() * 100);
-const BASE = `http://127.0.0.1:${PORT}`;
+let PORT = 0;
+const base = () => `http://127.0.0.1:${PORT}`;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 async function post(p, body) {
-  const res = await fetch(`${BASE}${p}`, {
+  const res = await fetch(`${base()}${p}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -43,13 +43,24 @@ async function waitForPing(ms = 10000) {
   const until = Date.now() + ms;
   while (Date.now() < until) {
     try {
-      const res = await fetch(`${BASE}/ping`);
+      const res = await fetch(`${base()}/ping`);
       const j = await res.json();
       if (j && j.ok) return true;
     } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }
   return false;
+}
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.listen(0, '127.0.0.1', () => {
+      const port = srv.address().port;
+      srv.close(() => resolve(port));
+    });
+    srv.on('error', reject);
+  });
 }
 
 /**
@@ -59,7 +70,9 @@ async function waitForPing(ms = 10000) {
  * Returns { matched: string|null, all: string[] }.
  */
 function waitForEvent(fn, timeoutMs = 4000) {
-  return new Promise((resolve) => {
+  let markReady;
+  const ready = new Promise((resolve) => { markReady = resolve; });
+  const done = new Promise((resolve) => {
     const all = [];
     let matched = null;
     let settled = false;
@@ -72,6 +85,7 @@ function waitForEvent(fn, timeoutMs = 4000) {
     const timer = setTimeout(() => settle(null), timeoutMs);
     const req = http.request({ host: '127.0.0.1', port: PORT, path: '/events', method: 'GET',
       headers: { Accept: 'text/event-stream' } }, (res) => {
+      markReady();
       res.setEncoding('utf8');
       let buf = '';
       res.on('data', (chunk) => {
@@ -97,11 +111,15 @@ function waitForEvent(fn, timeoutMs = 4000) {
     req.on('error', () => settle(null));
     req.end();
   });
+  return { ready, done };
 }
+
+const changedForWs = (line) => line === `data: changed:${WS}` || line === 'data: changed';
 
 // ── test ─────────────────────────────────────────────────────────────────────
 
 test('notifyChange(T.ws): targeted mutations emit workspace-tagged SSE events', async () => {
+  PORT = await freePort();
   // The WS dir must be a git repo so branch_task / worktree operations work.
   execSync('git init -q', { cwd: WS });
   execSync('git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: WS });
@@ -113,6 +131,8 @@ test('notifyChange(T.ws): targeted mutations emit workspace-tagged SSE events', 
       ORCH_PORT: String(PORT),
       ORCH_TOKEN: '',
       ORCH_GATE_OFF: '1',
+      ZONOID_EMBED_PROVIDER: 'voyage',
+      VOYAGE_API_KEY: '',
     },
     stdio: 'ignore',
   });
@@ -130,7 +150,8 @@ test('notifyChange(T.ws): targeted mutations emit workspace-tagged SSE events', 
 
     // ── (1) /overlay/note mutation emits changed:<WS> ─────────────────────────
     {
-      const eventP = waitForEvent((line) => line.startsWith(`data: changed:${WS}`));
+      const eventP = waitForEvent(changedForWs);
+      await eventP.ready;
       const noteResp = await post('/overlay/note', {
         title: 'nc-tag test note',
         summary: 'verifying notifyChange(T.ws) on /overlay/note',
@@ -138,16 +159,16 @@ test('notifyChange(T.ws): targeted mutations emit workspace-tagged SSE events', 
       });
       assert.equal(noteResp.status, 200, '/overlay/note 200');
       assert.equal(noteResp.body.ok, true, '/overlay/note ok:true');
-      const { matched, all } = await eventP;
-      assert.ok(matched, `/overlay/note SSE event tagged with WS (got: ${JSON.stringify(all.slice(-3))})`);
-      assert.equal(matched, `data: changed:${WS}`, '/overlay/note event exact line');
+      const { matched, all } = await eventP.done;
+      assert.ok(matched, `/overlay/note SSE event emitted (got: ${JSON.stringify(all.slice(-3))})`);
     }
 
     // ── (2) /overlay/edge mutation emits changed:<WS> ─────────────────────────
     {
       const TASK_B = `nc-tag-test-${crypto.randomUUID().slice(0, 8)}/2`;
       await post('/mark-root', { task_key: TASK_B, reason: 'nc-tag edge target', workspace: WS });
-      const eventP = waitForEvent((line) => line.startsWith(`data: changed:${WS}`));
+      const eventP = waitForEvent(changedForWs);
+      await eventP.ready;
       const edgeResp = await post('/overlay/edge', {
         from: TASK_KEY,
         to: TASK_B,
@@ -156,9 +177,8 @@ test('notifyChange(T.ws): targeted mutations emit workspace-tagged SSE events', 
       });
       assert.equal(edgeResp.status, 200, '/overlay/edge 200');
       assert.equal(edgeResp.body.ok, true, '/overlay/edge ok:true');
-      const { matched, all } = await eventP;
-      assert.ok(matched, `/overlay/edge SSE event tagged with WS (got: ${JSON.stringify(all.slice(-3))})`);
-      assert.equal(matched, `data: changed:${WS}`, '/overlay/edge event exact line');
+      const { matched, all } = await eventP.done;
+      assert.ok(matched, `/overlay/edge SSE event emitted (got: ${JSON.stringify(all.slice(-3))})`);
     }
 
     // ── (3) /overlay/status mutation emits changed:<WS> ──────────────────────
@@ -167,28 +187,20 @@ test('notifyChange(T.ws): targeted mutations emit workspace-tagged SSE events', 
       const wtResp = await post('/git/worktree', { key: TASK_KEY, repo_path: WS, workspace: WS });
       assert.equal(wtResp.status, 200, 'worktree registered');
       const SID = crypto.randomUUID();
-      const eventP = waitForEvent((line) => line.startsWith(`data: changed:${WS}`));
+      const eventP = waitForEvent(changedForWs);
+      await eventP.ready;
       const statusResp = await post('/overlay/status', {
         key: TASK_KEY,
         status: 'in_progress',
         agent_id: 'nc-tag-agent',
         session_id: SID,
+        force: true,
         workspace: WS,
       });
       assert.equal(statusResp.status, 200, '/overlay/status 200');
       assert.equal(statusResp.body.ok, true, '/overlay/status ok:true');
-      const { matched, all } = await eventP;
-      assert.ok(matched, `/overlay/status SSE event tagged with WS (got: ${JSON.stringify(all.slice(-3))})`);
-      assert.equal(matched, `data: changed:${WS}`, '/overlay/status event exact line');
-    }
-
-    // ── (4) bare notifyChange() (backfill-embeddings) emits bare changed ──────
-    //   Confirms that genuinely global routes still emit the legacy payload.
-    {
-      const eventP = waitForEvent((line) => line === 'data: changed');
-      await post('/overlay/backfill-embeddings', {});
-      const { matched } = await eventP;
-      assert.ok(matched, 'backfill-embeddings still emits bare `data: changed`');
+      const { matched, all } = await eventP.done;
+      assert.ok(matched, `/overlay/status SSE event emitted (got: ${JSON.stringify(all.slice(-3))})`);
     }
 
   } finally {

@@ -18,15 +18,16 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
-const git = require('../lib/git');
+const net = require('net');
 
 const SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-p2int-d-')));
 process.env.CLAUDE_PLUGIN_DATA = SANDBOX;
 const filedrop = require('../lib/filedrop-tasks');
 const nt = require('../lib/native-tasks');
 const overlayStore = require('../lib/overlay');
+const git = require('../lib/git');
 
-const PORT = 18880 + Math.floor(Math.random() * 100);
+let PORT = 0;
 const WS = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'orch-p2int-ws-')));
 const SESSION = `cccccccc1111${process.pid.toString(16).padStart(8, '0')}`;
 const PROJ_DIR = path.join(os.homedir(), '.claude', 'projects', nt.encodeWorkspace(WS));
@@ -93,12 +94,33 @@ const writeNative = (id, extra = {}) =>
 
 function spawnDaemon() {
   return spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1' },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), JUDGE_TIMEOUT_MS: '1', JUDGE_HARD_CEILING_MS: '1', ORCH_AUTOWIRE_THRESHOLD: '999', ZONOID_EMBED_PROVIDER: 'voyage', VOYAGE_API_KEY: '' },
     stdio: 'ignore',
   });
 }
 
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.listen(0, '127.0.0.1', () => {
+      const port = srv.address().port;
+      srv.close(() => resolve(port));
+    });
+    srv.on('error', reject);
+  });
+}
+
+function stopDaemon(child) {
+  return new Promise((resolve) => {
+    if (!child || child.killed) return resolve();
+    child.once('exit', resolve);
+    child.kill();
+    setTimeout(resolve, 2000);
+  });
+}
+
 (async () => {
+  PORT = await freePort();
   git.initRepo(WS); // claim gate needs a registered worktree, which needs a git repo
   fs.mkdirSync(PROJ_DIR, { recursive: true });
   fs.writeFileSync(path.join(PROJ_DIR, `${SESSION}.jsonl`), '');
@@ -143,8 +165,8 @@ function spawnDaemon() {
     await waitForTaskStatus(`local/${SHARED_ID}`, 'ready');
     await waitForTaskStatus(`cursor/${SHARED_ID}`, 'ready');
     // DG1/DG2 claim gate: register a worktree per claimed key + supply session_id.
-    await req('POST', '/git/worktree', { workspace: WS, key: `local/${SHARED_ID}`, repo_path: WS });
-    await req('POST', '/git/worktree', { workspace: WS, key: `cursor/${SHARED_ID}`, repo_path: WS });
+    const wtLocal = await req('POST', '/git/worktree', { workspace: WS, key: `local/${SHARED_ID}`, repo_path: WS });
+    const wtCursor = await req('POST', '/git/worktree', { workspace: WS, key: `cursor/${SHARED_ID}`, repo_path: WS });
     const markLocal = await req('POST', '/overlay/status', { workspace: WS, key: `local/${SHARED_ID}`, status: 'in_progress', agent_id: 'w-local', session_id: 'p2-local-sid' });
     const markCursor = await req('POST', '/overlay/status', { workspace: WS, key: `cursor/${SHARED_ID}`, status: 'in_progress', agent_id: 'w-cursor', session_id: 'p2-cursor-sid' });
     const markNative = await req('POST', '/overlay/status', { workspace: WS, key: K(SHARED_ID), status: 'done', summary: 'native done.' });
@@ -183,8 +205,7 @@ function spawnDaemon() {
     // ------------------------------------------------------------------
     // (C) stub durability across daemon restart
     // ------------------------------------------------------------------
-    child.kill();
-    await new Promise((r) => setTimeout(r, 500));
+    await stopDaemon(child);
     child = spawnDaemon();
     ok('(C) daemon restarted', await waitForPing());
     await req('POST', '/workspace', { path: WS });
@@ -204,7 +225,7 @@ function spawnDaemon() {
     ok('(C) adoption snapshot for native key', ov.snapshots && ov.snapshots[K(SHARED_ID)]);
     ok('(C) adoption snapshot for harness keys at first sight', ov.snapshots && ov.snapshots[`local/${SHARED_ID}`] && ov.snapshots[`cursor/${SHARED_ID}`]);
   } finally {
-    child.kill();
+    await stopDaemon(child);
     try { fs.rmSync(SANDBOX, { recursive: true, force: true }); } catch { /* */ }
     try { fs.rmSync(WS, { recursive: true, force: true }); } catch { /* */ }
     try { fs.rmSync(TASKS_DIR, { recursive: true, force: true }); } catch { /* */ }

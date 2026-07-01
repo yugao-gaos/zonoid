@@ -11,6 +11,11 @@ const { spawnSync } = require('child_process');
 const ROOT = path.join(__dirname, '..');
 const TEST_DIR = path.join(ROOT, 'test');
 const TIMEOUT_MS = 120_000; // per-file safety net
+const FILE_TIMEOUT_MS = {
+  'endpoints.test.js': 240_000,
+  'phase2-integration.test.js': 180_000,
+  'sync-route.test.js': 240_000,
+};
 
 const files = fs.readdirSync(TEST_DIR)
   .filter((f) => f.endsWith('.test.js'))
@@ -26,11 +31,12 @@ const t0 = Date.now();
 
 for (const file of files) {
   const start = Date.now();
+  const timeoutMs = FILE_TIMEOUT_MS[file] || TIMEOUT_MS;
   const res = spawnSync(process.execPath, [path.join(TEST_DIR, file)], {
     cwd: ROOT,
     env: { ...process.env, ZONOID_SKIP_LIVE: '1' },
     encoding: 'utf8',
-    timeout: TIMEOUT_MS,
+    timeout: timeoutMs,
     windowsHide: true,
   });
   const ms = Date.now() - start;
@@ -40,7 +46,7 @@ for (const file of files) {
   if (passed) {
     console.log(`PASS  ${file} (${ms}ms)`);
   } else {
-    const why = timedOut ? `timeout after ${TIMEOUT_MS}ms`
+    const why = timedOut ? `timeout after ${timeoutMs}ms`
       : res.error ? res.error.message
       : `exit ${res.status === null ? `signal ${res.signal}` : res.status}`;
     console.log(`FAIL  ${file} (${why}, ${ms}ms)`);

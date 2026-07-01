@@ -88,7 +88,7 @@ async function waitForPing(ms = 8000) {
   writeTask(5, { subject: 'narwhal blocker fixture epsilon' });
 
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'daemon.js')], {
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT) },
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: SANDBOX, ORCH_PORT: String(PORT), ZONOID_EMBED_PROVIDER: 'voyage', VOYAGE_API_KEY: '' },
     stdio: 'ignore',
   });
   try {

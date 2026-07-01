@@ -263,7 +263,7 @@ async function runAsyncTests() {
     ok('/costflow uses durable git claim session_id for Codex rollout attribution', ownByTask[durableTaskA] === 750 && ownByTask[durableTaskB] === 250);
     ok('/costflow ignores durable git claim session_id absent from accounting snapshot', ownByTask[absentDurableTaskA] === 0 && ownByTask[absentDurableTaskB] === 0);
     ok('/costflow splits represented durable claim snapshot total when rollout file is pruned', ownByTask[prunedDurableTaskA] === 750 && ownByTask[prunedDurableTaskB] === 250);
-    ok('/costflow flow total does not exceed accounting snapshot output', res.body.totals.total === 4000 && res.body.totals.total <= res.body.totals.output_tokens);
+    ok('/costflow flow total does not exceed accounting snapshot output', res.body.totals.total === 4000 && res.body.totals.total <= res.body.usage_totals.output_tokens);
     ok('/costflow subtracts claimed Codex rollout tokens from catch-all remainder', res.body.sessions.unattributed === 0);
 
     const usage = (output) => ({

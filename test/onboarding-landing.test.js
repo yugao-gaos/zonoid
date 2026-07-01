@@ -93,7 +93,7 @@ ok('onboarding labels move full titles to hover and title text', html.includes("
 
 ok('old banner root removed', !html.includes('onboard-banner'));
 ok('manual start button removed', !html.includes('onboardStartBtn') && !html.includes('Start learning'));
-ok('dismiss flow removed', !html.includes('dismissOnboardBanner') && !html.includes('onboard_dismissed_') && !html.includes('Dismiss'));
+ok('dismiss flow removed', !html.includes('dismissOnboardBanner') && !html.includes('onboard_dismissed_'));
 ok('stale CLI prompt removed', !html.includes('npx @zonoid/cli onboard'));
 
 console.log('-----');

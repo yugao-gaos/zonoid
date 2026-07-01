@@ -57,7 +57,7 @@ BODY=$(jq -nc \
    + (if env.ORCH_AUTO_LOOP == "1" then {auto_loop_env: true} else {} end)
    + (if env.ORCH_GATE_OFF == "1" then {orch_gate_off: true} else {} end)')
 
-RESP=$(curl -s --max-time 2 -XPOST "localhost:$PORT/classify" \
+RESP=$(curl -s --max-time 5 -XPOST "http://127.0.0.1:$PORT/classify" \
   -H 'content-type: application/json' \
   -d "$BODY" 2>/dev/null)
 
