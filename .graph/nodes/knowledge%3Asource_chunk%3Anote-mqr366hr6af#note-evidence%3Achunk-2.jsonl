@@ -45,3 +45,5 @@
 {"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2","to":"codex/workflow-judge-followups-stale-holds","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:16:49.112Z"}
 {"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2","to":"codex/judge-decision-lane-followups-stale-holds","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:48:10.040Z"}
 {"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2","to":"codex/review-merge-judge-lane-items","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:48:11.612Z"}
+{"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:33:36.653Z"}
+{"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:33:45.953Z"}
