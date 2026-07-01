@@ -14,3 +14,5 @@
 {"evt":"edge_added","from":"opencode/icalemma_setup","to":"knowledge:source_section:section-adapters-cursor-readme-md-1-prerequisites-c24df769c0","kind":"blocking","actor":"overlay-sync","ts":"2026-07-01T05:12:49.893Z","by":"judge","judged":true,"score":0.256,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"opencode/icalemma_setup","to":"knowledge:source_section:section-adapters-cursor-readme-md-1-prerequisites-c24df769c0","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:12:49.893Z"}
 {"evt":"timestamps_set","id":"opencode/icalemma_setup","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-28T14:30:36.014Z","lastChanged":"2026-07-01T05:12:49.835Z","lastStatus":"canceled"},"actor":"overlay-sync","ts":"2026-07-01T05:13:17.093Z"}
+{"evt":"edge_removed","from":"opencode/icalemma_setup","to":"opencode/setup-project-structure","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:46:44.940Z"}
+{"evt":"edge_removed","from":"opencode/icalemma_setup","to":"opencode/setup-project-structure","kind":"supersede","actor":"overlay-sync","ts":"2026-07-01T05:46:44.940Z"}
