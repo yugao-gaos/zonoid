@@ -111,3 +111,4 @@
 {"evt":"edge_added","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/exec-brain-state-seam-retry","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z","weight":0.887,"by":"subconscious","judged":true,"score":0.887,"origin":"subconscious-agentic-search"}
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/judge-exec-brain-state-seam-agent-impl","kind":"blocking","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z"}
 {"evt":"edge_removed","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/judge-exec-brain-state-seam-agent-impl","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z"}
+{"evt":"edge_removed","from":"codex/exec-brain-state-seam-agent-impl","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-07-01T02:38:55.360Z"}
