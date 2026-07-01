@@ -73,3 +73,4 @@
 {"evt":"edge_removed","from":"note:note-mqolmwgser3","to":"codex/subconscious-context-default-compression","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:59:54.170Z"}
 {"evt":"edge_added","from":"note:note-mqolmwgser3","to":"codex/verify-post-subconscious-review-fixes","kind":"blocking","actor":"overlay-sync","ts":"2026-07-01T03:59:55.598Z","by":"judge","judged":true,"score":0.737,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqolmwgser3","to":"codex/verify-post-subconscious-review-fixes","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:59:55.598Z"}
+{"evt":"edge_removed","from":"note:note-mqolmwgser3","to":"codex/verify-post-subconscious-review-fixes-after-main-reconcile","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:43:18.646Z"}
