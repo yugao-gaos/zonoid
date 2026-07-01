@@ -24,3 +24,4 @@
 {"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1","to":"codex/workflow-judge-followups-stale-holds","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:16:16.359Z"}
 {"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:16:18.012Z"}
 {"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1","to":"codex/judge-decision-lane-followups-stale-holds","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:47:35.938Z"}
+{"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-1","to":"codex/review-merge-judge-lane-items","kind":"context","actor":"overlay-sync","ts":"2026-07-01T06:03:52.883Z"}
