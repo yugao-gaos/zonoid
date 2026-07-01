@@ -129,3 +129,4 @@
 {"evt":"edge_promoted","from":"note:note-mqr366hr6af","to":"codex/caveman-ponytail-policy","kind":"context","actor":"overlay-sync","ts":"2026-06-29T15:51:07.357Z","weight":0.842,"by":"subconscious","judged":true,"score":0.842,"origin":"subconscious-agentic-search"}
 {"evt":"edge_added","from":"note:note-mqr366hr6af","to":"codex/embed-provider-hosted-adapters","kind":"context","actor":"overlay-sync","ts":"2026-06-29T16:26:05.385Z","weight":0.857,"by":"subconscious","judged":true,"score":0.857,"origin":"subconscious-agentic-search"}
 {"evt":"edge_promoted","from":"note:note-mqr366hr6af","to":"codex/review-merge-judge-lane-items","kind":"context","actor":"overlay-sync","ts":"2026-07-01T02:05:17.250Z","weight":0.539,"by":"judge","judged":true,"score":0.539,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqr366hr6af","to":"codex/workflow-judge-followups-stale-holds","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:06:19.254Z"}
