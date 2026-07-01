@@ -10,6 +10,9 @@
 //   - judgedAtEpoch gates re-pull: a note judged at the current epoch drops out of the queue until
 //     epoch grows; bumping epoch makes it eligible again.
 'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const ov = require('../lib/overlay');
 const judge = require('../lib/judge');
 
@@ -184,6 +187,31 @@ const ok = (label, cond) => { if (cond) { console.log(`PASS  ${label}`); pass++;
   ok('edge comes before orphan', edgePos < orphanPos);
   // judgeQueueDepth membership must agree with buildQueue membership (ordering doesn't change count)
   ok('judgeQueueDepth matches buildQueue length', judge.judgeQueueDepth(o) === q.length);
+}
+
+// --- task-decision verdicts are acknowledged so they do not requeue forever --------------------
+{
+  const o = ov.EMPTY();
+  o.notes['s/merge-me'] = 'merge requested by judge: approved by reviewer';
+  let q = judge.buildQueue(o);
+  ok('merge-request note creates a task-decision item', q.some((i) => i.kind === 'task-decision' && i.id === 'decision:merge:s/merge-me'));
+  o.judgedTaskDecisions = {};
+  judge.stampTaskDecision(o.judgedTaskDecisions, 's/merge-me', 'merge');
+  q = judge.buildQueue(o);
+  ok('stamped task-decision drops out even if source note remains', !q.some((i) => i.kind === 'task-decision' && i.id === 'decision:merge:s/merge-me'));
+}
+
+// --- task-decision acknowledgments persist through overlay save/load ----------------------------
+{
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'judge-task-decision-ack-'));
+  const o = ov.EMPTY();
+  o.notes['s/merge-me'] = 'merge requested by judge: approved by reviewer';
+  o.judgedTaskDecisions = {};
+  judge.stampTaskDecision(o.judgedTaskDecisions, 's/merge-me', 'merge');
+  ov.save(ws, o);
+  const reloaded = ov.load(ws);
+  ok('task-decision ack survives overlay save/load', reloaded.judgedTaskDecisions['decision:merge:s/merge-me'] === true);
+  ok('reloaded ack suppresses the task-decision item', !judge.buildQueue(reloaded).some((i) => i.kind === 'task-decision' && i.id === 'decision:merge:s/merge-me'));
 }
 
 // --- nextSlice priority-vs-cursor: the live drain regression -----------------------------------

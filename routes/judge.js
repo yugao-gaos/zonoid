@@ -371,8 +371,12 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	      if (v && v.taskDecision && v.taskDecision.task_key && v.taskDecision.action) {
 	        const taskKey = String(v.taskDecision.task_key);
 	        const action = String(v.taskDecision.action).toLowerCase().replace(/[\s-]+/g, '_');
+	        const sourceAction = v.taskDecision.source_action
+	          ? String(v.taskDecision.source_action).toLowerCase().replace(/[\s-]+/g, '_')
+	          : action;
 	        const reason = String(v.taskDecision.reason || 'task decision verdict');
 	        const now = new Date().toISOString();
+	        if (!T.ov.judgedTaskDecisions) T.ov.judgedTaskDecisions = {};
 	        if (action === 'approve') {
 	          overlayStore.setReviewLifecycle(T.ov, taskKey, {
 	            review_state: 'approved',
@@ -397,7 +401,6 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
 	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:kick_back', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
 	        } else if (action === 'merge') {
-	          T.ov.notes[taskKey] = `merge requested by judge: ${reason}`.slice(0, 280);
 	          applied.taskDecisions = (applied.taskDecisions || 0) + 1;
 	          applied.mergeRequested = (applied.mergeRequested || 0) + 1;
 	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:merge_request', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
@@ -437,6 +440,7 @@ const makeRoute = (ctx) => async (p, m, req, res, u, body) => {
 	          applied.escalated = (applied.escalated || 0) + 1;
 	          judge.appendVerdict(T.ws, { epoch, verdict: 'task:escalate', from: taskKey, to: null, edgeKind: 'task', cosine: null, by: 'judge' });
 	        }
+	        judge.stampTaskDecision(T.ov.judgedTaskDecisions, taskKey, sourceAction);
 	      }
 	      if (v && v.followupTriage && v.followupTriage.task_key && v.followupTriage.action) {
 	        const taskKey = String(v.followupTriage.task_key);

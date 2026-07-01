@@ -616,6 +616,52 @@ test('api provider: runJudgeLoop walks /judge/next → callApi → /judge/verdic
   assert.deepEqual(JSON.parse(postReq.body).verdicts, [{ pruneEdge: { from: 'note:a', to: 't1' } }]);
 });
 
+test('api provider: task-decision verdicts preserve queued source_action', async () => {
+  const fakeHttp = makeFakeHttp((opts) => {
+    if (opts.method === 'GET' && /\/judge\/next/.test(opts.path)) {
+      return {
+        status: 200,
+        body: {
+          idle: false,
+          items: [{
+            kind: 'task-decision',
+            id: 'decision:merge:t1',
+            task_key: 't1',
+            task: { key: 't1' },
+            action: 'merge',
+          }],
+        },
+      };
+    }
+    if (opts.method === 'POST' && /\/judge\/verdict/.test(opts.path)) {
+      return { status: 200, body: { ok: true, applied: { taskDecisions: 1 } } };
+    }
+    return { status: 404, body: {} };
+  });
+  const fakeCallApi = async () => ({
+    text: '{"verdicts":[{"taskDecision":{"task_key":"t1","action":"cancel","reason":"stale"}}]}',
+    usage: null,
+  });
+
+  const result = await backend.runJudgeLoop({
+    daemonUrl: 'http://localhost:8787',
+    budget: 1,
+    httpModule: fakeHttp,
+    callApiFn: fakeCallApi,
+  });
+
+  assert.equal(result.exitCode, 0);
+  const postReq = fakeHttp.requests.find((r) => r.opts.method === 'POST');
+  assert.deepEqual(JSON.parse(postReq.body).verdicts, [{
+    taskDecision: {
+      task_key: 't1',
+      action: 'cancel',
+      reason: 'stale',
+      source_action: 'merge',
+    },
+  }]);
+});
+
 test('api provider: runJudgeLoop applies caller timeout to daemon GET and POST calls', async () => {
   const fakeHttp = makeFakeHttp((opts) => {
     if (opts.method === 'GET' && /\/judge\/next/.test(opts.path)) {
