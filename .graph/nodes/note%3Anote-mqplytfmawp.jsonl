@@ -76,3 +76,4 @@
 {"evt":"edge_added","from":"note:note-mqplytfmawp","to":"codex/workflow-review-merge-judge-items","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:17.831Z","weight":0,"by":"autowire","judged":false,"score":0.601,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"codex/workflow-review-merge-judge-items","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:37.399Z"}
 {"evt":"edge_added","from":"note:note-mqplytfmawp","to":"codex/review-merge-judge-lane-items","kind":"context","actor":"overlay-sync","ts":"2026-06-28T23:04:02.083Z","weight":0,"by":"autowire","judged":false,"score":0.601,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqplytfmawp","to":"codex/review-merge-judge-lane-items","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:04:34.917Z"}
