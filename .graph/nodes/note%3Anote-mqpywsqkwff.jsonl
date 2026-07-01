@@ -27,3 +27,4 @@
 {"evt":"edge_added","from":"note:note-mqpywsqkwff","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-24T15:55:48.612Z","weight":0,"by":"autowire","judged":false,"score":0.47,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqpywsqkwff","to":"codex/inject-concurrency-batch-ingest","kind":"context","actor":"overlay-sync","ts":"2026-06-24T16:00:36.385Z"}
 {"evt":"edge_added","from":"note:note-mqpywsqkwff","to":"opencode/identify_tok_s","kind":"context","actor":"overlay-sync","ts":"2026-06-28T14:30:51.308Z","weight":0,"by":"autowire","judged":false,"score":0.449,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqpywsqkwff","to":"opencode/identify_tok_s","kind":"context","actor":"overlay-sync","ts":"2026-07-01T02:03:56.485Z"}
