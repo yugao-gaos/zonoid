@@ -117,3 +117,5 @@
 {"evt":"edge_removed","from":"note:note-mq74lpeq","to":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/27","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z"}
 {"evt":"edge_added","from":"note:note-mq74lpeq","to":"opencode/icalemma_setup","kind":"context","actor":"overlay-sync","ts":"2026-06-28T14:30:49.154Z","weight":0,"by":"autowire","judged":false,"score":0.313,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mq74lpeq","to":"opencode/setup-project-structure","kind":"context","actor":"overlay-sync","ts":"2026-06-28T14:30:52.836Z","weight":0,"by":"autowire","judged":false,"score":0.345,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mq74lpeq","to":"opencode/setup-project-structure","kind":"blocking","actor":"overlay-sync","ts":"2026-07-01T03:19:39.492Z","by":"judge","judged":true,"score":0.345,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mq74lpeq","to":"opencode/setup-project-structure","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:19:39.492Z"}
