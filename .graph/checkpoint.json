@@ -85159,6 +85159,8 @@
       "knowledge": [],
       "note": null,
       "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
       "snapshot": {
         "subject": "a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4",
         "description": "",
@@ -127122,8 +127124,13 @@
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "done",
       "summary": "FB-5 decision: HOLD full FeatureBench split. Current artifacts prove setup/KB availability, not a pilot signal: no smoke/pilot inference output, no OFF/ON resolved-rate comparison, no output.jsonl/report.json. OAuth forwarding via CLAUDE_CODE_OAUTH_TOKEN removes one FB-4 auth misconception, but the actual run still needs Windows/WSL2 native-x86 Docker + credentials. Recorded note: note:note-mqjx578adxz. No repo files changed.",
+      "category": null,
+      "tags": [],
       "knowledge": [],
       "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
       "snapshot": {
         "subject": "FB-5: Scale to full split if pilot signal warrants",
         "description": "Conditional on FB-4 showing a meaningful ON-vs-OFF signal, scale from the fast split to the full FeatureBench split for a publishable n. Re-run the same 3-arm protocol and stats at full scale; record cost/runtime. Gate: only proceed if the pilot delta is directionally positive and worth the spend. Depends on FB-4.",
@@ -240673,13 +240680,6 @@
     },
     {
       "from": "note:note-mq6rpqlc",
-      "to": "note:note-mq7hefalghc",
-      "kind": "context",
-      "weight": 0.663,
-      "judged": true
-    },
-    {
-      "from": "note:note-mq6rpqlc",
       "to": "ce0b4fd0-93df-4f10-99aa-49b7156c351a/1",
       "kind": "context",
       "weight": 0.261,
@@ -241744,13 +241744,6 @@
       "to": "66a514fd-59a6-4d96-b3c4-a40c1e3652c0/1",
       "kind": "context",
       "weight": 0.574,
-      "judged": true
-    },
-    {
-      "from": "note:note-mq7hefalghc",
-      "to": "ce0b4fd0-93df-4f10-99aa-49b7156c351a/1",
-      "kind": "context",
-      "weight": 0.374,
       "judged": true
     },
     {
@@ -250718,14 +250711,6 @@
       "to": "ddccf8ca-a541-49a7-8912-43ff5c7ccc63/18",
       "kind": "context",
       "weight": 0.289,
-      "judged": true
-    },
-    {
-      "from": "note:note-mq7hefalghc",
-      "to": "3875ca4b-760e-41d4-b17b-98619b23b5e5/2",
-      "kind": "context",
-      "weight": 0.5,
-      "by": "judge",
       "judged": true
     },
     {
@@ -260648,15 +260633,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/21",
-      "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/22",
-      "kind": "context",
-      "weight": 0.5,
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
-    },
-    {
       "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/24",
       "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/16",
       "kind": "context",
@@ -263178,14 +263154,6 @@
       "origin": "asserted"
     },
     {
-      "from": "4e63de07-4fe7-4457-b8b1-c0d3440d30ea/8",
-      "to": "codex/exec-brain-state-seam",
-      "kind": "context",
-      "weight": 0.7,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
       "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/1",
       "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/41",
       "kind": "context",
@@ -263310,19 +263278,6 @@
     {
       "from": "6d052e96-bfe3-42d7-b80d-c286e3d7da66/4",
       "to": "codex/product-pipeline-worker-review",
-      "kind": "context",
-      "weight": 0.7,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "9195fb5e-f196-497d-962f-69616733d2e9/5",
-      "to": "followup/run-featurebench-smoke-and-15-instance-p-0ys9",
-      "kind": "context"
-    },
-    {
-      "from": "a6a3552b-c92e-47a0-9453-f81c0d7bcf94/4",
-      "to": "codex/exec-brain-state-seam",
       "kind": "context",
       "weight": 0.7,
       "judged": true,
@@ -263853,14 +263808,6 @@
       "origin": "asserted"
     },
     {
-      "from": "codex/trace-codex-session-claims",
-      "to": "codex/exec-brain-state-seam",
-      "kind": "context",
-      "weight": 0.9,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
       "from": "codex/unify-hook-enforcement-policy",
       "to": "codex/product-pipeline-worker-review",
       "kind": "context",
@@ -264282,16 +264229,6 @@
     },
     {
       "from": "codex/exec-brain-state-seam-agent-impl",
-      "to": "codex/exec-brain-state-seam",
-      "kind": "context",
-      "weight": 0.807,
-      "by": "judge",
-      "judged": true,
-      "score": 0.807,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/exec-brain-state-seam-agent-impl",
       "to": "codex/exec-brain-state-seam-session-claim-impl",
       "kind": "context",
       "weight": 1,
@@ -264358,24 +264295,6 @@
       "weight": 0.9,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "codex/exec-brain-state-seam",
-      "to": "codex/exec-brain-state-seam-agent-impl",
-      "kind": "context",
-      "weight": 0.9,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/exec-brain-state-seam",
-      "to": "codex/exec-brain-state-seam-session-claim-impl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.546,
-      "origin": "autowire-semantic"
     },
     {
       "from": "codex/judge-bench-real-search-behavior",
@@ -267323,14 +267242,6 @@
       "origin": "asserted"
     },
     {
-      "from": "codex/exec-brain-state-seam",
-      "to": "codex/subconscious-permit-gate",
-      "kind": "context",
-      "weight": 0.8,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
       "from": "codex/judge-breathing-learning-cloud-live-inject-recovery-fix",
       "to": "codex/breathing-learning-cloud-live-inject",
       "kind": "context",
@@ -267428,14 +267339,6 @@
     },
     {
       "from": "codex/learning-landing-autostart",
-      "to": "codex/breathing-learning-cloud-live-inject",
-      "kind": "context",
-      "weight": 0.95,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/learning-landing-autostart",
       "to": "codex/breathing-learning-cloud-live-inject-recovery-fix",
       "kind": "context",
       "weight": 0.8,
@@ -267488,28 +267391,12 @@
       "origin": "asserted"
     },
     {
-      "from": "codex/subconscious-permit-gate",
-      "to": "codex/judge-subconscious-permit-gate-kickback-fix",
-      "kind": "context",
-      "weight": 0.8,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
       "from": "codex/subconscious-skill-abtest-main-merge-conflict",
       "to": "codex/judge-subconscious-skill-abtest-main-merge-conflict",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
       "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "codex/trace-codex-session-claims",
-      "to": "codex/subconscious-permit-gate",
-      "kind": "context",
-      "weight": 0.9,
-      "judged": true,
-      "origin": "asserted"
     },
     {
       "from": "codex/trace-codex-session-claims",
@@ -268260,14 +268147,6 @@
       "to": "codex/migrate-subconscious-surface-messages",
       "kind": "context",
       "weight": 0.82,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/subconscious-permit-gate",
-      "to": "codex/migrate-subconscious-surface-messages",
-      "kind": "context",
-      "weight": 0.7,
       "judged": true,
       "origin": "asserted"
     },
@@ -269829,14 +269708,6 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "codex/exec-brain-state-seam-retry",
-      "to": "codex/fix-stale-tested-verdict-requeue",
-      "kind": "context",
-      "weight": 0.8,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
       "from": "codex/exec-brain-state-seam-session-claim-impl",
       "to": "codex/exec-brain-state-seam-session-claim-impl-judge",
       "kind": "blocking",
@@ -269907,12 +269778,6 @@
       "from": "codex/fix-claim-permit-result-contract-kickback",
       "to": "codex/fix-claim-permit-result-contract-kickback-judge",
       "kind": "blocking",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/fix-claim-permit-result-contract-kickback",
-      "to": "codex/verify-post-subconscious-review-fixes",
-      "kind": "context",
       "origin": "subconscious-assignment"
     },
     {
@@ -269995,16 +269860,6 @@
     },
     {
       "from": "codex/fix-dashboard-config-test-contract-judge",
-      "to": "codex/fix-dashboard-config-smoke-recovery",
-      "kind": "context",
-      "weight": 1,
-      "by": "subconscious",
-      "judged": true,
-      "score": 1,
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/fix-dashboard-config-test-contract-judge",
       "to": "codex/fix-dashboard-smoke-pinned-drift-recovery",
       "kind": "context",
       "origin": "subconscious-assignment"
@@ -270049,19 +269904,7 @@
     },
     {
       "from": "codex/fix-dashboard-smoke-pinned-drift-recovery",
-      "to": "codex/verify-post-subconscious-review-fixes",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/fix-dashboard-smoke-pinned-drift-recovery",
       "to": "codex/fix-broad-npm-test-regressions-after-post-review",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/fix-dashboard-smoke-pinned-drift-recovery",
-      "to": "codex/verify-post-subconscious-review-fixes-final",
       "kind": "context",
       "origin": "subconscious-assignment"
     },
@@ -270165,12 +270008,6 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "codex/fix-graph-dispatch-invariants",
-      "to": "codex/verify-post-subconscious-review-fixes-final",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
       "from": "codex/fix-onboarding-dashboard-transition-cloud-ux-judge",
       "to": "codex/fix-onboarding-dashboard-transition-cloud-ux",
       "kind": "context",
@@ -270219,12 +270056,6 @@
     {
       "from": "codex/fix-post-subconscious-review-findings",
       "to": "codex/reconcile-post-subconscious-feature-with-main",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/fix-post-subconscious-review-findings",
-      "to": "codex/verify-post-subconscious-review-fixes-after-main-reconcile",
       "kind": "context",
       "origin": "subconscious-assignment"
     },
@@ -270283,12 +270114,6 @@
       "origin": "subconscious-assignment"
     },
     {
-      "from": "codex/fix-search-kb-recall-semantics",
-      "to": "codex/verify-post-subconscious-review-fixes-final",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
       "from": "codex/fix-shell-opencode-relative-git-kickback",
       "to": "codex/fix-shell-opencode-relative-git-kickback-judge",
       "kind": "blocking",
@@ -270303,12 +270128,6 @@
     {
       "from": "codex/fix-shell-opencode-relative-git-kickback",
       "to": "codex/fix-broad-npm-test-regressions-after-post-review",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/fix-shell-opencode-relative-git-kickback",
-      "to": "codex/verify-post-subconscious-review-fixes-final",
       "kind": "context",
       "origin": "subconscious-assignment"
     },
@@ -270671,14 +270490,6 @@
       "to": "codex/progressive-disclosure-context-contract",
       "kind": "context",
       "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/judge-subconscious-agent-facing-migration",
-      "to": "codex/verify-post-subconscious-review-fixes",
-      "kind": "context",
-      "weight": 0.6,
-      "judged": true,
-      "origin": "asserted"
     },
     {
       "from": "codex/judge-subconscious-anchor-real-task-filter",
@@ -271778,12 +271589,6 @@
     {
       "from": "codex/verify-post-subconscious-review-fixes-final",
       "to": "codex/reconcile-post-subconscious-feature-with-main",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/verify-post-subconscious-review-fixes-final",
-      "to": "codex/verify-post-subconscious-review-fixes-after-main-reconcile",
       "kind": "context",
       "origin": "subconscious-assignment"
     },
@@ -273229,27 +273034,7 @@
     },
     {
       "from": "codex/exec-brain-state-seam",
-      "to": "codex/judge-exec-brain-state-seam",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.618,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/exec-brain-state-seam",
       "to": "codex/merge-subconscious-assignment-surface-clean",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.512,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/exec-brain-state-seam",
-      "to": "knowledge:source_section:note-mqqyd0ugp2b#note-evidence",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -273265,16 +273050,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.414,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/headless-drain-context-compression",
-      "to": "codex/review-state-daemon-queues",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.402,
       "origin": "autowire-semantic"
     },
     {
@@ -273298,16 +273073,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/headless-drain-context-compression",
-      "to": "codex/onboard-drain-headless",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.375,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "codex/headroom-eval",
       "to": "codex/headroom-style-reversible-context-pilot",
       "kind": "context",
@@ -273321,9 +273086,9 @@
       "from": "codex/headroom-style-reversible-context-pilot",
       "to": "codex/headroom-eval",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.551,
+      "by": "judge",
+      "judged": true,
       "score": 0.551,
       "origin": "autowire-semantic"
     },
@@ -273339,21 +273104,11 @@
     },
     {
       "from": "codex/headroom-style-reversible-context-pilot",
-      "to": "codex/make-arc-harness-actively-inject-and-write-zonoid-context",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.39,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/headroom-style-reversible-context-pilot",
       "to": "knowledge:source_section:section-readme-md-0-zonoid-9b67f5a8c7",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.383,
+      "by": "judge",
+      "judged": true,
       "score": 0.383,
       "origin": "autowire-semantic"
     },
@@ -273375,26 +273130,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.568,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/live-subconscious-briefing-compression",
-      "to": "codex/progressive-disclosure-context-contract",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.532,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/live-subconscious-briefing-compression",
-      "to": "codex/progressive-disclosure-context-implementation",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.531,
       "origin": "autowire-semantic"
     },
     {
@@ -273459,52 +273194,12 @@
     },
     {
       "from": "codex/route-mechanical-dashboard-escalations-to-automation",
-      "to": "knowledge:source_section:section-claude-md-1-orchestrator-dashboard-e5ce5288fe",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.461,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/route-mechanical-dashboard-escalations-to-automation",
       "to": "codex/fix-onboarding-dashboard-transition-cloud-ux-judge",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
       "score": 0.432,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/route-mechanical-dashboard-escalations-to-automation",
-      "to": "codex/dashboard-use-subconscious-agentic-search",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.427,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/subconscious-context-default-compression",
-      "to": "codex/subconscious-adaptive-agentic-search-loop-code-review",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.624,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/subconscious-context-default-compression",
-      "to": "codex/subconscious-adaptive-agentic-search-loop",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.606,
       "origin": "autowire-semantic"
     },
     {
@@ -273515,16 +273210,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.585,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/subconscious-context-default-compression",
-      "to": "codex/judge-subconscious-live-polish",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.582,
       "origin": "autowire-semantic"
     },
     {
@@ -273648,22 +273333,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "opencode/setup-project-structure",
-      "to": "codex/define-artifact-provider-contract-without-ast-shapes",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.319,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/fix-dashboard-config-smoke-recovery",
-      "to": "codex/fix-dashboard-smoke-pinned-drift-recovery",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
       "from": "codex/fix-dashboard-config-smoke-recovery",
       "to": "codex/fix-dashboard-config-smoke-kickback-judge",
       "kind": "context",
@@ -273735,12 +273404,6 @@
     },
     {
       "from": "codex/full-system-review-subconscious-landed",
-      "to": "codex/verify-post-subconscious-review-fixes",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/full-system-review-subconscious-landed",
       "to": "codex/fix-broad-npm-test-regressions-after-post-review",
       "kind": "context",
       "origin": "subconscious-assignment"
@@ -273756,16 +273419,6 @@
       "to": "codex/reconcile-post-subconscious-feature-with-main",
       "kind": "context",
       "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/review-subconscious-assignment-lifecycle",
-      "to": "codex/subconscious-permit-gate",
-      "kind": "context",
-      "weight": 0.55,
-      "by": "judge",
-      "judged": true,
-      "score": 0.55,
-      "origin": "autowire-semantic"
     },
     {
       "from": "codex/review-subconscious-assignment-lifecycle",
@@ -273819,12 +273472,6 @@
       "judged": true,
       "score": 0.579,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/verify-post-subconscious-review-fixes",
-      "to": "codex/fix-broad-npm-test-regressions-after-post-review",
-      "kind": "context",
-      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/verify-post-subconscious-review-fixes",
@@ -274046,42 +273693,12 @@
     },
     {
       "from": "codex/progressive-disclosure-context-verification",
-      "to": "codex/progressive-disclosure-context-implementation",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.644,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/progressive-disclosure-context-verification",
       "to": "codex/progressive-disclosure-context-contract",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
       "score": 0.585,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/progressive-disclosure-context-verification",
-      "to": "codex/live-subconscious-briefing-compression",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.506,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/progressive-disclosure-context-verification",
-      "to": "knowledge:source_section:section-agents-md-6-kb-note-authoring-5b2e2d6033",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.457,
       "origin": "autowire-semantic"
     },
     {
@@ -274096,42 +273713,12 @@
     },
     {
       "from": "codex/support-local-ollama-models-for-backend-cli-runs",
-      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/22",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.401,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/support-local-ollama-models-for-backend-cli-runs",
       "to": "codex/add-arc-agi-3-zonoid-benchmark-adapter",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
       "score": 0.392,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/support-local-ollama-models-for-backend-cli-runs",
-      "to": "codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.379,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/support-local-ollama-models-for-backend-cli-runs",
-      "to": "knowledge:source_section:section-cla-md-1-definitions-9f7175517c",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.371,
       "origin": "autowire-semantic"
     },
     {
@@ -274830,26 +274417,6 @@
     },
     {
       "from": "codex/internal-lane-model-queue-projection",
-      "to": "knowledge:source_section:section-readme-md-8-graph-reads-a8e5250b3a",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.37,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/internal-lane-model-queue-projection",
-      "to": "codex/review-graph-overlay-dispatch-loops",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.314,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/internal-lane-model-queue-projection",
       "to": "codex/review-state-daemon-queues",
       "kind": "context",
       "weight": 0,
@@ -274896,16 +274463,6 @@
     },
     {
       "from": "codex/judge-decision-lane-followups-stale-holds",
-      "to": "codex/fix-stale-tested-verdict-requeue-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.534,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/judge-decision-lane-followups-stale-holds",
       "to": "knowledge:source_doc:note-mqr366hr6af",
       "kind": "context",
       "weight": 0,
@@ -274932,36 +274489,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.461,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/resolve-internal-lane-projection-merge-conflict",
-      "to": "codex/workflow-lanes-queue-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.476,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/resolve-internal-lane-projection-merge-conflict",
-      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.469,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/resolve-internal-lane-projection-merge-conflict",
-      "to": "codex/merge-origin-sync",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.458,
       "origin": "autowire-semantic"
     },
     {
@@ -275006,26 +274533,6 @@
     },
     {
       "from": "codex/review-merge-judge-lane-items",
-      "to": "codex/workflow-label-learner-fold-plan",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.585,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/review-merge-judge-lane-items",
-      "to": "codex/workflow-judge-followups-stale-holds",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.578,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/review-merge-judge-lane-items",
       "to": "knowledge:source_doc:note-mqr366hr6af",
       "kind": "context",
       "weight": 0,
@@ -275054,16 +274561,6 @@
     },
     {
       "from": "codex/user-gate-guidance-projection",
-      "to": "knowledge:source_section:section-agents-md-3-predict-by-default-request-guidance-is-a-17265807e5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.433,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/user-gate-guidance-projection",
       "to": "knowledge:source_section:section-claude-md-3-predict-by-default-request-guidance-is-a-362516c7ac",
       "kind": "context",
       "weight": 0,
@@ -275080,16 +274577,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.4,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/user-gate-guidance-projection",
-      "to": "codex/subconscious-pressure-protocol",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.384,
       "origin": "autowire-semantic"
     },
     {
@@ -275131,21 +274618,6 @@
       "judged": false,
       "score": 0.461,
       "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/workflow-judge-followups-stale-holds",
-      "to": "codex/workflow-label-learner-fold-plan",
-      "kind": "blocking",
-      "origin": "asserted"
-    },
-    {
-      "from": "codex/workflow-judge-followups-stale-holds",
-      "to": "codex/workflow-label-learner-fold-plan",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire-blockdep",
-      "judged": false,
-      "origin": "blocking-dep-seed"
     },
     {
       "from": "codex/workflow-label-learner-fold-plan",
@@ -275635,42 +275107,12 @@
     },
     {
       "from": "codex/modularize-mcp-tool-definitions",
-      "to": "knowledge:source_section:section-readme-md-6-mcp-tools-44ad56c285",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.611,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/modularize-mcp-tool-definitions",
-      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.523,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/modularize-mcp-tool-definitions",
       "to": "codex/code-extractor-multilang-judge",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
       "score": 0.52,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/modularize-mcp-tool-definitions",
-      "to": "codex/code-ast-extractor-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.502,
       "origin": "autowire-semantic"
     },
     {
@@ -275691,36 +275133,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.362,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/refactor-judge-item-registry-contracts",
-      "to": "codex/fix-stale-tested-verdict-requeue-judge-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.359,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/refactor-judge-item-registry-contracts",
-      "to": "codex/fix-stale-tested-verdict-requeue",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.357,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/refactor-judge-item-registry-contracts",
-      "to": "codex/judge-subconscious-skill-version-store",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.349,
       "origin": "autowire-semantic"
     },
     {
@@ -275745,42 +275157,12 @@
     },
     {
       "from": "codex/split-meta-routes-mcp-state",
-      "to": "knowledge:source_section:section-readme-md-6-mcp-tools-44ad56c285",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.354,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/split-meta-routes-mcp-state",
       "to": "codex/modularize-mcp-tool-definitions",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
       "score": 0.333,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/split-meta-routes-mcp-state",
-      "to": "codex/internal-lane-model-queue-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.316,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/split-meta-routes-mcp-state",
-      "to": "codex/fix-claim-permit-result-contract-kickback",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.274,
       "origin": "autowire-semantic"
     },
     {
@@ -275965,26 +275347,6 @@
     },
     {
       "from": "codex/extract-headless-drain-runner",
-      "to": "codex/p1-sync-judge-drain",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.68,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/extract-headless-drain-runner",
-      "to": "codex/onboard-drain-headless",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.61,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/extract-headless-drain-runner",
       "to": "codex/auto-drain-tested-ready-and-drop-stale-smoke",
       "kind": "context",
       "weight": 0,
@@ -276011,16 +275373,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.563,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/fix-headless-drain-default-contract-tests",
-      "to": "codex/extract-headless-drain-runner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.493,
       "origin": "autowire-semantic"
     },
     {
@@ -276057,20 +275409,10 @@
       "from": "codex/fix-headless-drain-default-contract-tests",
       "to": "codex/p1-sync-judge-drain",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.395,
+      "by": "judge",
+      "judged": true,
       "score": 0.395,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/overlay-schema-store-facade-split",
-      "to": "codex/embedding-store-interface-impl",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.441,
       "origin": "autowire-semantic"
     },
     {
@@ -276091,16 +275433,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.357,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/overlay-schema-store-facade-split",
-      "to": "codex/define-artifact-provider-contract-without-ast-shapes",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.347,
       "origin": "autowire-semantic"
     },
     {
@@ -276319,26 +275651,6 @@
     },
     {
       "from": "codex/simplify-inline-dashboard-summary-actions",
-      "to": "codex/responsive-header-metrics-bar",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.486,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/simplify-inline-dashboard-summary-actions",
-      "to": "codex/subconscious-summary-brief-wording",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.475,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/simplify-inline-dashboard-summary-actions",
       "to": "knowledge:source_section:section-readme-md-5-dashboard-7ed5aac850",
       "kind": "context",
       "weight": 0,
@@ -276509,26 +275821,6 @@
     },
     {
       "from": "codex/embed-provider-instruct-api",
-      "to": "codex/embedding-provider-instruct-ft",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.445,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/embed-provider-instruct-api",
-      "to": "codex/progressive-disclosure-context-contract",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.38,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/embed-provider-instruct-api",
       "to": "codex/progressive-disclosure-context-verification",
       "kind": "context",
       "weight": 0,
@@ -276614,14 +275906,22 @@
       "kind": "supersede"
     },
     {
-      "from": "codex/fix-dashboard-config-smoke-kickback",
-      "to": "codex/fix-dashboard-config-smoke-recovery",
+      "from": "note:note-mqh34hqq5b7",
+      "to": "note:note-mqh2vvi7qbe",
       "kind": "context",
-      "weight": 1,
-      "by": "subconscious",
+      "weight": 0.5,
+      "by": "judge",
       "judged": true,
-      "score": 1,
-      "origin": "subconscious-assignment"
+      "origin": "blocking-dep-seed"
+    },
+    {
+      "from": "note:note-mqh34hqq5b7",
+      "to": "note:note-mqh2vwajp7v",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true,
+      "origin": "blocking-dep-seed"
     },
     {
       "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-0-0-thin-relay-hooks-for-open-68c0dd96cb",
@@ -276926,6 +276226,13 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mq6rpqlc",
+      "to": "note:note-mqiu1tkaojt",
+      "kind": "context",
+      "weight": 0.663,
+      "judged": true
+    },
+    {
       "from": "note:note-mq6xh98a",
       "to": "note:note-mq75a82b",
       "kind": "context",
@@ -277139,14 +276446,6 @@
       "to": "note:note-mq7gif55",
       "kind": "context",
       "weight": 0.7,
-      "judged": true
-    },
-    {
-      "from": "note:note-mq7hef4yhof",
-      "to": "note:note-mqity3du88y",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
       "judged": true
     },
     {
@@ -278417,24 +277716,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqh34hqq5b7",
-      "to": "note:note-mqh2vvi7qbe",
-      "kind": "context",
-      "weight": 0.5,
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
-    },
-    {
-      "from": "note:note-mqh34hqq5b7",
-      "to": "note:note-mqh2vwajp7v",
-      "kind": "context",
-      "weight": 0.5,
-      "by": "judge",
-      "judged": true,
-      "origin": "blocking-dep-seed"
-    },
-    {
       "from": "note:note-mqh5j4p7moe",
       "to": "note:note-mqgw1hhxxss",
       "kind": "context",
@@ -279016,6 +278297,21 @@
       "judged": true,
       "score": 0.658,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiu1tkaojt",
+      "to": "ce0b4fd0-93df-4f10-99aa-49b7156c351a/1",
+      "kind": "context",
+      "weight": 0.374,
+      "judged": true
+    },
+    {
+      "from": "note:note-mqiu1tkaojt",
+      "to": "3875ca4b-760e-41d4-b17b-98619b23b5e5/2",
+      "kind": "context",
+      "weight": 0.5,
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "note:note-mqiu21zrgea",
@@ -280044,22 +279340,12 @@
     },
     {
       "from": "note:note-mqp4wuzpbss",
-      "to": "note:note-mqity3du88y",
+      "to": "note:note-mq7hef4yhof",
       "kind": "context",
       "weight": 0.639,
       "by": "judge",
       "judged": true,
       "score": 0.639,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp4wuzpbss",
-      "to": "note:note-mq7hef4yhof",
-      "kind": "context",
-      "weight": 0.634,
-      "by": "judge",
-      "judged": true,
-      "score": 0.634,
       "origin": "autowire-semantic"
     },
     {
@@ -280561,6 +279847,22 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqp5akln5h3",
+      "to": "knowledge:source_chunk:chunk-agents-md-2-8-an-interactive-session-that-edits-code-d-76be713dcc",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqp5akln5h3",
+      "to": "knowledge:source_chunk:chunk-claude-md-2-8-an-interactive-session-that-edits-code-d-34c8218bfc",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
       "from": "note:note-mqp5atbv8r4",
       "to": "codex/migrate-graph-cloud-to-shared-three.js-point-cloud-renderer",
       "kind": "context",
@@ -280569,6 +279871,22 @@
       "judged": true,
       "score": 0.721,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp5aymcg93",
+      "to": "knowledge:source_chunk:chunk-agents-md-2-10-hand-the-worker-a-typed-handoff-envelop-14ebaabeca",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqp5aymcg93",
+      "to": "knowledge:source_chunk:chunk-claude-md-2-10-hand-the-worker-a-typed-handoff-envelop-2304120d9e",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "note:note-mqp5b5juikc",
@@ -280582,7 +279900,7 @@
     },
     {
       "from": "note:note-mqp5bgrizgk",
-      "to": "note:note-mq7hefalghc",
+      "to": "note:note-mqiu1tkaojt",
       "kind": "context",
       "weight": 0.6,
       "by": "judge",
@@ -280785,6 +280103,14 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqp5fk8tsqt",
+      "to": "knowledge:source_chunk:chunk-adapters-codex-readme-md-1-6-required-env-orch-client--dd97778ad6",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
       "from": "note:note-mqp5fvkio3a",
       "to": "knowledge:source_chunk:chunk-adapters-codex-readme-md-1-7-trust-hooks-codex-require-2276d58fda",
       "kind": "context",
@@ -280941,6 +280267,14 @@
       "judged": true,
       "score": 0.619,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpauss185e",
+      "to": "codex-desktop/assess-codebase-tightness",
+      "kind": "context",
+      "weight": 0.831,
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "note:note-mqpav1c1qcf",
@@ -282235,6 +281569,14 @@
       "judged": true
     },
     {
+      "from": "note:note-mqr2jk9hawd",
+      "to": "note:note-mqqtne9zs3u",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
       "from": "note:note-mqr366hr6af",
       "to": "codex/progressive-disclosure-context-implementation",
       "kind": "context",
@@ -282578,6 +281920,11 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/21",
+      "to": "codex/reconcile-bench-sdk-s7-conflict",
+      "kind": "supersede"
+    },
+    {
       "from": "59fc18e1-744e-4f7a-9093-a8e12d43087b/22",
       "to": "59fc18e1-744e-4f7a-9093-a8e12d43087b/28",
       "kind": "context",
@@ -282685,6 +282032,11 @@
       "judged": true
     },
     {
+      "from": "codex/breathing-learning-cloud-live-inject",
+      "to": "codex/breathing-learning-cloud-live-inject-recovery-fix",
+      "kind": "supersede"
+    },
+    {
       "from": "codex/exec-brain-state-seam-agent-impl",
       "to": "codex/exec-brain-state-seam-retry",
       "kind": "context",
@@ -282693,6 +282045,25 @@
       "judged": true,
       "score": 0.887,
       "origin": "subconscious-agentic-search"
+    },
+    {
+      "from": "codex/exec-brain-state-seam-retry",
+      "to": "codex/exec-brain-state-seam-minimal-patch",
+      "kind": "supersede"
+    },
+    {
+      "from": "codex/exec-brain-state-seam-session-claim-impl",
+      "to": "codex/exec-brain-state-seam-post-gate-fix",
+      "kind": "supersede"
+    },
+    {
+      "from": "codex/extract-headless-drain-runner",
+      "to": "codex/onboard-drain-headless",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.61,
+      "origin": "autowire-semantic"
     },
     {
       "from": "codex/fix-consolidate-universal-skills-kickback",
@@ -282788,6 +282159,72 @@
       "origin": "subconscious-assignment"
     },
     {
+      "from": "codex/headroom-style-reversible-context-pilot",
+      "to": "codex/make-arc-harness-actively-inject-and-write-zonoid-context",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.39,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/internal-lane-model-queue-projection",
+      "to": "codex/review-graph-overlay-dispatch-loops",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.314,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/overlay-schema-store-facade-split",
+      "to": "codex/embedding-store-interface-impl",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.441,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/resolve-internal-lane-projection-merge-conflict",
+      "to": "codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.469,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/support-local-ollama-models-for-backend-cli-runs",
+      "to": "4b12fe1f-4bef-4c82-908d-0f07f56f3638/22",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.401,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/verify-post-subconscious-review-fixes-after-main-reconcile",
+      "to": "codex/verify-post-subconscious-review-fixes-final-after-snapshot-fix",
+      "kind": "supersede"
+    },
+    {
+      "from": "codex/verify-post-subconscious-review-fixes",
+      "to": "codex/fix-broad-npm-test-regressions-after-post-review",
+      "kind": "blocking",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/workflow-judge-followups-stale-holds",
+      "to": "codex/judge-decision-lane-followups-stale-holds",
+      "kind": "supersede"
+    },
+    {
+      "from": "codex/workflow-lanes-queue-projection",
+      "to": "codex/internal-lane-model-queue-projection",
+      "kind": "supersede"
+    },
+    {
       "from": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/8",
       "to": "codex/auto-drain-tested-ready-and-drop-stale-smoke",
       "kind": "context",
@@ -282859,5 +282296,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-01T02:09:26.369Z"
+  "compacted_at": "2026-07-01T03:02:33.418Z"
 }
