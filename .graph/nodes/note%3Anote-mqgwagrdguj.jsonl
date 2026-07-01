@@ -117,3 +117,4 @@
 {"evt":"edge_added","from":"note:note-mqgwagrdguj","to":"codex/fix-headless-drain-default-contract-tests","kind":"context","actor":"overlay-sync","ts":"2026-06-29T08:02:55.674Z","weight":0,"by":"autowire","judged":false,"score":0.419,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqgwagrdguj","to":"codex/extract-headless-drain-runner","kind":"blocking","actor":"overlay-sync","ts":"2026-07-01T03:47:25.104Z","by":"judge","judged":true,"score":0.633,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqgwagrdguj","to":"codex/extract-headless-drain-runner","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:47:25.104Z"}
+{"evt":"edge_promoted","from":"note:note-mqgwagrdguj","to":"codex/fix-headless-drain-default-contract-tests","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:58:12.617Z","weight":0.419,"by":"judge","judged":true,"score":0.419,"origin":"autowire-semantic"}
