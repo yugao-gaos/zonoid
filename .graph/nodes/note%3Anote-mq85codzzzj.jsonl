@@ -15,3 +15,4 @@
 {"evt":"edge_added","from":"note:note-mq85codzzzj","to":"codex/install-orchestrator-skill-client-repos","kind":"context","actor":"overlay-sync","ts":"2026-06-17T00:17:56.831Z","weight":0,"by":"autowire","judged":false,"score":0.623,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mq85codzzzj","to":"codex/install-orchestrator-skill-client-repos","kind":"context","actor":"overlay-sync","ts":"2026-06-21T19:22:43.679Z"}
 {"evt":"edge_added","from":"note:note-mq85codzzzj","to":"opencode/setup-project-structure","kind":"context","actor":"overlay-sync","ts":"2026-06-28T14:30:52.836Z","weight":0,"by":"autowire","judged":false,"score":0.404,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mq85codzzzj","to":"opencode/setup-project-structure","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:35:13.405Z"}
