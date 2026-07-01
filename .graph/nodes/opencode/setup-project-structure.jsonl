@@ -10,3 +10,4 @@
 {"evt":"edge_removed","from":"opencode/setup-project-structure","to":"knowledge:source_section:section-contributing-md-7-pull-request-process-ec322ca642","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:08:48.489Z"}
 {"evt":"edge_added","from":"opencode/setup-project-structure","to":"opencode/icalemma_setup","kind":"blocking","actor":"overlay-sync","ts":"2026-07-01T04:08:59.300Z","by":"judge","judged":true,"score":0.6,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"opencode/setup-project-structure","to":"opencode/icalemma_setup","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:08:59.300Z"}
+{"evt":"status_changed","id":"opencode/setup-project-structure","workspace":"/Users/imyu/Desktop/zonoid","status":"canceled","actor":"overlay-sync","ts":"2026-07-01T05:13:17.093Z"}
