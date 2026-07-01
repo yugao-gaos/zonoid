@@ -23,3 +23,4 @@
 {"evt":"edge_removed","from":"note:note-mqobjpjb5bh","to":"codex/subconscious-permit-gate","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:57:54.051Z"}
 {"evt":"edge_removed","from":"note:note-mqobjpjb5bh","to":"codex/progressive-disclosure-context-verification","kind":"context","actor":"overlay-sync","ts":"2026-07-01T03:57:55.461Z"}
 {"evt":"edge_removed","from":"note:note-mqobjpjb5bh","to":"codex/workflow-user-gate-guidance-projection","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:42:49.907Z"}
+{"evt":"edge_removed","from":"note:note-mqobjpjb5bh","to":"codex/user-gate-guidance-projection","kind":"context","actor":"overlay-sync","ts":"2026-07-01T06:22:35.572Z"}
