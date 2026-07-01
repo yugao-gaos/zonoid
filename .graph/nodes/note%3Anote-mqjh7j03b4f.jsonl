@@ -40,3 +40,4 @@
 {"evt":"edge_removed","from":"note:note-mqjh7j03b4f","to":"note:note-mqd9ezu3tu4","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z"}
 {"evt":"edge_removed","from":"note:note-mqjh7j03b4f","to":"note:note-mq9mlnbsmti","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z"}
 {"evt":"edge_added","from":"note:note-mqjh7j03b4f","to":"codex/split-meta-routes-mcp-state","kind":"context","actor":"overlay-sync","ts":"2026-06-29T00:54:08.273Z","weight":0,"by":"autowire","judged":false,"score":0.416,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqjh7j03b4f","to":"codex/split-meta-routes-mcp-state","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:41:14.297Z"}
