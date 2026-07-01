@@ -1,2 +1,4 @@
 {"evt":"edge_removed","from":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","to":"codex/fix-bench-sdk-a2-edgejudge-timeout","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:18:41.303Z"}
 {"evt":"edge_removed","from":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","to":"codex/fix-stale-tested-verdict-requeue","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:18:47.305Z"}
+{"evt":"edge_added","from":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","to":"codex/reconcile-bench-sdk-s7-conflict","kind":"blocking","actor":"overlay-sync","ts":"2026-07-01T06:49:29.729Z","origin":"subconscious-assignment"}
+{"evt":"edge_removed","from":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","to":"codex/reconcile-bench-sdk-s7-conflict","kind":"context","actor":"overlay-sync","ts":"2026-07-01T06:49:29.729Z"}
