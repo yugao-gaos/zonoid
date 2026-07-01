@@ -15,3 +15,4 @@
 {"evt":"edge_removed","from":"note:note-mqs2kpieojw","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-26T15:55:45.319Z"}
 {"evt":"edge_added","from":"note:note-mqs2kpieojw","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.708,"by":"judge","judged":true,"score":0.708,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqs2kpieojw","to":"codex/auto-drain-tested-ready-and-drop-stale-smoke","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.707,"by":"judge","judged":true,"score":0.707,"origin":"asserted"}
+{"evt":"edge_removed","from":"note:note-mqs2kpieojw","to":"59fc18e1-744e-4f7a-9093-a8e12d43087b/21","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:11:04.463Z"}
