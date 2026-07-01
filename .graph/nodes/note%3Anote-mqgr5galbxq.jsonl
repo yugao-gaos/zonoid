@@ -22,3 +22,4 @@
 {"evt":"edge_removed","from":"note:note-mqgr5galbxq","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-06-28T21:58:37.399Z"}
 {"evt":"edge_added","from":"note:note-mqgr5galbxq","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-06-28T22:03:01.259Z","weight":0,"by":"autowire","judged":false,"score":0.455,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqgr5galbxq","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:38:37.321Z"}
+{"evt":"edge_promoted","from":"note:note-mqgr5galbxq","to":"codex/headless-drain-context-compression","kind":"context","actor":"overlay-sync","ts":"2026-07-01T06:43:20.596Z","weight":0.484,"by":"judge","judged":true,"score":0.484,"origin":"autowire-semantic"}
