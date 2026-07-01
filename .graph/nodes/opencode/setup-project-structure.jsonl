@@ -11,3 +11,6 @@
 {"evt":"edge_added","from":"opencode/setup-project-structure","to":"opencode/icalemma_setup","kind":"blocking","actor":"overlay-sync","ts":"2026-07-01T04:08:59.300Z","by":"judge","judged":true,"score":0.6,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"opencode/setup-project-structure","to":"opencode/icalemma_setup","kind":"context","actor":"overlay-sync","ts":"2026-07-01T04:08:59.300Z"}
 {"evt":"status_changed","id":"opencode/setup-project-structure","workspace":"/Users/imyu/Desktop/zonoid","status":"canceled","actor":"overlay-sync","ts":"2026-07-01T05:13:17.093Z"}
+{"evt":"timestamps_set","id":"opencode/setup-project-structure","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-06-28T14:30:36.016Z","lastChanged":"2026-07-01T05:13:35.607Z","lastStatus":"canceled"},"actor":"overlay-sync","ts":"2026-07-01T05:16:11.943Z"}
+{"evt":"edge_removed","from":"opencode/setup-project-structure","to":"knowledge:source_section:section-adapters-cursor-readme-md-2-install-paths-c124b8e988","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:16:19.460Z"}
+{"evt":"edge_removed","from":"opencode/setup-project-structure","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:16:34.874Z"}
