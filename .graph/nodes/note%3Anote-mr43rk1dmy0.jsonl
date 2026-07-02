@@ -18,3 +18,4 @@
 {"evt":"edge_removed","from":"note:note-mr43rk1dmy0","to":"codex/ewm-repl-sandbox-budget-guards-segmentation","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:13:50.829Z"}
 {"evt":"edge_removed","from":"note:note-mr43rk1dmy0","to":"note:note-mqherq0dwip","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:14:19.825Z"}
 {"evt":"edge_removed","from":"note:note-mr43rk1dmy0","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:14:48.708Z"}
+{"evt":"edge_added","from":"note:note-mr43rk1dmy0","to":"codex/ewm-live-ls20-run-wiring-and-ab-slice","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:18:43.066Z","origin":"subconscious-assignment"}

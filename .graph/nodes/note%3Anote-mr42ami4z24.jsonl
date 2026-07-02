@@ -30,3 +30,4 @@
 {"evt":"edge_removed","from":"note:note-mr42ami4z24","to":"codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:58:02.526Z"}
 {"evt":"edge_removed","from":"note:note-mr42ami4z24","to":"codex/ewm-agent-loop-land-completed-attempt-branch","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:58:02.526Z"}
 {"evt":"edge_removed","from":"note:note-mr42ami4z24","to":"codex/ewm-env-driver-arc-runner-glue-smoke-run","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:58:02.526Z"}
+{"evt":"edge_added","from":"note:note-mr42ami4z24","to":"codex/ewm-live-ls20-run-wiring-and-ab-slice","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:18:43.066Z","origin":"subconscious-assignment"}
