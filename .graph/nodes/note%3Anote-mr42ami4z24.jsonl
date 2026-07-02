@@ -19,3 +19,4 @@
 {"evt":"edge_added","from":"note:note-mr42ami4z24","to":"codex/ewm-env-driver-arc-runner-glue-smoke-run","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:48:35.694Z","origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mr42ami4z24","to":"codex/ewm-env-driver-arc-runner-glue-smoke-run","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:49:29.881Z","weight":0,"by":"autowire","judged":false,"score":0.426,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr42ami4z24","to":"note:note-mr3w7imnpak","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:56:09.055Z"}
+{"evt":"edge_promoted","from":"note:note-mr42ami4z24","to":"codex/ewm-env-driver-arc-runner-glue-smoke-run","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:56:41.956Z","weight":0.426,"by":"judge","judged":true,"score":0.426,"origin":"autowire-semantic"}
