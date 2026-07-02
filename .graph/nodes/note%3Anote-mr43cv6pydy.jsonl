@@ -10,3 +10,4 @@
 {"evt":"edge_promoted","from":"note:note-mr43cv6pydy","to":"codex/ewm-agent-loop-land-completed-attempt-branch","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:46:21.220Z","weight":0,"by":"autowire","judged":false,"score":0.869,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr43cv6pydy","to":"codex/ewm-env-driver-arc-runner-glue-smoke-run","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:49:29.881Z","weight":0,"by":"autowire","judged":false,"score":0.39,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mr43cv6pydy","to":"codex/ewm-agent-loop-land-completed-attempt-branch","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:51:08.946Z","weight":0.869,"by":"judge","judged":true,"score":0.869,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:56:04.998Z"}
