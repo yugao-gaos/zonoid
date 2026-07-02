@@ -12,3 +12,5 @@
 {"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/6","to":"codex/reapply-causal-edges-preserve-blocking-dependencies","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:51:36.217Z"}
 {"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/6","to":"codex/headroom-style-reversible-context-pilot","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:55:27.239Z"}
 {"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/6","to":"codex/fix-search-traversal-expand-shrink","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:20:03.398Z"}
+{"evt":"timestamps_set","id":"29556785-fa39-442e-8eba-b5dd9dc00862/6","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-02T22:14:49.048Z","lastChanged":"2026-07-02T23:49:13.310Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-07-02T23:49:15.525Z"}
+{"evt":"timestamps_set","id":"29556785-fa39-442e-8eba-b5dd9dc00862/6","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-02T22:14:49.048Z","lastChanged":"2026-07-02T23:49:20.177Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-07-02T23:49:22.519Z"}
