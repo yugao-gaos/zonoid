@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+  "git_user": "test <test@example.com>",
+  "session_id": "29556785-fa39-442e-8eba-b5dd9dc00862",
+  "branch": "orch/attempt/codex-ewm-live-ls20-run-wiring-and-ab-slice",
+  "status": "claimed",
+  "claimed_at": "2026-07-02T23:19:48.280Z",
+  "lease_until": "2026-07-03T00:19:48.280Z"
+}
