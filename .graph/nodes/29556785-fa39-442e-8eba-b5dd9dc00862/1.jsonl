@@ -8,3 +8,4 @@
 {"evt":"timestamps_set","id":"29556785-fa39-442e-8eba-b5dd9dc00862/1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-02T22:14:44.579Z","lastChanged":"2026-07-02T22:14:49.846Z","lastStatus":"not_ready"},"actor":"overlay-sync","ts":"2026-07-02T22:15:16.623Z"}
 {"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/1","to":"codex/define-artifact-provider-contract-without-ast-shapes","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:16:53.384Z"}
 {"evt":"timestamps_set","id":"29556785-fa39-442e-8eba-b5dd9dc00862/1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-02T22:14:44.579Z","lastChanged":"2026-07-02T22:18:17.512Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-07-02T22:18:49.720Z"}
+{"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/1","to":"knowledge:source_doc:note-mqpzfgjlux8","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:31:21.871Z"}

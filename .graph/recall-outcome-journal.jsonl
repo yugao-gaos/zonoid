@@ -889,3 +889,10 @@
 {"ts":"2026-06-29T17:40:06.002Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/embed-provider-eval-docs","recalled_note_keys":[],"outcome":"approve","via":"rag"}
 {"ts":"2026-07-02T22:27:09.271Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes","recalled_note_keys":[],"outcome":"tested","via":"rag"}
 {"ts":"2026-07-02T22:28:49.423Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/ewm-world-model-kit-contract-regression-suite-sim-planner","recalled_note_keys":[],"outcome":"tested","via":"rag"}
+{"ts":"2026-07-02T22:29:40.910Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/ewm-world-model-kit-contract-regression-suite-sim-planner","recalled_note_keys":[],"outcome":"tested","via":"rag"}
+{"ts":"2026-07-02T22:30:01.266Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/ewm-repl-sandbox-budget-guards-segmentation","recalled_note_keys":[],"outcome":"tested","via":"rag"}
+{"ts":"2026-07-02T22:30:05.384Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/ewm-world-model-kit-contract-regression-suite-sim-planner","recalled_note_keys":[],"outcome":"tested","via":"rag"}
+{"ts":"2026-07-02T22:30:42.514Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/ewm-vision-compositor-composite-frame-png","recalled_note_keys":[],"outcome":"tested","via":"rag"}
+{"ts":"2026-07-02T22:30:47.580Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/ewm-repl-sandbox-budget-guards-segmentation","recalled_note_keys":[],"outcome":"tested","via":"rag"}
+{"ts":"2026-07-02T22:30:51.366Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/ewm-vision-compositor-composite-frame-png","recalled_note_keys":[],"outcome":"tested","via":"rag"}
+{"ts":"2026-07-02T22:31:02.026Z","workspace":"/Users/imyu/Desktop/zonoid","task_key":"codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes","recalled_note_keys":[],"outcome":"approve","via":"rag"}
