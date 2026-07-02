@@ -7,3 +7,4 @@
 {"evt":"edge_added","from":"note:note-mr43cv6pydy","to":"note:note-mq88939kmsi","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:43:58.131Z","weight":0,"by":"autowire","judged":false,"score":0.508,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"note:note-mq7gh2hy","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:44:09.578Z"}
 {"evt":"edge_added","from":"note:note-mr43cv6pydy","to":"codex/ewm-agent-loop-land-completed-attempt-branch","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:45:40.918Z","origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mr43cv6pydy","to":"codex/ewm-agent-loop-land-completed-attempt-branch","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:46:21.220Z","weight":0,"by":"autowire","judged":false,"score":0.869,"origin":"autowire-semantic"}

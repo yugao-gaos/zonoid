@@ -44,3 +44,4 @@
 {"evt":"edge_promoted","from":"note:note-mqoeu0bmayx","to":"codex/migrate-subconscious-surface-messages","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.657,"by":"judge","judged":true,"score":0.657,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mqoeu0bmayx","to":"codex/review-subconscious-assignment-lifecycle","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z","weight":0.623,"by":"judge","judged":true,"score":0.623,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqoeu0bmayx","to":"knowledge:source_doc:doc-readme-md-f8cd5fd8ad","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_added","from":"note:note-mqoeu0bmayx","to":"codex/ewm-agent-loop-land-completed-attempt-branch","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:46:21.220Z","weight":0,"by":"autowire","judged":false,"score":0.457,"origin":"autowire-semantic"}
