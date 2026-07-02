@@ -12,3 +12,4 @@
 {"evt":"timestamps_set","id":"29556785-fa39-442e-8eba-b5dd9dc00862/1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-02T22:14:44.579Z","lastChanged":"2026-07-02T22:33:06.754Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-07-02T22:33:22.051Z"}
 {"evt":"edge_added","from":"29556785-fa39-442e-8eba-b5dd9dc00862/1","to":"codex/ewm-repl-sandbox-budget-guards-segmentation","kind":"supersede","actor":"overlay-sync","ts":"2026-07-02T22:33:24.201Z"}
 {"evt":"status_changed","id":"29556785-fa39-442e-8eba-b5dd9dc00862/1","workspace":"/Users/imyu/Desktop/zonoid","status":"canceled","actor":"overlay-sync","ts":"2026-07-02T22:33:24.201Z"}
+{"evt":"timestamps_set","id":"29556785-fa39-442e-8eba-b5dd9dc00862/1","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-02T22:14:44.579Z","lastChanged":"2026-07-02T22:33:28.265Z","lastStatus":"canceled"},"actor":"overlay-sync","ts":"2026-07-02T22:33:30.533Z"}
