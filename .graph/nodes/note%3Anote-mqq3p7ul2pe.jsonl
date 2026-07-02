@@ -12,3 +12,4 @@
 {"evt":"edge_added","from":"note:note-mqq3p7ul2pe","to":"codex/add-standalone-zai-glm-api-backend-provider","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":1,"judged":true}
 {"evt":"edge_added","from":"note:note-mqq3p7ul2pe","to":"opencode/backend-key-ui-and-model-clear","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:36:33.346Z","weight":0.372,"by":"judge","judged":true,"score":0.372,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqq3p7ul2pe","to":"codex/ewm-world-model-kit-contract-regression-suite-sim-planner","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:18:16.350Z","weight":0,"by":"autowire","judged":false,"score":0.318,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqq3p7ul2pe","to":"codex/ewm-world-model-kit-contract-regression-suite-sim-planner","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:44:56.204Z"}
