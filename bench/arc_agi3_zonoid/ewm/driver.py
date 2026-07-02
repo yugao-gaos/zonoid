@@ -506,13 +506,77 @@ def smoke_run() -> dict[str, Any]:
 
 
 def _build_live_env(args: argparse.Namespace) -> ArcEnvAdapter:
-    """Route --game/--backend/--daemon-url to the live ARC adapter (raises if the SDK is absent)."""
+    """Route --backend/--daemon-url to the generic live ARC adapter (raises if the SDK is absent)."""
 
     return ArcEnvAdapter(
         backend_module=args.backend,
         game=args.game,
         daemon_url=args.daemon_url,
     )
+
+
+def live_run(
+    game: str,
+    *,
+    benchmarking_repo: str | None,
+    max_actions: int,
+    max_seconds: float,
+    vision: bool = False,
+    max_turns: int = 200,
+) -> dict[str, Any]:
+    """Play ``game`` live on the official ARC-AGI-3 checkout with the ollama LlmClient.
+
+    Builds a :class:`~.live.LiveArcSession` (SDK imported lazily from the checkout), an
+    :class:`~.llm_client.LlmClient` from the environment (``ARC_LLM_BASE_URL`` / ``ARC_LLM_MODEL``),
+    and runs the full :class:`~.agent.EwmAgent` loop against it. Returns a run-summary dict. Vision
+    defaults OFF (the ollama backend is text-only). The session is always closed (scorecard) even on
+    error.
+    """
+
+    from .agent import EwmAgent
+    from .live import build_live_session
+    from .llm_client import LlmClient
+
+    session = build_live_session(
+        game,
+        benchmarking_repo=benchmarking_repo,
+        max_actions=max_actions,
+        max_seconds=max_seconds,
+    )
+    llm = LlmClient.from_env(timeout_s=300)
+    try:
+        session.open()
+        if not vision:
+            EwmAgent._vision_available = staticmethod(lambda: False)
+        agent = EwmAgent(
+            session,
+            llm,
+            kb=None,
+            vision_enabled=vision,
+            config=AgentConfig(game_id=game, max_turns=max_turns),
+        )
+        summary = agent.run()
+        scorecard_url = session.scorecard_url()
+        return {
+            "game": game,
+            "won": bool(summary.get("won")),
+            "levels_completed": session.levels_completed,
+            "actions_taken": session.actions_taken,
+            "decide_calls": summary.get("decide_calls", 0),
+            "reflect_calls": summary.get("reflect_calls", 0),
+            "modes_visited": sorted(set(summary.get("modes", []))),
+            "program_adopted": bool(summary.get("program_accepted")),
+            "program_synthesized": bool(summary.get("program_accepted")),
+            "divergences": summary.get("reactive_turns", 0),
+            "transitions": summary.get("transitions", 0),
+            "stop_reason": summary.get("stop_reason"),
+            "scorecard_url": scorecard_url,
+            "max_actions": max_actions,
+            "max_seconds": max_seconds,
+            "vision": vision,
+        }
+    finally:
+        session.close()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -537,6 +601,29 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Zonoid daemon URL for the live path.",
     )
+    parser.add_argument(
+        "--benchmarking-repo",
+        default=None,
+        help="Path to the official ARC-AGI-3 benchmarking checkout (or set "
+        "ARC_BENCHMARKING_REPO). The ARC SDK is imported from here at runtime.",
+    )
+    parser.add_argument(
+        "--max-actions",
+        type=int,
+        default=80,
+        help="Hard cap on total actions submitted in a live run (default: 80).",
+    )
+    parser.add_argument(
+        "--max-seconds",
+        type=float,
+        default=25 * 60,
+        help="Hard wall-clock cap in seconds for a live run (default: 1500).",
+    )
+    parser.add_argument(
+        "--vision",
+        action="store_true",
+        help="Enable vision composites (default off; the ollama backend is text-only).",
+    )
     args = parser.parse_args(argv)
 
     if args.smoke:
@@ -544,12 +631,23 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(summary))
         return 0
 
-    if args.game or args.backend or args.daemon_url:
-        # Live path: construct the ARC adapter. This raises the clear RuntimeError when the
-        # SDK/checkout is absent (the whole point of isolating it behind a lazy import).
+    if args.game and not args.backend:
+        # Live path over the official checkout: run the full EwmAgent loop against a real game
+        # session. build_live_session raises a clear RuntimeError when the checkout/SDK is absent.
+        summary = live_run(
+            args.game,
+            benchmarking_repo=args.benchmarking_repo,
+            max_actions=args.max_actions,
+            max_seconds=args.max_seconds,
+            vision=args.vision,
+        )
+        print(json.dumps(summary))
+        return 0
+
+    if args.backend or args.daemon_url:
+        # Generic backend-module path: construct the ARC adapter. This raises the clear
+        # RuntimeError when the SDK/backend module is absent.
         env = _build_live_env(args)
-        # Wiring a live run to the agent loop is future work; constructing the adapter is the
-        # boundary this driver owns. Report that the env is ready and exit.
         print(
             json.dumps(
                 {
