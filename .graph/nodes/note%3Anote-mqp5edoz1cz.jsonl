@@ -19,3 +19,4 @@
 {"evt":"edge_removed","from":"note:note-mqp5edoz1cz","to":"knowledge:source_chunk:chunk-readme-md-13-0-ci-github-workflows-test-yml-runs-npm-r-91db70d93b","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqp5edoz1cz","to":"knowledge:source_section:section-readme-md-13-development-09c246751e","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqp5edoz1cz","to":"knowledge:source_chunk:chunk-contributing-md-5-3-ci-github-workflows-test-yml-runs--41211901a5","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
+{"evt":"edge_added","from":"note:note-mqp5edoz1cz","to":"knowledge:source_chunk:chunk-readme-md-1-1-the-pre-push-guard-runs-npm-run-test-all-23ef26e27b","kind":"context","actor":"overlay-sync","ts":"2026-07-02T19:13:01.054Z","weight":0.744,"by":"judge","judged":true}
