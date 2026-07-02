@@ -10,3 +10,4 @@
 {"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/4","to":"codex/code-ast-extractor","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:15:34.868Z"}
 {"evt":"edge_added","from":"29556785-fa39-442e-8eba-b5dd9dc00862/4","to":"codex/embed-provider-instruct-api","kind":"blocking","actor":"overlay-sync","ts":"2026-07-02T22:16:10.358Z","by":"judge","judged":true,"score":0.351,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/4","to":"codex/embed-provider-instruct-api","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:16:10.358Z"}
+{"evt":"timestamps_set","id":"29556785-fa39-442e-8eba-b5dd9dc00862/4","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-02T22:14:45.917Z","lastChanged":"2026-07-02T22:18:19.929Z","lastStatus":"in_progress"},"actor":"overlay-sync","ts":"2026-07-02T22:18:49.720Z"}
