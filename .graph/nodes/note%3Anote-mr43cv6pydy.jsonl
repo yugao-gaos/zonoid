@@ -15,3 +15,4 @@
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"note:note-mq88939kmsi","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:13:16.193Z"}
 {"evt":"edge_added","from":"note:note-mr43cv6pydy","to":"codex/ewm-live-ls20-run-wiring-and-ab-slice","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:19:51.872Z","weight":0,"by":"autowire","judged":false,"score":0.363,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"note:note-mqhha58fz9k","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:45:38.633Z"}
+{"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-live-ls20-run-wiring-and-ab-slice","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:54:08.169Z"}
