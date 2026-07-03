@@ -49,3 +49,4 @@
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:51:30.663Z"}
 {"evt":"edge_added","from":"note:note-mr43cv6pydy","to":"codex/ewm-changed-cells-floor-repair-on-partial-adoption","kind":"context","actor":"overlay-sync","ts":"2026-07-03T15:09:28.308Z","weight":0,"by":"autowire","judged":false,"score":0.422,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-changed-cells-floor-repair-on-partial-adoption","kind":"context","actor":"overlay-sync","ts":"2026-07-03T15:21:25.587Z"}
+{"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints","kind":"context","actor":"overlay-sync","ts":"2026-07-03T16:04:30.469Z"}
