@@ -111,6 +111,43 @@ class LlmClientTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 LlmClient.from_env()
 
+    def test_reasoning_effort_sent_in_body(self) -> None:
+        rec = _Recorder(_ok_payload("ok"))
+        client = LlmClient("http://h/v1", "m", reasoning_effort="none")
+        with mock.patch.object(llm_client.request, "urlopen", rec):
+            client.chat([{"role": "user", "content": "q"}])
+        self.assertEqual(rec.calls[0]["body"]["reasoning_effort"], "none")
+
+    def test_reasoning_effort_omitted_when_unset(self) -> None:
+        rec = _Recorder(_ok_payload("ok"))
+        with mock.patch.object(llm_client.request, "urlopen", rec):
+            self._client().chat([{"role": "user", "content": "q"}])
+        self.assertNotIn("reasoning_effort", rec.calls[0]["body"])
+
+    def test_from_env_reads_reasoning_effort(self) -> None:
+        env = {
+            llm_client.ENV_BASE_URL: "http://env/v1",
+            llm_client.ENV_MODEL: "env-model",
+            llm_client.ENV_REASONING_EFFORT: "none",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            client = LlmClient.from_env()
+        self.assertEqual(client.reasoning_effort, "none")
+
+    def test_empty_content_falls_back_to_reasoning(self) -> None:
+        payload = {
+            "choices": [
+                {
+                    "message": {"content": "", "reasoning": "```python\nx = 1\n```"},
+                    "finish_reason": "length",
+                }
+            ]
+        }
+        rec = _Recorder(payload)
+        with mock.patch.object(llm_client.request, "urlopen", rec):
+            out = self._client().chat([{"role": "user", "content": "q"}])
+        self.assertIn("x = 1", out["content"])
+
 
 class FakeLlmTest(unittest.TestCase):
     def test_returns_queued_and_records_messages(self) -> None:
