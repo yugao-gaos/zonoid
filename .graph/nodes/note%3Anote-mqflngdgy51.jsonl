@@ -29,3 +29,4 @@
 {"evt":"edge_added","from":"note:note-mqflngdgy51","to":"codex/daemon-note-get-reassembling-full-body-read-endpoint","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:03:35.363Z","weight":0,"by":"autowire","judged":false,"score":0.453,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mqflngdgy51","to":"codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:20:39.230Z","weight":0,"by":"autowire","judged":false,"score":0.371,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqflngdgy51","to":"codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:28:11.884Z"}
+{"evt":"edge_removed","from":"note:note-mqflngdgy51","to":"codex/daemon-note-get-reassembling-full-body-read-endpoint","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:35:56.616Z"}
