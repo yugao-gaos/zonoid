@@ -8,3 +8,4 @@
 {"evt":"edge_added","from":"note:note-mr59as8s26f","to":"knowledge:source_chunk:chunk-readme-md-0-0-the-agent-s-subconscious-for-coding-work-2ef7ace6c3","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:18:04.935Z","weight":0,"by":"autowire","judged":false,"score":0.478,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr59as8s26f","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:23:54.346Z"}
 {"evt":"edge_removed","from":"note:note-mr59as8s26f","to":"knowledge:source_chunk:chunk-readme-md-0-2-most-ai-coding-agents-start-every-sessio-0875a47035","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:26:12.494Z"}
+{"evt":"edge_removed","from":"note:note-mr59as8s26f","to":"note:note-mqvr2wl8lre","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:29:22.550Z"}
