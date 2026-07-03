@@ -199,6 +199,11 @@ class AgentConfig:
     # extracted program source, and validation report) plus an end-of-run transition-suite dump and
     # the final adopted program, so REJECTED candidates are inspectable instead of discarded.
     artifacts_dir: str | None = None
+    # Graph-native multi-step synthesis: when True, SYNTHESIZE delegates to a synth_graph.SynthSession
+    # (ANALYZE -> PLAN -> EDIT chain -> FINAL) instead of the single-shot _synthesize completion. One
+    # session == one synthesis cycle; adoption still requires the session's FINAL full-suite validate
+    # to pass on a NON-EMPTY suite. Default False so tests/smoke keep the single-shot path.
+    graph_synthesis: bool = False
 
 
 # --------------------------------------------------------------------------------------------------
@@ -410,11 +415,15 @@ class EwmAgent:
         kb: Any = None,
         vision_enabled: bool = True,
         config: AgentConfig | None = None,
+        graph: Any = None,
     ) -> None:
         self.env = env
         self.llm = llm
         self.kb = kb
         self.config = config or AgentConfig()
+        # Optional synth_graph.GraphClient for graph-native synthesis (config.graph_synthesis). None
+        # -> the SynthSession runs offline (all graph ops no-op'd) but the state machine is identical.
+        self.graph = graph
         self.vision_enabled = bool(vision_enabled) and self._vision_available()
 
         self.suite = TransitionSuite()
@@ -1035,6 +1044,8 @@ class EwmAgent:
         if len(self.suite) == 0:
             # Nothing observed yet to validate against: refuse to synthesize a vacuous program.
             return False
+        if self.config.graph_synthesis:
+            return self._synthesize_graph(frame)
         kb_hits = self._kb_search(
             "SYNTHESIZE", vocabulary=self._vocabulary(frame)
         )
@@ -1083,6 +1094,87 @@ class EwmAgent:
                 self._maybe_write_program(frame, report)
                 return True
         return False
+
+    # -- graph-native multi-step synthesis (config.graph_synthesis) --------------------------------
+
+    def _synthesize_graph(self, frame: dict[str, Any]) -> bool:
+        """Delegate one synthesis cycle to a graph-native :class:`~.synth_graph.SynthSession`.
+
+        The session runs ANALYZE -> PLAN -> EDIT chain -> FINAL over the observed suite, fed the
+        object-level deltas from :func:`~.deltas.summarize_suite` and (when a KB is present) the
+        cross-game hypothesis menu as ANALYZE context. Adoption is UNCHANGED from single-shot
+        synthesis: adopt only when the session's FINAL full-suite validate passes on a NON-EMPTY
+        suite. Each EDIT attempt writes the same ``NN-{mode}.json`` artifact via the on_edit hook.
+        Returns True on adoption.
+        """
+
+        from . import deltas as _deltas
+        from . import synth_graph as _synth_graph
+
+        summary = _deltas.summarize_suite(self.suite)
+        delta_texts = list(summary.get("per_action", [])) + list(summary.get("per_transition", []))
+        menu_lines = self._hypothesis_menu_lines(frame)
+
+        def _sink(edit: dict[str, Any]) -> None:
+            self._write_attempt_artifact(
+                "SYNTHESIZE",
+                frame,
+                edit.get("prompt_text", ""),
+                edit.get("raw_text", ""),
+                edit.get("source"),
+                edit.get("report"),
+                bool(edit.get("adopted")),
+            )
+
+        session = _synth_graph.SynthSession(
+            self.config.game_id,
+            self.suite,
+            self._synth_client(),
+            graph=self.graph,
+            on_edit=_sink,
+            analyze_context=menu_lines,
+        )
+        try:
+            result = session.run(deltas=delta_texts)
+        except Exception:  # noqa: BLE001 - a synthesis session must never crash the loop
+            return False
+
+        source = result.get("program_source")
+        report_dict = result.get("report") or {}
+        adopted = bool(source) and bool(report_dict.get("ok")) and int(report_dict.get("total", 0)) > 0
+        if not adopted or not isinstance(source, str):
+            return False
+        try:
+            candidate = WorldModelProgram.load(source)
+        except SandboxError:
+            return False
+        # Re-validate on the live suite before trusting the session's FINAL verdict.
+        report = validate(candidate, self.suite)
+        if not (report.ok and report.total > 0):
+            return False
+        self._adopt_program(candidate)
+        self._maybe_write_program(frame, report)
+        return True
+
+    def _hypothesis_menu_lines(self, frame: dict[str, Any]) -> list[str]:
+        """The KB cross-game hypothesis menu as ANALYZE context lines (empty when no KB)."""
+
+        if self.kb is None or getattr(self.kb, "client", None) is None:
+            return []
+        from . import kb_protocol
+
+        try:
+            menu = kb_protocol.hypothesis_menu(
+                self.config.game_id,
+                self._vocabulary(frame),
+                client=self.kb.client,
+            )
+        except Exception:  # noqa: BLE001 - a KB miss must never crash synthesis
+            return []
+        formatted = menu.get("formatted") if isinstance(menu, dict) else None
+        if isinstance(formatted, str) and formatted.strip():
+            return [formatted]
+        return []
 
     def _repair(self, frame: dict[str, Any], image_url: str | None) -> bool:
         """Patch the current program from the first-failure report and re-validate.

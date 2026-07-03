@@ -198,6 +198,48 @@ class SmokeArtifactTests(unittest.TestCase):
             self.assertIn(key, art)
 
 
+class GraphFlagTests(unittest.TestCase):
+    """The --graph on|off flag (default off) and the DaemonGraph builder used by the live path."""
+
+    def test_graph_flag_rejects_bad_choice(self):
+        # argparse enforces choices=("on","off"); a bad value exits non-zero before any live run.
+        with self.assertRaises(SystemExit):
+            driver_mod.main(["--game", "ls20", "--graph", "bogus"])
+
+    def test_live_run_accepts_graph_kwarg(self):
+        self.assertIn("graph", driver_mod.live_run.__code__.co_varnames)
+
+    def test_build_daemon_graph_uses_env_url(self):
+        import os
+
+        prev = os.environ.get("ZONOID_DAEMON_URL")
+        os.environ["ZONOID_DAEMON_URL"] = "http://localhost:9999"
+        try:
+            graph = driver_mod._build_daemon_graph("ls20", "/tmp/artifacts-x")
+        finally:
+            if prev is None:
+                os.environ.pop("ZONOID_DAEMON_URL", None)
+            else:
+                os.environ["ZONOID_DAEMON_URL"] = prev
+        from bench.arc_agi3_zonoid.ewm.synth_graph import DaemonGraph
+
+        self.assertIsInstance(graph, DaemonGraph)
+        self.assertEqual(graph.daemon_url, "http://localhost:9999")
+        self.assertEqual(graph.workspace, "/Users/imyu/Desktop/zonoid")
+        self.assertEqual(graph.data_dir, "/tmp/artifacts-x")
+
+    def test_build_daemon_graph_default_url(self):
+        import os
+
+        prev = os.environ.pop("ZONOID_DAEMON_URL", None)
+        try:
+            graph = driver_mod._build_daemon_graph("ls20", "/tmp/a")
+        finally:
+            if prev is not None:
+                os.environ["ZONOID_DAEMON_URL"] = prev
+        self.assertEqual(graph.daemon_url, "http://localhost:8787")
+
+
 class ImportPurityTests(unittest.TestCase):
     def test_module_import_is_sdk_free(self):
         # Importing the driver must not pull in any ARC SDK candidate or PIL.

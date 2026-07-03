@@ -1347,5 +1347,117 @@ class SynthTokenBudgetTests(unittest.TestCase):
         self.assertIn("Return ONLY one fenced python block", retry_text)
 
 
+class GraphSynthesisTests(unittest.TestCase):
+    """config.graph_synthesis routes SYNTHESIZE through a synth_graph.SynthSession: the ANALYZE ->
+    PLAN -> EDIT chain adopts a program, feeds deltas.summarize_suite texts to ANALYZE, injects the
+    KB hypothesis menu as ANALYZE context, and writes a per-EDIT artifact."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _seeded_agent(self, llm, kb=None):
+        import json
+
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        analyze = json.dumps([{"name": "move", "description": "shift"}])
+        plan = json.dumps(
+            [{"name": "toy", "description": "author", "target_transitions": [0]}]
+        )
+        # FakeLlm scripts ANALYZE, PLAN, EDIT completions in order.
+        scripted = FakeLlm([analyze, plan, _fenced(TOY_GAME_SOURCE)]) if llm is None else llm
+        ag = EwmAgent(
+            env=None,
+            llm=scripted,
+            kb=kb,
+            vision_enabled=False,
+            config=AgentConfig(game_id="toy", graph_synthesis=True),
+            graph=None,
+        )
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        return ag, scripted
+
+    def test_graph_synthesis_adopts_program(self):
+        ag, _ = self._seeded_agent(None)
+        frame = {"grid": _grid("2.3"), "level": 1, "step": 0}
+        self.assertTrue(ag._synthesize_graph(frame))
+        self.assertIsNotNone(ag.program)
+        self.assertTrue(ag.summary.program_accepted)
+
+    def test_graph_synthesis_feeds_deltas_to_analyze(self):
+        ag, llm = self._seeded_agent(None)
+        frame = {"grid": _grid("2.3"), "level": 1, "step": 0}
+        ag._synthesize_graph(frame)
+        # First FakeLlm call is the ANALYZE completion; its user prompt carries delta text derived
+        # from summarize_suite (the RIGHT action's aggregate effect line).
+        analyze_user = llm.received[0]["messages"][-1]["content"]
+        self.assertIn("transition deltas", analyze_user.lower())
+        self.assertIn("RIGHT", analyze_user)
+
+    def test_graph_synthesis_writes_edit_artifact(self):
+        import json
+        import os
+        import tempfile
+
+        d = tempfile.mkdtemp()
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        analyze = json.dumps([{"name": "move", "description": "shift"}])
+        plan = json.dumps(
+            [{"name": "toy", "description": "author", "target_transitions": [0]}]
+        )
+        llm = FakeLlm([analyze, plan, _fenced(TOY_GAME_SOURCE)])
+        ag = EwmAgent(
+            env=None,
+            llm=llm,
+            kb=None,
+            vision_enabled=False,
+            config=AgentConfig(game_id="toy", graph_synthesis=True, artifacts_dir=d),
+            graph=None,
+        )
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        ag._synthesize_graph({"grid": _grid("2.3"), "level": 1, "step": 0})
+        arts = sorted(f for f in os.listdir(d) if f.endswith("-SYNTHESIZE.json"))
+        self.assertTrue(arts)
+        with open(os.path.join(d, arts[0]), encoding="utf-8") as fh:
+            art = json.load(fh)
+        for key in ("mode", "prompt_text", "raw_llm_response",
+                    "extracted_program_source", "validation_report", "adopted"):
+            self.assertIn(key, art)
+        self.assertTrue(art["adopted"])
+
+    def test_graph_synthesis_injects_hypothesis_menu_context(self):
+        import json
+
+        kb = SearchKb(hits=[{"title": "gate on a key", "summary": "SOME games need a key first"}])
+        analyze = json.dumps([{"name": "move", "description": "shift"}])
+        plan = json.dumps(
+            [{"name": "toy", "description": "author", "target_transitions": [0]}]
+        )
+        llm = FakeLlm([analyze, plan, _fenced(TOY_GAME_SOURCE)])
+        ag, _ = self._seeded_agent(llm, kb=kb)
+        ag._synthesize_graph({"grid": _grid("2.3"), "level": 1, "step": 0})
+        analyze_user = llm.received[0]["messages"][-1]["content"]
+        # The hypothesis-menu preamble + note text reach the ANALYZE prompt as context.
+        self.assertIn("HYPOTHES", analyze_user.upper())
+        self.assertIn("gate on a key", analyze_user)
+
+    def test_graph_synthesis_refuses_adoption_on_failed_final(self):
+        import json
+
+        analyze = json.dumps([{"name": "move", "description": "shift"}])
+        plan = json.dumps(
+            [{"name": "toy", "description": "author", "target_transitions": [0]}]
+        )
+        # Every EDIT attempt proposes the WRONG program -> nothing adopted -> FINAL fails.
+        llm = FakeLlm(
+            [analyze, plan, _fenced(WRONG_GAME_SOURCE), _fenced(WRONG_GAME_SOURCE),
+             _fenced(WRONG_GAME_SOURCE)]
+        )
+        ag, _ = self._seeded_agent(llm)
+        self.assertFalse(ag._synthesize_graph({"grid": _grid("2.3"), "level": 1, "step": 0}))
+        self.assertIsNone(ag.program)
+
+
 if __name__ == "__main__":
     unittest.main()
