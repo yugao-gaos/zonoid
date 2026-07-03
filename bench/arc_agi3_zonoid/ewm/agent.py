@@ -1385,14 +1385,37 @@ class EwmAgent:
             return None, "no fenced source in note body"
         return source, None
 
-    @staticmethod
-    def _hit_key(hit: dict[str, Any]) -> str | None:
-        """The note key a /search hit carries (``key``/``id``/``note_key``), for a native note/get."""
+    # A cluster-artifact key embeds its parent note id as the trailing `note-<id>` segment (the
+    # daemon's long-note splitter builds the doc/section/chunk ids from the note's bare id — see
+    # lib/note-source-cluster.js). ORIENT's keyed search often surfaces those `knowledge:source_doc:
+    # note-<id> ... evidence` artifacts INSTEAD of the index note itself (the index note's own summary
+    # is compacted to a stub at write time, so the evidence node outranks it on the program query).
+    # /note/get only resolves `note:` keys, so we recover the parent note key from the artifact.
+    _NOTE_ID_RE = re.compile(r"(note-[0-9a-z]+)")
+
+    @classmethod
+    def _hit_key(cls, hit: dict[str, Any]) -> str | None:
+        """The `note:` key to read via native /note/get for a /search hit.
+
+        Returns the hit's own key when it is already a `note:` key; otherwise, when the hit is a
+        `knowledge:source_*` cluster artifact (or any key embedding a `note-<id>` token), derives the
+        parent `note:<id>` key so the native full-body read resolves the real note rather than 404ing
+        on the unreadable artifact key.
+        """
 
         for field in ("key", "id", "note_key"):
             value = hit.get(field)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
+            if not isinstance(value, str) or not value.strip():
+                continue
+            raw = value.strip()
+            if raw.startswith("note:"):
+                return raw
+            if raw.startswith("knowledge:"):
+                m = cls._NOTE_ID_RE.search(raw)
+                if m:
+                    return f"note:{m.group(1)}"
+                continue
+            return raw
         return None
 
     def _reassemble_orient_chunks(

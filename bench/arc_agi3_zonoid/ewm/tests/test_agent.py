@@ -673,6 +673,46 @@ class NativeOrientTests(unittest.TestCase):
         self.assertFalse(ag.summary.orient_adopted)
         self.assertEqual(client.get_calls, ["note:toy-program-index"])
 
+    def test_hit_key_derives_parent_note_from_cluster_artifact(self):
+        # ORIENT's keyed search often surfaces the `knowledge:source_doc:note-<id> ... evidence`
+        # cluster artifact instead of the index note (the index summary is compacted to a stub at
+        # write time). /note/get only resolves `note:` keys, so _hit_key must recover the parent
+        # note key from the artifact rather than hand the unreadable artifact key to get_note_full.
+        self.assertEqual(
+            EwmAgent._hit_key({"key": "knowledge:source_doc:note-mr5c8xcs7uo"}),
+            "note:note-mr5c8xcs7uo",
+        )
+        self.assertEqual(
+            EwmAgent._hit_key({"key": "knowledge:source_chunk:note-abc123#note-evidence:chunk-2"}),
+            "note:note-abc123",
+        )
+        # A plain note key passes through unchanged.
+        self.assertEqual(EwmAgent._hit_key({"key": "note:note-plain"}), "note:note-plain")
+        # No note-id token in a knowledge key -> unresolvable (None), never a bad key.
+        self.assertIsNone(EwmAgent._hit_key({"key": "knowledge:source_doc:weird-doc"}))
+
+    def test_orient_adopts_via_native_from_cluster_artifact_hit(self):
+        # End-to-end: the ORIENT hit is a cluster ARTIFACT key (as the live daemon returns), but the
+        # parent note's native full-body read carries the program -> ORIENT still adopts natively.
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        hit = {
+            "key": "knowledge:source_doc:note-toyprog",
+            "title": "game toy world model program evidence",
+            "summary": "[Long raw evidence preserved as structured source chunks.]",
+        }
+        full_body = f"pass rate: 2/2\n\n```python\n{TOY_GAME_SOURCE}\n```"
+        client = _NativeKbClient([hit], {"note:note-toyprog": full_body})
+        kb = _NativeKb(client)
+        env = ToyEnv(_grid("2.3"))
+        llm = FakeLlm(['{"prediction_ok": true}'] * 6)
+        ag = EwmAgent(env, llm, kb=kb, config=AgentConfig(game_id="toy", max_turns=10))
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        adopted = ag._orient({"grid": _grid("2.3")})
+        self.assertTrue(adopted)
+        self.assertIn("(native)", ag.summary.orient_diagnosis)
+        # get_note_full was called with the DERIVED parent note key, not the artifact key.
+        self.assertEqual(client.get_calls, ["note:note-toyprog"])
+
     def test_native_disabled_falls_through_to_inline(self):
         # With native_note_get OFF, ORIENT must NOT call get_note_full; a hit whose inline body
         # carries the program (legacy small-program path) is still adopted via the inline resolver.
