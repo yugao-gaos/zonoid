@@ -524,7 +524,10 @@ class ChunkedOrientTests(unittest.TestCase):
         self.assertTrue(summary["program_accepted"])
         self.assertTrue(summary["won"])
         self.assertTrue(summary["orient_adopted"])
-        self.assertIn(summary["orient_diagnosis"], ("adopted whole", "adopted partial"))
+        # The truncating client has no native /note/get, so the native path falls through to the
+        # chunk reassembler — the diagnosis now records which path served ("... (chunks)").
+        self.assertTrue(summary["orient_diagnosis"].startswith(("adopted whole", "adopted partial")))
+        self.assertIn("(chunks)", summary["orient_diagnosis"])
         # Straight from the chunked KB store: zero synthesis decide calls.
         self.assertEqual(summary["decide_calls"], 0)
 
@@ -571,6 +574,127 @@ class ChunkedOrientTests(unittest.TestCase):
         adopted = ag._orient({"grid": _grid("2.3")})
         self.assertFalse(adopted)
         self.assertFalse(ag.summary.orient_adopted)
+
+
+class _NativeKbClient:
+    """A KbClient stand-in whose ``/search`` returns a lean INDEX hit (200-char clipped summary, NO
+    usable inline source and NO chunk fields) but whose native ``get_note_full`` returns the WHOLE
+    fenced program body — the daemon-reassembled full-body read. This is exactly the shape the
+    production ``GET /note/get`` supersedes the chunk fallback with: ORIENT keys on the index hit,
+    then reads the full program in one native call.
+
+    ``full_body`` map is keyed by note key; a missing key returns an ``ok:False`` miss so the fallback
+    paths get exercised.
+    """
+
+    def __init__(self, hits, full_bodies):
+        self.hits = hits
+        self.full_bodies = full_bodies
+        self.get_calls: list[str] = []
+
+    def search(self, q, k, gated=False, full_content=False):
+        return list(self.hits)
+
+    def get_note_full(self, key):
+        self.get_calls.append(key)
+        body = self.full_bodies.get(key)
+        if body is None:
+            return {"ok": False, "error": "unknown note"}
+        return {
+            "ok": True,
+            "key": key,
+            "title": "game toy world model program",
+            "summary": body[:200],
+            "full_body": body,
+            "chunk_count": 2,
+            "byte_length": len(body.encode("utf-8")),
+        }
+
+
+class _NativeKb(FakeKb):
+    def __init__(self, client, max_writes_per_turn: int = 2) -> None:
+        super().__init__(max_writes_per_turn=max_writes_per_turn)
+        self.client = client
+
+
+class NativeOrientTests(unittest.TestCase):
+    """ORIENT prefers the native full-body note read (GET /note/get) over the chunk fallback."""
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _index_hit(self):
+        # A lean index hit: game-scoped title, a clipped prose summary that carries NO fenced source
+        # and NO chunk-count field, plus the note key ORIENT keys the native read on.
+        return {
+            "key": "note:toy-program-index",
+            "title": "game toy world model program",
+            "summary": "handles avatar movement; program stored in the note body (pass rate 2/2).",
+        }
+
+    def test_orient_adopts_via_native_note_get(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        hit = self._index_hit()
+        # The full body carries the whole program in a fenced block — only recoverable via note/get.
+        full_body = (
+            "handles avatar movement\n\npass rate: 2/2\n\n"
+            f"```python\n{TOY_GAME_SOURCE}\n```"
+        )
+        client = _NativeKbClient([hit], {"note:toy-program-index": full_body})
+        kb = _NativeKb(client)
+        env = ToyEnv(_grid("2.3"))
+        llm = FakeLlm(['{"prediction_ok": true}'] * 6)
+        ag = EwmAgent(env, llm, kb=kb, config=AgentConfig(game_id="toy", max_turns=10))
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        adopted = ag._orient({"grid": _grid("2.3")})
+        self.assertTrue(adopted)
+        self.assertTrue(ag.summary.orient_adopted)
+        # Diagnosis records the NATIVE path served the program.
+        self.assertIn("(native)", ag.summary.orient_diagnosis)
+        self.assertTrue(ag.summary.orient_diagnosis.startswith(("adopted whole", "adopted partial")))
+        # The native full-body endpoint was actually consulted with the index hit's key.
+        self.assertEqual(client.get_calls, ["note:toy-program-index"])
+
+    def test_native_miss_falls_back_without_crashing(self):
+        # The native endpoint reports a miss (unknown key); the lean index hit carries no inline
+        # source and chunked recall is off — ORIENT must degrade cleanly to "no warm-start", never
+        # crash, and never claim adoption.
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        hit = self._index_hit()
+        client = _NativeKbClient([hit], {})  # empty full-body map -> every get_note_full is a miss
+        kb = _NativeKb(client)
+        env = ToyEnv(_grid("2.3"))
+        ag = EwmAgent(env, FakeLlm([]), kb=kb, config=AgentConfig(game_id="toy", max_turns=1))
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        adopted = ag._orient({"grid": _grid("2.3")})
+        self.assertFalse(adopted)
+        self.assertFalse(ag.summary.orient_adopted)
+        self.assertEqual(client.get_calls, ["note:toy-program-index"])
+
+    def test_native_disabled_falls_through_to_inline(self):
+        # With native_note_get OFF, ORIENT must NOT call get_note_full; a hit whose inline body
+        # carries the program (legacy small-program path) is still adopted via the inline resolver.
+        EwmAgent._vision_available = staticmethod(lambda: False)
+        hit = {
+            "key": "note:toy-inline",
+            "title": "game toy world model program",
+            "summary": f"pass rate: 2/2\n\nprogram source:\n{TOY_GAME_SOURCE}",
+        }
+        client = _NativeKbClient([hit], {"note:toy-inline": "unused"})
+        kb = _NativeKb(client)
+        env = ToyEnv(_grid("2.3"))
+        llm = FakeLlm(['{"prediction_ok": true}'] * 6)
+        ag = EwmAgent(
+            env, llm, kb=kb,
+            config=AgentConfig(game_id="toy", max_turns=10, native_note_get=False),
+        )
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        adopted = ag._orient({"grid": _grid("2.3")})
+        self.assertTrue(adopted)
+        self.assertIn("(inline)", ag.summary.orient_diagnosis)
+        self.assertEqual(client.get_calls, [])
 
 
 class SynthesizeExecuteTests(unittest.TestCase):
