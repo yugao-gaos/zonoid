@@ -9,3 +9,4 @@
 {"evt":"edge_removed","from":"note:note-mr59nvbsjaf","to":"note:note-mqvr2wl8lre","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:56:15.371Z"}
 {"evt":"edge_removed","from":"note:note-mr59nvbsjaf","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:57:36.695Z"}
 {"evt":"edge_removed","from":"note:note-mr59nvbsjaf","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:30:40.566Z"}
+{"evt":"edge_removed","from":"note:note-mr59nvbsjaf","to":"note:note-mr4307zl9gd","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:09:20.678Z"}
