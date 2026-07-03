@@ -31,3 +31,4 @@
 {"evt":"edge_removed","from":"note:note-mr45ykxy4rf","to":"codex/ewm-mechanism-hypothesis-schema-stripped-new-game-entry","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:27:30.858Z"}
 {"evt":"edge_added","from":"note:note-mr45ykxy4rf","to":"codex/ewm-multi-step-synthesis-agent-integration-run-eight","kind":"blocking","actor":"overlay-sync","ts":"2026-07-03T12:41:10.424Z","by":"judge","judged":true,"score":0.491,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr45ykxy4rf","to":"codex/ewm-multi-step-synthesis-agent-integration-run-eight","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:41:10.424Z"}
+{"evt":"edge_removed","from":"note:note-mr45ykxy4rf","to":"codex/ewm-object-delta-module-relative-coordinate-transitions","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:44:26.904Z"}
