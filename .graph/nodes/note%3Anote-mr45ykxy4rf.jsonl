@@ -4,3 +4,4 @@
 {"evt":"edge_added","from":"note:note-mr45ykxy4rf","to":"note:note-mqvr2wl8lre","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:56:50.508Z","weight":0,"by":"autowire","judged":false,"score":0.685,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr45ykxy4rf","to":"note:note-mr3w7imnpak","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:56:50.508Z","weight":0,"by":"autowire","judged":false,"score":0.683,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr45ykxy4rf","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-02T23:56:50.508Z","weight":0,"by":"autowire","judged":false,"score":0.663,"origin":"autowire-semantic"}
+{"evt":"edge_added","from":"note:note-mr45ykxy4rf","to":"codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal","kind":"context","actor":"overlay-sync","ts":"2026-07-03T00:19:17.509Z","origin":"subconscious-assignment"}
