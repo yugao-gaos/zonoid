@@ -419,6 +419,178 @@ class ReactiveFallbackTests(unittest.TestCase):
         self.assertGreaterEqual(summary["reactive_turns"], 1)
 
 
+class ContextPolicyTests(unittest.TestCase):
+    """The user's context policy: KB summaries (not just titles) in the prompt, at most the
+    IMMEDIATE previous step recapped, and calls stay stateless [system, user]."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _agent(self, env=None):
+        env = env or ToyEnv(_grid("2.3"))
+        llm = FakeLlm([])
+        return EwmAgent(env, llm, kb=None, config=_no_pil_config())
+
+    def test_kb_block_carries_summaries_not_just_titles(self):
+        ag = self._agent()
+        hits = [
+            {"title": "avatar movement", "summary": "avatar moves one cell per action on 0-cells"},
+            {"title": "wall blocks", "summary": "cells valued 1 block movement"},
+        ]
+        frame = {"grid": [[2, 0, 3]], "valid_actions": ["UP"], "level": 1, "step": 0}
+        messages = ag._decide_messages("SYNTHESIZE", frame, hits, None, None)
+        user_text = messages[-1]["content"]
+        self.assertIn("- avatar movement: avatar moves one cell per action", user_text)
+        self.assertIn("- wall blocks: cells valued 1 block movement", user_text)
+
+    def test_kb_block_truncates_summary_and_caps_hits(self):
+        ag = self._agent()
+        long_summary = "x" * 500
+        hits = [{"title": f"note{i}", "summary": long_summary} for i in range(8)]
+        frame = {"grid": [[2, 0, 3]], "valid_actions": ["UP"], "level": 1, "step": 0}
+        messages = ag._decide_messages("SYNTHESIZE", frame, hits, None, None)
+        user_text = messages[-1]["content"]
+        # At most 5 hits are rendered.
+        self.assertEqual(user_text.count("- note"), 5)
+        # Each summary is truncated to ~300 chars (never the full 500).
+        self.assertNotIn("x" * 400, user_text)
+
+    def test_prev_step_block_absent_turn1_present_turn2(self):
+        ag = self._agent()
+        frame = {"grid": [[2, 0, 3]], "valid_actions": ["UP"], "level": 1, "step": 0}
+        # Turn 1: no previous step yet.
+        first = ag._decide_messages("RECOVER", frame, [], None, None)[-1]["content"]
+        self.assertNotIn("Previous step:", first)
+        # Simulate a landed action result, refreshing the single-step recap.
+        ag._prev_step = {
+            "action": "RIGHT",
+            "executed_count": 1,
+            "stop_reason": "completed",
+            "board_changed": True,
+            "score_delta": 0,
+        }
+        second = ag._decide_messages("RECOVER", frame, [], None, None)[-1]["content"]
+        self.assertIn("Previous step:", second)
+        self.assertIn("action=RIGHT", second)
+        self.assertIn("stop_reason=completed", second)
+
+    def test_stateless_two_message_calls_with_prev_step(self):
+        # Even with a previous-step recap set, a decide call is exactly [system, user] — no
+        # accumulated assistant/history turns.
+        ag = self._agent()
+        ag._prev_step = {"action": "RIGHT", "executed_count": 1, "stop_reason": "completed",
+                         "board_changed": True, "score_delta": 1}
+        frame = {"grid": [[2, 0, 3]], "valid_actions": ["UP"], "level": 1, "step": 0}
+        messages = ag._decide_messages("SYNTHESIZE", frame, [], None, None)
+        self.assertEqual([m["role"] for m in messages], ["system", "user"])
+
+    def test_prev_step_refreshed_end_to_end_across_reactive_turns(self):
+        # Drive the reactive path so real action results refresh _prev_step; the second RECOVER
+        # decide call must carry the previous-step recap the first one lacked.
+        env = ToyEnv(_grid("2..3"))  # goal far enough that a single RIGHT does not win
+        script = ["nope", "nope", "nope"]  # fail synth K=3 -> RECOVER
+        # reactive turns: each is decide(actions) + reflect.
+        script += ['{"actions": ["RIGHT"]}', '{"prediction_ok": true}'] * 8
+        llm = FakeLlm(script)
+        ag = EwmAgent(
+            env, llm, config=AgentConfig(game_id="toy", max_turns=8, reactive_after_failures=3)
+        )
+        ag.suite.append(_grid("2..3"), "RIGHT", _grid(".2.3"))
+        ag.run()
+        recover_decides = [
+            c["messages"][-1]["content"]
+            for c in llm.received
+            if isinstance(c["messages"][-1]["content"], str)
+            and "Current mode: RECOVER" in c["messages"][-1]["content"]
+        ]
+        self.assertGreaterEqual(len(recover_decides), 2)
+        # The FIRST reactive decide runs before any action has landed -> no previous-step recap.
+        self.assertNotIn("Previous step:", recover_decides[0])
+        # Once a real action result lands, a LATER reactive decide carries the single-step recap.
+        self.assertTrue(
+            any("Previous step:" in t for t in recover_decides[1:]),
+            "expected a later RECOVER decide to carry the previous-step recap",
+        )
+
+
+class PerRoleModelTests(unittest.TestCase):
+    """SYNTHESIZE/REPAIR decide calls route to config.synth_llm; ORIENT/RECOVER decide and reflect
+    stay on the main llm."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def test_synthesize_routes_to_synth_llm_reflect_stays_main(self):
+        env = ToyEnv(_grid("2.3"))
+        main = FakeLlm(['{"prediction_ok": true}'] * 6)  # reflect only
+        synth = FakeLlm([_fenced(TOY_GAME_SOURCE)])       # the synthesis decide
+        ag = EwmAgent(
+            env, main, config=AgentConfig(game_id="toy", max_turns=10, synth_llm=synth)
+        )
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        summary = ag.run()
+        self.assertTrue(summary["program_accepted"])
+        self.assertTrue(summary["won"])
+        # The SYNTHESIZE decide landed on synth, not main.
+        self.assertEqual(synth.calls, 1)
+        synth_text = synth.received[0]["messages"][-1]["content"]
+        self.assertIn("Current mode: SYNTHESIZE", synth_text)
+        # Reflect ran on the main llm.
+        self.assertGreaterEqual(main.calls, 1)
+        for call in main.received:
+            self.assertNotIn(
+                "Current mode:", call["messages"][-1]["content"]
+            )  # main saw only reflect prompts
+
+    def test_repair_routes_to_synth_llm(self):
+        env = ToyEnv(_grid("2..3"), deviate=True)  # env diverges -> REPAIR fires
+        main = FakeLlm(['{"prediction_ok": false}'] * 20)
+        synth = FakeLlm(
+            [_fenced(TOY_GAME_SOURCE)]        # synthesize (on synth)
+            + [_fenced(TOY_GAME_SOURCE)] * 12  # repair attempts (on synth)
+        )
+        ag = EwmAgent(
+            env, main, config=AgentConfig(game_id="toy", max_turns=6, synth_llm=synth)
+        )
+        ag.suite.append(_grid("2..3"), "RIGHT", _grid(".2.3"))
+        ag.run()
+        synth_modes = [c["messages"][-1]["content"] for c in synth.received]
+        self.assertTrue(any("Current mode: SYNTHESIZE" in t for t in synth_modes))
+        self.assertTrue(any("Current mode: REPAIR" in t for t in synth_modes))
+        # No decide (SYNTHESIZE/REPAIR) call ever hit the main llm.
+        for call in main.received:
+            self.assertNotIn("Current mode: SYNTHESIZE", call["messages"][-1]["content"])
+            self.assertNotIn("Current mode: REPAIR", call["messages"][-1]["content"])
+
+    def test_recover_decide_stays_on_main_llm(self):
+        # Reactive (RECOVER) decide calls are NOT routed to synth_llm.
+        env = ToyEnv(_grid("2.3"))
+        main = FakeLlm(
+            ["nope", "nope", "nope"]  # failed synth K=3 (these decide calls go to synth)
+            + ['{"actions": ["RIGHT"]}', '{"prediction_ok": true}'] * 6  # RECOVER decide + reflect
+        )
+        synth = FakeLlm(["bad", "bad", "bad", "bad", "bad", "bad"])
+        ag = EwmAgent(
+            env, main,
+            config=AgentConfig(game_id="toy", max_turns=8, reactive_after_failures=3, synth_llm=synth),
+        )
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        ag.run()
+        # RECOVER decide landed on main (it emitted the winning action from main's script).
+        main_texts = [c["messages"][-1]["content"] for c in main.received]
+        self.assertTrue(any("Current mode: RECOVER" in t for t in main_texts))
+
+
 class WriteGateTests(unittest.TestCase):
     def tearDown(self):
         import importlib

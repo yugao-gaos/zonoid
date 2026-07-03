@@ -523,6 +523,7 @@ def live_run(
     max_seconds: float,
     vision: bool = False,
     max_turns: int = 200,
+    synth_model: str | None = None,
 ) -> dict[str, Any]:
     """Play ``game`` live on the official ARC-AGI-3 checkout with the ollama LlmClient.
 
@@ -544,6 +545,13 @@ def live_run(
         max_seconds=max_seconds,
     )
     llm = LlmClient.from_env(timeout_s=300)
+    # Optional per-role model for SYNTHESIZE/REPAIR: a second client on the SAME base_url/api_key
+    # as the main llm, differing only in model id. None -> the agent falls back to the main llm.
+    synth_llm = (
+        LlmClient(llm.base_url, synth_model, api_key=llm.api_key, timeout_s=llm.timeout_s)
+        if synth_model
+        else None
+    )
     try:
         session.open()
         if not vision:
@@ -553,7 +561,7 @@ def live_run(
             llm,
             kb=None,
             vision_enabled=vision,
-            config=AgentConfig(game_id=game, max_turns=max_turns),
+            config=AgentConfig(game_id=game, max_turns=max_turns, synth_llm=synth_llm),
         )
         summary = agent.run()
         scorecard_url = session.scorecard_url()
@@ -624,6 +632,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Enable vision composites (default off; the ollama backend is text-only).",
     )
+    parser.add_argument(
+        "--synth-model",
+        default=None,
+        help="Optional model id for SYNTHESIZE/REPAIR decide calls (same base_url as the main "
+        "model). Reflect and reactive play stay on the main model.",
+    )
     args = parser.parse_args(argv)
 
     if args.smoke:
@@ -640,6 +654,7 @@ def main(argv: list[str] | None = None) -> int:
             max_actions=args.max_actions,
             max_seconds=args.max_seconds,
             vision=args.vision,
+            synth_model=args.synth_model,
         )
         print(json.dumps(summary))
         return 0
