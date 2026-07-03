@@ -1175,6 +1175,100 @@ class SynthesisPromptTests(unittest.TestCase):
         self.assertNotIn("never hardcode a grid", text)
 
 
+class AutoChangingCellsHintTests(unittest.TestCase):
+    """The SYNTHESIZE/REPAIR prompt states the every-action-changing region as bounding-box row/col
+    ranges computed from the suite: the ls20 candidates modelled ls20's auto-repainting bar as static
+    because they could not spot the changing region in a raw transition dump. Only cells that change
+    in EVERY observed transition count, and only once the suite holds >= 3 transitions. Also asserts
+    the step-tuple contract line (candidate 04 died on 'not enough values to unpack')."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _agent(self):
+        return EwmAgent(ToyEnv(_grid("2.3")), FakeLlm([]), kb=None, config=_no_pil_config())
+
+    @staticmethod
+    def _box_grid(fill: int, changed_cells):
+        """A 6x6 grid of ``fill`` with each (row, col) in ``changed_cells`` bumped by +1 so it differs
+        from the all-``fill`` before-grid."""
+
+        grid = [[fill for _ in range(6)] for _ in range(6)]
+        for (r, c) in changed_cells:
+            grid[r][c] = fill + 1
+        return grid
+
+    def _seed_constant_region(self, ag, n=3):
+        """Seed ``n`` transitions in which the block rows 1-2 cols 2-3 changes in EVERY transition."""
+
+        region = {(1, 2), (1, 3), (2, 2), (2, 3)}
+        before = [[4 for _ in range(6)] for _ in range(6)]
+        for _ in range(n):
+            ag.suite.append(before, "UP", self._box_grid(4, region))
+
+    def test_hint_states_exact_range_from_suite(self):
+        ag = self._agent()
+        self._seed_constant_region(ag, n=3)
+        frame = {"grid": _grid("2.3"), "valid_actions": ["UP"], "level": 1, "step": 0}
+        text = ag._decide_messages("SYNTHESIZE", frame, [], None, None)[-1]["content"]
+        self.assertIn("OBSERVED AUTO-CHANGING CELLS", text)
+        self.assertIn("rows 1-2 cols 2-3", text)
+        self.assertIn("Model these exactly or render them UNKNOWN", text)
+        self.assertIn("do NOT model them as static", text)
+
+    def test_hint_absent_below_three_transitions(self):
+        ag = self._agent()
+        self._seed_constant_region(ag, n=2)
+        frame = {"grid": _grid("2.3"), "valid_actions": ["UP"], "level": 1, "step": 0}
+        text = ag._decide_messages("SYNTHESIZE", frame, [], None, None)[-1]["content"]
+        self.assertNotIn("OBSERVED AUTO-CHANGING CELLS", text)
+
+    def test_cells_changing_in_only_some_transitions_excluded(self):
+        # Rows 1-2 cols 2-3 change in ALL three transitions; cell (4,4) changes in only the first.
+        ag = self._agent()
+        region = {(1, 2), (1, 3), (2, 2), (2, 3)}
+        before = [[4 for _ in range(6)] for _ in range(6)]
+        ag.suite.append(before, "UP", self._box_grid(4, region | {(4, 4)}))
+        ag.suite.append(before, "DOWN", self._box_grid(4, region))
+        ag.suite.append(before, "LEFT", self._box_grid(4, region))
+        cells = ag._auto_changing_cells()
+        self.assertEqual(cells, region)
+        self.assertNotIn((4, 4), cells)
+        text = ag._decide_messages("SYNTHESIZE", frame={"grid": _grid("2.3"),
+                                   "valid_actions": ["UP"], "level": 1, "step": 0},
+                                   kb_hits=[], report=None, image_url=None)[-1]["content"]
+        self.assertIn("rows 1-2 cols 2-3", text)
+        self.assertNotIn("row 4 col 4", text)
+
+    def test_disjoint_regions_render_as_separate_boxes(self):
+        ag = self._agent()
+        # Two disjoint changing blocks: rows 0-1 col 0, and row 4 cols 4-5.
+        region = {(0, 0), (1, 0), (4, 4), (4, 5)}
+        before = [[4 for _ in range(6)] for _ in range(6)]
+        for _ in range(3):
+            ag.suite.append(before, "UP", self._box_grid(4, region))
+        text = ag._auto_changing_cells_text()
+        self.assertIn("rows 0-1 col 0", text)
+        self.assertIn("row 4 cols 4-5", text)
+
+    def test_step_tuple_contract_line_present(self):
+        ag = self._agent()
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        frame = {"grid": _grid("2.3"), "valid_actions": ["UP"], "level": 1, "step": 0}
+        text = ag._decide_messages("SYNTHESIZE", frame, [], None, None)[-1]["content"]
+        self.assertIn(
+            "step(state, action) MUST return a (state, events) tuple — never a bare state", text
+        )
+        # Also present on the REPAIR prompt (same contract paragraph).
+        repair = ag._decide_messages("REPAIR", frame, [], None, None)[-1]["content"]
+        self.assertIn("(state, events) tuple — never a bare state", repair)
+
+
 class SynthTokenBudgetTests(unittest.TestCase):
     """SYNTHESIZE/REPAIR decide calls use config.synth_max_tokens (default 4096); gameplay decide
     and reflect stay at their smaller budgets. 1024 truncated every ls20 candidate mid-program."""
