@@ -41,3 +41,4 @@
 {"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"codex/ewm-object-delta-module-relative-coordinate-transitions","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:16:08.996Z"}
 {"evt":"edge_promoted","from":"note:note-mr4vdh2w510","to":"codex/ewm-segment-helper-injection-world-model-sandbox","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:17:12.950Z","weight":0.5,"by":"judge","judged":true,"origin":"subconscious-assignment"}
 {"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"codex/ewm-partial-adoption-best-candidate-unknown-masking","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:28:46.122Z"}
+{"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:44:41.478Z"}
