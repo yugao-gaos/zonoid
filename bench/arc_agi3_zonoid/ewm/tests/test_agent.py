@@ -521,6 +521,59 @@ STUCK_SOURCE = TOY_GAME_SOURCE.replace(
 )
 
 
+# A movement world-model whose slide magnitude is a parameter. On RIGHT the avatar (color 2) slides
+# ``MAG`` columns right; every other cell is static background (0). This reproduces the Run-10 weak
+# model's SHAPE: right structure (an avatar that slides on RIGHT) but a WRONG magnitude when MAG does
+# not match the truth. The board is mostly static background, so whole-board cell accuracy is
+# vacuous — only the changed cells (the object's old + new positions) discriminate.
+def _mover_source(mag: int) -> str:
+    return f'''
+AVATAR = 2
+
+def init_state(frame):
+    rows = len(frame)
+    cols = len(frame[0]) if rows else 0
+    avatar = None
+    for r in range(rows):
+        for c in range(cols):
+            if frame[r][c] == AVATAR:
+                avatar = (r, c)
+    return {{"avatar": avatar, "rows": rows, "cols": cols}}
+
+
+def legal_actions(state):
+    return ["RIGHT"]
+
+
+def step(state, action):
+    r, c = state["avatar"]
+    nc = min(state["cols"] - 1, c + {mag})
+    ns = dict(state)
+    ns["avatar"] = (r, nc)
+    return ns, {{"moved": nc != c}}
+
+
+def render(state):
+    rows, cols = state["rows"], state["cols"]
+    grid = [[0 for _ in range(cols)] for _ in range(rows)]
+    ar, ac = state["avatar"]
+    grid[ar][ac] = AVATAR
+    return grid
+
+
+def is_win(state):
+    return state["avatar"][1] >= state["cols"] - 1
+'''
+
+
+def _mover_grid(cols: int, avatar_col: int) -> list[list[int]]:
+    """A 1x``cols`` background (0) grid with a single avatar (2) at ``avatar_col``."""
+
+    row = [0] * cols
+    row[avatar_col] = 2
+    return [row]
+
+
 class PartialAdoptionTests(unittest.TestCase):
     """Partial adoption (Run-9): a best-but-imperfect candidate is adopted with its persistently
     wrong cells masked UNKNOWN, so the planner still gets a usable model."""
@@ -612,6 +665,168 @@ class PartialAdoptionTests(unittest.TestCase):
         self.assertTrue(repaired)
         self.assertTrue(ag.summary.program_adopted_partial)
         self.assertEqual(ag.summary.mask_cells, 1)  # shrank from 2 to 1
+
+    # -- Run-10: changed-cells floor -----------------------------------------------------------
+
+    def _mover_suite_truth5(self, ag, *, cols: int = 32):
+        """Seed a suite whose TRUTH slides the avatar +5 on RIGHT (Run-10 movement magnitude). The
+        board is mostly static background so whole-board accuracy is vacuous."""
+
+        for start in range(0, cols - 5, 2):
+            ag.suite.append(
+                _mover_grid(cols, start), "RIGHT", _mover_grid(cols, start + 5)
+            )
+
+    def test_changed_cells_floor_refuses_wrong_magnitude_run10_model(self):
+        # Reconstruct the Run-10 weak adopted model: RIGHT structure (slides on RIGHT), WRONG
+        # magnitude (+1 where truth is +5) -> 0/5 transitions. On a 1x32 board it matches ~30/32
+        # cells per transition (whole-board ~0.94), which the OLD whole-board floor (0.6) would
+        # clear. The changed-cells floor scores it on ONLY the object's old+new cells, where it is
+        # 0/... -> refused.
+        env = ToyEnv(_grid("2.3"))
+        ag = self._agent(env, FakeLlm([]))
+        self._mover_suite_truth5(ag)
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+
+        weak = WorldModelProgram.load(_mover_source(1))  # +1: wrong magnitude
+        self.assertLess(
+            ag._cell_pass_rate(weak), ag.config.min_partial_adopt_rate,
+            "changed-cells accuracy of a wrong-magnitude model must be below the floor",
+        )
+        # ... and partial adoption of the weak model is REFUSED.
+        adopted = ag._try_partial_adopt(env.observe(), _mover_source(1))
+        self.assertFalse(adopted)
+        self.assertIsNone(ag.program)
+        self.assertFalse(ag.summary.program_adopted_partial)
+
+    def test_changed_cells_floor_admits_correct_magnitude_and_records_accuracy(self):
+        # The correctly-magnituded model (+5) predicts every changed cell -> changed-cells accuracy
+        # 1.0, full pass, adopted whole; telemetry records changed_cells_accuracy.
+        env = ToyEnv(_grid("2.3"))
+        ag = self._agent(env, FakeLlm([]))
+        self._mover_suite_truth5(ag)
+        adopted = ag._try_partial_adopt(env.observe(), _mover_source(5))
+        self.assertTrue(adopted)
+        self.assertEqual(ag.summary.changed_cells_accuracy, 1.0)
+
+    # -- Run-10: repair engagement on a partial-adopted program --------------------------------
+
+    def test_masked_moving_cells_do_not_swallow_expect_divergence(self):
+        # The core Run-10 no-show mechanism: a partial adoption masks exactly the cells the model
+        # gets wrong. When those are the object's MOVING cells (wrong magnitude), the plan's masked
+        # `expect` grid renders them UNKNOWN, and the env's UNKNOWN-aware check treats them as
+        # wildcards -> the real divergence is NEVER seen (diverged=False) and REPAIR never fires.
+        # The fix reveals the inner prediction on moved cells so EXECUTE reports diverged=True.
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram, masked_program, mismatch_mask
+        from bench.arc_agi3_zonoid.ewm.planner import PlanResult
+
+        cols = 12
+        env = _MoverEnv(cols=cols, truth_mag=5)
+        ag = self._agent(env, FakeLlm(['{"prediction_ok": false}'] * 20), max_repair_attempts=0)
+        self._mover_suite_truth5(ag, cols=cols)
+        inner = WorldModelProgram.load(_mover_source(1))
+        mask = mismatch_mask(inner, ag.suite)
+        self.assertTrue(mask, "the wrong-magnitude model must mismatch (mask non-empty)")
+        wrapped = masked_program(inner, mask)
+        ag.program = wrapped
+        ag.summary.program_adopted_partial = True
+        ag._partial_repaired = False
+
+        frame = env.observe()
+        # The plan a masked-program planner would emit: one RIGHT step, predicted grid = the MASKED
+        # wrapper's render (UNKNOWN over the moving cells). This is the grid that used to swallow the
+        # divergence.
+        state = wrapped.init_state(ag._frame_grid(frame))
+        nstate, _ = wrapped.step(state, "RIGHT")
+        masked_pred = wrapped.render(nstate)
+        plan_result = PlanResult(actions=["RIGHT"], predicted_grids=[masked_pred])
+
+        # WITH the fix (partial, not yet repaired): EXECUTE reveals inner's moving cell -> diverged.
+        _result, diverged = ag._execute(plan_result, frame)
+        self.assertTrue(
+            diverged,
+            "a real divergence in the masked moving region must be detected, not swallowed",
+        )
+
+    def test_first_live_divergence_on_partial_adoption_triggers_repair(self):
+        # End-to-end: on the first divergence of a partial-adopted program, _handle_divergence must
+        # engage REPAIR (repair_attempts > 0), never fall silently to reactive with 0 attempts.
+        from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram, masked_program, mismatch_mask
+        from bench.arc_agi3_zonoid.ewm.planner import PlanResult
+
+        cols = 12
+        env = _MoverEnv(cols=cols, truth_mag=5)
+        # Repair loop: one scripted (still-wrong) candidate + reflects; correctness is not asserted.
+        llm = FakeLlm([_fenced(_mover_source(2))] + ['{"prediction_ok": false}'] * 40)
+        ag = self._agent(env, llm, max_repair_attempts=1, max_repairs_per_divergence=1)
+        self._mover_suite_truth5(ag, cols=cols)
+        inner = WorldModelProgram.load(_mover_source(1))
+        mask = mismatch_mask(inner, ag.suite)
+        wrapped = masked_program(inner, mask)
+        ag.program = wrapped
+        ag.summary.program_accepted = True
+        ag.summary.program_adopted_partial = True
+        ag._partial_repaired = False
+
+        frame = env.observe()
+        state = wrapped.init_state(ag._frame_grid(frame))
+        nstate, _ = wrapped.step(state, "RIGHT")
+        plan_result = PlanResult(actions=["RIGHT"], predicted_grids=[wrapped.render(nstate)])
+
+        _result, diverged = ag._execute(plan_result, frame)
+        self.assertTrue(diverged)
+        ag._handle_divergence(frame, None)
+        self.assertGreater(
+            ag.summary.repair_attempts, 0,
+            "the first live divergence on a partial adoption must trigger REPAIR, not reactive",
+        )
+
+
+class _MoverEnv:
+    """Minimal env whose truth slides the avatar (2) +``truth_mag`` on RIGHT, on a 1x``cols`` board.
+    Supports the ``expect``-abort seam (UNKNOWN-aware) like ToyEnv so a partial adoption's revealed
+    moving cells can trip ``expect_mismatch``."""
+
+    def __init__(self, cols: int = 12, truth_mag: int = 5, budget: int = 50) -> None:
+        self._cols = cols
+        self._truth_mag = truth_mag
+        self._avatar = 0
+        self.remaining_actions = budget
+
+    def _grid(self):
+        return _mover_grid(self._cols, self._avatar)
+
+    def observe(self):
+        return {
+            "grid": self._grid(),
+            "level": 1,
+            "step": 0,
+            "valid_actions": ["RIGHT"],
+            "score": 0,
+            "remaining_actions": self.remaining_actions,
+        }
+
+    def act(self, actions, expect=None):
+        executed = []
+        stop_reason = "completed"
+        for index, action in enumerate(actions):
+            self.remaining_actions = max(0, self.remaining_actions - 1)
+            self._avatar = min(self._cols - 1, self._avatar + self._truth_mag)
+            executed.append(action)
+            after = self._grid()
+            if expect is not None and index < len(expect) and expect[index] is not None:
+                if not grids_match([list(r) for r in expect[index]], after):
+                    stop_reason = "expect_mismatch"
+                    break
+        return {
+            "current_frame": {"grid": self._grid(), "level": 1, "step": 0},
+            "action_result": {"score": 0, "done": False},
+            "valid_actions": ["RIGHT"],
+            "remaining_actions": self.remaining_actions,
+            "executed": executed,
+            "stop_reason": stop_reason,
+            "done": False,
+        }
 
 
 class ProbeSeedingTests(unittest.TestCase):
