@@ -14,3 +14,4 @@
 {"evt":"edge_removed","from":"note:note-mqi8z2t2pbf","to":"note:note-mqi84uzm7u0","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_removed","from":"note:note-mqi8z2t2pbf","to":"note:note-mqi87sbhkkl","kind":"context","actor":"overlay-sync","ts":"2026-06-27T13:59:26.686Z"}
 {"evt":"edge_added","from":"note:note-mqi8z2t2pbf","to":"codex/ewm-changed-cells-floor-repair-on-partial-adoption","kind":"context","actor":"overlay-sync","ts":"2026-07-03T15:09:28.308Z","weight":0,"by":"autowire","judged":false,"score":0.359,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqi8z2t2pbf","to":"codex/ewm-changed-cells-floor-repair-on-partial-adoption","kind":"context","actor":"overlay-sync","ts":"2026-07-03T16:15:16.020Z"}
