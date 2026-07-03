@@ -33,3 +33,4 @@
 {"evt":"edge_removed","from":"note:note-mr48a5ra7bz","to":"codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:27:42.435Z"}
 {"evt":"edge_removed","from":"note:note-mr48a5ra7bz","to":"codex/ewm-mechanism-hypothesis-schema-stripped-new-game-entry","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:41:59.723Z"}
 {"evt":"edge_removed","from":"note:note-mr48a5ra7bz","to":"codex/ewm-segment-helper-injection-world-model-sandbox","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:43:10.255Z"}
+{"evt":"edge_added","from":"note:note-mr48a5ra7bz","to":"codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:56:15.392Z","weight":0,"by":"autowire","judged":false,"score":0.456,"origin":"autowire-semantic"}
