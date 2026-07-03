@@ -1218,6 +1218,14 @@ class EwmAgent:
             if report.ok and report.total > 0:
                 self._adopt_program(candidate)
                 return True
+            # A stored program that passes only PART of the live suite is still worth adopting: the
+            # dev-time ceiling program for ls20 is 12/13 (one auto-changing region it deliberately
+            # leaves unmodeled), so a full-pass-only gate would discard the very warm-start program
+            # this pillar-5 path exists to recall. Fall back to the same changed-cells partial-adopt
+            # floor SYNTHESIZE uses: mask the persistently-wrong cells UNKNOWN and adopt iff the
+            # masked program then passes and clears the floor + mask cap.
+            if self._try_partial_adopt(frame, source):
+                return True
         return False
 
     @staticmethod

@@ -577,6 +577,25 @@ def _build_daemon_graph(game: str, artifacts_dir: str) -> Any:
     )
 
 
+def _build_kb_gate(game: str) -> Any:
+    """Construct a live KB :class:`~.kb_protocol.WriteGate` for the ORIENT warm-start path.
+
+    Without a KB the agent's ORIENT/SYNTHESIZE searches are no-ops (``_kb_search`` returns [] when
+    ``kb`` is None), so a program a prior run persisted for this game is never recalled. Wiring a
+    real :class:`~.kb_protocol.KbClient` against ``ZONOID_DAEMON_URL`` + the canonical workspace lets
+    ORIENT query ``game <id> world model program`` and adopt (or partial-adopt) a stored program.
+    A daemon outage degrades to no-memory (every KbClient HTTP call swallows errors), so this never
+    blocks a live run.
+    """
+
+    from .kb_protocol import KbClient, WriteGate
+
+    daemon_url = os.environ.get("ZONOID_DAEMON_URL", "http://localhost:8787")
+    workspace = "/Users/imyu/Desktop/zonoid"
+    task_key = os.environ.get("ZONOID_TASK_KEY", f"ewm-live-{game}")
+    return WriteGate(KbClient(daemon_url, workspace, task_key))
+
+
 def live_run(
     game: str,
     *,
@@ -618,6 +637,7 @@ def live_run(
         else None
     )
     graph_client = _build_daemon_graph(game, artifacts_dir) if graph else None
+    kb_gate = _build_kb_gate(game)
     try:
         session.open()
         if not vision:
@@ -625,7 +645,7 @@ def live_run(
         agent = EwmAgent(
             session,
             llm,
-            kb=None,
+            kb=kb_gate,
             vision_enabled=vision,
             config=AgentConfig(
                 game_id=game,
