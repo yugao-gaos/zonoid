@@ -289,6 +289,73 @@ class RegressionGuardTests(unittest.TestCase):
         self.assertFalse(result["report"]["ok"])
 
 
+class BestCandidateTests(unittest.TestCase):
+    """The session tracks the highest full-suite pass_count candidate across the EDIT chain and
+    returns it (best_source/best_report) even when FINAL fails — the partial-adoption handoff."""
+
+    def test_best_candidate_returned_when_final_fails(self):
+        # WRONG_GAME_SOURCE passes only the DOWN transition (index 1) of _SUITE; targeting BOTH
+        # indices makes the regression guard reject it (must_pass={0,1} but it passes only {1}), so
+        # nothing is ever adopted (program_source None) — but it is the best candidate seen.
+        graph = MockGraph()
+        llm = FakeLlm(
+            [
+                _analyze_json(("movement", "shift")),
+                _plan_json(("attempt", "wrong prog", [0, 1])),
+                _fenced(WRONG_GAME_SOURCE),
+                _fenced(WRONG_GAME_SOURCE),
+                _fenced(WRONG_GAME_SOURCE),
+            ]
+        )
+        session = SynthSession(
+            "toy", _SUITE, llm, graph=graph, config=_fast_config(), sleep=lambda s: None
+        )
+        result = session.run(deltas=[])
+        self.assertIsNone(result["program_source"])   # regression guard rejected every attempt
+        self.assertFalse(result["report"]["ok"])
+        self.assertIsNotNone(result["best_source"])
+        self.assertIn("def init_state", result["best_source"])
+        # WRONG passes exactly one of the two transitions independently (DOWN, not RIGHT).
+        best = WorldModelProgram.load(result["best_source"])
+        self.assertEqual(_passing_indices(best, _SUITE), {1})
+        self.assertEqual(result["best_report"]["total"], 2)
+
+    def test_best_candidate_none_when_nothing_compiles(self):
+        graph = MockGraph()
+        llm = FakeLlm(
+            [
+                _analyze_json(("movement", "shift")),
+                _plan_json(("attempt", "no code", [0, 1])),
+                "prose only, no fenced block",
+                "still no code",
+                "nope",
+            ]
+        )
+        session = SynthSession(
+            "toy", _SUITE, llm, graph=graph, config=_fast_config(), sleep=lambda s: None
+        )
+        result = session.run(deltas=[])
+        self.assertIsNone(result["best_source"])
+        self.assertIsNone(result["best_report"])
+
+    def test_best_candidate_is_the_full_program_when_final_passes(self):
+        # When FINAL passes, best_source still tracks the same fully-passing candidate.
+        graph = MockGraph()
+        llm = FakeLlm(
+            [
+                _analyze_json(("movement", "shift")),
+                _plan_json(("write toy", "author", [0, 1])),
+                _fenced(TOY_GAME_SOURCE),
+            ]
+        )
+        session = SynthSession(
+            "toy", _SUITE, llm, graph=graph, config=_fast_config(), sleep=lambda s: None
+        )
+        result = session.run(deltas=[])
+        self.assertTrue(result["report"]["ok"])
+        self.assertEqual(result["best_report"]["pass_count"], 2)
+
+
 class RetryThenSkipTests(unittest.TestCase):
     """A change that fails the first attempt but succeeds within the retry budget is accepted."""
 

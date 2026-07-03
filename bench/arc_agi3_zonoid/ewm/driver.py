@@ -39,6 +39,7 @@ from typing import Any, Callable
 
 from .agent import AgentConfig, EwmAgent
 from .llm_client import FakeLlm
+from .world_model import grids_match
 
 # The five-function contract source the scripted smoke run's LLM "authors". Kept identical in shape
 # to the world-model kit's toy game so the planner can BFS it to a win with zero guessing.
@@ -228,7 +229,8 @@ class ScriptedEnv:
 
             after = self._grid()
             if expect is not None and index < len(expect) and expect[index] is not None:
-                if [list(r) for r in expect[index]] != after:
+                # UNKNOWN-aware: masked (partial-adoption) cells render UNKNOWN and are wildcards.
+                if not grids_match([list(r) for r in expect[index]], after):
                     stop_reason = "expect_mismatch"
                     break
 

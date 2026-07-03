@@ -6,7 +6,11 @@ import unittest
 
 from bench.arc_agi3_zonoid.ewm.planner import PlanResult, plan, rollout_search
 from bench.arc_agi3_zonoid.ewm.tests.test_world_model import TOY_GAME_SOURCE, _grid
-from bench.arc_agi3_zonoid.ewm.world_model import WorldModelProgram
+from bench.arc_agi3_zonoid.ewm.world_model import (
+    UNKNOWN,
+    WorldModelProgram,
+    masked_program,
+)
 
 
 def _at_goal(state) -> bool:
@@ -73,6 +77,33 @@ class PlanTests(unittest.TestCase):
         frame = _grid("213", ".1.", ".1.")
         result = plan(self.program, frame, _at_goal, max_nodes=5000)
         self.assertIsNone(result)
+
+
+class MaskedProgramPlanTests(unittest.TestCase):
+    """Planner over a partially-adopted (masked) program: UNKNOWN cells in rendered grids must not
+    break BFS state hashing (the injected UNKNOWN singleton is hashable/stable in-process)."""
+
+    def test_bfs_finds_path_with_unknown_masked_cell(self) -> None:
+        # Mask the bottom-left corner (stays UNKNOWN every step, so it does not perturb the search
+        # beyond adding a constant sentinel to every grid key). BFS must still solve "2.3".
+        inner = WorldModelProgram.load(TOY_GAME_SOURCE)
+        program = masked_program(inner, {(0, 0)})
+        result = plan(program, _grid("2.3"), _at_goal)
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual(result.actions, ["RIGHT", "RIGHT"])
+        # The masked cell renders UNKNOWN in every predicted grid and is hashable in the visited set.
+        for grid in result.predicted_grids:
+            self.assertIs(grid[0][0], UNKNOWN)
+
+    def test_grid_key_hashes_unknown_singleton_stably(self) -> None:
+        # The BFS visited-set relies on _grid_key being hashable with UNKNOWN cells present.
+        from bench.arc_agi3_zonoid.ewm.planner import _grid_key
+
+        k1 = _grid_key([[UNKNOWN, 0], [3, 2]])
+        k2 = _grid_key([[UNKNOWN, 0], [3, 2]])
+        self.assertEqual(k1, k2)
+        self.assertEqual(len({k1, k2}), 1)  # hashable and identical
 
 
 class RolloutSearchTests(unittest.TestCase):

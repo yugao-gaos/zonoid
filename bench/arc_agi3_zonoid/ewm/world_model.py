@@ -216,6 +216,65 @@ class WorldModelProgram:
         return list(self._fn("legal_actions")(state))
 
 
+class MaskedProgram:
+    """A partial-adoption wrapper: delegates the whole contract to an inner program EXCEPT that
+    ``render`` overwrites a fixed set of ``(row, col)`` cells with ``UNKNOWN``.
+
+    Partial adoption keeps a candidate that models real mechanics but is persistently wrong on a
+    few cells (Run-9 evidence: candidates that fail on 1-2 regions). Those cells are masked so the
+    validator (which skips UNKNOWN) accepts the model, while REPAIR keeps working against the
+    UNWRAPPED ``inner`` program and shrinks the mask as the model improves.
+
+    Deterministic: masking is a pure per-cell overwrite of the inner render, applied to a copy so
+    the inner state is never mutated. Cells outside the inner grid's bounds are simply ignored.
+    ``source`` transparently delegates to the inner program's source so REPAIR patches the real
+    program, not the wrapper.
+    """
+
+    def __init__(self, inner: "WorldModelProgram", mask_cells: "set[tuple[int, int]]") -> None:
+        self.inner = inner
+        self.mask_cells = set(mask_cells)
+
+    @property
+    def source(self) -> str:
+        return self.inner.source
+
+    def init_state(self, frame: Grid) -> Any:
+        return self.inner.init_state(frame)
+
+    def step(self, state: Any, action: Action) -> tuple[Any, Any]:
+        return self.inner.step(state, action)
+
+    def render(self, state: Any) -> Grid:
+        grid = self.inner.render(state)
+        if not self.mask_cells:
+            return grid
+        out = [list(row) for row in grid]
+        rows = len(out)
+        for (r, c) in self.mask_cells:
+            if 0 <= r < rows and 0 <= c < len(out[r]):
+                out[r][c] = UNKNOWN
+        return out
+
+    def is_win(self, state: Any) -> bool:
+        return self.inner.is_win(state)
+
+    def legal_actions(self, state: Any) -> list[Action]:
+        return self.inner.legal_actions(state)
+
+
+def masked_program(
+    program: "WorldModelProgram", mask_cells: "set[tuple[int, int]]"
+) -> MaskedProgram:
+    """Wrap ``program`` so ``render`` reports ``UNKNOWN`` for every ``(row, col)`` in ``mask_cells``.
+
+    Everything else (init_state/step/is_win/legal_actions/source) delegates unchanged. See
+    :class:`MaskedProgram`.
+    """
+
+    return MaskedProgram(program, mask_cells)
+
+
 @dataclass
 class Transition:
     """One observed real transition: applying ``action`` to ``before_grid`` yielded ``after_grid``."""
@@ -316,6 +375,19 @@ def _is_unknown(value: Any) -> bool:
     return value is UNKNOWN or (isinstance(value, int) and value == -1)
 
 
+def grids_match(expected: Grid, got: Grid) -> bool:
+    """True iff ``got`` matches ``expected`` on every cell where NEITHER side is UNKNOWN.
+
+    The UNKNOWN-aware equivalent of ``expected == got``, using the same skip rule as
+    :func:`_diff_grids`. A partially-adopted (masked) program renders UNKNOWN on the cells it does
+    not model; the ``expect``-divergence check must treat those cells as wildcards, otherwise every
+    masked cell would spuriously trip an expect-mismatch and REPAIR would fire on cells the model
+    deliberately declined to predict. A shape mismatch is never a match.
+    """
+
+    return not _diff_grids(expected, got)
+
+
 def _diff_grids(expected: Grid, got: Grid) -> list[tuple[int, int, Any, Any]]:
     """Cell-level diff of ``got`` vs ``expected``, skipping any cell where either side is UNKNOWN
     (the injected singleton or its integer alias -1; see :func:`_is_unknown`).
@@ -376,3 +448,28 @@ def validate(program: WorldModelProgram, suite: TransitionSuite) -> ValidationRe
         pass_count += 1
 
     return ValidationReport(ok=True, pass_count=pass_count, total=total)
+
+
+def mismatch_mask(program: WorldModelProgram, suite: TransitionSuite) -> set[tuple[int, int]]:
+    """The set of ``(row, col)`` cells ``program`` gets wrong somewhere in ``suite``.
+
+    Unlike :func:`validate` (which stops at the first failing transition), this replays EVERY
+    transition and UNIONs their cell-level diffs into one mask. That mask, applied via
+    :func:`masked_program`, is exactly the set of cells that must render UNKNOWN for the program to
+    pass the whole suite. A transition that crashes contributes no cells (it cannot be masked away),
+    and a shape-mismatch diff (the ``(-1, -1)`` sentinel) is ignored — a wrong grid shape cannot be
+    repaired by masking individual cells.
+    """
+
+    cells: set[tuple[int, int]] = set()
+    for transition in suite:
+        try:
+            state = program.init_state(transition.before_grid)
+            next_state, _events = program.step(state, transition.action)
+            got = program.render(next_state)
+        except Exception:  # noqa: BLE001 - a crashing transition cannot be masked cell-by-cell
+            continue
+        for (r, c, _exp, _act) in _diff_grids(transition.after_grid, got):
+            if r >= 0 and c >= 0:
+                cells.add((r, c))
+    return cells

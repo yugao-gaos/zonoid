@@ -495,6 +495,14 @@ class SynthSession:
         self.wall_capped = False             # True once the wall-cap stopped the session early
         self.steps: list[Step] = []
         self.source: str | None = None
+        # Best-candidate tracking for PARTIAL ADOPTION. Across the EDIT chain we remember the single
+        # highest full-suite pass_count candidate seen — even one the regression guard REJECTED (it
+        # improves some indices while regressing another). FINAL may fail (no fully-passing program),
+        # but the caller can still partially adopt this best source by masking its persistently-wrong
+        # cells UNKNOWN. None until the first compiling candidate is scored.
+        self.best_source: str | None = None
+        self.best_report: ValidationReport | None = None
+        self._best_index_pass: int = -1  # per-index passing count of best_source (-1 == none yet)
 
     def _wall_exceeded(self) -> bool:
         """True once the session's wall-clock deadline has passed (no cap -> never)."""
@@ -782,7 +790,23 @@ class SynthSession:
         now_pass = _passing_indices(program, self.suite)
         ok = must_pass.issubset(now_pass)
         report = validate(program, self.suite)
+        # Partial-adoption bookkeeping: remember the candidate passing the MOST individual
+        # transitions, regardless of whether the regression guard accepted it — a candidate that
+        # models real mechanics but regresses one index is exactly what partial adoption rescues.
+        # Rank by per-index passing count (not report.pass_count, which stops at the first failure
+        # and so under-ranks a candidate whose early transition fails).
+        self._track_best(candidate, report, len(now_pass))
         return ok, report
+
+    def _track_best(
+        self, candidate: str, report: ValidationReport, index_pass_count: int
+    ) -> None:
+        """Keep the candidate passing the most individual transitions across the EDIT chain."""
+
+        if index_pass_count > self._best_index_pass:
+            self._best_index_pass = index_pass_count
+            self.best_source = candidate
+            self.best_report = report
 
     # -- FINAL -------------------------------------------------------------------------------------
 
@@ -829,6 +853,12 @@ class SynthSession:
             # subset — the report carries the pass rate); None only when nothing was ever adopted.
             "program_source": self.source,
             "report": report.to_dict(),
+            # Best candidate across the EDIT chain by full-suite pass_count (may be a source the
+            # regression guard rejected). The caller uses this for PARTIAL ADOPTION when FINAL
+            # failed: mask its persistently-wrong cells UNKNOWN and re-validate. None when no
+            # candidate ever compiled.
+            "best_source": self.best_source,
+            "best_report": self.best_report.to_dict() if self.best_report else None,
             "steps": [s.to_dict() for s in self.steps],
             # True when the per-session wall-cap stopped the session early (fewer EDIT changes ran).
             "wall_capped": self.wall_capped,
