@@ -6,3 +6,10 @@
 {"evt":"edge_added","from":"note:note-mr59otb6dae","to":"knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:28:59.529Z","weight":0,"by":"autowire","judged":false,"score":0.774,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr59otb6dae","to":"knowledge:source_section:note-mr59oitveey#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:28:59.529Z","weight":0,"by":"autowire","judged":false,"score":0.774,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr59otb6dae","to":"knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:28:59.529Z","weight":0,"by":"autowire","judged":false,"score":0.774,"origin":"autowire-semantic"}
+{"evt":"note_superseded","id":"note-mr59otb6dae","supersededBy":"note-mr59p6h35i6","validTo":"2026-07-03T18:29:15.399Z","ts":"2026-07-03T18:29:15.399Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr59otb6dae","to":"codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:31:55.648Z"}
+{"evt":"edge_removed","from":"note:note-mr59otb6dae","to":"knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:31:55.648Z"}
+{"evt":"edge_removed","from":"note:note-mr59otb6dae","to":"knowledge:source_section:note-mr59nv4u31i#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:31:55.648Z"}
+{"evt":"edge_removed","from":"note:note-mr59otb6dae","to":"knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:31:55.648Z"}
+{"evt":"edge_removed","from":"note:note-mr59otb6dae","to":"knowledge:source_section:note-mr59oitveey#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:31:55.648Z"}
+{"evt":"edge_removed","from":"note:note-mr59otb6dae","to":"knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:31:55.648Z"}
