@@ -7,3 +7,4 @@
 {"evt":"edge_added","from":"note:note-mr5agie2r7x","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:50:31.742Z","weight":0,"by":"autowire","judged":false,"score":0.463,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5agie2r7x","to":"note:note-mr59nvbsjaf","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:50:31.742Z","weight":0,"by":"autowire","judged":false,"score":0.445,"origin":"autowire-semantic"}
 {"evt":"note_supersedes","id":"note-mr5agie2r7x","supersedes":"note-mr5ahiser45","ts":"2026-07-03T18:50:30.554Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr5agie2r7x","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:59:19.857Z"}
