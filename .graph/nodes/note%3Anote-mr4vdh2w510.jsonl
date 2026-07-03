@@ -32,3 +32,4 @@
 {"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"codex/ewm-mechanism-hypothesis-schema-stripped-new-game-entry","kind":"context","actor":"overlay-sync","ts":"2026-07-03T14:12:59.878Z"}
 {"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"note:note-mq82mggjhu5","kind":"context","actor":"overlay-sync","ts":"2026-07-03T14:14:12.154Z"}
 {"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay","kind":"context","actor":"overlay-sync","ts":"2026-07-03T14:37:37.700Z"}
+{"evt":"edge_promoted","from":"note:note-mr4vdh2w510","to":"codex/ewm-multi-step-synthesis-agent-integration-run-eight","kind":"context","actor":"overlay-sync","ts":"2026-07-03T15:46:27.994Z","weight":0.458,"by":"judge","judged":true,"score":0.458,"origin":"autowire-semantic"}
