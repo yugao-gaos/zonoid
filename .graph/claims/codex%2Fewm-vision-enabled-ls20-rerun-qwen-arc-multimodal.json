@@ -3,8 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "29556785-fa39-442e-8eba-b5dd9dc00862",
   "branch": "orch/attempt/codex-ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-  "status": "tested",
+  "status": "done",
   "claimed_at": "2026-07-03T00:20:10.959Z",
   "lease_until": "2026-07-03T01:20:10.959Z",
-  "completed_at": "2026-07-03T00:47:44.283Z"
+  "completed_at": "2026-07-03T00:48:34.803Z"
 }
