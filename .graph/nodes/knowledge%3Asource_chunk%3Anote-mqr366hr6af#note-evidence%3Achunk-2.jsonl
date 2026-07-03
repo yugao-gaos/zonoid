@@ -48,3 +48,4 @@
 {"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2","to":"codex/exec-brain-state-seam","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:33:36.653Z"}
 {"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2","to":"codex/workflow-label-learner-fold-plan","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:33:45.953Z"}
 {"evt":"edge_added","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2","to":"codex/ewm-synthesis-artifact-persistence-run-debugging","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:45:07.629Z","weight":0,"by":"autowire","judged":false,"score":0.352,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2","to":"codex/ewm-synthesis-artifact-persistence-run-debugging","kind":"context","actor":"overlay-sync","ts":"2026-07-03T02:27:11.961Z"}
