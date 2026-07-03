@@ -1,0 +1,9 @@
+{
+  "task_key": "codex/ewm-partial-adoption-best-candidate-unknown-masking",
+  "git_user": "test <test@example.com>",
+  "session_id": "29556785-fa39-442e-8eba-b5dd9dc00862",
+  "branch": "orch/attempt/codex-ewm-partial-adoption-best-candidate-unknown-masking",
+  "status": "claimed",
+  "claimed_at": "2026-07-03T13:48:07.408Z",
+  "lease_until": "2026-07-03T14:48:07.408Z"
+}
