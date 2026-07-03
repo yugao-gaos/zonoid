@@ -36,3 +36,4 @@
 {"evt":"edge_added","from":"note:note-mr42ami4z24","to":"codex/ewm-synthesis-artifact-persistence-run-debugging","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:44:16.810Z","origin":"subconscious-assignment"}
 {"evt":"edge_added","from":"note:note-mr42ami4z24","to":"codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection","kind":"context","actor":"overlay-sync","ts":"2026-07-03T02:43:13.291Z","origin":"subconscious-assignment"}
 {"evt":"edge_added","from":"note:note-mr42ami4z24","to":"codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain","kind":"context","actor":"overlay-sync","ts":"2026-07-03T11:49:08.552Z","origin":"subconscious-assignment"}
+{"evt":"edge_added","from":"note:note-mr42ami4z24","to":"codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve","kind":"context","actor":"overlay-sync","ts":"2026-07-03T17:22:35.356Z","origin":"subconscious-assignment"}
