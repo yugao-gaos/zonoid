@@ -7,3 +7,4 @@
 {"evt":"note_superseded","id":"note-mr5eslgndn8","supersededBy":"note-mr5erebt155","validTo":"2026-07-03T20:50:56.969Z","ts":"2026-07-03T20:50:56.969Z","actor":"supersede"}
 {"evt":"edge_removed","from":"note:note-mr5eslgndn8","to":"note:note-mr5erhv6vks","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:53:17.272Z"}
 {"evt":"edge_removed","from":"note:note-mr5eslgndn8","to":"note:note-mr5ernmbpnk","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:53:17.272Z"}
+{"evt":"edge_removed","from":"note:note-mr5eslgndn8","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:58:01.818Z"}
