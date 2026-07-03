@@ -155,3 +155,4 @@
 {"evt":"edge_promoted","from":"note:note-mq5iflmh","to":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/1","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z","weight":0.5,"by":"judge","judged":true}
 {"evt":"edge_promoted","from":"note:note-mq5iflmh","to":"4a25f8a2-8cbb-4f2f-87d0-3c3cea2b13ac/2","kind":"context","actor":"overlay-sync","ts":"2026-06-28T03:38:54.098Z","weight":0.5,"by":"judge","judged":true}
 {"evt":"edge_added","from":"note:note-mq5iflmh","to":"codex/ewm-world-model-kit-contract-regression-suite-sim-planner","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:18:16.350Z","weight":0,"by":"autowire","judged":false,"score":0.321,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mq5iflmh","to":"codex/ewm-world-model-kit-contract-regression-suite-sim-planner","kind":"context","actor":"overlay-sync","ts":"2026-07-03T02:53:32.798Z"}
