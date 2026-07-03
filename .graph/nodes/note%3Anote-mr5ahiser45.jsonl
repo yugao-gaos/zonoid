@@ -6,3 +6,10 @@
 {"evt":"edge_added","from":"note:note-mr5ahiser45","to":"note:note-mqvr2wl8lre","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:51:18.887Z","weight":0,"by":"autowire","judged":false,"score":0.469,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5ahiser45","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:51:18.887Z","weight":0,"by":"autowire","judged":false,"score":0.442,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5ahiser45","to":"note:note-mr59as8s26f","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:51:18.887Z","weight":0,"by":"autowire","judged":false,"score":0.429,"origin":"autowire-semantic"}
+{"evt":"note_superseded","id":"note-mr5ahiser45","supersededBy":"note-mr5agie2r7x","validTo":"2026-07-03T18:50:30.554Z","ts":"2026-07-03T18:50:30.554Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr5ahiser45","to":"codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:55:31.077Z"}
+{"evt":"edge_removed","from":"note:note-mr5ahiser45","to":"note:note-mr5agie2r7x","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:55:31.077Z"}
+{"evt":"edge_removed","from":"note:note-mr5ahiser45","to":"codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:55:31.077Z"}
+{"evt":"edge_removed","from":"note:note-mr5ahiser45","to":"note:note-mqvr2wl8lre","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:55:31.077Z"}
+{"evt":"edge_removed","from":"note:note-mr5ahiser45","to":"note:note-mr3vdyn5zxa","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:55:31.077Z"}
+{"evt":"edge_removed","from":"note:note-mr5ahiser45","to":"note:note-mr59as8s26f","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:55:31.077Z"}
