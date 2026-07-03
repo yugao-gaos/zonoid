@@ -14,3 +14,5 @@
 {"evt":"edge_removed","from":"note:note-mr57q7mvytm","to":"codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:17:23.197Z"}
 {"evt":"edge_removed","from":"note:note-mr57q7mvytm","to":"note:note-mqjotmlck7u","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:23:26.205Z"}
 {"evt":"edge_removed","from":"note:note-mr57q7mvytm","to":"note:note-mqpz36sv7ns","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:42:30.881Z"}
+{"evt":"note_superseded","id":"note-mr57q7mvytm","supersededBy":"note-mr5b375dvnh","validTo":"2026-07-03T19:08:09.073Z","ts":"2026-07-03T19:08:09.073Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr57q7mvytm","to":"codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:50:13.426Z"}
