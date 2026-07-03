@@ -19,3 +19,4 @@
 {"evt":"edge_removed","from":"note:note-mr46y3pjbt8","to":"codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints","kind":"context","actor":"overlay-sync","ts":"2026-07-03T15:56:41.132Z"}
 {"evt":"edge_promoted","from":"note:note-mr46y3pjbt8","to":"codex/ewm-probe-first-suite-seeding-repair-engagement-fix","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:13:28.328Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
 {"evt":"edge_promoted","from":"note:note-mr46y3pjbt8","to":"codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:13:28.328Z","by":"autowire","judged":false,"origin":"subconscious-assignment"}
+{"evt":"edge_removed","from":"note:note-mr46y3pjbt8","to":"codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:14:59.921Z"}
