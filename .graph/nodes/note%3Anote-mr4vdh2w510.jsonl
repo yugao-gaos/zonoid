@@ -21,3 +21,4 @@
 {"evt":"edge_promoted","from":"note:note-mr4vdh2w510","to":"codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:44:19.714Z","weight":0.623,"by":"judge","judged":true,"score":0.623,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mr4vdh2w510","to":"29556785-fa39-442e-8eba-b5dd9dc00862/9","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:44:22.313Z","weight":0.616,"by":"judge","judged":true,"score":0.616,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"note:note-mqeapqae6jf","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:44:51.489Z"}
+{"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"note:note-mqj6vo24dzn","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:46:13.375Z"}
