@@ -7,3 +7,10 @@
 {"evt":"edge_added","from":"note:note-mr5ak3ofl3o","to":"note:note-mr59vnw5frl","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:53:19.370Z","weight":0,"by":"autowire","judged":false,"score":0.711,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5ak3ofl3o","to":"note:note-mr59vi2zayu","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:53:19.370Z","weight":0,"by":"autowire","judged":false,"score":0.703,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5ak3ofl3o","to":"note:note-mr59vwq3thh","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:53:19.370Z","weight":0,"by":"autowire","judged":false,"score":0.701,"origin":"autowire-semantic"}
+{"evt":"note_superseded","id":"note-mr5ak3ofl3o","supersededBy":"note-mr59w27c05s","validTo":"2026-07-03T18:34:36.456Z","ts":"2026-07-03T18:34:36.456Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr5ak3ofl3o","to":"codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:54:37.851Z"}
+{"evt":"edge_removed","from":"note:note-mr5ak3ofl3o","to":"note:note-mr59w27c05s","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:54:37.851Z"}
+{"evt":"edge_removed","from":"note:note-mr5ak3ofl3o","to":"note:note-mr59v4n10xs","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:54:37.851Z"}
+{"evt":"edge_removed","from":"note:note-mr5ak3ofl3o","to":"note:note-mr59vnw5frl","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:54:37.851Z"}
+{"evt":"edge_removed","from":"note:note-mr5ak3ofl3o","to":"note:note-mr59vi2zayu","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:54:37.851Z"}
+{"evt":"edge_removed","from":"note:note-mr5ak3ofl3o","to":"note:note-mr59vwq3thh","kind":"context","actor":"overlay-sync","ts":"2026-07-03T18:54:37.851Z"}
