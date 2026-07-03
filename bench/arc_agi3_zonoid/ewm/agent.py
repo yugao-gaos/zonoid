@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -117,6 +118,17 @@ class AgentConfig:
     max_synth_attempts: int = 3   # SYNTHESIZE tries before giving up this cycle
     max_repair_attempts: int = 3  # REPAIR tries before giving up this cycle
     reactive_after_failures: int = 3  # K: failed synth/repair cycles before RECOVER/reactive
+    # Probe-first seeding: on a fresh game, execute a discriminating probe batch (one of each
+    # distinct valid action) BEFORE SYNTHESIZE so a program is never adopted against an empty
+    # suite. A program is only trusted once it predicts real observed transitions.
+    min_probe_transitions: int = 4
+    # Repair engagement + fallback floor: on divergence, REPAIR up to these caps; a program whose
+    # live pass-rate (last N observed transitions vs its predictions) falls below the floor, or
+    # which exhausts its repair budget, is dropped and the loop switches to reactive play.
+    max_repairs_per_divergence: int = 2
+    max_repairs_per_game: int = 6
+    min_live_pass_rate: float = 0.5
+    live_window: int = 20   # N: observed transitions the live pass-rate is measured over
     plan_max_depth: int = 40
     plan_max_nodes: int = 20000
     reactive_batch: int = 1       # actions per reactive probe when the LLM gives nothing usable
@@ -219,6 +231,10 @@ class RunSummary:
     program_accepted: bool = False
     reactive_turns: int = 0
     kb_writes: int = 0
+    synthesis_attempts: int = 0
+    repair_attempts: int = 0
+    suite_size: int = 0
+    live_pass_rate: float = 1.0
     stop_reason: str = "max_turns"
 
     def to_dict(self) -> dict[str, Any]:
@@ -232,6 +248,10 @@ class RunSummary:
             "program_accepted": self.program_accepted,
             "reactive_turns": self.reactive_turns,
             "kb_writes": self.kb_writes,
+            "synthesis_attempts": self.synthesis_attempts,
+            "repair_attempts": self.repair_attempts,
+            "suite_size": self.suite_size,
+            "live_pass_rate": self.live_pass_rate,
             "stop_reason": self.stop_reason,
         }
 
@@ -268,6 +288,14 @@ class EwmAgent:
         self.program: WorldModelProgram | None = None
         self.summary = RunSummary()
         self._failure_cycles = 0
+        # Repair engagement + live pass-rate floor bookkeeping.
+        self._repairs_this_game = 0
+        self._repairs_this_divergence = 0
+        self._probed = False           # probe batch runs at most once (fresh-game seeding)
+        self._modelability_poor = False  # once set, the loop stays reactive (never re-plans a program)
+        # Rolling window of the last `live_window` observed transitions vs the ACTIVE program's
+        # predictions (True == the program predicted the real transition). Empty when no program.
+        self._live_results: deque[bool] = deque(maxlen=max(1, self.config.live_window))
         # Compact recap of the IMMEDIATE previous step only (never accumulated history). Empty until
         # the first action lands; refreshed after every action result. Fed into the decide prompt so
         # each call stays stateless [system, user] with at most one step of context.
@@ -434,20 +462,114 @@ class EwmAgent:
     # -- transition bookkeeping --------------------------------------------------------------------
 
     def _record_transition(
-        self, before: dict[str, Any], action: Any, after_grid: list[list[int]]
+        self,
+        before: dict[str, Any],
+        action: Any,
+        after_grid: list[list[int]],
+        *,
+        single_step: bool = True,
     ) -> None:
-        self.suite.append(self._frame_grid(before), action, [list(r) for r in after_grid])
+        before_grid = self._frame_grid(before)
+        after = [list(r) for r in after_grid]
+        # Live pass-rate: score this real transition against the ACTIVE program BEFORE appending it
+        # (so a program with a near-zero live rate can be detected and dropped rather than kept).
+        # Only SINGLE-action transitions have a well-defined one-step model prediction; a multi-action
+        # batch recorded as one grid-in/grid-out transition would spuriously "mispredict" even a
+        # correct model, so those are excluded from the live window.
+        if self.program is not None and single_step:
+            self._live_results.append(self._predicts_transition(before_grid, action, after))
+        self.suite.append(before_grid, action, after)
         self.summary.transitions += 1
+
+    # -- program lifecycle -------------------------------------------------------------------------
+
+    def _adopt_program(self, candidate: WorldModelProgram) -> None:
+        """Adopt ``candidate`` as the active world model and reset its live-tracking window."""
+
+        self.program = candidate
+        self.summary.program_accepted = True
+        self._live_results.clear()
+
+    def _drop_program(self, reason: str) -> None:
+        """Drop the active program and flip to reactive: modelability is poor, so never keep
+        planning from a model with a near-zero live pass-rate (the vision-ls20 failure)."""
+
+        self.program = None
+        self._modelability_poor = True
+        self._live_results.clear()
+        self._repairs_this_divergence = 0
+
+    def _predicts_transition(
+        self, before_grid: list[list[int]], action: Any, after_grid: list[list[int]]
+    ) -> bool:
+        """True iff the ACTIVE program predicts ``before --action--> after`` (one-transition replay)."""
+
+        program = self.program
+        if program is None:
+            return False
+        one = TransitionSuite()
+        one.append(before_grid, action, after_grid)
+        try:
+            return validate(program, one).ok
+        except Exception:  # noqa: BLE001 - a crashing program simply did not predict it
+            return False
+
+    def _live_pass_rate(self) -> float:
+        """Pass-rate over the last ``live_window`` observed transitions vs the program (1.0 empty)."""
+
+        if not self._live_results:
+            return 1.0
+        return sum(1 for ok in self._live_results if ok) / len(self._live_results)
+
+    # -- probe-first seeding -----------------------------------------------------------------------
+
+    def _probe_batch(self, frame: dict[str, Any]) -> None:
+        """Seed the suite on a fresh game with one probe per distinct valid action.
+
+        Runs at most once. Each distinct valid action is executed on its own so its real transition
+        is recorded (one probe == one observed transition), giving SYNTHESIZE a non-empty,
+        discriminating suite to validate against instead of an empty one. Budget-guarded: probing
+        stops early when ``remaining_actions`` runs low so it never burns the whole action budget.
+        """
+
+        self._probed = True
+        valid = frame.get("valid_actions") or []
+        # Distinct actions, order-preserving.
+        distinct: list[Any] = []
+        for a in valid:
+            if a not in distinct:
+                distinct.append(a)
+        for action in distinct:
+            if len(self.suite) >= self.config.min_probe_transitions:
+                break
+            cur = self._observe()
+            if cur.get("done") or self._out_of_budget(cur):
+                break
+            remaining = cur.get("remaining_actions")
+            # Keep at least one action in reserve for real play after probing.
+            if isinstance(remaining, (int, float)) and remaining <= 1:
+                break
+            self._act_and_ingest(cur, [action])
+
+    def _act_and_ingest(self, before: dict[str, Any], batch: list[Any]) -> dict[str, Any]:
+        """Apply a small batch (no ``expect``) and ingest the result (records + reflects)."""
+
+        result = self._act(batch)
+        self._ingest_result(before, batch, result)
+        return result
 
     # -- modes -------------------------------------------------------------------------------------
 
     def _orient(self, frame: dict[str, Any]) -> bool:
-        """Look up a stored program and adopt it if it validates against the live suite/frame.
+        """Look up a stored program and adopt it only if it validates against a NON-EMPTY suite.
 
-        Returns True if a stored program was adopted. If the suite is empty we cannot validate a
-        stored program, so we defer adoption until we have at least one observed transition.
+        Returns True if a stored program was adopted. A program is never adopted against an empty
+        suite: with zero observed transitions there is nothing to validate against, so we defer
+        adoption until the probe batch has seeded at least one real transition.
         """
 
+        if len(self.suite) == 0:
+            return False
         hits = self._kb_search("ORIENT")
         for hit in hits:
             source = self._program_source_from_hit(hit)
@@ -457,15 +579,9 @@ class EwmAgent:
                 candidate = WorldModelProgram.load(source)
             except SandboxError:
                 continue
-            if len(self.suite) == 0:
-                # No transitions yet to validate against; adopt provisionally.
-                self.program = candidate
-                self.summary.program_accepted = True
-                return True
             report = validate(candidate, self.suite)
-            if report.ok:
-                self.program = candidate
-                self.summary.program_accepted = True
+            if report.ok and report.total > 0:
+                self._adopt_program(candidate)
                 return True
         return False
 
@@ -491,17 +607,25 @@ class EwmAgent:
         return source if isinstance(source, str) and source.strip() else None
 
     def _synthesize(self, frame: dict[str, Any], image_url: str | None) -> bool:
-        """Ask the LLM for program source; accept only when it passes the FULL suite.
+        """Ask the LLM for program source; accept only when it passes the FULL, NON-EMPTY suite.
 
-        A failing candidate feeds its ValidationReport back into the next attempt (repair-style),
-        up to ``max_synth_attempts``. Returns True on acceptance.
+        A program must never be adopted against an empty suite — validating against zero observed
+        transitions is vacuous, and a vacuously-"valid" model has never been shown to predict
+        anything real (the failure that wasted the vision ls20 run). The acceptance gate is:
+        ``validate()`` passes AND the suite is non-empty at acceptance time. A failing candidate
+        feeds its ValidationReport back into the next attempt (repair-style), up to
+        ``max_synth_attempts``. Returns True on acceptance.
         """
 
+        if len(self.suite) == 0:
+            # Nothing observed yet to validate against: refuse to synthesize a vacuous program.
+            return False
         kb_hits = self._kb_search(
             "SYNTHESIZE", vocabulary=self._vocabulary(frame)
         )
         report: ValidationReport | None = None
         for _ in range(self.config.max_synth_attempts):
+            self.summary.synthesis_attempts += 1
             messages = self._decide_messages(
                 "SYNTHESIZE", frame, kb_hits, report, image_url
             )
@@ -523,12 +647,11 @@ class EwmAgent:
                     ok=False, pass_count=0, total=len(self.suite), error=str(exc)
                 )
                 continue
-            report = validate(candidate, self.suite) if len(self.suite) else ValidationReport(
-                ok=True, pass_count=0, total=0
-            )
-            if report.ok:
-                self.program = candidate
-                self.summary.program_accepted = True
+            report = validate(candidate, self.suite)
+            # Acceptance requires a real pass over a NON-EMPTY suite: a program is only trusted once
+            # it predicts every observed transition. (report.total == len(suite) > 0 here.)
+            if report.ok and report.total > 0:
+                self._adopt_program(candidate)
                 self._maybe_write_program(frame, report)
                 return True
         return False
@@ -549,6 +672,7 @@ class EwmAgent:
             "REPAIR", divergence=self._divergence_text(report)
         )
         for _ in range(self.config.max_repair_attempts):
+            self.summary.repair_attempts += 1
             messages = self._decide_messages("REPAIR", frame, kb_hits, report, image_url)
             text = self._decide(messages, self._synth_client())
             source = extract_python(text)
@@ -565,8 +689,8 @@ class EwmAgent:
             except SandboxError:
                 continue
             report = validate(candidate, self.suite)
-            if report.ok:
-                self.program = candidate
+            if report.ok and report.total > 0:
+                self._adopt_program(candidate)
                 self._maybe_write_program(frame, report)
                 return True
         return False
@@ -650,7 +774,13 @@ class EwmAgent:
         executed = self._executed_actions(result, actions)
         action_key = executed[0] if executed else (actions[0] if actions else None)
         if action_key is not None:
-            self._record_transition(before, action_key, after_grid)
+            # Only score SINGLE-action transitions that do NOT cross a level boundary against the
+            # model: a multi-action batch or a level-transition after-grid (the NEXT level's initial
+            # frame) has no well-defined one-step prediction, so scoring it would falsely penalize a
+            # correct model.
+            crossed_level = self._stop_reason(result) == "level_transition"
+            single_step = len(executed) <= 1 and not crossed_level
+            self._record_transition(before, action_key, after_grid, single_step=single_step)
 
         # Reflect: CURRENT|RESULT composite + structured action result.
         image_url = self._composite_url(
@@ -847,8 +977,21 @@ class EwmAgent:
                 prev_frame = frame
                 continue
 
-            # Model-based path: ORIENT -> SYNTHESIZE -> PLAN -> EXECUTE (-> REPAIR on divergence).
+            # Model-based path: PROBE -> ORIENT -> SYNTHESIZE -> PLAN -> EXECUTE (-> REPAIR).
             if self.program is None:
+                # Probe-first seeding: on a fresh, under-seeded game, run a discriminating probe
+                # batch so SYNTHESIZE validates against real transitions, never an empty suite.
+                if not self._probed and len(self.suite) < self.config.min_probe_transitions:
+                    self._probe_batch(frame)
+                    frame = self._observe()  # probing consumed actions and moved the avatar
+                    if frame.get("done") or self._out_of_budget(frame):
+                        self.summary.stop_reason = (
+                            "budget" if self._out_of_budget(frame) else "done"
+                        )
+                        if self._result_done_frame(frame):
+                            self.summary.won = True
+                            self.summary.stop_reason = "won"
+                        break
                 if not self._orient(frame):
                     if not self._synthesize(frame, decide_image):
                         self._failure_cycles += 1
@@ -874,20 +1017,57 @@ class EwmAgent:
                 break
 
             if diverged:
-                # The environment deviated from the model: REPAIR on the failing transition.
-                if not self._repair(frame, decide_image):
-                    self._failure_cycles += 1
-                else:
-                    self._failure_cycles = 0
+                self._handle_divergence(frame, decide_image)
+            else:
+                # A clean plan execution: the model held for this batch — reset per-divergence budget.
+                self._repairs_this_divergence = 0
+                self._failure_cycles = 0
 
             prev_frame = frame
 
+        self.summary.suite_size = len(self.suite)
         self.summary.transitions = len(self.suite)
+        self.summary.live_pass_rate = self._live_pass_rate()
         return self.summary.to_dict()
 
-    def _select_mode(self) -> str:
-        """Pick the mode for this turn. Flips to RECOVER after K failed synth/repair cycles."""
+    def _handle_divergence(self, frame: dict[str, Any], image_url: str | None) -> None:
+        """On an expect-mismatch: engage REPAIR, but enforce the repair caps and live pass-rate
+        floor. A program whose live pass-rate has collapsed (or which has burned its repair budget)
+        is DROPPED and the loop switches to reactive — never keep planning from a dead model."""
 
+        self._repairs_this_divergence += 1
+        self._repairs_this_game += 1
+        repaired = self._repair(frame, image_url)
+        if repaired:
+            self._failure_cycles = 0
+        else:
+            self._failure_cycles += 1
+
+        live_rate = self._live_pass_rate()
+        floor_breached = (
+            len(self._live_results) >= 1 and live_rate < self.config.min_live_pass_rate
+        )
+        cap_per_divergence = self._repairs_this_divergence >= self.config.max_repairs_per_divergence
+        cap_per_game = self._repairs_this_game >= self.config.max_repairs_per_game
+        if floor_breached or cap_per_divergence or cap_per_game:
+            reason = (
+                "live_pass_rate" if floor_breached
+                else "repair_cap_game" if cap_per_game
+                else "repair_cap_divergence"
+            )
+            self._drop_program(reason)
+
+    def _result_done_frame(self, frame: dict[str, Any]) -> bool:
+        """True iff an OBSERVED frame (not an action result) reports the game done/won."""
+
+        return bool(frame.get("done"))
+
+    def _select_mode(self) -> str:
+        """Pick the mode for this turn. Flips to RECOVER after K failed synth/repair cycles, or
+        once modelability has been judged poor (a dropped program stays reactive)."""
+
+        if self._modelability_poor:
+            return "RECOVER"
         if self._failure_cycles >= self.config.reactive_after_failures:
             return "RECOVER"
         if self.program is None:

@@ -464,17 +464,38 @@ class ArcEnvAdapter:
 # --------------------------------------------------------------------------------------------------
 
 
-def _smoke_llm() -> FakeLlm:
-    """A FakeLlm that authors the correct world model once, then reflects for the rest of the run.
+class _SmokeLlm(FakeLlm):
+    """A content-aware fake for the smoke run: authors the world model whenever a program is asked
+    for, and returns a benign reflect otherwise.
 
-    The agent's ``FakeLlm`` raises when its script is exhausted, but the number of reflect calls is
-    data-dependent (one per executed action-batch across level transitions). We over-provision:
-    one program-synthesis response followed by a long tail of benign reflect responses.
+    Probe-first seeding makes the reflect/decide call ordering data-dependent (the probe batch runs
+    a variable number of real actions, each with a reflect call, BEFORE the first SYNTHESIZE decide).
+    A positional script can't stay aligned under that, so this fake dispatches on the prompt: a
+    SYNTHESIZE/REPAIR decide (which asks for a fenced program) always gets the correct source; every
+    other call gets a benign prediction_ok reflect.
     """
 
-    fenced = f"Here is the model:\n```python\n{TOY_GAME_SOURCE}\n```\n"
-    reflect = '{"prediction_ok": true, "note": "matched"}'
-    return FakeLlm([fenced] + [reflect] * 64)
+    def __init__(self) -> None:
+        super().__init__([])
+        self._fenced = f"Here is the model:\n```python\n{TOY_GAME_SOURCE}\n```\n"
+        self._reflect = '{"prediction_ok": true, "note": "matched"}'
+
+    def chat(self, messages, max_tokens: int = 1024, temperature: float = 0.0):
+        self.received.append(
+            {"messages": messages, "max_tokens": max_tokens, "temperature": temperature}
+        )
+        self.calls += 1
+        last = messages[-1]["content"] if messages else ""
+        text = last if isinstance(last, str) else ""
+        wants_program = "Current mode: SYNTHESIZE" in text or "Current mode: REPAIR" in text
+        content = self._fenced if wants_program else self._reflect
+        return {"content": content, "finish_reason": None, "raw": content}
+
+
+def _smoke_llm() -> FakeLlm:
+    """A content-aware fake that authors the correct world model on demand and reflects otherwise."""
+
+    return _SmokeLlm()
 
 
 def smoke_run() -> dict[str, Any]:
@@ -502,6 +523,10 @@ def smoke_run() -> dict[str, Any]:
         "program_adopted": bool(summary.get("program_accepted")),
         "decide_calls": summary.get("decide_calls", 0),
         "reflect_calls": summary.get("reflect_calls", 0),
+        "synthesis_attempts": summary.get("synthesis_attempts", 0),
+        "repair_attempts": summary.get("repair_attempts", 0),
+        "suite_size": summary.get("suite_size", 0),
+        "live_pass_rate": summary.get("live_pass_rate", 1.0),
     }
 
 
@@ -577,6 +602,10 @@ def live_run(
             "program_synthesized": bool(summary.get("program_accepted")),
             "divergences": summary.get("reactive_turns", 0),
             "transitions": summary.get("transitions", 0),
+            "synthesis_attempts": summary.get("synthesis_attempts", 0),
+            "repair_attempts": summary.get("repair_attempts", 0),
+            "suite_size": summary.get("suite_size", 0),
+            "live_pass_rate": summary.get("live_pass_rate", 1.0),
             "stop_reason": summary.get("stop_reason"),
             "scorecard_url": scorecard_url,
             "max_actions": max_actions,
