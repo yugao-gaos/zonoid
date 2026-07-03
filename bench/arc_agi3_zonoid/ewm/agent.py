@@ -35,7 +35,10 @@ batches; on a parse failure the agent retries once, then falls back to a reactiv
 from __future__ import annotations
 
 import json
+import os
 import re
+import sys
+import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -138,6 +141,11 @@ class AgentConfig:
     # Optional per-role model: SYNTHESIZE and REPAIR decide calls route here when set; every other
     # call (ORIENT/RECOVER decide, reflect) stays on the main llm. None -> falls back to the main llm.
     synth_llm: Any = None
+    # Optional artifacts directory. None (default) = off: nothing is written. When set, the agent
+    # writes per-attempt world-model synthesis/repair artifacts (the prompt, raw LLM response,
+    # extracted program source, and validation report) plus an end-of-run transition-suite dump and
+    # the final adopted program, so REJECTED candidates are inspectable instead of discarded.
+    artifacts_dir: str | None = None
 
 
 # --------------------------------------------------------------------------------------------------
@@ -301,6 +309,11 @@ class EwmAgent:
         # each call stays stateless [system, user] with at most one step of context.
         self._prev_step: dict[str, Any] | None = None
         self._prev_score: Any = None
+        # Per-attempt artifact counter (zero-padded in the filename). Only used when
+        # config.artifacts_dir is set; every SYNTHESIZE/REPAIR candidate — adopted or rejected —
+        # increments it so rejected programs are inspectable rather than discarded.
+        self._artifact_counter = 0
+        self._artifacts_ready = False  # lazily mkdir the artifacts dir on first write
 
     # -- vision ------------------------------------------------------------------------------------
 
@@ -421,6 +434,98 @@ class EwmAgent:
             messages, max_tokens=self.config.reflect_max_tokens, temperature=0.0
         )
         return str(resp.get("content", "")) if isinstance(resp, dict) else str(resp)
+
+    # -- artifacts ---------------------------------------------------------------------------------
+    # Best-effort persistence of per-attempt world-model candidates so rejected programs (and why
+    # they were rejected) are inspectable. Every write is wrapped: a failure only logs to stderr and
+    # NEVER crashes the loop.
+
+    @staticmethod
+    def _prompt_text(messages: list[dict[str, Any]]) -> str:
+        """Pull the plain user text out of a built decide-messages list (image parts dropped)."""
+
+        if not messages:
+            return ""
+        content = messages[-1].get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    return str(part.get("text", ""))
+        return ""
+
+    @staticmethod
+    def _validation_report_dict(report: ValidationReport | None) -> dict[str, Any] | None:
+        """Compact, JSON-safe validation report for an artifact (mismatches capped to 20)."""
+
+        if report is None:
+            return None
+        return {
+            "ok": report.ok,
+            "fail_index": report.fail_index,
+            "fail_action": report.fail_action,
+            "error": report.error,
+            "mismatches": [list(m) for m in report.mismatches[:20]],
+            "pass_count": report.pass_count,
+            "total": report.total,
+            "pass_rate": report.pass_rate,
+        }
+
+    def _write_attempt_artifact(
+        self,
+        mode: str,
+        frame: dict[str, Any],
+        prompt_text: str,
+        raw_llm_response: str,
+        extracted_program_source: str | None,
+        report: ValidationReport | None,
+        adopted: bool,
+    ) -> None:
+        """Write one ``NN-{mode}.json`` per synthesis/repair attempt (best-effort)."""
+
+        if not self.config.artifacts_dir:
+            return
+        self._artifact_counter += 1
+        try:
+            if not self._artifacts_ready:
+                os.makedirs(self.config.artifacts_dir, exist_ok=True)
+                self._artifacts_ready = True
+            payload = {
+                "mode": mode,
+                "timestamp_step": frame.get("step"),
+                "prompt_text": prompt_text,
+                "raw_llm_response": raw_llm_response,
+                "extracted_program_source": extracted_program_source,
+                "validation_report": self._validation_report_dict(report),
+                "adopted": bool(adopted),
+            }
+            name = f"{self._artifact_counter:02d}-{mode}.json"
+            path = os.path.join(self.config.artifacts_dir, name)
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(payload, fh, indent=2, default=str)
+        except Exception as exc:  # noqa: BLE001 - artifact persistence must never crash the loop
+            print(f"[ewm] artifact write failed ({mode}): {exc!r}", file=sys.stderr)
+
+    def _write_run_artifacts(self) -> None:
+        """At run end: dump the transition suite and, if adopted, the final program (best-effort)."""
+
+        if not self.config.artifacts_dir:
+            return
+        try:
+            os.makedirs(self.config.artifacts_dir, exist_ok=True)
+            suite_path = os.path.join(self.config.artifacts_dir, "transition-suite.json")
+            with open(suite_path, "w", encoding="utf-8") as fh:
+                fh.write(self.suite.to_json(indent=2))
+        except Exception as exc:  # noqa: BLE001
+            print(f"[ewm] transition-suite dump failed: {exc!r}", file=sys.stderr)
+        if self.program is not None:
+            try:
+                prog_path = os.path.join(self.config.artifacts_dir, "final-program.py")
+                with open(prog_path, "w", encoding="utf-8") as fh:
+                    fh.write(getattr(self.program, "source", "") or "")
+            except Exception as exc:  # noqa: BLE001
+                print(f"[ewm] final-program dump failed: {exc!r}", file=sys.stderr)
 
     # -- KB ----------------------------------------------------------------------------------------
 
@@ -633,12 +738,13 @@ class EwmAgent:
             source = extract_python(text)
             if source is None:
                 # Parse failure: retry once with the same context, then bail out of synthesis.
-                text = self._decide(
-                    self._decide_messages("SYNTHESIZE", frame, kb_hits, report, image_url),
-                    self._synth_client(),
-                )
+                messages = self._decide_messages("SYNTHESIZE", frame, kb_hits, report, image_url)
+                text = self._decide(messages, self._synth_client())
                 source = extract_python(text)
                 if source is None:
+                    self._write_attempt_artifact(
+                        "SYNTHESIZE", frame, self._prompt_text(messages), text, None, None, False
+                    )
                     break
             try:
                 candidate = WorldModelProgram.load(source)
@@ -646,11 +752,18 @@ class EwmAgent:
                 report = ValidationReport(
                     ok=False, pass_count=0, total=len(self.suite), error=str(exc)
                 )
+                self._write_attempt_artifact(
+                    "SYNTHESIZE", frame, self._prompt_text(messages), text, source, report, False
+                )
                 continue
             report = validate(candidate, self.suite)
             # Acceptance requires a real pass over a NON-EMPTY suite: a program is only trusted once
             # it predicts every observed transition. (report.total == len(suite) > 0 here.)
-            if report.ok and report.total > 0:
+            adopted = bool(report.ok and report.total > 0)
+            self._write_attempt_artifact(
+                "SYNTHESIZE", frame, self._prompt_text(messages), text, source, report, adopted
+            )
+            if adopted:
                 self._adopt_program(candidate)
                 self._maybe_write_program(frame, report)
                 return True
@@ -677,19 +790,33 @@ class EwmAgent:
             text = self._decide(messages, self._synth_client())
             source = extract_python(text)
             if source is None:
-                text = self._decide(
-                    self._decide_messages("REPAIR", frame, kb_hits, report, image_url),
-                    self._synth_client(),
-                )
+                messages = self._decide_messages("REPAIR", frame, kb_hits, report, image_url)
+                text = self._decide(messages, self._synth_client())
                 source = extract_python(text)
                 if source is None:
+                    self._write_attempt_artifact(
+                        "REPAIR", frame, self._prompt_text(messages), text, None, None, False
+                    )
                     break
             try:
                 candidate = WorldModelProgram.load(source)
-            except SandboxError:
+            except SandboxError as exc:
+                self._write_attempt_artifact(
+                    "REPAIR",
+                    frame,
+                    self._prompt_text(messages),
+                    text,
+                    source,
+                    ValidationReport(ok=False, pass_count=0, total=len(self.suite), error=str(exc)),
+                    False,
+                )
                 continue
             report = validate(candidate, self.suite)
-            if report.ok and report.total > 0:
+            adopted = bool(report.ok and report.total > 0)
+            self._write_attempt_artifact(
+                "REPAIR", frame, self._prompt_text(messages), text, source, report, adopted
+            )
+            if adopted:
                 self._adopt_program(candidate)
                 self._maybe_write_program(frame, report)
                 return True
@@ -1028,6 +1155,8 @@ class EwmAgent:
         self.summary.suite_size = len(self.suite)
         self.summary.transitions = len(self.suite)
         self.summary.live_pass_rate = self._live_pass_rate()
+        # End-of-run persistence (any stop reason): the observed suite + the final adopted program.
+        self._write_run_artifacts()
         return self.summary.to_dict()
 
     def _handle_divergence(self, frame: dict[str, Any], image_url: str | None) -> None:

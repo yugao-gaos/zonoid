@@ -167,6 +167,37 @@ class SmokeRunTests(unittest.TestCase):
             self.assertIn(key, summary)
 
 
+class SmokeArtifactTests(unittest.TestCase):
+    """--smoke / smoke_run must create out/ewm-runs/{game}-{ts}/, pass it as artifacts_dir, expose
+    it on the summary, and populate it with the expected attempt + run artifacts."""
+
+    def tearDown(self):
+        importlib.reload(sys.modules["bench.arc_agi3_zonoid.ewm.agent"])
+
+    def test_smoke_run_populates_artifacts_dir(self):
+        import json
+        import os
+
+        summary = smoke_run()
+        artifacts_dir = summary.get("artifacts_dir")
+        self.assertTrue(artifacts_dir)
+        self.assertIn(os.path.join("out", "ewm-runs"), artifacts_dir)
+        self.assertTrue(os.path.isdir(artifacts_dir))
+        files = os.listdir(artifacts_dir)
+        # At least one per-attempt artifact and the end-of-run suite dump.
+        self.assertTrue(any(f.endswith("-SYNTHESIZE.json") for f in files), files)
+        self.assertIn("transition-suite.json", files)
+        # The smoke run wins (adopts a program) -> final-program.py is written.
+        self.assertIn("final-program.py", files)
+        # A synthesize artifact round-trips as JSON with the expected keys.
+        synth_files = sorted(f for f in files if f.endswith("-SYNTHESIZE.json"))
+        with open(os.path.join(artifacts_dir, synth_files[0]), encoding="utf-8") as fh:
+            art = json.load(fh)
+        for key in ("mode", "prompt_text", "raw_llm_response",
+                    "extracted_program_source", "validation_report", "adopted"):
+            self.assertIn(key, art)
+
+
 class ImportPurityTests(unittest.TestCase):
     def test_module_import_is_sdk_free(self):
         # Importing the driver must not pull in any ARC SDK candidate or PIL.

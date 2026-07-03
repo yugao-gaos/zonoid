@@ -32,7 +32,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import time
 from typing import Any, Callable
 
 from .agent import AgentConfig, EwmAgent
@@ -498,11 +500,18 @@ def _smoke_llm() -> FakeLlm:
     return _SmokeLlm()
 
 
+def _make_artifacts_dir(game: str) -> str:
+    """Allocate a per-run artifacts directory ``out/ewm-runs/{game}-{unix-ts}/`` (created lazily)."""
+
+    return os.path.join("out", "ewm-runs", f"{game}-{int(time.time())}")
+
+
 def smoke_run() -> dict[str, Any]:
     """Run the FULL EwmAgent loop with FakeLlm + ScriptedEnv + KB disabled; return a summary dict."""
 
     env = ScriptedEnv()
     llm = _smoke_llm()
+    artifacts_dir = _make_artifacts_dir("scripted-toy")
     # KB disabled (kb=None) and vision off (no PIL dependency) keep the loop offline & deterministic.
     EwmAgent._vision_available = staticmethod(lambda: False)
     agent = EwmAgent(
@@ -510,12 +519,15 @@ def smoke_run() -> dict[str, Any]:
         llm,
         kb=None,
         vision_enabled=False,
-        config=AgentConfig(game_id="scripted-toy", max_turns=40),
+        config=AgentConfig(
+            game_id="scripted-toy", max_turns=40, artifacts_dir=artifacts_dir
+        ),
     )
     summary = agent.run()
 
     modes_visited = sorted(set(summary.get("modes", [])))
     return {
+        "artifacts_dir": artifacts_dir,
         "won": bool(summary.get("won")),
         "levels_completed": env.levels_completed,
         "actions_taken": env.actions_taken,
@@ -569,6 +581,7 @@ def live_run(
         max_actions=max_actions,
         max_seconds=max_seconds,
     )
+    artifacts_dir = _make_artifacts_dir(game)
     llm = LlmClient.from_env(timeout_s=300)
     # Optional per-role model for SYNTHESIZE/REPAIR: a second client on the SAME base_url/api_key
     # as the main llm, differing only in model id. None -> the agent falls back to the main llm.
@@ -586,12 +599,18 @@ def live_run(
             llm,
             kb=None,
             vision_enabled=vision,
-            config=AgentConfig(game_id=game, max_turns=max_turns, synth_llm=synth_llm),
+            config=AgentConfig(
+                game_id=game,
+                max_turns=max_turns,
+                synth_llm=synth_llm,
+                artifacts_dir=artifacts_dir,
+            ),
         )
         summary = agent.run()
         scorecard_url = session.scorecard_url()
         return {
             "game": game,
+            "artifacts_dir": artifacts_dir,
             "won": bool(summary.get("won")),
             "levels_completed": session.levels_completed,
             "actions_taken": session.actions_taken,

@@ -817,5 +817,97 @@ class WriteGateTests(unittest.TestCase):
         self.assertLessEqual(kb._this_turn, kb.max_writes_per_turn)
 
 
+class ArtifactPersistenceTests(unittest.TestCase):
+    """Rejected world-model candidates must be inspectable: with artifacts_dir set, each
+    synthesis/repair attempt writes a NN-{mode}.json (adopted flag + validation report), the run
+    dumps a round-trippable transition-suite.json, and artifacts_dir=None writes nothing."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def test_synthesize_reject_writes_artifact_with_populated_report(self):
+        import json
+        import os
+        import tempfile
+
+        from bench.arc_agi3_zonoid.ewm.world_model import TransitionSuite
+
+        with tempfile.TemporaryDirectory() as tmp:
+            env = ToyEnv(_grid("2.3"))
+            # First candidate is WRONG (fails the seeded RIGHT transition) -> rejected; second is
+            # correct -> adopted. Both attempts must be persisted.
+            llm = FakeLlm(
+                [_fenced(WRONG_GAME_SOURCE), _fenced(TOY_GAME_SOURCE), '{"prediction_ok": true}']
+            )
+            ag = EwmAgent(
+                env, llm,
+                config=AgentConfig(
+                    game_id="toy", max_turns=10, min_probe_transitions=1, artifacts_dir=tmp
+                ),
+            )
+            ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+            ag.run()
+
+            # First attempt is the rejected synthesize.
+            reject_path = os.path.join(tmp, "01-SYNTHESIZE.json")
+            self.assertTrue(os.path.exists(reject_path))
+            with open(reject_path, encoding="utf-8") as fh:
+                art = json.load(fh)
+            self.assertEqual(art["mode"], "SYNTHESIZE")
+            self.assertFalse(art["adopted"])
+            self.assertIsNotNone(art["extracted_program_source"])
+            report = art["validation_report"]
+            self.assertIsNotNone(report)
+            self.assertFalse(report["ok"])
+            self.assertGreater(report["total"], 0)
+            self.assertIn("pass_count", report)
+            self.assertIn("mismatches", report)
+            self.assertIn("prompt_text", art)
+            self.assertIn("raw_llm_response", art)
+
+            # The accepted attempt is persisted too, with adopted=True.
+            accept_path = os.path.join(tmp, "02-SYNTHESIZE.json")
+            self.assertTrue(os.path.exists(accept_path))
+            with open(accept_path, encoding="utf-8") as fh:
+                accepted = json.load(fh)
+            self.assertTrue(accepted["adopted"])
+
+            # Suite dump round-trips through TransitionSuite.
+            suite_path = os.path.join(tmp, "transition-suite.json")
+            self.assertTrue(os.path.exists(suite_path))
+            with open(suite_path, encoding="utf-8") as fh:
+                suite = TransitionSuite.from_json(fh.read())
+            self.assertGreaterEqual(len(suite), 1)
+            self.assertEqual(len(suite), len(ag.suite))
+
+            # A program was adopted -> final-program.py exists.
+            self.assertTrue(os.path.exists(os.path.join(tmp, "final-program.py")))
+
+    def test_artifacts_dir_none_writes_nothing(self):
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = os.path.join(tmp, "probe")
+            env = ToyEnv(_grid("2.3"))
+            llm = FakeLlm([_fenced(TOY_GAME_SOURCE), '{"prediction_ok": true}'])
+            ag = EwmAgent(
+                env, llm,
+                config=AgentConfig(
+                    game_id="toy", max_turns=10, min_probe_transitions=1, artifacts_dir=None
+                ),
+            )
+            ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+            ag.run()
+            # artifacts_dir=None means the dir was never created and nothing was written.
+            self.assertFalse(os.path.exists(probe))
+            self.assertEqual(os.listdir(tmp), [])
+
+
 if __name__ == "__main__":
     unittest.main()
