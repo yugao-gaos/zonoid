@@ -241185,6 +241185,82 @@
       "usage_records": null,
       "last_actor": "overlay-sync",
       "last_agent_id": null
+    },
+    "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run": {
+      "id": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM qwen coding ls20 arm two model pair decision run",
+        "description": "Run the ls20 EWM slice on the FIXED harness (probe-first seeding + repair floor now merged) with qwen-coding:latest as BOTH the gameplay and synthesis model, vision ON — the run that decides the two-local-model pair (qwen-coding vs qwen35b-arc for gameplay; see prior arms in out/ewm-ls20-ab.json). No code changes expected beyond flag plumbing if gaps appear; reuse driver live path. Caps identical: 80 actions / 25 min. qwen-coding num_ctx=65536, vision-capable, likely also a thinking model — reuse ARC_LLM_REASONING_EFFORT=none. Write out/ewm-ls20-ewm-coding.json and extend out/ewm-ls20-ab.json to four arms with the new telemetry (synthesis_attempts, repair_attempts, suite_size, live_pass_rate). Truthful reporting.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T01:03:05.618Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T01:03:05.618Z",
+        "lastChanged": "2026-07-03T01:48:57.735Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-synthesis-artifact-persistence-run-debugging": {
+      "id": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM synthesis artifact persistence run debugging",
+        "description": "Persist world-model synthesis artifacts so failed candidates are inspectable. In bench/arc_agi3_zonoid/ewm/ (agent.py + driver.py + tests): every SYNTHESIZE/REPAIR attempt writes to a per-run artifacts dir (config artifacts_dir, default None=off; live_run and --smoke set out/ewm-runs/{game}-{run-id}/): NN-synthesize.json containing {mode, prompt_text, raw_llm_response, extracted_program_source, validation_report: {ok, fail_index, fail_action, mismatches (r,c,expected,got, capped 20), pass_count, total}, adopted}. At run end also dump transition-suite.json (TransitionSuite already has JSON serialization) and final-program.py if one was adopted. No behavior change to the loop itself; artifacts must never crash the run (best-effort writes). Extend run summary with artifacts_dir path. Tests: artifacts written on a synthesize-reject cycle with FakeLlm; suite dump round-trips; artifacts_dir=None writes nothing.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T01:44:15.266Z"
+      },
+      "assignee": "worker-ewm-artifacts",
+      "timestamps": {
+        "firstSeen": "2026-07-03T01:44:15.266Z",
+        "lastChanged": "2026-07-03T01:51:13.189Z",
+        "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
     }
   },
   "edges": [
@@ -273929,14 +274005,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
-      "to": "note:note-mqqqrlczyc2",
-      "kind": "context",
-      "weight": 0.6,
-      "by": "judge",
-      "judged": true
-    },
-    {
       "from": "knowledge:source_chunk:chunk-agents-md-5-2-do-not-store-task-specific-context-or-ep-45d2dfd2f0",
       "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
       "kind": "context",
@@ -273954,16 +274022,6 @@
       "by": "autowire",
       "judged": false,
       "score": 0.351,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0.531,
-      "by": "judge",
-      "judged": true,
-      "score": 0.531,
       "origin": "autowire-semantic"
     },
     {
@@ -274007,36 +274065,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-1",
-      "to": "codex/code-node-layer",
-      "kind": "context",
-      "weight": 0.482,
-      "by": "judge",
-      "judged": true,
-      "score": 0.482,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-2",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0.516,
-      "by": "judge",
-      "judged": true,
-      "score": 0.516,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-3",
-      "to": "codex/onboard-code-cli-sync-judge",
-      "kind": "context",
-      "weight": 0.519,
-      "by": "judge",
-      "judged": true,
-      "score": 0.519,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-4",
       "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
       "kind": "context",
@@ -274077,6 +274105,1072 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
+      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.324,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq5iflmh",
+      "to": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.321,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq75a7zx",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.433,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq7hef5qoyk",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.355,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqacft0tdqh",
+      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.395,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqbbfla22pq",
+      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.328,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqe0szihwix",
+      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.321,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqeai9sgzr1",
+      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.333,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqelk8e5ths",
+      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.396,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqenb2pth7k",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.291,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqengn7eu2n",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.291,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqeo3v9kn6i",
+      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.312,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqeo3v9kn6i",
+      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.504,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfgcwu5yqi",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
+      "kind": "context",
+      "weight": 0.402,
+      "by": "judge",
+      "judged": true,
+      "score": 0.402,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfgcwu5yqi",
+      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "kind": "context",
+      "weight": 0.479,
+      "by": "judge",
+      "judged": true,
+      "score": 0.479,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgyclcuqx8",
+      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.33,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh0gwz1mxc",
+      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.386,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqh7dmp2iwq",
+      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.302,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiub2sotx8",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
+      "kind": "context",
+      "weight": 0.274,
+      "by": "judge",
+      "judged": true,
+      "score": 0.274,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqiufao1bv4",
+      "to": "note:note-mqiu8wed0h3",
+      "kind": "context",
+      "weight": 0.7,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqjtvvr93wh",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
+      "kind": "context",
+      "weight": 0.422,
+      "by": "judge",
+      "judged": true,
+      "score": 0.422,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqjtvvr93wh",
+      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "kind": "context",
+      "weight": 0.473,
+      "by": "judge",
+      "judged": true,
+      "score": 0.473,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqkzbyez8m4",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.275,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqlapu0wi63",
+      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "kind": "context",
+      "weight": 0.398,
+      "by": "judge",
+      "judged": true,
+      "score": 0.398,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqljsmkubpa",
+      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.396,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoeu0bmayx",
+      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.457,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqokgnd2wnw",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.313,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqoxvl18k5p",
+      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.305,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp4xtjatjn",
+      "to": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.306,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp52vxy0op",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.27,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp7moo8hc8",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.415,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqpzvfu3u72",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.275,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqqv4ix36dd",
+      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.395,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqvr2wl8lre",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
+      "kind": "context",
+      "weight": 0.292,
+      "by": "judge",
+      "judged": true,
+      "score": 0.292,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr3v9la2scg",
+      "to": "note:note-mr3w7imnpak",
+      "kind": "context",
+      "weight": 0.646,
+      "by": "judge",
+      "judged": true,
+      "score": 0.646,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr3v9la2scg",
+      "to": "codex/ewm-vision-compositor-composite-frame-png",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.3,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr3w7imnpak",
+      "to": "note:note-mq82mggjhu5",
+      "kind": "context",
+      "weight": 0.488,
+      "by": "judge",
+      "judged": true,
+      "score": 0.488,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr3w7imnpak",
+      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr42ami4z24",
+      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr42ami4z24",
+      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr42ami4z24",
+      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr43cv6pydy",
+      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr43cv6pydy",
+      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
+      "kind": "context",
+      "weight": 0.869,
+      "by": "judge",
+      "judged": true,
+      "score": 0.869,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43cv6pydy",
+      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.491,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
+      "kind": "context",
+      "weight": 0.426,
+      "by": "judge",
+      "judged": true,
+      "score": 0.426,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "note:note-mqvr2wl8lre",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.634,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "kind": "context",
+      "weight": 0.481,
+      "by": "judge",
+      "judged": true,
+      "score": 0.481,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.466,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.453,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr45u2lycou",
+      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr45u2lycou",
+      "to": "note:note-mr43cv6pydy",
+      "kind": "context",
+      "weight": 0.557,
+      "by": "judge",
+      "judged": true,
+      "score": 0.557,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr45u2lycou",
+      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "kind": "context",
+      "weight": 0.457,
+      "by": "judge",
+      "judged": true,
+      "score": 0.457,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr45ykxy4rf",
+      "to": "note:note-mr45u2lycou",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.74,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr45ykxy4rf",
+      "to": "note:note-mr3w7imnpak",
+      "kind": "context",
+      "weight": 0.683,
+      "by": "judge",
+      "judged": true,
+      "score": 0.683,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr45ykxy4rf",
+      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.569,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr46y3pjbt8",
+      "to": "note:note-mr45ykxy4rf",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.541,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr46y3pjbt8",
+      "to": "note:note-mr43cv6pydy",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.507,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr46y3pjbt8",
+      "to": "note:note-mqvr2wl8lre",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.502,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr46y3pjbt8",
+      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.6,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr46y3pjbt8",
+      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr47mxx2ty3",
+      "to": "note:note-mr45ykxy4rf",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.643,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr47mxx2ty3",
+      "to": "note:note-mr43rk1dmy0",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.595,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr47mxx2ty3",
+      "to": "note:note-mr3w7imnpak",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.558,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr47mxx2ty3",
+      "to": "note:note-mr3vdyn5zxa",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.547,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr47rrqji0d",
+      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr47rrqji0d",
+      "to": "note:note-mr45ykxy4rf",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.765,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr47rrqji0d",
+      "to": "note:note-mr45u2lycou",
+      "kind": "context",
+      "weight": 0.648,
+      "by": "judge",
+      "judged": true,
+      "score": 0.648,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr47rrqji0d",
+      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "kind": "context",
+      "weight": 0.533,
+      "by": "judge",
+      "judged": true,
+      "score": 0.533,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr48a5ra7bz",
+      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr48a5ra7bz",
+      "to": "note:note-mr43cv6pydy",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.627,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr48a5ra7bz",
+      "to": "note:note-mr45ykxy4rf",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.59,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr48a5ra7bz",
+      "to": "note:note-mr47rrqji0d",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.548,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr48a5ra7bz",
+      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "kind": "context",
+      "weight": 0.464,
+      "by": "judge",
+      "judged": true,
+      "score": 0.464,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/1",
+      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
+      "kind": "supersede"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/1",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.294,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
+      "to": "codex/ewm-vision-compositor-composite-frame-png",
+      "kind": "supersede"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
+      "to": "codex/code-ast-extractor",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.343,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
+      "to": "codex/embed-provider-instruct-api",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.351,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
+      "to": "codex/subconscious-agentic-search-envelope",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.337,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
+      "to": "codex/subconscious-agentic-search-envelope-code-review",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.366,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-agent-loop-land-completed-attempt-branch",
+      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.445,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-agent-loop-land-completed-attempt-branch",
+      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-agent-loop-land-completed-attempt-branch",
+      "to": "codex/judge-subconscious-permit-gate-kickback-fix",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.496,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
+      "to": "codex/workflow-user-gate-guidance-projection",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.438,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
+      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
+      "kind": "context",
+      "weight": 0.682,
+      "by": "judge",
+      "judged": true,
+      "score": 0.682,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "to": "codex/review-search-kb-learning-skills",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.385,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "to": "codex/subconscious-agentic-search-envelope",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.357,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
+      "kind": "context",
+      "weight": 0.614,
+      "by": "judge",
+      "judged": true,
+      "score": 0.614,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
+      "kind": "supersede"
+    },
+    {
+      "from": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "to": "codex/probe-subconscious-assignment-main-live",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.452,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.477,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.44,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.493,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-repl-sandbox-budget-guards-segmentation",
+      "to": "codex/paper-code-retrieval-economy-judge",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.346,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-repl-sandbox-budget-guards-segmentation",
+      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-vision-compositor-composite-frame-png",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
+      "kind": "context",
+      "weight": 0.702,
+      "by": "judge",
+      "judged": true,
+      "score": 0.702,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-vision-compositor-composite-frame-png",
+      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.465,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.384,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.365,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
+      "to": "knowledge:source_section:section-agents-md-3-predict-by-default-request-guidance-is-a-17265807e5",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.282,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
+      "to": "codex/progressive-disclosure-context-contract",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.271,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
+      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
+      "to": "note:note-mqqqrlczyc2",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-claude-md-7-2-effect-2-auto-merge-on-judge-approve-whe-85c554656b",
+      "to": "codex/onboard-code-cli-sync-judge",
+      "kind": "context",
+      "weight": 0.531,
+      "by": "judge",
+      "judged": true,
+      "score": 0.531,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqpavx66iic#note-evidence:chunk-1",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.335,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-1",
+      "to": "codex/code-node-layer",
+      "kind": "context",
+      "weight": 0.482,
+      "by": "judge",
+      "judged": true,
+      "score": 0.482,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-2",
+      "to": "codex/onboard-code-cli-sync-judge",
+      "kind": "context",
+      "weight": 0.516,
+      "by": "judge",
+      "judged": true,
+      "score": 0.516,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqpzfgjlux8#note-evidence:chunk-3",
+      "to": "codex/onboard-code-cli-sync-judge",
+      "kind": "context",
+      "weight": 0.519,
+      "by": "judge",
+      "judged": true,
+      "score": 0.519,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-4",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.352,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:note-mqqpqf49a5m#note-evidence:chunk-3",
       "to": "note:note-mqqt68limis",
       "kind": "context",
@@ -274095,6 +275189,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.352,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-1",
       "to": "note:note-mqsi4rz0p98",
       "kind": "context",
@@ -274109,16 +275213,6 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.324,
-      "origin": "autowire-semantic"
     },
     {
       "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-3",
@@ -274241,16 +275335,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mq5iflmh",
-      "to": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.321,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq6qgcuz",
       "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/24",
       "kind": "context",
@@ -274318,16 +275402,6 @@
       "by": "judge",
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "note:note-mq75a7zx",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.433,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mq75a80n",
@@ -274495,16 +275569,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mq7hef5qoyk",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.355,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mq7hef63bam",
       "to": "note:note-mqp51dnukaw",
       "kind": "context",
@@ -274633,16 +275697,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mqacft0tdqh",
-      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.395,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqaqmb62a5k",
       "to": "note:note-mq9gifkl7hh",
       "kind": "context",
@@ -274711,16 +275765,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqbbfla22pq",
-      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.328,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqd64xspaoc",
       "to": "d08e0c33-36f1-49a6-b946-dff7dff71c5c/9",
       "kind": "context",
@@ -274738,16 +275782,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.778,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqe0szihwix",
-      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.321,
       "origin": "autowire-semantic"
     },
     {
@@ -274778,16 +275812,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.566,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqeai9sgzr1",
-      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.333,
       "origin": "autowire-semantic"
     },
     {
@@ -274901,25 +275925,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqelk8e5ths",
-      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.396,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqenb2pth7k",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.291,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqengn7eu2n",
       "to": "note:note-mqen3luhq1x",
       "kind": "context",
@@ -274977,15 +275982,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.613,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqengn7eu2n",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.291,
       "origin": "autowire-semantic"
     },
     {
@@ -275076,26 +276072,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.747,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqeo3v9kn6i",
-      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.312,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqeo3v9kn6i",
-      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.504,
       "origin": "autowire-semantic"
     },
     {
@@ -275222,26 +276198,6 @@
       "judged": true,
       "score": 0.962,
       "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqfgcwu5yqi",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
-      "kind": "context",
-      "weight": 0.402,
-      "by": "judge",
-      "judged": true,
-      "score": 0.402,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqfgcwu5yqi",
-      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "kind": "context",
-      "weight": 0.479,
-      "by": "judge",
-      "judged": true,
-      "score": 0.479,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqfj0lgtpk5",
@@ -275533,16 +276489,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqgyclcuqx8",
-      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.33,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqgycs0dynf",
       "to": "note:note-mq7dzydv",
       "kind": "context",
@@ -275618,16 +276564,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.689,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqh0gwz1mxc",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.386,
       "origin": "autowire-semantic"
     },
     {
@@ -275782,16 +276718,6 @@
       "by": "judge",
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "note:note-mqh7dmp2iwq",
-      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.302,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqh7dq5na2a",
@@ -276796,16 +277722,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqiub2sotx8",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
-      "kind": "context",
-      "weight": 0.274,
-      "by": "judge",
-      "judged": true,
-      "score": 0.274,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqiubeogxna",
       "to": "note:note-mqiu822ualn",
       "kind": "context",
@@ -276874,14 +277790,6 @@
       "judged": true,
       "score": 0.907,
       "origin": "subconscious-agentic-search"
-    },
-    {
-      "from": "note:note-mqiufao1bv4",
-      "to": "note:note-mqiu8wed0h3",
-      "kind": "context",
-      "weight": 0.7,
-      "by": "judge",
-      "judged": true
     },
     {
       "from": "note:note-mqivir09qko",
@@ -277174,26 +278082,6 @@
       "origin": "asserted"
     },
     {
-      "from": "note:note-mqjtvvr93wh",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
-      "kind": "context",
-      "weight": 0.422,
-      "by": "judge",
-      "judged": true,
-      "score": 0.422,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqjtvvr93wh",
-      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "kind": "context",
-      "weight": 0.473,
-      "by": "judge",
-      "judged": true,
-      "score": 0.473,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqjx2nj5gav",
       "to": "codex/judge-exec-brain-state-seam",
       "kind": "context",
@@ -277257,16 +278145,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqkzbyez8m4",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.275,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mql0cbookug",
       "to": "codex/verify-featurebench-production-faithful",
       "kind": "blocking",
@@ -277295,16 +278173,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqlapu0wi63",
-      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "kind": "context",
-      "weight": 0.398,
-      "by": "judge",
-      "judged": true,
-      "score": 0.398,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqlc786kcl2",
       "to": "note:note-mqlapu0wi63",
       "kind": "context",
@@ -277312,16 +278180,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.709,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqljsmkubpa",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.396,
       "origin": "autowire-semantic"
     },
     {
@@ -277363,26 +278221,6 @@
       "judged": true
     },
     {
-      "from": "note:note-mqoeu0bmayx",
-      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.457,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqokgnd2wnw",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.313,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqonvqqre1d",
       "to": "codex/fix-onboarding-stale-legacy-queue",
       "kind": "context",
@@ -277398,16 +278236,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.718,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqoxvl18k5p",
-      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.305,
       "origin": "autowire-semantic"
     },
     {
@@ -277477,16 +278305,6 @@
       "weight": 0.5,
       "by": "judge",
       "judged": true
-    },
-    {
-      "from": "note:note-mqp4xtjatjn",
-      "to": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.306,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqp4xzshs2e",
@@ -277740,16 +278558,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.63,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp52vxy0op",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.27,
       "origin": "autowire-semantic"
     },
     {
@@ -278354,16 +279162,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.743,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp7moo8hc8",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.415,
       "origin": "autowire-semantic"
     },
     {
@@ -279159,16 +279957,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqpzvfu3u72",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.275,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqq01krivx2",
       "to": "codex/code-extractor-multilang-judge",
       "kind": "context",
@@ -279605,16 +280393,6 @@
       "weight": 0.6,
       "by": "judge",
       "judged": true
-    },
-    {
-      "from": "note:note-mqqv4ix36dd",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.395,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqqvw755vf0",
@@ -280094,557 +280872,135 @@
       "origin": "subconscious-agentic-search"
     },
     {
-      "from": "note:note-mqvr2wl8lre",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
-      "kind": "context",
-      "weight": 0.292,
-      "by": "judge",
-      "judged": true,
-      "score": 0.292,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr3v9la2scg",
-      "to": "note:note-mr3w7imnpak",
-      "kind": "context",
-      "weight": 0.646,
-      "by": "judge",
-      "judged": true,
-      "score": 0.646,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr3v9la2scg",
-      "to": "codex/ewm-vision-compositor-composite-frame-png",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.3,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr3w7imnpak",
-      "to": "note:note-mq82mggjhu5",
-      "kind": "context",
-      "weight": 0.488,
-      "by": "judge",
-      "judged": true,
-      "score": 0.488,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr3w7imnpak",
-      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
       "from": "note:note-mr42ami4z24",
-      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "note:note-mr42ami4z24",
-      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "note:note-mr42ami4z24",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
       "kind": "context",
       "origin": "subconscious-assignment"
     },
     {
       "from": "note:note-mr43cv6pydy",
-      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr43cv6pydy",
-      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
-      "kind": "context",
-      "origin": "autowire-semantic",
-      "weight": 0.869,
-      "by": "judge",
-      "judged": true,
-      "score": 0.869
-    },
-    {
-      "from": "note:note-mr43cv6pydy",
-      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.491,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "note:note-mr43cv6pydy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.656,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "note:note-mqgtihmabbs",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.651,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
-      "kind": "context",
-      "weight": 0.426,
-      "by": "judge",
-      "judged": true,
-      "score": 0.426,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "note:note-mqvr2wl8lre",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.634,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "kind": "context",
-      "weight": 0.481,
-      "by": "judge",
-      "judged": true,
-      "score": 0.481,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.466,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.453,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr45u2lycou",
-      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr45u2lycou",
-      "to": "note:note-mr43rk1dmy0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.695,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr45u2lycou",
-      "to": "note:note-mr43cv6pydy",
-      "kind": "context",
-      "weight": 0.557,
-      "by": "judge",
-      "judged": true,
-      "score": 0.557,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr45u2lycou",
-      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "kind": "context",
-      "weight": 0.457,
-      "by": "judge",
-      "judged": true,
-      "score": 0.457,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr45ykxy4rf",
-      "to": "note:note-mr43rk1dmy0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.791,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr45ykxy4rf",
-      "to": "note:note-mr45u2lycou",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.74,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr45ykxy4rf",
-      "to": "note:note-mr3w7imnpak",
-      "kind": "context",
-      "weight": 0.683,
-      "by": "judge",
-      "judged": true,
-      "score": 0.683,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr45ykxy4rf",
-      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.569,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr45ykxy4rf",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.552,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "note:note-mr3w7imnpak",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.541,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "note:note-mr45ykxy4rf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.541,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "note:note-mr43cv6pydy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.507,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "note:note-mqf624kvlk9",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.502,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "note:note-mqvr2wl8lre",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.502,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "kind": "context",
-      "origin": "autowire-semantic",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.6
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "note:note-mr45ykxy4rf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.643,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "note:note-mr43rk1dmy0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.595,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "note:note-mr3w7imnpak",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.558,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "note:note-mr3vdyn5zxa",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.547,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "note:note-mr45u2lycou",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.547,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "kind": "context",
-      "origin": "autowire-semantic",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.486
-    },
-    {
-      "from": "note:note-mr47rrqji0d",
-      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr47rrqji0d",
-      "to": "note:note-mr45ykxy4rf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.765,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47rrqji0d",
-      "to": "note:note-mr43rk1dmy0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.663,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47rrqji0d",
-      "to": "note:note-mr45u2lycou",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.648,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47rrqji0d",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "kind": "context",
-      "weight": 0.533,
-      "by": "judge",
-      "judged": true,
       "score": 0.533,
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.467,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr45ykxy4rf",
+      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.552,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr45ykxy4rf",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.462,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr47mxx2ty3",
+      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.486,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr47rrqji0d",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.577,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mr48a5ra7bz",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.497,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr49q8juxow",
+      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr48a5ra7bz",
-      "to": "note:note-mr43cv6pydy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.627,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr48a5ra7bz",
-      "to": "note:note-mr45ykxy4rf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.59,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr48a5ra7bz",
-      "to": "note:note-mr43rk1dmy0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.585,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr48a5ra7bz",
-      "to": "note:note-mr45u2lycou",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.564,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr48a5ra7bz",
+      "from": "note:note-mr49q8juxow",
       "to": "note:note-mr47rrqji0d",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.548,
+      "score": 0.705,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr48a5ra7bz",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "from": "note:note-mr49q8juxow",
+      "to": "note:note-mr45ykxy4rf",
       "kind": "context",
-      "weight": 0.464,
-      "by": "judge",
-      "judged": true,
-      "score": 0.464,
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.701,
       "origin": "autowire-semantic"
     },
     {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/1",
-      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
-      "kind": "supersede"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/1",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.294,
+      "from": "note:note-mr49q8juxow",
+      "to": "note:note-mr47mxx2ty3",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.65,
       "origin": "autowire-semantic"
     },
     {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
-      "to": "codex/ewm-vision-compositor-composite-frame-png",
-      "kind": "supersede"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
-      "to": "codex/code-ast-extractor",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.343,
+      "from": "note:note-mr49q8juxow",
+      "to": "note:note-mr4307zl9gd",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.61,
       "origin": "autowire-semantic"
     },
     {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
-      "to": "codex/embed-provider-instruct-api",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.351,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
-      "to": "codex/subconscious-agentic-search-envelope",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.337,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
-      "to": "codex/subconscious-agentic-search-envelope-code-review",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.366,
+      "from": "note:note-mr49q8juxow",
+      "to": "note:note-mr43rk1dmy0",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.608,
       "origin": "autowire-semantic"
     },
     {
@@ -280765,242 +281121,50 @@
       "judged": true
     },
     {
-      "from": "codex/ewm-agent-loop-land-completed-attempt-branch",
-      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.445,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-agent-loop-land-completed-attempt-branch",
-      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-agent-loop-land-completed-attempt-branch",
-      "to": "codex/judge-subconscious-permit-gate-kickback-fix",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.496,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "to": "codex/workflow-user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.438,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
-      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
-      "kind": "context",
-      "weight": 0.682,
-      "by": "judge",
-      "judged": true,
-      "score": 0.682,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "to": "codex/review-search-kb-learning-skills",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.385,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "to": "codex/subconscious-agentic-search-envelope",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.357,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
-      "kind": "context",
-      "weight": 0.614,
-      "by": "judge",
-      "judged": true,
-      "score": 0.614,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
-      "kind": "supersede"
-    },
-    {
-      "from": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "to": "codex/probe-subconscious-assignment-main-live",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.452,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.477,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
       "from": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.44,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "kind": "blocking",
-      "by": "judge",
-      "judged": true,
-      "score": 0.493,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-repl-sandbox-budget-guards-segmentation",
-      "to": "codex/paper-code-retrieval-economy-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.346,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-repl-sandbox-budget-guards-segmentation",
-      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
       "kind": "context",
       "origin": "subconscious-assignment"
     },
     {
-      "from": "codex/ewm-vision-compositor-composite-frame-png",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
-      "kind": "context",
-      "weight": 0.702,
-      "by": "judge",
-      "judged": true,
-      "score": 0.702,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-vision-compositor-composite-frame-png",
-      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.465,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.384,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.365,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "from": "codex/ewm-synthesis-artifact-persistence-run-debugging",
       "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
       "kind": "context",
-      "origin": "subconscious-assignment"
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.442,
+      "origin": "autowire-semantic"
     },
     {
-      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
-      "to": "knowledge:source_section:section-agents-md-3-predict-by-default-request-guidance-is-a-17265807e5",
+      "from": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.282,
+      "score": 0.439,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
-      "to": "codex/progressive-disclosure-context-contract",
+      "from": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.271,
+      "score": 0.387,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
-      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
+      "from": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
       "kind": "context",
-      "origin": "subconscious-assignment"
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.373,
+      "origin": "autowire-semantic"
     },
     {
       "from": "codex/fix-consolidate-universal-skills-kickback",
@@ -281167,5 +281331,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-03T01:29:37.239Z"
+  "compacted_at": "2026-07-03T01:51:28.210Z"
 }
