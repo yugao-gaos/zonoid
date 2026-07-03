@@ -47,3 +47,4 @@
 {"evt":"edge_removed","from":"note:note-mr42ami4z24","to":"codex/ewm-context-policy-kb-summaries-prev-step-per-role-models","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:37:27.121Z"}
 {"evt":"edge_removed","from":"note:note-mr42ami4z24","to":"codex/ewm-live-ls20-run-wiring-and-ab-slice","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:40:26.499Z"}
 {"evt":"edge_removed","from":"note:note-mr42ami4z24","to":"codex/ewm-synthesis-artifact-persistence-run-debugging","kind":"context","actor":"overlay-sync","ts":"2026-07-03T20:41:39.775Z"}
+{"evt":"edge_promoted","from":"note:note-mr42ami4z24","to":"codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:06:33.364Z","weight":0.5,"by":"judge","judged":true,"origin":"subconscious-assignment"}
