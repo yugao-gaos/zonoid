@@ -258,13 +258,15 @@ class WriteGateTest(unittest.TestCase):
         rec, gate = self._gate()
         with mock.patch.object(kb_protocol.request, "urlopen", rec):
             gate.write_level_solution("ls20", 2, ["ACTION1", "ACTION2"], "align then push")
-            gate.write_mechanic_pattern("gravityPull", "objects fall", "def g(): ...")
+            gate.write_mechanism_hypothesis(
+                "gravityPull", ["fall", "block"], "drop a block", "objects fall", ["ls20"]
+            )
         t1 = json.loads(rec.calls[0]["body"])
         title1 = t1["title"]
         self.assertEqual(title1, "game ls20 level 2 solution")
         title2 = json.loads(rec.calls[1]["body"])["title"]
         # camelCase name split into standalone tokens
-        self.assertEqual(title2, "mechanic pattern gravity pull")
+        self.assertEqual(title2, "mechanism hypothesis gravity pull")
 
     def test_modelability_verdict_supersede(self) -> None:
         rec, gate = self._gate()
@@ -282,6 +284,231 @@ class WriteGateTest(unittest.TestCase):
         with mock.patch.object(kb_protocol.request, "urlopen", rec):
             gate.write_level_solution("ls20", 1, [1, 2, 3], "go right")
         self.assertIn("1 2 3", json.loads(rec.calls[0]["body"])["summary"])
+
+
+class MechanismHypothesisSchemaTest(unittest.TestCase):
+    def _gate(self, payload=None):
+        rec = _Recorder(payload if payload is not None else {"ok": True, "id": "n"})
+        gate = WriteGate(_client(), max_writes_per_turn=5)
+        gate.begin_turn()
+        return rec, gate
+
+    def test_body_rendered_in_hypothesis_form(self) -> None:
+        rec, gate = self._gate()
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            out = gate.write_mechanism_hypothesis(
+                "gravity pull",
+                cues=["falling block", "empty below"],
+                probe="drop a block and watch",
+                dynamics="pull loose objects downward until blocked",
+                observed_in=["ls20", "ft09"],
+            )
+        self.assertTrue(out["ok"])
+        body = json.loads(rec.calls[0]["body"])["summary"]
+        self.assertTrue(body.startswith("SOME games pull loose objects downward"))
+        self.assertIn("Cues: falling block, empty below.", body)
+        self.assertIn("Probe: drop a block and watch.", body)
+        self.assertIn("Observed in: ls20, ft09.", body)
+        # never stated as a fact about THIS game
+        self.assertNotIn("this game", body.lower())
+
+    def test_title_is_standalone_tokens(self) -> None:
+        rec, gate = self._gate()
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            gate.write_mechanism_hypothesis(
+                "gravityPull", ["x"], "p", "objects fall", ["ls20"]
+            )
+        title = json.loads(rec.calls[0]["body"])["title"]
+        self.assertEqual(title, "mechanism hypothesis gravity pull")
+
+    def test_absolute_coordinate_in_dynamics_rejected(self) -> None:
+        rec, gate = self._gate()
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            out = gate.write_mechanism_hypothesis(
+                "wall", ["edge"], "p", "block stops at row 40", ["ls20"]
+            )
+        self.assertEqual(out, {"ok": False, "reason": "absolute coordinate"})
+        self.assertEqual(rec.calls, [])
+
+    def test_absolute_coordinate_range_and_pair_rejected(self) -> None:
+        rec, gate = self._gate()
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            r1 = gate.write_mechanism_hypothesis(
+                "a", ["cols 34-38"], "p", "objects fall", ["ls20"]
+            )
+            r2 = gate.write_mechanism_hypothesis(
+                "b", ["c"], "p", "spawns at (40,34)", ["ls20"]
+            )
+            r3 = gate.write_mechanism_hypothesis(
+                "c", ["c"], "p", "target sits near 40, 34 always", ["ls20"]
+            )
+        self.assertEqual(r1["reason"], "absolute coordinate")
+        self.assertEqual(r2["reason"], "absolute coordinate")
+        self.assertEqual(r3["reason"], "absolute coordinate")
+        self.assertEqual(rec.calls, [])
+
+    def test_relative_dynamics_accepted(self) -> None:
+        rec, gate = self._gate()
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            out = gate.write_mechanism_hypothesis(
+                "push", ["adjacent block"], "nudge it", "push blocks in the move direction",
+                ["ls20"],
+            )
+        self.assertTrue(out["ok"])
+        self.assertEqual(len(rec.calls), 1)
+
+    def test_foreign_game_id_rejected(self) -> None:
+        rec, gate = self._gate()
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            out = gate.write_mechanism_hypothesis(
+                "warp",
+                cues=["seen in vc99"],
+                probe="p",
+                dynamics="objects teleport",
+                observed_in=["ls20"],
+            )
+        self.assertEqual(out, {"ok": False, "reason": "foreign game id"})
+        self.assertEqual(rec.calls, [])
+
+    def test_observed_game_id_allowed_in_body(self) -> None:
+        rec, gate = self._gate()
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            out = gate.write_mechanism_hypothesis(
+                "warp", ["cue"], "p", "behaves like ls20 warp", observed_in=["ls20"]
+            )
+        self.assertTrue(out["ok"])
+
+
+class MechanicPatternAliasTest(unittest.TestCase):
+    def _gate(self):
+        rec = _Recorder({"ok": True, "id": "n"})
+        gate = WriteGate(_client(), max_writes_per_turn=5)
+        gate.begin_turn()
+        return rec, gate
+
+    def test_alias_maps_prose_to_dynamics_and_flags_legacy(self) -> None:
+        rec, gate = self._gate()
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            out = gate.write_mechanic_pattern("gravityPull", "objects fall downward", "def g(): ...")
+        self.assertTrue(out["ok"])
+        note = json.loads(rec.calls[0]["body"])
+        self.assertEqual(note["title"], "mechanism hypothesis gravity pull")
+        body = note["summary"]
+        self.assertTrue(body.startswith("SOME games objects fall downward."))
+        # empty cues/probe allowed but flagged legacy
+        self.assertIn("Cues: .", body)
+        self.assertIn("Probe: .", body)
+        self.assertIn("legacy", body.lower())
+
+    def test_alias_still_rejects_absolute_coordinates(self) -> None:
+        rec, gate = self._gate()
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            out = gate.write_mechanic_pattern("wall", "block stops at row 40", "def g(): ...")
+        self.assertEqual(out, {"ok": False, "reason": "absolute coordinate"})
+        self.assertEqual(rec.calls, [])
+
+
+class HypothesisMenuTest(unittest.TestCase):
+    def _menu_notes(self):
+        return [
+            {"title": "mechanism hypothesis gravity pull",
+             "summary": "SOME games pull blocks down. Cues: falling block, gravity."},
+            {"title": "mechanism hypothesis door key",
+             "summary": "SOME games open a door with a key. Cues: door, key, locked."},
+            {"title": "mechanism hypothesis color swap",
+             "summary": "SOME games swap colors. Cues: recolor, palette."},
+        ]
+
+    def test_preamble_prepended_and_ranked_by_overlap(self) -> None:
+        rec = _Recorder(self._menu_notes())
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            menu = kb_protocol.hypothesis_menu(
+                "zz01", ["door", "key", "locked"], k=5, client=_client()
+            )
+        self.assertTrue(menu["hypothesis_menu"])
+        self.assertEqual(menu["preamble"], kb_protocol.HYPOTHESIS_MENU_PREAMBLE)
+        self.assertTrue(menu["formatted"].startswith(kb_protocol.HYPOTHESIS_MENU_PREAMBLE))
+        # door/key note ranks first (3 overlapping cue words vs 0)
+        self.assertEqual(menu["notes"][0]["title"], "mechanism hypothesis door key")
+
+    def test_menu_respects_k(self) -> None:
+        rec = _Recorder(self._menu_notes())
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            menu = kb_protocol.hypothesis_menu("zz01", ["door"], k=2, client=_client())
+        self.assertEqual(len(menu["notes"]), 2)
+
+    def test_menu_requires_client(self) -> None:
+        with self.assertRaises(ValueError):
+            kb_protocol.hypothesis_menu("zz01", ["door"])
+
+
+class StrippedNewGameEntryTest(unittest.TestCase):
+    def _client_with_hits(self, per_call):
+        """Recorder that returns a different payload for each successive urlopen call."""
+
+        calls = {"n": 0}
+
+        def opener(req, timeout=None):  # noqa: ANN001
+            idx = calls["n"]
+            calls["n"] += 1
+            payload = per_call[idx] if idx < len(per_call) else []
+            return _FakeResponse(json.dumps(payload).encode("utf-8"))
+
+        return opener
+
+    def test_orient_new_game_returns_hypothesis_menu(self) -> None:
+        # call 0 = ORIENT keyed lookup (no game-scoped note); call 1 = menu search
+        opener = self._client_with_hits([
+            [],
+            [{"title": "mechanism hypothesis push", "summary": "SOME games push blocks."}],
+        ])
+        with mock.patch.object(kb_protocol.request, "urlopen", opener):
+            out = kb_protocol.search_for_mode(
+                "ORIENT", "zz01", vocabulary=["push", "block"], client=_client()
+            )
+        self.assertEqual(len(out), 1)
+        self.assertTrue(out[0]["hypothesis_menu"])
+        self.assertTrue(out[0]["formatted"].startswith(kb_protocol.HYPOTHESIS_MENU_PREAMBLE))
+
+    def test_orient_existing_game_returns_scoped_fact(self) -> None:
+        # game-scoped note is keyed by game id in the title — returned as-is, no menu
+        opener = self._client_with_hits([
+            [{"title": "game zz01 world model program", "summary": "def step(): ..."}],
+        ])
+        with mock.patch.object(kb_protocol.request, "urlopen", opener):
+            out = kb_protocol.search_for_mode(
+                "ORIENT", "zz01", vocabulary=["push"], client=_client()
+            )
+        self.assertEqual(len(out), 1)
+        self.assertNotIn("hypothesis_menu", out[0])
+        self.assertIn("zz01", out[0]["title"])
+
+    def test_synthesize_new_game_returns_hypothesis_menu(self) -> None:
+        opener = self._client_with_hits([
+            [{"title": "mechanism hypothesis door key", "summary": "SOME games open doors."}],
+            [{"title": "mechanism hypothesis door key", "summary": "SOME games open doors."}],
+        ])
+        with mock.patch.object(kb_protocol.request, "urlopen", opener):
+            out = kb_protocol.search_for_mode(
+                "SYNTHESIZE", "zz01", vocabulary=["door", "key"], client=_client()
+            )
+        self.assertEqual(len(out), 1)
+        self.assertTrue(out[0]["hypothesis_menu"])
+
+    def test_game_scoped_facts_keyed_by_game_id_convention(self) -> None:
+        # convention assertion: fact titles carry the game id; menu items do NOT
+        rec = _Recorder({"ok": True})
+        gate = WriteGate(_client(), max_writes_per_turn=5)
+        gate.begin_turn()
+        with mock.patch.object(kb_protocol.request, "urlopen", rec):
+            gate.write_program_revision("zz01", "handles push", "def s(): ...", "3/3")
+            gate.write_modelability_verdict("zz01", "modelable", "stable")
+        prog_title = json.loads(rec.calls[0]["body"])["title"]
+        verdict_title = json.loads(rec.calls[1]["body"])["title"]
+        self.assertTrue(prog_title.startswith("game zz01"))
+        self.assertTrue(verdict_title.startswith("game zz01"))
+        # a cross-game hypothesis title is NOT keyed by any game id
+        self.assertNotRegex("mechanism hypothesis gravity pull", r"\b[a-z]{2,}\d+\b")
 
 
 if __name__ == "__main__":

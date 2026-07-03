@@ -33,6 +33,12 @@ logger = logging.getLogger(__name__)
 SEARCH_MODES: tuple[str, ...] = ("ORIENT", "SYNTHESIZE", "REPAIR", "RECOVER")
 NO_SEARCH_MODES: tuple[str, ...] = ("PLAN", "EXECUTE")
 
+# A cross-game hypothesis menu is NEVER stated as fact. Every menu the agent reads carries this
+# preamble so a new game is never told "this is how it works" — only "these are guesses to test".
+HYPOTHESIS_MENU_PREAMBLE: str = (
+    "hypothesis menu — test before trusting; this game may match none of these"
+)
+
 
 class KbClient:
     """Minimal stdlib HTTP client for the Zonoid daemon KB.
@@ -159,6 +165,66 @@ def _dedupe(words: list[str]) -> list[str]:
     return out
 
 
+def _note_text(note: dict[str, Any]) -> str:
+    """Concatenate a note's title + body text for cue-word overlap scoring."""
+
+    return " ".join(
+        str(note.get(key, ""))
+        for key in ("title", "summary", "body", "prose", "dynamics")
+    )
+
+
+def _is_game_scoped(note: dict[str, Any], game_id: str) -> bool:
+    """A game-scoped FACT is keyed by the game id in its title (``game <id> ...``)."""
+
+    gid = " ".join(_tokens(game_id))
+    return gid in " ".join(_tokens(note.get("title", "")))
+
+
+def hypothesis_menu(
+    game_id: str,
+    vocabulary: list[str],
+    *,
+    k: int = 5,
+    client: KbClient | None = None,
+) -> dict[str, Any]:
+    """Build a ranked cross-game hypothesis MENU for a game, never a set of facts.
+
+    Searches the cross-game mechanism-hypothesis notes, ranks them by cue-word overlap with
+    ``vocabulary`` (the game's segmentation words), keeps the top ``k``, and returns them together
+    with a formatted block that ALWAYS opens with :data:`HYPOTHESIS_MENU_PREAMBLE`. The preamble is
+    what keeps the menu honest: a new game is handed guesses to test, not rules to trust.
+    """
+
+    if client is None:
+        raise ValueError("hypothesis_menu requires a KbClient (pass client=...)")
+
+    vocab_tokens = set(_tokens(vocabulary))
+    q = " ".join(_dedupe(["mechanism", "hypothesis", *sorted(vocab_tokens)]))
+    # Pull a wider candidate pool than k so overlap ranking has something to sort.
+    hits = client.search(q, k=max(k * 2, k), gated=False)
+
+    def _overlap(note: dict[str, Any]) -> int:
+        return len(vocab_tokens & set(_tokens(_note_text(note))))
+
+    ranked = sorted(hits, key=_overlap, reverse=True)[:k]
+
+    lines = [HYPOTHESIS_MENU_PREAMBLE, ""]
+    for note in ranked:
+        title = str(note.get("title", "")).strip()
+        body = str(note.get("summary", note.get("body", ""))).strip()
+        lines.append(f"- {title}: {body}" if body else f"- {title}")
+    formatted = "\n".join(lines)
+
+    return {
+        "hypothesis_menu": True,
+        "game_id": game_id,
+        "preamble": HYPOTHESIS_MENU_PREAMBLE,
+        "notes": ranked,
+        "formatted": formatted,
+    }
+
+
 def search_for_mode(
     mode: str,
     game_id: str,
@@ -193,13 +259,23 @@ def search_for_mode(
 
     if mode == "ORIENT":
         q = " ".join(_dedupe(["game", *_tokens(game_id), "world", "model", "program"]))
-        return client.search(q, k=1, gated=False)
+        hits = client.search(q, k=1, gated=False)
+        scoped = [h for h in hits if _is_game_scoped(h, game_id)]
+        if scoped:
+            return scoped
+        # New game: no game-scoped program note. Hand back a hypothesis menu, NOT raw semantic hits.
+        return [hypothesis_menu(game_id, list(_tokens(vocabulary)), client=client)]
 
     if mode == "SYNTHESIZE":
         q = " ".join(
             _dedupe(["mechanic", "pattern", *_tokens(game_id), *_tokens(vocabulary)])
         )
-        return client.search(q, k=4, gated=False)
+        hits = client.search(q, k=4, gated=False)
+        scoped = [h for h in hits if _is_game_scoped(h, game_id)]
+        if scoped:
+            return scoped
+        # New game: no game-scoped facts. Fall back to the tagged cross-game hypothesis menu.
+        return [hypothesis_menu(game_id, list(_tokens(vocabulary)), client=client)]
 
     if mode == "REPAIR":
         q = " ".join(
@@ -227,6 +303,29 @@ def search_for_mode(
 
 _DIGITS_SEP_LINE = re.compile(r"^[\s0-9,/|.\-]+$")
 _LONG_DIGIT_RUN = re.compile(r"\d{12,}")
+
+# Absolute-coordinate patterns forbidden in a cross-game hypothesis body. Cross-game mechanism
+# notes must describe dynamics in RELATIVE terms — a hypothesis that fires "at row 40" or
+# "(40,34)" has smuggled one game's screen layout into another game's menu, which is exactly the
+# fact-vs-hypothesis leak this schema forbids.
+_ABS_COORD_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # "row 40", "col 12", "cols 34-38", "column 7", "rows 1-3"
+    re.compile(r"\b(?:row|rows|col|cols|column|columns)\s+\d+", re.IGNORECASE),
+    # "(40,34)" / "(40, 34)" — an explicit coordinate pair
+    re.compile(r"\(\s*\d+\s*,\s*\d+\s*\)"),
+    # bare digit-pair coordinate like "40,34" or "40, 34"
+    re.compile(r"\b\d+\s*,\s*\d+\b"),
+)
+
+
+def contains_absolute_coordinates(text: str) -> bool:
+    """Heuristic guard: does ``text`` pin a mechanism to an absolute screen coordinate?
+
+    Cross-game hypotheses must stay coordinate-free (relative dynamics only). We reject any
+    ``row N`` / ``cols N-M`` / ``(N,M)`` / bare ``N,M`` coordinate pattern.
+    """
+
+    return any(pat.search(text) for pat in _ABS_COORD_PATTERNS)
 
 
 def looks_like_grid_dump(body: str) -> bool:
@@ -325,17 +424,79 @@ class WriteGate:
         body = f"unlocking insight: {insight}\n\naction sequence: {actions_text}"
         return self._guarded_note(title, body)
 
+    def write_mechanism_hypothesis(
+        self,
+        name: str,
+        cues: list[str],
+        probe: str,
+        dynamics: str,
+        observed_in: list[str],
+        *,
+        _legacy: bool = False,
+    ) -> dict[str, Any]:
+        """Acceptance: a cross-game mechanism HYPOTHESIS (never a fact).
+
+        The body is rendered in hypothesis form — "SOME games {dynamics}." — so a future game reads
+        it as a guess to test, not a rule to obey. To keep the note transferable we REJECT any
+        ``dynamics``/``cues`` text that:
+
+        * pins a mechanism to an absolute coordinate (``row 40``, ``cols 34-38``, ``(40,34)``,
+          bare ``40,34``) — that is one game's screen layout leaking into another game's menu; or
+        * names a game id that is not in ``observed_in`` — a hypothesis can only claim the games it
+          was actually observed in.
+
+        Returns a refusal dict (``{"ok": False, "reason": ...}``) on either violation.
+        """
+
+        coord_fields = [dynamics, *(cues or [])]
+        for field in coord_fields:
+            if contains_absolute_coordinates(str(field)):
+                logger.warning("mechanism hypothesis refused (absolute coordinate): %r", name)
+                return {"ok": False, "reason": "absolute coordinate"}
+
+        foreign = _foreign_game_ids(coord_fields, observed_in or [])
+        if foreign:
+            logger.warning(
+                "mechanism hypothesis refused (game id %r not in observed_in): %r",
+                foreign[0],
+                name,
+            )
+            return {"ok": False, "reason": "foreign game id"}
+
+        title = _title("mechanism hypothesis", name)
+        cues_text = ", ".join(cues) if cues else ""
+        observed_text = ", ".join(observed_in) if observed_in else ""
+        body = (
+            f"SOME games {dynamics}. "
+            f"Cues: {cues_text}. "
+            f"Probe: {probe}. "
+            f"Observed in: {observed_text}."
+        )
+        if _legacy:
+            body = f"{body}\n\n(legacy — migrated from write_mechanic_pattern; empty cues/probe)"
+        return self._guarded_note(title, body)
+
     def write_mechanic_pattern(
         self,
         name: str,
         prose: str,
         code_snippet: str,
     ) -> dict[str, Any]:
-        """Acceptance: a cross-game mechanic pattern (prose retrieval key + code snippet)."""
+        """DEPRECATED alias for :meth:`write_mechanism_hypothesis`.
 
-        title = _title("mechanic pattern", name)
-        body = f"{prose}\n\ncode snippet:\n{code_snippet}"
-        return self._guarded_note(title, body)
+        Kept for callers on the old fact-shaped signature. Maps ``prose`` -> ``dynamics`` and passes
+        empty ``cues``/``probe`` (allowed, but the note body is flagged "legacy"). ``code_snippet``
+        is dropped — a cross-game hypothesis carries a probe, not a game-specific code snippet.
+        """
+
+        return self.write_mechanism_hypothesis(
+            name,
+            cues=[],
+            probe="",
+            dynamics=prose,
+            observed_in=[],
+            _legacy=True,
+        )
 
     def write_modelability_verdict(
         self,
@@ -359,6 +520,27 @@ class WriteGate:
 
         title = _title("game", game_id, "failed repair")
         return self._guarded_note(title, description)
+
+
+# A game id in this benchmark looks like letters immediately followed by digits, e.g. "ls20".
+_GAME_ID_TOKEN = re.compile(r"\b([a-z]{2,}\d+)\b", re.IGNORECASE)
+
+
+def _foreign_game_ids(fields: list[Any], observed_in: list[str]) -> list[str]:
+    """Return game-id-shaped tokens in ``fields`` that are not present in ``observed_in``.
+
+    Cross-game hypotheses may only name the games they were observed in; any other game id in the
+    dynamics/cues is a fact leaking from a game the hypothesis has no evidence for.
+    """
+
+    allowed = {gid.lower() for gid in observed_in}
+    foreign: list[str] = []
+    for field in fields:
+        for match in _GAME_ID_TOKEN.finditer(str(field)):
+            gid = match.group(1).lower()
+            if gid not in allowed and gid not in foreign:
+                foreign.append(gid)
+    return foreign
 
 
 def _title(*parts: Any) -> str:
