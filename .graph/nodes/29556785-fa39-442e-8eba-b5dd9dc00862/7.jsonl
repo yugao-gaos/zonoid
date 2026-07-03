@@ -12,3 +12,4 @@
 {"evt":"edge_added","from":"29556785-fa39-442e-8eba-b5dd9dc00862/7","to":"codex/ewm-object-delta-module-relative-coordinate-transitions","kind":"supersede","actor":"overlay-sync","ts":"2026-07-03T12:04:28.671Z"}
 {"evt":"status_changed","id":"29556785-fa39-442e-8eba-b5dd9dc00862/7","workspace":"/Users/imyu/Desktop/zonoid","status":"canceled","actor":"overlay-sync","ts":"2026-07-03T12:04:28.671Z"}
 {"evt":"timestamps_set","id":"29556785-fa39-442e-8eba-b5dd9dc00862/7","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-03T11:48:27.859Z","lastChanged":"2026-07-03T12:05:57.409Z","lastStatus":"canceled"},"actor":"overlay-sync","ts":"2026-07-03T12:06:20.976Z"}
+{"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/7","to":"codex/workflow-user-gate-guidance-projection","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:16:52.337Z"}
