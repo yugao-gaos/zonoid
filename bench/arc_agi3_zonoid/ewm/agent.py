@@ -99,6 +99,22 @@ DECIDE_PROMPT = (
     '{{"actions": ["ACTION1", "ACTION2"]}} choosing only from valid_actions. Keep the batch small.'
 )
 
+# Terse re-ask when a SYNTHESIZE/REPAIR response contained NO fenced block at all (prose only).
+SYNTH_RETRY_PROMPT = (
+    "Return ONLY one fenced python block implementing the five-function contract "
+    "(init_state, step, render, is_win, legal_actions). No prose, no explanation — just the "
+    "```python code block."
+)
+
+# Hard contract paragraph appended to every SYNTHESIZE/REPAIR user prompt: the model must PARSE the
+# real grid (never hardcode one) and render at the input's dimensions. This is the exact defect the
+# ls20 candidates showed — they hand-read the IMAGE into a 5x7 grid while real frames are 64x64.
+SYNTH_GRID_CONTRACT = (
+    "CONTRACT: init_state(frame) receives frame['grid'] (list of rows of ints) and MUST parse it — "
+    "never hardcode a grid. render(state) MUST return a grid with exactly the same dimensions as "
+    "the input grid."
+)
+
 REFLECT_PROMPT = (
     "Reflect on the action you just took. Structured result: {result}.\n"
     "The CURRENT|RESULT composite (if provided) shows the board before and after. State briefly "
@@ -136,6 +152,10 @@ class AgentConfig:
     plan_max_nodes: int = 20000
     reactive_batch: int = 1       # actions per reactive probe when the LLM gives nothing usable
     decide_max_tokens: int = 1024
+    # SYNTHESIZE/REPAIR decide calls author a whole world-model program (many functions + parsing);
+    # 1024 truncated every ls20 candidate mid-docstring, so those calls get a larger budget. Gameplay
+    # (RECOVER/ORIENT decide) stays at decide_max_tokens — it only emits a small action batch.
+    synth_max_tokens: int = 4096
     reflect_max_tokens: int = 256
     game_id: str = "unknown"
     # Optional per-role model: SYNTHESIZE and REPAIR decide calls route here when set; every other
@@ -152,22 +172,70 @@ class AgentConfig:
 # Defensive parsing of LLM output
 # --------------------------------------------------------------------------------------------------
 
-_FENCE_RE = re.compile(r"```(?:python)?\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
+# Opening fence: ```python (or bare ```), optionally with trailing junk on that line, then a
+# newline. The block body runs to the NEXT closing ``` OR to end-of-text (a truncated response
+# whose closing fence never arrived). Capturing to end-of-text is deliberate: the ls20 failures
+# were all truncations (decide_max_tokens too small) where the old "must have a closing fence"
+# regex matched NOTHING, so the loop fell through to a prose-substring fallback and handed the raw
+# ```python line (or plain prose) to the compiler as source. See _extract_fenced_blocks.
+_FENCE_OPEN_RE = re.compile(r"```[ \t]*(?:python|py)?[^\n]*\n", re.IGNORECASE)
+
+
+def _extract_fenced_blocks(text: str) -> list[str]:
+    """Return the body of every ```python (or bare ```) fenced block, fence lines stripped.
+
+    A block runs from just after its opening fence line to the next ``` (closing fence) or, if the
+    response was truncated before a closing fence, to end-of-text. Empty bodies are dropped.
+    """
+
+    blocks: list[str] = []
+    pos = 0
+    while True:
+        open_m = _FENCE_OPEN_RE.search(text, pos)
+        if not open_m:
+            break
+        body_start = open_m.end()
+        close = text.find("```", body_start)
+        if close == -1:
+            body = text[body_start:]
+            pos = len(text)
+        else:
+            body = text[body_start:close]
+            pos = close + 3
+        body = body.strip("\n").rstrip()
+        if body.strip():
+            blocks.append(body)
+    return blocks
+
+
+def _compiles(source: str) -> bool:
+    try:
+        compile(source, "<extract>", "exec")
+        return True
+    except SyntaxError:
+        return False
 
 
 def extract_python(text: str) -> str | None:
-    """Extract the FIRST fenced python block from ``text`` (or ``None`` if there is none)."""
+    """Extract program source from ``text``: the LAST fenced ```python block that ``compile()``s.
+
+    Collect every complete ```python fenced block (fence lines stripped). Prefer the LAST block that
+    compiles (models often emit reasoning + a final program; the last block is the answer). If no
+    block compiles but at least one exists, return the LAST block anyway so ``validate`` can report
+    the real compile error instead of a spurious "no program". If NO fenced block exists at all,
+    return ``None`` — prose must NEVER become program source (the ls20 U+2014 failure). The caller
+    treats ``None`` as a parse failure and retries once with a terse "one fenced block" prompt.
+    """
 
     if not text:
         return None
-    match = _FENCE_RE.search(text)
-    if match:
-        code = match.group(1).strip()
-        return code or None
-    # Fallback: if the whole message already looks like the contract (no fences), accept it.
-    if "def init_state" in text and "def step" in text:
-        return text.strip()
-    return None
+    blocks = _extract_fenced_blocks(text)
+    if not blocks:
+        return None
+    for block in reversed(blocks):
+        if _compiles(block):
+            return block
+    return blocks[-1]
 
 
 def extract_json(text: str) -> Any | None:
@@ -399,10 +467,95 @@ class EwmAgent:
             program_block=program_block,
             report_block=report_block,
         )
+        # Synthesis-only grid dump: SYNTHESIZE/REPAIR are one-shot code tasks that MUST parse the
+        # real grid, so they get the actual frame grid, a segmentation object summary, sample
+        # transitions, and the dimension contract. The gameplay (decide) prompt is left unchanged —
+        # the dump goes ONLY to synthesis calls (flat-context policy: no rolling grids in play).
+        if mode in ("SYNTHESIZE", "REPAIR"):
+            user_text = user_text + self._synthesis_grid_block(frame)
         return [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": self._content_with_image(user_text, image_url)},
         ]
+
+    # -- synthesis grid dump (SYNTHESIZE/REPAIR only) ----------------------------------------------
+
+    _SYNTH_GRID_CELL_CAP = 4096   # dump raw rows up to this many cells (qwen-coding has 64k ctx)
+    _SYNTH_OBJECT_CAP = 20        # cap the segmentation object summary at this many objects
+    _SYNTH_TRANSITION_CAP = 3     # sample this many suite transitions as before/action/after
+
+    @staticmethod
+    def _grid_rows_text(grid: list[list[int]]) -> str:
+        """Render a grid as digit row-strings, one row per line (single-digit cells packed, else
+        space-joined so ints >9 stay readable)."""
+
+        lines = []
+        for row in grid:
+            if all(0 <= int(v) <= 9 for v in row):
+                lines.append("".join(str(int(v)) for v in row))
+            else:
+                lines.append(" ".join(str(int(v)) for v in row))
+        return "\n".join(lines)
+
+    def _object_summary_text(self, grid: list[list[int]]) -> str:
+        """Per-object summary from segment_grid: color, pixels, bbox, id (capped)."""
+
+        try:
+            from . import segmentation
+
+            seg = segmentation.segment_grid(grid)
+        except Exception:  # noqa: BLE001 - segmentation must never crash prompt building
+            return ""
+        nodes = seg.get("nodes") or []
+        lines = []
+        for node in nodes[: self._SYNTH_OBJECT_CAP]:
+            boundary = node.get("boundary") or []
+            if boundary:
+                rows = [p[0] for p in boundary]
+                cols = [p[1] for p in boundary]
+                bbox = [min(rows), min(cols), max(rows), max(cols)]
+            else:
+                bbox = None
+            lines.append(
+                f"- id={node.get('id')} color={node.get('color')} "
+                f"pixels={node.get('pixels')} bbox={bbox}"
+            )
+        return "\n".join(lines)
+
+    def _sample_transitions_text(self) -> str:
+        """2-3 suite transitions rendered as before/action/after row-strings."""
+
+        if len(self.suite) == 0:
+            return ""
+        transitions = list(self.suite)[-self._SYNTH_TRANSITION_CAP :]
+        blocks = []
+        for i, t in enumerate(transitions):
+            blocks.append(
+                f"transition {i} action={t.action!r}\n"
+                f"before:\n{self._grid_rows_text(t.before_grid)}\n"
+                f"after:\n{self._grid_rows_text(t.after_grid)}"
+            )
+        return "\n\n".join(blocks)
+
+    def _synthesis_grid_block(self, frame: dict[str, Any]) -> str:
+        """Build the SYNTHESIZE/REPAIR-only appendix: grid rows, object summary, sample transitions,
+        and the hard dimension contract. Best-effort — a build failure degrades to just the contract
+        rather than crashing prompt construction."""
+
+        grid = self._frame_grid(frame)
+        height = len(grid)
+        width = len(grid[0]) if height else 0
+        parts = ["\n--- SYNTHESIS DATA (parse this; do not hardcode) ---"]
+        parts.append(f"Current frame grid is {height} rows x {width} cols:")
+        parts.append(self._grid_rows_text(grid))
+        obj = self._object_summary_text(grid)
+        if obj:
+            parts.append(f"\nObject summary (segment_grid, up to {self._SYNTH_OBJECT_CAP}):\n{obj}")
+        transitions = self._sample_transitions_text()
+        if transitions:
+            parts.append(f"\nObserved transitions (before/action/after):\n{transitions}")
+        parts.append("\n" + SYNTH_GRID_CONTRACT)
+        return "\n".join(parts) + "\n"
 
     def _reflect_messages(
         self, result: dict[str, Any], image_url: str | None
@@ -413,13 +566,29 @@ class EwmAgent:
             {"role": "user", "content": self._content_with_image(user_text, image_url)},
         ]
 
+    def _synth_retry_messages(
+        self, frame: dict[str, Any], image_url: str | None
+    ) -> list[dict[str, Any]]:
+        """Terse re-ask after a prose-only (no fenced block) synthesis/repair response. Keeps the
+        synthesis grid dump + contract so the retry still has the data it must parse."""
+
+        user_text = SYNTH_RETRY_PROMPT + "\n" + self._synthesis_grid_block(frame)
+        return [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": self._content_with_image(user_text, image_url)},
+        ]
+
     # -- LLM wrappers -------------------------------------------------------------------------------
 
-    def _decide(self, messages: list[dict[str, Any]], client: Any = None) -> str:
+    def _decide(
+        self, messages: list[dict[str, Any]], client: Any = None, max_tokens: int | None = None
+    ) -> str:
         self.summary.decide_calls += 1
         client = client or self.llm
         resp = client.chat(
-            messages, max_tokens=self.config.decide_max_tokens, temperature=0.0
+            messages,
+            max_tokens=self.config.decide_max_tokens if max_tokens is None else max_tokens,
+            temperature=0.0,
         )
         return str(resp.get("content", "")) if isinstance(resp, dict) else str(resp)
 
@@ -734,12 +903,17 @@ class EwmAgent:
             messages = self._decide_messages(
                 "SYNTHESIZE", frame, kb_hits, report, image_url
             )
-            text = self._decide(messages, self._synth_client())
+            text = self._decide(
+                messages, self._synth_client(), max_tokens=self.config.synth_max_tokens
+            )
             source = extract_python(text)
             if source is None:
-                # Parse failure: retry once with the same context, then bail out of synthesis.
-                messages = self._decide_messages("SYNTHESIZE", frame, kb_hits, report, image_url)
-                text = self._decide(messages, self._synth_client())
+                # No fenced block at all (prose only): retry ONCE with a terse "one fenced block"
+                # prompt, then bail out of synthesis.
+                messages = self._synth_retry_messages(frame, image_url)
+                text = self._decide(
+                    messages, self._synth_client(), max_tokens=self.config.synth_max_tokens
+                )
                 source = extract_python(text)
                 if source is None:
                     self._write_attempt_artifact(
@@ -787,11 +961,16 @@ class EwmAgent:
         for _ in range(self.config.max_repair_attempts):
             self.summary.repair_attempts += 1
             messages = self._decide_messages("REPAIR", frame, kb_hits, report, image_url)
-            text = self._decide(messages, self._synth_client())
+            text = self._decide(
+                messages, self._synth_client(), max_tokens=self.config.synth_max_tokens
+            )
             source = extract_python(text)
             if source is None:
-                messages = self._decide_messages("REPAIR", frame, kb_hits, report, image_url)
-                text = self._decide(messages, self._synth_client())
+                # No fenced block at all (prose only): retry ONCE with a terse re-ask.
+                messages = self._synth_retry_messages(frame, image_url)
+                text = self._decide(
+                    messages, self._synth_client(), max_tokens=self.config.synth_max_tokens
+                )
                 source = extract_python(text)
                 if source is None:
                     self._write_attempt_artifact(
