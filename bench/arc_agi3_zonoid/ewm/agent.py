@@ -434,6 +434,11 @@ class RunSummary:
     # path, and the count of cells currently masked UNKNOWN (shrinks as REPAIR improves the model).
     program_adopted_partial: bool = False
     mask_cells: int = 0
+    # Changed-cells accuracy of the program at adoption time (the fraction of the cells the
+    # transition actually MOVES that the model predicts right). This is the metric the partial
+    # adoption floor is measured over — it makes the ~97%-static-background whole-board rate
+    # non-vacuous. None until a program is adopted.
+    changed_cells_accuracy: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -453,6 +458,7 @@ class RunSummary:
             "stop_reason": self.stop_reason,
             "program_adopted_partial": self.program_adopted_partial,
             "mask_cells": self.mask_cells,
+            "changed_cells_accuracy": self.changed_cells_accuracy,
         }
 
 
@@ -503,6 +509,13 @@ class EwmAgent:
         # Repair engagement + live pass-rate floor bookkeeping.
         self._repairs_this_game = 0
         self._repairs_this_divergence = 0
+        # Partial-adoption divergence engagement (Run-10 fix): a masked program masks exactly the
+        # cells its inner source gets wrong, so the ``expect``-grid check (which treats masked cells
+        # as wildcards) would NEVER see a divergence in the modeled-wrong region and REPAIR would
+        # never fire. Until the FIRST live repair on a partial adoption, EXECUTE feeds the UNWRAPPED
+        # inner program's predictions as ``expect`` so the real board divergence trips
+        # ``expect_mismatch`` and routes to REPAIR before any reactive fallback. Cleared on adopt.
+        self._partial_repaired = False
         self._probed = False           # probe batch runs at most once (fresh-game seeding)
         self._modelability_poor = False  # once set, the loop stays reactive (never re-plans a program)
         # Rolling window of the last `live_window` observed transitions vs the ACTIVE program's
@@ -988,6 +1001,9 @@ class EwmAgent:
         # A fully-passing adoption is NOT partial: clear any prior partial-adoption telemetry.
         self.summary.program_adopted_partial = False
         self.summary.mask_cells = 0
+        # A fresh adoption has not been live-repaired yet: EXECUTE feeds inner predictions as
+        # ``expect`` on the first divergence (only meaningful while the program stays masked).
+        self._partial_repaired = False
 
     def _board_cells(self, frame: dict[str, Any]) -> int:
         """Cell count of the current board (rows*cols), used for the mask-cap fraction. Falls back
@@ -998,41 +1014,65 @@ class EwmAgent:
             grid = [list(row) for row in self.suite[0].before_grid]
         return sum(len(row) for row in grid)
 
-    def _cell_pass_rate(self, program: Any) -> float:
-        """Cell-level prediction accuracy of ``program`` over the whole suite.
+    @staticmethod
+    def _changed_cells(before: list[list[int]], after: list[list[int]]) -> set[tuple[int, int]]:
+        """Cells that DIFFER between ``before`` and ``after`` (the cells the transition actually
+        moves). On a shape mismatch every after-cell counts as changed — there is no aligned
+        before-cell to compare against."""
 
-        The partial-adoption floor is a CELL rate, not a transition rate: a candidate that "models
-        real object mechanics but fails on 1-2 regions" (Run-9 #13) is wrong on the SAME few cells
-        in every transition, so a per-transition rate would score it 0 and refuse it. Cell accuracy
-        — the fraction of predicted cells that match the observed after-grid across all transitions —
-        stays high for such a candidate (only the small wrong region drags it down) and collapses for
-        a candidate that mispredicts broadly. UNKNOWN cells (either side) are skipped, matching
-        :func:`~.world_model._diff_grids`. A crashing or shape-mismatched transition contributes its
-        whole board as wrong cells (it predicted nothing usable)."""
+        if _grid_shape(before) != _grid_shape(after):
+            return {(r, c) for r, row in enumerate(after) for c in range(len(row))}
+        changed: set[tuple[int, int]] = set()
+        for r, (brow, arow) in enumerate(zip(before, after)):
+            for c, (b, a) in enumerate(zip(brow, arow)):
+                if b != a:
+                    changed.add((r, c))
+        return changed
+
+    def _cell_pass_rate(self, program: Any) -> float:
+        """Prediction accuracy of ``program`` over the CHANGED cells of the suite.
+
+        The partial-adoption floor is measured over CHANGED cells only — per transition, the cells
+        where the before-grid and after-grid differ — NOT the whole board. A 64x64 board is ~97%
+        static background, so whole-board cell accuracy is vacuous: a program that copies the
+        background unchanged but mispredicts the moving region (Run-10: right structure, +/-1 moves
+        where truth is +/-5) still scored ~0.99 whole-board and cleared the 0.6 floor, admitting a
+        model that got 0/5 transitions. Scoring only the cells that actually move makes the floor
+        bite: such a model scores near 0 on the changed cells and is refused.
+
+        A candidate wrong on the SAME small region in every transition (Run-9 #13) still scores
+        high, because most changed cells (the correctly-moved object) match — so the changed-cells
+        floor keeps the partial-adoption behaviour it was built for while closing the vacuous-metric
+        hole. A changed cell the program renders UNKNOWN is a decline-to-predict (an already-masked
+        cell) and is excluded — it is not evidence of accuracy. A crashing or shape-mismatched
+        transition contributes its changed cells as all-wrong (it predicted nothing usable)."""
 
         correct = 0
         total = 0
         for transition in self.suite:
             after = transition.after_grid
-            board = sum(len(row) for row in after)
+            before = transition.before_grid
+            changed = self._changed_cells(before, after)
+            if not changed:
+                continue
             try:
-                state = program.init_state(transition.before_grid)
+                state = program.init_state(before)
                 next_state, _events = program.step(state, transition.action)
                 got = program.render(next_state)
-            except Exception:  # noqa: BLE001 - a crash predicts nothing: the whole board is wrong
-                total += board
+            except Exception:  # noqa: BLE001 - a crash predicts nothing: every changed cell is wrong
+                total += len(changed)
                 continue
-            # Count matching non-UNKNOWN cells directly (shape mismatch -> whole board wrong).
             if _grid_shape(after) != _grid_shape(got):
-                total += board
+                total += len(changed)
                 continue
-            for exp_row, got_row in zip(after, got):
-                for exp, act in zip(exp_row, got_row):
-                    if _is_unknown(exp) or _is_unknown(act):
-                        continue
-                    total += 1
-                    if exp == act:
-                        correct += 1
+            for (r, c) in changed:
+                # A changed cell the model renders UNKNOWN is a decline-to-predict (already masked):
+                # excluded from the accuracy, matching the mask semantics.
+                if _is_unknown(got[r][c]):
+                    continue
+                total += 1
+                if not _is_unknown(after[r][c]) and after[r][c] == got[r][c]:
+                    correct += 1
         return correct / total if total else 0.0
 
     def _try_partial_adopt(self, frame: dict[str, Any], source: str) -> bool:
@@ -1062,12 +1102,14 @@ class EwmAgent:
             inner = WorldModelProgram.load(source)
         except SandboxError:
             return False
-        if self._cell_pass_rate(inner) < self.config.min_partial_adopt_rate:
+        changed_acc = self._cell_pass_rate(inner)
+        if changed_acc < self.config.min_partial_adopt_rate:
             return False
         mask = mismatch_mask(inner, self.suite)
         if not mask:
             # Nothing to mask: the program already passes — adopt it whole, not partially.
             self._adopt_program(inner)
+            self.summary.changed_cells_accuracy = changed_acc
             return True
         board = self._board_cells(frame)
         if board <= 0 or (len(mask) / board) > self.config.mask_cap:
@@ -1079,6 +1121,8 @@ class EwmAgent:
         self._adopt_program(wrapped)
         self.summary.program_adopted_partial = True
         self.summary.mask_cells = len(mask)
+        # Telemetry: the changed-cells accuracy that cleared the floor at adoption time.
+        self.summary.changed_cells_accuracy = changed_acc
         return True
 
     def _drop_program(self, reason: str) -> None:
@@ -1482,6 +1526,11 @@ class EwmAgent:
                 if self._try_partial_adopt(frame, source) and (
                     self.summary.mask_cells < prev_mask
                 ):
+                    # Mask recomputed to the improved (smaller) set. This partial adoption HAS now
+                    # been live-repaired: subsequent EXECUTE uses the recomputed masked wrapper, so
+                    # the newly-modeled cells are checked and only the still-unmodelable remainder
+                    # stays wildcard.
+                    self._partial_repaired = True
                     self._maybe_write_program(frame, report)
                     return True
                 # Restore the prior (better-or-equal) partial adoption.
@@ -1514,6 +1563,59 @@ class EwmAgent:
         except Exception:  # noqa: BLE001 - a broken program must not crash the loop
             return None
 
+    def _expect_grids(
+        self, plan_result: PlanResult, frame: dict[str, Any]
+    ) -> list[Any]:
+        """The per-action ``expect`` grids for EXECUTE.
+
+        Normally the plan's own ``predicted_grids`` (rendered by the active program). While the
+        active program is a partial adoption that has NOT yet been live-repaired, we reveal the
+        UNWRAPPED inner program's prediction on the cells the model says MOVE, so a real divergence
+        in the modeled dynamics actually trips ``expect_mismatch`` -> REPAIR (see :meth:`_execute`).
+
+        We do NOT simply swap in the whole inner render: that would also un-mask STATIC masked cells
+        (a persistently-wrong background region — the Run-9 case partial adoption is built to
+        tolerate), spuriously tripping repair on a harmless constant. Instead, per step we keep the
+        masked wrapper's grid (UNKNOWN over the mask) and OVERRIDE only the cells that inner's step
+        actually CHANGES (before[r][c] != inner_after[r][c]) with inner's real value. So:
+          * a moved object the model mispredicts (Run-10: wrong magnitude) -> revealed -> divergence;
+          * a static masked cell (Run-9: wrong constant) -> stays UNKNOWN wildcard -> no divergence.
+        """
+
+        program = self.program
+        if not (isinstance(program, MaskedProgram) and not self._partial_repaired):
+            return list(plan_result.predicted_grids)
+        inner = program.inner
+        try:
+            state = inner.init_state(self._frame_grid(frame))
+            # Baseline is inner's OWN render of the start state, NOT the real frame: we want the
+            # cells inner's STEP moves (inner_before -> inner_after), not the cells where inner
+            # merely disagrees with the real input (that static disagreement is exactly the masked
+            # region we must keep as a wildcard).
+            before = inner.render(state)
+            grids: list[Any] = []
+            for index, action in enumerate(plan_result.actions):
+                state, _events = inner.step(state, action)
+                inner_after = inner.render(state)
+                # Base = the plan's masked grid for this step (UNKNOWN over the mask). Fall back to
+                # inner_after if the plan produced no aligned predicted grid.
+                masked = (
+                    plan_result.predicted_grids[index]
+                    if index < len(plan_result.predicted_grids)
+                    else inner_after
+                )
+                grid = [list(row) for row in masked]
+                if _grid_shape(before) == _grid_shape(inner_after) == _grid_shape(grid):
+                    for r, (brow, arow) in enumerate(zip(before, inner_after)):
+                        for c, (b, a) in enumerate(zip(brow, arow)):
+                            if b != a:  # a cell inner claims MOVES: check it against reality
+                                grid[r][c] = a
+                grids.append(grid)
+                before = inner_after
+        except Exception:  # noqa: BLE001 - a broken inner replay must not crash the loop
+            return list(plan_result.predicted_grids)
+        return grids
+
     def _execute(
         self, plan_result: PlanResult, frame: dict[str, Any]
     ) -> tuple[dict[str, Any], bool]:
@@ -1522,9 +1624,18 @@ class EwmAgent:
         Records every executed transition into the suite. Returns ``(last_result, diverged)`` where
         ``diverged`` is True iff the environment deviated from the model (expect-mismatch) — the
         caller then routes to REPAIR. Zero LLM (decide) calls happen here.
+
+        Partial-adoption engagement (Run-10 fix): the plan's ``predicted_grids`` come from the ACTIVE
+        program, which for a partial adoption is the MASKED wrapper — it renders UNKNOWN over exactly
+        the cells the inner source gets wrong, so the env's UNKNOWN-aware ``expect`` check treats the
+        modeled-wrong region as wildcards and a real divergence there is NEVER detected (Run-10: 14
+        reactive fallbacks, 0 repair attempts). Until the first live repair, we re-derive ``expect``
+        from the UNWRAPPED inner program so the wrong cells are actually compared and the first
+        divergence trips ``expect_mismatch`` -> REPAIR, before any reactive fallback.
         """
 
-        result = self._act(list(plan_result.actions), expect=list(plan_result.predicted_grids))
+        expect = self._expect_grids(plan_result, frame)
+        result = self._act(list(plan_result.actions), expect=expect)
         self._ingest_result(frame, plan_result.actions, result)
         stop_reason = self._stop_reason(result)
         diverged = stop_reason == "expect_mismatch"
