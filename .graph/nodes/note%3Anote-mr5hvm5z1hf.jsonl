@@ -7,3 +7,4 @@
 {"evt":"edge_added","from":"note:note-mr5hvm5z1hf","to":"knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-4","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:18:13.676Z","weight":0,"by":"autowire","judged":false,"score":0.595,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5hvm5z1hf","to":"knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-4","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:18:13.676Z","weight":0,"by":"autowire","judged":false,"score":0.595,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr5hvm5z1hf","to":"knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:41:20.832Z"}
+{"evt":"edge_removed","from":"note:note-mr5hvm5z1hf","to":"knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-4","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:20:16.310Z"}
