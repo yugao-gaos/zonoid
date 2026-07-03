@@ -6,3 +6,4 @@
 {"evt":"edge_added","from":"knowledge:source_section:note-mr5c8xcs7uo#note-evidence","to":"note:note-mr5c8xcs7uo","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:40:45.912Z","weight":1,"origin":"note-source-cluster"}
 {"evt":"edge_added","from":"knowledge:source_section:note-mr5c8xcs7uo#note-evidence","to":"note:note-mr5c2remh4y","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z","weight":1,"judged":true,"origin":"note-source-cluster"}
 {"evt":"edge_removed","from":"knowledge:source_section:note-mr5c8xcs7uo#note-evidence","to":"note:note-mr5c8xcs7uo","kind":"context","actor":"overlay-sync","ts":"2026-07-03T19:45:25.752Z"}
+{"evt":"timestamps_set","id":"knowledge:source_section:note-mr5c8xcs7uo#note-evidence","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-03T19:46:08.641Z","lastChanged":"2026-07-03T19:46:08.641Z","lastStatus":"knowledge"},"actor":"overlay-sync","ts":"2026-07-03T19:46:08.669Z"}
