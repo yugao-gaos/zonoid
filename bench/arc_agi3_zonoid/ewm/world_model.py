@@ -10,7 +10,9 @@ An LLM synthesizes a Python program that models a game. The program must define 
 
 Grids are lists-of-lists of ints (grid-in / grid-out). Programs may declare PARTIAL FIDELITY:
 render() may place the ``UNKNOWN`` sentinel in cells it cannot predict, and step() may return
-events containing ``{"unknown": [..attribute names..]}``. The validator skips UNKNOWN cells.
+events containing ``{"unknown": [..attribute names..]}``. The validator skips UNKNOWN cells (the
+injected ``UNKNOWN`` singleton or the integer alias ``-1``, since models often redefine
+``UNKNOWN = -1`` and -1 is not a valid ARC color).
 
 Every observed real transition ``(before_grid, action, after_grid)`` becomes a regression test.
 ``validate`` replays them all through init_state + step and reports the FIRST failure with an
@@ -47,9 +49,27 @@ def _get_unknown() -> _Unknown:
     return UNKNOWN
 
 
-# stdlib modules a synthesized program is allowed to import. Deliberately small and pure.
+# stdlib modules a synthesized program is allowed to import. Kept in lockstep with the REPL
+# sandbox whitelist (repl_sandbox.SAFE_MODULES) so the SYNTH prompt can advertise ONE truthful
+# import list: candidates that imported an allowed-in-one-but-not-the-other module (e.g. random/re/
+# statistics/operator) died on "import ... not permitted". Pure, stdlib-only, no I/O.
 ALLOWED_IMPORTS: frozenset[str] = frozenset(
-    {"collections", "itertools", "math", "json", "copy", "heapq", "functools"}
+    {
+        "bisect",
+        "collections",
+        "copy",
+        "fractions",
+        "functools",
+        "heapq",
+        "itertools",
+        "json",
+        "math",
+        "operator",
+        "random",
+        "re",
+        "statistics",
+        "string",
+    }
 )
 
 Grid = list[list[Any]]
@@ -258,8 +278,23 @@ def _grid_shape(grid: Grid) -> tuple[int, int]:
     return rows, cols
 
 
+def _is_unknown(value: Any) -> bool:
+    """True for the injected UNKNOWN singleton OR the integer alias -1.
+
+    Programs are told to place the bare ``UNKNOWN`` name in unmodelable cells, but models
+    repeatedly redefine ``UNKNOWN = -1`` inside their own source despite that instruction, which
+    shadows the injected singleton — so the identity check (``is UNKNOWN``) skips nothing and every
+    such cell counts as a mismatch. Valid ARC colors are 0..15, so an integer -1 is unambiguous and
+    can only mean "unknown"; we treat it as the same sentinel. Guarded by ``isinstance(int)`` so a
+    stray object comparing equal to -1 cannot smuggle a skip.
+    """
+
+    return value is UNKNOWN or (isinstance(value, int) and value == -1)
+
+
 def _diff_grids(expected: Grid, got: Grid) -> list[tuple[int, int, Any, Any]]:
-    """Cell-level diff of ``got`` vs ``expected``, skipping any cell where either side is UNKNOWN.
+    """Cell-level diff of ``got`` vs ``expected``, skipping any cell where either side is UNKNOWN
+    (the injected singleton or its integer alias -1; see :func:`_is_unknown`).
 
     Shape mismatches surface as a single sentinel-row diff at (-1, -1).
     """
@@ -270,7 +305,7 @@ def _diff_grids(expected: Grid, got: Grid) -> list[tuple[int, int, Any, Any]]:
     mismatches: list[tuple[int, int, Any, Any]] = []
     for r, (exp_row, got_row) in enumerate(zip(expected, got)):
         for c, (exp, act) in enumerate(zip(exp_row, got_row)):
-            if exp is UNKNOWN or act is UNKNOWN:
+            if _is_unknown(exp) or _is_unknown(act):
                 continue
             if exp != act:
                 mismatches.append((r, c, exp, act))
