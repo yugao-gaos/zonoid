@@ -24,6 +24,10 @@ from urllib import error, request
 ENV_BASE_URL = "ARC_LLM_BASE_URL"
 ENV_MODEL = "ARC_LLM_MODEL"
 ENV_API_KEY = "ARC_LLM_API_KEY"
+# Optional: disable/adjust chain-of-thought on thinking models (e.g. qwen35b-arc). Ollama's
+# OpenAI-compatible endpoint honors `reasoning_effort:"none"`, which makes such models emit the
+# answer directly in `message.content` instead of spending the whole token budget in `reasoning`.
+ENV_REASONING_EFFORT = "ARC_LLM_REASONING_EFFORT"
 
 
 class LlmError(RuntimeError):
@@ -39,6 +43,7 @@ class LlmClient:
         model: str,
         api_key: str | None = None,
         timeout_s: int = 120,
+        reasoning_effort: str | None = None,
     ) -> None:
         if not base_url:
             raise ValueError("LlmClient requires a base_url.")
@@ -48,19 +53,31 @@ class LlmClient:
         self.model = model
         self.api_key = api_key
         self.timeout_s = timeout_s
+        self.reasoning_effort = reasoning_effort or None
 
     @classmethod
     def from_env(cls, timeout_s: int = 120) -> "LlmClient":
-        """Build a client from ``ARC_LLM_BASE_URL`` / ``ARC_LLM_MODEL`` / ``ARC_LLM_API_KEY``."""
+        """Build a client from ``ARC_LLM_BASE_URL`` / ``ARC_LLM_MODEL`` / ``ARC_LLM_API_KEY``.
+
+        Honors the optional ``ARC_LLM_REASONING_EFFORT`` (e.g. ``"none"``) to disable
+        chain-of-thought on thinking models so the answer lands in ``message.content``.
+        """
 
         base_url = os.environ.get(ENV_BASE_URL, "")
         model = os.environ.get(ENV_MODEL, "")
         api_key = os.environ.get(ENV_API_KEY) or None
+        reasoning_effort = os.environ.get(ENV_REASONING_EFFORT) or None
         if not base_url or not model:
             raise ValueError(
                 f"set {ENV_BASE_URL} and {ENV_MODEL} to use LlmClient.from_env()"
             )
-        return cls(base_url, model, api_key=api_key, timeout_s=timeout_s)
+        return cls(
+            base_url,
+            model,
+            api_key=api_key,
+            timeout_s=timeout_s,
+            reasoning_effort=reasoning_effort,
+        )
 
     def chat(
         self,
@@ -82,6 +99,8 @@ class LlmClient:
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
+        if self.reasoning_effort is not None:
+            body["reasoning_effort"] = self.reasoning_effort
         data = json.dumps(body).encode("utf-8")
         headers = {"Content-Type": "application/json"}
         if self.api_key:
@@ -110,6 +129,11 @@ def _parse_completion(payload: Any) -> dict[str, Any]:
                 message = first.get("message")
                 if isinstance(message, dict):
                     content = message.get("content") or ""
+                    # Thinking models (e.g. qwen35b-arc) may leave `content` empty and put the
+                    # answer under `reasoning`. Fall back to it so the agent can still extract a
+                    # fenced program / JSON when reasoning was not disabled.
+                    if not content:
+                        content = message.get("reasoning") or ""
                 finish_reason = first.get("finish_reason")
     return {"content": str(content), "finish_reason": finish_reason, "raw": payload}
 

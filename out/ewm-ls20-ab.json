@@ -1,18 +1,36 @@
 {
-  "comparison": "EWM agent vs reactive baseline on ARC-AGI-3 ls20",
+  "comparison": "EWM (vision) vs EWM (text-only) vs reactive baseline on ARC-AGI-3 ls20",
   "game": "ls20",
   "total_levels": 7,
-  "model": "ornith35b-arc:latest (35B, text-only, ollama)",
-  "vision": false,
   "arms": {
-    "ewm": {
+    "ewm_vision": {
       "agent": "EwmAgent (five-pillar world-model agent, this branch)",
-      "source": "out/ewm-ls20-ewm.json (live run this task)",
+      "source": "out/ewm-ls20-ewm-vision.json (live run this task)",
+      "model": "qwen35b-arc:latest (35B MoE, vision-capable, ollama)",
+      "vision": true,
+      "reasoning_effort": "none",
+      "levels_completed": 0,
+      "actions_taken": 80,
+      "actions_per_level_completed": null,
+      "won": false,
+      "program_adopted": true,
+      "best_pass_rate": "0/80 transitions (0.0)",
+      "modes_visited": ["SYNTHESIZE", "EXECUTE"],
+      "divergences": 80,
+      "stop_reason": "budget (80-action cap; ~14.5 min)",
+      "scorecard_url": "https://arcprize.org/scorecards/3cab1596-cd3c-4914-8aab-7090e831a8c4"
+    },
+    "ewm_text_only": {
+      "agent": "EwmAgent (five-pillar world-model agent, this branch)",
+      "source": "out/ewm-ls20-ewm.json (prior live run)",
+      "model": "ornith35b-arc:latest (35B, text-only, ollama)",
+      "vision": false,
       "levels_completed": 0,
       "actions_taken": 70,
       "actions_per_level_completed": null,
       "won": false,
       "program_adopted": false,
+      "best_pass_rate": "n/a (no program adopted)",
       "modes_visited": ["SYNTHESIZE", "RECOVER"],
       "stop_reason": "budget (25-min wall-clock cap)",
       "scorecard_url": "https://arcprize.org/scorecards/b1b7ec41-d8c7-4f6d-a16f-1215a3a8051f"
@@ -20,19 +38,23 @@
     "reactive_baseline": {
       "agent": "official BenchmarkingAgent, config zonoid-local-cli (reactive/Duck-style)",
       "source": "scratchpad/arc-run-ornith35b-cold (cold ls20 run)",
+      "model": "ornith35b-arc:latest (35B, text-only, ollama)",
+      "vision": false,
       "levels_completed": 0,
       "actions_taken": 51,
       "actions_per_level_completed": null,
       "won": false,
+      "program_adopted": false,
       "stop_reason": "ACTION_BUDGET (MAX_ACTIONS=50, scorecard reported 51)",
       "scorecard_url": "https://arcprize.org/scorecards/9fdd913f-ae80-4a8e-ad63-850d6779656a",
       "wall_clock_seconds": 1368
     }
   },
   "delta": {
-    "levels_completed": "0 vs 0 (tie: neither cleared any level)",
-    "actions_taken": "EWM 70 vs baseline 51 (EWM ran ~19 more actions because its cap was higher: 80 vs the baseline's ~50)",
-    "actions_per_level": "undefined for both (0 levels completed on each arm)"
+    "levels_completed": "0 vs 0 vs 0 (three-way tie: no arm cleared any of the 7 levels)",
+    "actions_taken": "vision 80, text-only 70, baseline 51 (each hit its own action/wall cap)",
+    "program_adopted": "vision YES, text-only NO, baseline N/A -- the ONE behavioral change vision produced",
+    "actions_per_level": "undefined for all three (0 levels completed on each arm)"
   },
-  "verdict": "TRUTHFUL FAILED A/B. On ls20 with the ornith35b-arc text-only model, BOTH the EWM world-model agent and the reactive baseline completed 0 of 7 levels. The EWM agent's distinguishing mechanic (synthesize an executable world model, then plan against it with a search planner) never engaged: the 35B model could not author a Python world-model program that passed validation against the observed 64x64 ls20 frames, so program_adopted=false and the agent spent the run in reactive RECOVER mode -- effectively degenerating to the same reactive strategy as the baseline, just under a larger action budget. Net: no measurable advantage from the EWM machinery on this game with this model, because the bottleneck is the model's inability to bootstrap a valid world model from a cold, complex ARC frame, not the harness. The live wiring itself worked end-to-end (real game session opened, 70 actions submitted, scorecard opened and closed cleanly)."
+  "verdict": "TRUTHFUL THREE-ARM FAILED A/B. All three arms completed 0 of 7 ls20 levels. The single behavioral change vision produced is real but incomplete: with a vision-capable model (qwen35b-arc) seeing the BEFORE|CURRENT composite, the EWM agent DID cross the threshold the text-only run never reached -- it left reactive RECOVER mode, entered SYNTHESIZE/EXECUTE, and ADOPTED a world-model program (program_adopted:true vs false text-only). So vision unblocked *program synthesis*. But it did NOT unblock *valid* synthesis: the adopted program was accepted provisionally against zero transitions, then mispredicted all 80 observed transitions (divergences=80, empirical pass_rate 0.0), so the search planner never had a faithful model to solve a level with. Net: vision moved the bottleneck one step downstream -- from 'model cannot even author a program from raw frames' (text-only) to 'model authors a program but it does not match ls20 dynamics' (vision) -- without yet clearing a level. A required enabling fix was also found and landed: qwen35b-arc is a thinking model that, with thinking ON, spends its whole token budget in the reasoning field and returns empty content, so it could never emit a program; disabling thinking via reasoning_effort:none (new ARC_LLM_REASONING_EFFORT env knob) is what let synthesis engage at all. Live wiring worked end-to-end on all arms (real sessions, actions submitted, scorecards opened/closed)."
 }
