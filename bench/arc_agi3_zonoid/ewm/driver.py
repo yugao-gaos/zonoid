@@ -669,6 +669,8 @@ def live_run(
             "modes_visited": sorted(set(summary.get("modes", []))),
             "program_adopted": bool(summary.get("program_accepted")),
             "program_synthesized": bool(summary.get("program_accepted")),
+            "orient_adopted": bool(summary.get("orient_adopted")),
+            "orient_diagnosis": summary.get("orient_diagnosis"),
             "divergences": summary.get("reactive_turns", 0),
             "transitions": summary.get("transitions", 0),
             "synthesis_attempts": summary.get("synthesis_attempts", 0),
