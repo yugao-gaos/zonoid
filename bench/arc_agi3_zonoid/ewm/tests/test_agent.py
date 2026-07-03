@@ -678,6 +678,105 @@ class ReactiveFallbackTests(unittest.TestCase):
         self.assertGreaterEqual(summary["reactive_turns"], 1)
 
 
+class SynthesisPacingTests(unittest.TestCase):
+    """A failed SYNTHESIZE cycle must NOT loop straight back into SYNTHESIZE: the loop interleaves at
+    least one reactive turn between synthesis cycles, and a per-game ceiling
+    (max_synth_attempts_per_game) flips the loop to reactive permanently. This bounds the ls20
+    pathology where synthesis cycles ran back-to-back and ate the whole budget with almost no game
+    actions (modes_visited=[SYNTHESIZE], never reactive)."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    class _ModeFake(FakeLlm):
+        """Content-aware fake: SYNTHESIZE/REPAIR decide -> unusable prose (synthesis always fails);
+        RECOVER decide -> a valid action batch; anything else (reflect) -> a reflection JSON."""
+
+        def __init__(self):
+            super().__init__([])
+            self.synth_calls = 0
+            self.recover_calls = 0
+
+        def chat(self, messages, max_tokens=1024, temperature=0.0):
+            self.received.append(
+                {"messages": messages, "max_tokens": max_tokens, "temperature": temperature}
+            )
+            self.calls += 1
+            last = messages[-1]["content"]
+            text = last if isinstance(last, str) else ""
+            if "Current mode: SYNTHESIZE" in text or "Current mode: REPAIR" in text:
+                self.synth_calls += 1
+                return {"content": "sorry, no code here", "finish_reason": None, "raw": ""}
+            if "Return ONLY one fenced python block" in text:
+                # terse re-ask after prose-only -> still no code, so synthesis gives up this cycle.
+                return {"content": "still no code", "finish_reason": None, "raw": ""}
+            if "Current mode: RECOVER" in text:
+                self.recover_calls += 1
+                return {"content": '{"actions": ["DOWN"]}', "finish_reason": None, "raw": ""}
+            return {"content": '{"prediction_ok": true}', "finish_reason": None, "raw": ""}
+
+    def test_failed_synth_cycle_interleaves_reactive_turn(self):
+        # A single failed synthesis cycle must be followed by a reactive (RECOVER) turn before the
+        # next SYNTHESIZE — modes_visited shows the interleave, and a real reactive turn ran.
+        env = ToyEnv(_grid("2.3", "111"))  # DOWN into the wall row is a no-op; RECOVER emits DOWN so it never wins
+        llm = self._ModeFake()
+        ag = EwmAgent(
+            env, llm,
+            config=AgentConfig(
+                game_id="toy", max_turns=4, min_probe_transitions=1,
+                max_synth_attempts=1, max_synth_attempts_per_game=9,
+            ),
+        )
+        ag.suite.append(_grid("2.3", "111"), "DOWN", _grid("2.3", "111"))
+        summary = ag.run()
+        # At least one reactive turn ran, and RECOVER appears interleaved with SYNTHESIZE.
+        self.assertGreaterEqual(summary["reactive_turns"], 1)
+        self.assertIn("SYNTHESIZE", summary["modes"])
+        self.assertIn("RECOVER", summary["modes"])
+        # The reactive turn immediately follows a SYNTHESIZE in the mode trace (interleave, not a run
+        # of bare SYNTHESIZE).
+        modes = summary["modes"]
+        self.assertTrue(
+            any(modes[i] == "SYNTHESIZE" and modes[i + 1] == "RECOVER" for i in range(len(modes) - 1)),
+            f"expected a SYNTHESIZE->RECOVER interleave in {modes}",
+        )
+        # A RECOVER decide call actually happened (the reactive turn was executed, not skipped).
+        self.assertGreaterEqual(llm.recover_calls, 1)
+
+    def test_per_game_synth_cap_flips_to_reactive_permanently(self):
+        # With the ceiling set low, the loop must stop re-entering SYNTHESIZE once it is hit and stay
+        # reactive (modelability poor) for the rest of the game.
+        env = ToyEnv(_grid("2.3", "111"))
+        llm = self._ModeFake()
+        ag = EwmAgent(
+            env, llm,
+            config=AgentConfig(
+                game_id="toy", max_turns=30, min_probe_transitions=1,
+                max_synth_attempts=1, max_synth_attempts_per_game=2,
+            ),
+        )
+        ag.suite.append(_grid("2.3", "111"), "DOWN", _grid("2.3", "111"))
+        summary = ag.run()
+        # Exactly max_synth_attempts_per_game synthesis cycles were attempted, then the loop stopped
+        # trying to synthesize.
+        self.assertEqual(ag._synth_cycles_this_game, 2)
+        self.assertTrue(ag._modelability_poor)
+        self.assertIsNone(ag.program)
+        self.assertEqual(ag._select_mode(), "RECOVER")
+        # After the cap, every subsequent mode is RECOVER (never SYNTHESIZE again).
+        modes = summary["modes"]
+        last_synth = max(i for i, m in enumerate(modes) if m == "SYNTHESIZE")
+        self.assertNotIn("SYNTHESIZE", modes[last_synth + 1 :])
+
+    def test_synth_cap_config_default(self):
+        self.assertEqual(AgentConfig().max_synth_attempts_per_game, 9)
+
+
 class ContextPolicyTests(unittest.TestCase):
     """The user's context policy: KB summaries (not just titles) in the prompt, at most the
     IMMEDIATE previous step recapped, and calls stay stateless [system, user]."""
@@ -1042,6 +1141,29 @@ class SynthesisPromptTests(unittest.TestCase):
         self.assertIn("do NOT assume it stays constant", text)
         # Input-row format clarification.
         self.assertIn("Each row of the grid is a list of ints", text)
+
+    def test_synthesize_prompt_names_stdlib_whitelist_and_rejects_numpy(self):
+        # The SYNTHESIZE prompt must tell the model exactly which stdlib modules are importable and
+        # that numpy/pandas are NOT — the ls20 candidates died on "import of 'numpy' is not
+        # permitted" with nothing telling them what WAS available. The advertised list must match the
+        # sandbox loader's whitelist (world_model.ALLOWED_IMPORTS) verbatim so it can never lie.
+        from bench.arc_agi3_zonoid.ewm.world_model import ALLOWED_IMPORTS
+
+        ag = self._agent()
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        frame = {"grid": _grid("2.3"), "valid_actions": ["UP"], "level": 1, "step": 0}
+        text = ag._decide_messages("SYNTHESIZE", frame, [], None, None)[-1]["content"]
+        self.assertIn("Only these stdlib modules may be imported:", text)
+        self.assertIn("numpy/pandas are NOT available", text)
+        # Every whitelisted module is named, and it matches the loader's frozenset exactly.
+        for mod in ALLOWED_IMPORTS:
+            self.assertIn(mod, text)
+        expected_list = ", ".join(sorted(ALLOWED_IMPORTS))
+        self.assertIn(expected_list, text)
+        # Sanity: the whitelist covers the modules that killed ls20 candidates (they'd have used
+        # random/re/statistics) and excludes numpy/pandas.
+        self.assertNotIn("numpy,", expected_list)
+        self.assertNotIn("pandas,", expected_list)
 
     def test_gameplay_prompt_has_no_grid_dump(self):
         # RECOVER (reactive play) decide prompt is unchanged: no grid dump, no contract.

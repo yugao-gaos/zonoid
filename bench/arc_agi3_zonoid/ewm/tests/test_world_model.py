@@ -94,6 +94,18 @@ UNKNOWN_GAME_SOURCE = TOY_GAME_SOURCE.replace(
 )
 
 
+# A partial-fidelity program that redefines UNKNOWN = -1 in its OWN source (shadowing the injected
+# singleton) and renders -1 at the unmodelled corner cell. This is the exact ls20 shadowing defect:
+# the identity check `is UNKNOWN` skips nothing, so validation must recognise the integer -1 alias.
+UNKNOWN_ALIAS_GAME_SOURCE = TOY_GAME_SOURCE.replace(
+    "AVATAR = 2",
+    "UNKNOWN = -1\nAVATAR = 2",
+).replace(
+    "    ar, ac = state[\"avatar\"]\n    grid[ar][ac] = AVATAR\n    return grid",
+    "    ar, ac = state[\"avatar\"]\n    grid[ar][ac] = AVATAR\n    grid[0][0] = UNKNOWN\n    return grid",
+)
+
+
 def _grid(*rows: str) -> list[list[int]]:
     """Build an int grid from compact string rows ('.'=0, digits as-is)."""
 
@@ -159,6 +171,28 @@ class ValidateTests(unittest.TestCase):
         report = validate(program, suite)
         self.assertTrue(report.ok, msg=f"unexpected mismatches: {report.mismatches}")
         self.assertEqual(report.pass_count, 1)
+
+    def test_unknown_integer_alias_minus_one_skipped(self) -> None:
+        # A program that shadows UNKNOWN with -1 (redefining it in its own source) and renders -1 at
+        # an unmodelled cell must still validate: -1 is not a valid ARC color (0..15), so the diff
+        # treats it as the UNKNOWN sentinel and skips that cell. Everything else matches -> pass.
+        program = WorldModelProgram.load(UNKNOWN_ALIAS_GAME_SOURCE)
+        suite = TransitionSuite()
+        # (0,0) observed as a "9" the model can't predict; program renders -1 there -> skipped.
+        suite.append(_grid("923"), "RIGHT", _grid("9.2"))
+        report = validate(program, suite)
+        self.assertTrue(report.ok, msg=f"unexpected mismatches: {report.mismatches}")
+        self.assertEqual(report.pass_count, 1)
+
+    def test_minus_one_only_skips_at_unmodelled_cells_real_mismatch_still_fails(self) -> None:
+        # The -1 alias must not mask REAL mismatches: a modelled cell that disagrees still fails.
+        # Here the avatar lands at (0,1) per the model, but the observed after-grid puts it at (0,2)
+        # — a genuine mispredict at a cell neither side marks -1 — so validation must report it.
+        program = WorldModelProgram.load(UNKNOWN_ALIAS_GAME_SOURCE)
+        suite = TransitionSuite()
+        suite.append(_grid("2.3"), "RIGHT", _grid("..2"))  # wrong: RIGHT lands at (0,1), not (0,2)
+        report = validate(program, suite)
+        self.assertFalse(report.ok)
 
     def test_unknown_sentinel_survives_events(self) -> None:
         # A program may name UNKNOWN attributes in its step() events; the sentinel is exported.

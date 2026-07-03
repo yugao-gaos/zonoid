@@ -45,6 +45,7 @@ from typing import Any, Callable
 
 from .planner import PlanResult, plan
 from .world_model import (
+    ALLOWED_IMPORTS,
     SandboxError,
     TransitionSuite,
     ValidationReport,
@@ -109,11 +110,23 @@ SYNTH_RETRY_PROMPT = (
 # Hard contract paragraph appended to every SYNTHESIZE/REPAIR user prompt: the model must PARSE the
 # real grid (never hardcode one) and render at the input's dimensions. This is the exact defect the
 # ls20 candidates showed — they hand-read the IMAGE into a 5x7 grid while real frames are 64x64.
+# The exact stdlib import whitelist the sandbox enforces (world_model.ALLOWED_IMPORTS). Derived
+# from the loader's own frozenset so the prompt can NEVER advertise a module the sandbox rejects:
+# ls20 candidates died on "import of 'numpy' is not permitted" because nothing told them what WAS
+# available. numpy/pandas are third-party and never importable in the sandbox.
+_STDLIB_WHITELIST_LINE = (
+    "Only these stdlib modules may be imported: "
+    + ", ".join(sorted(ALLOWED_IMPORTS))
+    + ". numpy/pandas are NOT available."
+)
+
 SYNTH_GRID_CONTRACT = (
     "CONTRACT: init_state(grid) receives the grid DIRECTLY as a list of rows of ints (NOT a dict — "
     "do not index it with strings) and MUST parse it — never hardcode a grid. Each row of the grid "
     "is a list of ints. render(state) MUST return a grid with exactly the same dimensions as the "
     "input grid.\n"
+    + _STDLIB_WHITELIST_LINE
+    + "\n"
     "PARTIAL FIDELITY: the name UNKNOWN is already injected into your program's namespace (use the "
     "bare name UNKNOWN — do not import or define it). render(state) MAY place UNKNOWN in any cell "
     "the program cannot model; the validator SKIPS every UNKNOWN cell, so an unmodelable region "
@@ -144,6 +157,12 @@ class AgentConfig:
     max_synth_attempts: int = 3   # SYNTHESIZE tries before giving up this cycle
     max_repair_attempts: int = 3  # REPAIR tries before giving up this cycle
     reactive_after_failures: int = 3  # K: failed synth/repair cycles before RECOVER/reactive
+    # Hard per-game ceiling on SYNTHESIZE cycles. A cycle that gives up (max_synth_attempts
+    # exhausted with no adoption) burns one; once this many cycles have failed, modelability is
+    # judged poor and the loop stays reactive for the rest of the game. This bounds the failure
+    # mode where synthesis loops back-to-back and eats the whole wall-clock budget with almost no
+    # game actions (the ls20 run: 9 attempts, 4 game actions, modes_visited=[SYNTHESIZE]).
+    max_synth_attempts_per_game: int = 9
     # Probe-first seeding: on a fresh game, execute a discriminating probe batch (one of each
     # distinct valid action) BEFORE SYNTHESIZE so a program is never adopted against an empty
     # suite. A program is only trusted once it predicts real observed transitions.
@@ -395,6 +414,10 @@ class EwmAgent:
         self.program: WorldModelProgram | None = None
         self.summary = RunSummary()
         self._failure_cycles = 0
+        # Count of SYNTHESIZE cycles that gave up this game (each == one full max_synth_attempts
+        # burst with no adoption). Once it reaches config.max_synth_attempts_per_game the loop stays
+        # reactive (modelability poor) for the rest of the game.
+        self._synth_cycles_this_game = 0
         # Repair engagement + live pass-rate floor bookkeeping.
         self._repairs_this_game = 0
         self._repairs_this_divergence = 0
@@ -1331,7 +1354,32 @@ class EwmAgent:
                         break
                 if not self._orient(frame):
                     if not self._synthesize(frame, decide_image):
+                        # A synthesis cycle gave up. Count it toward the per-game ceiling; once the
+                        # ceiling is hit, judge modelability poor and stay reactive for the rest of
+                        # the game (never re-enter SYNTHESIZE). This is the primary guard against the
+                        # ls20 pathology: synthesis cycles looping back-to-back until the wall-clock
+                        # budget is gone with almost no game actions taken.
                         self._failure_cycles += 1
+                        self._synth_cycles_this_game += 1
+                        if (
+                            self._synth_cycles_this_game
+                            >= self.config.max_synth_attempts_per_game
+                        ):
+                            self._drop_program("synth_cap_game")
+                            prev_frame = frame
+                            continue
+                        # Synthesis pacing: even before the ceiling, never re-enter SYNTHESIZE
+                        # directly off a failed cycle. Take at least one reactive turn (RECOVER
+                        # path) so the loop actually gathers a transition/score between synthesis
+                        # cycles instead of burning the budget on synthesis alone. Record RECOVER in
+                        # modes_visited so the telemetry shows the SYNTHESIZE/RECOVER interleave
+                        # rather than a run of bare SYNTHESIZE.
+                        self.summary.modes.append("RECOVER")
+                        result = self._reactive_turn(frame, decide_image)
+                        if self._result_done(result):
+                            self.summary.won = True
+                            self.summary.stop_reason = "won"
+                            break
                         prev_frame = frame
                         continue
                     self._failure_cycles = 0
