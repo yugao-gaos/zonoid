@@ -2,6 +2,7 @@
 const overlayStore = require('../lib/overlay');
 const measure = require('../lib/measure');
 const git = require('../lib/git');
+const { reassembleNoteBody } = require('../lib/note-full-body');
 
 function isAdmissibleOverlayTaskKey(key) {
   return typeof key === 'string'
@@ -154,6 +155,20 @@ module.exports = (ctx) => async (p, m, req, res, u, body) => {
       frontier2 = next;
     }
     send(res, 200, { root: { key: root.id, label: root.label, status: root.status }, maxDepth, ancestors, ghostFrontier }); return true;
+  }
+
+  // Read-only reassembly of a note's full body from its source-chunk cluster. /search only ever
+  // returns the compacted note summary; a long/code-like note's raw text is preserved as a
+  // source_doc -> source_section -> source_chunk cluster (lib/note-source-cluster.js). This walks the
+  // chunk -> note edges and concatenates the chunk bodies in order so stored programs round-trip.
+  // NO writes, NO graph mutation. Querystring: key (required), workspace, full=1 (advisory).
+  if (p === '/note/get') {
+    const key = u.searchParams.get('key');
+    if (!key) { send(res, 400, { ok: false, error: 'key required' }); return true; }
+    const T = targetOverlay(null, u);
+    const g = buildGraph(T.ws);
+    const out = reassembleNoteBody(g, T.ov.edges || [], key);
+    send(res, out.ok ? 200 : 404, out); return true;
   }
 
   if (p === '/task/detail') {

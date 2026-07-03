@@ -2821,6 +2821,7 @@ const handler = async (req, res) => {
       || p === '/task/context'
       || p === '/task/detail'
       || p === '/task/tree'
+      || p === '/note/get'
       || p === '/workspaces'
       || p.startsWith('/agent/')
       || p.startsWith('/guidance')
