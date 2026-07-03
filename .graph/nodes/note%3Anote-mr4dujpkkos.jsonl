@@ -18,3 +18,4 @@
 {"evt":"edge_removed","from":"note:note-mr4dujpkkos","to":"codex/ewm-segment-helper-injection-world-model-sandbox","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:43:48.837Z"}
 {"evt":"edge_added","from":"note:note-mr4dujpkkos","to":"codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:48:05.727Z","weight":0,"by":"autowire","judged":false,"score":0.441,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr4dujpkkos","to":"codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay","kind":"context","actor":"overlay-sync","ts":"2026-07-03T14:12:12.033Z"}
+{"evt":"edge_added","from":"note:note-mr4dujpkkos","to":"codex/ewm-changed-cells-floor-repair-on-partial-adoption","kind":"context","actor":"overlay-sync","ts":"2026-07-03T15:09:28.308Z","weight":0,"by":"autowire","judged":false,"score":0.307,"origin":"autowire-semantic"}
