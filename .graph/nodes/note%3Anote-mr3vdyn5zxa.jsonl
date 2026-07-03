@@ -9,3 +9,4 @@
 {"evt":"edge_removed","from":"note:note-mr3vdyn5zxa","to":"note:note-mqh250aamjb","kind":"context","actor":"overlay-sync","ts":"2026-07-02T19:24:39.120Z"}
 {"evt":"edge_removed","from":"note:note-mr3vdyn5zxa","to":"note:note-mqvr2wl8lre","kind":"context","actor":"overlay-sync","ts":"2026-07-02T19:40:34.330Z"}
 {"evt":"edge_removed","from":"note:note-mr3vdyn5zxa","to":"note:note-mqhgkkxsv3o","kind":"context","actor":"overlay-sync","ts":"2026-07-02T19:52:21.473Z"}
+{"evt":"edge_added","from":"note:note-mr3vdyn5zxa","to":"codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal","kind":"context","actor":"overlay-sync","ts":"2026-07-03T00:20:12.491Z","weight":0,"by":"autowire","judged":false,"score":0.423,"origin":"autowire-semantic"}
