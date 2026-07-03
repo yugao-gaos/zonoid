@@ -9,3 +9,5 @@
 {"evt":"edge_added","from":"note:note-mr5hw1qsj5m","to":"note:note-mr51e6x60dd","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:18:34.122Z","weight":0,"by":"autowire","judged":false,"score":0.619,"origin":"autowire-semantic"}
 {"evt":"note_superseded","id":"note-mr5hw1qsj5m","supersededBy":"note-mr5hxwtjf2m","validTo":"2026-07-03T22:19:59.719Z","ts":"2026-07-03T22:19:59.719Z","actor":"supersede"}
 {"evt":"note_superseded","id":"note-mr5hw1qsj5m","supersededBy":"note-mr5i0uv2sdg","validTo":"2026-07-03T22:22:17.150Z","ts":"2026-07-03T22:22:17.150Z","actor":"supersede"}
+{"evt":"edge_added","from":"note:note-mr5hw1qsj5m","to":"note:note-mr5i8jmlosb","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:32:07.207Z","weight":0,"by":"autowire","judged":false,"score":0.738,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mr5hw1qsj5m","to":"note:note-mr5hum6vjmf","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:32:07.207Z"}

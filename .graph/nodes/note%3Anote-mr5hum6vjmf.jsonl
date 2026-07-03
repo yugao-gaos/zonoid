@@ -6,3 +6,10 @@
 {"evt":"edge_added","from":"note:note-mr5hum6vjmf","to":"note:note-mr5hu8iwax0","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:17:27.258Z","weight":0,"by":"autowire","judged":false,"score":0.71,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5hum6vjmf","to":"knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:17:27.258Z","weight":0,"by":"autowire","judged":false,"score":0.647,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr5hum6vjmf","to":"knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:17:27.258Z","weight":0,"by":"autowire","judged":false,"score":0.647,"origin":"autowire-semantic"}
+{"evt":"note_superseded","id":"note-mr5hum6vjmf","supersededBy":"note-mr5i8jmlosb","validTo":"2026-07-03T22:28:15.837Z","ts":"2026-07-03T22:28:15.837Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr5hum6vjmf","to":"codex/ewm-dev-ceiling-repair-collision-win-predicate-run-fifteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:32:07.207Z"}
+{"evt":"edge_removed","from":"note:note-mr5hum6vjmf","to":"knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:32:07.207Z"}
+{"evt":"edge_removed","from":"note:note-mr5hum6vjmf","to":"knowledge:source_section:note-mr57kpil9xk#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:32:07.207Z"}
+{"evt":"edge_removed","from":"note:note-mr5hum6vjmf","to":"note:note-mr5hu8iwax0","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:32:07.207Z"}
+{"evt":"edge_removed","from":"note:note-mr5hum6vjmf","to":"knowledge:source_chunk:note-mr5c2remh4y#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:32:07.207Z"}
+{"evt":"edge_removed","from":"note:note-mr5hum6vjmf","to":"knowledge:source_chunk:note-mr5c37uw1tw#note-evidence:chunk-1","kind":"context","actor":"overlay-sync","ts":"2026-07-03T22:32:07.207Z"}
