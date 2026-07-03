@@ -184,7 +184,7 @@ def _fenced(source: str) -> str:
 
 
 def _no_pil_config():
-    return AgentConfig(game_id="toy", max_turns=20)
+    return AgentConfig(game_id="toy", max_turns=20, min_probe_transitions=1)
 
 
 class ParsingTests(unittest.TestCase):
@@ -222,6 +222,9 @@ class VisionDisabledTests(unittest.TestCase):
         try:
             ag = EwmAgent(env, llm, kb=None, vision_enabled=True, config=_no_pil_config())
             self.assertFalse(ag.vision_enabled)
+            # Pre-seed one transition so the suite meets the probe minimum (min_probe_transitions=1)
+            # and probing is skipped: this test exercises the PIL-free SYNTHESIZE->EXECUTE path.
+            ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
             summary = ag.run()
         finally:
             EwmAgent._vision_available = original
@@ -273,7 +276,12 @@ class OrientTests(unittest.TestCase):
         hit = {"title": "game toy world model program", "summary": f"program source:\n{WRONG_GAME_SOURCE}"}
         kb = SearchKb([hit])
         llm = FakeLlm([_fenced(TOY_GAME_SOURCE), '{"prediction_ok": true}'])
-        ag = EwmAgent(env, llm, kb=kb, config=AgentConfig(game_id="toy", max_turns=10))
+        # Pre-seeded suite already meets the probe minimum, so probing is skipped here (this test
+        # exercises ORIENT rejection + SYNTHESIZE fallthrough, not probe-first seeding).
+        ag = EwmAgent(
+            env, llm, kb=kb,
+            config=AgentConfig(game_id="toy", max_turns=10, min_probe_transitions=1),
+        )
         ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
         summary = ag.run()
         self.assertTrue(summary["program_accepted"])
@@ -283,9 +291,15 @@ class OrientTests(unittest.TestCase):
 
 class SynthesizeExecuteTests(unittest.TestCase):
     def _agent(self, env, llm, **kw):
-        # Disable vision so these tests don't depend on Pillow.
+        # Disable vision so these tests don't depend on Pillow. The pre-seeded suite already meets
+        # the probe minimum (min_probe_transitions=1), so probing is skipped: these tests exercise
+        # SYNTHESIZE acceptance/retry, not probe-first seeding.
         EwmAgent._vision_available = staticmethod(lambda: False)
-        return EwmAgent(env, llm, config=AgentConfig(game_id="toy", max_turns=20), **kw)
+        return EwmAgent(
+            env, llm,
+            config=AgentConfig(game_id="toy", max_turns=20, min_probe_transitions=1),
+            **kw,
+        )
 
     def tearDown(self):
         # Restore the real probe for other tests.
@@ -356,7 +370,11 @@ class RepairTests(unittest.TestCase):
             ]
             + ['{"actions": ["RIGHT"]}'] * 40  # reactive tail if it flips over
         )
-        ag = EwmAgent(env, llm, config=AgentConfig(game_id="toy", max_turns=6))
+        # Pre-seeded suite meets the probe minimum so probing is skipped; this test targets the
+        # divergence -> REPAIR path, not probe-first seeding.
+        ag = EwmAgent(
+            env, llm, config=AgentConfig(game_id="toy", max_turns=6, min_probe_transitions=1)
+        )
         ag.suite.append(_grid("2..3"), "RIGHT", _grid(".2.3"))
         ag.run()
         # A repair decide call must have been made carrying the first-failure report.
@@ -370,6 +388,180 @@ class RepairTests(unittest.TestCase):
         self.assertIn("Validation FAILED", repair_texts[0])
         # The failing transition was appended to the suite (grew beyond the seed).
         self.assertGreater(len(ag.suite), 1)
+
+
+class VacuousAcceptanceTests(unittest.TestCase):
+    """A program must NEVER be adopted against an empty suite, even if validate() is trivially ok.
+
+    This is the vacuous-acceptance hole that wasted the vision ls20 run: the model authored a
+    program, adopted it against an EMPTY TransitionSuite, then mispredicted every real transition.
+    """
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def test_synthesize_refuses_adoption_against_empty_suite(self):
+        env = ToyEnv(_grid("2.3"))
+        # The LLM returns a valid program, but the suite is empty -> synthesize must refuse and make
+        # ZERO decide calls (no point asking for a program with nothing to validate it against).
+        llm = FakeLlm([_fenced(TOY_GAME_SOURCE)])
+        ag = EwmAgent(env, llm, config=AgentConfig(game_id="toy", max_turns=1))
+        self.assertEqual(len(ag.suite), 0)
+        accepted = ag._synthesize(ag._observe(), None)
+        self.assertFalse(accepted)
+        self.assertIsNone(ag.program)
+        self.assertFalse(ag.summary.program_accepted)
+        # No decide call was spent on a vacuous synthesis.
+        self.assertEqual(ag.summary.decide_calls, 0)
+
+    def test_orient_refuses_adoption_against_empty_suite(self):
+        env = ToyEnv(_grid("2.3"))
+        # A stored program is available, but with an empty suite ORIENT cannot validate it and must
+        # NOT adopt it provisionally.
+        hit = {"title": "toy program", "summary": f"program source:\n{TOY_GAME_SOURCE}"}
+        kb = SearchKb([hit])
+        llm = FakeLlm(['{"prediction_ok": true}'] * 4)
+        ag = EwmAgent(env, llm, kb=kb, config=AgentConfig(game_id="toy", max_turns=1))
+        self.assertEqual(len(ag.suite), 0)
+        self.assertFalse(ag._orient(ag._observe()))
+        self.assertIsNone(ag.program)
+
+
+class ProbeSeedingTests(unittest.TestCase):
+    """Probe-first seeding: on a fresh game the probe batch records one transition per distinct
+    valid action, up to min_probe_transitions, before any SYNTHESIZE."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def test_probe_batch_seeds_one_transition_per_distinct_action(self):
+        # 5-wide board: the goal (col4) is NOT reached by any single probe action, so all four
+        # distinct actions run and each records exactly one observed transition.
+        env = ToyEnv(_grid("2...3"), budget=50)
+        llm = FakeLlm(['{"prediction_ok": true}'] * 8)  # reflect after each probe
+        ag = EwmAgent(
+            env, llm, config=AgentConfig(game_id="toy", max_turns=10, min_probe_transitions=4)
+        )
+        self.assertEqual(len(ag.suite), 0)
+        ag._probe_batch(ag._observe())
+        # One transition per distinct valid action (UP/DOWN/LEFT/RIGHT).
+        self.assertEqual(len(ag.suite), 4)
+        recorded_actions = [t.action for t in ag.suite]
+        self.assertEqual(recorded_actions, ["UP", "DOWN", "LEFT", "RIGHT"])
+        self.assertTrue(ag._probed)
+
+    def test_probe_batch_budget_guard_skips_when_actions_low(self):
+        # remaining_actions==1 -> probing keeps a reserve and records nothing.
+        env = ToyEnv(_grid("2...3"), budget=1)
+        llm = FakeLlm(['{"prediction_ok": true}'] * 8)
+        ag = EwmAgent(
+            env, llm, config=AgentConfig(game_id="toy", max_turns=10, min_probe_transitions=4)
+        )
+        ag._probe_batch(ag._observe())
+        self.assertEqual(len(ag.suite), 0)
+
+    def test_run_probes_before_synthesize_so_suite_is_nonempty_at_acceptance(self):
+        # End-to-end: a fresh game (empty suite) probes first, then SYNTHESIZE validates against the
+        # seeded transitions and adopts. Program is never adopted against an empty suite.
+        env = ToyEnv(_grid("2...3"), budget=50)
+        # Content-aware fake: author the program on a SYNTHESIZE decide, reflect otherwise, so the
+        # probe reflects don't consume the synthesis response positionally.
+        class _Fake(FakeLlm):
+            def __init__(self):
+                super().__init__([])
+
+            def chat(self, messages, max_tokens=1024, temperature=0.0):
+                self.received.append({"messages": messages, "max_tokens": max_tokens,
+                                      "temperature": temperature})
+                self.calls += 1
+                last = messages[-1]["content"]
+                text = last if isinstance(last, str) else ""
+                if "Current mode: SYNTHESIZE" in text or "Current mode: REPAIR" in text:
+                    return {"content": _fenced(TOY_GAME_SOURCE), "finish_reason": None, "raw": ""}
+                return {"content": '{"prediction_ok": true}', "finish_reason": None, "raw": ""}
+
+        ag = EwmAgent(
+            env, _Fake(), config=AgentConfig(game_id="toy", max_turns=20, min_probe_transitions=4)
+        )
+        summary = ag.run()
+        self.assertTrue(summary["program_accepted"])
+        self.assertTrue(summary["won"])
+        # The suite was non-empty at acceptance (probe seeded >= min_probe_transitions).
+        self.assertGreaterEqual(summary["suite_size"], 4)
+        self.assertGreaterEqual(summary["synthesis_attempts"], 1)
+
+
+class FallbackFloorTests(unittest.TestCase):
+    """A program whose live pass-rate collapses, or which exhausts its repair budget, is dropped
+    and the loop switches to reactive — never keep planning from a program with pass_rate ~0."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def test_live_pass_rate_floor_drops_program_to_reactive(self):
+        ag = EwmAgent(
+            ToyEnv(_grid("2.3")),
+            FakeLlm([]),
+            config=AgentConfig(game_id="toy", min_live_pass_rate=0.5, live_window=20),
+        )
+        # Simulate an ACTIVE program mispredicting every recent observed transition.
+        ag.program = object()  # sentinel; _handle_divergence never calls into it here
+        ag._live_results.extend([False] * 5)
+        self.assertLess(ag._live_pass_rate(), 0.5)
+        # A divergence with a collapsed live rate must drop the program and set modelability poor.
+        ag._repair = lambda frame, image: False  # repair fails, program stays until floor drops it
+        ag._handle_divergence({"grid": [[2, 0, 3]], "valid_actions": ["UP"]}, None)
+        self.assertIsNone(ag.program)
+        self.assertTrue(ag._modelability_poor)
+        self.assertEqual(ag._select_mode(), "RECOVER")
+
+    def test_repair_cap_per_game_drops_program_to_reactive(self):
+        ag = EwmAgent(
+            ToyEnv(_grid("2.3")),
+            FakeLlm([]),
+            config=AgentConfig(
+                game_id="toy",
+                max_repairs_per_divergence=99,   # not the trigger here
+                max_repairs_per_game=2,
+                min_live_pass_rate=0.0,          # floor never fires -> isolate the cap
+            ),
+        )
+        ag.program = object()
+        ag._repair = lambda frame, image: False
+        frame = {"grid": [[2, 0, 3]], "valid_actions": ["UP"]}
+        # First divergence: under the per-game cap, program survives.
+        ag._handle_divergence(frame, None)
+        self.assertIsNotNone(ag.program)
+        # Second divergence hits max_repairs_per_game=2 -> program dropped, reactive.
+        ag._handle_divergence(frame, None)
+        self.assertIsNone(ag.program)
+        self.assertTrue(ag._modelability_poor)
+
+    def test_dropped_program_stays_reactive_and_never_replans(self):
+        ag = EwmAgent(
+            ToyEnv(_grid("2.3")),
+            FakeLlm([]),
+            config=AgentConfig(game_id="toy"),
+        )
+        ag._drop_program("test")
+        # Even with no program, the mode machine stays RECOVER (modelability poor) rather than
+        # returning to SYNTHESIZE.
+        self.assertEqual(ag._select_mode(), "RECOVER")
 
 
 class ReactiveFallbackTests(unittest.TestCase):
@@ -497,8 +689,13 @@ class ContextPolicyTests(unittest.TestCase):
         # reactive turns: each is decide(actions) + reflect.
         script += ['{"actions": ["RIGHT"]}', '{"prediction_ok": true}'] * 8
         llm = FakeLlm(script)
+        # Pre-seeded suite meets the probe minimum so probing is skipped: this test's premise is
+        # that NO real action lands before the first RECOVER decide (probe would break that).
         ag = EwmAgent(
-            env, llm, config=AgentConfig(game_id="toy", max_turns=8, reactive_after_failures=3)
+            env, llm,
+            config=AgentConfig(
+                game_id="toy", max_turns=8, reactive_after_failures=3, min_probe_transitions=1
+            ),
         )
         ag.suite.append(_grid("2..3"), "RIGHT", _grid(".2.3"))
         ag.run()
@@ -535,7 +732,10 @@ class PerRoleModelTests(unittest.TestCase):
         main = FakeLlm(['{"prediction_ok": true}'] * 6)  # reflect only
         synth = FakeLlm([_fenced(TOY_GAME_SOURCE)])       # the synthesis decide
         ag = EwmAgent(
-            env, main, config=AgentConfig(game_id="toy", max_turns=10, synth_llm=synth)
+            env, main,
+            config=AgentConfig(
+                game_id="toy", max_turns=10, synth_llm=synth, min_probe_transitions=1
+            ),
         )
         ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
         summary = ag.run()
@@ -560,7 +760,10 @@ class PerRoleModelTests(unittest.TestCase):
             + [_fenced(TOY_GAME_SOURCE)] * 12  # repair attempts (on synth)
         )
         ag = EwmAgent(
-            env, main, config=AgentConfig(game_id="toy", max_turns=6, synth_llm=synth)
+            env, main,
+            config=AgentConfig(
+                game_id="toy", max_turns=6, synth_llm=synth, min_probe_transitions=1
+            ),
         )
         ag.suite.append(_grid("2..3"), "RIGHT", _grid(".2.3"))
         ag.run()
@@ -602,7 +805,10 @@ class WriteGateTests(unittest.TestCase):
         env = ToyEnv(_grid("2.3"))
         llm = FakeLlm([_fenced(TOY_GAME_SOURCE), '{"prediction_ok": true, "note": "won"}'])
         kb = FakeKb(max_writes_per_turn=2)
-        ag = EwmAgent(env, llm, kb=kb, config=AgentConfig(game_id="toy", max_turns=10))
+        ag = EwmAgent(
+            env, llm, kb=kb,
+            config=AgentConfig(game_id="toy", max_turns=10, min_probe_transitions=1),
+        )
         ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
         ag.run()
         # begin_turn resets each write batch, so no batch ever exceeds the cap of 2.
