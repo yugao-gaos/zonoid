@@ -37,3 +37,4 @@
 {"evt":"edge_removed","from":"note:note-mr48a5ra7bz","to":"codex/ewm-multi-step-synthesis-agent-integration-run-eight","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:59:15.207Z"}
 {"evt":"edge_added","from":"note:note-mr48a5ra7bz","to":"codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:48:05.727Z","weight":0,"by":"autowire","judged":false,"score":0.458,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr48a5ra7bz","to":"codex/ewm-partial-adoption-best-candidate-unknown-masking","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:48:08.832Z","weight":0,"by":"autowire","judged":false,"score":0.383,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mr48a5ra7bz","to":"codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:56:13.503Z"}
