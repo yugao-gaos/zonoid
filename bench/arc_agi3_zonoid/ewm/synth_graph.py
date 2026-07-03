@@ -434,12 +434,22 @@ class SynthSession:
         config: SynthConfig | None = None,
         *,
         sleep: Callable[[float], None] | None = None,
+        on_edit: Callable[[dict[str, Any]], None] | None = None,
+        analyze_context: list[str] | None = None,
     ) -> None:
         self.game_id = game_id
         self.suite = suite
         self.llm = llm
         self.graph: GraphClient = graph if graph is not None else _NullGraph()
         self.config = config or SynthConfig()
+        # Context notes fed to ANALYZE DIRECTLY (in addition to any graph-wired notes) — e.g. the KB
+        # hypothesis menu. Presented under the same HYPOTHESES framing as wired notes. Used when the
+        # caller has the context in hand and cannot rely on graph task-wiring (no daemon-minted key).
+        self._analyze_context = list(analyze_context) if analyze_context else []
+        # Optional per-EDIT-attempt hook: fired once per proposed candidate with
+        # {change, prompt_text, raw_text, source, report, adopted} so the caller can persist the
+        # same NN-*.json artifact shape it writes for single-shot synthesis. None -> no artifacts.
+        self._on_edit = on_edit
         # Injectable sleep so the bounded ANALYZE wait is instant in tests.
         if sleep is not None:
             self._sleep = sleep
@@ -471,8 +481,9 @@ class SynthSession:
             f"game {self.game_id} analyze transitions",
             "Enumerate mechanics from observed transition deltas and wired hypothesis notes.",
         )
-        # Bounded wait for graph wiring to attach context notes to the ANALYZE task.
-        notes = self._wait_for_context(key)
+        # Bounded wait for graph wiring to attach context notes to the ANALYZE task, plus any notes
+        # the caller supplied directly (e.g. the KB hypothesis menu, when there is no minted key).
+        notes = list(self._analyze_context) + self._wait_for_context(key)
 
         user_parts: list[str] = []
         if notes:
@@ -606,12 +617,14 @@ class SynthSession:
         accepted_source: str | None = None
         last_report: ValidationReport | None = None
         while attempt <= self.config.max_retries_per_change:
-            candidate = self._propose_edit(change)
+            candidate, prompt_text, raw_text = self._propose_edit(change)
             attempt += 1
             if candidate is None:
+                self._emit_edit(change, prompt_text, raw_text, None, None, False)
                 continue
             ok, report = self._accepts(candidate, targets, baseline_pass)
             last_report = report
+            self._emit_edit(change, prompt_text, raw_text, candidate, report, ok)
             if ok:
                 accepted_source = candidate
                 break
@@ -646,6 +659,33 @@ class SynthSession:
                 )
             )
 
+    def _emit_edit(
+        self,
+        change: dict[str, Any],
+        prompt_text: str,
+        raw_text: str,
+        source: str | None,
+        report: ValidationReport | None,
+        adopted: bool,
+    ) -> None:
+        """Fire the optional per-EDIT-attempt artifact hook (best-effort; never raises)."""
+
+        if self._on_edit is None:
+            return
+        try:
+            self._on_edit(
+                {
+                    "change": change.get("name", ""),
+                    "prompt_text": prompt_text,
+                    "raw_text": raw_text,
+                    "source": source,
+                    "report": report,
+                    "adopted": bool(adopted),
+                }
+            )
+        except Exception:  # noqa: BLE001 - an artifact hook must never crash synthesis
+            logger.warning("on_edit hook failed", exc_info=True)
+
     def _current_passing(self) -> set[int]:
         """Indices the current source passes (empty when there is no compiling source yet)."""
 
@@ -657,7 +697,9 @@ class SynthSession:
             return set()
         return _passing_indices(program, self.suite)
 
-    def _propose_edit(self, change: dict[str, Any]) -> str | None:
+    def _propose_edit(self, change: dict[str, Any]) -> tuple[str | None, str, str]:
+        """Return ``(source_or_None, prompt_text, raw_text)`` for one EDIT completion."""
+
         user = (
             f"Change to apply: {change.get('name', '')}\n"
             f"Description: {change.get('description', '')}\n"
@@ -666,7 +708,7 @@ class SynthSession:
             + (self.source or "(empty)")
         )
         text = self._chat(_EDIT_SYSTEM, user, self.config.edit_max_tokens)
-        return _extract_python(text)
+        return _extract_python(text), user, text
 
     def _accepts(
         self, candidate: str, targets: list[int], baseline_pass: set[int]

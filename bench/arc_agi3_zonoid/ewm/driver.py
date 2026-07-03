@@ -552,6 +552,29 @@ def _build_live_env(args: argparse.Namespace) -> ArcEnvAdapter:
     )
 
 
+def _build_daemon_graph(game: str, artifacts_dir: str) -> Any:
+    """Construct a :class:`~.synth_graph.DaemonGraph` for graph-native synthesis.
+
+    Base URL comes from ``ZONOID_DAEMON_URL`` (default ``http://localhost:8787``); the workspace is
+    the canonical zonoid checkout. ``data_dir`` points at the artifacts dir so task-minting stubs
+    have a writable file-drop location. A daemon outage degrades every op to no-graph behavior (the
+    DaemonGraph swallows HTTP errors), so this never blocks a live run.
+    """
+
+    from .synth_graph import DaemonGraph
+
+    daemon_url = os.environ.get("ZONOID_DAEMON_URL", "http://localhost:8787")
+    workspace = "/Users/imyu/Desktop/zonoid"
+    return DaemonGraph(
+        daemon_url,
+        workspace,
+        agent_id=f"ewm-synthgraph-{game}",
+        session_id=f"ewm-synthgraph-{game}-{int(time.time())}",
+        harness="local",
+        data_dir=artifacts_dir,
+    )
+
+
 def live_run(
     game: str,
     *,
@@ -561,14 +584,16 @@ def live_run(
     vision: bool = False,
     max_turns: int = 200,
     synth_model: str | None = None,
+    graph: bool = False,
 ) -> dict[str, Any]:
     """Play ``game`` live on the official ARC-AGI-3 checkout with the ollama LlmClient.
 
     Builds a :class:`~.live.LiveArcSession` (SDK imported lazily from the checkout), an
     :class:`~.llm_client.LlmClient` from the environment (``ARC_LLM_BASE_URL`` / ``ARC_LLM_MODEL``),
     and runs the full :class:`~.agent.EwmAgent` loop against it. Returns a run-summary dict. Vision
-    defaults OFF (the ollama backend is text-only). The session is always closed (scorecard) even on
-    error.
+    defaults OFF (the ollama backend is text-only). ``graph`` enables graph-native multi-step
+    synthesis (config.graph_synthesis + a DaemonGraph client). The session is always closed
+    (scorecard) even on error.
     """
 
     from .agent import EwmAgent
@@ -590,6 +615,7 @@ def live_run(
         if synth_model
         else None
     )
+    graph_client = _build_daemon_graph(game, artifacts_dir) if graph else None
     try:
         session.open()
         if not vision:
@@ -604,7 +630,9 @@ def live_run(
                 max_turns=max_turns,
                 synth_llm=synth_llm,
                 artifacts_dir=artifacts_dir,
+                graph_synthesis=graph,
             ),
+            graph=graph_client,
         )
         summary = agent.run()
         scorecard_url = session.scorecard_url()
@@ -630,6 +658,8 @@ def live_run(
             "max_actions": max_actions,
             "max_seconds": max_seconds,
             "vision": vision,
+            "graph_synthesis": graph,
+            "graph_synth_stats": summary.get("graph_synth_stats"),
         }
     finally:
         session.close()
@@ -686,6 +716,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Optional model id for SYNTHESIZE/REPAIR decide calls (same base_url as the main "
         "model). Reflect and reactive play stay on the main model.",
     )
+    parser.add_argument(
+        "--graph",
+        choices=("on", "off"),
+        default="off",
+        help="Graph-native multi-step synthesis (default off). 'on' -> SYNTHESIZE delegates to a "
+        "synth_graph.SynthSession backed by a DaemonGraph (ZONOID_DAEMON_URL, default "
+        "http://localhost:8787).",
+    )
     args = parser.parse_args(argv)
 
     if args.smoke:
@@ -703,6 +741,7 @@ def main(argv: list[str] | None = None) -> int:
             max_seconds=args.max_seconds,
             vision=args.vision,
             synth_model=args.synth_model,
+            graph=(args.graph == "on"),
         )
         print(json.dumps(summary))
         return 0
