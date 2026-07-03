@@ -10,3 +10,4 @@
 {"evt":"timestamps_set","id":"29556785-fa39-442e-8eba-b5dd9dc00862/9","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-03T11:48:31.987Z","lastChanged":"2026-07-03T12:07:36.958Z","lastStatus":"done"},"actor":"overlay-sync","ts":"2026-07-03T12:08:09.480Z"}
 {"evt":"edge_added","from":"29556785-fa39-442e-8eba-b5dd9dc00862/9","to":"codex/review-graph-overlay-dispatch-loops","kind":"blocking","actor":"overlay-sync","ts":"2026-07-03T12:12:03.836Z","by":"judge","judged":true,"score":0.441,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/9","to":"codex/review-graph-overlay-dispatch-loops","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:12:03.836Z"}
+{"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/9","to":"knowledge:source_section:note-mqpavx66iic#note-evidence","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:24:23.171Z"}
