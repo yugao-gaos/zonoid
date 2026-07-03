@@ -28,3 +28,4 @@
 {"evt":"edge_promoted","from":"note:note-mqokgnd2wnw","to":"codex/resolve-internal-lane-projection-merge-conflict","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:04:08.830Z","weight":0.517,"by":"judge","judged":true,"score":0.517,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"opencode/setup-project-structure","kind":"context","actor":"overlay-sync","ts":"2026-07-01T05:43:17.268Z"}
 {"evt":"edge_added","from":"note:note-mqokgnd2wnw","to":"29556785-fa39-442e-8eba-b5dd9dc00862/2","kind":"context","actor":"overlay-sync","ts":"2026-07-02T22:14:54.998Z","weight":0,"by":"autowire","judged":false,"score":0.313,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mqokgnd2wnw","to":"29556785-fa39-442e-8eba-b5dd9dc00862/2","kind":"context","actor":"overlay-sync","ts":"2026-07-03T02:31:33.823Z"}
