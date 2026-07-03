@@ -233,6 +233,39 @@ class ParsingTests(unittest.TestCase):
         code = extract_python(text)
         self.assertEqual(code, "y ==")
 
+    def test_extract_python_prefers_init_state_block_over_later_fragment(self):
+        # The main program block (with def init_state) comes FIRST; a later compiling helper
+        # fragment (no init_state) comes after. Block selection must pick the init_state block, not
+        # merely the last compiling block. This is the ls20 "missing contract functions" defect:
+        # extract picked a compiling fragment instead of the main program.
+        text = (
+            "Here is the model:\n"
+            "```python\ndef init_state(f):\n    return f\ndef step(s, a):\n    return s, {}\n```\n"
+            "And a helper I used while reasoning:\n"
+            "```python\ndef helper():\n    return 1\n```\n"
+        )
+        code = extract_python(text)
+        self.assertIn("def init_state", code)
+        self.assertNotIn("def helper", code)
+
+    def test_extract_python_concatenates_consecutive_blocks(self):
+        # The program is split across two consecutive fenced blocks: the FIRST block has def
+        # init_state but is syntactically incomplete on its own (open paren, no body yet); only the
+        # concatenation (in order) compiles. No single block both compiles AND has init_state, so the
+        # concatenation path must fire.
+        text = (
+            "First half:\n"
+            "```python\ndef init_state(f):\n    return (\n```\n"
+            "Second half:\n"
+            "```python\n        f\n    )\ndef step(s, a):\n    return s, {}\n```\n"
+        )
+        code = extract_python(text)
+        self.assertIsNotNone(code)
+        self.assertIn("def init_state", code)
+        self.assertIn("def step", code)
+        # The concatenation compiles as one program.
+        compile(code, "<test>", "exec")
+
     def test_extract_action_batch_object(self):
         out = extract_action_batch('{"actions": ["UP", "LEFT"]}', ["UP", "DOWN", "LEFT", "RIGHT"])
         self.assertEqual(out, ["UP", "LEFT"])
@@ -987,6 +1020,28 @@ class SynthesisPromptTests(unittest.TestCase):
         text = ag._decide_messages("REPAIR", frame, [], None, None)[-1]["content"]
         self.assertIn("SYNTHESIS DATA", text)
         self.assertIn("never hardcode a grid", text)
+
+    def test_synthesize_prompt_teaches_unknown_partial_fidelity(self):
+        # The SYNTHESIZE prompt must teach the UNKNOWN sentinel by its exact injected name, tell the
+        # program the validator SKIPS UNKNOWN cells, name the input-row format, and advise marking an
+        # every-action-changing region (energy/timer bar) UNKNOWN rather than assuming it constant.
+        # This is the ls20 partial-fidelity gap: candidates failed ONLY on an auto-changing HUD-bar
+        # region they had no sanctioned way to declare unmodelable.
+        from bench.arc_agi3_zonoid.ewm.world_model import UNKNOWN
+
+        ag = self._agent()
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        frame = {"grid": _grid("2.3"), "valid_actions": ["UP"], "level": 1, "step": 0}
+        text = ag._decide_messages("SYNTHESIZE", frame, [], None, None)[-1]["content"]
+        # The sentinel is named EXACTLY as world_model injects it into the program namespace.
+        self.assertEqual(repr(UNKNOWN), "UNKNOWN")
+        self.assertIn("UNKNOWN", text)
+        # Validator-skips-UNKNOWN and the every-action-changing-region advice.
+        self.assertIn("SKIPS", text)
+        self.assertIn("either model it EXACTLY or mark those cells UNKNOWN", text)
+        self.assertIn("do NOT assume it stays constant", text)
+        # Input-row format clarification.
+        self.assertIn("Each row of the grid is a list of ints", text)
 
     def test_gameplay_prompt_has_no_grid_dump(self):
         # RECOVER (reactive play) decide prompt is unchanged: no grid dump, no contract.

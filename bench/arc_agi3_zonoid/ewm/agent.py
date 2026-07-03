@@ -111,8 +111,15 @@ SYNTH_RETRY_PROMPT = (
 # ls20 candidates showed — they hand-read the IMAGE into a 5x7 grid while real frames are 64x64.
 SYNTH_GRID_CONTRACT = (
     "CONTRACT: init_state(grid) receives the grid DIRECTLY as a list of rows of ints (NOT a dict — "
-    "do not index it with strings) and MUST parse it — never hardcode a grid. render(state) MUST "
-    "return a grid with exactly the same dimensions as the input grid."
+    "do not index it with strings) and MUST parse it — never hardcode a grid. Each row of the grid "
+    "is a list of ints. render(state) MUST return a grid with exactly the same dimensions as the "
+    "input grid.\n"
+    "PARTIAL FIDELITY: the name UNKNOWN is already injected into your program's namespace (use the "
+    "bare name UNKNOWN — do not import or define it). render(state) MAY place UNKNOWN in any cell "
+    "the program cannot model; the validator SKIPS every UNKNOWN cell, so an unmodelable region "
+    "never fails validation. If a board region changes after every action regardless of which "
+    "action (e.g. an energy/timer/progress bar), either model it EXACTLY or mark those cells "
+    "UNKNOWN — do NOT assume it stays constant."
 )
 
 REFLECT_PROMPT = (
@@ -217,14 +224,25 @@ def _compiles(source: str) -> bool:
 
 
 def extract_python(text: str) -> str | None:
-    """Extract program source from ``text``: the LAST fenced ```python block that ``compile()``s.
+    """Extract program source from ``text``: the LAST compiling fenced block that defines the model.
 
-    Collect every complete ```python fenced block (fence lines stripped). Prefer the LAST block that
-    compiles (models often emit reasoning + a final program; the last block is the answer). If no
-    block compiles but at least one exists, return the LAST block anyway so ``validate`` can report
-    the real compile error instead of a spurious "no program". If NO fenced block exists at all,
-    return ``None`` — prose must NEVER become program source (the ls20 U+2014 failure). The caller
-    treats ``None`` as a parse failure and retries once with a terse "one fenced block" prompt.
+    Collect every complete ```python fenced block (fence lines stripped), then select in priority
+    order (models often emit reasoning + fragments + a final program, so the WHOLE-program block is
+    the answer, not merely the last compiling fragment):
+
+    1. The LAST compiling block that contains ``def init_state`` — the program's entry point, so a
+       block defining it is the actual model rather than a helper/fragment block.
+    2. If no single block both compiles AND contains ``def init_state``, try CONCATENATING
+       consecutive fenced blocks (in emission order): a model may split one program across adjacent
+       blocks. Prefer the LAST such concatenation that compiles and contains ``def init_state``.
+    3. Fallback: the LAST block that compiles (accurate for a single-block program with no
+       init_state marker, e.g. tests exercising the compile path).
+    4. Last resort: the LAST block as-is, so ``validate`` reports the real compile error instead of
+       a spurious "no program".
+
+    If NO fenced block exists at all, return ``None`` — prose must NEVER become program source (the
+    ls20 U+2014 failure). The caller treats ``None`` as a parse failure and retries once with a
+    terse "one fenced block" prompt.
     """
 
     if not text:
@@ -232,9 +250,22 @@ def extract_python(text: str) -> str | None:
     blocks = _extract_fenced_blocks(text)
     if not blocks:
         return None
+    # 1. Last compiling block that defines the program entry point.
+    for block in reversed(blocks):
+        if "def init_state" in block and _compiles(block):
+            return block
+    # 2. No single block qualifies: try concatenating consecutive blocks (in order). Prefer the LAST
+    #    contiguous run that, joined, compiles and contains init_state.
+    for start in range(len(blocks)):
+        for end in range(len(blocks), start + 1, -1):
+            joined = "\n".join(blocks[start:end])
+            if "def init_state" in joined and _compiles(joined):
+                return joined
+    # 3. Fallback: last compiling block (single-block program with no init_state marker).
     for block in reversed(blocks):
         if _compiles(block):
             return block
+    # 4. Last resort: last block as-is, for accurate compile-error reporting.
     return blocks[-1]
 
 
