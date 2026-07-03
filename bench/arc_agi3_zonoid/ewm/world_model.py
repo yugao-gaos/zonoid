@@ -126,6 +126,7 @@ _SAFE_BUILTIN_NAMES = (
     "float",
     "frozenset",
     "int",
+    "isinstance",
     "len",
     "list",
     "map",
