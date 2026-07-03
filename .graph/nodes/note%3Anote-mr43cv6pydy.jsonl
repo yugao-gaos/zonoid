@@ -30,3 +30,4 @@
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing","kind":"context","actor":"overlay-sync","ts":"2026-07-03T03:09:27.260Z"}
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection","kind":"context","actor":"overlay-sync","ts":"2026-07-03T03:15:57.446Z"}
 {"evt":"edge_removed","from":"note:note-mr43cv6pydy","to":"codex/ewm-synthesis-artifact-persistence-run-debugging","kind":"context","actor":"overlay-sync","ts":"2026-07-03T03:24:14.227Z"}
+{"evt":"edge_added","from":"note:note-mr43cv6pydy","to":"codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt","kind":"context","actor":"overlay-sync","ts":"2026-07-03T03:39:16.803Z","weight":0,"by":"autowire","judged":false,"score":0.41,"origin":"autowire-semantic"}

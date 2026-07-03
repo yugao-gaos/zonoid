@@ -5,3 +5,5 @@
 {"evt":"edge_added","from":"note:note-mr4dujpkkos","to":"note:note-mr45u2lycou","kind":"context","actor":"overlay-sync","ts":"2026-07-03T03:37:39.250Z","weight":0,"by":"autowire","judged":false,"score":0.621,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr4dujpkkos","to":"note:note-mqvr2wl8lre","kind":"context","actor":"overlay-sync","ts":"2026-07-03T03:37:39.250Z","weight":0,"by":"autowire","judged":false,"score":0.617,"origin":"autowire-semantic"}
 {"evt":"edge_added","from":"note:note-mr4dujpkkos","to":"codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt","kind":"context","actor":"overlay-sync","ts":"2026-07-03T03:38:04.887Z","origin":"subconscious-assignment"}
+{"evt":"edge_promoted","from":"note:note-mr4dujpkkos","to":"codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt","kind":"context","actor":"overlay-sync","ts":"2026-07-03T03:39:16.803Z","weight":0,"by":"autowire","judged":false,"score":0.472,"origin":"autowire-semantic"}
+{"evt":"edge_removed","from":"note:note-mr4dujpkkos","to":"note:note-mr45ykxy4rf","kind":"context","actor":"overlay-sync","ts":"2026-07-03T03:39:20.056Z"}
