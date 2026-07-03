@@ -192,12 +192,46 @@ class ParsingTests(unittest.TestCase):
         code = extract_python("prose\n```python\ndef init_state(f):\n    return f\n```")
         self.assertIn("def init_state", code)
 
-    def test_extract_python_unfenced_contract(self):
+    def test_extract_python_unfenced_prose_rejected(self):
+        # Prose that merely mentions the contract functions is NOT a fenced block -> rejected. This
+        # is the ls20 U+2014 failure: reasoning text with "def init_state" in it must never become
+        # program source.
         code = extract_python("def init_state(f):\n    return f\ndef step(s,a):\n    return s,{}")
-        self.assertIsNotNone(code)
+        self.assertIsNone(code)
 
     def test_extract_python_none(self):
         self.assertIsNone(extract_python("no code here"))
+
+    def test_extract_python_picks_last_compiling_block(self):
+        # Reasoning + a broken draft block + a final correct block: the LAST compiling block wins.
+        text = (
+            "Here is a draft:\n```python\ndef init_state(f)\n    return f\n```\n"
+            "Fixed:\n```python\ndef init_state(f):\n    return f\n```\n"
+        )
+        code = extract_python(text)
+        self.assertEqual(code, "def init_state(f):\n    return f")
+
+    def test_extract_python_strips_fence_lines(self):
+        # The opening ```python line and closing ``` must never survive into the source (the ls20
+        # "invalid syntax line 1" failure).
+        code = extract_python("```python\ndef init_state(f):\n    return f\n```")
+        self.assertNotIn("```", code)
+        self.assertTrue(code.startswith("def init_state"))
+
+    def test_extract_python_truncated_block_no_closing_fence(self):
+        # A response truncated before its closing fence (the ls20 token-budget failure): the block
+        # still runs to end-of-text, fence line stripped, so validate can report the real error.
+        code = extract_python('```python\ndef init_state(f):\n    """doc\n')
+        self.assertIsNotNone(code)
+        self.assertNotIn("```", code)
+        self.assertTrue(code.startswith("def init_state"))
+
+    def test_extract_python_uses_last_block_when_none_compile(self):
+        # No block compiles but blocks exist -> return the LAST block (so the compile error is
+        # reported accurately), never None.
+        text = "```python\nx =\n```\n```python\ny ==\n```"
+        code = extract_python(text)
+        self.assertEqual(code, "y ==")
 
     def test_extract_action_batch_object(self):
         out = extract_action_batch('{"actions": ["UP", "LEFT"]}', ["UP", "DOWN", "LEFT", "RIGHT"])
@@ -907,6 +941,126 @@ class ArtifactPersistenceTests(unittest.TestCase):
             # artifacts_dir=None means the dir was never created and nothing was written.
             self.assertFalse(os.path.exists(probe))
             self.assertEqual(os.listdir(tmp), [])
+
+
+class SynthesisPromptTests(unittest.TestCase):
+    """The SYNTHESIZE/REPAIR prompt carries the real grid (parse it, don't hardcode): grid rows, a
+    segmentation object summary, sample transitions, and the hard dimension contract. The gameplay
+    (RECOVER/ORIENT decide) prompt is left unchanged."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def _agent(self):
+        return EwmAgent(ToyEnv(_grid("2.3")), FakeLlm([]), kb=None, config=_no_pil_config())
+
+    def test_synthesize_prompt_contains_grid_rows_objects_and_contract(self):
+        ag = self._agent()
+        # Seed a transition so the sample-transitions block has content.
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        frame = {"grid": _grid("2.3"), "valid_actions": ["UP"], "level": 1, "step": 0}
+        text = ag._decide_messages("SYNTHESIZE", frame, [], None, None)[-1]["content"]
+        # (a) grid rows as digit row-strings, with the dimensions stated.
+        self.assertIn("1 rows x 3 cols", text)
+        self.assertIn("203", text)  # the frame grid packed as a digit row-string
+        # (b) object summary from segment_grid: color/pixels/bbox/id.
+        self.assertIn("Object summary", text)
+        self.assertIn("id=", text)
+        self.assertIn("bbox=", text)
+        # (c) sample transitions rendered before/action/after.
+        self.assertIn("Observed transitions", text)
+        self.assertIn("before:", text)
+        self.assertIn("after:", text)
+        # (d) the hard dimension contract.
+        self.assertIn("never hardcode a grid", text)
+        self.assertIn("same dimensions", text)
+
+    def test_repair_prompt_also_carries_grid_block(self):
+        ag = self._agent()
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        frame = {"grid": _grid("2.3"), "valid_actions": ["UP"], "level": 1, "step": 0}
+        text = ag._decide_messages("REPAIR", frame, [], None, None)[-1]["content"]
+        self.assertIn("SYNTHESIS DATA", text)
+        self.assertIn("never hardcode a grid", text)
+
+    def test_gameplay_prompt_has_no_grid_dump(self):
+        # RECOVER (reactive play) decide prompt is unchanged: no grid dump, no contract.
+        ag = self._agent()
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        frame = {"grid": _grid("2.3"), "valid_actions": ["UP"], "level": 1, "step": 0}
+        text = ag._decide_messages("RECOVER", frame, [], None, None)[-1]["content"]
+        self.assertNotIn("SYNTHESIS DATA", text)
+        self.assertNotIn("never hardcode a grid", text)
+
+
+class SynthTokenBudgetTests(unittest.TestCase):
+    """SYNTHESIZE/REPAIR decide calls use config.synth_max_tokens (default 4096); gameplay decide
+    and reflect stay at their smaller budgets. 1024 truncated every ls20 candidate mid-program."""
+
+    def setUp(self):
+        EwmAgent._vision_available = staticmethod(lambda: False)
+
+    def tearDown(self):
+        import importlib
+
+        importlib.reload(agent_mod)
+
+    def test_synth_config_default(self):
+        self.assertEqual(AgentConfig().synth_max_tokens, 4096)
+
+    def test_synthesize_call_uses_synth_max_tokens(self):
+        env = ToyEnv(_grid("2.3"))
+        llm = FakeLlm([_fenced(TOY_GAME_SOURCE), '{"prediction_ok": true}'])
+        ag = EwmAgent(
+            env, llm,
+            config=AgentConfig(
+                game_id="toy", max_turns=10, min_probe_transitions=1, synth_max_tokens=4096
+            ),
+        )
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        ag.run()
+        # The SYNTHESIZE decide call requested synth_max_tokens; reflect used the small budget.
+        synth_calls = [
+            c for c in llm.received
+            if isinstance(c["messages"][-1]["content"], str)
+            and "Current mode: SYNTHESIZE" in c["messages"][-1]["content"]
+        ]
+        self.assertTrue(synth_calls)
+        self.assertEqual(synth_calls[0]["max_tokens"], 4096)
+        reflect_calls = [
+            c for c in llm.received
+            if isinstance(c["messages"][-1]["content"], str)
+            and "Reflect on the action" in c["messages"][-1]["content"]
+        ]
+        self.assertTrue(reflect_calls)
+        self.assertEqual(reflect_calls[0]["max_tokens"], AgentConfig().reflect_max_tokens)
+
+    def test_no_fenced_block_triggers_single_terse_retry(self):
+        # First synth response is prose-only (no fenced block) -> exactly ONE terse retry, whose
+        # prompt is the "one fenced block" re-ask; the retry then supplies a valid program.
+        env = ToyEnv(_grid("2.3"))
+        llm = FakeLlm(
+            [
+                "I think the model should do X and Y but here is no code block.",  # prose only
+                _fenced(TOY_GAME_SOURCE),                                          # terse retry
+                '{"prediction_ok": true}',
+            ]
+        )
+        ag = EwmAgent(
+            env, llm,
+            config=AgentConfig(game_id="toy", max_turns=10, min_probe_transitions=1),
+        )
+        ag.suite.append(_grid("2.3"), "RIGHT", _grid(".23"))
+        summary = ag.run()
+        self.assertTrue(summary["program_accepted"])
+        # The second decide call carried the terse "one fenced block" re-ask.
+        retry_text = llm.received[1]["messages"][-1]["content"]
+        self.assertIn("Return ONLY one fenced python block", retry_text)
 
 
 if __name__ == "__main__":
