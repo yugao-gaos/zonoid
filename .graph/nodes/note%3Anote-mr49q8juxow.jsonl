@@ -12,3 +12,4 @@
 {"evt":"edge_added","from":"note:note-mr49q8juxow","to":"note:note-mr45u2lycou","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:59:04.614Z","weight":0.648,"by":"judge","judged":true,"score":0.648,"origin":"autowire-semantic"}
 {"evt":"edge_promoted","from":"note:note-mr49q8juxow","to":"codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:59:04.614Z","weight":0.533,"by":"judge","judged":true,"score":0.533,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr49q8juxow","to":"note:note-mr47rrqji0d","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:59:04.614Z"}
+{"evt":"edge_removed","from":"note:note-mr49q8juxow","to":"note:note-mr4307zl9gd","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:59:34.286Z"}
