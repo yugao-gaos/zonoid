@@ -593,7 +593,11 @@ def _build_kb_gate(game: str) -> Any:
     daemon_url = os.environ.get("ZONOID_DAEMON_URL", "http://localhost:8787")
     workspace = "/Users/imyu/Desktop/zonoid"
     task_key = os.environ.get("ZONOID_TASK_KEY", f"ewm-live-{game}")
-    return WriteGate(KbClient(daemon_url, workspace, task_key))
+    # 60s (vs the 20s unit default): a live daemon under concurrent drains can take >20s to answer an
+    # ORIENT /search or the native /note/get, and a timeout there silently drops the warm-start
+    # program (the search error is swallowed to []). The generous budget keeps ORIENT's native
+    # full-body read from timing out under load; a real outage still degrades to no-memory.
+    return WriteGate(KbClient(daemon_url, workspace, task_key, timeout_s=60))
 
 
 def live_run(
