@@ -9,3 +9,4 @@
 {"evt":"edge_added","from":"note:note-mr47mxx2ty3","to":"codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run","kind":"blocking","actor":"overlay-sync","ts":"2026-07-03T01:38:59.963Z","by":"judge","judged":true,"score":0.486,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr47mxx2ty3","to":"codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:38:59.963Z"}
 {"evt":"edge_removed","from":"note:note-mr47mxx2ty3","to":"note:note-mr45u2lycou","kind":"context","actor":"overlay-sync","ts":"2026-07-03T01:40:00.917Z"}
+{"evt":"edge_removed","from":"note:note-mr47mxx2ty3","to":"note:note-mr43rk1dmy0","kind":"context","actor":"overlay-sync","ts":"2026-07-03T02:36:23.688Z"}
