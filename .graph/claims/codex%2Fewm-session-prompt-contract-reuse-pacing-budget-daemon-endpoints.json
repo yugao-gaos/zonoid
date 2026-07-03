@@ -3,7 +3,8 @@
   "git_user": "test <test@example.com>",
   "session_id": "worker-ewm-ctreuse-session",
   "branch": "orch/attempt/codex-ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
-  "status": "claimed",
+  "status": "tested",
   "claimed_at": "2026-07-03T12:56:13.778Z",
-  "lease_until": "2026-07-03T13:56:13.778Z"
+  "lease_until": "2026-07-03T13:56:13.778Z",
+  "completed_at": "2026-07-03T13:11:20.054Z"
 }
