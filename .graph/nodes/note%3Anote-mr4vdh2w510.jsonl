@@ -23,3 +23,5 @@
 {"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"note:note-mqeapqae6jf","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:44:51.489Z"}
 {"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"note:note-mqj6vo24dzn","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:46:13.375Z"}
 {"evt":"edge_added","from":"note:note-mr4vdh2w510","to":"codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:55:25.033Z","origin":"subconscious-assignment"}
+{"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"29556785-fa39-442e-8eba-b5dd9dc00862/7","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:25:48.517Z"}
+{"evt":"edge_removed","from":"note:note-mr4vdh2w510","to":"29556785-fa39-442e-8eba-b5dd9dc00862/11","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:25:50.040Z"}
