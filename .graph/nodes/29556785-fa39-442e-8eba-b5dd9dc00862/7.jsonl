@@ -14,3 +14,5 @@
 {"evt":"timestamps_set","id":"29556785-fa39-442e-8eba-b5dd9dc00862/7","workspace":"/Users/imyu/Desktop/zonoid","timestamps":{"firstSeen":"2026-07-03T11:48:27.859Z","lastChanged":"2026-07-03T12:05:57.409Z","lastStatus":"canceled"},"actor":"overlay-sync","ts":"2026-07-03T12:06:20.976Z"}
 {"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/7","to":"codex/workflow-user-gate-guidance-projection","kind":"context","actor":"overlay-sync","ts":"2026-07-03T12:16:52.337Z"}
 {"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/7","to":"codex-desktop/split-buildgraph-into-projection-and-reconciliation-phases","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:13:28.552Z"}
+{"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/7","to":"codex/embed-provider-local-adapter","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:37:14.409Z"}
+{"evt":"edge_removed","from":"29556785-fa39-442e-8eba-b5dd9dc00862/7","to":"codex/internal-lane-model-queue-projection","kind":"context","actor":"overlay-sync","ts":"2026-07-03T13:37:23.220Z"}
