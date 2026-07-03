@@ -1547,7 +1547,7 @@
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
       "status": "tested",
-      "summary": null,
+      "summary": "Added cross-game mechanism-hypothesis schema to kb_protocol.py: write_mechanism_hypothesis (hypothesis-form body, rejects absolute coords + foreign game ids, standalone-token title), write_mechanic_pattern kept as deprecated legacy-flagged alias, hypothesis_menu with HYPOTHESIS_MENU_PREAMBLE ranked by cue overlap, and ORIENT/SYNTHESIZE stripped new-game fallback to the tagged menu. Diffs confined to kb_protocol.py + its test file. Full ewm suite green (195 passed).",
       "category": null,
       "tags": [],
       "knowledge": [],
@@ -1556,7 +1556,7 @@
       "code_node": null,
       "entity_node": null,
       "snapshot": null,
-      "assignee": "worker-ewm-ctx",
+      "assignee": "worker-ewm-hypo",
       "timestamps": {
         "firstSeen": "2026-06-11T17:23:25.748Z",
         "lastChanged": "2026-07-03T00:40:13.853Z",
@@ -241229,7 +241229,7 @@
       "label": null,
       "kind": null,
       "workspace": "/Users/imyu/Desktop/zonoid",
-      "status": "tested",
+      "status": "failed",
       "summary": null,
       "category": null,
       "tags": [],
@@ -241253,8 +241253,756 @@
       "assignee": "worker-ewm-artifacts",
       "timestamps": {
         "firstSeen": "2026-07-03T01:44:15.266Z",
-        "lastChanged": "2026-07-03T01:51:13.189Z",
+        "lastChanged": "2026-07-03T01:51:55.820Z",
+        "lastStatus": "failed"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "29556785-fa39-442e-8eba-b5dd9dc00862/10": {
+      "id": "29556785-fa39-442e-8eba-b5dd9dc00862/10",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Mechanism-hypothesis note schema + stripped new-game entry",
+        "description": "kb_protocol.py: hypothesis-form cross-game notes (cues/probe/observed_in), low-weight context for new games",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-07-03T11:48:34.026Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-07-03T11:48:34.026Z",
+        "lastChanged": "2026-07-03T12:03:01.920Z",
+        "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "29556785-fa39-442e-8eba-b5dd9dc00862/11": {
+      "id": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Integrate multi-step synthesis into agent + run 8 (blocked)",
+        "description": "agent.py SYNTHESIZE delegates to synth session (deltas in ANALYZE, hypothesis menu framing); then ls20 run 8",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-07-03T11:48:34.026Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-07-03T11:48:34.026Z",
+        "lastChanged": "2026-07-03T12:18:43.665Z",
+        "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "29556785-fa39-442e-8eba-b5dd9dc00862/7": {
+      "id": "29556785-fa39-442e-8eba-b5dd9dc00862/7",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Build object-delta module (relative-coordinate transitions)",
+        "description": "ewm/deltas.py: cross-frame object identity + delta summaries",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-07-03T11:48:27.859Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-07-03T11:48:27.859Z",
+        "lastChanged": "2026-07-03T12:05:57.409Z",
+        "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "29556785-fa39-442e-8eba-b5dd9dc00862/8": {
+      "id": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "canceled",
+      "summary": null,
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "Inject segment() helper into world-model sandbox",
+        "description": "world_model.py namespace injection so programs can be object-relative",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": null,
+        "snapshotted_at": "2026-07-03T11:48:29.985Z"
+      },
+      "assignee": null,
+      "timestamps": {
+        "firstSeen": "2026-07-03T11:48:29.985Z",
+        "lastChanged": "2026-07-03T13:38:44.644Z",
+        "lastStatus": "canceled"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/daemon-note-get-reassembling-full-body-read-endpoint": {
+      "id": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "tested",
+      "summary": "Implemented read-only GET /note/get reassembling note full body from source_chunk cluster. New lib/note-full-body.js (reassembleNoteBody: walks chunk->note edges, orders by chunk index, joins with blank line; unclustered notes pass stored summary through as full_body chunk_count 0; unknown key -> ok:false). Wired route in routes/task.js + added to daemon.js sensitiveRead auth list. 6 unit tests pass (byte-exact clustered reassembly against real buildSourceClusterForNote output, ordering under shuffled edges, unclustered passthrough, missing/empty/non-note key, bare-key normalization). Committed 33b58fb8a on orch/attempt branch. Deployed surgically to installed /Users/imyu/.claude/orchestrator/ (installed daemon.js + routes/task.js were byte-identical to repo base, so patch applied clean; note-source-cluster.js identical; new lib file added). Timestamped .bak backups saved (daemon.js.bak.20260703-151314, routes/task.js.bak.20260703-151314). Restarted via launchctl kickstart -k com.zonoid.daemon (new PID 32285). VERIFIED: /state 200, /task/detail 200, /note/get?key=note:note-mr57kpil9xk full=1 returns ok:true chunk_count=4 byte_length=3659 (vs 438-char compacted summary) title=\"game ls20 world model program\". Headless drains resumed (fresh JUDGE/LABEL log ticks). HONEST FINDING: the reassembled program does NOT python3-compile (IndentationError) because the write-time chunker (note-source-cluster.js chunkText) .trim()s each chunk, stripping leading indentation off the first line of every chunk at STORAGE time — a lossy pre-existing property, not a reassembly defect. Endpoint faithfully returns exactly what was stored; byte-exact fidelity is proven by unit fixtures.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "daemon note get reassembling full body read endpoint",
+        "description": "Implement the proper fix for the EWM warm-start retrieval break (user-directed, before run 13): a read-only reassembling note endpoint in the zonoid daemon. Long/code-like note bodies are already preserved by lib/note-source-cluster.js as knowledge source_doc/source_section/source_chunk nodes (daemon.js ~1756 source-chunk lane); /search only returns compacted summaries (200/1200 chars). Add GET /note/get?key=<note key>&workspace=<ws>&full=1: resolve the note node, walk its source_doc -> source_section -> source_chunk children IN ORDER, reassemble and return {ok, key, title, summary (compacted), full_body (reassembled original), chunk_count, byte_length}; when a note was never clustered (short body) return its stored summary as full_body. Unit tests against the graph store fixtures. DEPLOYMENT (critical): the live daemon runs from a COPIED install at /Users/imyu/.claude/orchestrator/ (daemon.js Jun 29, own lib/) that may lag repo HEAD — do NOT blind-copy the whole repo; apply the same surgical patch to the installed daemon.js/lib files (diff first to confirm the touched regions match), then restart the daemon the way it is supervised (find how: launchd plist / process parent / README) and VERIFY health after restart: /state?workspace=..., /task/detail on a known key, and /note/get on note:note-mr57kpil9xk (the truncated 3272-char seeded program) returning a full_body whose fenced source compiles. Expect brief MCP downtime for other sessions during restart — acceptable, user-authorized. Also verify the running headless drains resume.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T19:01:29.531Z"
+      },
+      "assignee": "worker-daemon-noteget",
+      "timestamps": {
+        "firstSeen": "2026-07-03T19:01:29.531Z",
+        "lastChanged": "2026-07-03T19:16:02.687Z",
         "lastStatus": "tested"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt": {
+      "id": "codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM auto changing cells hint from suite in synthesis prompt",
+        "description": "Final blocker from run ls20-1783048605: candidates fail ONLY on ls20's auto-changing bar cells (rows 40-43 cols 34-38, repaint 3->12/9 after every action) because they model the region as static — the UNKNOWN advice exists but the model cannot spot the changing region inside raw transition digit dumps. Fix in bench/arc_agi3_zonoid/ewm/agent.py (+tests): compute from the TransitionSuite the AUTO-CHANGING CELL SET (cells whose value differs between before/after in >= K of the observed transitions, K default = all observed, min suite size 3 to activate) and add an explicit block to the SYNTHESIZE/REPAIR prompt: 'OBSERVED AUTO-CHANGING CELLS (changed in every observed transition regardless of action): rows/cols <compact ranges> — model these exactly or render them UNKNOWN; do NOT model them as static.' Render the set as compact row-ranges (e.g. rows 40-43 cols 34-38), cap listing at 200 cells (beyond that summarize by bounding boxes). Also handle the step-contract slip: prompt line 'step MUST return a (state, events) tuple — never a bare state' (evidence: candidate 04 ValueError not enough values to unpack). Tests: hint block computed correctly from a synthetic suite with a changing region; absent when suite < 3; step-tuple line present. Full suite + --smoke green.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T03:38:02.674Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T03:38:02.674Z",
+        "lastChanged": "2026-07-03T03:43:56.074Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay": {
+      "id": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM ceiling test claude synthesis offline suite replay",
+        "description": "Dev-time ceiling test (never ships): run SynthSession with a Claude-class model as the synthesis LLM, OFFLINE against the recorded run-9 transition suite (out/ewm-runs/ls20-1783084398/transition-suite.json, 13 real ls20 transitions) — zero ARC API actions needed. Build a dev-only CliLlm client (subprocess `claude -p` text in/out, no tools, following the bench Mode 0 precedent in bench/arc_agi3_zonoid/README.md) satisfying the LlmClient chat() interface (text-only; vision parts dropped with a note). Add a small dev script bench/arc_agi3_zonoid/ewm/dev_ceiling.py: loads the suite, builds build_synth_context from it, runs SynthSession (graph off, generous session budget), reports final ValidationReport + writes artifacts to out/ewm-runs/ceiling-<ts>/. OUTCOME QUESTION: does a frontier model produce a step() program passing all 13 transitions? Record the answer as a decision note either way (harness ceiling proven vs acceptance design needs partial adoption). Tests: CliLlm with a fake subprocess; dev script wiring with FakeLlm. Full suite green.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T13:46:32.712Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T13:46:32.712Z",
+        "lastChanged": "2026-07-03T14:40:09.495Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-changed-cells-floor-repair-on-partial-adoption": {
+      "id": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM changed cells floor repair on partial adoption",
+        "description": "Two defects from run 10 (out/ewm-runs/ls20-1783089646 — FIRST live adoption + EXECUTE, but live_pass_rate 0.0, divergences=14, repair_attempts=0): (1) FLOOR TOO PERMISSIVE — the cell-level accuracy floor admits weak candidates because the 64x64 board is mostly static background (any model scores ~97% on all cells). Replace with a CHANGED-CELLS floor: accuracy measured only over cells that actually changed in each suite transition (union of before/after diffs, excluding masked cells); min_partial_adopt_rate applies to that metric (keep default 0.6). The adopted run-10 program scored 0/5 per-transition yet passed the old floor — it must now be refused. (2) REPAIR NOT ENGAGING ON PARTIAL PROGRAMS — 14 live divergences produced zero repair attempts; trace the divergence -> _handle_divergence path for partial-adopted programs (masked wrapper may be swallowing the divergence classification, or the live pass-rate floor drops to reactive before repair gets a turn) and fix so the first divergences trigger REPAIR against the UNWRAPPED source per the design, with the mask recomputed after an accepted repair. Tests: run-10-shaped candidate (right structure, wrong magnitudes, 0/5 transitions, high whole-board cell accuracy) is refused by the changed-cells floor; a candidate correct on changed cells except one region still partial-adopts; forced live divergence on a partial-adopted program engages repair before any reactive fallback. Full suite + --smoke green.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T15:08:16.563Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T15:08:16.563Z",
+        "lastChanged": "2026-07-03T15:26:35.921Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen": {
+      "id": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM chunked program notes orient reassembly run thirteen",
+        "description": "Close the last warm-start gap without touching the shared daemon: program notes chunked under the 2000-char clip. In bench/arc_agi3_zonoid/ewm/kb_protocol.py + agent.py (+tests): (1) write_program_revision splits program source into numbered chunk notes (\"game {id} world model program chunk {n} of {N}\", each body <= 1600 chars of source inside a fence + chunk header), plus the existing index note carrying prose summary + pass rate + N; (2) _orient retrieval reassembles: fetch index note via the keyed query, then fetch all N chunks (search by exact chunk titles), concatenate, extract fenced source, load + validate as today (offline-verified path from run 12 is downstream and already proven); missing chunk -> clean refusal with diagnosis in telemetry. (3) Re-seed the live KB with the ceiling 12/13 program via the chunked writer (ZONOID_DAEMON_URL=http://localhost:8787, workspace /Users/imyu/Desktop/zonoid); verify live retrieval reassembles byte-identical source. (4) LIVE RUN 13: same command as run 12 (qwen-coding, vision, --graph on, 80 actions/1500s) — expect ORIENT adoption within the first turns and planner-driven EXECUTE; write out/ewm-ls20-ewm-warmstart2.json + append arm; report orient_adopted, levels_completed, actions, per-level actions, scorecard. Truthful as always. Full suite + --smoke green; commit code + artifacts.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T18:14:00.701Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T18:14:00.701Z",
+        "lastChanged": "2026-07-03T19:09:32.748Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain": {
+      "id": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM graph native synthesis step tasks write gated edit chain",
+        "description": "Create bench/arc_agi3_zonoid/ewm/synth_graph.py + tests. The multi-step synthesis state machine per the design note: SynthSession(game_id, suite, llm, validate_fn, graph_client=None). Steps as zonoid task nodes when graph_client is set (reuse kb_protocol HTTP conventions; daemon endpoints: task creation via the overlay/file-drop lane the daemon exposes, claim/complete via /overlay/status; read the existing adapter.py + kb_protocol.py for conventions; hook-less worker claim = the local loop itself): (1) ANALYZE task — create, wait briefly (poll, bounded ~5s) for wiring/context, execute LLM analyze call whose context = the task's wired note summaries + object-delta transition texts, record mechanics-analysis note wires_to task; (2) PLAN task — LLM proposes the program as an ORDERED list of small code changes (JSON); each change minted as an edit task; (3) EDIT chain — per change: claim task, LLM writes/patches the single program file, validate acceptance slice (the change's target transitions must pass; previously-passing must not regress), complete tested or failed (+failed-repair note), max 2 retries per change; (4) FINAL validate full suite -> return program + report. graph_client=None -> same state machine fully in-process (no HTTP) for offline tests and --no-graph runs. All LLM calls stateless [system,user]; between-step context flows ONLY via task/note records. Tests with FakeLlm + mock graph client: step task lifecycle, edit-chain acceptance slices + regression guard, failed-change retry then skip, no-graph parity.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T11:49:07.853Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T11:49:07.853Z",
+        "lastChanged": "2026-07-03T12:08:07.117Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-mechanism-hypothesis-schema-stripped-new-game-entry": {
+      "id": "codex/ewm-mechanism-hypothesis-schema-stripped-new-game-entry",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM mechanism hypothesis schema stripped new game entry",
+        "description": "In bench/arc_agi3_zonoid/ewm/kb_protocol.py (+tests): (1) write_mechanic_pattern becomes write_mechanism_hypothesis with required schema fields {name, cues (list of recognition cues), probe (discriminating probe recipe), dynamics (coordinate-free template prose), observed_in (list of game ids)}; body rendered in hypothesis form starting \"SOME games ...\"; REJECT bodies containing absolute coordinates (row/col numbers) or game ids outside observed_in (heuristic: digit-pair coordinate patterns). Keep write_mechanic_pattern as deprecated alias. (2) Stripped new-game entry: search_for_mode(ORIENT/SYNTHESIZE) for a game with no existing game-scoped notes returns cross-game hypothesis notes tagged clearly, and a new helper hypothesis_menu(game_id, vocabulary) -> ranked list framed with the mandatory preamble \"hypothesis menu — test before trusting; this game may match none\". (3) Ensure game-scoped writes are keyed by game id in the title (already convention — assert in tests). Tests: schema enforcement, absolute-coordinate rejection, alias, menu preamble + ranking by cue overlap with provided vocabulary.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T11:49:15.801Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T11:49:15.801Z",
+        "lastChanged": "2026-07-03T12:01:58.462Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-multi-step-synthesis-agent-integration-run-eight": {
+      "id": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM multi step synthesis agent integration run eight",
+        "description": "Wire the four merged redesign pillars into the agent and run ls20 run 8. In bench/arc_agi3_zonoid/ewm/agent.py (+tests): SYNTHESIZE mode delegates to synth_graph.SynthSession (deltas.summarize_suite feeds .run(); hypothesis_menu supplies ANALYZE context via the graph client or directly when graph is off; program adopted only when the session's final full-suite validate passes on the seeded non-empty suite — probe-first, pacing, and per-game caps unchanged, one session = one synthesis attempt cycle). driver live_run gains --graph on|off (DaemonGraph when on, ARC daemon URL from env ZONOID_DAEMON_URL default http://localhost:8787) and passes artifacts_dir through so per-step artifacts still record (extend session to emit the same NN-*.json shape per EDIT change). Full suite green + --smoke exit 0 (smoke uses graph off). Then LIVE RUN 8: game ls20, qwen-coding:latest, vision on, ARC_LLM_REASONING_EFFORT=none, --graph on, caps 80 actions / 25 min; write out/ewm-ls20-ewm-synthgraph.json + append arm 5 to out/ewm-ls20-ab.json; truthful reporting with per-change acceptance stats (changes proposed/passed/skipped, suite pass rate trajectory).",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T12:07:38.055Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T12:07:38.055Z",
+        "lastChanged": "2026-07-03T12:53:45.326Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-object-delta-module-relative-coordinate-transitions": {
+      "id": "codex/ewm-object-delta-module-relative-coordinate-transitions",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM object delta module relative coordinate transitions",
+        "description": "Create bench/arc_agi3_zonoid/ewm/deltas.py + tests. Object-relative transition summaries: match objects across before/after frames via segment_grid (translation-invariant hash first, then best-overlap fallback for shape changes); emit per-transition delta records {action, deltas:[{object: id/color/pixels/bbox, kind: moved|grew|shrank|recolored|appeared|disappeared|static, detail: (dr,dc) for moved, +n cells for grew, old->new color}]} plus a compact one-line text rendering per transition (e.g. \"ACTION1: obj#2 (blue 4px) moved (+1,0); obj#7 (bar 25px) grew +5; else static\"). Helper summarize_suite(suite) -> list of delta texts + aggregate per-action effect summary. Pure stdlib, deterministic. Tests on synthetic grids: movement, growth (bar), recolor, appear/disappear, identity via overlap when hash changes, aggregate summary.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T11:48:57.300Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T11:48:57.300Z",
+        "lastChanged": "2026-07-03T12:02:27.506Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-partial-adoption-best-candidate-unknown-masking": {
+      "id": "codex/ewm-partial-adoption-best-candidate-unknown-masking",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM partial adoption best candidate unknown masking",
+        "description": "Option 2 from the run-9 strategy fork: partial adoption. In bench/arc_agi3_zonoid/ewm/ (world_model.py + agent.py + synth_graph.py minimal seams, +tests): when no candidate passes the FULL suite, the session may return its BEST candidate (highest pass_count) and the agent adopts it PARTIALLY when pass_rate >= min_partial_adopt_rate (config, default 0.6): wrap the program so render() masks the candidate's persistently-mispredicted cells as UNKNOWN (compute the mask from the ValidationReport mismatch cells aggregated across the suite replay — a deterministic wrapper, not an LLM change), then re-validate; adopt if the masked program passes. Adopted-partial programs are flagged partial=true in telemetry, planner still works (UNKNOWN cells excluded from goal predicates), REPAIR keeps running on divergences to shrink the mask over time. Guard rails: mask must be < mask_cap fraction of the board (default 15%) or adoption is refused (a mask that big means the model explains nothing); live pass-rate floor semantics unchanged. Tests: masked adoption path end-to-end with FakeLlm (candidate wrong only on a fixed region -> partial adopt -> plan/execute works on toy env), mask-cap refusal, repair shrinks mask. Full suite + --smoke green.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T13:46:41.653Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T13:46:41.653Z",
+        "lastChanged": "2026-07-03T14:14:28.407Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-segment-helper-injection-world-model-sandbox": {
+      "id": "codex/ewm-segment-helper-injection-world-model-sandbox",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM segment helper injection world model sandbox",
+        "description": "In bench/arc_agi3_zonoid/ewm/world_model.py (+tests): inject a segment(grid) helper into the compiled program namespace (same mechanism as UNKNOWN) wrapping segmentation.segment_grid, so synthesized programs can author object-relative logic (find objects by color/shape instead of hardcoding indices). Also extend the SYNTH contract text in agent.py with one paragraph: segment(grid) is available in scope, returns {nodes,adjacency_list}, prefer expressing mechanics relative to objects (locate the avatar by its color each step) because absolute indices break on new levels; keep it optional (cellular games may not have stable objects). Tests: injected helper callable from a loaded program; a toy object-relative program (find avatar via segment, move it) validates against a movement suite; prompt paragraph present.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T11:49:00.605Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T11:49:00.605Z",
+        "lastChanged": "2026-07-03T12:04:04.699Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints": {
+      "id": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM session prompt contract reuse pacing budget daemon endpoints",
+        "description": "Three fixes from run 8 (out/ewm-ls20-ewm-synthgraph.json + 27 EDIT artifacts): (1) CONTRACT REUSE REGRESSION — SynthSession's DRAFT/EDIT prompts do not include the battle-hardened contract block from agent.py (stdlib whitelist line, UNKNOWN partial-fidelity teaching + -1 alias, step-tuple rule, segment() paragraph, auto-changing-cells hint), so 24/27 candidates imported numpy again and 3 truncated. Fix: extract the contract assembly in agent.py into a single build_synth_contract(suite, ...) function (single source of truth) and pass it into SynthSession so every EDIT prompt carries it; also give EDIT calls the synth token budget (synth_max_tokens) to stop truncation. (2) SESSION PACING — ~11 sessions consumed the whole 1500s with only 5 game actions. Add config max_synth_sessions_per_game (default 3) and per-session wall-time cap (default 240s, LLM calls stop cleanly when exceeded); after cap, modelability poor -> reactive rest of game (mirror the existing per-game attempt cap semantics). (3) DAEMON ENDPOINTS — DaemonGraph got 404 on /task/context and /overlay/note and timeouts on /sync; verify the daemon's REAL routes (read bench/arc_agi3_zonoid/adapter.py env/exports and probe curl the live daemon at localhost:8787 for the correct paths, e.g. /overlay/note exists per kb_protocol usage — check trailing workspace params) and fix DaemonGraph paths/params so graph-native context actually flows live; keep best-effort degradation. Tests for all three (contract text present in EDIT prompts via MockGraph capture; session caps trigger; endpoint paths match kb_protocol conventions). Full suite + --smoke green.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T12:55:22.865Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T12:55:22.865Z",
+        "lastChanged": "2026-07-03T13:11:58.311Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection": {
+      "id": "codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM synth prompt unknown partial fidelity block selection",
+        "description": "Two small fixes from run ls20-1783045784 artifacts (first physics-level rejections): (1) UNKNOWN teaching — synthesis/repair prompt must explain partial fidelity: render() may return the exported UNKNOWN sentinel for cells the program cannot model and the validator SKIPS them; explicitly advise using it for regions that change every step regardless of action (timer/energy bars — evidence: all 4 physics-judged candidates failed ONLY on rows 40-43 cols 34-38 flipping 3->12/9 after every action, and candidate 05's own comments show it suspected a HUD bar but had no tool to express it). Also clarify grid input format once (\"each row is a list of ints, e.g. row[0] is an int\") — candidate comments show format confusion. Ensure the sandbox namespace passed to program compilation actually exposes the real UNKNOWN sentinel (it does — confirm prompt names it identically). (2) BLOCK SELECTION — extract_python must prefer the last compiling block that CONTAINS 'def init_state'; if the model split the program across multiple fenced blocks, try concatenating consecutive blocks before giving up (evidence: 4/9 candidates rejected as 'missing contract functions' despite emitting code). Tests for both; full suite + --smoke green. bench/arc_agi3_zonoid/ewm/agent.py + tests only.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T02:43:12.849Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T02:43:12.849Z",
+        "lastChanged": "2026-07-03T02:49:19.452Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt": {
+      "id": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM synthesis pipeline fix extraction tokens grid data prompt",
+        "description": "Fix the three synthesis-pipeline defects proven by artifacts in out/ewm-runs/ls20-1783043540/ (7/7 candidates failed to COMPILE, never reaching physics validation). In bench/arc_agi3_zonoid/ewm/ (agent.py + tests): (1) EXTRACTION — robust fenced-code extraction: strip ```python/``` fence lines, prefer the LAST complete fenced python block, reject candidates that are prose (must compile-check before validate; on no fenced block found, retry prompt once demanding only a fenced block). Artifact evidence: attempt 01 unterminated string, 02 prose with U+2014 accepted as source, 04 fence line left in source. (2) TOKEN BUDGET — synthesis/repair calls get their own max_tokens (config synth_max_tokens, default 4096; decide stays 1024) so programs stop truncating mid-docstring. (3) GRID DATA IN PROMPT — the SYNTHESIZE/REPAIR prompt must include the actual current frame digit grid (bounded: as row strings) AND the segmentation summary (objects: color, pixels, bbox from segment_grid) AND 2-3 probe transitions as data (before row-strings, action, after row-strings), plus an explicit contract: init_state(frame) receives frame['grid'] as list[list[int]] and must parse it — never hardcode; render(state) must return a grid with THE SAME dimensions as the input. Artifact evidence: model hand-read the image into a hardcoded 5x7 grid while real ls20 frames are 64x64. Tests: extraction strips fences / picks last block / rejects prose; synth calls use synth_max_tokens; synthesis prompt contains grid rows + segmentation + dimensions contract. Full suite + --smoke green.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T02:03:44.755Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T02:03:44.755Z",
+        "lastChanged": "2026-07-03T02:13:24.658Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing": {
+      "id": "codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM unknown alias stdlib prompt synthesis pacing",
+        "description": "Three fixes from run ls20-1783047003 artifacts: (1) UNKNOWN ALIAS — world_model.py _diff/validate must treat the literal int -1 as UNKNOWN (valid colors are 0..15; evidence: candidates 05/08 redefined UNKNOWN=-1 shadowing the injected singleton, and their only mismatches were -1 cells at the bar region they correctly marked — they would otherwise have passed). Keep identity check for the real sentinel; add -1 alias with a comment. (2) STDLIB PROMPT — synthesis contract adds: only stdlib modules from the sandbox whitelist are importable; numpy/pandas are NOT available (evidence: 5/9 candidates died on 'import of numpy is not permitted'). (3) SYNTHESIS PACING — after each failed synthesis cycle (max_synth_attempts) the loop MUST take at least one reactive turn batch (gathering transitions + score) before re-entering SYNTHESIZE, and add config max_synth_attempts_per_game (default 9) after which modelability=poor and reactive for the rest of the game (evidence: 9 attempts consumed the whole 900s budget with only 4 actions taken, modes_visited=[SYNTHESIZE] only). Tests for all three; full suite + --smoke green. bench/arc_agi3_zonoid/ewm/{world_model.py,agent.py} + tests.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T03:07:19.293Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T03:07:19.293Z",
+        "lastChanged": "2026-07-03T03:16:33.368Z",
+        "lastStatus": "done"
+      },
+      "metrics": null,
+      "measurements": null,
+      "usage_records": null,
+      "last_actor": "overlay-sync",
+      "last_agent_id": null
+    },
+    "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve": {
+      "id": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "label": null,
+      "kind": null,
+      "workspace": "/Users/imyu/Desktop/zonoid",
+      "status": "done",
+      "summary": "Auto-promoted approved tested attempt after merge.",
+      "category": null,
+      "tags": [],
+      "knowledge": [],
+      "note": null,
+      "knowledge_node": null,
+      "code_node": null,
+      "entity_node": null,
+      "snapshot": {
+        "subject": "EWM warm start kb seeded orient adoption run twelve",
+        "description": "The cross-pass warm-start demonstration (pillar 5 payoff): seed the KB with the ceiling test's 12/13 ls20 world-model program as a game-scoped program note (dev-time bootstrap, per the approved dev-Claude-builds/runtime-consumes split), then run 12 live and show ORIENT retrieve -> validate -> adopt -> PLAN/EXECUTE with true physics. Steps: (1) read agent.py _orient to learn the EXACT note format/lookup it parses (query shape, how program source is embedded/retrieved — if ORIENT cannot yet round-trip a program from a note, add the minimal missing piece: kb_protocol write_program_revision already stores prose+source+pass rate; make _orient extract the fenced source and load it); (2) seed via kb_protocol.write_program_revision (game ls20, the ceiling program from out/ewm-runs/ceiling-ls20-1783084398/ artifacts, prose summary as retrieval key, pass rate 12/13) against the live daemon (ZONOID_DAEMON_URL=http://localhost:8787, workspace /Users/imyu/Desktop/zonoid); (3) verify retrieval offline (search returns the note; _orient loads + the program validates 12/13 on the recorded suite); (4) LIVE RUN 12: qwen-coding, vision on, --graph on, caps 80 actions / 1500s — expect ORIENT adoption (partial, changed-cells accuracy high), planner-driven EXECUTE, possible level clears; write out/ewm-ls20-ewm-warmstart.json + append arm to out/ewm-ls20-ab.json with orient_adopted flag, levels, actions-per-level if any. Truthful reporting; if ORIENT adoption fails, capture exactly where the round-trip broke. Full suite + --smoke green.",
+        "status": "pending",
+        "blockedBy": [],
+        "owner": null,
+        "metadata": {
+          "synthetic_overlay_task": true,
+          "created_by": "subconscious_assignment"
+        },
+        "snapshotted_at": "2026-07-03T17:22:30.399Z"
+      },
+      "assignee": "headless-review-merge-drain",
+      "timestamps": {
+        "firstSeen": "2026-07-03T17:22:30.399Z",
+        "lastChanged": "2026-07-03T18:13:19.599Z",
+        "lastStatus": "done"
       },
       "metrics": null,
       "measurements": null,
@@ -274005,152 +274753,22 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:chunk-agents-md-5-2-do-not-store-task-specific-context-or-ep-45d2dfd2f0",
-      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.351,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-claude-md-5-2-do-not-store-task-specific-context-or-ep-1f62e96bb0",
-      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.351,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-contributing-md-7-0-fork-the-repo-and-create-a-branch--d19e360da1",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.493,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-readme-md-3-3-bi-temporal-retrieval-1-0-vs-0-6-recall--09609fb2f5",
-      "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.326,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:chunk-readme-md-4-0-after-each-session-zonoid-mines-the-comp-7eb25e4957",
-      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.365,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-3",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.321,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-4",
-      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.371,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-1",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.357,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "knowledge:source_chunk:note-mqqpp70ivco#note-evidence:chunk-2",
       "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.352,
+      "by": "judge",
+      "judged": true,
       "score": 0.352,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqqpqf49a5m#note-evidence:chunk-1",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.357,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqsi4rz0p98#note-evidence:chunk-2",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.324,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mq5iflmh",
-      "to": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.321,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mq75a7zx",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/1",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.433,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mq7hef5qoyk",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.355,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mqacft0tdqh",
       "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.395,
+      "by": "judge",
+      "judged": true,
       "score": 0.395,
       "origin": "autowire-semantic"
     },
@@ -274158,9 +274776,9 @@
       "from": "note:note-mqbbfla22pq",
       "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.328,
+      "by": "judge",
+      "judged": true,
       "score": 0.328,
       "origin": "autowire-semantic"
     },
@@ -274168,30 +274786,10 @@
       "from": "note:note-mqe0szihwix",
       "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.321,
+      "by": "judge",
+      "judged": true,
       "score": 0.321,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqeai9sgzr1",
-      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.333,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqelk8e5ths",
-      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.396,
       "origin": "autowire-semantic"
     },
     {
@@ -274210,26 +274808,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.291,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqeo3v9kn6i",
-      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.312,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqeo3v9kn6i",
-      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.504,
       "origin": "autowire-semantic"
     },
     {
@@ -274256,30 +274834,10 @@
       "from": "note:note-mqgyclcuqx8",
       "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.33,
+      "by": "judge",
+      "judged": true,
       "score": 0.33,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqh0gwz1mxc",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.386,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqh7dmp2iwq",
-      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.302,
       "origin": "autowire-semantic"
     },
     {
@@ -274321,16 +274879,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqkzbyez8m4",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.275,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqlapu0wi63",
       "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
       "kind": "context",
@@ -274341,93 +274889,13 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mqljsmkubpa",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.396,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqoeu0bmayx",
-      "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.457,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqokgnd2wnw",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.313,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqoxvl18k5p",
-      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.305,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp4xtjatjn",
-      "to": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.306,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqp52vxy0op",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/2",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.27,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mqp7moo8hc8",
       "to": "29556785-fa39-442e-8eba-b5dd9dc00862/4",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.415,
+      "by": "judge",
+      "judged": true,
       "score": 0.415,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqpzvfu3u72",
-      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/6",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.275,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mqqv4ix36dd",
-      "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.395,
       "origin": "autowire-semantic"
     },
     {
@@ -274473,25 +274941,33 @@
       "from": "note:note-mr3w7imnpak",
       "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
       "kind": "context",
-      "origin": "subconscious-assignment"
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mr42ami4z24",
       "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
       "kind": "context",
-      "origin": "subconscious-assignment"
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mr42ami4z24",
       "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
       "kind": "context",
-      "origin": "subconscious-assignment"
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mr42ami4z24",
       "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
       "kind": "context",
-      "origin": "subconscious-assignment"
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mr43cv6pydy",
@@ -274512,26 +274988,20 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr43cv6pydy",
-      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.491,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "note:note-mr43rk1dmy0",
       "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
       "kind": "context",
-      "origin": "subconscious-assignment"
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mr43rk1dmy0",
       "to": "codex/ewm-agent-loop-land-completed-attempt-branch",
       "kind": "context",
-      "origin": "subconscious-assignment"
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mr43rk1dmy0",
@@ -274612,9 +275082,9 @@
       "from": "note:note-mr45ykxy4rf",
       "to": "note:note-mr45u2lycou",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.74,
+      "by": "judge",
+      "judged": true,
       "score": 0.74,
       "origin": "autowire-semantic"
     },
@@ -274639,127 +275109,11 @@
     },
     {
       "from": "note:note-mr46y3pjbt8",
-      "to": "note:note-mr45ykxy4rf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.541,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "note:note-mr43cv6pydy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.507,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "note:note-mqvr2wl8lre",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.502,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
-      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.6,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr46y3pjbt8",
       "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
       "kind": "context",
-      "origin": "subconscious-assignment"
-    },
-    {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "note:note-mr45ykxy4rf",
-      "kind": "context",
-      "weight": 0,
+      "origin": "subconscious-assignment",
       "by": "autowire",
-      "judged": false,
-      "score": 0.643,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "note:note-mr43rk1dmy0",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.595,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "note:note-mr3w7imnpak",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.558,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "note:note-mr3vdyn5zxa",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.547,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47rrqji0d",
-      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "kind": "context",
-      "weight": 1,
-      "judged": true,
-      "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr47rrqji0d",
-      "to": "note:note-mr45ykxy4rf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.765,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47rrqji0d",
-      "to": "note:note-mr45u2lycou",
-      "kind": "context",
-      "weight": 0.648,
-      "by": "judge",
-      "judged": true,
-      "score": 0.648,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47rrqji0d",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "kind": "context",
-      "weight": 0.533,
-      "by": "judge",
-      "judged": true,
-      "score": 0.533,
-      "origin": "autowire-semantic"
+      "judged": false
     },
     {
       "from": "note:note-mr48a5ra7bz",
@@ -274768,36 +275122,6 @@
       "weight": 1,
       "judged": true,
       "origin": "asserted"
-    },
-    {
-      "from": "note:note-mr48a5ra7bz",
-      "to": "note:note-mr43cv6pydy",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.627,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr48a5ra7bz",
-      "to": "note:note-mr45ykxy4rf",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.59,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr48a5ra7bz",
-      "to": "note:note-mr47rrqji0d",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.548,
-      "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr48a5ra7bz",
@@ -274889,16 +275213,6 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
-      "to": "codex/workflow-user-gate-guidance-projection",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.438,
-      "origin": "autowire-semantic"
-    },
-    {
       "from": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
       "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
       "kind": "context",
@@ -274961,16 +275275,6 @@
     },
     {
       "from": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
-      "to": "codex/probe-subconscious-assignment-main-live",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.452,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
       "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
       "kind": "blocking",
       "by": "judge",
@@ -275004,16 +275308,6 @@
     },
     {
       "from": "codex/ewm-repl-sandbox-budget-guards-segmentation",
-      "to": "codex/paper-code-retrieval-economy-judge",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.346,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-repl-sandbox-budget-guards-segmentation",
       "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
       "kind": "context",
       "origin": "subconscious-assignment"
@@ -275038,30 +275332,10 @@
       "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
       "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
+      "weight": 0.465,
+      "by": "judge",
+      "judged": true,
       "score": 0.465,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.384,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
-      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.365,
       "origin": "autowire-semantic"
     },
     {
@@ -275078,29 +275352,91 @@
     },
     {
       "from": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
-      "to": "knowledge:source_section:section-agents-md-3-predict-by-default-request-guidance-is-a-17265807e5",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.282,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
-      "to": "codex/progressive-disclosure-context-contract",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.271,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-world-model-kit-contract-regression-suite-sim-planner",
       "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
       "kind": "context",
       "origin": "subconscious-assignment"
+    },
+    {
+      "from": "note:note-mr42ami4z24",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
+    },
+    {
+      "from": "note:note-mr45ykxy4rf",
+      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.552,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr47mxx2ty3",
+      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.486,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr49q8juxow",
+      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "kind": "context",
+      "weight": 0.533,
+      "judged": true,
+      "origin": "autowire-semantic",
+      "by": "judge",
+      "score": 0.533
+    },
+    {
+      "from": "note:note-mr49q8juxow",
+      "to": "note:note-mr45ykxy4rf",
+      "kind": "context",
+      "weight": 0.765,
+      "by": "judge",
+      "judged": true,
+      "score": 0.765,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-adapters-codex-readme-md-3-0-fail-closed-pretooluse-re-ca7537a106",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.459,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-adapters-cursor-readme-md-3-1-native-hooks-cover-all-h-e69f749221",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.401,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:chunk-adapters-cursor-readme-md-5-0-after-start-task-registe-296c608bfb",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.411,
+      "origin": "autowire-semantic"
     },
     {
       "from": "knowledge:source_chunk:chunk-agents-md-2-3-pairing-a-judge-task-is-the-dispatcher-s-742a33e01f",
@@ -275121,12 +275457,21 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "knowledge:source_chunk:note-mqpavx66iic#note-evidence:chunk-1",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "from": "knowledge:source_chunk:chunk-readme-md-4-0-after-each-session-zonoid-mines-the-comp-7eb25e4957",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
+      "score": 0.504,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mqpavx66iic#note-evidence:chunk-1",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
       "score": 0.335,
       "origin": "autowire-semantic"
     },
@@ -275162,12 +275507,12 @@
     },
     {
       "from": "knowledge:source_chunk:note-mqqmixayq8m#note-evidence:chunk-4",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "to": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.352,
+      "weight": 0.449,
+      "by": "judge",
+      "judged": true,
+      "score": 0.449,
       "origin": "autowire-semantic"
     },
     {
@@ -275186,16 +275531,6 @@
       "by": "judge",
       "judged": true,
       "score": 0.483,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "knowledge:source_chunk:note-mqr366hr6af#note-evidence:chunk-2",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.352,
       "origin": "autowire-semantic"
     },
     {
@@ -275223,6 +275558,62 @@
       "origin": "note-source-cluster"
     },
     {
+      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
+      "to": "note:note-mr57kpil9xk",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
+      "to": "note:note-mr57kpil9xk",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "to": "note:note-mr57kpil9xk",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
+      "to": "note:note-mr57kpil9xk",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "to": "note:note-mr59w27c05s",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "to": "note:note-mr59w27c05s",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
+      "to": "note:note-mr59w27c05s",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "note-source-cluster"
+    },
+    {
       "from": "knowledge:source_doc:note-mqqnit1ph68",
       "to": "note:note-mqqnit1ph68",
       "kind": "context",
@@ -275237,6 +275628,38 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_doc:note-mr57kpil9xk",
+      "to": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_doc:note-mr59nv4u31i",
+      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_doc:note-mr59oitveey",
+      "to": "knowledge:source_section:note-mr59oitveey#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_doc:note-mr59p4ht2vq",
+      "to": "knowledge:source_section:note-mr59p4ht2vq#note-evidence",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
     },
     {
       "from": "knowledge:source_section:note-mqsi4rz0p98#note-evidence",
@@ -275269,6 +275692,70 @@
       "weight": 1,
       "judged": true,
       "origin": "note-source-cluster"
+    },
+    {
+      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "to": "note:note-mr57kpil9xk",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_section:note-mr59oitveey#note-evidence",
+      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
+    },
+    {
+      "from": "knowledge:source_section:note-mr59p4ht2vq#note-evidence",
+      "to": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 1,
+      "origin": "note-source-cluster",
+      "judged": true
     },
     {
       "from": "knowledge:source_section:section-claude-md-1-orchestrator-dashboard-e5ce5288fe",
@@ -275544,6 +276031,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mq7gpd48",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.435,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mq7h7ht01ut",
       "to": "091a4bf1-b671-4ff9-854d-993775faa5ee/23",
       "kind": "context",
@@ -275677,6 +276174,14 @@
       "judged": true,
       "score": 0.565,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mq9gifkl7hh",
+      "to": "note:note-mq9kdid34r8",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "note:note-mq9jsfd7eyy",
@@ -276240,6 +276745,16 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqflngdgy51",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.453,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqfnyddvxdj",
       "to": "note:note-mqe5sbyj4uq",
       "kind": "context",
@@ -276257,6 +276772,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.683,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqfnyddvxdj",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.48,
       "origin": "autowire-semantic"
     },
     {
@@ -276496,6 +277021,16 @@
       "by": "judge",
       "judged": true,
       "score": 0.652,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqgyg8r1wkb",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.435,
       "origin": "autowire-semantic"
     },
     {
@@ -277559,6 +278094,14 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqiu7gpqxp8",
+      "to": "knowledge:source_section:section-contributing-md-8-contributor-license-agreement-7f604c8a34",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
       "from": "note:note-mqiu7w6hus0",
       "to": "codex/product-pipeline-verification-review",
       "kind": "context",
@@ -277792,6 +278335,16 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "note:note-mqiuf091u3n",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.463,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqivir09qko",
       "to": "note:note-mqivjg3b5yl",
       "kind": "context",
@@ -277823,6 +278376,16 @@
       "judged": true,
       "weight": 0.659,
       "score": 0.659,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqj6vo24dzn",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
+      "kind": "context",
+      "weight": 0.434,
+      "by": "judge",
+      "judged": true,
+      "score": 0.434,
       "origin": "autowire-semantic"
     },
     {
@@ -278657,6 +279220,14 @@
       "origin": "autowire-semantic"
     },
     {
+      "from": "note:note-mqp57jlmzn1",
+      "to": "note:note-mqp585nxj80",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
       "from": "note:note-mqp57q6latn",
       "to": "note:note-mqp4z1dp55o",
       "kind": "context",
@@ -278669,6 +279240,14 @@
     {
       "from": "note:note-mqp585nxj80",
       "to": "note:note-mqp57jlmzn1",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqp58nh62xy",
+      "to": "note:note-mqd8r0dulaw",
       "kind": "context",
       "weight": 0.6,
       "by": "judge",
@@ -278723,6 +279302,22 @@
       "judged": true,
       "score": 0.712,
       "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mqp59nrfuo0",
+      "to": "knowledge:source_chunk:chunk-agents-md-2-4-substantial-work-gets-a-two-tier-feature-50707caa91",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqp59nrfuo0",
+      "to": "knowledge:source_chunk:chunk-agents-md-2-6-why-two-tiers-forking-attempts-off-a-sta-9c4aefcd6a",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
     },
     {
       "from": "note:note-mqp59ulbxqf",
@@ -279857,6 +280452,32 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "note:note-mqpna41fj59",
+      "to": "note:note-mqpz36sv7ns",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqpna41fj59",
+      "to": "knowledge:source_chunk:note-mqpwriu892d#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
+      "from": "note:note-mqpna41fj59",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.447,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqppi1wigd1",
       "to": "codex/search-economy-retrieval-phase1",
       "kind": "context",
@@ -280679,6 +281300,14 @@
       "origin": "subconscious-agentic-search"
     },
     {
+      "from": "note:note-mqs2cryemhg",
+      "to": "note:note-mqh250aamjb",
+      "kind": "context",
+      "weight": 0.6,
+      "by": "judge",
+      "judged": true
+    },
+    {
       "from": "note:note-mqs2kpieojw",
       "to": "codex/auto-drain-tested-ready-and-drop-stale-smoke",
       "kind": "context",
@@ -280821,6 +281450,16 @@
       "judged": true
     },
     {
+      "from": "note:note-mqsiyvoyset",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.427,
+      "origin": "autowire-semantic"
+    },
+    {
       "from": "note:note-mqsktjtz8ch",
       "to": "claude/on-arm-grader-retrieval-production-identical-via-subconscious-search-context",
       "kind": "context",
@@ -280873,71 +281512,709 @@
     },
     {
       "from": "note:note-mr42ami4z24",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "to": "codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection",
       "kind": "context",
-      "origin": "subconscious-assignment"
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
+    },
+    {
+      "from": "note:note-mr42ami4z24",
+      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
+    },
+    {
+      "from": "note:note-mr42ami4z24",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
     },
     {
       "from": "note:note-mr43cv6pydy",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.533,
+      "weight": 0.408,
+      "by": "judge",
+      "judged": true,
+      "score": 0.408,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43cv6pydy",
+      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "kind": "context",
+      "weight": 0.583,
+      "by": "judge",
+      "judged": true,
+      "score": 0.583,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43cv6pydy",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "weight": 0.604,
+      "by": "judge",
+      "judged": true,
+      "score": 0.604,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr43rk1dmy0",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.467,
+      "weight": 0.305,
+      "by": "judge",
+      "judged": true,
+      "score": 0.305,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr43rk1dmy0",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.432,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr45ykxy4rf",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
-      "score": 0.552,
+      "score": 0.491,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr45ykxy4rf",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.462,
+      "score": 0.444,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr47mxx2ty3",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "from": "note:note-mr46y3pjbt8",
+      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
       "kind": "blocking",
       "by": "judge",
       "judged": true,
-      "score": 0.486,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "note:note-mr47rrqji0d",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.577,
+      "score": 0.6,
       "origin": "autowire-semantic"
     },
     {
       "from": "note:note-mr48a5ra7bz",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.437,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr49q8juxow",
+      "to": "codex/ewm-vision-enabled-ls20-rerun-qwen-arc-multimodal",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr49q8juxow",
+      "to": "note:note-mr45u2lycou",
+      "kind": "context",
+      "weight": 0.648,
+      "by": "judge",
+      "judged": true,
+      "score": 0.648,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4dujpkkos",
+      "to": "note:note-mqvr2wl8lre",
+      "kind": "context",
+      "weight": 0.617,
+      "by": "judge",
+      "judged": true,
+      "score": 0.617,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4dujpkkos",
+      "to": "codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt",
+      "kind": "context",
+      "origin": "autowire-semantic",
+      "weight": 0.472,
+      "by": "judge",
+      "judged": true,
+      "score": 0.472
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
+      "kind": "context",
+      "weight": 0.616,
+      "by": "judge",
+      "judged": true,
+      "score": 0.616,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "codex/ewm-segment-helper-injection-world-model-sandbox",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "judge",
+      "judged": true,
+      "weight": 0.5
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "kind": "context",
+      "origin": "autowire-semantic",
+      "weight": 0.623,
+      "by": "judge",
+      "judged": true,
+      "score": 0.623
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "origin": "autowire-semantic",
+      "weight": 0.458,
+      "by": "judge",
+      "judged": true,
+      "score": 0.458
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "codex/ewm-partial-adoption-best-candidate-unknown-masking",
+      "kind": "context",
+      "origin": "subconscious-assignment",
+      "by": "autowire",
+      "judged": false
+    },
+    {
+      "from": "note:note-mr4vdh2w510",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.505,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr4vpnpn6g2",
+      "to": "codex/ewm-segment-helper-injection-world-model-sandbox",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr4vv1eomm8",
+      "to": "codex/ewm-object-delta-module-relative-coordinate-transitions",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr51e6x60dd",
+      "to": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr534gig0ek",
+      "to": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr534gig0ek",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.413,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "knowledge:source_section:note-mr57kpil9xk#note-evidence",
+      "kind": "context",
+      "weight": 0.718,
+      "by": "judge",
+      "judged": true,
+      "score": 0.718,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.718,
+      "by": "judge",
+      "judged": true,
+      "score": 0.718,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 0.501,
+      "by": "judge",
+      "judged": true,
+      "score": 0.501,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 0.496,
+      "by": "judge",
+      "judged": true,
+      "score": 0.496,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57kpil9xk",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.479,
+      "by": "judge",
+      "judged": true,
+      "score": 0.479,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57q7mvytm",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr57q7mvytm",
+      "to": "note:note-mqpz36sv7ns",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.635,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr57q7mvytm",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.546,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59as8s26f",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59nvbsjaf",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59nvbsjaf",
+      "to": "codex/add-arc-agi-3-cli-agent-and-zonoid-context-hook",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.451,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59nvbsjaf",
+      "to": "note:note-mr59as8s26f",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.416,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59nvbsjaf",
+      "to": "note:note-mr4307zl9gd",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.337,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "knowledge:source_section:note-mr59oitveey#note-evidence",
+      "kind": "context",
+      "weight": 0.902,
+      "by": "judge",
+      "judged": true,
+      "score": 0.902,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59v4n10xs",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.85,
+      "by": "judge",
+      "judged": true,
+      "score": 0.85,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vi2zayu",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59vi2zayu",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-2",
+      "kind": "context",
+      "weight": 0.811,
+      "by": "judge",
+      "judged": true,
+      "score": 0.811,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vi2zayu",
+      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.753,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vi2zayu",
+      "to": "note:note-mr59vnw5frl",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.764,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vnw5frl",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59vnw5frl",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 0.852,
+      "by": "judge",
+      "judged": true,
+      "score": 0.852,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vwq3thh",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59vwq3thh",
+      "to": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.817,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vwq3thh",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 0.816,
+      "by": "judge",
+      "judged": true,
+      "score": 0.816,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vwq3thh",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.711,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vwq3thh",
+      "to": "knowledge:source_section:note-mr59p4ht2vq#note-evidence",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.817,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59vwq3thh",
+      "to": "note:note-mr59vnw5frl",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.739,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "note:note-mr59v4n10xs",
+      "kind": "context",
+      "weight": 0.758,
+      "by": "judge",
+      "judged": true,
+      "score": 0.758,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "note:note-mr59vnw5frl",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.75,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "note:note-mr59vi2zayu",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.743,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "note:note-mr59vwq3thh",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.739,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-4",
+      "kind": "context",
+      "weight": 0.689,
+      "by": "judge",
+      "judged": true,
+      "score": 0.689,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_chunk:note-mr59nv4u31i#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0.72,
+      "by": "judge",
+      "judged": true,
+      "score": 0.72,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_doc:note-mr59nv4u31i",
+      "kind": "context",
+      "weight": 0.692,
+      "by": "judge",
+      "judged": true,
+      "score": 0.692,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_section:note-mr59nv4u31i#note-evidence",
+      "kind": "context",
+      "weight": 0.692,
+      "by": "judge",
+      "judged": true,
+      "score": 0.692,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_chunk:note-mr57kpil9xk#note-evidence:chunk-3",
+      "kind": "context",
+      "weight": 0.683,
+      "by": "judge",
+      "judged": true,
+      "score": 0.683,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_chunk:note-mr59oitveey#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.72,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_doc:note-mr59oitveey",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.692,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_section:note-mr59oitveey#note-evidence",
+      "kind": "context",
+      "weight": 0.774,
+      "by": "judge",
+      "judged": true,
+      "score": 0.774,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr59w27c05s",
+      "to": "knowledge:source_chunk:note-mr59p4ht2vq#note-evidence:chunk-1",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.583,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5agie2r7x",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "kind": "context",
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "note:note-mr5agie2r7x",
+      "to": "note:note-mqvr2wl8lre",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
@@ -280946,61 +282223,185 @@
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr49q8juxow",
-      "to": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
+      "from": "note:note-mr5agie2r7x",
+      "to": "note:note-mr59as8s26f",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.476,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5agie2r7x",
+      "to": "note:note-mr3vdyn5zxa",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.463,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5agie2r7x",
+      "to": "note:note-mr59nvbsjaf",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.445,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "note:note-mr5b375dvnh",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
       "kind": "context",
       "weight": 1,
       "judged": true,
       "origin": "asserted"
     },
     {
-      "from": "note:note-mr49q8juxow",
-      "to": "note:note-mr47rrqji0d",
+      "from": "note:note-mr5b375dvnh",
+      "to": "note:note-mr57q7mvytm",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.705,
+      "score": 0.768,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr49q8juxow",
-      "to": "note:note-mr45ykxy4rf",
+      "from": "note:note-mr5b375dvnh",
+      "to": "note:note-mqpywsqkwff",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.701,
+      "score": 0.663,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr49q8juxow",
-      "to": "note:note-mr47mxx2ty3",
+      "from": "note:note-mr5b375dvnh",
+      "to": "note:note-mqq2xj787yq",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.65,
+      "score": 0.656,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr49q8juxow",
-      "to": "note:note-mr4307zl9gd",
+      "from": "note:note-mr5b375dvnh",
+      "to": "note:note-mqppi1wigd1",
       "kind": "context",
       "weight": 0,
       "by": "autowire",
       "judged": false,
-      "score": 0.61,
+      "score": 0.644,
       "origin": "autowire-semantic"
     },
     {
-      "from": "note:note-mr49q8juxow",
-      "to": "note:note-mr43rk1dmy0",
+      "from": "note:note-mr5bebfkw0t",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.608,
+      "weight": 1,
+      "judged": true,
+      "origin": "asserted"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/10",
+      "to": "knowledge:source_section:section-claude-md-6-kb-note-authoring-6405cb40a9",
+      "kind": "context",
+      "weight": 0.366,
+      "by": "judge",
+      "judged": true,
+      "score": 0.366,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/10",
+      "to": "codex/ewm-mechanism-hypothesis-schema-stripped-new-game-entry",
+      "kind": "supersede"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "to": "knowledge:source_section:section-agents-md-2-default-to-background-subagent-dispatch-0a6fe8e9a4",
+      "kind": "context",
+      "weight": 0.517,
+      "by": "judge",
+      "judged": true,
+      "score": 0.517,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "to": "knowledge:source_section:section-claude-md-2-default-to-background-subagent-dispatch-a780aeb808",
+      "kind": "context",
+      "weight": 0.517,
+      "by": "judge",
+      "judged": true,
+      "score": 0.517,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/5",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.463,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.484,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/11",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "supersede"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/7",
+      "to": "codex/ewm-object-delta-module-relative-coordinate-transitions",
+      "kind": "supersede"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
+      "to": "knowledge:source_section:section-adapters-codex-readme-md-2-hook-map-8fefc49aae",
+      "kind": "context",
+      "weight": 0.361,
+      "by": "judge",
+      "judged": true,
+      "score": 0.361,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
+      "to": "codex/ewm-repl-sandbox-budget-guards-segmentation",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.378,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/8",
+      "to": "codex/ewm-segment-helper-injection-world-model-sandbox",
+      "kind": "supersede"
+    },
+    {
+      "from": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
+      "to": "codex/review-graph-overlay-dispatch-loops",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.441,
       "origin": "autowire-semantic"
     },
     {
@@ -281121,50 +282522,283 @@
       "judged": true
     },
     {
-      "from": "codex/ewm-qwen-coding-ls20-arm-two-model-pair-decision-run",
-      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "to": "codex/harden-long-note-cluster-ingest-daemon-startup",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.414,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "to": "knowledge:source_doc:note-mqqpqf49a5m",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.398,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "to": "knowledge:source_doc:note-mqqvw755vf0",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.39,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "to": "knowledge:source_doc:note-mqqpp70ivco",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.386,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
+      "to": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
+      "to": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.388,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
+      "to": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "to": "codex/long-note-cluster-ingest-hardening",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.432,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "to": "knowledge:source_section:section-claude-md-6-kb-note-authoring-6405cb40a9",
+      "kind": "context",
+      "weight": 0,
+      "by": "autowire",
+      "judged": false,
+      "score": 0.432,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
+      "to": "codex/daemon-chunker-indentation-native-orient-note-get-run-thirteen",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "to": "29556785-fa39-442e-8eba-b5dd9dc00862/9",
+      "kind": "context",
+      "weight": 0.664,
+      "by": "judge",
+      "judged": true,
+      "score": 0.664,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "to": "knowledge:source_section:section-readme-md-1-install-455039f6ad",
+      "kind": "context",
+      "weight": 0.481,
+      "by": "judge",
+      "judged": true,
+      "score": 0.481,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-mechanism-hypothesis-schema-stripped-new-game-entry",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "to": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
+      "kind": "context",
+      "weight": 0.627,
+      "by": "judge",
+      "judged": true,
+      "score": 0.627,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "to": "codex/ewm-graph-native-synthesis-step-tasks-write-gated-edit-chain",
+      "kind": "context",
+      "weight": 0.619,
+      "by": "judge",
+      "judged": true,
+      "score": 0.619,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "to": "codex/ewm-agent-loop-mode-machine-decide-reflect-integration",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.598,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "to": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-object-delta-module-relative-coordinate-transitions",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-partial-adoption-best-candidate-unknown-masking",
+      "to": "codex/ewm-changed-cells-floor-repair-on-partial-adoption",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-segment-helper-injection-world-model-sandbox",
+      "to": "codex/ewm-multi-step-synthesis-agent-integration-run-eight",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
+      "to": "codex/headless-drain-context-compression",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.445,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
+      "to": "codex/ewm-ceiling-test-claude-synthesis-offline-suite-replay",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-session-prompt-contract-reuse-pacing-budget-daemon-endpoints",
+      "to": "codex/ewm-partial-adoption-best-candidate-unknown-masking",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection",
+      "to": "codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing",
       "kind": "context",
       "origin": "subconscious-assignment"
     },
     {
       "from": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "to": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
+      "to": "codex/ewm-context-policy-kb-summaries-prev-step-per-role-models",
+      "kind": "context",
+      "weight": 0.469,
+      "by": "judge",
+      "judged": true,
+      "score": 0.469,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-synthesis-pipeline-fix-extraction-tokens-grid-data-prompt",
+      "to": "codex/ewm-synth-prompt-unknown-partial-fidelity-block-selection",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing",
+      "to": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.533,
+      "origin": "autowire-semantic"
+    },
+    {
+      "from": "codex/ewm-unknown-alias-stdlib-prompt-synthesis-pacing",
+      "to": "codex/ewm-auto-changing-cells-hint-from-suite-in-synthesis-prompt",
+      "kind": "context",
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
       "to": "codex/ewm-probe-first-suite-seeding-repair-engagement-fix",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.442,
+      "weight": 0.53,
+      "by": "judge",
+      "judged": true,
+      "score": 0.53,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/ewm-synthesis-artifact-persistence-run-debugging",
-      "to": "codex/ewm-env-driver-arc-runner-glue-smoke-run",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.439,
-      "origin": "autowire-semantic"
-    },
-    {
-      "from": "codex/ewm-synthesis-artifact-persistence-run-debugging",
+      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
       "to": "codex/ewm-kb-protocol-mode-scoped-search-acceptance-writes",
-      "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.387,
+      "kind": "blocking",
+      "by": "judge",
+      "judged": true,
+      "score": 0.466,
       "origin": "autowire-semantic"
     },
     {
-      "from": "codex/ewm-synthesis-artifact-persistence-run-debugging",
-      "to": "codex/ewm-live-ls20-run-wiring-and-ab-slice",
+      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "to": "codex/ewm-chunked-program-notes-orient-reassembly-run-thirteen",
       "kind": "context",
-      "weight": 0,
-      "by": "autowire",
-      "judged": false,
-      "score": 0.373,
-      "origin": "autowire-semantic"
+      "origin": "subconscious-assignment"
+    },
+    {
+      "from": "codex/ewm-warm-start-kb-seeded-orient-adoption-run-twelve",
+      "to": "codex/daemon-note-get-reassembling-full-body-read-endpoint",
+      "kind": "context",
+      "origin": "subconscious-assignment"
     },
     {
       "from": "codex/fix-consolidate-universal-skills-kickback",
@@ -281331,5 +282965,5 @@
       "origin": "autowire-semantic"
     }
   ],
-  "compacted_at": "2026-07-03T01:51:28.210Z"
+  "compacted_at": "2026-07-03T19:18:30.449Z"
 }
