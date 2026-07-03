@@ -1,29 +1,29 @@
 {
-  "comparison": "EWM (vision) vs EWM (text-only) vs reactive baseline on ARC-AGI-3 ls20",
+  "comparison": "Four-arm A/B on ARC-AGI-3 ls20: reactive baseline vs EWM text-only vs EWM vision (qwen35b-arc, PRE-fix harness) vs EWM vision (qwen-coding, FIXED probe-first harness)",
   "game": "ls20",
   "total_levels": 7,
+  "harness_note": "Arms 1-3 ran on the PRE-fix harness where a program could be adopted vacuously (validated against zero transitions at cold start). Arm 4 runs on the FIXED harness (probe-first seeding: min_probe_transitions=4, adoption requires validate() pass on a NON-EMPTY suite; plus repair caps and a live pass-rate floor 0.5/last-20 -> reactive fallback). Adoption semantics therefore DIFFER between arm 3 and arm 4: arm 3's program_adopted:true was vacuous; arm 4's program_adopted:false means 4 real synthesis attempts each failed validation against observed transitions and the harness correctly refused adoption.",
   "arms": {
-    "ewm_vision": {
-      "agent": "EwmAgent (five-pillar world-model agent, this branch)",
-      "source": "out/ewm-ls20-ewm-vision.json (live run this task)",
-      "model": "qwen35b-arc:latest (35B MoE, vision-capable, ollama)",
-      "vision": true,
-      "reasoning_effort": "none",
+    "reactive_baseline": {
+      "agent": "official BenchmarkingAgent, config zonoid-local-cli (reactive/Duck-style)",
+      "source": "scratchpad/arc-run-ornith35b-cold (cold ls20 run)",
+      "model": "ornith35b-arc:latest (35B, text-only, ollama)",
+      "harness": "n/a (official reactive agent)",
+      "vision": false,
       "levels_completed": 0,
-      "actions_taken": 80,
+      "actions_taken": 51,
       "actions_per_level_completed": null,
       "won": false,
-      "program_adopted": true,
-      "best_pass_rate": "0/80 transitions (0.0)",
-      "modes_visited": ["SYNTHESIZE", "EXECUTE"],
-      "divergences": 80,
-      "stop_reason": "budget (80-action cap; ~14.5 min)",
-      "scorecard_url": "https://arcprize.org/scorecards/3cab1596-cd3c-4914-8aab-7090e831a8c4"
+      "program_adopted": false,
+      "stop_reason": "ACTION_BUDGET (MAX_ACTIONS=50, scorecard reported 51)",
+      "scorecard_url": "https://arcprize.org/scorecards/9fdd913f-ae80-4a8e-ad63-850d6779656a",
+      "wall_clock_seconds": 1368
     },
     "ewm_text_only": {
-      "agent": "EwmAgent (five-pillar world-model agent, this branch)",
+      "agent": "EwmAgent (five-pillar world-model agent)",
       "source": "out/ewm-ls20-ewm.json (prior live run)",
       "model": "ornith35b-arc:latest (35B, text-only, ollama)",
+      "harness": "pre-fix",
       "vision": false,
       "levels_completed": 0,
       "actions_taken": 70,
@@ -35,26 +35,56 @@
       "stop_reason": "budget (25-min wall-clock cap)",
       "scorecard_url": "https://arcprize.org/scorecards/b1b7ec41-d8c7-4f6d-a16f-1215a3a8051f"
     },
-    "reactive_baseline": {
-      "agent": "official BenchmarkingAgent, config zonoid-local-cli (reactive/Duck-style)",
-      "source": "scratchpad/arc-run-ornith35b-cold (cold ls20 run)",
-      "model": "ornith35b-arc:latest (35B, text-only, ollama)",
-      "vision": false,
+    "ewm_vision_qwen35b_arc_prefix": {
+      "agent": "EwmAgent (five-pillar world-model agent)",
+      "source": "out/ewm-ls20-ewm-vision.json (prior live run)",
+      "model": "qwen35b-arc:latest (35B MoE, vision-capable, ollama)",
+      "harness": "pre-fix (vacuous adoption possible)",
+      "vision": true,
+      "reasoning_effort": "none",
       "levels_completed": 0,
-      "actions_taken": 51,
+      "actions_taken": 80,
+      "actions_per_level_completed": null,
+      "won": false,
+      "program_adopted": true,
+      "note_adoption": "VACUOUS: adopted against zero transitions at cold start (pre-fix rule), then mispredicted all 80 observed transitions (divergences=80, empirical pass rate 0.0).",
+      "best_pass_rate": "0/80 transitions (0.0)",
+      "modes_visited": ["SYNTHESIZE", "EXECUTE"],
+      "divergences": 80,
+      "stop_reason": "budget (80-action cap; ~14.5 min)",
+      "scorecard_url": "https://arcprize.org/scorecards/3cab1596-cd3c-4914-8aab-7090e831a8c4"
+    },
+    "ewm_vision_qwen_coding_fixed": {
+      "agent": "EwmAgent (five-pillar world-model agent)",
+      "source": "out/ewm-ls20-ewm-coding.json (live run this task)",
+      "model": "qwen-coding:latest (qwen35moe 36B, vision-capable, num_ctx 65536, ollama) as BOTH gameplay and synthesis",
+      "harness": "FIXED (probe-first seeding + repair caps + live pass-rate floor). program_adopted here is NOT comparable to arm 3: false means candidates were tested against a real non-empty suite and all failed validation.",
+      "vision": true,
+      "reasoning_effort": "none",
+      "levels_completed": 0,
+      "actions_taken": 80,
       "actions_per_level_completed": null,
       "won": false,
       "program_adopted": false,
-      "stop_reason": "ACTION_BUDGET (MAX_ACTIONS=50, scorecard reported 51)",
-      "scorecard_url": "https://arcprize.org/scorecards/9fdd913f-ae80-4a8e-ad63-850d6779656a",
-      "wall_clock_seconds": 1368
+      "synthesis_attempts": 4,
+      "repair_attempts": 0,
+      "suite_size": 80,
+      "live_pass_rate": "1.0 (VACUOUS -- window only scores against an adopted program; none was adopted, so the empty-window default 1.0 is reported)",
+      "best_pass_rate": "no candidate program passed validate() on the seeded suite (0/4 synthesis attempts adopted)",
+      "modes_visited": ["RECOVER", "SYNTHESIZE"],
+      "divergences": 76,
+      "note_divergences": "field counts reactive_turns, not model divergences: 80 actions = 4 probe-seeding actions + 76 reactive fallback turns; zero expect-mismatches because no program was ever executed",
+      "stop_reason": "budget (80-action cap at ~23.2 min)",
+      "wall_clock_seconds": 1392,
+      "scorecard_url": "https://arcprize.org/scorecards/9077e04a-008b-4c49-89d4-5a8b8260cdc0"
     }
   },
   "delta": {
-    "levels_completed": "0 vs 0 vs 0 (three-way tie: no arm cleared any of the 7 levels)",
-    "actions_taken": "vision 80, text-only 70, baseline 51 (each hit its own action/wall cap)",
-    "program_adopted": "vision YES, text-only NO, baseline N/A -- the ONE behavioral change vision produced",
-    "actions_per_level": "undefined for all three (0 levels completed on each arm)"
+    "levels_completed": "0 vs 0 vs 0 vs 0 (four-way tie: no arm cleared any of the 7 levels)",
+    "actions_taken": "baseline 51, text-only 70, vision pre-fix 80, vision fixed 80 (each hit its own action/wall cap)",
+    "program_adopted": "only arm 3 adopted -- and vacuously; arm 4's non-adoption is the fixed harness correctly refusing 4 non-validating candidates, which is the intended behavior, not a regression",
+    "synthesis_engagement": "arm 2: synthesis never produced an adoptable program (text-only model could not author from raw grids); arm 3: synthesis engaged and adopted vacuously; arm 4: synthesis engaged 4 times against a real 80-transition suite, all candidates failed validation"
   },
-  "verdict": "TRUTHFUL THREE-ARM FAILED A/B. All three arms completed 0 of 7 ls20 levels. The single behavioral change vision produced is real but incomplete: with a vision-capable model (qwen35b-arc) seeing the BEFORE|CURRENT composite, the EWM agent DID cross the threshold the text-only run never reached -- it left reactive RECOVER mode, entered SYNTHESIZE/EXECUTE, and ADOPTED a world-model program (program_adopted:true vs false text-only). So vision unblocked *program synthesis*. But it did NOT unblock *valid* synthesis: the adopted program was accepted provisionally against zero transitions, then mispredicted all 80 observed transitions (divergences=80, empirical pass_rate 0.0), so the search planner never had a faithful model to solve a level with. Net: vision moved the bottleneck one step downstream -- from 'model cannot even author a program from raw frames' (text-only) to 'model authors a program but it does not match ls20 dynamics' (vision) -- without yet clearing a level. A required enabling fix was also found and landed: qwen35b-arc is a thinking model that, with thinking ON, spends its whole token budget in the reasoning field and returns empty content, so it could never emit a program; disabling thinking via reasoning_effort:none (new ARC_LLM_REASONING_EFFORT env knob) is what let synthesis engage at all. Live wiring worked end-to-end on all arms (real sessions, actions submitted, scorecards opened/closed)."
+  "verdict": "TRUTHFUL FOUR-ARM FAILED A/B. All four arms completed 0 of 7 ls20 levels. Arm 4 (qwen-coding, both roles, vision on, FIXED probe-first harness) is the first arm where the world-model machinery behaved fully honestly end-to-end: probe seeding banked 4 real transitions before any synthesis, SYNTHESIZE engaged 4 times against a non-empty suite that grew to 80 transitions, and every candidate program failed validate() -- so the harness refused adoption and fell back to reactive play (76 reactive turns), exactly as designed. Contrast with arm 3, where the pre-fix harness adopted a program against zero evidence and then watched it miss all 80 transitions. Net: the fix converted 'confidently wrong world model' into 'no world model, honest fallback' -- same level score, better epistemics. The remaining bottleneck is unchanged and now cleanly isolated: neither local 35B-class model can yet author a Python program that reproduces real ls20 dynamics, whether validated before (arm 4) or after (arm 3) adoption. Telemetry caveats recorded on arm 4: live_pass_rate=1.0 is the vacuous empty-window default (no adopted program to score), and divergences=76 counts reactive turns, not expect-mismatches.",
+  "pair_recommendation": "For the Kaggle two-local-model pair: use qwen-coding:latest as the SYNTHESIS model and qwen35b-arc:latest as the GAMEPLAY (+vision) model. Rationale, stated with its evidential limits: qwen-coding is the only model observed emitting candidate programs under the fixed harness's real validation gate (4 attempts, parseable fenced programs, no thinking-drain with reasoning_effort:none), making it the better-evidenced synthesis half even though none of its candidates validated yet; qwen35b-arc showed the sharper multimodal grounding in sanity checks (named the exact changed cell+color on the composite, where qwen-coding was off-by-one on a 3x3), making it the better-evidenced gameplay/vision half. CAVEAT: no arm has run qwen35b-arc on the fixed harness, and no arm has cleared a level, so this recommendation ranks failure modes rather than successes; a qwen35b-arc-synthesis arm on the fixed harness would be the decisive missing data point."
 }
