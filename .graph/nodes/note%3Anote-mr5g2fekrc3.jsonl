@@ -16,3 +16,6 @@
 {"evt":"edge_added","from":"note:note-mr5g2fekrc3","to":"note:note-mr5efmyx6hw","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:12:46.370Z","weight":0,"by":"autowire","judged":false,"score":0.686,"origin":"autowire-semantic"}
 {"evt":"edge_removed","from":"note:note-mr5g2fekrc3","to":"note:note-mr5erebt155","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:12:46.370Z"}
 {"evt":"edge_removed","from":"note:note-mr5g2fekrc3","to":"note:note-mr5efmyx6hw","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:13:19.462Z"}
+{"evt":"note_superseded","id":"note-mr5g2fekrc3","supersededBy":"note-mr5h411ylje","validTo":"2026-07-03T21:56:45.526Z","ts":"2026-07-03T21:56:45.526Z","actor":"supersede"}
+{"evt":"edge_removed","from":"note:note-mr5g2fekrc3","to":"codex/ewm-warm-start-hypothesis-trust-probes-repair-engagement-run-fourteen","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:14:18.579Z"}
+{"evt":"edge_removed","from":"note:note-mr5g2fekrc3","to":"note:note-mr534gig0ek","kind":"context","actor":"overlay-sync","ts":"2026-07-03T23:14:18.579Z"}
